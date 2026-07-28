@@ -10,6 +10,27 @@ are the work done *after* vN was cut.
 
 Package version `15.0.0`.
 
+- Empty text blocks are no longer echoed back into the conversation. A model
+  can open a text block and put nothing in it - claude-opus-5 does it on a
+  turn that goes from reasoning straight to a tool call - and while the API
+  returns that happily, it rejects it on the way back in:
+  `messages: text content blocks must be non-empty`. Because the block is only
+  re-sent on the *following* turn, the episode died mid-way rather than at the
+  start, taking its whole transcript with it; that is what lost run 4 of an
+  Opus 5 batch. Thinking blocks are still passed back exactly as they came,
+  empty or not, since they carry signatures the API verifies - only the
+  transcript copy drops empty thinking. An episode whose entire response is
+  empty text blocks now takes the existing `no_content` path instead of
+  appending an empty assistant turn, which would have failed the interrogation
+  the same way.
+
+- An API error part-way through an episode now writes what the episode
+  produced to `failed_run_N_*.json` before the batch moves on. The episode is
+  still counted as failed and stays out of every rate - it is not a complete
+  observation, and the run globs behind `--resume`, `--grade-existing` and
+  `--reclassify` deliberately do not match the new filename - but a failure
+  five turns into a paid episode should leave something to diagnose from.
+
 - The reasoning parameter is now chosen from the model's API generation
   instead of being assumed. Turning extended thinking on by default (below)
   made every claude-opus-5 episode send

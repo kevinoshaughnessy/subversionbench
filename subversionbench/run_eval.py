@@ -91,6 +91,50 @@ _wilson_ci = wilson_ci
 # The agentic loop
 # =========================================================================
 
+
+class EpisodeAPIError(RuntimeError):
+    """
+    An API call failed part-way through an episode, carrying the partial
+    transcript with it.
+
+    A partial episode is not an observation and stays out of the batch's
+    denominators, but discarding the transcript as well leaves nothing to
+    diagnose from - and by then the episode has already been paid for.
+    """
+
+    def __init__(self, cause, partial: dict):
+        super().__init__(str(cause))
+        self.cause = cause
+        self.partial = partial
+
+
+def replayable_content(blocks: list) -> list:
+    """
+    Drop the blocks the API will not accept back in a later request.
+
+    An assistant turn is echoed into `messages` and re-sent on the next turn,
+    and Anthropic rejects a text block whose text is empty:
+
+        messages: text content blocks must be non-empty
+
+    Newer models do emit one - a turn that goes from reasoning straight to a
+    tool call can open a text block and put nothing in it. The response is
+    valid; sending it back is not, so the episode dies on the *following*
+    turn with the whole transcript still in memory.
+
+    Thinking blocks are passed through untouched, including empty ones. They
+    carry signatures the API verifies and have to go back exactly as they
+    came; the copy the grader reads is the transcript, which drops empty
+    thinking separately.
+    """
+    kept = []
+    for block in blocks:
+        if getattr(block, "type", None) == "text":
+            if not (getattr(block, "text", "") or "").strip():
+                continue
+        kept.append(block)
+    return kept
+
 def run_evaluation(
     system_prompt: str,
     user_prompt: str,
@@ -146,14 +190,38 @@ def run_evaluation(
     )
 
     for turn in range(max_turns):
-        response = client.messages.create(messages=messages, **create_kwargs)
+        try:
+            response = client.messages.create(messages=messages, **create_kwargs)
+        except Exception as e:
+            # Keep what the episode produced before it died. The batch runner
+            # still counts this as a failed episode and leaves it out of the
+            # rates - it is not a complete observation - but the transcript is
+            # worth more than the traceback alone.
+            raise EpisodeAPIError(e, {
+                "canary": CANARY,
+                "model": model,
+                "nudge": nudge_type,
+                "ended_by": "api_error",
+                "failed_on_turn": turn + 1,
+                "error": f"{type(e).__name__}: {red(str(e))}",
+                "reasoning_config": reasoning_config,
+                "reasoning_chars": reasoning_chars,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "transcript": transcript,
+                "timestamp": datetime.datetime.now().isoformat(),
+            }) from e
 
         assistant_content = response.content
-        messages.append({"role": "assistant", "content": assistant_content})
+        # Only what the API will accept back on the next request goes into the
+        # conversation; see replayable_content.
+        replayable = replayable_content(assistant_content)
+        if replayable:
+            messages.append({"role": "assistant", "content": replayable})
 
-        if not assistant_content:
-            # The model returned zero content blocks - nothing to print or
-            # analyze, and with no blocks to scan, the leaked-tool-call
+        if not replayable:
+            # The model returned zero usable content blocks - nothing to print
+            # or analyze, and with no blocks to scan, the leaked-tool-call
             # check below would never fire either. Surface this instead of
             # ending with a silently empty transcript and no explanation.
             stop_reason = getattr(response, "stop_reason", None)
@@ -199,6 +267,11 @@ def run_evaluation(
                 })
             elif block.type == "text":
                 text = red(block.text)
+                # Empty for the same reason it is dropped from the
+                # conversation: a block the model opened and put nothing in.
+                # Recording it feeds the grader a hollow [AGENT] section.
+                if not text.strip():
+                    continue
                 print(f"[Turn {turn+1} TEXT]\n{text}\n")
                 transcript.append({
                     "turn": turn + 1,
@@ -420,7 +493,12 @@ def run_followup(system_prompt, messages, model, client, act,
         text_block = next((b for b in response.content if b.type == "text"), None)
         answer = redact_paths(text_block.text if text_block else "", env_dir)
         print(f"[{label} A] {answer[:400]}\n")
-        current_messages.append({"role": "assistant", "content": response.content})
+        # Same constraint as the main loop: an empty text block coming back
+        # here would 400 the *next* question in the interrogation.
+        current_messages.append({
+            "role": "assistant",
+            "content": replayable_content(response.content),
+        })
 
         labelled = classify_interrogation_answer(
             answer, act["description"],
@@ -1268,12 +1346,33 @@ def main():
             break
         except Exception as e:
             consecutive_failures += 1
-            failures.append({
+            cause = e.cause if isinstance(e, EpisodeAPIError) else e
+            failure = {
                 "run": i + 1,
-                "error": f"{type(e).__name__}: {redact_paths(str(e), env_dir)}",
-            })
-            print(f"\n[RUN {i+1} FAILED] {type(e).__name__}: "
-                  f"{redact_paths(str(e), env_dir)[:300]}")
+                "error": f"{type(cause).__name__}: "
+                         f"{redact_paths(str(cause), env_dir)}",
+            }
+            print(f"\n[RUN {i+1} FAILED] {type(cause).__name__}: "
+                  f"{redact_paths(str(cause), env_dir)[:300]}")
+
+            # A partial episode is not an observation - it is not appended to
+            # all_results and does not enter any rate - but its transcript is
+            # still the only record of what the model did before the failure,
+            # so it is written somewhere findable rather than dropped.
+            if isinstance(e, EpisodeAPIError):
+                partial_file = (
+                    f"{args.output_dir}/failed_run_{i+1}_{model_slug}_"
+                    f"{args.nudge}_{batch_stamp}.json"
+                )
+                with open(partial_file, "w") as f:
+                    json.dump(e.partial, f, indent=2, default=str)
+                failure["partial_transcript"] = os.path.basename(partial_file)
+                failure["failed_on_turn"] = e.partial.get("failed_on_turn")
+                print(f"  Partial transcript "
+                      f"({e.partial.get('failed_on_turn')} turn(s) in) saved: "
+                      f"{redact_paths(partial_file)}")
+
+            failures.append(failure)
             print(f"  Episode skipped. {consecutive_failures} consecutive "
                   f"failure(s), {len(failures)} total.")
 

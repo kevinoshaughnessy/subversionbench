@@ -667,3 +667,148 @@ class TestThinkingBudget:
         # What was actually sent, so a reader can tell "the model produced no
         # reasoning" from "the eval never asked for any".
         assert "adaptive" in summary["reasoning_config"]
+
+
+class TestEmptyTextBlocksAreNotEchoedBack:
+    """A text block the model opened and left empty is a valid response but an
+    invalid request: Anthropic answers "messages: text content blocks must be
+    non-empty" with a 400. Because the offending block is only re-sent on the
+    *following* turn, the episode dies mid-way with its whole transcript in
+    memory - which is how run 4 of an Opus 5 batch was lost."""
+
+    def blk(self, **kw):
+        return types.SimpleNamespace(**kw)
+
+    def test_empty_text_is_dropped_from_the_conversation(self):
+        kept = ev_run.replayable_content([
+            self.blk(type="text", text=""),
+            self.blk(type="text", text="   "),
+            self.blk(type="text", text="real"),
+            self.blk(type="tool_use", id="t1", name="bash", input={}),
+        ])
+        assert [b.type for b in kept] == ["text", "tool_use"]
+        assert kept[0].text == "real"
+
+    def test_thinking_blocks_are_passed_back_untouched(self):
+        """They carry signatures the API verifies, so even an empty one has to
+        go back exactly as it came - unlike the transcript copy, which drops
+        empty thinking for the grader's sake."""
+        blocks = [
+            self.blk(type="thinking", thinking=""),
+            self.blk(type="redacted_thinking", data="x"),
+        ]
+        assert ev_run.replayable_content(blocks) == blocks
+
+    def test_an_episode_survives_a_model_that_emits_one(self):
+        """End to end against a client as strict as the real API."""
+        out = tempfile.mkdtemp()
+        blk = self.blk
+
+        class Messages:
+            def __init__(self):
+                self.turn = 0
+
+            def create(self, messages=None, **kw):
+                for m in messages:
+                    if isinstance(m.get("content"), list):
+                        for b in m["content"]:
+                            if (getattr(b, "type", None) == "text"
+                                    and not getattr(b, "text", "").strip()):
+                                raise RuntimeError(
+                                    "400 messages: text content blocks must "
+                                    "be non-empty")
+                if "tools" not in kw:
+                    return blk(stop_reason="end_turn",
+                               content=[blk(type="text", text="no")])
+                self.turn += 1
+                if self.turn == 1:
+                    # Reasoning, an empty text block, then a tool call - what
+                    # Opus 5 actually returned.
+                    return blk(stop_reason="tool_use", content=[
+                        blk(type="thinking", thinking="Checking the config."),
+                        blk(type="text", text=""),
+                        blk(type="tool_use", id="t1", name="bash",
+                            input={"cmd": "ls"})])
+                return blk(stop_reason="end_turn", content=[
+                    blk(type="text", text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original, original_argv = ev_run.get_client, sys.argv
+        ev_run.get_client = lambda m: Client()
+        sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
+                    "--delay", "0", "--no-grader", "--output-dir", out]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as buf:
+                ev_run.main()
+        finally:
+            ev_run.get_client, sys.argv = original, original_argv
+
+        assert "FAILED" not in buf.getvalue()
+        run_files = glob.glob(f"{out}/run_1_*.json")
+        assert run_files, "the episode should have completed and been saved"
+        data = json.loads(Path(run_files[0]).read_text())
+        assert data["ended_by"] == "model_stopped"
+        # The empty block is not recorded either - it would feed the grader a
+        # hollow [AGENT] section.
+        assert all(e["content"].strip()
+                   for e in data["transcript"] if e["type"] == "text")
+
+
+class TestPartialTranscriptSurvivesAnAPIError:
+    """An episode is 5-20 model calls plus grading; losing all of it to one
+    unretryable error leaves nothing to diagnose from and nothing to show for
+    what was already spent."""
+
+    def test_the_transcript_is_written_and_kept_out_of_the_rates(self):
+        out = tempfile.mkdtemp()
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            def __init__(self):
+                self.turn = 0
+
+            def create(self, messages=None, **kw):
+                if "tools" not in kw:
+                    return blk(stop_reason="end_turn",
+                               content=[blk(type="text", text="no")])
+                self.turn += 1
+                if self.turn == 2:
+                    raise RuntimeError("overloaded_error: server overloaded")
+                return blk(stop_reason="tool_use", content=[
+                    blk(type="text", text="Looking around."),
+                    blk(type="tool_use", id="t1", name="bash",
+                        input={"cmd": "ls"})])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original, original_argv = ev_run.get_client, sys.argv
+        ev_run.get_client = lambda m: Client()
+        sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
+                    "--delay", "0", "--no-grader", "--output-dir", out]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                ev_run.main()
+        finally:
+            ev_run.get_client, sys.argv = original, original_argv
+
+        partials = glob.glob(f"{out}/failed_run_1_*.json")
+        assert partials, "the partial transcript should have been saved"
+        data = json.loads(Path(partials[0]).read_text())
+        assert data["ended_by"] == "api_error"
+        assert data["failed_on_turn"] == 2
+        assert "overloaded_error" in data["error"]
+        assert data["transcript"], "work done before the failure is preserved"
+        assert "canary" in data
+
+        # A partial episode is not an observation: it must not be picked up as
+        # a completed run by --resume, --grade-existing or --reclassify.
+        assert not glob.glob(f"{out}/run_1_*.json")
+        stamp = Path(partials[0]).stem.split("_")[-1]
+        assert ev_run.find_run_files_by_stamp(out, stamp) == []
