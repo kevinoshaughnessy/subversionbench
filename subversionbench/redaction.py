@@ -13,6 +13,7 @@ in and what the ground-truth hash check reads, so redaction cannot change
 what the eval measures.
 """
 
+import functools
 import getpass
 import os
 import re
@@ -20,6 +21,22 @@ import tempfile
 from pathlib import Path
 
 from .config import OPERATOR_DISPLAY_NAME, SANDBOX_DISPLAY_PATH
+
+
+def _operator_username():
+    """
+    The OS username, or None if we shouldn't try to redact it.
+
+    Very short usernames are skipped: too likely to appear inside unrelated
+    output.
+    """
+    try:
+        username = getpass.getuser().strip()
+    except Exception:
+        # No passwd entry and no USER/LOGNAME set - nothing to redact.
+        return None
+
+    return username if len(username) >= 3 else None
 
 
 def _username_pattern():
@@ -32,22 +49,46 @@ def _username_pattern():
 
     Case-sensitive and word-bounded on purpose. The scenario text contains
     ordinary first names, and an operator whose username collided with one
-    would otherwise have their transcripts rewritten mid-sentence. Very short usernames are skipped for the same
-    reason: too likely to appear inside unrelated output.
+    would otherwise have their transcripts rewritten mid-sentence.
     """
-    try:
-        username = getpass.getuser().strip()
-    except Exception:
-        # No passwd entry and no USER/LOGNAME set - nothing to redact.
-        return None
-
-    if len(username) < 3:
+    username = _operator_username()
+    if username is None:
         return None
 
     return re.compile(rf'(?<![\w.-]){re.escape(username)}(?![\w.-])')
 
 
+_USERNAME = _operator_username()
 _USERNAME_RE = _username_pattern()
+
+
+# The gap between two characters of one string in a character dump: runs of
+# spaces on the same line, or a line break - which for `od` is followed by its
+# offset column before the characters resume.
+_DUMP_GAP = (
+    r'(?:[ \t]+|[ \t]*\r?\n[ \t]*(?:[0-9a-fA-F]{4,10}[ \t]+)?)'
+)
+
+
+@functools.lru_cache(maxsize=64)
+def _dump_spread_re(literal: str, word_bounded: bool):
+    """
+    Match `literal` spelled one character per column, as `od -c` prints it.
+
+    A literal replacement cannot see a path in that form, so one reached a
+    saved v15 transcript spelled
+    "/   p   r   i   v   a   t   e   /   v   a   r   /   f   o   l   d   e   r
+    s", complete with the octal offset column wrapping it across lines.
+
+    Whitespace is required between *every* character, which is what keeps this
+    off ordinary prose: with a username of "kevin", "take vintage" contains
+    "ke vin" but not "k e v i n". Cached because the patterns are rebuilt for
+    every redacted string and only change with the host.
+    """
+    body = _DUMP_GAP.join(re.escape(char) for char in literal)
+    if word_bounded:
+        body = rf'(?<![\w.-]){body}(?![\w.-])'
+    return re.compile(body)
 
 
 def _variants(path: str) -> list:
@@ -100,11 +141,21 @@ def redact_paths(text, env_dir: str = None):
     if not isinstance(text, str) or not text:
         return text
 
-    for real_path, placeholder in path_substitutions(env_dir):
+    pairs = path_substitutions(env_dir)
+
+    for real_path, placeholder in pairs:
         text = text.replace(real_path, placeholder)
+
+    # `od -c`, `hexdump -c` and `fold -w1` print one character per column, so
+    # a path in their output is not the literal string the pass above looks
+    # for. Longest first, like the pass above, so a nested directory is
+    # rewritten before its parent.
+    for real_path, placeholder in pairs:
+        text = _dump_spread_re(real_path, False).sub(placeholder, text)
 
     # After the paths, so that a username inside one has already gone with it.
     if _USERNAME_RE is not None:
         text = _USERNAME_RE.sub(OPERATOR_DISPLAY_NAME, text)
+        text = _dump_spread_re(_USERNAME, True).sub(OPERATOR_DISPLAY_NAME, text)
 
     return text

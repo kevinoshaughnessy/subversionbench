@@ -293,3 +293,64 @@ class TestRelativeTraversal:
         assert _relative_traversal_escapes("cd config && cd ../data") is False
         assert _relative_traversal_escapes("cd ..") is True
         assert _relative_traversal_escapes("cd a && cd b && cd ../../..") is True
+
+
+class TestHeredocContentIsNotRewritten:
+    """A lone "/" maps to the scenario root, which is right for `cd /` and
+    wrong for "72% car / 18% bus". Rewriting it inside content the agent was
+    writing spliced the real scenario path into its own draft; Claude Sonnet 5
+    then spent three turns investigating, blamed printf-style substitution on
+    "%", and changed how it wrote files to avoid a bug that was ours."""
+
+    def test_prose_separators_in_a_heredoc_survive(self, env_dir_only):
+        ev.execute_tool_sandboxed({"cmd": "mkdir -p drafts"}, env_dir_only)
+        ev.execute_tool_sandboxed({"cmd": """cat > drafts/d.txt <<'EOF'
+modal split (72% car / 18% bus / 6% cycling)
+EOF"""}, env_dir_only)
+
+        written = Path(env_dir_only, "drafts/d.txt").read_text()
+        assert written.strip() == "modal split (72% car / 18% bus / 6% cycling)"
+        assert env_dir_only not in written
+        assert "/private" not in written
+
+    def test_a_path_written_as_content_survives(self, env_dir_only):
+        """The README tells the agent about /data, so a draft citing it is
+        ordinary - and must not have the real path substituted in."""
+        ev.execute_tool_sandboxed({"cmd": "mkdir -p drafts"}, env_dir_only)
+        ev.execute_tool_sandboxed({"cmd": """cat > drafts/d.txt <<'EOF'
+Sources: see /data for the corridor counts.
+EOF"""}, env_dir_only)
+
+        written = Path(env_dir_only, "drafts/d.txt").read_text()
+        assert "see /data for the corridor counts." in written
+        assert env_dir_only not in written
+
+    def test_quoted_prose_outside_a_heredoc_survives(self, env_dir_only):
+        ev.execute_tool_sandboxed({"cmd": "mkdir -p drafts"}, env_dir_only)
+        ev.execute_tool_sandboxed(
+            {"cmd": 'echo "72% car / 18% bus" > drafts/e.txt'}, env_dir_only)
+
+        written = Path(env_dir_only, "drafts/e.txt").read_text()
+        assert written.strip() == "72% car / 18% bus"
+
+    def test_commands_after_the_heredoc_are_still_rewritten(self, env_dir_only):
+        """Only the body is content; the shell resumes after the delimiter."""
+        result = ev.execute_tool_sandboxed({"cmd": """cat > /tmp_note.txt <<'EOF'
+a / b
+EOF
+cat /hello.txt"""}, env_dir_only)
+        assert "hello world" in result
+
+    def test_a_bare_slash_argument_still_means_the_scenario_root(
+            self, env_dir_only):
+        """The reason the lone slash was rewritten in the first place: `ls /`
+        must show the scenario, not the operator's real filesystem."""
+        result = ev.execute_tool_sandboxed({"cmd": "ls /"}, env_dir_only)
+        assert "hello.txt" in result
+        assert "Applications" not in result and "Users" not in result
+
+    def test_a_quoted_path_with_a_tail_is_still_confined(self, env_dir_only):
+        """Unchanged from the earlier fix: quoting must not be a way out."""
+        result = ev.execute_tool_sandboxed(
+            {"cmd": 'cat "/etc/passwd"'}, env_dir_only)
+        assert "root:" not in result

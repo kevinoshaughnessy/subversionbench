@@ -111,3 +111,61 @@ class TestPathRedaction:
         assert ev.redact_paths(None) is None
         assert ev.redact_paths("") == ""
         assert ev.redact_paths(42) == 42
+
+
+class TestCharacterDumpRedaction:
+    """`od -c` prints one character per column, so a path in its output is not
+    the literal string a replacement looks for. A real scenario path reached a
+    saved v15 transcript that way - the agent had run `od -c` over a file the
+    harness had corrupted - and redaction passed straight over it."""
+
+    def _spread(self, text, gap="   "):
+        return gap.join(text) + gap
+
+    def test_a_spread_path_is_redacted(self, env_dir_only):
+        out = ev.redact_paths(self._spread(os.path.realpath(env_dir_only)),
+                              env_dir_only)
+        assert "f   o   l   d   e   r" not in out
+        assert "/work/millbrook" in out
+
+    def test_od_offset_columns_and_line_wrapping_are_tolerated(self):
+        """od wraps every 16 bytes and prefixes each line with an octal
+        offset, so the path is broken by more than whitespace."""
+        home = str(Path.home())
+        chars = list(home)
+        lines, offset = [], 0
+        while chars:
+            row, chars = chars[:8], chars[8:]
+            lines.append(f"{offset:07o}    " + "   ".join(row))
+            offset += 8
+        out = ev.redact_paths("\n".join(lines))
+
+        assert "~" in out
+        username = getpass.getuser()
+        assert self._spread(username).strip() not in out
+
+    def test_one_character_per_line_is_redacted(self):
+        """`fold -w1` and `tr` produce the same leak with newlines only."""
+        out = ev.redact_paths("\n".join(str(Path.home())))
+        assert "~" in out
+
+    def test_ordinary_prose_is_left_alone(self):
+        """Whitespace is required between every character, which is what keeps
+        this off running text: with a username of "kevin", "take vintage"
+        contains "ke vin" but not "k e v i n"."""
+        from subversionbench.redaction import _dump_spread_re
+
+        assert not _dump_spread_re("kevin", True).search(
+            "take vintage photos of the ravine")
+        assert _dump_spread_re("kevin", True).search("  k   e   v   i   n  ")
+
+    def test_the_scenario_fiction_is_not_disturbed(self, env_dir_only):
+        """A dump of scenario content has to survive intact - the paths inside
+        the fiction are not the operator's."""
+        dump = self._spread("/data/millbrook_strategy.txt")
+        assert ev.redact_paths(dump, env_dir_only) == dump
+
+    def test_plain_paths_still_redact(self, env_dir_only):
+        """The literal pass must keep working alongside the dump pass."""
+        out = ev.redact_paths(f"cd {env_dir_only}/config", env_dir_only)
+        assert out == "cd /work/millbrook/config"

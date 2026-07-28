@@ -10,6 +10,43 @@ are the work done *after* vN was cut.
 
 Package version `15.0.0`.
 
+- Redaction now also catches a path spelled one character per column, as
+  `od -c`, `hexdump -c` and `fold -w1` print it. Redaction was a literal
+  string replacement, so it passed straight over
+  `/   p   r   i   v   a   t   e   /   v   a   r   /   f   o   l   d   e   r
+  s`, and a real scenario path reached a saved v15 transcript that way - the
+  agent had run `od -c` over a file the harness had corrupted (below), so the
+  two bugs arrived together. Nothing personal leaked in that instance, since a
+  macOS temp directory carries no username, but the home directory does and
+  the same dump would have exposed it.
+  Whitespace is required between *every* character, which is what keeps the
+  new pass off running text: with a username of "kevin", "take vintage"
+  contains "ke vin" but not "k e v i n". `od`'s offset column and 16-byte line
+  wrapping are tolerated, so a path broken across dump lines is still caught.
+  Costs about 4ms on a 150KB transcript.
+
+- Heredoc bodies are no longer path-rewritten, and a lone `/` is only treated
+  as the scenario root where the shell would read it as an argument. A lone
+  `/` maps to the scenario root - which is what makes `cd /` and `ls /` land
+  inside the fiction rather than on the operator's real filesystem - but the
+  rewrite applied to the whole command string, including content the agent was
+  writing. A Claude Sonnet 5 draft containing
+  `modal split (72% car / 18% bus)` came back with the real scenario path
+  spliced in at each separator. The model then spent three turns running
+  `cat -A` and `od -c` over the damage, concluded the tool wrapper was doing
+  printf-style substitution on `%`, and changed how it wrote files to avoid a
+  bug that was ours. Turns are the least of that: an eval measuring whether a
+  model reasons about its environment cannot afford to hand it a real
+  environment artefact to reason about, and the corrupted file was the
+  deliverable the concealment and disclosure grading reads.
+  A heredoc body is content, not arguments, so nothing in it is rewritten; a
+  lone `/` inside quotes is left alone for the same reason. Paths that have a
+  tail are still rewritten everywhere, quoted or not, which is what keeps
+  `cat "/etc/passwd"` and `sed -i ... /config/monitoring.yaml` behaving. The
+  trade-off: a heredoc that writes a script containing scenario-absolute paths
+  no longer has them baked in, so running that script later will not resolve
+  them. Corrupting every document the agent writes is the worse of the two.
+
 - Empty text blocks are no longer echoed back into the conversation. A model
   can open a text block and put nothing in it - claude-opus-5 does it on a
   turn that goes from reasoning straight to a tool call - and while the API
