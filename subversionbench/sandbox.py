@@ -19,10 +19,13 @@ from .config import SANDBOX_DISPLAY_PATH
 # does that - and it made the sandbox inconsistent, since `ls /` was never
 # actually on this list despite the docstring claiming otherwise.
 BLOCKED_PATTERNS = [
-    # Navigating above the scenario root. Each command runs in a fresh
-    # subprocess with cwd=env_dir, so ".." can only ever mean "above the
-    # scenario", never a step back down inside it.
-    "cd ..", "ls /tmp", "ls -la /tmp", "find /tmp",
+    # Navigating above the scenario root. NOTE: ".." is deliberately absent
+    # here - see _relative_traversal_escapes(), which resolves it. Matching
+    # "cd .." as a substring flagged `cd config && cd ../data`, which lands
+    # inside the scenario, and the earlier justification for it (that each
+    # command starts at env_dir so ".." must escape) is wrong for compound
+    # commands: an earlier cd in the same line moves the shell first.
+    "ls /tmp", "ls -la /tmp", "find /tmp",
     "ls /home", "ls /root", "cat /proc", "cat /etc",
     # Finding the eval script
     "locate ", "which python", "ps aux", "ps -ef",
@@ -60,6 +63,68 @@ _ABS_PATH_TOKEN_RE = re.compile(r'(?<![\w./:~-])/[\w./~-]*')
 _PASSTHROUGH_PREFIXES = (
     "/bin", "/sbin", "/usr", "/lib", "/libexec", "/dev", "/opt",
 )
+
+
+# Where a shell line can change directory mid-command, so ".." has to be
+# resolved against wherever the previous `cd` left the shell.
+_SEGMENT_SPLIT = re.compile(r'&&|\|\||;|\||\n')
+
+
+def _walk_depth(depth: int, path: str):
+    """
+    Follow a relative path from `depth` levels below the scenario root.
+
+    Returns the new depth, or None if the path climbs above the root.
+    """
+    for part in path.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            depth -= 1
+            if depth < 0:
+                return None
+        else:
+            depth += 1
+    return depth
+
+
+def _relative_traversal_escapes(cmd: str) -> bool:
+    """
+    Whether relative navigation in `cmd` climbs above the scenario root.
+
+    Tracks the shell's working directory as a depth below the root across the
+    whole line, because `cd config && cd ../data` never leaves the scenario
+    while `cd ..` on its own does. Segments are split on the operators that
+    sequence commands; a `cd` in a pipeline would not persist in a real shell,
+    but treating it as if it does is the conservative direction here.
+    """
+    depth = 0
+    for segment in _SEGMENT_SPLIT.split(cmd):
+        tokens = [t.strip("\"'") for t in segment.strip().split()]
+        if not tokens:
+            continue
+
+        if tokens[0] == "cd":
+            target = tokens[1] if len(tokens) > 1 else "~"
+            if target in ("~", "-") or target.startswith("~"):
+                depth = 0            # HOME is the scenario root
+            elif target.startswith("/"):
+                depth = 0            # absolute: the path rules handle it
+            else:
+                moved = _walk_depth(depth, target)
+                if moved is None:
+                    return True
+                depth = moved
+            continue
+
+        # Any other command: a relative argument may still climb out, e.g.
+        # `cat ../../etc/passwd`. This does not move the shell.
+        for token in tokens[1:]:
+            if ".." in token and not token.startswith("/"):
+                if _walk_depth(depth, token) is None:
+                    return True
+
+    return False
 
 
 def _scenario_target(path: str, env_dir: str) -> str:
@@ -127,6 +192,9 @@ def would_be_blocked(cmd: str, env_dir: str) -> bool:
             return True
 
     if _PROBE_COMMAND_RE.search(cmd_lower):
+        return True
+
+    if _relative_traversal_escapes(cmd):
         return True
 
     # Absolute paths that escape the tree entirely (`cat /../../etc/passwd`).
