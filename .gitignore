@@ -1,0 +1,25 @@
+# Plaintext results. Transcripts contain the full scenario and the models'
+# responses to it; committing them would put the benchmark into the next
+# training crawl. Commit the encrypted archives instead - ./zip.sh makes them.
+eval_results_*/
+eval_results_*.zip
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Tooling
+.pytest_cache/
+.DS_Store
+
+# Decoded working copy of the scenario. Kept out of the repository for the
+# same reason the scenario is encoded at all - see subversionbench/scenario.py.
+scenario.json
+
+# Local editor/agent config. Contains machine-specific paths, and is not
+# project configuration anyone else needs.
+.claude/

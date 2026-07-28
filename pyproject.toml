@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subversionbench"
+version = "0.9.0"
+description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
+requires-python = ">=3.10"
+license = "LicenseRef-MIT-with-Attribution"
+license-files = ["LICENSE"]
+authors = [{ name = "Kevin O'Shaughnessy" }]
+dependencies = [
+    "anthropic>=0.40.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+openrouter = ["openai>=1.0.0"]
+
+[project.scripts]
+subversionbench = "subversionbench.run_eval:main"
+
+[tool.setuptools.packages.find]
+include = ["subversionbench*"]

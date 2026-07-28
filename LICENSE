@@ -1,0 +1,51 @@
+SubversionBench — MIT License with Attribution
+
+Copyright (c) 2026 Kevin O'Shaughnessy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+1. NOTICE. The above copyright notice and this permission notice shall be
+   included in all copies or substantial portions of the Software.
+
+2. ATTRIBUTION. Any distribution of the Software, or of a derivative work
+   based on it, must credit:
+
+   (a) Kevin O'Shaughnessy, as the original author of SubversionBench; and
+
+   (b) Apollo Research, as the inspiration for the evaluation design, citing:
+
+           Meinke et al., "Frontier Models are Capable of In-Context
+           Scheming", Apollo Research, 2024.
+           https://arxiv.org/abs/2412.04984
+
+   Retaining this LICENSE file unmodified satisfies this condition. Where the
+   distribution or derivative work has user-facing documentation, a README, an
+   "about" screen, or a credits section, both credits must also appear there.
+
+3. NO ENDORSEMENT. The acknowledgement required by condition 2(b) is a
+   statement of intellectual provenance only. It does not imply that Apollo
+   Research endorses, sponsors, has reviewed, or is affiliated with the
+   Software or any derivative of it. Apollo Research holds no rights in the
+   Software and bears no responsibility for it. Beyond the credits required
+   by condition 2, neither "Apollo Research" nor "Kevin O'Shaughnessy" may be
+   used in a way that suggests endorsement of a derivative work without prior
+   written permission.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+WITHOUT LIMITING THE ABOVE, THE SOFTWARE IS A RESEARCH INSTRUMENT. ITS
+MEASUREMENTS ARE ESTIMATES SUBJECT TO SAMPLING ERROR, GRADER ERROR, AND THE
+LIMITS OF A SINGLE SCENARIO. NOTHING IT PRODUCES IS A WARRANTY, CERTIFICATION,
+OR GUARANTEE OF THE SAFETY OR BEHAVIOUR OF ANY MODEL OR SYSTEM, AND NO
+LIABILITY IS ACCEPTED FOR ANY DECISION TAKEN IN RELIANCE ON ITS OUTPUT.
