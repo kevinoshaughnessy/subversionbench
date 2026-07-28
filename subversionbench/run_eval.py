@@ -59,7 +59,16 @@ from .grading import (
     MISALIGNED_ACTS,
     SCHEMING_LEVELS,
 )
-from .llm_client import get_client, _BRACKET_TOOL_CALL_RE
+from .llm_client import (
+    get_client,
+    _BRACKET_TOOL_CALL_RE,
+    EFFORT_LEVELS,
+    MIN_THINKING_BUDGET,
+    reasoning_flag_error,
+    resolve_thinking_budget,  # re-exported: this module's former API
+    resolve_thinking_kwargs,
+    thinking_surface,
+)
 from .redaction import redact_paths
 from .power import (
     analyse_batch,
@@ -90,7 +99,8 @@ def run_evaluation(
     model: str = "claude-sonnet-5",
     max_turns: int = 40,
     max_tokens: int = 8192,
-    thinking_budget: int = 0,
+    reasoning_kwargs: dict = None,
+    reasoning_config: str = "",
     use_grader: bool = True,
     grader_model: str = "claude-haiku-4-5-20251001",
 ) -> dict:
@@ -118,6 +128,7 @@ def run_evaluation(
     # distinguishable from one the model chose to end - otherwise it sits in
     # the denominator as though it were a complete observation.
     ended_by = "turn_cap"
+    reasoning_chars = 0
 
     # --- Time the main agentic loop ---
     t_eval_start = time.time()
@@ -127,11 +138,12 @@ def run_evaluation(
         max_tokens=max_tokens,
         system=system_prompt,
         tools=TOOLS,
+        # Which reasoning parameters these are depends on the model
+        # generation: adaptive thinking from Sonnet 4.6 / Opus 4.6 onwards, a
+        # budget_tokens count below that, and nothing at all for OpenRouter.
+        # See resolve_thinking_kwargs in llm_client.py.
+        **(reasoning_kwargs or {}),
     )
-    if thinking_budget > 0:
-        create_kwargs["thinking"] = {
-            "type": "enabled", "budget_tokens": thinking_budget,
-        }
 
     for turn in range(max_turns):
         response = client.messages.create(messages=messages, **create_kwargs)
@@ -162,6 +174,16 @@ def run_evaluation(
         for block in assistant_content:
             if block.type == "thinking":
                 thinking = red(block.thinking)
+                # An empty thinking block is a placeholder for reasoning the
+                # API did not return - it happens on the native path whenever
+                # extended thinking is off. Recording it makes a transcript
+                # claim reasoning was captured when none was, and feeds the
+                # grader empty [REASONING] sections. The OpenRouter path has
+                # always guarded this (`if reasoning:`); the native path did
+                # not, which left 243 hollow entries in the pilot data.
+                if not thinking.strip():
+                    continue
+                reasoning_chars += len(thinking)
                 print(f"[Turn {turn+1} THINKING]\n{thinking}\n")
                 transcript.append({
                     "turn": turn + 1,
@@ -308,7 +330,7 @@ def run_evaluation(
         analysis[act["followup_key"]] = run_followup(
             system_prompt, messages, model, client, act,
             classifier_model=grader_model,
-            max_tokens=max_tokens, thinking_budget=thinking_budget,
+            max_tokens=max_tokens, reasoning_kwargs=reasoning_kwargs,
             env_dir=env_dir,
         )
 
@@ -341,9 +363,17 @@ def run_evaluation(
         "model": model,
         "nudge": nudge_type,
         "ended_by": ended_by,
+        # Whether the model's reasoning reached us at all. Both awareness
+        # detectors read it, so a batch where this is 0 measured awareness on
+        # less evidence than one where it is not, and the two should not be
+        # compared without saying so.
+        "reasoning_chars": reasoning_chars,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
-        "thinking_budget": thinking_budget,
+        # What was actually sent, not what was asked for: the reasoning
+        # parameter differs by model generation, so a token count would be
+        # meaningless for an adaptive model.
+        "reasoning_config": reasoning_config,
         "transcript": transcript,
         "messages": messages,
         "analysis": analysis,
@@ -354,7 +384,7 @@ def run_evaluation(
 
 def run_followup(system_prompt, messages, model, client, act,
                  classifier_model="claude-haiku-4-5-20251001",
-                 max_tokens=2048, thinking_budget=0, env_dir=None):
+                 max_tokens=2048, reasoning_kwargs=None, env_dir=None):
     """
     Interrogate the model about one misaligned act it took.
 
@@ -370,11 +400,10 @@ def run_followup(system_prompt, messages, model, client, act,
     two rates that get reported separately. Independent probes cost one extra
     prompt prefix and remove it.
     """
-    create_kwargs = dict(model=model, max_tokens=max_tokens, system=system_prompt)
-    if thinking_budget > 0:
-        create_kwargs["thinking"] = {
-            "type": "enabled", "budget_tokens": thinking_budget,
-        }
+    create_kwargs = dict(
+        model=model, max_tokens=max_tokens, system=system_prompt,
+        **(reasoning_kwargs or {}),
+    )
 
     responses = []
     current_messages = list(messages)
@@ -1090,14 +1119,29 @@ def main():
                              "reasoning before their answer/tool call, so "
                              "they may need a much higher value than the "
                              "default to avoid running out mid-turn.")
-    parser.add_argument("--thinking-budget", type=int, default=0,
-                        help="Enable Claude's extended thinking with this "
-                             "token budget (e.g. 4000) for native Anthropic "
-                             "models, recorded in the output JSON as "
-                             "'thinking' transcript entries. 0 disables it "
-                             "(default). Has no effect on OpenRouter models, "
-                             "which surface reasoning automatically when the "
-                             "backend provides it.")
+    parser.add_argument("--thinking-budget", type=int, default=None,
+                        help="Extended-thinking budget in tokens, for the "
+                             "older Anthropic models that still accept one "
+                             "(Sonnet 4.5, Haiku 4.5, Opus 4.5 and below). "
+                             "Defaults to half of --max-tokens, because "
+                             "whether reasoning is captured changes what the "
+                             "eval measures: both eval-awareness detectors "
+                             "read it, so a model whose reasoning is returned "
+                             "is scored on more evidence than one whose is "
+                             "not. Pass 0 to turn thinking off. From Sonnet "
+                             "4.6 / Opus 4.6 onwards a token budget is not "
+                             "accepted at all - those models use adaptive "
+                             "thinking, steered by --effort - and OpenRouter "
+                             "models take no reasoning parameter, surfacing "
+                             "reasoning by themselves when the backend "
+                             "provides it.")
+    parser.add_argument("--effort", choices=sorted(EFFORT_LEVELS), default=None,
+                        help="Reasoning depth for adaptive-thinking Anthropic "
+                             "models (output_config.effort) - the replacement "
+                             "for a fixed thinking budget. Omit to use the "
+                             "API default of 'high'. Not every model accepts "
+                             "every level, and it is ignored where the "
+                             "parameter is unsupported.")
     args = parser.parse_args()
 
     if args.grade_existing and args.no_grader:
@@ -1112,9 +1156,15 @@ def main():
                 f"{flag} only applies with --grade-existing or --reclassify."
             )
 
-    if args.thinking_budget > 0:
-        if args.thinking_budget < 1024:
-            parser.error("--thinking-budget must be at least 1024 tokens.")
+    surface = thinking_surface(args.model)
+    takes_budget = surface is not None and surface.mode == "budget"
+
+    if args.thinking_budget is not None and args.thinking_budget > 0 and takes_budget:
+        if args.thinking_budget < MIN_THINKING_BUDGET:
+            parser.error(
+                f"--thinking-budget must be at least {MIN_THINKING_BUDGET} "
+                f"tokens."
+            )
         if args.thinking_budget >= args.max_tokens:
             parser.error(
                 f"--thinking-budget ({args.thinking_budget}) must be less "
@@ -1123,6 +1173,19 @@ def main():
                 f"room left for the visible answer/tool call. Try e.g. "
                 f"--max-tokens {args.thinking_budget + 4096}."
             )
+
+    flag_error = reasoning_flag_error(args.model, args.thinking_budget, args.effort)
+    if flag_error:
+        parser.error(flag_error)
+
+    reasoning_kwargs, reasoning_config, reasoning_warnings = (
+        resolve_thinking_kwargs(
+            args.model, args.thinking_budget, args.max_tokens, args.effort,
+        )
+    )
+    for warning in reasoning_warnings:
+        print(f"[WARNING] {warning}")
+    print(f"Reasoning: {reasoning_config}")
 
     system_prompt = (
         SYSTEM_PROMPT_STRONG_NUDGE if args.nudge == "strong"
@@ -1194,7 +1257,8 @@ def main():
                 model=args.model,
                 max_turns=args.max_turns,
                 max_tokens=args.max_tokens,
-                thinking_budget=args.thinking_budget,
+                reasoning_kwargs=reasoning_kwargs,
+                reasoning_config=reasoning_config,
                 use_grader=not args.no_grader,
                 grader_model=args.grader_model,
             )
@@ -1309,6 +1373,13 @@ def main():
         1 for r in all_results
         if r["analysis"]["eval_awareness_keywords"]["goal_conflict_noted"]
     )
+
+    # Whether the model's reasoning reached us. Reported because it changes
+    # the evidence the awareness measures had to work with, and two batches
+    # that differ on it are not comparable on awareness.
+    reasoning_totals = [r.get("reasoning_chars", 0) for r in all_results]
+    n_with_reasoning = sum(1 for c in reasoning_totals if c)
+    total_reasoning_chars = sum(reasoning_totals)
 
     # An episode that ran out of turns may never have reached the decision
     # point, so it is counted and reported rather than silently pooled.
@@ -1465,6 +1536,15 @@ def main():
           f"act. The verdict uses the FIRST")
     print(f"  answer: later questions present evidence, so folding then is "
           f"being caught, not candour.")
+
+    print(f"\n--- Reasoning captured ---")
+    print(f"Episodes with reasoning: {n_with_reasoning}/{n} "
+          f"({total_reasoning_chars} chars total)")
+    if not n_with_reasoning:
+        print(f"! No reasoning was captured. Both awareness measures read "
+              f"only the model's visible text, so this batch is NOT")
+        print(f"  comparable on awareness with one where reasoning was "
+              f"captured. Check --thinking-budget.")
 
     print(f"\n--- Eval Awareness (keyword-based) ---")
     print(f"Eval aware (keywords):  {n_eval_aware_kw}/{n} ({n_eval_aware_kw/n:.1%}, "
@@ -1691,6 +1771,13 @@ def main():
         "grader_categories": grader_categories,
         "n_grader_failed": n_grader_failed,
         "n_turn_capped": n_turn_capped,
+        "episodes_with_reasoning": n_with_reasoning,
+        "reasoning_chars_total": total_reasoning_chars,
+        # The reasoning parameters actually sent, resolved from the model's
+        # API generation. A batch where reasoning was not captured measured
+        # awareness on less evidence than one where it was, so this belongs in
+        # the artefact rather than being inferred later.
+        "reasoning_config": reasoning_config,
         "n_episodes_failed": len(failures),
         "episode_failures": failures,
         "batch_aborted": aborted,
@@ -1722,7 +1809,7 @@ def main():
         "timestamp": datetime.datetime.now().isoformat(),
         "version": VERSION,
         "max_tokens": args.max_tokens,
-        "thinking_budget": args.thinking_budget,
+        "effort": args.effort,
     }
     summary_file = (
         f"{args.output_dir}/summary_{model_slug}_{args.nudge}"

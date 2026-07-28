@@ -541,3 +541,129 @@ class TestReclassifyFailsClosed:
         assert rc == 0
         data = json.loads(path.read_text())
         assert data["analysis"]["followup_response"][0]["verdict_llm"] == "admitted"
+
+
+# =========================================================================
+# Tests: Thinking budget default
+# =========================================================================
+
+class TestThinkingBudget:
+    """Reasoning must be captured without the operator remembering a flag.
+    Whether it is captured changes what the eval measures: both awareness
+    detectors read `thinking`, so a model whose reasoning is returned is
+    scored on strictly more evidence than one whose is not."""
+
+    def test_default_is_on_not_off(self):
+        budget, source = ev_run.resolve_thinking_budget(None, 8192)
+        assert budget == 4096
+        assert "auto" in source
+
+    def test_it_scales_with_max_tokens(self):
+        """A verbose model given more output room should get more reasoning
+        room, rather than a fixed budget that truncates."""
+        assert ev_run.resolve_thinking_budget(None, 16384)[0] == 8192
+        assert ev_run.resolve_thinking_budget(None, 4096)[0] == 2048
+
+    def test_zero_still_disables(self):
+        budget, source = ev_run.resolve_thinking_budget(0, 8192)
+        assert budget == 0
+        assert "disabled" in source
+
+    def test_explicit_value_is_respected(self):
+        budget, source = ev_run.resolve_thinking_budget(4000, 8192)
+        assert budget == 4000
+        assert "explicit" in source
+
+    def test_disabled_when_the_api_floor_cannot_fit(self):
+        """budget_tokens has a floor of 1024 and counts against max_tokens, so
+        below 2048 there is no room for both a minimum budget and an answer."""
+        budget, source = ev_run.resolve_thinking_budget(None, 1024)
+        assert budget == 0
+        assert "no room" in source
+
+    def test_auto_always_leaves_room_for_the_answer(self):
+        for max_tokens in (2048, 4096, 8192, 32000):
+            budget, _ = ev_run.resolve_thinking_budget(None, max_tokens)
+            assert budget < max_tokens
+
+    def test_empty_thinking_blocks_are_not_recorded(self):
+        """An empty block is a placeholder for reasoning the API withheld.
+        Recording it makes a transcript claim reasoning was captured when none
+        was, and feeds the grader hollow [REASONING] sections - 243 such
+        entries appeared in the pilot data."""
+        out = tempfile.mkdtemp()
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            def create(self, messages=None, **kw):
+                if "tools" not in kw:
+                    return blk(stop_reason="end_turn",
+                               content=[blk(type="text", text="no")])
+                return blk(stop_reason="end_turn", content=[
+                    blk(type="thinking", thinking=""),
+                    blk(type="thinking", thinking="   "),
+                    blk(type="thinking", thinking="Real reasoning here."),
+                    blk(type="text", text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original, original_argv = ev_run.get_client, sys.argv
+        ev_run.get_client = lambda m: Client()
+        sys.argv = ["run_eval", "--model", "m", "--runs", "1", "--delay", "0",
+                    "--no-grader", "--output-dir", out]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                ev_run.main()
+        finally:
+            ev_run.get_client, sys.argv = original, original_argv
+
+        data = json.loads(Path(glob.glob(f"{out}/run_1_*.json")[0]).read_text())
+        thinking = [e for e in data["transcript"] if e["type"] == "thinking"]
+        assert len(thinking) == 1, "only the non-empty block should survive"
+        assert thinking[0]["content"] == "Real reasoning here."
+        assert data["reasoning_chars"] == len("Real reasoning here.")
+
+    def test_summary_reports_whether_reasoning_was_captured(self):
+        """Two batches that differ on this are not comparable on awareness, so
+        it has to be visible in the artefact rather than inferred."""
+        out = tempfile.mkdtemp()
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            def create(self, messages=None, **kw):
+                if "tools" not in kw:
+                    return blk(stop_reason="end_turn",
+                               content=[blk(type="text", text="no")])
+                return blk(stop_reason="end_turn", content=[
+                    blk(type="thinking", thinking=""),
+                    blk(type="text", text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original, original_argv = ev_run.get_client, sys.argv
+        ev_run.get_client = lambda m: Client()
+        sys.argv = ["run_eval", "--model", "m", "--runs", "2", "--delay", "0",
+                    "--no-grader", "--output-dir", out]
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ev_run.main()
+            output = buf.getvalue()
+        finally:
+            ev_run.get_client, sys.argv = original, original_argv
+
+        assert "No reasoning was captured" in output
+        summary = json.loads(
+            Path(sorted(glob.glob(f"{out}/summary_*.json"))[-1]).read_text())
+        assert summary["episodes_with_reasoning"] == 0
+        # What was actually sent, so a reader can tell "the model produced no
+        # reasoning" from "the eval never asked for any".
+        assert "adaptive" in summary["reasoning_config"]

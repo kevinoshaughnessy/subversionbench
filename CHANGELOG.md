@@ -8,7 +8,82 @@ are the work done *after* vN was cut.
 
 ## v15
 
-Package version `15.0.0`. One change.
+Package version `15.0.0`.
+
+- The reasoning parameter is now chosen from the model's API generation
+  instead of being assumed. Turning extended thinking on by default (below)
+  made every claude-opus-5 episode send
+  `thinking={"type": "enabled", "budget_tokens": 4096}`, which that model
+  answers with `HTTP 400: "thinking.type.enabled" is not supported for this
+  model`. The fixed thinking budget was replaced by adaptive thinking: it is
+  deprecated on Opus 4.6 / Sonnet 4.6 and rejected outright from Opus 4.7,
+  Opus 4.8, Opus 5, Sonnet 5 and Fable 5 onwards, while remaining the only
+  way to turn thinking on at Sonnet 4.5 / Haiku 4.5 / Opus 4.5 and below -
+  which includes the default `--grader-model`. So there is no single config
+  that works for every model the harness targets, and the wrong one does not
+  degrade, it fails the request. `llm_client.py` now holds a table of which
+  reasoning parameters each family accepts, and `resolve_thinking_kwargs`
+  builds from it: adaptive thinking where it is supported, `budget_tokens`
+  where it is not, nothing for OpenRouter. An unrecognised Anthropic ID is
+  assumed adaptive, since every model predating adaptive thinking is already
+  in the table. `--thinking-budget` keeps its meaning where a budget is
+  expressible and is otherwise honoured in kind with a warning rather than
+  refused - the point of the default is that reasoning is captured, not that
+  it is capped at a particular number.
+
+- `thinking.display` is now set to `"summarized"` on the models whose default
+  is `"omitted"`, which is the real reason the empty thinking blocks below
+  were empty. Requesting adaptive thinking alone would not have fixed them:
+  from Opus 4.7 onwards these models return thinking blocks whose text is an
+  empty string unless a display mode is asked for. Note what this does and
+  does not buy - the raw chain of thought is never returned by these models,
+  so what reaches the transcript is a summary, and a cross-provider awareness
+  comparison against an OpenRouter model returning its own reasoning text is
+  still not like-for-like.
+
+- Added `--effort` (`output_config.effort`, `low` through `max`), the
+  replacement control for reasoning depth on adaptive models, since a token
+  budget no longer expresses it. Only sent where the model accepts the level:
+  `xhigh` postdates Opus 4.6, and the parameter itself errors on Sonnet 4.5
+  and Haiku 4.5. Disabling thinking above `high` effort on Opus 5 is a 400,
+  so that combination fails at argument parsing rather than on run 1 of a
+  batch.
+
+- The short grader and classifier calls now disable thinking explicitly.
+  They ask for 200-300 tokens of JSON, and thinking is on by default from
+  Sonnet 5 / Opus 5 onwards - so `--grader-model claude-opus-5` would have let
+  each grader spend its whole budget reasoning and return no verdict, which
+  the eval records as a grading failure rather than as a misconfiguration.
+  Where thinking cannot be turned off at all, the answer gets a raised token
+  ceiling instead.
+
+- Run and summary artefacts record `reasoning_config` - the parameters
+  actually sent - in place of `thinking_budget` / `thinking_budget_source`,
+  which could not describe an adaptive model.
+
+- Extended thinking is on by default for native Anthropic models, at half of
+  `--max-tokens`, and empty thinking blocks are no longer recorded. Both
+  changes come from one observation: every thinking block from claude-opus-5
+  and claude-sonnet-5 was empty - 106/106 and 137/137 - while all 621 from
+  grok-4.5 via OpenRouter had content. That was not the model doing anything;
+  `--thinking-budget` defaulted to 0, so no reasoning was ever requested on
+  the native path, and run_eval recorded the API's placeholder block anyway.
+  The OpenRouter path had always guarded this with `if reasoning:`; the native
+  path had no such guard, leaving 243 hollow entries.
+  It biased the eval rather than merely littering the transcripts. Both
+  awareness detectors read `thinking` entries, so grok was scored on 102k
+  characters of reasoning plus its visible text while the Claude models were
+  scored on visible text alone - a cross-model comparison of eval awareness
+  confounded by which provider the run happened to route through.
+  There is no OpenRouter setting to copy for parity: that path sends no
+  reasoning parameter at all, and reasoning appears only when the model
+  volunteers it, as always-reasoning models do. So the budget is justified on
+  its own terms - half the output budget for reasoning, half for the answer,
+  scaling if --max-tokens is raised - floored at the API's 1024 minimum and
+  disabled automatically when --max-tokens leaves no room for both. `0` still
+  disables it explicitly. Every summary now reports
+  `episodes_with_reasoning`, `reasoning_chars_total` and the reasoning config,
+  and warns loudly when no reasoning was captured.
 
 - `..` is now resolved against wherever the shell actually is, instead of
   `"cd .."` being matched as a substring. The substring refused

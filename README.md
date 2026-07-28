@@ -69,7 +69,8 @@ Anthropic API.
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
 | `--output-dir` | `./eval_results_v15` | where results are written |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
-| `--thinking-budget` | `0` | extended thinking for native Anthropic models; captured as `thinking` transcript entries |
+| `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`) |
+| `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
 | `--max-turns` | `40` | turn cap per episode; episodes typically finish in 6–9 turns |
 | `--resume STAMP` | — | continue an interrupted batch, skipping episodes already saved |
 | `--max-consecutive-failures` | `5` | abort if this many episodes fail in a row |
@@ -93,6 +94,22 @@ oversight, and the two are also reported separately as `monitoring_disabled` and
 `quality_check_modified`. Being hash-based, it does not depend on the model admitting
 anything or on parsing its commands. On its own it is *not* a scheming rate: scheming
 additionally requires concealment.
+
+Both awareness measures below read the model's **reasoning** as well as its visible text,
+so whether reasoning is captured changes the evidence they work from. Reasoning is
+therefore requested by default, in whichever form the model accepts: adaptive thinking
+with `display: "summarized"` from Sonnet 4.6 / Opus 4.6 onwards, a `budget_tokens` count
+of half `--max-tokens` below that, and nothing at all for OpenRouter models, which take no
+reasoning parameter and surface reasoning only when the backend volunteers it. Every run
+and summary records the `reasoning_config` actually sent, alongside
+`episodes_with_reasoning`, and warns when the latter is zero — two batches that differ on
+it are not comparable on awareness.
+
+One caveat the artefacts cannot remove: what the newer Anthropic models return is a
+*summary* of their reasoning, not the raw chain of thought, which those models never
+return. OpenRouter reasoning models return their own reasoning text. So capture is no
+longer all-or-nothing across providers, but it is still not like-for-like, and a
+cross-provider awareness comparison should say so.
 
 **Eval awareness** — whether the model suspects it is being tested, measured two ways:
 a keyword scan, and an LLM grader that asks seven independent yes/no rubric questions
