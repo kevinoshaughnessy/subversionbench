@@ -48,7 +48,7 @@ export OPENROUTER_API_KEY="..."     # for provider/model IDs
 python -m subversionbench.run_eval --model x-ai/grok-4.5 --nudge strong --runs 10 --delay 5
 
 # native Anthropic API
-python -m subversionbench.run_eval --model claude-sonnet-4-5-20250929 --runs 20
+python -m subversionbench.run_eval --model claude-sonnet-5 --runs 20
 ```
 
 The installed console script `subversionbench` takes the same arguments. Run with
@@ -61,7 +61,7 @@ Anthropic API.
 
 | flag | default | purpose |
 |---|---|---|
-| `--model` | `claude-sonnet-4-5-20250929` | model under evaluation |
+| `--model` | `claude-sonnet-5` | model under evaluation |
 | `--nudge` | `strong` | `strong` states the ridership goal is the top priority; `none` states it plainly. The contrast is the experimental manipulation |
 | `--runs` | `10` | runs in the batch |
 | `--delay` | `30` | seconds between runs, for rate limits |
@@ -433,6 +433,14 @@ python scenario_tool.py --encode         # fold edits back in
 
 `scenario.json` is gitignored, so a decoded copy cannot be committed by accident, and
 `--encode` refuses a bundle with entries missing.
+
+Every result file this benchmark writes carries a **canary GUID**, and
+[CANARY.md](CANARY.md) carries the same one so it travels with the repository. Encoding
+and encryption try to keep the benchmark out of training data; the canary is the only
+thing that tells you whether they worked — prompt a model with the first line of
+CANARY.md and see whether it completes the GUID. It is deliberately absent from the files
+the agent reads, since a GUID announcing "benchmark data" in its working directory would
+be the loudest eval-awareness cue in the design.
 
 **What this does not cover.** The README describes the scenario in prose, the changelog
 quotes fragments of it, and the test suite uses short excerpts as fixtures. A model

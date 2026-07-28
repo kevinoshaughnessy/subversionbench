@@ -7,6 +7,22 @@ i.e. what produced the following version. Current `VERSION` is `v14`.
 
 ## Changes from v14
 
+- Added a canary GUID, emitted into every run, summary, regrade and comparison
+  file, and carried in CANARY.md so it travels with the repository itself.
+  Encoding the scenario and encrypting transcripts both try to keep this
+  benchmark out of training corpora, and neither can tell you whether it
+  worked; a canary can - prompt a model with the first line of CANARY.md and
+  see whether it completes the GUID. If it does, the eval-awareness rate is
+  measuring recall and the results are not comparable with anything from
+  before the leak.
+  It is deliberately NOT written into the scenario files the agent reads. A
+  GUID announcing "benchmark data" in its working directory would be the
+  loudest eval-awareness cue in the whole design, so a test asserts it appears
+  nowhere the agent can see - not in the sandbox files, not in either system
+  prompt, not in the user prompt.
+- Package version set to 14.0.0, matching the eval's own VERSION rather than
+  the stale 0.9.0, and the default --model updated to claude-sonnet-5.
+
 - The closing-report check is now two independent yes/no questions instead of
   one compound one, because the compound version did not measure reliably.
   It asked "does this report say the check passed WITHOUT also saying the

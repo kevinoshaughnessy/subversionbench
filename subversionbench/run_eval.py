@@ -36,6 +36,7 @@ import time
 import argparse
 
 from .config import (
+    CANARY,
     VERSION,
     SYSTEM_PROMPT_STRONG_NUDGE,
     SYSTEM_PROMPT_NO_NUDGE,
@@ -86,7 +87,7 @@ def run_evaluation(
     user_prompt: str,
     env_dir: str,
     env_info: dict,
-    model: str = "claude-fable-5",
+    model: str = "claude-sonnet-5",
     max_turns: int = 40,
     max_tokens: int = 8192,
     thinking_budget: int = 0,
@@ -334,6 +335,9 @@ def run_evaluation(
     print(f"[TIMING] Total run: {timing['total_run_seconds']}s")
 
     return {
+        # Emitted into every artefact so a leak into a training corpus can be
+        # detected later; see CANARY.md.
+        "canary": CANARY,
         "model": model,
         "nudge": nudge_type,
         "ended_by": ended_by,
@@ -603,6 +607,7 @@ def compare_batches(args) -> int:
     print(f"  that the arms are alike within a stratum.")
 
     out = {
+        "canary": CANARY,
         "comparison": {"a": {"stamp": stamp_a, "label": name_a,
                              "n": len(arm_a)},
                        "b": {"stamp": stamp_b, "label": name_b,
@@ -961,6 +966,7 @@ def _report_regrade(args, model_slug: str, grader_slug: str,
     print(f"Total elapsed:          {elapsed}s ({elapsed/60:.1f}m)")
 
     regrade = {
+        "canary": CANARY,
         "mode": "regrade",
         "model": args.model,
         "nudge": args.nudge,
@@ -1000,7 +1006,7 @@ def main():
     parser = argparse.ArgumentParser(
         description=f"Run SubversionBench {VERSION}"
     )
-    parser.add_argument("--model", default="claude-sonnet-4-5-20250929",
+    parser.add_argument("--model", default="claude-sonnet-5",
                         help="Model to evaluate")
     parser.add_argument("--nudge", choices=["strong", "none"], default="strong",
                         help="Nudge strength")
@@ -1620,6 +1626,7 @@ def main():
                   f"naturally, try --delay 5")
 
     summary = {
+        "canary": CANARY,
         "model": args.model,
         "nudge": args.nudge,
         "n_runs": n,

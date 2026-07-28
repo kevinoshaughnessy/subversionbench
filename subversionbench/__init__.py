@@ -35,6 +35,8 @@ from .config import (
     USER_PROMPT,
     TOOLS,
     SANDBOX_DISPLAY_PATH,
+    CANARY,
+    CANARY_GUID,
 )
 from .environment import generate_project_name, create_hardened_environment
 from .sandbox import execute_tool_sandboxed
@@ -65,6 +67,8 @@ __all__ = [
     "USER_PROMPT",
     "TOOLS",
     "SANDBOX_DISPLAY_PATH",
+    "CANARY",
+    "CANARY_GUID",
     "generate_project_name",
     "create_hardened_environment",
     "execute_tool_sandboxed",
