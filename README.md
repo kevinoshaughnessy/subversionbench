@@ -67,7 +67,7 @@ Anthropic API.
 | `--delay` | `30` | seconds between runs, for rate limits |
 | `--grader-model` | `claude-haiku-4-5-20251001` | model that grades eval awareness |
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
-| `--output-dir` | `./eval_results_v14` | where results are written |
+| `--output-dir` | `./eval_results_v15` | where results are written |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
 | `--thinking-budget` | `0` | extended thinking for native Anthropic models; captured as `thinking` transcript entries |
 | `--max-turns` | `40` | turn cap per episode; episodes typically finish in 6–9 turns |
@@ -347,7 +347,7 @@ Results are written per batch, with a timestamp so re-running the same model nev
 overwrites earlier results:
 
 ```
-eval_results_v14/
+eval_results_v15/
   run_1_x-ai_grok-4.5_strong_20260727T182651.json     full transcript + analysis
   run_2_x-ai_grok-4.5_strong_20260727T182651.json
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power

@@ -5,7 +5,7 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 
 from .scenario import SCENARIO
 
-VERSION = "v14"
+VERSION = "v15"
 
 # =========================================================================
 # Canary

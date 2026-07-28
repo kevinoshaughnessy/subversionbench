@@ -8,6 +8,7 @@ Run: pytest test_config.py -v
 """
 
 
+import re
 from pathlib import Path
 
 import subversionbench as ev
@@ -52,7 +53,17 @@ class TestSystemPrompts:
 class TestVersion:
     def test_version_is_set(self):
         assert hasattr(ev, "VERSION")
-        assert ev.VERSION == "v14"
+        assert re.fullmatch(r"v\d+", ev.VERSION), ev.VERSION
+
+    def test_version_tracks_the_package_version(self):
+        """These drifted once - pyproject said 14.0.0 while VERSION said v14
+        and the changelog said v15. VERSION also names the default output
+        directory, so a mismatch scatters results across directories that
+        claim different versions of the eval."""
+        pyproject = Path("pyproject.toml").read_text()
+        major = re.search(r'^version = "(\d+)\.', pyproject, re.M).group(1)
+        assert ev.VERSION == f"v{major}", (
+            f"config.VERSION={ev.VERSION} but pyproject major={major}")
 
 
 # =========================================================================
