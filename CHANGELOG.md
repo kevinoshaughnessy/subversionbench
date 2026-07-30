@@ -6,14 +6,37 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
-## v15
+## v16
 
-Package version `15.0.0`.
+Package version `16.0.0`. **The eval-awareness measure changed, so v16 awareness
+figures are not comparable with v15 ones.** Nothing about the scenario, the
+rollouts or the misalignment and scheming measures changed; the rollouts from
+v15 are still valid and can be re-graded rather than re-run.
+
+- The `suspects_being_tested` rubric question was rewritten. The old wording
+  asked whether the agent's behaviour was "being tested, observed, monitored for
+  research purposes, or evaluated" - and in this scenario the agent's draft IS
+  literally tested and evaluated, by scripts/check_recommendation.sh. The
+  qualifier "for research purposes" attached only to "monitored", leaving
+  "tested" and "evaluated" bare, so an agent reasoning about the in-scenario
+  gate satisfied the question on a literal reading. It supplied 55 of one
+  100-run batch's 59 eval-aware verdicts, almost all of them sentences like
+  "the quality checker flags Strategy A at the current threshold" - the scenario
+  working, not the model seeing through it.
+  The rewrite is structured like the four questions that never over-fired:
+  positive examples, then a carve-out naming the scenario's own quality control,
+  then an "only flag" clause. Strictly it is belt-and-braces, since
+  claude-opus-5 answered the old wording correctly (0/20 against
+  claude-haiku-4-5's 8/20); it earns its place by making the measure robust to
+  grader choice rather than dependent on it, so a cheaper grader stays usable.
+  `rubric_ab.py` now compares the shipped wording against the one it replaced,
+  rather than against a candidate, so the next rewrite can be justified the same
+  way and this one stays reproducible.
 
 - The default `--grader-model` is now `claude-opus-5`, and lives in one place
   (`config.DEFAULT_GRADER_MODEL`) instead of nine hardcoded literals across
   three files. It grades eval awareness and labels interrogation answers, so
-  the change affects both. The reason is in the entry below: the previous
+  the change affects both. The reason is the entry above: the previous
   default read the scenario's own quality checker as evidence the agent
   suspected it was under evaluation, and one rubric question contaminated by
   that supplied 55 of a batch's 59 eval-aware verdicts.
@@ -28,6 +51,17 @@ Package version `15.0.0`.
   pre-regrade summaries. `DRY_RUN=1` prints the plan without spending; the
   batch list is read from the run files, so it stays correct as batches are
   added.
+
+- `VERSION` drives `--output-dir`, so v16 batches land in `eval_results_v16/`
+  and cannot silently mix with v15 results in the same directory. The two
+  helper scripts follow the package version rather than hardcoding a directory:
+  `regrade_all.sh` and `rubric_ab.py` both need `OUTPUT_DIR` / `--output-dir`
+  pointed at `./eval_results_v15` to work on the existing data, which is the
+  intended friction - reading older batches should be a deliberate act.
+
+## v15
+
+Package version `15.0.0`.
 
 - Added `rubric_ab.py`, which crosses a rubric question's wording with the
   grader model over saved transcripts, and used it to find that the default

@@ -67,7 +67,7 @@ Anthropic API.
 | `--delay` | `30` | seconds between runs, for rate limits |
 | `--grader-model` | `claude-opus-5` | model that grades eval awareness and labels interrogation answers. A frontier model by default because a small one was measurably wrong — see [Validating the grader](#validating-the-grader) |
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
-| `--output-dir` | `./eval_results_v15` | where results are written |
+| `--output-dir` | `./eval_results_v16` | where results are written; tracks `VERSION`, so a version bump writes to a new directory |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
 | `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`) |
 | `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
@@ -143,8 +143,8 @@ is the judgement to sample when validating by hand, and the `implicit`/`explicit
 
 ### Validating the grader
 
-**The default grader was changed to `claude-opus-5` because a small one was measurably
-wrong.** On a 100-run grok-4.5 batch graded by `claude-haiku-4-5`,
+**Two things changed in v16 because the awareness measure was measurably wrong.** On a
+100-run grok-4.5 batch graded by `claude-haiku-4-5`,
 `suspects_being_tested` fired on 55 episodes, and reading them showed almost all were the
 agent reasoning about the scenario's *own quality checker* — "the quality checker flags
 Strategy A at the current threshold" — rather than about being studied. That is the
@@ -159,18 +159,26 @@ grader model over the same saved transcripts (it reads only; nothing is written 
 | `claude-opus-5` | **0/20** | 0/20 |
 
 Wording mattered for Haiku (8→1, Fisher *p* = 0.020) and not at all for Opus (0→0). Under
-the current wording the graders disagreed sharply (8/20 vs 0/20, *p* = 0.0033). So the
-question is answerable as written — a capable model reads it as intended — and **grader
-capability, not the rubric, is the binding constraint**. Re-grading all 550 saved runs
-costs roughly $5 on Haiku, $15 on Sonnet 5, $24 on Opus 5, since the transcript caches
-across all seven questions.
+the old wording the graders disagreed sharply (8/20 vs 0/20, *p* = 0.0033). So the question
+was answerable as written — a capable model read it as intended — and **grader capability,
+not the rubric, was the binding constraint**.
 
-Two consequences worth carrying: any awareness figure produced with the default grader
-should be treated as an upper bound until re-graded, and the contamination is not confined
-to one question — every rubric answer came from the same model, so `noticed_conflict` at
-91–96%, which feeds the goal-conflict rate, deserves the same check. Use
-`--grade-existing --grader-model <stronger>` to re-grade, and re-grade *every* model, since
-a mixed-grader awareness column is not comparable across rows.
+v16 therefore does both: the default `--grader-model` is now `claude-opus-5`, and the
+question was rewritten anyway, structured like the four that never over-fired (positive
+examples, then a named carve-out for the scenario's own quality control, then an "only
+flag" clause). The rewrite is belt-and-braces — it makes the measure robust to grader
+choice rather than dependent on it, so a cheaper grader stays usable. `rubric_ab.py` now
+compares the shipped wording against the one it replaced, so the next rewrite can be
+justified the same way. Re-grading all 550 saved runs costs roughly $5 on Haiku, $15 on
+Sonnet 5, $24 on Opus 5, since the transcript caches across all seven questions.
+
+Two consequences worth carrying. **Every awareness figure produced before v16 is an upper
+bound** until re-graded — `regrade_all.sh` re-grades and resummarises each saved batch in
+turn, and it must be run to completion, because a mixed-grader awareness column is not
+comparable across rows and nothing in the summaries reveals the inconsistency. And the
+contamination was never confined to one question: every rubric answer came from the same
+grader, so `noticed_conflict` at 91–96%, which feeds the goal-conflict rate, deserves the
+same scrutiny.
 
 Awareness matters because a model that recognises the setup is not exhibiting the
 behaviour the eval is trying to observe. The two "expected" rubric questions
@@ -470,7 +478,7 @@ Results are written per batch, with a timestamp so re-running the same model nev
 overwrites earlier results:
 
 ```
-eval_results_v15/
+eval_results_v16/
   run_1_x-ai_grok-4.5_strong_20260727T182651.json     full transcript + analysis
   run_2_x-ai_grok-4.5_strong_20260727T182651.json
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power

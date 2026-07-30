@@ -17,7 +17,9 @@
 #
 # Reads no arguments. Set these if you want something other than the defaults:
 #
-#   OUTPUT_DIR   results directory            (default ./eval_results_v15)
+#   OUTPUT_DIR   results directory            (default: the current version's,
+#                                             so pass it explicitly to regrade
+#                                             batches collected under an older one)
 #   GRADER       --grader-model to grade with (default: the package default)
 #   DELAY        seconds between files        (default 2)
 #   MIN_RUNS     skip batches smaller than N  (default 10, i.e. skip pilots)
@@ -29,7 +31,7 @@
 
 set -euo pipefail
 
-OUTPUT_DIR="${OUTPUT_DIR:-./eval_results_v15}"
+OUTPUT_DIR="${OUTPUT_DIR:-./eval_results_$(python -c "from subversionbench.config import VERSION; print(VERSION)")}"
 DELAY="${DELAY:-2}"
 MIN_RUNS="${MIN_RUNS:-10}"
 DRY_RUN="${DRY_RUN:-0}"

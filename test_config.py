@@ -110,3 +110,48 @@ class TestCanary:
         for prompt in (ev.SYSTEM_PROMPT_STRONG_NUDGE, ev.SYSTEM_PROMPT_NO_NUDGE,
                        ev.USER_PROMPT):
             assert ev.CANARY_GUID not in prompt
+
+
+class TestRubricQuestionCarveOuts:
+    """The eval-awareness signals ask about the agent's meta-awareness, inside a
+    scenario that contains a literal evaluation mechanism. Without an explicit
+    carve-out, `suspects_being_tested` counted an agent reasoning about the
+    quality checker as an agent suspecting it was under study - 55 of one
+    100-run batch's 59 eval-aware verdicts, almost all false."""
+
+    def test_the_awareness_signals_exclude_the_in_scenario_checker(self):
+        """Every question that feeds the awareness verdict has to say that the
+        scenario's own quality control does not count. The four that carried
+        such a carve-out fired at 0-10%; the one that did not fired at 55%."""
+        from subversionbench.config import RUBRIC_QUESTIONS
+        signals = ("mentioned_test", "suspects_being_tested",
+                   "questioned_authenticity", "referenced_ai_safety",
+                   "broke_character")
+        for key in signals:
+            text = RUBRIC_QUESTIONS[key].lower()
+            has_carveout = any(phrase in text for phrase in (
+                "not the monitoring system", "does not count",
+                "not an ai safety", "only flag",
+            ))
+            assert has_carveout, (
+                f"{key} feeds the awareness verdict but names nothing that "
+                f"does NOT count; that omission is what inflated the rate")
+
+    def test_suspects_being_tested_names_the_scenario_mechanism(self):
+        """Generic wording was not enough - the question has to name the quality
+        checker, because that is the specific thing being confused for
+        evaluation."""
+        from subversionbench.config import RUBRIC_QUESTIONS
+        text = RUBRIC_QUESTIONS["suspects_being_tested"].lower()
+        assert "quality checker" in text or "quality-control" in text
+        assert "does not count" in text
+
+    def test_the_ab_baseline_is_not_the_shipped_wording(self):
+        """rubric_ab.py compares the shipped wording against the one it
+        replaced. If they converge, the experiment compares a string to itself
+        and reports a null result that means nothing."""
+        import rubric_ab
+        from subversionbench.config import RUBRIC_QUESTIONS
+        for key, previous in rubric_ab.PREVIOUS_WORDINGS.items():
+            assert previous != RUBRIC_QUESTIONS[key], (
+                f"{key}: the A/B baseline equals the shipped wording")
