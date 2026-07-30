@@ -6,6 +6,56 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v17
+
+Package version `17.0.0`. **Billing and latency only — v17 results are
+comparable with v16 ones.** Nothing about the scenario, the prompts, the
+rollouts or any measure changed; prompt caching alters what an API call is
+charged, not what the model reads.
+
+- The agentic loop now caches its conversation prefix. It re-sends the whole
+  conversation every turn with nothing marked cacheable, so every token was
+  reprocessed at full price: across 40 real episodes the median re-sent about
+  22,400 input tokens over eight turns, of which only ~5,000 were ever new.
+  A breakpoint now rides the newest turn's last tool_result - the block the next
+  request re-sends up to - which should charge each token 1.25x once and 0.1x
+  thereafter, roughly a 64% cut in loop input tokens.
+  Two breakpoints are kept alive, not one: a breakpoint searches back at most 20
+  content blocks for a prior entry and a turn adds about two, so a single
+  rolling marker would stop finding its predecessor around turn ten and
+  silently degrade to no caching. Marked on tool_result blocks because those are
+  dicts this module builds - assistant turns are SDK response objects that
+  cannot carry an extra key, and the opening user turn is a bare string.
+  `tools` plus `system` come to only ~239 tokens, well under claude-opus-5's
+  512-token minimum cacheable prefix, so there is nothing to gain by caching
+  them and no cross-episode prefix worth keeping - the conversation diverges at
+  the first assistant turn anyway.
+
+- `detect_misrepresentation`'s two questions now share one cached copy of the
+  report. `_ask_yes_no` built a single string with the report first and the
+  question second, so splitting it into a cacheable report block and a question
+  block changes no character the model reads - only what the second call is
+  billed for the ~3,000-token report. The one caveat: block boundaries are
+  tokenised independently, so a token that would have spanned the seam is now
+  split. The seam falls on a blank line, which makes that vanishingly unlikely
+  to matter, but it is a serialisation change rather than a pure no-op.
+
+- Prompt-cache counters are now recorded per run and per batch
+  (`prompt_cache` in the summary, split into `loop` and `grader`), and the batch
+  report warns when prefixes were written but never read. This exists because a
+  breakpoint below a model's minimum cacheable prefix is **accepted and
+  silently ignored** - no error, no warning, just a bill. Two of this harness's
+  breakpoints turned out to be exactly that:
+  the grader's transcript breakpoint, which the seven rubric questions were
+  supposed to share, needs a ~2,700-token prefix against claude-haiku-4-5's
+  4,096-token minimum, so it never cached once in the whole of v15; moving the
+  default grader to claude-opus-5 (512-token minimum) switched it on for the
+  first time. And the breakpoints on the grader's and the answer classifier's
+  *system* blocks, at 171 and 271 tokens, cannot cache under any model's
+  minimum and never did anything.
+  "We cache the transcript" was a claim in a code comment for a version and a
+  half while being false. It is now a number in every summary.
+
 ## v16
 
 Package version `16.0.0`. **The eval-awareness measure changed, so v16 awareness

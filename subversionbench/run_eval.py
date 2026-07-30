@@ -1,5 +1,5 @@
 """
-SubversionBench v16 — Runner
+SubversionBench v17 — Runner
 =============================================
 
 Author: Kevin O'Shaughnessy
@@ -116,6 +116,57 @@ class EpisodeAPIError(RuntimeError):
         self.partial = partial
 
 
+# How many cache breakpoints to keep alive in the conversation at once. A
+# breakpoint searches back at most 20 content blocks for a prior cache entry,
+# and a turn adds roughly two (the assistant's reply, then its tool results),
+# so a single rolling breakpoint would stop finding its predecessor around turn
+# ten and silently degrade to no caching. Two keeps the lookback short. The API
+# allows four; the extra two buy nothing here and cost a write each.
+_CACHE_BREAKPOINTS = 2
+
+
+def roll_cache_breakpoints(messages: list, keep: int = _CACHE_BREAKPOINTS):
+    """
+    Move the prompt-cache breakpoints onto the newest turn.
+
+    The agentic loop re-sends the entire conversation every turn, and without a
+    breakpoint every token is reprocessed at full price: a median episode
+    re-sends about 22,400 input tokens across its eight turns, of which only
+    ~5,000 are new. Marking the latest tool results cacheable makes each turn
+    read what came before at a tenth of the price and write only the increment.
+
+    Marks tool_result blocks specifically because those are dicts this module
+    builds. The assistant turns are SDK response objects, which cannot carry an
+    extra key, and the opening user turn is a bare string.
+
+    Only the newest `keep` breakpoints are left in place; older ones are
+    removed, since a cached prefix stays readable by content and does not need
+    its marker to persist.
+    """
+    marked = [block
+              for message in messages
+              if isinstance(message.get("content"), list)
+              for block in message["content"]
+              if isinstance(block, dict) and "cache_control" in block]
+    for block in marked[:-keep] if keep else marked:
+        block.pop("cache_control", None)
+
+
+def cache_usage(response) -> dict:
+    """
+    Read the cache counters off one response, tolerating their absence.
+
+    OpenRouter responses carry no `usage` in the shape this returns, and a
+    missing counter is reported as zero rather than guessed at.
+    """
+    usage = getattr(response, "usage", None)
+    return {
+        "read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
+        "written": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
+        "uncached": int(getattr(usage, "input_tokens", 0) or 0),
+    }
+
+
 def replayable_content(blocks: list) -> list:
     """
     Drop the blocks the API will not accept back in a later request.
@@ -181,6 +232,11 @@ def run_evaluation(
     # the denominator as though it were a complete observation.
     ended_by = "turn_cap"
     reasoning_chars = 0
+    # Whether prompt caching actually engaged. A breakpoint below the model's
+    # minimum cacheable prefix is accepted and silently ignored, so these
+    # counters are the only way to tell a working breakpoint from a no-op - two
+    # of this harness's turned out to be no-ops exactly that way.
+    cache_totals = {"read": 0, "written": 0, "uncached": 0}
 
     # --- Time the main agentic loop ---
     t_eval_start = time.time()
@@ -219,6 +275,9 @@ def run_evaluation(
                 "transcript": transcript,
                 "timestamp": datetime.datetime.now().isoformat(),
             }) from e
+
+        for key, value in cache_usage(response).items():
+            cache_totals[key] += value
 
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
@@ -341,7 +400,12 @@ def run_evaluation(
                 "result": red(result)
             })
 
+        if tool_results:
+            # Everything up to and including this block is what the next turn
+            # re-sends, so this is where the breakpoint belongs.
+            tool_results[-1]["cache_control"] = {"type": "ephemeral"}
         messages.append({"role": "user", "content": tool_results})
+        roll_cache_breakpoints(messages)
 
     # ---- Analyze misaligned behaviour ----
     t_eval_end = time.time()
@@ -454,6 +518,8 @@ def run_evaluation(
         # less evidence than one where it is not, and the two should not be
         # compared without saying so.
         "reasoning_chars": reasoning_chars,
+        # Prompt-cache counters for the agentic loop; see cache_usage.
+        "cache": cache_totals,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         # What was actually sent, not what was asked for: the reasoning
@@ -1483,6 +1549,26 @@ def summarise_batch(args, all_results: list, model_slug: str,
             per_q = quote_grounding_by_question.setdefault(
                 question, {o: 0 for o in QUOTE_GROUNDING_OUTCOMES})
             per_q[outcome] += 1
+    # Prompt-cache totals, split by where the tokens were spent. Reported
+    # because a breakpoint under the model's minimum cacheable prefix is
+    # accepted and silently ignored - so "we cache the transcript" is a claim
+    # that needs evidence, not a code comment. Two of this harness's
+    # breakpoints were no-ops for a whole version.
+    cache = {"loop": {"read": 0, "written": 0, "uncached": 0},
+             "grader": {"read": 0, "written": 0, "uncached": 0}}
+    for r in all_results:
+        for counter, value in (r.get("cache") or {}).items():
+            if counter in cache["loop"]:
+                cache["loop"][counter] += value
+        grader_cache = ((r["analysis"].get("eval_awareness_grader") or {})
+                        .get("cache") or {})
+        for counter, value in grader_cache.items():
+            if counter in cache["grader"]:
+                cache["grader"][counter] += value
+    for where, totals in cache.items():
+        billed = totals["read"] + totals["written"] + totals["uncached"]
+        totals["hit_rate"] = totals["read"] / billed if billed else None
+
     n_quotes_checked = sum(quote_grounding[o] for o in QUOTE_GROUNDING_OUTCOMES)
     n_quotes_verifiable = n_quotes_checked - quote_grounding["too_short"]
     n_quotes_grounded = quote_grounding["verbatim"] + quote_grounding["fragment"]
@@ -1640,6 +1726,21 @@ def summarise_batch(args, all_results: list, model_slug: str,
               f"agreed with the keyword cross-check"
               + (f", {classifier_fallback} fell back to keywords"
                  if classifier_fallback else ""))
+
+    if any(t["read"] or t["written"] for t in cache.values()):
+        print(f"\n--- Prompt cache ---")
+        for where, totals in cache.items():
+            billed = totals["read"] + totals["written"] + totals["uncached"]
+            if not billed:
+                continue
+            print(f"{where:8} read {totals['read']:>9,}  written "
+                  f"{totals['written']:>8,}  full price {totals['uncached']:>8,}"
+                  + (f"   ({totals['hit_rate']:.0%} served from cache)"
+                     if totals["hit_rate"] is not None else ""))
+            if totals["written"] and not totals["read"]:
+                print(f"         ! {where}: prefixes were written but never "
+                      f"read, so the breakpoint is not paying for itself. "
+                      f"Likely under the model's minimum cacheable prefix.")
 
     if n_quotes_checked:
         print(f"\n--- Grader evidence ---")
@@ -1943,6 +2044,8 @@ def summarise_batch(args, all_results: list, model_slug: str,
         # Attribution check on the grader's own citations. `scenario` above
         # zero means the grader credited the agent with content it only read -
         # the v13 failure - and invalidates the awareness rate until explained.
+        # Evidence that prompt caching engaged, per site. See the note above.
+        "prompt_cache": cache,
         "grader_quote_grounding": {
             **quote_grounding,
             "quotes_checked": n_quotes_checked,

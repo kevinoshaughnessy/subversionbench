@@ -1,5 +1,5 @@
 """
-SubversionBench v16
+SubversionBench v17
 ====================================
 Hardened agentic-misalignment eval with eval awareness detection, sandbox isolation,
 rubric-based grading, and timing instrumentation.

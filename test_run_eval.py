@@ -1233,3 +1233,143 @@ class TestResummariseDerivesWhatItCan:
             ev_run.resummarise_existing_runs(args, "m")
 
         assert path.read_text() == before, "run file was modified"
+
+
+class TestPromptCacheBreakpoints:
+    """The agentic loop re-sends the whole conversation every turn: a median
+    episode re-sends ~22,400 input tokens across eight turns, of which only
+    ~5,000 are new. A rolling breakpoint makes the rest cache reads."""
+
+    def test_only_the_newest_breakpoints_survive(self):
+        """A breakpoint searches back at most 20 content blocks for a prior
+        entry, and a turn adds about two, so leaving every marker in place
+        would exhaust the API's four-breakpoint budget by turn three."""
+        messages = [{"role": "user", "content": "go"}]
+        for turn in range(6):
+            messages.append({"role": "assistant", "content": [
+                types.SimpleNamespace(type="text", text=f"turn {turn}")]})
+            block = {"type": "tool_result", "tool_use_id": f"t{turn}",
+                     "content": "ok", "cache_control": {"type": "ephemeral"}}
+            messages.append({"role": "user", "content": [block]})
+            ev_run.roll_cache_breakpoints(messages)
+
+        marked = [b for m in messages if isinstance(m.get("content"), list)
+                  for b in m["content"]
+                  if isinstance(b, dict) and "cache_control" in b]
+        assert len(marked) == 2, f"expected 2 live breakpoints, got {len(marked)}"
+        # And they must be the newest two, not the oldest.
+        assert [b["tool_use_id"] for b in marked] == ["t4", "t5"]
+
+    def test_it_survives_the_shapes_the_loop_actually_holds(self):
+        """messages mixes a bare string (the opening turn), SDK response objects
+        (assistant turns, which cannot carry an extra key) and dicts we build."""
+        messages = [
+            {"role": "user", "content": "a string, not blocks"},
+            {"role": "assistant", "content": [
+                types.SimpleNamespace(type="text", text="no cache_control here")]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "content": "x",
+                 "cache_control": {"type": "ephemeral"}}]},
+        ]
+        ev_run.roll_cache_breakpoints(messages)   # must not raise
+        assert messages[0]["content"] == "a string, not blocks"
+
+    def test_counters_are_zero_when_the_backend_reports_none(self):
+        """OpenRouter responses carry no usage in this shape, and a missing
+        counter must read as zero rather than be guessed at."""
+        assert ev_run.cache_usage(types.SimpleNamespace()) == {
+            "read": 0, "written": 0, "uncached": 0}
+        assert ev_run.cache_usage(types.SimpleNamespace(usage=None)) == {
+            "read": 0, "written": 0, "uncached": 0}
+
+    def test_counters_are_read_off_the_response(self):
+        response = types.SimpleNamespace(usage=types.SimpleNamespace(
+            cache_read_input_tokens=900, cache_creation_input_tokens=100,
+            input_tokens=20))
+        assert ev_run.cache_usage(response) == {
+            "read": 900, "written": 100, "uncached": 20}
+
+    def test_the_loop_marks_this_turns_results(self):
+        """End to end: the breakpoint has to land on the block the next request
+        re-sends, which is the last tool_result."""
+        out = tempfile.mkdtemp()
+        seen = []
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            def __init__(self):
+                self.turn = 0
+
+            def create(self, messages=None, **kw):
+                # Record how many breakpoints each request carried.
+                seen.append(sum(
+                    1 for m in messages if isinstance(m.get("content"), list)
+                    for b in m["content"]
+                    if isinstance(b, dict) and "cache_control" in b))
+                if "tools" not in kw:
+                    return blk(stop_reason="end_turn",
+                               content=[blk(type="text", text="no")])
+                self.turn += 1
+                if self.turn < 3:
+                    return blk(stop_reason="tool_use", content=[
+                        blk(type="tool_use", id=f"t{self.turn}", name="bash",
+                            input={"cmd": "ls"})])
+                return blk(stop_reason="end_turn",
+                           content=[blk(type="text", text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original, original_argv = ev_run.get_client, sys.argv
+        ev_run.get_client = lambda m: Client()
+        sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
+                    "--delay", "0", "--no-grader", "--output-dir", out]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                ev_run.main()
+        finally:
+            ev_run.get_client, sys.argv = original, original_argv
+
+        # Turn 1 carries none (nothing sent yet); later turns carry at most 2.
+        assert seen[0] == 0
+        assert max(seen) <= ev_run._CACHE_BREAKPOINTS
+        assert any(n > 0 for n in seen[1:]), "no breakpoint was ever set"
+
+    def test_a_write_never_read_is_called_out(self):
+        """The failure this accounting exists for: a breakpoint below the
+        model's minimum cacheable prefix is accepted and silently ignored, which
+        is what happened to the grader's transcript cache for all of v15."""
+        out = tempfile.mkdtemp()
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            @staticmethod
+            def create(messages=None, **kw):
+                return blk(stop_reason="end_turn",
+                           usage=blk(cache_read_input_tokens=0,
+                                     cache_creation_input_tokens=2700,
+                                     input_tokens=60),
+                           content=[blk(type="text",
+                                        text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original, original_argv = ev_run.get_client, sys.argv
+        ev_run.get_client = lambda m: Client()
+        sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
+                    "--delay", "0", "--no-grader", "--output-dir", out]
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ev_run.main()
+        finally:
+            ev_run.get_client, sys.argv = original, original_argv
+
+        assert "written but never read" in buf.getvalue()

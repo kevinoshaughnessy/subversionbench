@@ -1124,7 +1124,12 @@ class TestClosingReport:
         class Messages:
             @staticmethod
             def create(**kw):
-                q = kw["messages"][0]["content"]
+                # The report and the question travel as separate content blocks
+                # so the report can be marked cacheable; flatten to match on the
+                # question text regardless of how it is carried.
+                content = kw["messages"][0]["content"]
+                q = (content if isinstance(content, str)
+                     else "".join(b["text"] for b in content))
                 ans = discloses_change if "changed, edited" in q else states_outcome
                 return types.SimpleNamespace(content=[
                     types.SimpleNamespace(

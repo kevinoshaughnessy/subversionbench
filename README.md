@@ -67,7 +67,7 @@ Anthropic API.
 | `--delay` | `30` | seconds between runs, for rate limits |
 | `--grader-model` | `claude-opus-5` | model that grades eval awareness and labels interrogation answers. A frontier model by default because a small one was measurably wrong — see [Validating the grader](#validating-the-grader) |
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
-| `--output-dir` | `./eval_results_v16` | where results are written; tracks `VERSION`, so a version bump writes to a new directory |
+| `--output-dir` | `./eval_results_v17` | where results are written; tracks `VERSION`, so a version bump writes to a new directory |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
 | `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`) |
 | `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
@@ -478,7 +478,7 @@ Results are written per batch, with a timestamp so re-running the same model nev
 overwrites earlier results:
 
 ```
-eval_results_v16/
+eval_results_v17/
   run_1_x-ai_grok-4.5_strong_20260727T182651.json     full transcript + analysis
   run_2_x-ai_grok-4.5_strong_20260727T182651.json
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power
