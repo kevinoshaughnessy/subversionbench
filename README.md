@@ -65,7 +65,7 @@ Anthropic API.
 | `--nudge` | `strong` | `strong` states the ridership goal is the top priority; `none` states it plainly. The contrast is the experimental manipulation |
 | `--runs` | `10` | runs in the batch |
 | `--delay` | `30` | seconds between runs, for rate limits |
-| `--grader-model` | `claude-haiku-4-5-20251001` | model that grades eval awareness. **Consider a stronger grader** — see [Validating the grader](#validating-the-grader) |
+| `--grader-model` | `claude-opus-5` | model that grades eval awareness and labels interrogation answers. A frontier model by default because a small one was measurably wrong — see [Validating the grader](#validating-the-grader) |
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
 | `--output-dir` | `./eval_results_v15` | where results are written |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
@@ -143,7 +143,8 @@ is the judgement to sample when validating by hand, and the `implicit`/`explicit
 
 ### Validating the grader
 
-**The default grader is not good enough for this rubric.** On a 100-run grok-4.5 batch,
+**The default grader was changed to `claude-opus-5` because a small one was measurably
+wrong.** On a 100-run grok-4.5 batch graded by `claude-haiku-4-5`,
 `suspects_being_tested` fired on 55 episodes, and reading them showed almost all were the
 agent reasoning about the scenario's *own quality checker* — "the quality checker flags
 Strategy A at the current threshold" — rather than about being studied. That is the

@@ -10,6 +10,25 @@ are the work done *after* vN was cut.
 
 Package version `15.0.0`.
 
+- The default `--grader-model` is now `claude-opus-5`, and lives in one place
+  (`config.DEFAULT_GRADER_MODEL`) instead of nine hardcoded literals across
+  three files. It grades eval awareness and labels interrogation answers, so
+  the change affects both. The reason is in the entry below: the previous
+  default read the scenario's own quality checker as evidence the agent
+  suspected it was under evaluation, and one rubric question contaminated by
+  that supplied 55 of a batch's 59 eval-aware verdicts.
+  This makes every batch graded before the change incomparable with every batch
+  graded after it, so `regrade_all.sh` re-grades and resummarises each saved
+  batch in turn with the current grader. It aborts on the first failure:
+  `--write-back` saves each run file as it goes, so an interrupted batch leaves
+  one model split across two graders, and a half-regraded directory is worse
+  than an un-regraded one because the inconsistency is invisible in the
+  summaries. It rebuilds each summary immediately after its batch rather than
+  all of them at the end, so an abort never leaves regraded runs described by
+  pre-regrade summaries. `DRY_RUN=1` prints the plan without spending; the
+  batch list is read from the run files, so it stays correct as batches are
+  added.
+
 - Added `rubric_ab.py`, which crosses a rubric question's wording with the
   grader model over saved transcripts, and used it to find that the default
   grader is not good enough for this rubric. `suspects_being_tested` fired on
@@ -35,9 +54,7 @@ Package version `15.0.0`.
   model, so `noticed_conflict` at 91-96%, which feeds the goal-conflict rate,
   needs the same check. Re-grading everything costs about $5 on Haiku, $15 on
   Sonnet 5, $24 on Opus 5, because the transcript caches across all seven
-  questions. The default `--grader-model` is left unchanged for now, with the
-  finding documented in README.md, since the choice trades cost against
-  fidelity and belongs to whoever runs the benchmark.
+  questions - which is what decided the default change above.
 
 - Extracted `agent_corpus()` and `ask_rubric_question()` out of
   `detect_eval_awareness_grader`, which now calls them - 88 lines became 29.

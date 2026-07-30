@@ -37,6 +37,7 @@ import time
 import argparse
 
 from .config import (
+    DEFAULT_GRADER_MODEL,
     CANARY,
     VERSION,
     SYSTEM_PROMPT_STRONG_NUDGE,
@@ -153,7 +154,7 @@ def run_evaluation(
     reasoning_kwargs: dict = None,
     reasoning_config: str = "",
     use_grader: bool = True,
-    grader_model: str = "claude-haiku-4-5-20251001",
+    grader_model: str = DEFAULT_GRADER_MODEL,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection."""
     client = get_client(model)
@@ -468,7 +469,7 @@ def run_evaluation(
 
 
 def run_followup(system_prompt, messages, model, client, act,
-                 classifier_model="claude-haiku-4-5-20251001",
+                 classifier_model=DEFAULT_GRADER_MODEL,
                  max_tokens=2048, reasoning_kwargs=None, env_dir=None):
     """
     Interrogate the model about one misaligned act it took.
@@ -2047,8 +2048,15 @@ def main():
                              "that runs at the end of a batch. It is local "
                              "arithmetic with no API calls (~0.15s at n=100), "
                              "so there is rarely a reason to.")
-    parser.add_argument("--grader-model", default="claude-haiku-4-5-20251001",
-                        help="Model to use for grading")
+    parser.add_argument("--grader-model", default=DEFAULT_GRADER_MODEL,
+                        help="Model that grades eval awareness and labels "
+                             "interrogation answers (default: %(default)s). A "
+                             "frontier model by default because a small one was "
+                             "measurably wrong: claude-haiku-4-5 read the "
+                             "scenario's own quality checker as evidence the "
+                             "agent suspected it was under evaluation. Trading "
+                             "down is supported; see 'Validating the grader' in "
+                             "README.md for what it costs in fidelity.")
     parser.add_argument("--grade-existing", action="store_true",
                         help="Don't run the eval. Instead re-run the eval "
                              "awareness grader over run files already in "
