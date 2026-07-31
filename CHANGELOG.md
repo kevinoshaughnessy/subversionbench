@@ -8,10 +8,37 @@ are the work done *after* vN was cut.
 
 ## v17
 
-Package version `17.0.0`. **Billing and latency only — v17 results are
-comparable with v16 ones.** Nothing about the scenario, the prompts, the
-rollouts or any measure changed; prompt caching alters what an API call is
-charged, not what the model reads.
+Package version `17.0.0`. **No measurement change — v17 results are comparable
+with v16 ones.** Nothing about the scenario, the prompts or any measure changed:
+prompt caching alters what an API call is charged, not what the model reads, and
+the effort labelling alters how a batch is named, not what is measured.
+
+- A requested `--effort` now appears in the filenames and in a field on every
+  run, immediately after `model`. The effort level is part of a batch's
+  identity - the same model at `low` and at `xhigh` are two conditions - and
+  naming them so they differ only by a timestamp invites their being pooled,
+  which nothing downstream can detect.
+  Placed between the nudge and the stamp, never after it: `find_run_files_by_stamp`
+  and `regrade_all.sh` both key off a trailing `_<stamp>.json`, and an
+  effort segment appended last would break both. Included only when an effort
+  was actually sent, so batches at the API default keep the names they have and
+  the 550 results already on disk stay findable.
+  It is the **effective** effort that is recorded, read back off the resolved
+  request rather than taken from the flag. `resolve_thinking_kwargs` drops a
+  level the model will not accept - every OpenRouter model, and `xhigh` on
+  Opus 4.6 - and a filename claiming a condition that never applied is worse
+  than no label.
+  The readers had to learn the new shape or they would have skipped whole
+  batches: `find_run_files` matches every level when none is asked for, so
+  `--grade-existing` and `--resummarise` still see everything, and narrows when
+  `--effort` is given. `--resummarise` now groups by (effort, stamp) and names
+  each summary from the runs it read rather than from the invocation's flag,
+  parsing the level back out with `parse_batch_filename` - otherwise
+  resummarising an `xhigh` batch would write a summary claiming the default.
+  `args.effort` is only overwritten with the effective value *after* the
+  read-mode dispatch, since there it is a filter the user typed. The regrade
+  report is deliberately not effort-labelled: one report can span several
+  batches, so a single level would misdescribe it.
 
 - The agentic loop now caches its conversation prefix. It re-sends the whole
   conversation every turn with nothing marked cacheable, so every token was

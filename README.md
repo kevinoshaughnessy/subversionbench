@@ -69,7 +69,7 @@ Anthropic API.
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
 | `--output-dir` | `./eval_results_v17` | where results are written; tracks `VERSION`, so a version bump writes to a new directory |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
-| `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`) |
+| `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`). When one is sent it becomes part of the batch's identity: it appears in the result filenames and in each run's `effort` field, so two efforts cannot be pooled by accident |
 | `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
 | `--max-turns` | `40` | turn cap per episode; episodes typically finish in 6–9 turns |
 | `--resume STAMP` | — | continue an interrupted batch, skipping episodes already saved |

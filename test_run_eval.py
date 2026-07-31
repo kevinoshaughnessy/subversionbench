@@ -31,6 +31,7 @@ class _FakeArgs:
         self.nudge = kw["nudge"]
         self.grader_model = kw["grader_model"]
         self.batch_stamp = kw.get("batch_stamp")
+        self.effort = kw.get("effort")
         self.write_back = kw.get("write_back", False)
         self.delay = kw.get("delay", 0)
 
@@ -1373,3 +1374,142 @@ class TestPromptCacheBreakpoints:
             ev_run.get_client, sys.argv = original, original_argv
 
         assert "written but never read" in buf.getvalue()
+
+
+class TestEffortInFilenames:
+    """The effort level is part of a batch's identity: the same model at `low`
+    and at `xhigh` are two conditions. Naming them so they differ only by
+    timestamp invites their being pooled, and pooling two conditions is the kind
+    of error nothing downstream can detect."""
+
+    def test_the_stem_only_carries_an_effort_that_was_set(self):
+        """Batches at the API default must keep the names they have always had,
+        or every result already on disk stops being findable."""
+        assert ev_run.batch_stem("claude-opus-5", "strong") == "claude-opus-5_strong"
+        assert ev_run.batch_stem("claude-opus-5", "strong", None) == "claude-opus-5_strong"
+        assert (ev_run.batch_stem("claude-opus-5", "strong", "xhigh")
+                == "claude-opus-5_strong_xhigh")
+
+    def test_the_stamp_stays_last(self):
+        """find_run_files_by_stamp and regrade_all.sh both key off a trailing
+        _<stamp>.json, so the effort has to sit before it."""
+        name = f"run_1_{ev_run.batch_stem('m', 'strong', 'max')}_20260731T010203.json"
+        assert name.endswith("_20260731T010203.json")
+        assert ev_run.find_run_files_by_stamp.__doc__  # sanity: still the keyed lookup
+
+    def test_both_shapes_parse_back(self):
+        for name, expected in (
+            ("run_1_claude-opus-5_strong_20260731T010203.json", (None, "20260731T010203")),
+            ("run_1_claude-opus-5_strong_xhigh_20260731T010203.json", ("xhigh", "20260731T010203")),
+            # A same-second collision suffix must not break the stamp.
+            ("run_1_x-ai_grok-4.5_strong_max_20260731T010203-2.json", ("max", "20260731T010203-2")),
+            ("run_1_claude-opus-5_strong.json", (None, "")),
+        ):
+            assert ev_run.parse_batch_filename(name, "strong") == expected, name
+
+    def test_a_level_is_only_read_where_the_nudge_precedes_it(self):
+        """Guards against a model slug that happens to end in a level name."""
+        assert ev_run.parse_batch_filename(
+            "run_1_some-model-max_strong_20260731T010203.json", "strong"
+        ) == (None, "20260731T010203")
+
+    def _write(self, out, name):
+        Path(f"{out}/{name}").write_text(json.dumps(
+            {"model": "claude-opus-5", "nudge": "strong",
+             "transcript": [{"turn": 1, "type": "text", "content": "x"}],
+             "analysis": {}}))
+
+    def test_an_effort_batch_is_still_found_when_none_is_asked_for(self):
+        """--grade-existing and --resummarise must see every batch regardless of
+        what it was run at; missing one leaves it silently un-regraded, which is
+        invisible in the summaries."""
+        out = tempfile.mkdtemp()
+        self._write(out, "run_1_claude-opus-5_strong_20260731T010203.json")
+        self._write(out, "run_1_claude-opus-5_strong_xhigh_20260731T010204.json")
+
+        found = [os.path.basename(f)
+                 for f in find_run_files(out, "claude-opus-5", "strong")]
+        assert len(found) == 2, found
+
+    def test_an_effort_narrows_the_search(self):
+        out = tempfile.mkdtemp()
+        self._write(out, "run_1_claude-opus-5_strong_20260731T010203.json")
+        self._write(out, "run_1_claude-opus-5_strong_xhigh_20260731T010204.json")
+
+        found = [os.path.basename(f) for f in
+                 find_run_files(out, "claude-opus-5", "strong", effort="xhigh")]
+        assert found == ["run_1_claude-opus-5_strong_xhigh_20260731T010204.json"]
+
+    def test_the_run_records_the_effort_that_was_sent(self):
+        """Recorded beside the model it applied to, and taken from the resolved
+        request rather than the flag: an effort the model rejects is dropped, and
+        recording the request would claim a condition that never applied."""
+        out = tempfile.mkdtemp()
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            @staticmethod
+            def create(messages=None, **kw):
+                return blk(stop_reason="end_turn", content=[
+                    blk(type="text", text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original, original_argv = ev_run.get_client, sys.argv
+        ev_run.get_client = lambda m: Client()
+        sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
+                    "--delay", "0", "--no-grader", "--effort", "xhigh",
+                    "--output-dir", out]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                ev_run.main()
+        finally:
+            ev_run.get_client, sys.argv = original, original_argv
+
+        run_files = glob.glob(f"{out}/run_1_*.json")
+        assert run_files
+        name = os.path.basename(run_files[0])
+        assert "_strong_xhigh_" in name, name
+        data = json.loads(Path(run_files[0]).read_text())
+        assert data["effort"] == "xhigh"
+        # Immediately after the model, as the field order is part of the ask.
+        keys = list(data)
+        assert keys[keys.index("model") + 1] == "effort"
+
+    def test_an_unsupported_effort_is_not_claimed_in_the_name(self):
+        """OpenRouter takes no effort parameter, so a batch run with --effort
+        against one did not run at that effort and must not say it did."""
+        out = tempfile.mkdtemp()
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            @staticmethod
+            def create(messages=None, **kw):
+                return blk(stop_reason="end_turn", content=[
+                    blk(type="text", text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original, original_argv = ev_run.get_client, sys.argv
+        ev_run.get_client = lambda m: Client()
+        sys.argv = ["run_eval", "--model", "x-ai/grok-4.5", "--runs", "1",
+                    "--delay", "0", "--no-grader", "--effort", "max",
+                    "--output-dir", out]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                ev_run.main()
+        finally:
+            ev_run.get_client, sys.argv = original, original_argv
+
+        name = os.path.basename(glob.glob(f"{out}/run_1_*.json")[0])
+        assert "_max_" not in name, name
+        data = json.loads(Path(glob.glob(f"{out}/run_1_*.json")[0]).read_text())
+        assert data["effort"] is None

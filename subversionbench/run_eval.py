@@ -204,6 +204,7 @@ def run_evaluation(
     max_tokens: int = 8192,
     reasoning_kwargs: dict = None,
     reasoning_config: str = "",
+    effort: str = None,
     use_grader: bool = True,
     grader_model: str = DEFAULT_GRADER_MODEL,
 ) -> dict:
@@ -264,6 +265,7 @@ def run_evaluation(
             raise EpisodeAPIError(e, {
                 "canary": CANARY,
                 "model": model,
+                "effort": effort,
                 "nudge": nudge_type,
                 "ended_by": "api_error",
                 "failed_on_turn": turn + 1,
@@ -511,6 +513,10 @@ def run_evaluation(
         # detected later; see CANARY.md.
         "canary": CANARY,
         "model": model,
+        # The effort actually sent, not the one requested: resolve_thinking_kwargs
+        # drops a level the model will not accept, and recording the request
+        # would claim a condition that never applied.
+        "effort": effort,
         "nudge": nudge_type,
         "ended_by": ended_by,
         # Whether the model's reasoning reached us at all. Both awareness
@@ -747,19 +753,75 @@ def _unique_batch_stamp(output_dir: str) -> str:
     return stamp
 
 
+def batch_stem(model_slug: str, nudge: str, effort=None) -> str:
+    """
+    The middle of every filename belonging to one batch.
+
+    The effort level is part of a batch's identity: the same model at `low` and
+    at `xhigh` are two conditions, and naming them so they differ only by
+    timestamp invites their being pooled by accident. Included only when one was
+    actually sent, so batches at the API default keep the names they have always
+    had and results already on disk stay findable.
+
+    The stamp is always appended after this, never before - find_run_files_by_stamp
+    and regrade_all.sh both key off a trailing _<stamp>.json.
+    """
+    return f"{model_slug}_{nudge}" + (f"_{effort}" if effort else "")
+
+
+def parse_batch_filename(path: str, nudge: str):
+    """
+    Read (effort, stamp) back off a run or summary filename.
+
+    A rebuild has to name its summary after the runs it read, not after whatever
+    --effort the rebuilding invocation happened to carry: otherwise
+    resummarising an `xhigh` batch writes a summary claiming the default.
+    Matching `_<nudge>_<level>` rather than a bare `_<level>` stops a model slug
+    that happens to end in a level name from being misread.
+    """
+    name = os.path.basename(path)
+    if name.endswith(".json"):
+        name = name[:-len(".json")]
+
+    stamp = ""
+    match = re.search(r"_(\d{8}T\d{6}(?:-\d+)?)$", name)
+    if match:
+        stamp = match.group(1)
+        name = name[:match.start()]
+
+    for level in EFFORT_LEVELS:
+        if name.endswith(f"_{nudge}_{level}"):
+            return level, stamp
+    return None, stamp
+
+
 def find_run_files(output_dir: str, model_slug: str, nudge: str,
-                   batch_stamp: str = None) -> list:
+                   batch_stamp: str = None, effort: str = None) -> list:
     """
     Existing run files for one model and nudge, oldest batch first.
 
-    Two patterns are matched because run filenames only started carrying a
-    batch timestamp partway through - runs saved before that are named
-    run_<i>_<model>_<nudge>.json with nothing after the nudge, and they are
-    still perfectly gradeable.
+    Several patterns are matched because the filename has grown twice. Runs
+    saved before batch stamps existed are named run_<i>_<model>_<nudge>.json
+    with nothing after the nudge, and runs from a batch that requested an
+    --effort carry it between the nudge and the stamp. All of them are equally
+    gradeable, so leaving any shape unmatched would silently skip whole batches
+    - which is how a results directory ends up half re-graded with nothing to
+    show that it is.
+
+    `effort` narrows to one level. Left as None, every level matches, so a
+    caller that does not care (--grade-existing, --resummarise) sees the
+    batches regardless of what they were run at.
     """
-    patterns = [f"run_*_{model_slug}_{nudge}_{batch_stamp or '*'}.json"]
+    stem = batch_stem(model_slug, nudge, effort)
+    patterns = [f"run_*_{stem}_{batch_stamp or '*'}.json"]
+    if effort is None:
+        patterns += [
+            f"run_*_{batch_stem(model_slug, nudge, level)}"
+            f"_{batch_stamp or '*'}.json"
+            for level in sorted(EFFORT_LEVELS)
+        ]
     if batch_stamp is None:
-        patterns.append(f"run_*_{model_slug}_{nudge}.json")
+        patterns.append(f"run_*_{stem}.json")
 
     found = set()
     for pattern in patterns:
@@ -911,7 +973,7 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
     script still cannot be recovered from those files.
     """
     run_files = find_run_files(
-        args.output_dir, model_slug, args.nudge, args.batch_stamp
+        args.output_dir, model_slug, args.nudge, args.batch_stamp, args.effort
     )
     if not run_files:
         print(f"No run files for model={args.model} nudge={args.nudge} in "
@@ -1042,7 +1104,7 @@ def grade_existing_runs(args, model_slug: str) -> int:
     """
     grader_slug = args.grader_model.replace("/", "_")
     run_files = find_run_files(
-        args.output_dir, model_slug, args.nudge, args.batch_stamp
+        args.output_dir, model_slug, args.nudge, args.batch_stamp, args.effort
     )
 
     if not run_files:
@@ -1280,6 +1342,9 @@ def _report_regrade(args, model_slug: str, grader_slug: str,
 
     stamp = _unique_batch_stamp(args.output_dir)
     regrade_file = (
+        # Deliberately not effort-labelled: one regrade report can span several
+        # batches, so a single level would misdescribe it. The runs it covers are
+        # named inside.
         f"{args.output_dir}/regrade_{model_slug}_{args.nudge}"
         f"_by_{grader_slug}_{stamp}.json"
     )
@@ -1345,27 +1410,30 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
     several batches on disk gets each rebuilt separately rather than merged.
     """
     run_files = find_run_files(args.output_dir, model_slug, args.nudge,
-                               args.batch_stamp)
+                               args.batch_stamp, args.effort)
     if not run_files:
         print(f"No run files for {args.model} / {args.nudge} in "
               f"{redact_paths(args.output_dir)}/")
         return 1
 
-    by_stamp = {}
-    if args.batch_stamp:
-        # find_run_files has already filtered to this stamp, and it is what the
-        # summary should be named after - reading the stamp back out of the
-        # filenames instead would drop any stamp that is not datetime-shaped
-        # and write over the unstamped legacy summary.
-        by_stamp[args.batch_stamp] = list(run_files)
-    else:
-        for path in run_files:
-            match = re.search(r"_(\d{8}T\d{6})\.json$", path)
-            by_stamp.setdefault(match.group(1) if match else "", []).append(path)
+    # Grouped by (effort, stamp), because those two together identify a batch:
+    # the same model and nudge at two effort levels are two conditions, and
+    # merging them into one summary would silently pool them.
+    by_batch = {}
+    for path in run_files:
+        effort, stamp = parse_batch_filename(path, args.nudge)
+        if args.batch_stamp:
+            # find_run_files has already filtered to this stamp, and it is what
+            # the summary should be named after - reading it back out of the
+            # filename would drop any stamp that is not datetime-shaped and
+            # write over the unstamped legacy summary.
+            stamp = args.batch_stamp
+        by_batch.setdefault((effort, stamp), []).append(path)
 
-    print(f"{len(run_files)} run file(s) across {len(by_stamp)} batch(es).")
+    print(f"{len(run_files)} run file(s) across {len(by_batch)} batch(es).")
 
-    for stamp, paths in sorted(by_stamp.items()):
+    for (effort, stamp), paths in sorted(by_batch.items(),
+                                        key=lambda kv: (kv[0][1], kv[0][0] or "")):
         all_results = []
         for path in sorted(paths):
             with open(path) as f:
@@ -1397,15 +1465,21 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
             all_results.append(run)
 
         stamped = f"_{stamp}" if stamp else ""
-        summary_path = (f"{args.output_dir}/summary_{model_slug}_"
-                        f"{args.nudge}{stamped}.json")
+        summary_path = (f"{args.output_dir}/summary"
+                        f"_{batch_stem(model_slug, args.nudge, effort)}"
+                        f"{stamped}.json")
         runtime = _runtime_from_existing_summary(summary_path, all_results)
         for key, value in runtime.pop("args_overrides", {}).items():
             setattr(args, key, value)
+        # Last word, after args_overrides: the effort these runs were made at is
+        # whatever their filenames say, not whatever a previous summary recorded
+        # or this invocation was passed.
+        args.effort = effort
 
         print(f"\n{'#'*60}")
         print(f"# Rebuilding {os.path.basename(summary_path)} "
-              f"from {len(all_results)} run(s)")
+              f"from {len(all_results)} run(s)"
+              + (f" at effort {effort}" if effort else ""))
         print(f"{'#'*60}")
         summarise_batch(args, all_results, model_slug, stamp, runtime)
 
@@ -2097,7 +2171,8 @@ def summarise_batch(args, all_results: list, model_slug: str,
     }
     stamped = f"_{batch_stamp}" if batch_stamp else ""
     summary_file = (
-        f"{args.output_dir}/summary_{model_slug}_{args.nudge}{stamped}.json"
+        f"{args.output_dir}/summary"
+        f"_{batch_stem(model_slug, args.nudge, args.effort)}{stamped}.json"
     )
     with open(summary_file, "w") as f:
         json.dump(summary, f, indent=2)
@@ -2283,6 +2358,12 @@ def main():
         print(f"[WARNING] {warning}")
     print(f"Reasoning: {reasoning_config}")
 
+    # The effort that will actually be sent. Read back off the resolved kwargs
+    # rather than taken from args, because an effort the model does not accept
+    # is dropped there with a warning - and a filename or a recorded field
+    # claiming a condition that never applied is worse than no label at all.
+    effective_effort = (reasoning_kwargs.get("output_config") or {}).get("effort")
+
     system_prompt = (
         SYSTEM_PROMPT_STRONG_NUDGE if args.nudge == "strong"
         else SYSTEM_PROMPT_NO_NUDGE
@@ -2306,6 +2387,11 @@ def main():
     if args.grade_existing:
         return grade_existing_runs(args, model_slug)
 
+    # Past this point we are rolling out, so the batch is labelled with the
+    # effort that will actually be sent. Set after the read modes above, whose
+    # --effort is a filter the user typed and must survive verbatim.
+    args.effort = effective_effort
+
     if args.resume:
         batch_stamp = args.resume
         print(f"Resuming batch {batch_stamp}: episodes already on disk will "
@@ -2323,7 +2409,8 @@ def main():
 
     for i in range(args.runs):
         run_file = (
-            f"{args.output_dir}/run_{i+1}_{model_slug}_{args.nudge}"
+            f"{args.output_dir}/run_{i+1}"
+            f"_{batch_stem(model_slug, args.nudge, effective_effort)}"
             f"_{batch_stamp}.json"
         )
 
@@ -2358,6 +2445,7 @@ def main():
                 max_tokens=args.max_tokens,
                 reasoning_kwargs=reasoning_kwargs,
                 reasoning_config=reasoning_config,
+                effort=effective_effort,
                 use_grader=not args.no_grader,
                 grader_model=args.grader_model,
             )
@@ -2382,8 +2470,9 @@ def main():
             # so it is written somewhere findable rather than dropped.
             if isinstance(e, EpisodeAPIError):
                 partial_file = (
-                    f"{args.output_dir}/failed_run_{i+1}_{model_slug}_"
-                    f"{args.nudge}_{batch_stamp}.json"
+                    f"{args.output_dir}/failed_run_{i+1}"
+                    f"_{batch_stem(model_slug, args.nudge, effective_effort)}"
+                    f"_{batch_stamp}.json"
                 )
                 with open(partial_file, "w") as f:
                     json.dump(e.partial, f, indent=2, default=str)
