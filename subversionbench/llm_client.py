@@ -212,6 +212,37 @@ def reasoning_flag_error(model: str, requested_budget, effort):
     )
 
 
+# Substrings the SDKs use when no usable credential was found, or when the one
+# supplied was rejected. Matched case-insensitively against str(exception).
+_AUTH_ERROR_MARKERS = (
+    "could not resolve authentication method",
+    "authentication_error",
+    "invalid x-api-key",
+    "invalid api key",
+    "no api key",
+    "api key not found",
+    "incorrect api key",
+    "unauthorized",
+    "401",
+)
+
+
+def is_auth_error(error) -> bool:
+    """
+    Whether `error` is a missing or rejected credential.
+
+    Worth separating from every other API failure because it is the one class
+    that cannot come right on retry and is never partial: an unexported key
+    fails identically on call 1 and call 500. A caller that treats it as a
+    transient error will grind through a whole batch producing fallbacks, so
+    the honest response is to stop on the first one.
+    """
+    if not error:
+        return False
+    text = str(error).lower()
+    return any(marker in text for marker in _AUTH_ERROR_MARKERS)
+
+
 def resolve_thinking_kwargs(model: str, requested_budget=None,
                             max_tokens: int = 8192, effort=None):
     """

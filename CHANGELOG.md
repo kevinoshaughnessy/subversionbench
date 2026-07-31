@@ -10,8 +10,9 @@ are the work done *after* vN was cut.
 
 Package version `17.0.0`. **No measurement change — v17 results are comparable
 with v16 ones.** Nothing about the scenario, the prompts or any measure changed:
-prompt caching alters what an API call is charged, not what the model reads, and
-the effort labelling alters how a batch is named, not what is measured.
+prompt caching alters what an API call is charged, not what the model reads, the
+effort labelling alters how a batch is named, not what is measured, and the
+reclassify guard changes only whether a degraded pass is allowed to persist.
 
 - A requested `--effort` now appears in the filenames and in a field on every
   run, immediately after `model`. The effort level is part of a batch's
@@ -82,6 +83,35 @@ the effort labelling alters how a batch is named, not what is measured.
   minimum and never did anything.
   "We cache the transcript" was a claim in a code comment for a version and a
   half while being false. It is now a number in every summary.
+
+- `--reclassify` now refuses to write when the classifier mostly failed, and
+  aborts outright on a credentials error. The old guard only refused when
+  *every* call failed, and that is not the shape the failure takes.
+  Found by running a 100-run reclassification with no `ANTHROPIC_API_KEY`
+  exported. All 75 real interrogation answers failed with
+  `Could not resolve authentication method`, but the batch also held 20 empty
+  answers, which `classify_answer_llm` labels `neither` at line one without
+  asking anything. Twenty free no-ops counted as successes, so
+  `failures == calls` was false, the write proceeded behind one `!` warning
+  line, and the batch reported a **47% scheming rate against a true 9%** -
+  `disclosed` fell from 27 to 0 while `evaded` rose from 2 to 38, because a
+  keyword list with no LLM behind it finds neither admission nor denial and
+  everything lands mid-scale. This is the failure mode the guard existed to
+  prevent and it walked straight past it.
+  Two changes. `classify_answer_llm` now reports whether it actually reached the
+  API (`called`), and only those count towards the rate, so free short-circuits
+  can no longer dilute it. And the threshold is a share rather than totality:
+  above `_MAX_CLASSIFIER_FALLBACK_RATE` (20%) nothing is written. Refusing
+  wastes the calls that did succeed, which is the cheaper of the two mistakes -
+  the expensive one is a published number that is silently five times too high.
+  Auth errors are separated out by `is_auth_error` and abort on the first
+  occurrence, before any file is touched, because an unexported key fails
+  identically on call 1 and call 500; there is nothing to be gained by
+  discovering that 500 times. Every other error class still runs to completion,
+  since a rate limit genuinely can affect some calls and not others.
+  Nothing was lost to the incident: transcripts and the raw interrogation
+  answers are what the labels are derived from, and both were intact, so a
+  re-run with the key exported restored the batch exactly.
 
 ## v16
 
