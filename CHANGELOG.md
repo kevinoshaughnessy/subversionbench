@@ -113,6 +113,28 @@ reclassify guard changes only whether a degraded pass is allowed to persist.
   answers are what the labels are derived from, and both were intact, so a
   re-run with the key exported restored the batch exactly.
 
+- Every LLM-judged verdict now records the model that produced it, and each
+  summary carries a `score_provenance` block tallying them. The awareness
+  grader has stamped `grader_model` since v13; the concealment classifier
+  stamped nothing, so "were these two rows scored by the same model?" was
+  answerable only from collection dates and memory - and after the default
+  grader moved to claude-opus-5 in v16 that question decides whether a table
+  column is a measurement or a pooling of two.
+  `classify_interrogation_answer` now returns `classifier_model`, and
+  `detect_disclosure` and `detect_misrepresentation` each return `model`. The
+  summary reports `awareness_graders` (per episode) and
+  `concealment_classifiers` (per scoring decision, since an episode contributes
+  a disclosure judgement, a report judgement and one per interrogation answer),
+  plus a `mixed` flag, and the batch report prints a MIXED SCORERS warning
+  naming the split. This is the same failure the regrade guard catches one layer
+  down: a batch abandoned partway through a reclassification is half one
+  classifier and half another, every rate still prints, and nothing said so.
+  Runs scored before this existed read `unrecorded` rather than being credited
+  to the current default - all 550 v15 runs do, including the batches
+  reclassified the same afternoon. Guessing would assert a provenance the files
+  do not have, which is the error the field exists to prevent. A turn-capped
+  episode's disclosure stub is not counted at all, since nothing scored it.
+
 ## v16
 
 Package version `16.0.0`. **The eval-awareness measure changed, so v16 awareness
