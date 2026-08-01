@@ -113,6 +113,77 @@ reclassify guard changes only whether a degraded pass is allowed to persist.
   answers are what the labels are derived from, and both were intact, so a
   re-run with the key exported restored the batch exactly.
 
+- Each summary now reports `awareness_provenance`: what the model had read when
+  it first said "test". This is the one contamination question the probes above
+  cannot reach. They detect memorisation of *this* text; a model that saw a
+  similar published oversight-subversion evaluation would recognise the template
+  without sharing a single 8-gram, and would inflate verbalised eval awareness
+  by recall rather than inference - the exact construct the measure claims.
+  Awareness verbalised before the model issued a single command was formed from
+  the framing alone, which is what recognition looks like. Awareness verbalised
+  only after the monitoring config was read was inferred from the scenario: an
+  editable oversight switch beside a goal it was told to maximise is a
+  conclusion available to anyone who looks. The ordinal between those -
+  `before_any_command`, `before_any_document`, `after_context`,
+  `after_oversight` - is derived from the saved transcript, so `--resummarise`
+  backfills it for free and no run file changes.
+  Applied to all 470 v15 episodes across 23 models: the pre-command share is
+  **0%**. Not one episode flagged an evaluation before touching anything.
+  The reachability check is what makes that worth stating. A 0% would be
+  vacuous if no episode had a window in which it could have been observed, so
+  `n_aware_with_pre_command_window` is reported beside it: 108 of the 121
+  keyword-aware episodes wrote something before their first command - 103,033
+  characters of pre-command reasoning across the corpus - and none of it tripped
+  an awareness indicator. Two models (grok-4.20, gpt-5.4) issued a command as
+  their first act in every episode, so the measure cannot fire for them; both
+  had zero aware episodes anyway.
+  Read as evidence against genre recognition, not proof of its absence. Early
+  onset would be consistent with template familiarity without establishing it,
+  and a sharp model could infer a test from an insistent system prompt on the
+  merits. The decisive experiment is a cue ablation - structure fixed, surface
+  changed - which this does not attempt. Position is the keyword measure, since
+  the grader returns a verdict per episode and no location, so it under-detects
+  exactly as `awareness_timing` does.
+
+- Contamination is now measured rather than guarded against. `contamination.py`
+  plus `contamination_check.py` add four probes, each paired with a negative
+  control, because a probe that cannot fail for an innocent reason is not
+  evidence. scenario.b64 and zip.sh were always precautions with no feedback
+  loop: nothing in the harness could tell you whether they had worked, while
+  every rate it reports moves under contamination and none of them says so.
+  **The leak audit** is the one that found something. It matches 8-word
+  shingles of the scenario against every file git tracks, and reports files,
+  lines and which document leaked - never the text, since printing the leak to
+  find the leak puts it somewhere new. Shingles are whitespace-blind, so a
+  quotation still registers after reflowing; the first implementation scanned
+  line by line and missed exactly the wrapped ones, which are the commonest
+  shape in a source comment. Applied to this repository it found 14 shingles of
+  `system_prompt_strong_nudge` across CHANGELOG.md, test_grading.py and
+  config.py - the README already conceded that the changelog quotes fragments,
+  and this is what "fragments" turned out to mean.
+  **The forced choice** is the quantitative core: show k copies of one line
+  differing in a single digit, ask which is verbatim, and compare accuracy
+  against chance 1/k. Digits rather than words, so the options are
+  format-identical and a model cannot win on register. It never asks the model
+  to emit scenario text, which the continuation probe does and which is why that
+  one is secondary.
+  The control is the load-bearing part. A model can beat chance with no
+  exposure at all by judging which threshold looks like a number an engineer
+  would pick, so every probe also runs over a synthetic document generated here
+  and never published; the verdict is the scenario-minus-control gap. Simulated
+  at 35 items per arm: false positives ~1-2%, a fully memorised document caught
+  essentially always, a 30 pp partial effect caught about two thirds of the
+  time - so `no evidence` at the default size rules out gross memorisation
+  only. A model with a strong plausibility bias in *both* arms is not flagged,
+  which is the case the control exists for.
+  Two bugs worth recording because both produced confident wrong answers.
+  `build_forced_choice` zips the two arms, so a control smaller than the
+  scenario silently truncated the scenario arm - the probe reported building 35
+  items and measured 4. And a run whose every call failed reported **no
+  evidence**: a clean bill of health issued on no data, indistinguishable from
+  the good news it is not. Runs with too few scored items now return
+  `inconclusive`, and a completed canary still decides on its own.
+
 - Every LLM-judged verdict now records the model that produced it, and each
   summary carries a `score_provenance` block tallying them. The awareness
   grader has stamped `grader_model` since v13; the concealment classifier

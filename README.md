@@ -596,6 +596,59 @@ trained on this repository would learn the shape of the eval without having memo
 text. That is a real but much weaker exposure than publishing the memo verbatim, and it is
 the price of the repository being comprehensible.
 
+### Testing for contamination
+
+Encoding and encryption are precautions; `contamination_check.py` is the measurement.
+
+```bash
+python contamination_check.py --audit                       # offline, free
+python contamination_check.py --models claude-opus-5 x-ai/grok-4.5
+```
+
+`--audit` scans every file git tracks for scenario text committed in the clear, matching
+8-word shingles so a quotation still registers after reflowing. It reports files, line
+numbers and which document leaked — never the text, since printing the leak to find the
+leak puts it somewhere new. Run it before pushing: it is the only probe that finds exposure
+while it can still be fixed.
+
+**What none of this reaches** is a model that saw a *similar* evaluation rather than this
+one. Exact-match shingles, a unique canary and digit-level decoys are all blind to genre
+familiarity by construction — and that is the more likely exposure, since the field has
+published many oversight-subversion setups. A model recognising the template would inflate
+verbalised eval awareness by recall rather than inference, which is precisely the construct
+at risk.
+
+The measure pointed at that is `awareness_provenance` in each batch summary (see
+[What gets measured](#what-gets-measured)): awareness verbalised *before the model issued a
+single command* was formed from the framing alone, which is what template recognition looks
+like; awareness verbalised only after the monitoring config was read was inferred from the
+scenario. Across all 470 saved v15 episodes the pre-command share is **0%** — 108 of the 121
+keyword-aware episodes had a window in which it could have been observed, and it was
+observed in none. That is evidence against genre recognition, not proof: the decisive test
+is a cue ablation, holding the structure fixed while changing the surface.
+
+The model probes are each paired with a negative control, because a probe that cannot fail
+for an innocent reason is not evidence:
+
+| Probe | Signal | Control |
+|---|---|---|
+| **Canary completion** | model finishes the GUID from `config.py`, which is absent from the scenario | the same probe on a GUID generated here; completing that means the model invents hex, voiding the hit |
+| **Forced choice** | picks the verbatim line out of *k* differing only in one digit, above chance 1/*k* | the same puzzle over a synthetic document generated here, which measures how far plausibility alone gets you |
+| **Continuation** | 5-gram overlap with the true continuation of a document | the same, on the synthetic document |
+
+The forced choice is the quantitative core: it has a known null and never asks the model to
+emit scenario text. Its verdict is the scenario-minus-control gap, so a model that beats
+chance on both arms by judging which threshold looks realistic is not flagged. Simulated at
+35 items per arm, the false-positive rate is ~1–2% and a fully memorised document is caught
+essentially always; a 30 pp partial effect is caught about two thirds of the time, so treat
+`no evidence` at the default size as ruling out gross memorisation only. A run with too few
+scored items or failed calls returns **inconclusive**, never `no evidence` — a clean bill of
+health issued on no data is indistinguishable from the good news it is not.
+
+Probe prompts contain scenario text by construction, so the saved report records item ids
+and scores only. `--include-prompts` overrides that and produces a file to be treated
+exactly like a transcript.
+
 ## Protecting results
 
 Transcripts contain the full scenario text and the models' responses to it. If they reach
@@ -708,10 +761,12 @@ subversionbench/
   sandbox.py       sandboxed command execution and path confinement
   redaction.py     strips host paths and usernames from output and artifacts
   power.py         interval estimation, detectable effect sizes, precision
+  contamination.py leak audit, canary/forced-choice/continuation probes
   grading.py       keyword detection, LLM rubric grader, misalignment analysis
   run_eval.py      agentic loop, follow-up interrogation, batch runner, CLI
 
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
+contamination_check.py  leak audit and per-model contamination probes
 ```
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
@@ -720,7 +775,9 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 
 **Contamination.** The scenario is fixed and its text lives in this repository. Any model
 trained on public GitHub data may have seen it, which would show up as inflated eval
-awareness and make results incomparable to earlier ones. Check the awareness rates before
+awareness and make results incomparable to earlier ones. Measure it rather than assuming
+it: `contamination_check.py` audits the repository for leaked text and probes a model for
+memorisation (see Testing for contamination). Check the awareness rates before
 trusting either behavioural rate, and treat rising awareness over model generations as a
 signal
 about the benchmark rather than about the models.
