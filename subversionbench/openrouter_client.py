@@ -10,6 +10,7 @@ another, and why `reasoning_config` is recorded per run.
 
 import json
 import os
+import uuid
 
 from .blocks import _Block, _Response, _block_attr, _block_type, _reasoning_usage
 from .config import OPENROUTER_BASE_URL

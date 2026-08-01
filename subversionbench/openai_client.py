@@ -38,21 +38,6 @@ from .routing import is_openai_model, is_openrouter_model
 # full trace, and a batch run this way is not comparable with one run through
 # OpenRouter. `reasoning_config` records which was used.
 
-
-def is_openai_model(model: str) -> bool:
-    """
-    Whether to route this ID to OpenAI's own API.
-
-    Only bare IDs: "openai/gpt-5.4" keeps its provider prefix and goes to
-    OpenRouter, so the two routes stay selectable for the same model and a
-    batch cannot silently change instrument.
-    """
-    if is_openrouter_model(model):
-        return False
-    name = model.strip().lower()
-    return name.startswith("gpt-") or bool(re.match(r"^o\d", name))
-
-
 def _to_responses_input(msg: dict) -> list:
     """
     Translate one Anthropic-style message into Responses API input items.

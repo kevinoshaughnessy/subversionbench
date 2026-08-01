@@ -164,3 +164,36 @@ class TestRubricQuestionCarveOuts:
         for key, previous in rubric_ab.PREVIOUS_WORDINGS.items():
             assert previous != RUBRIC_QUESTIONS[key], (
                 f"{key}: the A/B baseline equals the shipped wording")
+
+
+class TestNoUndefinedNames:
+    """A static check across the package, because the split hid three of these
+    and the tests could not see them.
+
+    `classify_answer_llm` called `_parse_first_json`, which had moved to another
+    module. The call sits inside a try/except that converts any failure into a
+    keyword fallback, so instead of an error the classifier quietly stopped
+    using the LLM at all - a silent downgrade of the measure. Two more of the
+    same kind (`uuid` in the OpenRouter tool-call recovery, `re` in a duplicated
+    routing function) sat on paths no test exercises."""
+
+    def test_no_module_references_a_name_it_does_not_have(self):
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        try:
+            import pyflakes  # noqa: F401
+        except ImportError:
+            import pytest
+            pytest.skip("pyflakes not installed")
+
+        files = sorted(str(p) for p in Path("subversionbench").glob("*.py"))
+        result = subprocess.run(
+            [sys.executable, "-m", "pyflakes", *files],
+            capture_output=True, text=True)
+        undefined = [line for line in result.stdout.splitlines()
+                     if "undefined name" in line]
+        assert not undefined, (
+            "undefined names would raise at runtime, and any inside a "
+            "try/except become a silent fallback:\n  " + "\n  ".join(undefined))

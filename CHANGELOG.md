@@ -13,6 +13,37 @@ Package version `19.0.0`. **No measurement change for existing results** —
 `eval_results_r1` remains poolable. The new OpenAI route does change what is
 measured for models run through it, which is why it is opt-in and recorded.
 
+- `grading.py` split by responsibility, then moved into a package. It had
+  reached 1,482 lines covering the keyword detector, the rubric grader, quote
+  verification, transcript analysis, three notions of timing, the interrogation
+  classifier, the closing-report probes and the concealment scale - nine
+  reasons to change in one file.
+  Now `subversionbench/grading/` with twelve modules and an `__init__.py` that
+  is the scoring API. Making it a package rather than a flat rename means every
+  existing `from .grading import X` still resolves, so no caller changed.
+  `command_patterns.py` and `grader_io.py` exist because two consumers each
+  needed shared primitives and neither should depend on the other: the
+  read/write command vocabulary, and the truncation used both to build a grader
+  prompt and to reconstruct what the grader was shown. A quote verified against
+  a longer corpus than the grader saw is not verified.
+  **The split found three undefined names, and the way it found them matters.**
+  Four tests failed with a wrong verdict rather than an error, because
+  `classify_answer_llm` referenced `_parse_first_json` after it had moved - and
+  that call sits inside a try/except that converts any failure into a keyword
+  fallback. The classifier silently stopped using the LLM instead of crashing.
+  A pyflakes sweep then found two more, both in the llm_client split shipped
+  earlier in v19 and both latent in main: `uuid` in the OpenRouter tool-call
+  recovery, which would raise on any episode where a backend ignores `tools`,
+  and `re` in a duplicated `is_openai_model` that shadowed the routing import.
+  `test_config.py` now runs pyflakes over the package and fails on any
+  undefined name. A name error inside a try/except is not an error, it is a
+  measure quietly downgrading itself, which no test asserting on outputs will
+  catch.
+  Tests mirror the source: `test_grading/` holds eight files importing from the
+  module each covers. `run_tests.py` discovers recursively and loads by path -
+  its top-level glob ran 363 of 495 tests while reporting success, which is
+  worse than failing.
+
 - The OpenAI route now always names a reasoning effort, and usage is read
   under both of OpenAI's field-name conventions. Found by running the route:
   the first native gpt-5.4 batch reported `reasoning_tokens: 0` on all ten

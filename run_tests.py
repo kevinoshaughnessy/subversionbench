@@ -12,6 +12,7 @@ import sys
 import inspect
 import pathlib
 import importlib
+import importlib.util
 import traceback
 
 from conftest import FIXTURE_FACTORIES
@@ -19,13 +20,33 @@ from conftest import FIXTURE_FACTORIES
 HERE = pathlib.Path(__file__).parent
 
 
+def _load(path: pathlib.Path):
+    """Import one test file by location, wherever it sits."""
+    name = ".".join(path.relative_to(HERE).with_suffix("").parts)
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def discover_modules(argv):
-    """Test modules to run: those named on the command line, else all of them."""
+    """
+    Test modules to run: those named on the command line, else all of them.
+
+    Recursive, and loaded by path rather than by importable name. Test files
+    now sit in subdirectories mirroring the package - test_grading/ beside
+    subversionbench/grading/ - and a top-level glob silently ran 363 of 495
+    tests while reporting success, which is worse than failing.
+    """
     if argv:
-        names = [pathlib.Path(a).stem for a in argv]
+        paths = [pathlib.Path(a) for a in argv]
     else:
-        names = sorted(p.stem for p in HERE.glob("test_*.py"))
-    return [importlib.import_module(n) for n in names]
+        paths = sorted(HERE.rglob("test_*.py"))
+        paths = [p for p in paths
+                 if not any(part.startswith(".") or part == "eval_results"
+                            for part in p.parts)]
+    return [_load(p if p.is_absolute() else HERE / p) for p in paths]
 
 
 def run():

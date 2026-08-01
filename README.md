@@ -887,7 +887,19 @@ subversionbench/
   redaction.py     strips host paths and usernames from output and artifacts
   power.py         interval estimation, detectable effect sizes, precision
   contamination.py leak audit, canary/forced-choice/continuation probes
-  grading.py       keyword detection, LLM rubric grader, misalignment analysis
+  grading/         scoring an episode; __init__.py is the scoring API
+    acts.py                the misaligned acts and their per-act keys
+    awareness_keywords.py  the keyword measure of verbalised awareness
+    awareness_timing.py    when awareness came, and what had been read by then
+    closing_report.py      what the deliverable said, vs what the answers said
+    command_patterns.py    what a shell command did to the scenario's files
+    concealment.py         acts plus answers to a verdict
+    grader.py              asking an LLM the awareness rubric
+    grader_io.py           preparing text for a grader call, parsing the reply
+    interrogation.py       labelling one answer: admitted, denied, neither
+    quote_grounding.py     did the grader cite the agent, or the memo
+    transcript_analysis.py what the episode did, hashes and commands
+    transient_tampering.py the subversion an end-state hash cannot see
   run_eval.py      agentic loop, follow-up interrogation, batch runner, CLI
 
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
