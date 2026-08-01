@@ -49,7 +49,7 @@ import os
 import sys
 import time
 
-from subversionbench.config import RUBRIC_QUESTIONS, VERSION
+from subversionbench.config import RUBRIC_QUESTIONS, ROLLOUT_VERSION
 from subversionbench.grading import (
     agent_corpus,
     ask_rubric_question,
@@ -122,7 +122,7 @@ def main():
     parser.add_argument("--nudge", default="strong", choices=["strong", "none"])
     parser.add_argument("--batch-stamp", default=None,
                         help="restrict to one batch (recommended)")
-    parser.add_argument("--output-dir", default=f"./eval_results_{VERSION}",
+    parser.add_argument("--output-dir", default=f"./eval_results_{ROLLOUT_VERSION}",
                         help="results directory (default: %(default)s). Batches collected under an earlier version live elsewhere.")
     parser.add_argument("--question", default="suspects_being_tested",
                         choices=sorted(RUBRIC_QUESTIONS),

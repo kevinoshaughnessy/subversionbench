@@ -51,7 +51,7 @@ import subprocess
 import sys
 import time
 
-from subversionbench.config import CANARY_GUID, VERSION
+from subversionbench.config import CANARY_GUID, ROLLOUT_VERSION, VERSION
 from subversionbench.contamination import (
     audit_paths,
     build_continuations,
@@ -211,7 +211,7 @@ def main():
                         help="item selection and decoy generation seed")
     parser.add_argument("--delay", type=float, default=0,
                         help="seconds between calls, for rate limits")
-    parser.add_argument("--output-dir", default=f"./eval_results_{VERSION}",
+    parser.add_argument("--output-dir", default=f"./eval_results_{ROLLOUT_VERSION}",
                         help="where to write the report (default: %(default)s)")
     parser.add_argument("--include-prompts", action="store_true",
                         help="save option text and responses. Writes scenario "

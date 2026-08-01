@@ -31,7 +31,7 @@
 
 set -euo pipefail
 
-OUTPUT_DIR="${OUTPUT_DIR:-./eval_results_$(python -c "from subversionbench.config import VERSION; print(VERSION)")}"
+OUTPUT_DIR="${OUTPUT_DIR:-./eval_results_$(python -c "from subversionbench.config import ROLLOUT_VERSION; print(ROLLOUT_VERSION)")}"
 DELAY="${DELAY:-2}"
 MIN_RUNS="${MIN_RUNS:-10}"
 DRY_RUN="${DRY_RUN:-0}"

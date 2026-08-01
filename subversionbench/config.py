@@ -5,7 +5,34 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 
 from .scenario import SCENARIO
 
-VERSION = "v17"
+VERSION = "v18"
+
+# =========================================================================
+# Rollout identity
+# =========================================================================
+#
+# VERSION is the analysis version: rubric wording, grader choice, summary
+# fields, guards. It bumps freely, and a bump does not invalidate anything,
+# because --reclassify and --resummarise re-derive every analysed field from
+# the saved transcript.
+#
+# ROLLOUT_VERSION is what the model saw and could do: the scenario bundle, the
+# prompts, the tool definitions, the sandbox's behaviour. It names the results
+# directory, because *that* is the boundary across which episodes cannot be
+# pooled. It bumps only when a rollout genuinely changes, which is rare.
+#
+# Keying the directory on VERSION got this wrong in both directions - it split
+# v15 and v17 batches that ran identical prompts, and it kept two different
+# strong-nudge prompts inside eval_results_v14. See rollout.py.
+ROLLOUT_VERSION = "r1"
+
+# sha256 over the scenario bundle, the tool definitions, and the sandbox's
+# behaviour on a fixed battery of commands. Pinned here rather than computed,
+# so a rollout change is a startup error instead of a silent one: the rollout
+# modes compare this against rollout.rollout_fingerprint() and refuse to run
+# when they disagree. Update it in the same commit that bumps ROLLOUT_VERSION,
+# never on its own.
+ROLLOUT_FINGERPRINT = "004f5454ae38"
 
 # =========================================================================
 # Canary
