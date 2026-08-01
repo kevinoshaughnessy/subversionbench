@@ -37,7 +37,11 @@ def _reasoning_usage(completion) -> dict:
     if usage is None:
         return {}
     out = {}
-    for field in ("prompt_tokens", "completion_tokens", "total_tokens"):
+    # Chat completions and the Responses API name the same quantities
+    # differently, and reading only one set silently loses the other. The first
+    # native gpt-5.4 batch recorded total_tokens alone for exactly this reason.
+    for field in ("prompt_tokens", "completion_tokens", "total_tokens",
+                  "input_tokens", "output_tokens"):
         value = getattr(usage, field, None)
         if value is not None:
             out[field] = value

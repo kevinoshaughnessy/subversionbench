@@ -135,6 +135,12 @@ def is_known_anthropic_model(model: str) -> bool:
 # Anthropic's documented floor for budget_tokens, on the older models that
 # still accept a budget at all.
 
+# Sent to OpenAI models when the operator names no --effort. Matches OpenAI's
+# own default for gpt-5.5 and gpt-5.6, so it is a no-op there, and it stops a
+# model with a lower default from silently doing no reasoning at all. The value
+# lands in reasoning_config, so a batch always records what it ran with.
+DEFAULT_OPENAI_EFFORT = "medium"
+
 MIN_THINKING_BUDGET = 1024
 
 # On a model where thinking cannot be turned off, thinking tokens come out of
@@ -232,10 +238,17 @@ def resolve_thinking_kwargs(model: str, requested_budget=None,
             warnings.append(
                 f"--thinking-budget {requested_budget} does not apply to "
                 f"OpenAI model {model}: reasoning depth is set by effort.")
-        kwargs = {"output_config": {"effort": effort}} if effort else {}
-        described = ("responses API, reasoning summary=auto"
-                     + (f", effort={effort}" if effort else ""))
-        return kwargs, described, warnings
+        # An explicit effort is sent even when the operator asked for none.
+        # The first native gpt-5.4 batch sent no effort and the API reported
+        # reasoning_tokens=0 across all ten episodes: the model did not reason
+        # at all, so both awareness measures were left reading visible text
+        # only - the exact failure this route was added to fix. gpt-5.5 and
+        # gpt-5.6 default to "medium" anyway, so naming it changes nothing for
+        # them and turns reasoning on for a model whose default is lower.
+        chosen = effort or DEFAULT_OPENAI_EFFORT
+        described = (f"responses API, reasoning summary=auto, effort={chosen}"
+                     + ("" if effort else " (default)"))
+        return {"output_config": {"effort": chosen}}, described, warnings
 
     if surface is None:
         if requested_budget:

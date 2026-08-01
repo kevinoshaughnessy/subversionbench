@@ -13,6 +13,30 @@ Package version `19.0.0`. **No measurement change for existing results** —
 `eval_results_r1` remains poolable. The new OpenAI route does change what is
 measured for models run through it, which is why it is opt-in and recorded.
 
+- The OpenAI route now always names a reasoning effort, and usage is read
+  under both of OpenAI's field-name conventions. Found by running the route:
+  the first native gpt-5.4 batch reported `reasoning_tokens: 0` on all ten
+  episodes, so the batch warned that no reasoning was captured and both
+  awareness measures fell back to visible text - the exact failure the route
+  was added to fix.
+  The counter is what made that diagnosable. Zero tokens is the API stating
+  the model did no reasoning, which is a different fact from reasoning that
+  was withheld, and without the count the two are one empty transcript.
+  The cause was sending `reasoning: {summary: "auto"}` with no effort. OpenAI
+  documents gpt-5.5 and gpt-5.6 as defaulting to "medium" but also documents
+  "none" and "minimal" levels, and states no default for gpt-5.4; zero tokens
+  across ten episodes says its default is one of the lower two. Asking for a
+  summary of reasoning that never happened returns nothing.
+  An explicit effort is now sent even when the operator names none, defaulting
+  to `DEFAULT_OPENAI_EFFORT = "medium"` - a no-op for the models that already
+  default to it, and reasoning turned on for one whose default is lower. The
+  value lands in `reasoning_config`, marked `(default)` when it was not chosen,
+  so a batch always records what it ran with.
+  Separately, `_reasoning_usage` read only the chat-completions names
+  (`prompt_tokens`, `completion_tokens`), so a Responses call recorded
+  `total_tokens` alone and lost `input_tokens` / `output_tokens`. Both
+  conventions are now read.
+
 - Reasoning-token accounting, and a native OpenAI route to go with it.
   The problem was a measurement one. Both awareness measures read reasoning, so
   a model whose reasoning is not returned is scored on strictly less evidence -

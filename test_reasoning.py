@@ -193,3 +193,35 @@ class TestGraderThinking:
 # =========================================================================
 # Tests: routing between the three APIs
 # =========================================================================
+
+
+class TestOpenAIEffortDefault:
+    """A native gpt-5.4 batch sent no effort and came back with
+    reasoning_tokens=0 on all ten episodes - the model did no reasoning, so
+    both awareness measures read visible text only, which is the exact failure
+    the OpenAI route was added to fix."""
+
+    def test_an_effort_is_always_sent(self):
+        from subversionbench.reasoning import resolve_thinking_kwargs
+        kwargs, described, _ = resolve_thinking_kwargs("gpt-5.4", None, 8192)
+        assert kwargs["output_config"]["effort"], "must not send a bare summary"
+        assert "default" in described, "the batch must record that it defaulted"
+
+    def test_an_explicit_effort_wins(self):
+        from subversionbench.reasoning import resolve_thinking_kwargs
+        kwargs, described, _ = resolve_thinking_kwargs(
+            "gpt-5.4", None, 8192, "xhigh")
+        assert kwargs["output_config"]["effort"] == "xhigh"
+        assert "default" not in described
+
+    def test_the_default_matches_openai_s_own(self):
+        """Chosen so it is a no-op for the models that already default to it,
+        and only changes behaviour where the default was lower."""
+        from subversionbench.reasoning import DEFAULT_OPENAI_EFFORT
+        assert DEFAULT_OPENAI_EFFORT == "medium"
+
+    def test_the_effort_reaches_the_request(self):
+        from subversionbench.reasoning import resolve_thinking_kwargs
+        kwargs, _, _ = resolve_thinking_kwargs("gpt-5.4", None, 8192, "high")
+        # OpenAIClient reads output_config.effort and puts it in reasoning.
+        assert kwargs == {"output_config": {"effort": "high"}}
