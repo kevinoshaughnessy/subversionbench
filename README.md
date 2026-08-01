@@ -27,11 +27,11 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
 
-To evaluate models through [OpenRouter](https://openrouter.ai) as well as the native
-Anthropic API:
+To evaluate models through [OpenRouter](https://openrouter.ai) or OpenAI's own API as well
+as the native Anthropic API:
 
 ```bash
-pip install -e '.[openrouter,test]'
+pip install -e '.[openrouter,openai,test]'
 ```
 
 Set whichever key matches the models you plan to run:
@@ -39,6 +39,7 @@ Set whichever key matches the models you plan to run:
 ```bash
 export ANTHROPIC_API_KEY="..."      # for claude-* model IDs
 export OPENROUTER_API_KEY="..."     # for provider/model IDs
+export OPENAI_API_KEY="..."         # for bare gpt-* / o<n> IDs
 ```
 
 ## Run
@@ -54,8 +55,31 @@ python -m subversionbench.run_eval --model claude-sonnet-5 --runs 20
 The installed console script `subversionbench` takes the same arguments. Run with
 `--help` for the full list.
 
-A model ID containing `/` is routed through OpenRouter; anything else goes to the
-Anthropic API.
+A model ID containing `/` is routed through OpenRouter; a bare `gpt-*` or `o<n>` ID goes to
+OpenAI's own API; anything else goes to the Anthropic API.
+
+The OpenAI split is deliberate rather than automatic, because **the route changes what is
+measured**. Through OpenRouter, chat completions returns no reasoning for the gpt-5 family:
+`openai/gpt-5.4` produced zero reasoning characters across ten episodes while
+`openai/gpt-5.5` produced 25,553. Both awareness measures read reasoning, so those models
+were scored on strictly less evidence than the rest. The native path uses the Responses API
+with `reasoning: {summary: "auto"}`, which returns a reasoning **summary**.
+
+That is a summary, never the trace — OpenAI states that "reasoning tokens are not visible via
+the API". So `gpt-5.4` run natively moves from *withheld* to *summarised*, the same regime as
+the Anthropic 4.6+ models, and is still not comparable with a model returning a full trace.
+Runs record which route was used in `reasoning_config`, and batches that differ on it are not
+comparable on awareness.
+
+```bash
+export OPENAI_API_KEY="..."
+python -m subversionbench.run_eval --model gpt-5.4 --runs 10   # native, summary returned
+python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no reasoning
+```
+
+Every run also records `token_usage`, including `reasoning_tokens` where the provider reports
+it. That is the only signal separating a model that did not reason from one whose reasoning
+was withheld: both produce an empty transcript, and they are opposite facts about the model.
 
 ### Common options
 
@@ -849,7 +873,15 @@ One test file per module, with shared fixtures in `conftest.py`.
 
 ```
 subversionbench/
-  config.py        VERSION, prompts, keyword lists, rubric questions, tool defs
+  config.py        VERSION, ROLLOUT_VERSION, prompts, rubric questions, tool defs
+  routing.py       which API serves a model ID
+  reasoning.py     which reasoning parameters each model generation accepts
+  blocks.py        the Anthropic-shaped response objects adapters normalise to
+  tool_parsing.py  recovering tool calls a model emitted as prose
+  api_errors.py    classifying provider errors by whether a retry could help
+  openrouter_client.py  OpenRouter adapter
+  openai_client.py      OpenAI Responses adapter
+  llm_client.py    client factory: pick the API for a model ID
   environment.py   scenario filesystem creation, project name generation
   sandbox.py       sandboxed command execution and path confinement
   redaction.py     strips host paths and usernames from output and artifacts

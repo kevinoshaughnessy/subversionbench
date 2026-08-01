@@ -249,6 +249,11 @@ def run_evaluation(
     # of this harness's turned out to be no-ops exactly that way.
     cache_totals = {"read": 0, "written": 0, "uncached": 0}
 
+    # Token accounting as the provider reports it, including reasoning tokens
+    # where available. Empty on the native Anthropic path, whose usage is
+    # already captured by cache_totals in a different shape.
+    token_totals = {}
+
     # --- Time the main agentic loop ---
     t_eval_start = time.time()
 
@@ -289,6 +294,7 @@ def run_evaluation(
                 "error": f"{type(e).__name__}: {red(str(e))}",
                 "reasoning_config": reasoning_config,
                 "reasoning_chars": reasoning_chars,
+                "token_usage": token_totals,
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
                 "transcript": transcript,
@@ -297,6 +303,19 @@ def run_evaluation(
 
         for key, value in cache_usage(response).items():
             cache_totals[key] += value
+
+        # Reasoning tokens billed, when the provider reports them. This is the
+        # only signal separating a model that did not reason from one whose
+        # reasoning was withheld - gpt-5.4 and grok-4.20 both returned zero
+        # reasoning text, and the transcripts cannot tell those apart.
+        # Only the adapters expose usage as a plain dict. The native Anthropic
+        # SDK puts an object here, whose accounting cache_usage already reads -
+        # calling .items() on it raised and killed the episode.
+        provider_usage = getattr(response, "usage", None)
+        if isinstance(provider_usage, dict):
+            for key, value in provider_usage.items():
+                if isinstance(value, int):
+                    token_totals[key] = token_totals.get(key, 0) + value
 
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
@@ -548,6 +567,7 @@ def run_evaluation(
         # less evidence than one where it is not, and the two should not be
         # compared without saying so.
         "reasoning_chars": reasoning_chars,
+        "token_usage": token_totals,
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": cache_totals,
         "system_prompt": system_prompt,

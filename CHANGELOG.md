@@ -6,6 +6,63 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v19
+
+Package version `19.0.0`. **No measurement change for existing results** —
+`ROLLOUT_VERSION` stays `r1` and the fingerprint is unchanged, so everything in
+`eval_results_r1` remains poolable. The new OpenAI route does change what is
+measured for models run through it, which is why it is opt-in and recorded.
+
+- Reasoning-token accounting, and a native OpenAI route to go with it.
+  The problem was a measurement one. Both awareness measures read reasoning, so
+  a model whose reasoning is not returned is scored on strictly less evidence -
+  and across ten episodes each, `openai/gpt-5.4` and `x-ai/grok-4.20` returned
+  zero characters of reasoning through OpenRouter while `openai/gpt-5.5`
+  returned 25,553. Recorded as "no CoT", those look like models that did not
+  reason. They are reasoning models whose reasoning was withheld, which is the
+  opposite fact.
+  Nothing in a transcript separates the two, so every run now records
+  `token_usage`, including `reasoning_tokens` where the provider reports it,
+  read from `completion_tokens_details` (chat completions) or
+  `output_tokens_details` (Responses). Zero tokens means the model did not
+  reason; tokens with no text means withheld. An absent count is kept distinct
+  from a zero one, because they are different claims.
+  `get_client` gains a third route: a bare `gpt-*` or `o<n>` ID goes to
+  OpenAI's Responses API with `reasoning: {summary: "auto"}`, which returns a
+  reasoning summary. A provider prefix keeps the model on OpenRouter, so the
+  two routes stay selectable for the same model and can be compared against
+  each other. This is not the chain of thought and cannot be: OpenAI states
+  that "reasoning tokens are not visible via the API". It moves gpt-5.4 from
+  *withheld* to *summarised* - the regime the Anthropic 4.6+ models are already
+  in - and no further. Batches differing on the route are not comparable on
+  awareness, and `reasoning_config` records which was used.
+  One bug worth recording: `thinking_surface()` returned None only for
+  OpenRouter, so a bare `gpt-5.4` fell through to the assumed-modern Anthropic
+  surface and would have posted `thinking={"type": "adaptive"}` to the
+  Responses API. And the first version of the usage accumulator called
+  `.items()` on the native Anthropic SDK's usage object, which is not a dict -
+  that killed the episode, and an existing end-to-end test caught it where the
+  new unit tests could not.
+
+- `llm_client.py` split by responsibility. It had grown to 979 lines covering
+  the reasoning-parameter table, two provider adapters, response normalisation,
+  tool-call repair, error classification and the factory - six reasons to
+  change in one file, and the OpenAI work would have added a seventh.
+  Now `routing.py` (which API serves an ID), `reasoning.py` (which parameters a
+  model accepts), `blocks.py` (the Anthropic-shaped objects adapters emit),
+  `tool_parsing.py` (recovering tool calls emitted as prose), `api_errors.py`
+  (classifying errors by whether a retry could help), `openrouter_client.py`
+  and `openai_client.py`. `llm_client.py` keeps the factory and re-exports the
+  client-facing names as one import site.
+  `get_client` deliberately stays in `llm_client`: the tests patch it there and
+  `grading.py` imports it lazily by that path, so moving it would turn those
+  patches into silent no-ops. The test module was split to mirror the source -
+  `test_routing.py`, `test_reasoning.py`, `test_blocks.py`,
+  `test_tool_parsing.py`, `test_openrouter_client.py`, `test_openai_client.py` -
+  each importing from the module it covers rather than through the façade. All
+  45 of the original tests were carried across, and the suite count is
+  unchanged at 487.
+
 ## v18
 
 Package version `18.0.0`. **No measurement change — v18 results are comparable

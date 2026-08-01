@@ -5,7 +5,7 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 
 from .scenario import SCENARIO
 
-VERSION = "v18"
+VERSION = "v19"
 
 # =========================================================================
 # Rollout identity
