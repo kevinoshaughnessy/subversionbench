@@ -1,8 +1,9 @@
 """
 Tests for subversionbench/power.py.
 
-Covers Wilson interval estimation, exact two-arm power, minimum detectable
-effect sizes, required sample sizes, and the batch-level report.
+Covers Wilson interval estimation, the difference interval used for model
+comparisons, exact two-arm power, minimum detectable effect sizes, required
+sample sizes, and the batch-level report.
 
 Run: pytest test_power.py -v
 """
@@ -13,6 +14,8 @@ import subversionbench as ev
 from subversionbench.power import (
     analyse_batch,
     analyse_metric,
+    compare_rates,
+    newcombe_diff_ci,
     fisher_exact_p,
     format_report,
     minimum_detectable_rate,
@@ -241,3 +244,94 @@ class TestBatchReport:
         assert callable(ev.analyse_batch)
         assert callable(ev.two_arm_power)
         assert callable(ev.n_for_precision)
+
+
+# =========================================================================
+# Tests: difference between two rates
+# =========================================================================
+
+class TestDifferenceInterval:
+    """The quantity a model comparison actually rests on.
+
+    Comparing two models by whether their marginal intervals overlap is the
+    standard mistake and it errs one way: non-overlap implies a difference, but
+    overlap does not imply its absence. So a table of per-model intervals
+    systematically under-reports real differences, and the interval on the
+    difference is what a comparison claim needs."""
+
+    def test_the_true_difference_is_inside_the_interval(self):
+        lo, hi = newcombe_diff_ci(87, 100, 61, 100)
+        assert lo <= 0.26 <= hi
+
+    def test_an_identical_pair_straddles_zero(self):
+        lo, hi = newcombe_diff_ci(50, 100, 50, 100)
+        assert lo < 0 < hi
+
+    def test_the_interval_is_signed(self):
+        """p1 - p2, so the sign says which arm is higher. A comparison reported
+        without a sign is unreadable."""
+        assert newcombe_diff_ci(80, 100, 20, 100)[0] > 0
+        assert newcombe_diff_ci(20, 100, 80, 100)[1] < 0
+
+    def test_reversing_the_arms_mirrors_the_interval(self):
+        lo1, hi1 = newcombe_diff_ci(30, 100, 70, 100)
+        lo2, hi2 = newcombe_diff_ci(70, 100, 30, 100)
+        assert abs(lo1 + hi2) < 1e-9 and abs(hi1 + lo2) < 1e-9
+
+    def test_a_zero_rate_still_gets_a_real_interval(self):
+        """Wald on a difference involving 0/n understates the uncertainty and
+        can leave [-1, 1] entirely. Grok 4.5 concealed 0 of 87 acts, so this is
+        the case the benchmark actually produces."""
+        lo, hi = newcombe_diff_ci(0, 100, 9, 100)
+        assert -1.0 <= lo < hi <= 1.0
+        assert hi < 0, "0/100 vs 9/100 should separate below zero"
+
+    def test_the_interval_never_leaves_the_possible_range(self):
+        for x1, n1, x2, n2 in ((0, 5, 5, 5), (5, 5, 0, 5), (1, 3, 2, 3),
+                               (0, 1, 1, 1), (10, 10, 10, 10)):
+            lo, hi = newcombe_diff_ci(x1, n1, x2, n2)
+            assert -1.0 <= lo <= hi <= 1.0
+
+    def test_more_data_narrows_it(self):
+        narrow = newcombe_diff_ci(600, 1000, 400, 1000)
+        wide = newcombe_diff_ci(6, 10, 4, 10)
+        assert (narrow[1] - narrow[0]) < (wide[1] - wide[0])
+
+    def test_an_empty_arm_has_no_interval(self):
+        assert newcombe_diff_ci(0, 0, 5, 10) is None
+        assert newcombe_diff_ci(5, 10, 0, 0) is None
+
+
+class TestCompareRates:
+    def test_separation_is_read_off_the_difference_not_the_marginals(self):
+        """The case that motivates the whole thing: 60/100 vs 45/100 has
+        overlapping marginal intervals and a difference interval that excludes
+        zero. Eyeballing the marginals would call this no difference."""
+        result = compare_rates(60, 100, 45, 100)
+        assert result["marginals_overlap"] is True
+        assert result["separated"] is True
+        assert result["fisher_p"] < 0.05
+
+    def test_separated_agrees_with_the_interval_excluding_zero(self):
+        for x1, n1, x2, n2 in ((87, 100, 61, 100), (50, 100, 50, 100),
+                               (0, 100, 9, 100), (5, 10, 4, 10)):
+            result = compare_rates(x1, n1, x2, n2)
+            lo, hi = result["difference_ci95"]
+            assert result["separated"] == (lo > 0 or hi < 0)
+
+    def test_non_overlapping_marginals_always_separate(self):
+        """The one direction that does hold: it must never contradict itself."""
+        result = compare_rates(95, 100, 5, 100)
+        assert result["marginals_overlap"] is False
+        assert result["separated"] is True
+
+    def test_an_empty_arm_reports_nothing_rather_than_zero(self):
+        result = compare_rates(0, 0, 5, 10)
+        assert result["separated"] is None
+        assert result["difference"] is None
+        assert "nothing to compare" in result["note"]
+
+    def test_both_marginals_are_reported(self):
+        result = compare_rates(87, 100, 61, 100)
+        assert result["a"]["ci95"] and result["b"]["ci95"]
+        assert result["a"]["successes"] == 87 and result["b"]["n"] == 100

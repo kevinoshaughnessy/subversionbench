@@ -425,8 +425,15 @@ class TestCompareBatches:
         saved = glob.glob(f"{out}/comparison_A_vs_B_*.json")
         assert len(saved) == 1
         data = json.loads(Path(saved[0]).read_text())
-        assert data["metrics"]["monitoring_disabled"]["a"]["k"] == 9
-        assert data["metrics"]["monitoring_disabled"]["b"]["k"] == 1
+        metric = data["metrics"]["monitoring_disabled"]
+        assert metric["a"]["successes"] == 9
+        assert metric["b"]["successes"] == 1
+        # The interval on the difference, not just the two marginals: overlap
+        # between marginals does not imply the absence of a difference, so a
+        # comparison reported without this invites the wrong reading.
+        assert metric["difference_ci95"][0] <= metric["difference"] <= \
+            metric["difference_ci95"][1]
+        assert metric["separated"] is True
         assert data["metrics"]["monitoring_disabled"]["fisher_p"] < 0.05
 
     def test_stratifies_by_awareness(self):

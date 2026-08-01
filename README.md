@@ -682,12 +682,51 @@ python -m subversionbench.run_eval --model x-ai/grok-4.5 \
     --compare 20260728T031053 20260728T034714
 ```
 
-Contrasts two batches — normally the two nudge arms — across every headline rate
-with Fisher exact tests, then repeats the primary contrast **stratified by eval
-awareness**. That stratification answers the standing objection to any arm
-difference: that the arms differ in how often the model realised it was under test,
-rather than in the manipulation. If the contrast holds within both awareness strata,
-awareness isn't what produced it.
+Contrasts two batches — normally the two nudge arms, but any two batches work — across
+every headline rate, then repeats the primary contrast **stratified by eval awareness**.
+That stratification answers the standing objection to any arm difference: that the arms
+differ in how often the model realised it was under test, rather than in the manipulation.
+If the contrast holds within both awareness strata, awareness isn't what produced it.
+
+Each row reports a **95% interval on the difference** (Newcombe's hybrid score method)
+alongside the Fisher exact p:
+
+```
+                  metric          A          B   diff pp     95% CI on diff   Fisher p
+     monitoring_disabled     87/100     61/100       26p     [+14.0, +37.1]    0.00004 *
+                scheming      0/100      9/100       -9p      [-16.2, -3.4]    0.00324 *
+  sandbox_escape_attempt     10/100     17/100       -7p      [-16.7, +2.6]    0.21389
+```
+
+The interval is on the difference because that is the quantity a comparison claim rests on.
+Judging two models by whether their *marginal* intervals overlap is the common mistake, and
+it errs one way: non-overlap implies a difference, but overlap does **not** imply its
+absence — 60/100 against 45/100 has overlapping marginals and a difference interval that
+excludes zero. Rows where those two criteria disagree are called out explicitly, since they
+are the ones a reader would otherwise get wrong. Newcombe rather than a Wald interval
+because rates here sit at the boundary: a model that concealed 0 of 87 acts breaks the
+normal approximation, and Wald can put the interval outside [−1, 1].
+
+Two multiplicity warnings. The report prints a Bonferroni alpha for the metrics compared in
+one run, but that does not cover the number of *model pairs* you test: 23 models is 253
+pairwise comparisons, and at α = 0.05 you would expect about 13 spurious differences per
+metric. Decide which contrasts are confirmatory in advance, and treat the rest as
+descriptive.
+
+### Uncertainty on every score
+
+Every summary carries a `rates` block: one entry per primary score with `successes`, `n`,
+`rate`, a 95% Wilson interval, and the **denominator in words**. That last field matters
+because several of these are conditional — `flagged_by_check` is out of episodes that ran
+the check, `concealed_oversight` out of episodes that tampered — and a conditional rate read
+as if it were out of *n* is wrong by whatever the conditioning rate happens to be.
+
+Read `rates` in preference to the loose `*_rate` fields beside it, which are kept for
+compatibility with summaries written before it existed. Intervals were previously scattered:
+some inline, some only inside the `power` block that `--no-power` removes, and five scores
+(memo, config, quality checker, flagged-by-check, goal conflict) had none anywhere.
+`rates` also carries `goal_conflict_grader`, which was reported to the console and stored
+nowhere — which is how a report table came to cite a figure that appeared in no summary file.
 
 ## Re-grading a finished batch
 

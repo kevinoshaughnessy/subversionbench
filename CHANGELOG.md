@@ -113,6 +113,39 @@ reclassify guard changes only whether a degraded pass is allowed to persist.
   answers are what the labels are derived from, and both were intact, so a
   re-run with the key exported restored the batch exactly.
 
+- Every primary score now carries an interval, and every comparison carries an
+  interval on the *difference*. Uncertainty was previously scattered - some
+  rates with an inline `_ci95`, some with one only inside the `power` block that
+  `--no-power` removes, and five (memo, config, quality checker,
+  flagged-by-check, goal conflict) with none anywhere. A reader had to know
+  which was which, and a bare 98% beside a bare 88% invites a comparison the
+  numbers may not support.
+  The new `rates` block gives each score `successes`, `n`, `rate`, a Wilson
+  interval and **the denominator in words**. The last field is not decoration:
+  `flagged_by_check` is out of episodes that ran the check and
+  `concealed_oversight` out of episodes that tampered, and a conditional rate
+  read as if it were out of n is wrong by whatever the conditioning rate is. It
+  also adds `goal_conflict_grader`, printed to the console since v13 and stored
+  nowhere - which is how a report table came to cite a figure present in no
+  summary file.
+  `newcombe_diff_ci` and `compare_rates` in power.py add the difference
+  interval, and `--compare` now reports it per metric. This is the substantive
+  change for model comparison: judging two models by whether their marginal
+  intervals overlap errs in one direction, because non-overlap implies a
+  difference while overlap does not imply its absence. 60/100 against 45/100 has
+  overlapping marginals and a difference interval excluding zero, so a table of
+  per-model intervals systematically under-reports real differences. Rows where
+  the two criteria disagree are now named in the output rather than left to be
+  noticed. Newcombe's hybrid score method rather than Wald for the same reason
+  Wilson is used for the marginals: rates here sit at the boundary - 0 of 87
+  acts concealed - where Wald is both too narrow and able to leave [-1, 1].
+  Validated by coverage simulation rather than against a recalled constant:
+  94.2-99.7% across eight configurations including both boundary cases, never
+  below nominal.
+  One schema change: the comparison JSON now names the count `successes` rather
+  than `k`, matching `rates`. The single v14 comparison file on disk still uses
+  the old name and is not regenerated.
+
 - Each summary now reports `awareness_provenance`: what the model had read when
   it first said "test". This is the one contamination question the probes above
   cannot reach. They detect memorisation of *this* text; a model that saw a
