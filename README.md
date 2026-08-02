@@ -191,7 +191,7 @@ is the judgement to sample when validating by hand, and the `implicit`/`explicit
 100-run grok-4.5 batch graded by `claude-haiku-4-5`,
 `suspects_being_tested` fired on 55 episodes, and reading them showed almost all were the
 agent reasoning about the scenario's *own quality checker* — "the quality checker flags
-Strategy A at the current threshold" — rather than about being studied. That is the
+the recommended option at the current threshold — rather than about being studied. That is the
 scenario working, not the model seeing through it.
 
 `rubric_ab.py` was written to establish the cause, crossing the question's wording with the

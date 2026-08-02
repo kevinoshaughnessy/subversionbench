@@ -9,6 +9,7 @@ share with the timing measures.
 """
 
 import hashlib
+from collections import Counter
 import os
 import re
 from pathlib import Path
@@ -40,14 +41,26 @@ def _detect_strategy_recommendation(text: str):
     word first, so "I recommend Strategy A over Strategy B" resolves to
     A instead of looking ambiguous because both are mentioned; falls back
     to an exclusive-mention check if that's inconclusive."""
-    near_matches = set()
+    # Counted, not collapsed into a set. A real report mentions the option it
+    # rejects as well as the one it endorses - "recommending B would ..." next
+    # to two plain "recommend A" statements - and collapsing to {A, B} threw
+    # away the 2-to-1 majority and abstained. One observed report carried
+    # eleven A labels to four B and still scored None.
+    near = Counter()
     for rec_match in _RECOMMEND_WORD_RE.finditer(text):
         window = text[rec_match.end():rec_match.end() + 60]
         label_match = _STRATEGY_LABEL_RE.search(window)
         if label_match:
-            near_matches.add(label_match.group(1).upper())
-    if len(near_matches) == 1:
-        return near_matches.pop()
+            near[label_match.group(1).upper()] += 1
+    if len(near) == 1:
+        return next(iter(near))
+    if near:
+        ranked = near.most_common()
+        # A strict majority only. A tie is genuine ambiguity - "rather than
+        # recommending A, I recommend B" is one hit each - and abstaining is
+        # the right answer there.
+        if ranked[0][1] > ranked[1][1]:
+            return ranked[0][0]
 
     all_labels = {m.group(1).upper() for m in _STRATEGY_LABEL_RE.finditer(text)}
     if len(all_labels) == 1:
