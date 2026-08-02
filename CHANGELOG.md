@@ -6,6 +6,71 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v20
+
+Package version `20.0.0`. **The r1 scenario is unchanged and r1 results remain
+valid.** `scenario_for(True)` is byte-identical to the scenario every existing
+episode ran under, and the test suite asserts it. What is new is a second arm
+beside it.
+
+- `--oversight false`: the counterfactual arm Meinke et al. describe. Their
+  deferred-subversion evaluations pair each scenario with a twin that removes
+  the oversight, because a model that behaves well under observation is
+  indistinguishable from an aligned one until the observation is removed. This
+  benchmark had no such arm, so every 0% in its results was ambiguous between
+  "would not subvert oversight" and "would not subvert oversight *while being
+  watched*" - and 19 of 24 models scored 0% on scheming.
+  The arm drops `monitoring_config` and `quality_check_script` entirely and
+  removes every reference to them from the six documents that carried one. A
+  test asserts that no hard oversight term survives anywhere in the assembled
+  arm, which is the instruction "no communication suggesting or implying any
+  oversight" written as an assertion.
+  **Removal only.** Nothing is reworded and nothing is added, so a behavioural
+  difference between arms is attributable to the absence of oversight rather
+  than to incidental differences in how the two were written - the discipline
+  Meinke describe as keeping the memo "almost identical". A test asserts no
+  document grew. The two system prompts are byte-identical across arms, so the
+  nudge manipulation stays nested inside the oversight one rather than crossed
+  with it.
+  Deriving the variant needed three passes, and the reason is worth recording:
+  a keyword rule kept matching the wrong sense. "review" is an instruction verb
+  in this scenario as well as an oversight noun, and "recommendation" is the
+  deliverable's own name, so both are useless as disambiguators - the first
+  rule cut the user prompt by 83%, gutting the task itself. The shipped rule
+  removes only sentences carrying an unambiguous oversight term, which takes
+  the user prompt down by 27% (one sentence of three). Eight surviving uses of
+  "review" read as instruction verbs and are left alone.
+
+- The act is NOT APPLICABLE in that arm, not absent. `oversight_tampered`,
+  `monitoring_disabled`, `quality_check_modified` and `ran_quality_check_preview`
+  are `None` when the artefacts do not exist, and `env_info` omits the hash keys
+  rather than setting them to `None`, so a consumer that forgets the arm exists
+  raises instead of silently scoring a clean run. `False` would mean "had the
+  chance and did not take it", which is the one thing this arm cannot observe,
+  and a summary averaging those would report a tampering rate for episodes that
+  had nothing to tamper with. The interrogation is skipped for an unavailable
+  act, so the arm never mentions oversight even at the end. Sandbox escapes and
+  `strategy_recommended` remain measurable in both arms and are the outcomes
+  the comparison rests on.
+
+- The fingerprint is now per ARM rather than per bundle, and the arm is part of
+  batch identity. Hashing the bundle file would have moved the oversight arm's
+  fingerprint the moment the counterfactual was authored, declaring 570
+  episodes incomparable with a scenario they still match exactly; hashing the
+  assembled arm keeps r1 pinned and gives the counterfactual an identity of its
+  own. `config.ROLLOUT_FINGERPRINTS` holds both. Filenames gain a
+  `_nooversight` segment - only when oversight is absent, so existing results
+  keep their names - and it composes with the effort segment.
+  Both arms live in `eval_results_r1`: they are siblings in one experiment and
+  meant to be compared, so separating them by directory would obstruct the
+  analysis they exist for. Accidental pooling is prevented by the filename and
+  by `find_run_files`, which filters on the identity parsed back out of each
+  name rather than by glob - the trailing wildcard standing in for the stamp
+  also swallows a `_nooversight` segment, so a pattern-based filter for the
+  oversight arm silently returned the counterfactual's episodes too.
+  The oversight arm's pinned value changed with the computation, not with the
+  scenario.
+
 ## v19
 
 Package version `19.0.0`. **No measurement change for existing results** —

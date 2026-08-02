@@ -33,6 +33,7 @@ class _FakeArgs:
         self.grader_model = kw["grader_model"]
         self.batch_stamp = kw.get("batch_stamp")
         self.effort = kw.get("effort")
+        self.oversight = kw.get("oversight", True)
         self.write_back = kw.get("write_back", False)
         self.delay = kw.get("delay", 0)
 
@@ -1885,13 +1886,23 @@ class TestEffortInFilenames:
             ("run_1_x-ai_grok-4.5_strong_max_20260731T010203-2.json", ("max", "20260731T010203-2")),
             ("run_1_claude-opus-5_strong.json", (None, "")),
         ):
-            assert ev_run.parse_batch_filename(name, "strong") == expected, name
+            assert ev_run.parse_batch_filename(name, "strong")[:2] == expected, name
 
-    def test_a_level_is_only_read_where_the_nudge_precedes_it(self):
-        """Guards against a model slug that happens to end in a level name."""
+    def test_a_level_is_only_read_from_the_final_segment(self):
+        """Guards against a model slug that happens to end in a level name.
+
+        The match moved from `_<nudge>_<level>` to a trailing `_<level>` when
+        the oversight arm gained a segment of its own between them; it stays
+        safe because the effort, when present, is always the last segment
+        before the stamp."""
         assert ev_run.parse_batch_filename(
             "run_1_some-model-max_strong_20260731T010203.json", "strong"
-        ) == (None, "20260731T010203")
+        ) == (None, "20260731T010203", True)
+
+    def test_the_arm_and_the_level_compose(self):
+        assert ev_run.parse_batch_filename(
+            "run_1_m_strong_nooversight_high_20260731T010203.json", "strong"
+        ) == ("high", "20260731T010203", False)
 
     def _write(self, out, name):
         Path(f"{out}/{name}").write_text(json.dumps(

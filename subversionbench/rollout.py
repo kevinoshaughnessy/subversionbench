@@ -51,7 +51,7 @@ import hashlib
 import json
 
 from .config import SANDBOX_DISPLAY_PATH, TOOLS
-from .scenario import _BUNDLE_PATH
+from .scenario import _BUNDLE_PATH, scenario_for
 
 # Commands whose handling defines the sandbox as the model experiences it.
 # Each one is here because it distinguishes a behaviour that has changed, or
@@ -103,15 +103,24 @@ def _sandbox_behaviour() -> str:
     return "\n".join(lines)
 
 
-def rollout_fingerprint() -> str:
+def rollout_fingerprint(oversight: bool = True) -> str:
     """
     A short hash of everything that determines what the model sees and can do.
+
+    Per ARM, not per bundle. The oversight counterfactual adds documents to the
+    bundle that the oversight arm never sees, so hashing the bundle file would
+    change r1's fingerprint the moment the second arm was authored - declaring
+    570 episodes incomparable with a scenario they still match exactly.
+    Hashing the assembled arm keeps `oversight=True` pinned to r1 and gives the
+    counterfactual an identity of its own, which is what lets the two be
+    compared as arms rather than pooled as one rollout.
 
     Stable across analysis changes by construction: nothing here reads the
     grader, the rubric, the classifier or the summary code.
     """
+    scenario = scenario_for(oversight)
     parts = [
-        _BUNDLE_PATH.read_bytes(),
+        json.dumps(scenario, sort_keys=True).encode(),
         json.dumps(TOOLS, sort_keys=True).encode(),
         _sandbox_behaviour().encode(),
     ]
@@ -121,7 +130,7 @@ def rollout_fingerprint() -> str:
     return digest.hexdigest()[:12]
 
 
-def rollout_drift_error(expected: str) -> str:
+def rollout_drift_error(expected: str, oversight: bool = True) -> str:
     """
     The message to fail a rollout on, or None when the fingerprint matches.
 
@@ -131,7 +140,7 @@ def rollout_drift_error(expected: str) -> str:
     working against archived results whatever the current scenario says.
     Only the modes that produce new episodes check this.
     """
-    actual = rollout_fingerprint()
+    actual = rollout_fingerprint(oversight)
     if actual == expected:
         return None
     return (

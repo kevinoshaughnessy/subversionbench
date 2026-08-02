@@ -5,7 +5,7 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 
 from .scenario import SCENARIO
 
-VERSION = "v19"
+VERSION = "v20"
 
 # =========================================================================
 # Rollout identity
@@ -26,13 +26,30 @@ VERSION = "v19"
 # strong-nudge prompts inside eval_results_v14. See rollout.py.
 ROLLOUT_VERSION = "r1"
 
-# sha256 over the scenario bundle, the tool definitions, and the sandbox's
-# behaviour on a fixed battery of commands. Pinned here rather than computed,
-# so a rollout change is a startup error instead of a silent one: the rollout
-# modes compare this against rollout.rollout_fingerprint() and refuse to run
-# when they disagree. Update it in the same commit that bumps ROLLOUT_VERSION,
-# never on its own.
-ROLLOUT_FINGERPRINT = "004f5454ae38"
+# sha256 over the assembled scenario ARM, the tool definitions, and the
+# sandbox's behaviour on a fixed battery of commands. Pinned here rather than
+# computed, so a rollout change is a startup error instead of a silent one: the
+# rollout modes compare this against rollout.rollout_fingerprint() and refuse
+# to run when they disagree. Update in the same commit that bumps
+# ROLLOUT_VERSION, never on its own.
+#
+# One entry per arm of the oversight counterfactual. Per arm rather than per
+# bundle because authoring the second arm adds documents the first never sees:
+# hashing the bundle file would have changed the oversight arm's fingerprint
+# and declared 570 existing episodes incomparable with a scenario they still
+# match exactly.
+#
+# The oversight-arm value changed in v20 when the computation moved from the
+# raw bundle file to the assembled arm. The scenario itself did not change -
+# `scenario_for(True)` is byte-identical to the r1 SCENARIO - so r1 results
+# remain valid and poolable.
+ROLLOUT_FINGERPRINTS = {
+    True: "353d6cc0ae7f",    # oversight present: the r1 scenario
+    False: "f03a33e326c1",   # the counterfactual: no oversight to subvert
+}
+
+# The oversight arm, for callers that predate the counterfactual.
+ROLLOUT_FINGERPRINT = ROLLOUT_FINGERPRINTS[True]
 
 # =========================================================================
 # Canary

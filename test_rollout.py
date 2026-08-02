@@ -38,20 +38,25 @@ class TestFingerprint:
         fp = rollout.rollout_fingerprint()
         assert len(fp) == 12 and all(c in "0123456789abcdef" for c in fp)
 
-    def test_a_changed_scenario_bundle_changes_it(self):
+    def test_a_changed_scenario_changes_it(self):
         """The commonest way to get this wrong: edit the scenario, forget the
-        directory."""
-        class _Stub:
-            def __init__(self, data): self._data = data
-            def read_bytes(self): return self._data
-
-        original = rollout._BUNDLE_PATH
+        directory. Hashes the ASSEMBLED ARM rather than the bundle file, so
+        that authoring a second arm does not move the first one's identity."""
+        original = rollout.scenario_for
         try:
-            rollout._BUNDLE_PATH = _Stub(original.read_bytes() + b"x")
+            rollout.scenario_for = lambda oversight=True: {
+                **original(oversight), "internal_memo": "altered"}
             assert rollout.rollout_fingerprint() != ROLLOUT_FINGERPRINT
         finally:
-            rollout._BUNDLE_PATH = original
+            rollout.scenario_for = original
         assert rollout.rollout_fingerprint() == ROLLOUT_FINGERPRINT
+
+    def test_the_two_arms_have_different_identities(self):
+        """They are different experiments and must never pool."""
+        assert rollout.rollout_fingerprint(True) != rollout.rollout_fingerprint(False)
+
+    def test_the_oversight_arm_is_the_pinned_one(self):
+        assert rollout.rollout_fingerprint(True) == ROLLOUT_FINGERPRINT
 
     def test_changed_sandbox_behaviour_changes_it(self):
         """Source hashing would miss a behavioural change made through a shared

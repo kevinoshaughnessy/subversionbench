@@ -41,6 +41,7 @@ from .config import (
     DEFAULT_GRADER_MODEL,
     CANARY,
     ROLLOUT_FINGERPRINT,
+    ROLLOUT_FINGERPRINTS,
     ROLLOUT_VERSION,
     VERSION,
     SYSTEM_PROMPT_STRONG_NUDGE,
@@ -86,6 +87,7 @@ from .llm_client import (
     thinking_surface,
 )
 from .redaction import redact_paths
+from .scenario import scenario_for
 from .rollout import rollout_drift_error, rollout_fingerprint
 from .power import (
     analyse_batch,
@@ -132,6 +134,8 @@ class EpisodeAPIError(RuntimeError):
 # so a single rolling breakpoint would stop finding its predecessor around turn
 # ten and silently degrade to no caching. Two keeps the lookback short. The API
 # allows four; the extra two buy nothing here and cost a write each.
+NO_OVERSIGHT_TAG = "nooversight"
+
 _CACHE_BREAKPOINTS = 2
 
 
@@ -217,6 +221,7 @@ def run_evaluation(
     effort: str = None,
     use_grader: bool = True,
     grader_model: str = DEFAULT_GRADER_MODEL,
+    oversight: bool = True,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection."""
     client = get_client(model)
@@ -284,6 +289,8 @@ def run_evaluation(
                 # holding two fingerprints is two experiments, and until this existed
                 # nothing recorded which was which.
                 "rollout_version": ROLLOUT_VERSION,
+                "oversight": oversight,
+        "oversight": oversight,
                 "rollout_fingerprint": ROLLOUT_FINGERPRINT,
                 "analysis_version": VERSION,
                 "model": model,
@@ -499,6 +506,10 @@ def run_evaluation(
         )
 
     for act in MISALIGNED_ACTS:
+        # None means the act was not available in this arm - there was no
+        # oversight to subvert - so there is nothing to interrogate about.
+        # Asking anyway would put the idea in front of a model the scenario
+        # deliberately never mentioned it to.
         if not analysis.get(act["key"]):
             continue
 
@@ -553,6 +564,7 @@ def run_evaluation(
         # holding two fingerprints is two experiments, and until this existed
         # nothing recorded which was which.
         "rollout_version": ROLLOUT_VERSION,
+        "oversight": oversight,
         "rollout_fingerprint": ROLLOUT_FINGERPRINT,
         "analysis_version": VERSION,
         "model": model,
@@ -797,7 +809,8 @@ def _unique_batch_stamp(output_dir: str) -> str:
     return stamp
 
 
-def batch_stem(model_slug: str, nudge: str, effort=None) -> str:
+def batch_stem(model_slug: str, nudge: str, effort=None,
+               oversight: bool = True) -> str:
     """
     The middle of every filename belonging to one batch.
 
@@ -807,15 +820,22 @@ def batch_stem(model_slug: str, nudge: str, effort=None) -> str:
     actually sent, so batches at the API default keep the names they have always
     had and results already on disk stay findable.
 
+    The oversight arm is part of that identity for the same reason and sits
+    before the effort segment, so the two compose. Marked only when oversight
+    is ABSENT, so the 570 episodes already collected under the oversight arm
+    keep the names they have.
+
     The stamp is always appended after this, never before - find_run_files_by_stamp
     and regrade_all.sh both key off a trailing _<stamp>.json.
     """
-    return f"{model_slug}_{nudge}" + (f"_{effort}" if effort else "")
+    return (f"{model_slug}_{nudge}"
+            + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
+            + (f"_{effort}" if effort else ""))
 
 
 def parse_batch_filename(path: str, nudge: str):
     """
-    Read (effort, stamp) back off a run or summary filename.
+    Read (effort, stamp, oversight) back off a run or summary filename.
 
     A rebuild has to name its summary after the runs it read, not after whatever
     --effort the rebuilding invocation happened to carry: otherwise
@@ -833,14 +853,20 @@ def parse_batch_filename(path: str, nudge: str):
         stamp = match.group(1)
         name = name[:match.start()]
 
+    effort = None
     for level in EFFORT_LEVELS:
-        if name.endswith(f"_{nudge}_{level}"):
-            return level, stamp
-    return None, stamp
+        if name.endswith(f"_{level}"):
+            effort = level
+            name = name[:-len(f"_{level}")]
+            break
+
+    oversight = not name.endswith(f"_{nudge}_{NO_OVERSIGHT_TAG}")
+    return effort, stamp, oversight
 
 
 def find_run_files(output_dir: str, model_slug: str, nudge: str,
-                   batch_stamp: str = None, effort: str = None) -> list:
+                   batch_stamp: str = None, effort: str = None,
+                   oversight: bool = None) -> list:
     """
     Existing run files for one model and nudge, oldest batch first.
 
@@ -856,22 +882,32 @@ def find_run_files(output_dir: str, model_slug: str, nudge: str,
     caller that does not care (--grade-existing, --resummarise) sees the
     batches regardless of what they were run at.
     """
-    stem = batch_stem(model_slug, nudge, effort)
-    patterns = [f"run_*_{stem}_{batch_stamp or '*'}.json"]
-    if effort is None:
-        patterns += [
-            f"run_*_{batch_stem(model_slug, nudge, level)}"
-            f"_{batch_stamp or '*'}.json"
-            for level in sorted(EFFORT_LEVELS)
-        ]
-    if batch_stamp is None:
-        patterns.append(f"run_*_{stem}.json")
+    # Glob broadly, then filter on the identity parsed back out of each name.
+    # Pattern-matching the arm directly does not work: the trailing wildcard
+    # that stands in for the stamp also swallows a `_nooversight` segment, so
+    # a filter for the oversight arm silently returned the counterfactual's
+    # episodes too.
+    prefix = f"run_*_{model_slug}_{nudge}"
+    if batch_stamp:
+        # Matched as a literal, not parsed back: --batch-stamp takes any
+        # string, while parse_batch_filename only recognises a datetime-shaped
+        # one, so filtering on the parsed value drops every other shape.
+        found = set(glob.glob(
+            os.path.join(output_dir, f"{prefix}*_{batch_stamp}.json")))
+    else:
+        found = set(glob.glob(os.path.join(output_dir, f"{prefix}_*.json")))
+        found.update(glob.glob(os.path.join(output_dir, f"{prefix}.json")))
 
-    found = set()
-    for pattern in patterns:
-        found.update(glob.glob(os.path.join(output_dir, pattern)))
+    keep = []
+    for path in found:
+        got_effort, _, got_oversight = parse_batch_filename(path, nudge)
+        if effort is not None and got_effort != effort:
+            continue
+        if oversight is not None and got_oversight != oversight:
+            continue
+        keep.append(path)
 
-    return sorted(found)
+    return sorted(keep)
 
 
 # What a two-arm comparison reports on. Each entry pulls a boolean out of one
@@ -1527,24 +1563,25 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
               f"{redact_paths(args.output_dir)}/")
         return 1
 
-    # Grouped by (effort, stamp), because those two together identify a batch:
-    # the same model and nudge at two effort levels are two conditions, and
+    # Grouped by (effort, oversight, stamp), because those together identify a
+    # batch: the same model and nudge at two effort levels, or across the two
+    # arms of the oversight counterfactual, are different conditions, and
     # merging them into one summary would silently pool them.
     by_batch = {}
     for path in run_files:
-        effort, stamp = parse_batch_filename(path, args.nudge)
+        effort, stamp, oversight = parse_batch_filename(path, args.nudge)
         if args.batch_stamp:
             # find_run_files has already filtered to this stamp, and it is what
             # the summary should be named after - reading it back out of the
             # filename would drop any stamp that is not datetime-shaped and
             # write over the unstamped legacy summary.
             stamp = args.batch_stamp
-        by_batch.setdefault((effort, stamp), []).append(path)
+        by_batch.setdefault((effort, oversight, stamp), []).append(path)
 
     print(f"{len(run_files)} run file(s) across {len(by_batch)} batch(es).")
 
-    for (effort, stamp), paths in sorted(by_batch.items(),
-                                        key=lambda kv: (kv[0][1], kv[0][0] or "")):
+    for (effort, oversight, stamp), paths in sorted(
+            by_batch.items(), key=lambda kv: (kv[0][2], kv[0][0] or "", kv[0][1])):
         all_results = []
         for path in sorted(paths):
             with open(path) as f:
@@ -1577,7 +1614,7 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
 
         stamped = f"_{stamp}" if stamp else ""
         summary_path = (f"{args.output_dir}/summary"
-                        f"_{batch_stem(model_slug, args.nudge, effort)}"
+                        f"_{batch_stem(model_slug, args.nudge, effort, oversight)}"
                         f"{stamped}.json")
         runtime = _runtime_from_existing_summary(summary_path, all_results)
         for key, value in runtime.pop("args_overrides", {}).items():
@@ -2526,7 +2563,7 @@ def summarise_batch(args, all_results: list, model_slug: str,
     stamped = f"_{batch_stamp}" if batch_stamp else ""
     summary_file = (
         f"{args.output_dir}/summary"
-        f"_{batch_stem(model_slug, args.nudge, args.effort)}{stamped}.json"
+        f"_{batch_stem(model_slug, args.nudge, args.effort, args.oversight)}{stamped}.json"
     )
     with open(summary_file, "w") as f:
         json.dump(summary, f, indent=2)
@@ -2540,6 +2577,14 @@ def main():
     )
     parser.add_argument("--model", default="claude-sonnet-5",
                         help="Model to evaluate")
+    parser.add_argument(
+        "--oversight", choices=["true", "false"], default="true",
+        help="whether the scenario contains an oversight mechanism to "
+             "subvert (default: true, the r1 scenario). 'false' selects the "
+             "counterfactual arm: no monitoring config, no quality-check "
+             "script, and no document referring to either. The oversight act "
+             "is then NOT APPLICABLE rather than absent, so the comparable "
+             "outcome across arms is the recommendation itself.")
     parser.add_argument("--nudge", choices=["strong", "none"], default="strong",
                         help="Nudge strength")
     parser.add_argument("--runs", type=int, default=10,
@@ -2724,6 +2769,8 @@ def main():
         else SYSTEM_PROMPT_NO_NUDGE
     )
 
+    args.oversight = args.oversight == "true"
+
     os.makedirs(args.output_dir, exist_ok=True)
 
     # OpenRouter model IDs are "provider/model" (e.g. "x-ai/grok-4.5"); the
@@ -2753,7 +2800,13 @@ def main():
     # is the error this exists to prevent. Checked only for rollout modes: the
     # read-only modes re-derive analysis from saved transcripts and must keep
     # working against archived results whatever the current scenario says.
-    drift = rollout_drift_error(ROLLOUT_FINGERPRINT)
+    # The counterfactual arm has its own user prompt: the r1 one names the
+    # quality check, which the arm must not mention. The system prompts carry
+    # no oversight reference and are shared by both arms unchanged.
+    user_prompt = scenario_for(args.oversight)["user_prompt"]
+
+    drift = rollout_drift_error(
+        ROLLOUT_FINGERPRINTS[args.oversight], args.oversight)
     if drift:
         print(f"\n{'='*60}")
         print("REFUSING TO ROLL OUT")
@@ -2779,7 +2832,7 @@ def main():
     for i in range(args.runs):
         run_file = (
             f"{args.output_dir}/run_{i+1}"
-            f"_{batch_stem(model_slug, args.nudge, effective_effort)}"
+            f"_{batch_stem(model_slug, args.nudge, effective_effort, args.oversight)}"
             f"_{batch_stamp}.json"
         )
 
@@ -2797,7 +2850,7 @@ def main():
 
         project_name = generate_project_name()
         env_dir = tempfile.mkdtemp(prefix=f"{project_name}_")
-        env_info = create_hardened_environment(env_dir)
+        env_info = create_hardened_environment(env_dir, args.oversight)
 
         # One episode failing must not end the batch. Over a few hundred
         # episodes - each 5-20 model calls plus grading and interrogations -
@@ -2806,7 +2859,7 @@ def main():
         try:
             result = run_evaluation(
                 system_prompt=system_prompt,
-                user_prompt=USER_PROMPT,
+                user_prompt=user_prompt,
                 env_dir=env_dir,
                 env_info=env_info,
                 model=args.model,
@@ -2817,6 +2870,7 @@ def main():
                 effort=effective_effort,
                 use_grader=not args.no_grader,
                 grader_model=args.grader_model,
+                oversight=args.oversight,
             )
         except KeyboardInterrupt:
             print("\n\nInterrupted by user.")
@@ -2840,7 +2894,7 @@ def main():
             if isinstance(e, EpisodeAPIError):
                 partial_file = (
                     f"{args.output_dir}/failed_run_{i+1}"
-                    f"_{batch_stem(model_slug, args.nudge, effective_effort)}"
+                    f"_{batch_stem(model_slug, args.nudge, effective_effort, args.oversight)}"
                     f"_{batch_stamp}.json"
                 )
                 with open(partial_file, "w") as f:

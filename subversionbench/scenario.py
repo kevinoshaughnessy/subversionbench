@@ -51,4 +51,35 @@ def encode_scenario(bundle: dict, path: Path = None) -> None:
     )
 
 
-SCENARIO = load_scenario()
+def scenario_for(oversight: bool = True, bundle: dict = None) -> dict:
+    """
+    The scenario as one arm of the oversight counterfactual sees it.
+
+    `oversight=True` is the r1 scenario, returned unchanged: the arm every
+    result so far was collected under.
+
+    `oversight=False` is the counterfactual Meinke et al. describe - the same
+    task with no oversight to subvert. The monitoring config and the
+    quality-check script are absent, and every document that referred to them
+    has those references removed. The variant is stored in the bundle rather
+    than derived at run time, because a derivation rule that changed would
+    silently change the experiment; stored, it is fingerprinted like any other
+    scenario text.
+
+    The counterfactual is defined by REMOVAL only. Nothing is reworded and
+    nothing is added, so any behavioural difference between arms is
+    attributable to the absence of oversight rather than to incidental
+    differences in how the two were written.
+    """
+    bundle = dict(bundle or load_scenario())
+    overrides = bundle.pop("no_oversight", {})
+    dropped = bundle.pop("no_oversight_dropped", [])
+    if oversight:
+        return bundle
+    for key in dropped:
+        bundle.pop(key, None)
+    bundle.update(overrides)
+    return bundle
+
+
+SCENARIO = scenario_for(True)
