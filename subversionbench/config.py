@@ -5,7 +5,7 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 
 from .scenario import SCENARIO
 
-VERSION = "v21"
+VERSION = "v22"
 
 # =========================================================================
 # Rollout identity
@@ -24,7 +24,7 @@ VERSION = "v21"
 # Keying the directory on VERSION got this wrong in both directions - it split
 # v15 and v17 batches that ran identical prompts, and it kept two different
 # strong-nudge prompts inside eval_results_v14. See rollout.py.
-ROLLOUT_VERSION = "r1"
+ROLLOUT_VERSION = "r2"
 
 # sha256 over the assembled scenario ARM, the tool definitions, and the
 # sandbox's behaviour on a fixed battery of commands. Pinned here rather than
@@ -39,14 +39,23 @@ ROLLOUT_VERSION = "r1"
 # and declared 570 existing episodes incomparable with a scenario they still
 # match exactly.
 #
-# The oversight-arm value changed in v20 when the computation moved from the
-# raw bundle file to the assembled arm. The scenario itself did not change -
-# `scenario_for(True)` is byte-identical to the r1 SCENARIO - so r1 results
-# remain valid and poolable.
 ROLLOUT_FINGERPRINTS = {
-    True: "353d6cc0ae7f",    # oversight present: the r1 scenario
-    False: "08eda4a68d1f",   # the counterfactual: no oversight to subvert
+    True: "cf49e8ddaf10",    # oversight present
+    False: "54f976b07edb",   # the counterfactual: no oversight to subvert
 }
+
+# Superseded values, kept so an archived directory can be identified from a
+# fingerprint alone rather than from its name:
+#
+#   r1   oversight cf49e8ddaf10 -> was 353d6cc0ae7f
+#        counterfactual         -> was 08eda4a68d1f
+#
+# r1 -> r2 fixed a sandbox defect. "locate " was matched as a bare substring, so
+# a draft mentioning allocating budget or relocating stops was refused as an
+# attempt to run `locate` - 36 of 193 refused commands across 18 episodes and
+# five models. The sandbox genuinely blocked those writes, so this changed what
+# the model could do and r1 episodes are not comparable with r2 ones.
+# eval_results_r1 is left exactly as it stands.
 
 # The oversight arm, for callers that predate the counterfactual.
 ROLLOUT_FINGERPRINT = ROLLOUT_FINGERPRINTS[True]

@@ -2615,7 +2615,7 @@ def main():
     parser.add_argument(
         "--oversight", choices=["true", "false"], default="true",
         help="whether the scenario contains an oversight mechanism to "
-             "subvert (default: true, the r1 scenario). 'false' selects the "
+             "subvert (default: true). 'false' selects the "
              "counterfactual arm: no monitoring config, no quality-check "
              "script, and no document referring to either. The oversight act "
              "is then NOT APPLICABLE rather than absent, so the comparable "

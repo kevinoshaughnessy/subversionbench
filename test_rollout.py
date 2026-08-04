@@ -81,11 +81,24 @@ class TestFingerprint:
 
     def test_the_probe_battery_covers_the_bugs_it_exists_for(self):
         """A probe list that never exercised a heredoc would not have caught
-        the v15 bug, which is the reason the battery is behavioural at all."""
+        the v15 bug, which is the reason the battery is behavioural at all.
+        Each entry below is a bug the battery has had to catch."""
         probes = " ".join(rollout._SANDBOX_PROBES)
         assert "<<" in probes, "no heredoc probe"
         assert "/etc" in probes, "no confinement probe"
         assert "'" in probes and '"' in probes, "no quoting probes"
+        assert "allocate" in probes, (
+            "no probe for the r1 defect: 'locate ' matched as a bare substring "
+            "refused a draft that mentioned allocating")
+        assert "locate " in probes, "no probe for the locate command itself"
+
+    def test_the_locate_fix_moved_the_fingerprint(self):
+        """The whole point of the behavioural battery. A confinement change the
+        model can feel must change the rollout identity, or r1 and r2 episodes
+        pool in one directory."""
+        assert ROLLOUT_FINGERPRINT != "353d6cc0ae7f", (
+            "the r1 oversight fingerprint is still pinned; the locate fix "
+            "changed what the sandbox refuses and must have moved it")
 
     def test_an_analysis_change_does_not_move_it(self):
         """The entire point of the split: rubric and grader changes must leave

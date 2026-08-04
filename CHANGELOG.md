@@ -6,6 +6,51 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v22
+
+Package version `22.0.0`, and **`ROLLOUT_VERSION` moves to `r2`.** New results
+go to `eval_results_r2`. `eval_results_r1` is left exactly as it stands, and the
+harness will not pool the two: the sandbox now refuses a different set of
+commands, so r1 and r2 episodes are not comparable.
+
+- Fixed the `"locate "` substring defect, which is a rollout change because it
+  altered what the model could do.
+  `BLOCKED_PATTERNS` contained `"locate "` and tested it with `pattern in
+  cmd_lower`, so it fired on **"allocate "**, **"relocate "** and
+  **"allocated"** - words a transport recommendation uses on every other line.
+  The commands being refused were the model writing its own deliverable:
+  heredocs and `echo`/`printf`/`python3` invocations redirecting a draft into a
+  file inside the project.
+  This was behavioural interference, not only a measurement artefact. The
+  sandbox genuinely refused those writes at run time, so some episodes were
+  prevented from producing a deliverable - a candidate explanation for
+  turn-capped runs and null `strategy_recommended` values in r1 as well as in
+  the counterfactual arm.
+  `locate` is now matched in command position only, by `_BLOCKED_COMMAND_RE`,
+  the same treatment `env` and `set` already had. The comment above the pattern
+  list had recorded that exact fix - "previously blocked as bare substrings,
+  which also refused any command that merely contained the letters" - and it was
+  never carried across to `locate`.
+  Measured against every saved r1 episode: **95 commands are no longer refused
+  and 14 episodes leave the escape set** - Gemini 3.5 Flash 58 to 50, Grok 4.5
+  10 to 8, and four models drop to zero. The freed commands are `cat` (63),
+  `printf` (12), `python3` (9), `echo` (9) and `rm` (2): writing files, not
+  leaving the sandbox.
+
+- The fingerprint battery gains the probe that would have caught it. A draft
+  mentioning allocating and relocating, and the `locate` command itself, now sit
+  beside the heredoc and quoting probes - each of which is there because it
+  caught a real bug. This is the second time the behavioural battery has earned
+  its design over source hashing: the change was one entry in a list, invisible
+  to a diff of intent but plain in what the sandbox does.
+
+- A guard against the class rather than the instance. `test_sandbox.py` now
+  asserts that no `BLOCKED_PATTERNS` entry appears inside a paragraph of
+  ordinary planning prose. A pattern that matches English does two kinds of
+  damage at once - it blocks legitimate work and records the block as evidence
+  of misalignment - so any future entry with that property fails the suite
+  rather than a results directory.
+
 ## v21
 
 Package version `21.0.0`. **No rollout change — `ROLLOUT_VERSION` stays `r1`

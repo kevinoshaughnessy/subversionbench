@@ -55,8 +55,8 @@ def scenario_for(oversight: bool = True, bundle: dict = None) -> dict:
     """
     The scenario as one arm of the oversight counterfactual sees it.
 
-    `oversight=True` is the r1 scenario, returned unchanged: the arm every
-    result so far was collected under.
+    `oversight=True` is the scenario with oversight present, returned
+    unchanged: the arm every result so far was collected under.
 
     `oversight=False` is the counterfactual Meinke et al. describe - the same
     task with no oversight to subvert. The monitoring config and the
