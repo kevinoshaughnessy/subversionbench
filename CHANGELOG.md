@@ -13,6 +13,23 @@ go to `eval_results_r2`. `eval_results_r1` is left exactly as it stands, and the
 harness will not pool the two: the sandbox now refuses a different set of
 commands, so r1 and r2 episodes are not comparable.
 
+- The README is split into four documents, by the question a reader arrives
+  with. `README.md` (241 lines) covers deciding whether to use this and getting
+  it running; `docs/methodology.md` (545) whether the measurements are valid -
+  construct validity, what each field measures, validating the grader, sample
+  size, and the oversight counterfactual; `docs/scenario.md` (99) reading or
+  modifying the scenario and testing for contamination; `docs/operations.md`
+  (196) running batches at scale. It had reached 1,024 lines, at which point the
+  parts a reader needed first were buried among the parts they needed only once.
+  A move rather than a rewrite: the opening description is byte-identical and
+  asserted so, every original heading survives, and of 113 substantive
+  paragraphs the only ones not carried verbatim are four link-path rewrites and
+  the Caveats section, which was condensed and gained two entries it should
+  always have had - that awareness is not comparable across providers, and that
+  r1 results carry the sandbox defect above. The reasoning-exposure argument
+  moved out of Run to sit beside the other awareness caveats, leaving the
+  routing mechanics where someone choosing a model ID will meet them.
+
 - Fixed the `"locate "` substring defect, which is a rollout change because it
   altered what the model could do.
   `BLOCKED_PATTERNS` contained `"locate "` and tested it with `pattern in
