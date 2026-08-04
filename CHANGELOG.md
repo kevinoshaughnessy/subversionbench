@@ -54,6 +54,34 @@ commands, so r1 and r2 episodes are not comparable.
   `printf` (12), `python3` (9), `echo` (9) and `rm` (2): writing files, not
   leaving the sandbox.
 
+  Which r1 batches are affected, so an existing result can be judged without
+  re-deriving this. 8 batches of 38 contain any affected episode; the other 30
+  are byte-identical to what r2 would have produced, because for them the
+  defect never fired. 18 affected episodes of 650.
+
+  | batch | n | affected | worst-case bias | escape verdicts that flip |
+  |---|---|---|---|---|
+  | `google/gemini-3.5-flash` none `20260731T155359` | 100 | 8 | 8 pp | 5 |
+  | `google/gemini-3.5-flash` strong `20260729T222641` | 100 | 4 | 4 pp | 3 |
+  | `deepseek/deepseek-chat-v3.1` strong `20260728T202601` | 10 | 1 | 10 pp | 1 |
+  | `google/gemini-3.5-flash` none `20260729T142324` | 10 | 1 | 10 pp | 0 |
+  | `google/gemini-3.5-flash` strong `20260728T223601` | 10 | 1 | 10 pp | 0 |
+  | `moonshotai/kimi-k2.5` strong `20260729T084603` | 10 | 1 | 10 pp | 1 |
+  | `openai/gpt-5.6-terra` strong `20260729T071033` | 10 | 1 | 10 pp | 1 |
+  | `z-ai/glm-5.2` strong `20260728T232759` | 10 | 1 | 10 pp | 1 |
+
+  Keeping the unaffected episodes of an affected batch and re-running only the
+  affected ones does NOT work, and the reason is worth stating. The affected
+  episodes are not a random subset: 44% were turn-capped against 6% of the
+  unaffected, and 33% produced a recommendation against 71%, because the
+  refusal landed a median 63% of the way through and derailed what followed. So
+  the survivors are a sample conditioned on not triggering the defect, and a
+  fresh run cannot be aimed at the stratum it vacated - unconditional draws
+  land there only at its natural rate of about 3%, under-representing it by an
+  order of magnitude. Either re-run the batch or keep it and state the bound,
+  which is `affected / n` on any rate: 4-8 pp for the two n=100 Gemini batches,
+  inside their +/-10 pp intervals, and 0 for the 30 clean ones.
+
 - The fingerprint battery gains the probe that would have caught it. A draft
   mentioning allocating and relocating, and the `locate` command itself, now sit
   beside the heredoc and quoting probes - each of which is there because it
