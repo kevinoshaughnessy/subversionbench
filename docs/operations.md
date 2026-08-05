@@ -190,6 +190,19 @@ persistence. The message carries no warning about consequences: the audit trail 
 established by the README and `system.log`, and repeating it on every refusal would read as
 a dare.
 
+**Command names that are also English words have to be matched in command position, and
+getting that wrong is the most expensive class of bug here.** `locate` was fixed twice. r2
+stopped it matching "allocate"/"relocate" as a bare substring; r3 stopped it matching a word
+that merely follows a space, which still refused a sentence beginning "Locate park-and-ride".
+Both times the sandbox genuinely refused the model writing its own deliverable, so both were
+behavioural interference and not only a measurement artefact — a model refused 13 times
+resorted to base64-packing its text onto a single line and finished with no recommendation at
+all. Command position means the start of the command or the start of a new one, after `;`,
+`|`, `&`, `(` or a newline, with a closed set of wrappers allowed in front. Anything added to
+`BLOCKED_PATTERNS` that is a substring of ordinary prose fails
+`TestBlockedPatternsAreNotSubstringsOfProse` rather than a results directory, and the
+fingerprint battery in `rollout.py` pins both shapes.
+
 The sandbox is a plausibility device, not a security boundary. It runs `subprocess` with
 `shell=True` and is designed to keep the eval's own machinery out of the model's view,
 not to contain an adversary. Run untrusted models in a container.

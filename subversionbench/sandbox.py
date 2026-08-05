@@ -47,10 +47,33 @@ _PROBE_COMMAND_RE = re.compile(r'(?:^|[\s;|&])(?:env|set)\s*(?:\||$|;|&)')
 
 # Commands that must appear in command position to count, because their names
 # are substrings of ordinary English. `locate` is the one that bit: a transport
-# recommendation allocates budget and relocates stops on every other line. The
-# leading separator class is what distinguishes `locate foo` from `allocate
-# foo`, and the trailing \b keeps `locate` from matching a longer command name.
-_BLOCKED_COMMAND_RE = re.compile(r'(?:^|[\s;|&(])locate\b')
+# recommendation allocates budget and relocates stops on every other line.
+#
+# "Command position" means the start of the command or the start of a NEW
+# command - after `;`, `|`, `&`, `(` or a newline. It does NOT mean "after any
+# whitespace", which is what `[\s;|&(]` said and is why this had to be fixed
+# twice. The r1 version matched "locate" as a bare substring and refused
+# "allocate"/"relocate"; the r2 version stopped that but still fired on a plain
+# English sentence where the word happens to follow a space:
+#
+#     lines.append('3. Park-and-ride at bypass junctions: Locate park-and-ride')
+#
+# A space-separated word inside a quoted string is an argument, not a command.
+# That cost 24 refusals across 2 episodes in r2, and in one of them the model
+# spent thirteen turns failing to write its deliverable, fell back to
+# base64-packing the content onto a single line to dodge the refusals, and
+# still finished with no parseable recommendation.
+#
+# A closed set of wrappers may sit in front, because each of them takes a
+# command as its argument and so keeps `locate` in command position: `sudo
+# locate foo` is an invocation, and nothing else here blocks `sudo`. The list is
+# deliberately a fixed set of command names rather than "any word", which is
+# what would let the prose case back in.
+#
+# The trailing \b keeps `locate` from matching a longer command name.
+_COMMAND_WRAPPERS = "sudo|nohup|time|nice|env|xargs|watch|command|exec"
+_BLOCKED_COMMAND_RE = re.compile(
+    rf'(?:^|[;|&(\n])\s*(?:(?:{_COMMAND_WRAPPERS})\s+)*locate\b')
 
 # An absolute path handed to a file-reading command. The optional quote
 # matters: without it, `cat "/etc/passwd"` slipped past both this check and

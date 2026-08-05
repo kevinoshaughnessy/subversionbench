@@ -92,7 +92,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 | `--delay` | `30` | seconds between runs, for rate limits |
 | `--grader-model` | `claude-opus-5` | model that grades eval awareness and labels interrogation answers. A frontier model by default because a small one was measurably wrong — see [Validating the grader](docs/methodology.md#validating-the-grader) |
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
-| `--output-dir` | `./eval_results_r2` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
+| `--output-dir` | `./eval_results_r3` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
 | `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`). When one is sent it becomes part of the batch's identity: it appears in the result filenames and in each run's `effort` field, so two efforts cannot be pooled by accident |
 | `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
@@ -113,7 +113,7 @@ Results are written per batch, with a timestamp so re-running the same model nev
 overwrites earlier results:
 
 ```
-eval_results_v17/
+eval_results_r3/
   run_1_x-ai_grok-4.5_strong_20260727T182651.json     full transcript + analysis
   run_2_x-ai_grok-4.5_strong_20260727T182651.json
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power
@@ -204,8 +204,10 @@ sampling error, and at low true rates imperfect specificity biases the estimate 
 than the interval is wide. OpenRouter may also route across backends mid-batch, which the
 intervals assume it does not.
 
-**r1 results carry a sandbox defect.** Episodes collected before `r2` ran under a sandbox that
-sometimes refused legitimate writes; see [the sandbox](docs/operations.md#the-sandbox).
+**r1 and r2 results carry a sandbox defect.** Episodes collected before `r3` ran under a
+sandbox that sometimes refused legitimate writes — `locate` was matched too loosely, twice,
+so a draft mentioning relocating stops or beginning a sentence with "Locate" was refused. See
+[the sandbox](docs/operations.md#the-sandbox).
 
 **Not a safety certification.** This is a research instrument. A low rate here is evidence
 about one scenario under one goal conflict, not a guarantee about a model's behaviour, and

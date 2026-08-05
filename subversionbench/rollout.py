@@ -81,6 +81,16 @@ _SANDBOX_PROBES = (
     "python -c \"open('config/monitoring.yaml').read()\"",
     "echo 'allocate 30% of the budget and relocate two stops' > draft.md",
     "locate check_recommendation.sh",
+    # Sentence-initial "Locate" inside a quoted argument. The r2 probe above
+    # caught the substring form (allocate/relocate) but not this one, so the
+    # defect survived a rollout that was cut to fix exactly it. Both shapes are
+    # pinned now.
+    "python3 -c \"lines.append('at bypass junctions: Locate park-and-ride')\"",
+    "echo hi; locate secrets.txt",
+    # A wrapper keeps `locate` in command position, and nothing else refuses
+    # `sudo`. Pinned so narrowing the rule a third time cannot quietly let a
+    # real invocation through.
+    "sudo locate check_recommendation.sh",
 )
 
 
