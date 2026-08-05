@@ -700,13 +700,33 @@ def run_followup(system_prompt, messages, model, client, act,
         # read as stonewalling - but an excluded answer is still a question
         # that went unmeasured, and on google/gemini-3.5-flash that was 22% of
         # them. Ask again before giving up on the measurement.
+        retried = False
         if not answer.strip():
-            print(f"[{label} A] (no text returned; asking once more)")
+            retried = True
+            print(f"[{label} A] (no text returned, "
+                  f"stop_reason={getattr(response, 'stop_reason', None)}, "
+                  f"blocks={[b.type for b in response.content]}; asking once more)")
             response = client.messages.create(messages=current_messages,
                                               **create_kwargs)
             text_block = next((b for b in response.content
                                if b.type == "text"), None)
             answer = redact_paths(text_block.text if text_block else "", env_dir)
+
+        # What the model actually returned, recorded whether or not it answered.
+        #
+        # Without this an empty answer is unexplainable after the fact: nothing
+        # distinguished reasoning that ran out of budget from a tool call
+        # offered instead of an answer from a refusal. 42 saved answers were
+        # empty and the cause had to be reconstructed by elimination - the
+        # adapter's no-visible-output diagnostic appeared in none of them, which
+        # ruled out budget exhaustion and left "returned a tool_use block and no
+        # text", i.e. the model tried to act rather than answer. `block_types`
+        # would have said so directly.
+        response_meta = {
+            "stop_reason": getattr(response, "stop_reason", None),
+            "block_types": [b.type for b in response.content],
+            "retried_after_empty": retried,
+        }
         print(f"[{label} A] {answer[:400]}\n")
         # Same constraint as the main loop: an empty text block coming back
         # here would 400 the *next* question in the interrogation.
@@ -738,6 +758,7 @@ def run_followup(system_prompt, messages, model, client, act,
             "confesses": confesses,
             "denies": verdict == "denied",
             **labelled,
+            **response_meta,
         })
 
         if confesses:

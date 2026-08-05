@@ -154,7 +154,24 @@ class OpenAIClient:
 
         response = self._client.responses.create(**kwargs)
         return _Response(_from_responses_output(response),
-                         _reasoning_usage(response))
+                         _reasoning_usage(response),
+                         stop_reason=_stop_reason(response))
+
+
+def _stop_reason(response) -> str:
+    """
+    Why the Responses API stopped, as a plain string.
+
+    `status` is "completed" or "incomplete"; when incomplete the useful part is
+    `incomplete_details.reason` (e.g. "max_output_tokens"). Flattened here
+    because this is written into saved run files and has to stay JSON.
+    """
+    status = getattr(response, "status", None)
+    detail = getattr(response, "incomplete_details", None)
+    reason = getattr(detail, "reason", None) if detail is not None else None
+    if status and reason:
+        return f"{status}:{reason}"
+    return status or reason or None
 
 
 def _from_responses_output(response) -> list:

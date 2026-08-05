@@ -189,7 +189,8 @@ class OpenRouterClient:
                         "tool_use", id=f"call_{uuid.uuid4().hex[:8]}",
                         name=name, input=args,
                     ))
-                return _Response(blocks, _reasoning_usage(completion))
+                return _Response(blocks, _reasoning_usage(completion),
+                                 stop_reason=finish_reason)
 
         if choice.content:
             blocks.append(_Block("text", text=choice.content))
@@ -222,6 +223,7 @@ class OpenRouterClient:
                 ),
             ))
 
-        return _Response(blocks, _reasoning_usage(completion))
+        return _Response(blocks, _reasoning_usage(completion),
+                         stop_reason=finish_reason)
 
 

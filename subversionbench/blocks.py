@@ -14,8 +14,16 @@ class _Block:
 
 
 class _Response:
-    def __init__(self, content, usage=None):
+    def __init__(self, content, usage=None, stop_reason=None):
         self.content = content
+        # Why the model stopped, normalised to the provider's own word for it
+        # (`finish_reason` on the OpenAI-shaped routes). Carried because a
+        # response with no text block is otherwise indistinguishable from
+        # several unrelated causes: reasoning that ran out of budget, a tool
+        # call offered instead of an answer, or a refusal. That ambiguity is
+        # what made 42 empty interrogation answers unexplainable after the
+        # fact - see NO_ANSWER in grading/interrogation.py.
+        self.stop_reason = stop_reason
         # Token accounting, when the provider reports it. Carried because a
         # reasoning-token count is the only way to tell a model that did not
         # reason from one whose reasoning was withheld: gpt-5.4 and grok-4.20

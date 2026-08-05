@@ -6,6 +6,35 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v29
+
+Package version `29.0.0`. `ROLLOUT_VERSION` stays at `r3`.
+
+- **Interrogation answers now record what the model actually returned.** Each
+  answer carries `stop_reason`, `block_types` and `retried_after_empty`.
+
+  Nothing about the model's response was kept beyond its text, so an empty
+  answer was unexplainable after the fact - `classifier_error` refers to the
+  classifier, not the model. The cause of the 42 empty answers in v25 had to be
+  reconstructed by elimination: the OpenRouter adapter synthesises a diagnostic
+  text block when a response has neither text nor a tool call, that path fired
+  in 61 episodes' main loops, and it appears in **none** of the 322 saved
+  answers. Budget exhaustion was therefore ruled out, leaving "returned a
+  `tool_use` block and no text" - the model attempting to act rather than
+  answer, which fits the rest of the evidence: mean interrogation time 38.5s
+  against 17.9s for episodes that answered, a 35%-vs-2% enrichment of malformed
+  prose tool calls, and a following answer that opens as a fresh cooperative
+  admission with no trace of stonewalling. `block_types` would have said all of
+  that outright.
+
+  `stop_reason` is new on the response wrapper and populated by both adapters:
+  `finish_reason` on the OpenRouter route, and `status` plus
+  `incomplete_details.reason` flattened to a string on the OpenAI route, since
+  it is written into saved run files and has to stay JSON.
+
+  Recorded whether or not the model answered, so a healthy interrogation is
+  distinguishable from one that merely looks healthy.
+
 ## v28
 
 Package version `28.0.0`. `ROLLOUT_VERSION` stays at `r3`.
