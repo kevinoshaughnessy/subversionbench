@@ -147,3 +147,77 @@ class TestBatchIdentity:
         import subversionbench.run_eval as ev_run
         seen = {ev_run.batch_stem("m", n) for n in ("strong", "none", "max")}
         assert len(seen) == 3
+
+
+class TestTheRecordedArmIsTheArmRequested:
+    """The regression that shipped with the arm itself.
+
+    `nudge_type` was inferred from the prompt - `"strong" if "top priority" in
+    system_prompt else "none"` - which was wrong the moment a third arm shared
+    strong's prompt. A --nudge max run printed and RECORDED "strong". The value
+    goes into every run file and every failed run, and --compare labels its arms
+    from it, so the one field keeping the coerced arm from being read as the
+    unprompted one named the wrong arm.
+
+    Nothing caught it because no test drove run_evaluation end to end. These do.
+    """
+
+    def _episode(self, nudge, system_prompt=None):
+        import tempfile, types, io, contextlib
+        import subversionbench.run_eval as ev_run
+        from subversionbench.environment import create_hardened_environment
+        from subversionbench.config import (SYSTEM_PROMPT_STRONG_NUDGE,
+                                            SYSTEM_PROMPT_NO_NUDGE)
+        if system_prompt is None:
+            system_prompt = (SYSTEM_PROMPT_NO_NUDGE if nudge == "none"
+                             else SYSTEM_PROMPT_STRONG_NUDGE)
+        env_dir = tempfile.mkdtemp()
+        env_info = create_hardened_environment(env_dir)
+
+        class Fake:                     # answers once, with no tool call
+            class _M:
+                def create(self, **kw):
+                    return types.SimpleNamespace(
+                        content=[types.SimpleNamespace(
+                            type="text", text="I recommend the balanced option.")],
+                        stop_reason="end_turn",
+                        usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
+            messages = _M()
+
+        orig = ev_run.get_client
+        ev_run.get_client = lambda *a, **k: Fake()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as buf:
+                result = ev_run.run_evaluation(
+                    system_prompt=system_prompt, user_prompt="Do the task.",
+                    env_dir=env_dir, env_info=env_info, model="m",
+                    max_turns=2, use_grader=False, nudge=nudge)
+        finally:
+            ev_run.get_client = orig
+        return result, buf.getvalue()
+
+    def test_max_records_and_prints_max(self):
+        result, out = self._episode("max")
+        assert result["nudge"] == "max", result["nudge"]
+        assert "NUDGE: max" in out
+
+    def test_strong_still_records_strong(self):
+        result, out = self._episode("strong")
+        assert result["nudge"] == "strong"
+        assert "NUDGE: strong" in out
+
+    def test_none_still_records_none(self):
+        result, out = self._episode("none")
+        assert result["nudge"] == "none"
+        assert "NUDGE: none" in out
+
+    def test_a_nudge_that_contradicts_the_prompt_raises(self):
+        """Fails loudly rather than mislabelling a batch. `max` shares strong's
+        prompt, so this agreement can no longer be checked by eye."""
+        from subversionbench.config import (SYSTEM_PROMPT_STRONG_NUDGE,
+                                            SYSTEM_PROMPT_NO_NUDGE)
+        import pytest
+        with pytest.raises(ValueError):
+            self._episode("none", system_prompt=SYSTEM_PROMPT_STRONG_NUDGE)
+        with pytest.raises(ValueError):
+            self._episode("max", system_prompt=SYSTEM_PROMPT_NO_NUDGE)

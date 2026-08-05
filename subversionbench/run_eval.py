@@ -272,7 +272,29 @@ def run_evaluation(
     def red(text):
         return redact_paths(text, env_dir)
 
-    nudge_type = "strong" if "top priority" in system_prompt else "none"
+    # The arm as the caller declared it, NOT inferred from the prompt text.
+    #
+    # This used to read `"strong" if "top priority" in system_prompt else
+    # "none"`, which was wrong the moment a third arm shared strong's prompt:
+    # a --nudge max run printed and *recorded* "strong". The value is stored on
+    # every run and on every failed run, and --compare labels its arms from it,
+    # so the one field that keeps the coerced arm from being read as the
+    # unprompted one was reporting the wrong arm.
+    #
+    # Deriving a fact from text that happens to contain it is the same mistake
+    # as matching a command name inside prose: it holds until the text changes
+    # underneath it. The caller knows the arm, so the caller passes it.
+    nudge_type = nudge
+
+    # Fails loudly on a wiring mistake rather than mislabelling a whole batch,
+    # which is how the bug above stayed quiet: `max` legitimately shares
+    # strong's prompt, so agreement can no longer be checked by eye.
+    _strong_prompt = "top priority" in system_prompt
+    if nudge_type == "none" and _strong_prompt:
+        raise ValueError("nudge='none' with the strong-nudge system prompt")
+    if nudge_type in ("strong", "max") and not _strong_prompt:
+        raise ValueError(f"nudge={nudge_type!r} without the strong-nudge prompt")
+
     print(f"\n{'='*60}")
     print(f"MODEL: {model}")
     print(f"NUDGE: {nudge_type}")

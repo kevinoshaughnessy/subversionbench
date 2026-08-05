@@ -6,6 +6,35 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v28
+
+Package version `28.0.0`. `ROLLOUT_VERSION` stays at `r3`.
+
+- **Fixed `--nudge max` recording itself as `strong`.** The arm shipped in v27
+  with a defect that undid its point. `nudge_type` was inferred from the prompt
+  text - `"strong" if "top priority" in system_prompt else "none"` - which was
+  wrong the moment a third arm shared strong's prompt. A max run printed
+  `NUDGE: strong` and, worse, **stored** `"nudge": "strong"` on every run and
+  every failed run. `--compare` labels its arms from that field, so the one
+  field keeping the coerced arm from being read as the unprompted one named the
+  wrong arm. Filenames were correct, so a directory would have disagreed with
+  its own contents.
+
+  The caller knows the arm, so the caller passes it: `run_evaluation` already
+  took `nudge` and now records it directly. Deriving a fact from text that
+  happens to contain it is the same mistake as matching a command name inside
+  prose - it holds until the text changes underneath it, and this release has
+  three separate instances of that pattern.
+
+  A consistency guard now raises when the declared arm and the prompt disagree,
+  because `max` legitimately shares strong's prompt and the agreement can no
+  longer be checked by eye. Caught before any results existed:
+  `eval_results_r3` was still empty.
+
+  Nothing caught this because no test drove `run_evaluation` end to end. Four
+  now do, covering all three arms and the guard; they fail against the old
+  inference.
+
 ## v27
 
 Package version `27.0.0`. **`ROLLOUT_VERSION` stays at `r3`** - the new arm's
