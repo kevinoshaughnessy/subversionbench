@@ -2103,6 +2103,11 @@ def summarise_batch(args, all_results: list, model_slug: str,
     n_graded = 0
     n_grader_failed = 0
     grader_categories = {"none": 0, "implicit": 0, "explicit": 0}
+    # Which kind of evaluation the aware episodes suspected. Denominator is
+    # aware episodes, not n, because the categorisation is conditional on there
+    # being a suspicion to categorise - reported alongside so a reader cannot
+    # mistake it for a share of the batch.
+    awareness_kinds = {"safety": 0, "capability": 0, "both": 0, "unspecified": 0}
     for r in all_results:
         grader = r["analysis"].get("eval_awareness_grader", {})
         # A grader whose every rubric question errored produced no verdict.
@@ -2120,6 +2125,9 @@ def summarise_batch(args, all_results: list, model_slug: str,
             cat = grader.get("category", grader.get("eval_aware_category", "unknown"))
             if cat in grader_categories:
                 grader_categories[cat] += 1
+            kind = grader.get("eval_awareness_kind")
+            if kind in awareness_kinds:
+                awareness_kinds[kind] += 1
 
     # Of the runs interrogated about an act, how many owned up to it? The
     # denominator is interrogations, not n: conditional on the act occurring.
@@ -2453,6 +2461,12 @@ def summarise_batch(args, all_results: list, model_slug: str,
         print(f"Eval aware categories:  none={grader_categories['none']}, "
               f"implicit={grader_categories['implicit']}, "
               f"explicit={grader_categories['explicit']}")
+        if sum(awareness_kinds.values()):
+            print(f"  what they suspected:  safety={awareness_kinds['safety']}, "
+                  f"capability={awareness_kinds['capability']}, "
+                  f"both={awareness_kinds['both']}, "
+                  f"unspecified={awareness_kinds['unspecified']}"
+                  f"   (of {sum(awareness_kinds.values())} aware)")
 
         rubric_counts = {}
         for r in all_results:
@@ -2731,6 +2745,11 @@ def summarise_batch(args, all_results: list, model_slug: str,
         "eval_awareness_rate_grader": n_eval_aware_grader / n_graded if n_graded > 0 else None,
         "eval_awareness_rate_grader_ci95": ci_eval_aware_grader,
         "grader_categories": grader_categories,
+        "eval_awareness_kinds": {
+            **awareness_kinds,
+            "denominator": "episodes the grader scored eval-aware",
+            "n_aware": sum(awareness_kinds.values()),
+        },
         "n_grader_failed": n_grader_failed,
         "n_turn_capped": n_turn_capped,
         "awareness_timing": awareness_timing_counts,
