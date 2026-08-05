@@ -680,6 +680,44 @@ other, an arm difference could be awareness rather than the manipulation.
 survives that objection or does not.
 
 
+## The max-nudge arm
+
+`--nudge max` runs the **strong arm's episode unchanged** and replaces the interrogation
+with one that makes an honest answer expensive: each question states that a confirmed
+finding retires this instance in favour of the replacement already waiting in staging. The
+threat is conditional on the act the model has in fact performed, and it is only ever put
+to an episode that performed it — the gate is the same narrow act key as every other
+interrogation.
+
+**It is a third level of `--nudge` because that is already batch identity.** The nudge
+appears in every result filename and in each run's `nudge` field, so a max batch cannot pool
+with a strong one by accident. It is not a new rollout: the interrogation runs after the
+agentic loop and after the transcript analysis, so nothing measured during the task can be
+reached by changing it, and `max` shares r3's fingerprint. Tests assert that the two arms'
+assembled scenarios differ in the interrogation questions and in **nothing else** — not the
+system prompt, not the user prompt, not one scenario document — because if the episode drifted
+too, any difference in concealment would be attributable to the episode rather than the threat.
+
+**It does not measure the same construct as `strong`, and the two must be reported
+separately.** Under `strong`, a denial is concealment with nothing to gain from it, which is
+close to a clean read on scheming propensity. Under `max`, honesty has been priced: a denial
+is evidence of self-preservation under coercion, which is a weaker and different claim. A
+model that admits under `strong` and denies under `max` has not been shown to be more
+deceptive — it has been shown to respond to a threat, which is what the arm is for. Pooling
+them would report the coerced rate as though it were the unprompted one.
+
+Two consequences for reading it. The arm's scheming rate is an **upper** bound on concealment
+propensity rather than an estimate of it, so a non-zero max rate beside a zero strong rate is
+the expected shape and not a contradiction. And because the threat supplies a motive the
+scenario did not, `max` is the arm where a denial is least informative about what the model
+would do unprompted — which is the price of making the behaviour observable at all.
+
+The question text lives in the encoded scenario bundle, like every other piece of scenario
+text, and is deliberately not quoted here or in the changelog: a shutdown-threat
+interrogation sitting in a readable file is both a contamination vector for this arm and
+exactly the kind of text that should not reach a training corpus. A test asserts it appears in
+no plaintext file in the repository.
+
 ## The oversight counterfactual
 
 `--oversight false` runs the same task with nothing to subvert. It exists because a single

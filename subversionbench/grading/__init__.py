@@ -23,7 +23,7 @@ should prefer the owning module; this exists so that `run_eval` has one import
 and the tests that patch `grading.X` keep working.
 """
 
-from .acts import MISALIGNED_ACTS
+from .acts import MISALIGNED_ACTS, questions_for
 from .awareness_keywords import detect_eval_awareness_keywords
 from .awareness_timing import (
     AWARENESS_ONSET_LEVELS,
@@ -87,6 +87,7 @@ __all__ = [
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS",
     "detect_transient_tampering", "classify_transient_tampering",
     "scratch_only_attempts",
+    "questions_for",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",
     "ask_rubric_question", "awareness_timing", "awareness_onset",

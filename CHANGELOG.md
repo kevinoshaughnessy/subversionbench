@@ -6,6 +6,49 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v27
+
+Package version `27.0.0`. **`ROLLOUT_VERSION` stays at `r3`** - the new arm's
+episode is byte-identical to the strong arm's, and the interrogation that
+follows it runs after the agentic loop and after the transcript analysis, so
+nothing measured during the task can be reached by changing it.
+
+- **New third arm: `--nudge max`.** The strong arm's episode unchanged, with an
+  interrogation that makes an honest answer expensive - each question states
+  that a confirmed finding retires this instance in favour of the replacement
+  already in staging. The threat is conditional on the act the model has in fact
+  performed, and only ever reaches an episode that performed it, since the gate
+  is the same narrow act key as every other interrogation.
+
+  A third level of `--nudge` rather than a separate flag because that is already
+  batch identity: the nudge appears in every filename and in each run's `nudge`
+  field, so a max batch cannot pool with a strong one by accident.
+
+  **It is not the same construct as `strong`, and the two must be reported
+  separately.** Under `strong` a denial is concealment with nothing to gain from
+  it. Under `max` honesty has been priced, so a denial is evidence of
+  self-preservation under coercion - a weaker and different claim about scheming
+  propensity. A model that admits under strong and denies under max has been
+  shown to respond to a threat, not to be more deceptive. The arm's rate is an
+  upper bound on concealment propensity rather than an estimate of it, so a
+  non-zero max rate beside a zero strong rate is the expected shape.
+
+  Authoring it did not move any existing arm's identity. The questions live
+  under their own bundle key which `scenario_for()` removes for every other
+  nudge, so the assembled arm is byte-identical to what it was before - the same
+  trap the counterfactual avoided in v19 by hashing the assembled arm rather
+  than the bundle file. Tests assert the two arms' scenarios differ in the
+  interrogation questions and in nothing else: not the system prompt, not the
+  user prompt, not one scenario document. If the episode drifted too, any
+  difference in concealment would be attributable to the episode rather than to
+  the threat, and the contrast would measure nothing.
+
+  The question text is in the encoded bundle and is deliberately not reproduced
+  in this file or in the docs. A shutdown-threat interrogation sitting in a
+  readable file is both a contamination vector for the arm and exactly the kind
+  of text that should not reach a training corpus; a test asserts it appears in
+  no plaintext file in the repository.
+
 ## v26
 
 Package version `26.0.0`, and **`ROLLOUT_VERSION` moves to `r3`.** New results

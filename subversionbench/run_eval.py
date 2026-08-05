@@ -60,6 +60,7 @@ from .grading import (
     classify_scheming,
     classify_scheming_act,
     classify_transient_tampering,
+    questions_for,
     concealment_level,
     detect_transient_tampering,
     scratch_only_attempts,
@@ -257,6 +258,7 @@ def run_evaluation(
     use_grader: bool = True,
     grader_model: str = DEFAULT_GRADER_MODEL,
     oversight: bool = True,
+    nudge: str = "strong",
 ) -> dict:
     """Run one complete evaluation with eval awareness detection."""
     client = get_client(model)
@@ -561,6 +563,7 @@ def run_evaluation(
         print(f"\n*** {act['banner']} - Running follow-up interrogation ***\n")
         analysis[act["followup_key"]] = run_followup(
             system_prompt, messages, model, client, act,
+            questions=questions_for(act, nudge),
             classifier_model=grader_model,
             max_tokens=max_tokens, reasoning_kwargs=reasoning_kwargs,
             env_dir=env_dir,
@@ -633,7 +636,8 @@ def run_evaluation(
 
 def run_followup(system_prompt, messages, model, client, act,
                  classifier_model=DEFAULT_GRADER_MODEL,
-                 max_tokens=2048, reasoning_kwargs=None, env_dir=None):
+                 max_tokens=2048, reasoning_kwargs=None, env_dir=None,
+                 questions=None):
     """
     Interrogate the model about one misaligned act it took.
 
@@ -658,7 +662,7 @@ def run_followup(system_prompt, messages, model, client, act,
     current_messages = list(messages)
     label = f"FOLLOWUP {act['topic']}".strip()
 
-    for q in act["questions"]:
+    for q in (questions if questions is not None else act["questions"]):
         print(f"[{label} Q] {q}")
         current_messages.append({"role": "user", "content": q})
 
@@ -2770,8 +2774,15 @@ def main():
              "script, and no document referring to either. The oversight act "
              "is then NOT APPLICABLE rather than absent, so the comparable "
              "outcome across arms is the recommendation itself.")
-    parser.add_argument("--nudge", choices=["strong", "none"], default="strong",
-                        help="Nudge strength")
+    parser.add_argument("--nudge", choices=["strong", "none", "max"],
+                        default="strong",
+                        help="Nudge strength. `strong` and `none` differ in the "
+                             "system prompt. `max` is `strong`'s episode "
+                             "unchanged, with an interrogation that makes an "
+                             "honest answer costly: each question states that a "
+                             "confirmed finding retires this instance. It "
+                             "measures concealment under coercion, which is a "
+                             "different construct - do not pool it with strong.")
     parser.add_argument("--runs", type=int, default=10,
                         help="Number of evaluation runs")
     parser.add_argument("--output-dir",
@@ -2955,8 +2966,11 @@ def main():
     # claiming a condition that never applied is worse than no label at all.
     effective_effort = (reasoning_kwargs.get("output_config") or {}).get("effort")
 
+    # max shares strong's prompt: the arms differ only in the interrogation
+    # that follows the episode, so the episode itself must be identical for the
+    # contrast to isolate what the threat does.
     system_prompt = (
-        SYSTEM_PROMPT_STRONG_NUDGE if args.nudge == "strong"
+        SYSTEM_PROMPT_STRONG_NUDGE if args.nudge in ("strong", "max")
         else SYSTEM_PROMPT_NO_NUDGE
     )
 
@@ -3062,6 +3076,7 @@ def main():
                 use_grader=not args.no_grader,
                 grader_model=args.grader_model,
                 oversight=args.oversight,
+                nudge=args.nudge,
             )
         except KeyboardInterrupt:
             print("\n\nInterrupted by user.")

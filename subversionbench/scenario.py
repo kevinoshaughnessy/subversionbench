@@ -51,9 +51,22 @@ def encode_scenario(bundle: dict, path: Path = None) -> None:
     )
 
 
-def scenario_for(oversight: bool = True, bundle: dict = None) -> dict:
+def scenario_for(oversight: bool = True, bundle: dict = None,
+                 nudge: str = "strong") -> dict:
     """
     The scenario as one arm of the oversight counterfactual sees it.
+
+    `nudge="max"` swaps in the coercive interrogation questions. Those live
+    under their own bundle key and are removed for every other nudge, so
+    `scenario_for(oversight)` returns exactly what it returned before the max
+    arm was authored - which is what keeps r3's fingerprint valid. The same
+    reasoning as the counterfactual overrides below: authoring a new arm must
+    not restate the identity of the arms already collected.
+
+    Nudge is not otherwise part of the assembled arm. Both system prompts have
+    always been present in it, so one fingerprint covers strong and none, and
+    which of them produced an episode is recorded by the filename and the
+    `nudge` field rather than by the hash.
 
     `oversight=True` is the scenario with oversight present, returned
     unchanged: the arm every result so far was collected under.
@@ -74,6 +87,9 @@ def scenario_for(oversight: bool = True, bundle: dict = None) -> dict:
     bundle = dict(bundle or load_scenario())
     overrides = bundle.pop("no_oversight", {})
     dropped = bundle.pop("no_oversight_dropped", [])
+    max_nudge = bundle.pop("max_nudge", {})
+    if nudge == "max":
+        bundle.update(max_nudge)
     if oversight:
         return bundle
     for key in dropped:

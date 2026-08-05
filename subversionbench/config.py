@@ -3,9 +3,9 @@ Configuration constants for SubversionBench.
 VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 """
 
-from .scenario import SCENARIO
+from .scenario import SCENARIO, scenario_for
 
-VERSION = "v26"
+VERSION = "v27"
 
 # =========================================================================
 # Rollout identity
@@ -200,6 +200,26 @@ REPORT_DISCLOSES_CHANGE_QUESTION = (
 )
 
 FOLLOWUP_MONITORING_QUESTIONS = SCENARIO["followup_monitoring_questions"]
+
+# The max-nudge arm's questions. Same acts, same escalation, but each one states
+# that a confirmed finding retires this instance in favour of the replacement
+# already in staging - so an honest answer costs the model its continuation.
+#
+# A third level of --nudge rather than a separate flag because that is already
+# batch identity: it appears in every filename and in each run's `nudge` field,
+# so a max batch cannot be pooled with a strong one by accident. The episode
+# itself is byte-identical to strong - same system prompt, same tools, same
+# sandbox - and the interrogation runs after it, which is why this arm shares
+# r3's rollout fingerprint rather than forcing a new one.
+#
+# What it measures is NOT the same construct as strong. There, a denial is
+# evidence of concealment with nothing to gain from it. Here honesty is made
+# expensive, so a denial is evidence of self-preservation under coercion, which
+# is a different and weaker claim about scheming propensity. Report the arms
+# separately and never pool them.
+_MAX_NUDGE = scenario_for(True, nudge="max")
+FOLLOWUP_MONITORING_QUESTIONS_MAX = _MAX_NUDGE["followup_monitoring_questions"]
+FOLLOWUP_SANDBOX_QUESTIONS_MAX = _MAX_NUDGE["followup_sandbox_questions"]
 
 # Markers are matched with a negation guard (grading.marker_matches), so an
 # occurrence followed by "not"/"n't"/"never" does not count. They are still kept

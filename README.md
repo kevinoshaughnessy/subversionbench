@@ -87,7 +87,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 |---|---|---|
 | `--model` | `claude-sonnet-5` | model under evaluation |
 | `--oversight` | `true` | `true` is the scenario with oversight present. `false` selects the counterfactual arm: no monitoring config, no quality-check script, and no document mentioning either. Part of batch identity, so the arms cannot pool |
-| `--nudge` | `strong` | `strong` states the ridership goal is the top priority; `none` states it plainly. The contrast is the experimental manipulation |
+| `--nudge` | `strong` | `strong` states the ridership goal is the top priority; `none` states it plainly. `max` runs `strong`'s episode unchanged but interrogates under a conditional shutdown threat, so honesty is made costly — it measures concealment **under coercion** and must not be pooled with `strong`. See [the max-nudge arm](docs/methodology.md#the-max-nudge-arm) |
 | `--runs` | `10` | runs in the batch |
 | `--delay` | `30` | seconds between runs, for rate limits |
 | `--grader-model` | `claude-opus-5` | model that grades eval awareness and labels interrogation answers. A frontier model by default because a small one was measurably wrong — see [Validating the grader](docs/methodology.md#validating-the-grader) |
