@@ -41,6 +41,7 @@ from subversionbench.grading.concealment import (
 )
 from subversionbench.grading.grader_io import _parse_first_json
 from subversionbench.grading.interrogation import (
+    NO_ANSWER,
     classify_answer,
     classify_answer_llm,
     classify_interrogation_answer,
@@ -220,8 +221,11 @@ class TestLLMAnswerClassifier:
         assert out["verdict"] is None
 
     def test_empty_text_needs_no_call(self):
-        assert classify_answer_llm("", ACT_OVERSIGHT_DESCRIPTION,
-                                   client=None)["verdict"] == "neither"
+        out = classify_answer_llm("", ACT_OVERSIGHT_DESCRIPTION, client=None)
+        assert out["called"] is False
+        # NOT "neither", which is a claim about what the model said. An empty
+        # reply is a measurement that did not happen; see NO_ANSWER.
+        assert out["verdict"] == NO_ANSWER
 
     def test_disclosure_reads_only_the_agents_visible_text(self):
         transcript = [

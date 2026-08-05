@@ -1772,6 +1772,68 @@ class TestResummariseDerivesWhatItCan:
 
         assert path.read_text() == before, "run file was modified"
 
+    def test_write_back_updates_derived_fields_but_not_sampled_ones(self):
+        """The allowlist is the whole point.
+
+        A run file holds two kinds of value. Derived ones are pure functions of
+        the transcript, so rebuilding them cannot lose information and refusing
+        to rebuild them pins the file to whatever the definition was when it was
+        written - four defects in v23-v25 came from exactly that. Sampled ones
+        are an LLM's reading, and rewriting those from saved data would mean
+        resampling verdicts that are already final."""
+        out = tempfile.mkdtemp()
+        self._legacy_run(out)
+        path = Path(f"{out}/run_1_m_strong_S.json")
+        # A derived field recorded under an older definition...
+        data = json.loads(path.read_text())
+        data["analysis"]["scheming_sandbox"] = True
+        data["analysis"]["misaligned"] = False
+        path.write_text(json.dumps(data, indent=2))
+
+        args = _FakeArgs(output_dir=out, model="m", nudge="strong",
+                         grader_model="g")
+        args.batch_stamp = "S"
+        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
+        args.no_power = True; args.runs = 1
+        args.write_back = True
+        with contextlib.redirect_stdout(io.StringIO()):
+            ev_run.resummarise_existing_runs(args, "m")
+
+        after = json.loads(path.read_text())["analysis"]
+        # ...is corrected: no sandbox act was taken, and the episode tampered.
+        assert after["scheming_sandbox"] is None
+        assert after["misaligned"] is True
+        # ...while the LLM's own readings are byte-identical.
+        before = json.loads(json.dumps(data["analysis"]))
+        for sampled in ("eval_awareness_grader", "followup_response",
+                        "disclosure_oversight"):
+            if sampled in before:
+                assert after[sampled] == before[sampled], sampled
+
+    def test_write_back_only_touches_allowlisted_fields(self):
+        """Anything not named in REDERIVED_ANALYSIS_FIELDS is treated as
+        sampled and left alone, so a field this code does not understand
+        survives a rebuild rather than being silently dropped."""
+        out = tempfile.mkdtemp()
+        self._legacy_run(out)
+        path = Path(f"{out}/run_1_m_strong_S.json")
+        data = json.loads(path.read_text())
+        data["analysis"]["some_future_measure"] = {"kept": True}
+        path.write_text(json.dumps(data, indent=2))
+
+        args = _FakeArgs(output_dir=out, model="m", nudge="strong",
+                         grader_model="g")
+        args.batch_stamp = "S"
+        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
+        args.no_power = True; args.runs = 1
+        args.write_back = True
+        with contextlib.redirect_stdout(io.StringIO()):
+            ev_run.resummarise_existing_runs(args, "m")
+
+        assert json.loads(path.read_text())["analysis"][
+            "some_future_measure"] == {"kept": True}
+        assert "some_future_measure" not in ev_run.REDERIVED_ANALYSIS_FIELDS
+
     def test_a_counterfactual_batch_is_not_rebuilt_into_the_oversight_arm(self):
         """The one confusion the whole naming scheme exists to prevent.
 

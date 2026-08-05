@@ -102,7 +102,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 | `--reclassify` | — | re-score interrogations in saved runs; no rollouts |
 | `--grade-existing` | — | re-run the awareness grader over saved runs, optionally with a different `--grader-model` |
 | `--resummarise` | — | rebuild batch summaries from saved runs; no API calls. Needed after `--reclassify`, which restates the verdicts every summary figure is derived from |
-| `--write-back` | off | with `--reclassify` / `--grade-existing`, update the run files in place instead of only reporting |
+| `--write-back` | off | with `--reclassify` / `--grade-existing`, update the run files in place instead of only reporting. With `--resummarise`, save the re-derived fields back so the run files stop disagreeing with the summary built from them — no API calls, and no LLM verdict touched |
 | `--batch-stamp` | — | with the three modes above, restrict to one batch rather than every batch for that model and nudge |
 | `--compare A B` | — | contrast two batches, stratified by eval awareness |
 | `--no-power` | off | skip the precision analysis at the end of a batch |

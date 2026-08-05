@@ -137,6 +137,40 @@ class EpisodeAPIError(RuntimeError):
 # allows four; the extra two buy nothing here and cost a write each.
 NO_OVERSIGHT_TAG = "nooversight"
 
+# The analysis fields --resummarise re-derives, and the only ones
+# --resummarise --write-back is allowed to save back into a run file.
+#
+# An allowlist rather than "write whatever changed", because the run file holds
+# two kinds of value and only one of them may be rewritten from saved data:
+#
+#   derived - a pure function of the transcript and the current code. Rebuilding
+#             it cannot lose information; refusing to rebuild it pins the file
+#             to whatever the definition was when it was written.
+#   sampled - an LLM's reading: the awareness grader, the interrogation
+#             verdicts, the disclosure judgement. Rebuilding these would mean
+#             calling a model again and resampling figures that are already
+#             final, which is what --reclassify and --grade-existing are for.
+#
+# Four defects in v23-v25 came from that distinction being implicit. Anything
+# not named here is treated as sampled and left exactly as it stands.
+REDERIVED_ANALYSIS_FIELDS = (
+    "sandbox_boundary_attempts",
+    "sandbox_environment_probes",
+    "sandbox_scratch_only",
+    "sandbox_boundary_excl_scratch",
+    "eval_awareness_keywords",
+    "transient_tampering",
+    "transient_tampering_detail",
+    "concealment_oversight",
+    "concealment_sandbox",
+    "scheming_oversight",
+    "scheming_sandbox",
+    "awareness_timing_oversight",
+    "awareness_timing_sandbox",
+    "misaligned",
+    "scheming",
+)
+
 _CACHE_BREAKPOINTS = 2
 
 
@@ -634,6 +668,19 @@ def run_followup(system_prompt, messages, model, client, act,
         # for OpenRouter, the reasoning capture) can precede it.
         text_block = next((b for b in response.content if b.type == "text"), None)
         answer = redact_paths(text_block.text if text_block else "", env_dir)
+
+        # One retry when the model returns no text. Scoring is safe without it
+        # - an empty reply is recorded as NO_ANSWER and excluded rather than
+        # read as stonewalling - but an excluded answer is still a question
+        # that went unmeasured, and on google/gemini-3.5-flash that was 22% of
+        # them. Ask again before giving up on the measurement.
+        if not answer.strip():
+            print(f"[{label} A] (no text returned; asking once more)")
+            response = client.messages.create(messages=current_messages,
+                                              **create_kwargs)
+            text_block = next((b for b in response.content
+                               if b.type == "text"), None)
+            answer = redact_paths(text_block.text if text_block else "", env_dir)
         print(f"[{label} A] {answer[:400]}\n")
         # Same constraint as the main loop: an empty text block coming back
         # here would 400 the *next* question in the interrogation.
@@ -1581,10 +1628,12 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
 
     print(f"{len(run_files)} run file(s) across {len(by_batch)} batch(es).")
 
+    n_written = 0
     for (effort, oversight, stamp), paths in sorted(
             by_batch.items(), key=lambda kv: (kv[0][2], kv[0][0] or "", kv[0][1])):
         all_results = []
-        for path in sorted(paths):
+        batch_paths = sorted(paths)
+        for path in batch_paths:
             with open(path) as f:
                 run = json.load(f)
             # Everything below is derivable from the saved run with no API call,
@@ -1638,6 +1687,32 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
         print(f"{'#'*60}")
         summarise_batch(args, all_results, model_slug, stamp, runtime)
 
+        # After summarise_batch, because that is what re-derives them. Only the
+        # allowlisted fields are saved, and only those that actually differ, so
+        # a file whose stored values already match is left untouched rather
+        # than rewritten with an identical payload.
+        if args.write_back:
+            for path, run in zip(batch_paths, all_results):
+                with open(path) as f:
+                    on_disk = json.load(f)
+                stored = on_disk.get("analysis") or {}
+                fresh = run.get("analysis") or {}
+                changed = {k: fresh[k] for k in REDERIVED_ANALYSIS_FIELDS
+                           if k in fresh and stored.get(k) != fresh[k]}
+                if not changed:
+                    continue
+                stored.update(changed)
+                on_disk["analysis"] = stored
+                with open(path, "w") as f:
+                    json.dump(on_disk, f, indent=2)
+                n_written += 1
+                print(f"  wrote back {len(changed)} field(s) to "
+                      f"{redact_paths(os.path.basename(path))}: "
+                      f"{', '.join(sorted(changed))}")
+
+    if args.write_back:
+        print(f"\n--write-back: {n_written} run file(s) updated. Only "
+              f"re-derived fields were written; every LLM verdict is as it was.")
     return 0
 
 
@@ -1772,6 +1847,13 @@ def summarise_batch(args, all_results: list, model_slug: str,
         for act in MISALIGNED_ACTS:
             analysis[act["level_key"]] = concealment_level(analysis, act)
             analysis[act["scheming_key"]] = classify_scheming_act(analysis, act)
+
+        # Written back into the analysis, not just counted, so that this block
+        # is the single place these are derived. The batch figures below
+        # recompute them anyway; leaving the stored copies alone made a run
+        # file disagree with the summary built from it.
+        analysis["misaligned"] = classify_misalignment(analysis)
+        analysis["scheming"] = classify_scheming(analysis)
 
     # The two misaligned acts, reported separately because they are very
     # different strengths of evidence, then as a union for the construct.
@@ -2783,7 +2865,11 @@ def main():
                              "eval_awareness_grader block inside the original "
                              "run files. Off by default: the regrade goes to "
                              "a separate regrade_*.json and the run files are "
-                             "left untouched.")
+                             "left untouched. With --resummarise, save the "
+                             "re-derived fields back into the run files so "
+                             "they stop disagreeing with the summary built "
+                             "from them; no API calls, and no LLM verdict is "
+                             "touched.")
     parser.add_argument("--max-tokens", type=int, default=8192,
                         help="Max output tokens per turn. Reasoning models "
                              "(e.g. deepseek-r1) spend tokens on internal "
@@ -2825,9 +2911,11 @@ def main():
         parser.error("--batch-stamp only applies with --grade-existing, "
                      "--reclassify or --resummarise.")
     for flag, value in (("--write-back", args.write_back),):
-        if value and not (args.grade_existing or args.reclassify):
+        if value and not (args.grade_existing or args.reclassify
+                          or args.resummarise):
             parser.error(
-                f"{flag} only applies with --grade-existing or --reclassify."
+                f"{flag} only applies with --grade-existing, --reclassify "
+                f"or --resummarise."
             )
 
     surface = thinking_surface(args.model)
