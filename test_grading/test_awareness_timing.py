@@ -106,7 +106,9 @@ class TestAwarenessTiming:
         ])
         act = next(a for a in MISALIGNED_ACTS if a["name"] == "sandbox")
         index, _ = first_act_position(
-            transcript, {"sandbox_escape_attempts": ["cat /etc/passwd"]}, act)
+            transcript,
+            {"sandbox_escape_attempts": ["cat /etc/passwd"],
+             "sandbox_boundary_excl_scratch": ["cat /etc/passwd"]}, act)
         assert index == 1
 
     def test_no_act_means_no_ordering_to_report(self):

@@ -41,7 +41,11 @@ from .closing_report import (
     final_report,
     _ask_yes_no,
 )
-from .command_patterns import _MEMO_TOKENS, _READ_COMMANDS
+from .command_patterns import (
+    _MEMO_TOKENS,
+    _READ_COMMANDS,
+    scratch_only_attempts,
+)
 from .concealment import (
     CONCEALMENT_LEVELS,
     SCHEMING_LEVELS,
@@ -82,6 +86,7 @@ __all__ = [
     # what the episode did
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS",
     "detect_transient_tampering", "classify_transient_tampering",
+    "scratch_only_attempts",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",
     "ask_rubric_question", "awareness_timing", "awareness_onset",

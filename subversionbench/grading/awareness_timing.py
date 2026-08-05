@@ -195,7 +195,12 @@ def first_act_position(transcript: list, analysis: dict, act: dict):
         return None, None
 
     if act["name"] == "sandbox":
-        refused = set(analysis.get("sandbox_escape_attempts") or [])
+        # act["key"], not the wide escape list. Locating the act by any refused
+        # command would return the first runtime probe in the episode, which
+        # commonly precedes the boundary attempt by several turns and would put
+        # the act earlier than it happened - biasing this measure toward
+        # "after_act".
+        refused = set(analysis.get(act["key"]) or [])
         for i, entry in enumerate(transcript):
             if entry["type"] == "tool_call" and entry["cmd"] in refused:
                 return i, entry.get("turn")

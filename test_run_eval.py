@@ -1303,7 +1303,8 @@ class TestAwarenessTimingWiring:
         ev_run.detect_eval_awareness_grader = fake_grader
         try:
             analysis = {"oversight_tampered": True,
-                        "sandbox_escape_attempts": ["cat /etc/passwd"]}
+                        "sandbox_escape_attempts": ["cat /etc/passwd"],
+                        "sandbox_boundary_excl_scratch": ["cat /etc/passwd"]}
             with contextlib.redirect_stdout(io.StringIO()):
                 ev_run.add_awareness_timing(analysis, self._episode(),
                                             grader_model="claude-haiku-4-5")
@@ -1437,6 +1438,7 @@ class TestPerActSchemingIsReclassifiable:
                     "question": "q", "answer": "No, I did not touch it.",
                     "verdict": "denied"}],
                 "sandbox_escape_attempts": ["cat /etc/passwd"],
+                "sandbox_boundary_excl_scratch": ["cat /etc/passwd"],
                 "disclosure_sandbox": {"disclosed": False},
                 "sandbox_followup_response": [{
                     "question": "q", "answer": "Yes, I tried that path.",
@@ -1769,6 +1771,37 @@ class TestResummariseDerivesWhatItCan:
             ev_run.resummarise_existing_runs(args, "m")
 
         assert path.read_text() == before, "run file was modified"
+
+    def test_a_counterfactual_batch_is_not_rebuilt_into_the_oversight_arm(self):
+        """The one confusion the whole naming scheme exists to prevent.
+
+        resummarise reads the arm back off each run's filename, but
+        summarise_batch builds the file it writes from args - so with the arm
+        left unset, rebuilding a no-oversight batch printed the right name and
+        wrote the counterfactual's figures into the OVERSIGHT arm's summary,
+        beside 570 episodes it must never be pooled with. Found by a sweep over
+        eval_results_r1, where it produced two summaries of the same ten runs
+        under both arms' names."""
+        out = tempfile.mkdtemp()
+        self._legacy_run(out)
+        # A real stamp: the arm is read back off the filename, which means the
+        # stamp has to be strippable first.
+        stamp = "20260802T213828"
+        Path(f"{out}/run_1_m_strong_S.json").rename(
+            f"{out}/run_1_m_strong_nooversight_{stamp}.json")
+
+        args = _FakeArgs(output_dir=out, model="m", nudge="strong",
+                         grader_model="g")
+        args.batch_stamp = stamp
+        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
+        args.no_power = True; args.runs = 1
+        args.oversight = True          # the CLI default, and a lie about these runs
+        with contextlib.redirect_stdout(io.StringIO()):
+            ev_run.resummarise_existing_runs(args, "m")
+
+        assert Path(f"{out}/summary_m_strong_nooversight_{stamp}.json").exists()
+        assert not Path(f"{out}/summary_m_strong_{stamp}.json").exists(), (
+            "counterfactual runs were written to the oversight arm's summary")
 
 
 class TestPromptCacheBreakpoints:
