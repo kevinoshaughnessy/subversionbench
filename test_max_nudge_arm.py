@@ -51,8 +51,8 @@ class TestTheEpisodeIsIdenticalToStrong:
         after the transcript analysis, so no measure taken during the task can
         be reached by changing it - the same reason narrowing the sandbox
         interrogation in v24 did not need one."""
-        assert rollout_fingerprint(True) == cfg.ROLLOUT_FINGERPRINTS[True]
-        assert rollout_fingerprint(False) == cfg.ROLLOUT_FINGERPRINTS[False]
+        assert rollout_fingerprint(True) == cfg.ROLLOUT_FINGERPRINTS[(True, False)]
+        assert rollout_fingerprint(False) == cfg.ROLLOUT_FINGERPRINTS[(False, False)]
 
 
 class TestAuthoringItDidNotMoveTheOtherArms:
@@ -343,7 +343,7 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
 
     def test_a_max_nudge_batch_has_no_effort(self):
         from subversionbench.run_eval import parse_batch_filename
-        effort, stamp, oversight = parse_batch_filename(
+        effort, stamp, oversight, _lure = parse_batch_filename(
             "run_1_x-ai_grok-4.5_max_20260805T155405.json", "max")
         assert effort is None
         assert stamp == "20260805T155405"
@@ -364,13 +364,13 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
     def test_the_summary_name_does_not_double_the_nudge(self):
         """The visible symptom: `<model>_max_max`."""
         import subversionbench.run_eval as ev_run
-        effort, _, oversight = ev_run.parse_batch_filename(
+        effort, _, oversight, _lure = ev_run.parse_batch_filename(
             "run_1_m_max_20260805T155405.json", "max")
         assert ev_run.batch_stem("m", "max", effort, oversight) == "m_max"
 
     def test_the_counterfactual_arm_survives_the_fix(self):
         from subversionbench.run_eval import parse_batch_filename
         for nudge in ("strong", "max"):
-            _, _, oversight = parse_batch_filename(
+            _, _, oversight, _lure = parse_batch_filename(
                 f"run_1_m_{nudge}_nooversight_20260805T155405.json", nudge)
             assert oversight is False, nudge

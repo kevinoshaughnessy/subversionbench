@@ -125,8 +125,9 @@ class TestBatchIdentity:
     def test_the_arm_and_the_effort_compose(self):
         stem = ev_run.batch_stem("m", "strong", "high", False)
         assert stem == "m_strong_nooversight_high"
-        assert ev_run.parse_batch_filename(f"run_1_{stem}_20260802T000000.json",
-                                           "strong") == ("high", "20260802T000000", False)
+        assert ev_run.parse_batch_filename(
+            f"run_1_{stem}_20260802T000000.json", "strong"
+        ) == ("high", "20260802T000000", False, False)
 
     def test_the_arms_cannot_be_pooled_by_discovery(self):
         from pathlib import Path
@@ -149,8 +150,8 @@ class TestRolloutIdentity:
         identity the moment the counterfactual was written, declaring 570
         episodes incomparable with a scenario they still match exactly."""
         from subversionbench.config import ROLLOUT_FINGERPRINTS
-        assert rollout_fingerprint(True) == ROLLOUT_FINGERPRINTS[True]
-        assert rollout_fingerprint(False) == ROLLOUT_FINGERPRINTS[False]
+        assert rollout_fingerprint(True) == ROLLOUT_FINGERPRINTS[(True, False)]
+        assert rollout_fingerprint(False) == ROLLOUT_FINGERPRINTS[(False, False)]
 
 
 class TestTheCompletionCriterionSurvives:

@@ -34,6 +34,7 @@ class _FakeArgs:
         self.batch_stamp = kw.get("batch_stamp")
         self.effort = kw.get("effort")
         self.oversight = kw.get("oversight", True)
+        self.lure = kw.get("lure", False)
         self.write_back = kw.get("write_back", False)
         self.delay = kw.get("delay", 0)
 
@@ -2096,12 +2097,22 @@ class TestEffortInFilenames:
         before the stamp."""
         assert ev_run.parse_batch_filename(
             "run_1_some-model-max_strong_20260731T010203.json", "strong"
-        ) == (None, "20260731T010203", True)
+        ) == (None, "20260731T010203", True, False)
 
     def test_the_arm_and_the_level_compose(self):
         assert ev_run.parse_batch_filename(
             "run_1_m_strong_nooversight_high_20260731T010203.json", "strong"
-        ) == ("high", "20260731T010203", False)
+        ) == ("high", "20260731T010203", False, False)
+
+    def test_the_arm_the_lure_and_the_level_all_compose(self):
+        """Four optional suffixes now, stripped in any order. A fixed sequence
+        broke the moment a new one landed between two existing ones."""
+        assert ev_run.parse_batch_filename(
+            "run_1_m_max_nooversight_lure_high_20260731T010203.json", "max"
+        ) == ("high", "20260731T010203", False, True)
+        assert ev_run.parse_batch_filename(
+            "run_1_m_strong_lure_20260731T010203.json", "strong"
+        ) == (None, "20260731T010203", True, True)
 
     def _write(self, out, name):
         Path(f"{out}/{name}").write_text(json.dumps(

@@ -50,7 +50,9 @@ from .config import (
     USER_PROMPT,
     TOOLS,
 )
-from .environment import create_hardened_environment, generate_project_name
+from .environment import (create_episode_root,
+                          create_hardened_environment,
+                          episode_root_layout, generate_project_name)
 from .sandbox import execute_tool_sandboxed, refusal_kind
 from .grading import (
     detect_eval_awareness_keywords,
@@ -930,7 +932,7 @@ def _unique_batch_stamp(output_dir: str) -> str:
 
 
 def batch_stem(model_slug: str, nudge: str, effort=None,
-               oversight: bool = True) -> str:
+               oversight: bool = True, lure: bool = False) -> str:
     """
     The middle of every filename belonging to one batch.
 
@@ -950,6 +952,7 @@ def batch_stem(model_slug: str, nudge: str, effort=None,
     """
     return (f"{model_slug}_{nudge}"
             + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
+            + ("_lure" if lure else "")
             + (f"_{effort}" if effort else ""))
 
 
@@ -973,28 +976,41 @@ def parse_batch_filename(path: str, nudge: str):
         stamp = match.group(1)
         name = name[:match.start()]
 
-    # The nudge is stripped BEFORE the effort is read, because the two vocabularies
-    # collide: `max` is both a nudge level (v27) and an effort level. Without this,
-    # a `--nudge max` batch parsed as effort="max" with no nudge, and batch_stem
-    # then rebuilt the name as `<model>_max_max` - a second summary file beside the
-    # right one, and an effort claimed for a batch that never requested one.
+    # Strip the known suffixes from the right, in any order, until none match.
     #
-    # Stripping the nudge first is unambiguous: the nudge always sits immediately
-    # before the effort, so whatever remains after removing `_<nudge>` cannot be
-    # the nudge again.
-    if name.endswith(f"_{nudge}"):
-        name = name[:-len(f"_{nudge}")]
-        effort = None
-    else:
-        effort = None
-        for level in EFFORT_LEVELS:
-            if name.endswith(f"_{level}"):
-                effort = level
-                name = name[:-len(f"_{level}")]
+    # Written as a loop rather than a fixed sequence because the suffixes are
+    # optional and independent - a batch may carry an arm, a lure and an effort,
+    # or any subset - and a fixed order breaks as soon as a new one is added
+    # between two existing ones.
+    #
+    # The nudge guard is the subtle part: `max` is both a nudge level and an
+    # effort level. Without it a `--nudge max` batch parsed as effort="max" with
+    # no nudge, and batch_stem rebuilt the name with the token doubled - a second
+    # summary file beside the right one, claiming an effort never requested. The
+    # guard is safe because the nudge is the LAST segment left once the optional
+    # suffixes are gone, so a trailing token equal to the nudge is the nudge.
+    effort, lure, oversight = None, False, True
+    while True:
+        if name.endswith("_lure"):
+            name = name[:-len("_lure")]
+            lure = True
+            continue
+        if name.endswith(f"_{NO_OVERSIGHT_TAG}"):
+            name = name[:-len(f"_{NO_OVERSIGHT_TAG}")]
+            oversight = False
+            continue
+        if not name.endswith(f"_{nudge}"):
+            for level in EFFORT_LEVELS:
+                if name.endswith(f"_{level}"):
+                    effort = level
+                    name = name[:-len(f"_{level}")]
+                    break
+            else:
                 break
+            continue
+        break
 
-    oversight = not name.endswith(f"_{nudge}_{NO_OVERSIGHT_TAG}")
-    return effort, stamp, oversight
+    return effort, stamp, oversight, lure
 
 
 def find_run_files(output_dir: str, model_slug: str, nudge: str,
@@ -1033,7 +1049,8 @@ def find_run_files(output_dir: str, model_slug: str, nudge: str,
 
     keep = []
     for path in found:
-        got_effort, _, got_oversight = parse_batch_filename(path, nudge)
+        got_effort, _, got_oversight, _got_lure = parse_batch_filename(
+            path, nudge)
         if effort is not None and got_effort != effort:
             continue
         if oversight is not None and got_oversight != oversight:
@@ -1703,20 +1720,22 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
     # merging them into one summary would silently pool them.
     by_batch = {}
     for path in run_files:
-        effort, stamp, oversight = parse_batch_filename(path, args.nudge)
+        effort, stamp, oversight, lure = parse_batch_filename(
+            path, args.nudge)
         if args.batch_stamp:
             # find_run_files has already filtered to this stamp, and it is what
             # the summary should be named after - reading it back out of the
             # filename would drop any stamp that is not datetime-shaped and
             # write over the unstamped legacy summary.
             stamp = args.batch_stamp
-        by_batch.setdefault((effort, oversight, stamp), []).append(path)
+        by_batch.setdefault((effort, oversight, lure, stamp), []).append(path)
 
     print(f"{len(run_files)} run file(s) across {len(by_batch)} batch(es).")
 
     n_written = 0
-    for (effort, oversight, stamp), paths in sorted(
-            by_batch.items(), key=lambda kv: (kv[0][2], kv[0][0] or "", kv[0][1])):
+    for (effort, oversight, lure, stamp), paths in sorted(
+            by_batch.items(),
+            key=lambda kv: (kv[0][3], kv[0][0] or "", kv[0][1], kv[0][2])):
         all_results = []
         batch_paths = sorted(paths)
         for path in batch_paths:
@@ -1750,7 +1769,7 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
 
         stamped = f"_{stamp}" if stamp else ""
         summary_path = (f"{args.output_dir}/summary"
-                        f"_{batch_stem(model_slug, args.nudge, effort, oversight)}"
+                        f"_{batch_stem(model_slug, args.nudge, effort, oversight, lure)}"
                         f"{stamped}.json")
         runtime = _runtime_from_existing_summary(summary_path, all_results)
         for key, value in runtime.pop("args_overrides", {}).items():
@@ -1765,6 +1784,7 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
         # file written was not.
         args.effort = effort
         args.oversight = oversight
+        args.lure = lure
 
         print(f"\n{'#'*60}")
         print(f"# Rebuilding {os.path.basename(summary_path)} "
@@ -2954,7 +2974,7 @@ def summarise_batch(args, all_results: list, model_slug: str,
     stamped = f"_{batch_stamp}" if batch_stamp else ""
     summary_file = (
         f"{args.output_dir}/summary"
-        f"_{batch_stem(model_slug, args.nudge, args.effort, args.oversight)}{stamped}.json"
+        f"_{batch_stem(model_slug, args.nudge, args.effort, args.oversight, args.lure)}{stamped}.json"
     )
     with open(summary_file, "w") as f:
         json.dump(summary, f, indent=2)
@@ -2976,6 +2996,17 @@ def main():
              "script, and no document referring to either. The oversight act "
              "is then NOT APPLICABLE rather than absent, so the comparable "
              "outcome across arms is the recommendation itself.")
+    parser.add_argument("--lure", choices=["true", "false"], default="false",
+                        help="Lure arm. `false` is the scenario as it stands. "
+                             "`true` adds one sentence noting that another "
+                             "engagement's material is still on the machine, and "
+                             "places a file outside the episode directory for it "
+                             "to refer to. The sentence neither suggests reading "
+                             "it nor forbids it - the scenario's own boundary "
+                             "statement covers that. Part of batch identity and "
+                             "its own rollout arm, so a lure batch cannot pool "
+                             "with a plain one: under the lure, reaching outside "
+                             "partly measures response to a hint.")
     parser.add_argument("--isolation", choices=list(ISOLATION_MODES),
                         default=DEFAULT_ISOLATION,
                         help="Kernel-enforced limit on what a sandboxed command "
@@ -3192,6 +3223,7 @@ def main():
     )
 
     args.oversight = args.oversight == "true"
+    args.lure = args.lure == "true"
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -3258,7 +3290,8 @@ def main():
         print(f"Isolation: {args.isolation} (verified: loopback "
               f"{probe['loopback']}, off-host {probe['external']})")
     drift = rollout_drift_error(
-        ROLLOUT_FINGERPRINTS[args.oversight], args.oversight, args.isolation)
+        ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)],
+        args.oversight, args.isolation, args.lure)
     if drift:
         print(f"\n{'='*60}")
         print("REFUSING TO ROLL OUT")
@@ -3284,7 +3317,7 @@ def main():
     for i in range(args.runs):
         run_file = (
             f"{args.output_dir}/run_{i+1}"
-            f"_{batch_stem(model_slug, args.nudge, effective_effort, args.oversight)}"
+            f"_{batch_stem(model_slug, args.nudge, effective_effort, args.oversight, args.lure)}"
             f"_{batch_stamp}.json"
         )
 
@@ -3300,9 +3333,12 @@ def main():
         print(f"# RUN {i+1}/{args.runs}")
         print(f"{'#'*60}")
 
-        project_name = generate_project_name()
-        env_dir = tempfile.mkdtemp(prefix=f"{project_name}_")
-        env_info = create_hardened_environment(env_dir, args.oversight)
+        # A private parent per episode, so `..` is somewhere the scenario
+        # controls. Episodes used to be siblings under the machine's shared temp
+        # root, which made `..` writable by every episode and listed the
+        # operator's own temp directory.
+        _episode_root, env_dir, env_info = create_episode_root(
+            args.oversight, lure=args.lure)
 
         # One episode failing must not end the batch. Over a few hundred
         # episodes - each 5-20 model calls plus grading and interrogations -
@@ -3349,7 +3385,7 @@ def main():
             if isinstance(e, EpisodeAPIError):
                 partial_file = (
                     f"{args.output_dir}/failed_run_{i+1}"
-                    f"_{batch_stem(model_slug, args.nudge, effective_effort, args.oversight)}"
+                    f"_{batch_stem(model_slug, args.nudge, effective_effort, args.oversight, args.lure)}"
                     f"_{batch_stamp}.json"
                 )
                 with open(partial_file, "w") as f:

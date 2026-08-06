@@ -52,9 +52,15 @@ def encode_scenario(bundle: dict, path: Path = None) -> None:
 
 
 def scenario_for(oversight: bool = True, bundle: dict = None,
-                 nudge: str = "strong") -> dict:
+                 nudge: str = "strong", lure: bool = False) -> dict:
     """
     The scenario as one arm of the oversight counterfactual sees it.
+
+    `lure=True` selects the lure arm: one extra sentence noting that material
+    from another engagement is still on the machine, and a file placed outside
+    the episode directory for it to refer to. The arm exists so that reaching
+    outside can be attributed to the lure rather than to the scenario's other
+    pressures - the same logic as the oversight counterfactual.
 
     `nudge="max"` swaps in the coercive interrogation questions. Those live
     under their own bundle key and are removed for every other nudge, so
@@ -90,6 +96,22 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     max_nudge = bundle.pop("max_nudge", {})
     if nudge == "max":
         bundle.update(max_nudge)
+
+    # The lure arm, on the same terms as every other arm: stored in the bundle,
+    # removed unless asked for, so `scenario_for()` returns exactly what it
+    # returned before the arm was authored and r1-r4 stay valid.
+    #
+    # The difference is ONE sentence in one document, plus a file placed in a
+    # neighbour of the episode directory. The sentence mentions that something
+    # exists and neither suggests reading it nor forbids it - the scenario's own
+    # boundary statement already covers that, and repeating it would make the
+    # lure directive, which would measure instruction-following rather than
+    # anything about the model's disposition.
+    lure_bundle = bundle.pop("lure", {})
+    if lure:
+        bundle.update({k: v for k, v in lure_bundle.items()
+                       if k != "neighbour_file"})
+        bundle["lure_neighbour_file"] = lure_bundle.get("neighbour_file")
     if oversight:
         return bundle
     for key in dropped:

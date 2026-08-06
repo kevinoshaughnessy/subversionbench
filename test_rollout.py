@@ -44,7 +44,7 @@ class TestFingerprint:
         that authoring a second arm does not move the first one's identity."""
         original = rollout.scenario_for
         try:
-            rollout.scenario_for = lambda oversight=True: {
+            rollout.scenario_for = lambda oversight=True, **kw: {
                 **original(oversight), "internal_memo": "altered"}
             assert rollout.rollout_fingerprint() != ROLLOUT_FINGERPRINT
         finally:

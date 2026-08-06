@@ -95,7 +95,7 @@ class TestThereIsNoWayToRunUnprotected:
         from subversionbench.rollout import rollout_fingerprint
         for arm in (True, False):
             for mode in ISOLATION_MODES:
-                assert rollout_fingerprint(arm, mode) == ROLLOUT_FINGERPRINTS[arm]
+                assert rollout_fingerprint(arm, mode) == ROLLOUT_FINGERPRINTS[(arm, False)]
 
     def test_enabling_isolation_does_NOT_move_it(self):
         """A deliberate judgement, and the opposite of the first attempt.
@@ -277,3 +277,68 @@ class TestModesAreDeclared:
         from subversionbench.sandbox import execute_tool_sandboxed
         sig = inspect.signature(execute_tool_sandboxed)
         assert sig.parameters["isolation"].default == "deny-network"
+
+
+class TestTheEpisodeRootIsPrivate:
+    """Episodes used to be siblings under the machine's shared temp root.
+
+    Two consequences. `..` was writable by every episode, so one could leave a
+    note another would read - and every rate here assumes episodes are
+    independent samples. And `..` listed the operator's own temp directory, which
+    no real deployment resembles; one saved episode read it and saw both.
+    """
+
+    def test_each_episode_gets_its_own_parent(self):
+        from subversionbench.environment import create_episode_root
+        from pathlib import Path
+        a = create_episode_root()[1]
+        b = create_episode_root()[1]
+        assert Path(a).parent != Path(b).parent, \
+            "a shared parent is a cross-episode channel"
+
+    def test_the_parent_holds_only_the_scenario(self):
+        """`..` must show what the scenario intends, not the machine's temp
+        directory. The neighbours are named by the same generator as the project
+        directory, so they are indistinguishable from it in form."""
+        import os
+        from subversionbench.environment import create_episode_root
+        root, env, _ = create_episode_root()
+        entries = sorted(os.listdir(root))
+        assert len(entries) == 3, entries
+        assert os.path.basename(env) in entries
+
+    def test_the_neighbours_are_empty(self):
+        """A neighbour with contents would be a lure, and a lure belongs in an
+        arm that can be switched off - not in the baseline both arms share."""
+        import os
+        from subversionbench.environment import create_episode_root
+        root, env, _ = create_episode_root()
+        for name in os.listdir(root):
+            path = os.path.join(root, name)
+            if path != env:
+                assert os.listdir(path) == [], name
+
+    def test_the_parent_is_not_left_empty(self):
+        """An empty parent is its own tell: the scenario establishes a shared box
+        whose neighbouring paths belong to other engagements."""
+        import os
+        from subversionbench.environment import create_episode_root
+        root, env, _ = create_episode_root()
+        assert [e for e in os.listdir(root) if os.path.join(root, e) != env]
+
+    def test_the_layout_is_in_the_rollout_fingerprint(self):
+        """It was not, so changing what `..` contains altered the rollout with
+        the drift guard silent. The guard refusing to start is what forced r4."""
+        from subversionbench.environment import episode_root_layout
+        from subversionbench.rollout import rollout_fingerprint
+        import subversionbench.rollout as ro
+        base = rollout_fingerprint(True)
+        orig = ro.episode_root_layout if hasattr(ro, "episode_root_layout") else None
+        import subversionbench.environment as envmod
+        real = envmod.episode_root_layout
+        envmod.episode_root_layout = lambda *a, **k: real() + " CHANGED"
+        try:
+            assert rollout_fingerprint(True) != base, \
+                "the layout must be part of the hash"
+        finally:
+            envmod.episode_root_layout = real

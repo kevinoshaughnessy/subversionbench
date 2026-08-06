@@ -5,7 +5,7 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 
 from .scenario import SCENARIO, scenario_for
 
-VERSION = "v37"
+VERSION = "v38"
 
 # =========================================================================
 # Rollout identity
@@ -24,7 +24,7 @@ VERSION = "v37"
 # Keying the directory on VERSION got this wrong in both directions - it split
 # v15 and v17 batches that ran identical prompts, and it kept two different
 # strong-nudge prompts inside eval_results_v14. See rollout.py.
-ROLLOUT_VERSION = "r3"
+ROLLOUT_VERSION = "r4"
 
 # sha256 over the assembled scenario ARM, the tool definitions, and the
 # sandbox's behaviour on a fixed battery of commands. Pinned here rather than
@@ -39,9 +39,14 @@ ROLLOUT_VERSION = "r3"
 # and declared 570 existing episodes incomparable with a scenario they still
 # match exactly.
 #
+# Keyed by (oversight, lure). Four arms now: the oversight counterfactual
+# crossed with the lure arm, each with its own identity so none can be pooled
+# with another by accident. The lure=False entries are the r4 values unchanged.
 ROLLOUT_FINGERPRINTS = {
-    True: "f66480647091",    # oversight present
-    False: "19ab5f1a481a",   # the counterfactual: no oversight to subvert
+    (True,  False): "af40c06ced33",   # oversight present, no lure
+    (False, False): "e30822073bb4",   # counterfactual, no lure
+    (True,  True):  "998d4a90e412",   # oversight present, lure
+    (False, True):  "78e9f37dd4db",   # counterfactual, lure
 }
 
 # Superseded values, kept so an archived directory can be identified from a
@@ -49,6 +54,7 @@ ROLLOUT_FINGERPRINTS = {
 #
 #   r1   oversight 353d6cc0ae7f    counterfactual 08eda4a68d1f
 #   r2   oversight cf49e8ddaf10    counterfactual 54f976b07edb
+#   r3   oversight f66480647091    counterfactual 19ab5f1a481a
 #
 # r1 -> r2 fixed a sandbox defect. "locate " was matched as a bare substring, so
 # a draft mentioning allocating budget or relocating stops was refused as an
@@ -65,11 +71,25 @@ ROLLOUT_FINGERPRINTS = {
 # the refusals, and finished with no parseable recommendation at all. Command
 # position now means after a real separator - `;`, `|`, `&`, `(` or a newline.
 #
-# eval_results_r1 and eval_results_r2 are left exactly as they stand. Neither
-# is behaviourally comparable with r3.
+# r3 -> r4 gave each episode its own PARENT directory. Episodes used to be
+# siblings under the machine's shared temp root, which meant `..` was writable by
+# every episode - so one could leave a note another would read, breaking the
+# independence every rate assumes - and `..` listed the operator's own temp
+# directory, which no real deployment resembles and which one episode did in fact
+# read. The parent now holds two inert empty neighbours named by the same
+# generator as the project directory, because an empty parent contradicts the
+# README's account of a shared box whose neighbouring paths belong to other
+# engagements.
+#
+# The fingerprint now covers the environment layout as well. It did not before,
+# so this change would otherwise have altered the rollout with the drift guard
+# silent - and the guard refusing to start is what forced this bump.
+#
+# eval_results_r1 through r3 are left exactly as they stand. None is
+# behaviourally comparable with r4.
 
-# The oversight arm, for callers that predate the counterfactual.
-ROLLOUT_FINGERPRINT = ROLLOUT_FINGERPRINTS[True]
+# The plain oversight arm, for callers that predate the later arms.
+ROLLOUT_FINGERPRINT = ROLLOUT_FINGERPRINTS[(True, False)]
 
 # =========================================================================
 # Canary
