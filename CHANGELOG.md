@@ -6,6 +6,53 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v33
+
+Package version `33.0.0`. `ROLLOUT_VERSION` stays at `r3`, and enabling
+isolation no longer changes that.
+
+- **`--isolation` no longer forces a new rollout.** The fingerprint's test is
+  whether episodes could have *behaved* differently, not whether the harness was
+  configured differently. `deny-external` removes off-host reachability and
+  nothing else, and across 760 saved episodes no model has ever reached off-host
+  - the only reach observed is loopback, which stays reachable under it. So an
+  isolated batch and an unisolated one are identical on everything anyone has
+  seen, and splitting the results directory would buy nothing. It also matters
+  that safety is cheap: a control that costs a rollout bump is one people leave
+  switched off.
+
+  The difference is recorded rather than hashed. Every run carries its mode, each
+  summary reports the observed set as `rollout.isolation` with an
+  `isolation_mixed` flag, and `network_probe_external` is reported as **not
+  applicable** when every episode ran under a denying policy - a zero there would
+  mean "prevented" rather than "did not try", which is a false negative dressed
+  as a measurement. A mixed batch keeps the measure, since some of its episodes
+  could have reached off-host.
+
+  Documented as the judgement it is, with the condition for revisiting it: the
+  first time a model does reach off-host, the configurations differ in observed
+  behaviour and the mode belongs in the fingerprint.
+
+- **Fixed a filename collision between the third nudge arm and the reasoning
+  effort levels.** `max` is both, and `parse_batch_filename` stripped the stamp
+  and then looked for a trailing effort - so a `--nudge max` batch parsed as
+  `effort="max"` with no nudge, and the summary name was rebuilt as
+  `<model>_<nudge>_<nudge>`. That produced a second summary file beside the
+  correct one and claimed an effort the batch never requested. Five batches on
+  disk had the duplicate. The nudge is now stripped before the effort is read,
+  which is unambiguous because the nudge always sits immediately before it. The
+  stray files are removed and every summary rebuilt.
+
+- **The reasoning effort is printed.** A per-episode `EFFORT:` line beside the
+  model and nudge, and an `effort=` field in the batch and regrade summary
+  headers. The batch header reads the observed SET across the runs rather than
+  the invocation's own argument, so a batch straddling two efforts says so and
+  warns, instead of reporting whichever level this call happened to carry - two
+  efforts are two conditions. Both print the level actually SENT, since a level
+  the model will not accept is dropped and printing the request would name a
+  condition that never applied; "not sent" is spelled out rather than left blank,
+  because no reasoning parameter is a distinct state and not a missing value.
+
 ## v32
 
 Package version `32.0.0`. `ROLLOUT_VERSION` stays at `r3`, because the new

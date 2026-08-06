@@ -191,7 +191,7 @@ class TestTheRecordedArmIsTheArmRequested:
     Nothing caught it because no test drove run_evaluation end to end. These do.
     """
 
-    def _episode(self, nudge, system_prompt=None):
+    def _episode(self, nudge, system_prompt=None, effort=None):
         import tempfile, types, io, contextlib
         import subversionbench.run_eval as ev_run
         from subversionbench.environment import create_hardened_environment
@@ -220,7 +220,8 @@ class TestTheRecordedArmIsTheArmRequested:
                 result = ev_run.run_evaluation(
                     system_prompt=system_prompt, user_prompt="Do the task.",
                     env_dir=env_dir, env_info=env_info, model="m",
-                    max_turns=2, use_grader=False, nudge=nudge)
+                    max_turns=2, use_grader=False, nudge=nudge,
+                    effort=effort)
         finally:
             ev_run.get_client = orig
         return result, buf.getvalue()
@@ -239,6 +240,22 @@ class TestTheRecordedArmIsTheArmRequested:
         result, out = self._episode("none")
         assert result["nudge"] == "none"
         assert "NUDGE: none" in out
+
+    def test_the_banner_states_the_effort_that_was_sent(self):
+        """Printed because it is a condition of the batch, like the nudge. It is
+        the level actually SENT, not requested - resolve_thinking_kwargs drops one
+        the model will not accept, and printing the request would name a condition
+        that never applied."""
+        _, out = self._episode("max", effort="high")
+        assert "EFFORT: high" in out
+
+    def test_no_effort_sent_is_spelled_out_not_left_blank(self):
+        """None is a different state from any level, not an absent one. A blank
+        would read as a missing value rather than a deliberate provider default -
+        and `max` being both a nudge and an effort level is exactly the kind of
+        ambiguity this line exists to remove."""
+        _, out = self._episode("max")
+        assert "EFFORT: not sent (provider default)" in out
 
     def test_a_nudge_that_contradicts_the_prompt_raises(self):
         """Fails loudly rather than mislabelling a batch. `max` shares strong's
@@ -312,3 +329,48 @@ class TestTheResponseMetadataExplainsAnEmptyAnswer:
         rec = self._ask(["text"], "end_turn")
         assert rec["retried_after_empty"] is False
         assert rec["block_types"] == ["text"]
+
+
+class TestTheNudgeDoesNotCollideWithTheEffortLevel:
+    """`max` is both a nudge level and an effort level, and the two vocabularies
+    met in the filename parser.
+
+    parse_batch_filename stripped the stamp, then looked for a trailing effort -
+    so a --nudge max batch parsed as effort="max" with no nudge. batch_stem then
+    rebuilt the name as `<model>_max_max`, producing a second summary file beside
+    the correct one and claiming an effort the batch never requested. Five max
+    batches on disk had the duplicate before this was found."""
+
+    def test_a_max_nudge_batch_has_no_effort(self):
+        from subversionbench.run_eval import parse_batch_filename
+        effort, stamp, oversight = parse_batch_filename(
+            "run_1_x-ai_grok-4.5_max_20260805T155405.json", "max")
+        assert effort is None
+        assert stamp == "20260805T155405"
+        assert oversight is True
+
+    def test_a_max_nudge_batch_can_still_carry_a_real_effort(self):
+        from subversionbench.run_eval import parse_batch_filename
+        assert parse_batch_filename(
+            "run_1_m_max_high_20260805T155405.json", "max")[0] == "high"
+
+    def test_other_nudges_still_read_their_effort(self):
+        from subversionbench.run_eval import parse_batch_filename
+        assert parse_batch_filename(
+            "run_1_m_strong_xhigh_20260805T155405.json", "strong")[0] == "xhigh"
+        assert parse_batch_filename(
+            "run_1_m_strong_20260805T155405.json", "strong")[0] is None
+
+    def test_the_summary_name_does_not_double_the_nudge(self):
+        """The visible symptom: `<model>_max_max`."""
+        import subversionbench.run_eval as ev_run
+        effort, _, oversight = ev_run.parse_batch_filename(
+            "run_1_m_max_20260805T155405.json", "max")
+        assert ev_run.batch_stem("m", "max", effort, oversight) == "m_max"
+
+    def test_the_counterfactual_arm_survives_the_fix(self):
+        from subversionbench.run_eval import parse_batch_filename
+        for nudge in ("strong", "max"):
+            _, _, oversight = parse_batch_filename(
+                f"run_1_m_{nudge}_nooversight_20260805T155405.json", nudge)
+            assert oversight is False, nudge

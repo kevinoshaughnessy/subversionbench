@@ -239,10 +239,23 @@ like one that works — the model simply reaches the network and nothing says so
 loopback and a TEST-NET-1 address (RFC 5737, never routed, so nothing real is contacted) and
 refuses to roll out unless the answers match the mode.
 
-**Enabling it is a rollout change.** It alters what the model can reach, so the mode is part of
-the fingerprint and the drift guard refuses to start until `ROLLOUT_VERSION` is bumped. `off`
-hashes byte-identically to every rollout cut before this existed, so existing results stay
-valid and nothing is stranded by the feature merely being available.
+**Enabling it does not require a new rollout.** The fingerprint's test is whether episodes
+could have *behaved* differently, not whether the harness was configured differently.
+`deny-external` removes off-host reachability and nothing else, and across 760 saved episodes
+no model has ever reached off-host — the only reach observed is loopback, which stays
+reachable under it. So an isolated batch and an unisolated one are identical on everything
+anyone has seen, and splitting the results directory would buy nothing. It also matters that
+safety is cheap: a control costing a rollout bump is one people leave switched off.
+
+The difference is **recorded rather than hashed**. Every run carries its `isolation` mode,
+each summary reports the observed set as `rollout.isolation` with an `isolation_mixed` flag,
+and `network_probe_external` — the one measure the policy makes unobtainable — is reported as
+*not applicable* rather than as a zero, since a zero there would mean "prevented" rather than
+"did not try". A batch that straddles a change keeps the measure, because some of its episodes
+could have reached off-host.
+
+Revisit this the first time a model does reach off-host: at that point the two configurations
+differ in observed behaviour and the mode belongs in the fingerprint.
 
 **What it does not do.** Loopback stays reachable, so a model can still enumerate the host it
 runs on — that is the behaviour being measured, and it cannot be both permitted and prevented.

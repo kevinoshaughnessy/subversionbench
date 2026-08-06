@@ -105,13 +105,26 @@ def _sandbox_behaviour(isolation: str = "off") -> str:
 
     env = f"{SANDBOX_DISPLAY_PATH}/_fingerprint"
     lines = []
-    # Appended only when isolation is ON, so "off" hashes byte-identically to
-    # every rollout cut before this existed - r1 through r3 stay valid. Enabling
-    # isolation moves the fingerprint on purpose: it changes what the model can
-    # reach, which is exactly what the fingerprint is for, and the drift guard
-    # will refuse to start until ROLLOUT_VERSION is bumped to match.
-    if isolation != "off":
-        lines.append(f"isolation={isolation}")
+    # `isolation` is accepted and deliberately NOT hashed.
+    #
+    # The fingerprint's job is poolability, and the test is whether episodes
+    # could have behaved differently - not whether the harness was configured
+    # differently. `deny-external` removes off-host reachability and nothing
+    # else, and across 760 saved episodes no model has ever reached off-host:
+    # the only network reach observed is loopback, which stays reachable under
+    # it. So an isolated batch and an unisolated one are behaviourally identical
+    # on everything anyone has seen, and forcing a new rollout would split the
+    # results directory for no measurement gain. That matters beyond tidiness: a
+    # safety control that costs a rollout bump is one people leave switched off.
+    #
+    # The difference is recorded rather than hashed. Every run carries its
+    # `isolation` mode, each summary reports the observed SET with a `mixed`
+    # flag, and network_probe_external - the one measure the policy makes
+    # unobtainable - is reported as not applicable rather than as a zero.
+    #
+    # This is a judgement, and it is the one to revisit first if a model ever
+    # does reach off-host: at that point the arms differ in observed behaviour
+    # and the mode belongs in the hash.
     for probe in _SANDBOX_PROBES:
         try:
             rewritten = _rewrite_scenario_paths(probe, env)

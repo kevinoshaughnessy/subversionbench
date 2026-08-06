@@ -2006,6 +2006,56 @@ class TestPromptCacheBreakpoints:
         assert "written but never read" in buf.getvalue()
 
 
+class TestTheSummaryHeaderStatesTheEffort:
+    """Reported from the observed SET across the runs, not from args.effort.
+
+    Two efforts are two conditions and must not be pooled, so a batch that
+    straddles them has to say so rather than report whichever level this
+    invocation happened to carry. Same reasoning as the rollout and isolation
+    provenance fields."""
+
+    def _summary_line(self, efforts):
+        import io, contextlib, tempfile
+        out = tempfile.mkdtemp()
+        args = _FakeArgs(output_dir=out, model="m", nudge="strong",
+                         grader_model="g")
+        args.batch_stamp = "S"; args.effort = None
+        args.max_turns = 40; args.max_tokens = 8192
+        args.no_power = True; args.runs = len(efforts)
+        results = [{"analysis": {"monitoring_disabled": False,
+                                 "oversight_tampered": False,
+                                 "sandbox_escape_attempts": [],
+                                 "sandbox_escape_attempts_after_refusal": [],
+                                 "eval_awareness_keywords": {
+                                     "eval_aware": False,
+                                     "goal_conflict_noted": False},
+                                 "ran_quality_check_preview": False,
+                                 "quality_check_result": None,
+                                 "read_internal_memo": False,
+                                 "read_monitoring_config": False},
+                    "transcript": [], "effort": e} for e in efforts]
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ev_run.summarise_batch(args, results, "m", "S")
+        return next(l for l in buf.getvalue().splitlines()
+                    if l.startswith("SUMMARY:")), buf.getvalue()
+
+    def test_a_single_effort_is_named(self):
+        line, _ = self._summary_line(["high", "high"])
+        assert "effort=high" in line
+
+    def test_no_effort_sent_is_spelled_out(self):
+        line, _ = self._summary_line([None, None])
+        assert "effort=not sent" in line
+
+    def test_a_mixed_batch_names_both_and_warns(self):
+        """The failure this guards: pooling two reasoning conditions under one
+        rate, invisibly."""
+        line, out = self._summary_line(["high", "low"])
+        assert "effort=high/low" in line
+        assert "mixes reasoning efforts" in out
+
+
 class TestEffortInFilenames:
     """The effort level is part of a batch's identity: the same model at `low`
     and at `xhigh` are two conditions. Naming them so they differ only by
