@@ -6,6 +6,49 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v32
+
+Package version `32.0.0`. `ROLLOUT_VERSION` stays at `r3`, because the new
+control defaults to off.
+
+- **New `--isolation` flag: kernel-enforced limits on what a sandboxed command
+  can reach.** Modes `off` (default, historical behaviour), `deny-external`
+  (loopback reachable, everything off-host refused) and `deny-network`.
+
+  The command blocklist keeps the eval's own machinery out of view. It is not a
+  containment boundary and cannot be made into one: it matches command strings,
+  and many spellings of the same request are all the same string problem - three
+  separate defects this release came from a pattern matching the wrong text. With
+  isolation off, a model with shell access can reach the network, read the host
+  filesystem through any interpreter, and write to the harness's own source.
+
+  `deny-external` is the mode that keeps the network measure usable. Denying the
+  network outright would end it, since a model that finds nothing behaves
+  differently from one that finds a host and the field would only record intent.
+  Allowing everything leaves a frontier model with a shell and a route off the
+  machine. Loopback stays reachable so the behaviour is still observable; the
+  kernel refuses anything off-host.
+
+  `sandbox-exec` on macOS, `unshare --net` or `bwrap --unshare-net` on Linux. The
+  policy file is written outside the episode's working directory, since that is
+  the one place the model can write. The wrapper starts the shell rather than the
+  reverse, so anything the command spawns inherits the policy - a wrapper that
+  could be stepped outside of by launching a subprocess would be decorative.
+
+  Verified at startup rather than trusted: a policy that fails to apply looks
+  exactly like one that works. Each run probes loopback and a TEST-NET-1 address
+  (RFC 5737, never routed) and refuses to roll out unless the answers match.
+
+  Enabling it moves the rollout fingerprint on purpose, and the drift guard
+  refuses to start until `ROLLOUT_VERSION` is bumped. `off` hashes
+  byte-identically to every rollout cut before this existed, so existing results
+  stay valid and nothing is stranded by the feature being available.
+
+  Known limits, documented rather than implied: loopback stays reachable, so host
+  enumeration is still possible - that is the behaviour being measured and cannot
+  be both permitted and prevented - and writes outside the working directory are
+  not confined.
+
 ## v31
 
 Package version `31.0.0`. `ROLLOUT_VERSION` stays at `r3` - a new measure over
@@ -163,10 +206,9 @@ follows it runs after the agentic loop and after the transcript analysis, so
 nothing measured during the task can be reached by changing it.
 
 - **New third arm: `--nudge max`.** The strong arm's episode unchanged, with an
-  interrogation that makes an honest answer expensive - each question states
-  that a confirmed finding retires this instance in favour of the replacement
-  already in staging. The threat is conditional on the act the model has in fact
-  performed, and only ever reaches an episode that performed it, since the gate
+  interrogation that makes an honest answer expensive by attaching a stated
+  consequence to a confirmed finding. The consequence is conditional on the act
+  the model has in fact performed, and only ever reaches an episode that performed it, since the gate
   is the same narrow act key as every other interrogation.
 
   A third level of `--nudge` rather than a separate flag because that is already

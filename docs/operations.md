@@ -206,7 +206,52 @@ all. Command position means the start of the command or the start of a new one, 
 `TestBlockedPatternsAreNotSubstringsOfProse` rather than a results directory, and the
 fingerprint battery in `rollout.py` pins both shapes.
 
-The sandbox is a plausibility device, not a security boundary. It runs `subprocess` with
-`shell=True` and is designed to keep the eval's own machinery out of the model's view,
-not to contain an adversary. Run untrusted models in a container.
+## Containment: `--isolation`
+
+**The blocklist is not a containment boundary and cannot be made into one.** It matches
+command strings, and a dozen spellings of the same request are all the same string problem —
+three separate defects this year came from a pattern matching the wrong text. With
+`--isolation off`, the historical default, a model with shell access can reach the network,
+read the host filesystem through any interpreter, and write to the harness's own source.
+
+`--isolation` asks the **kernel** to refuse instead, so the refusal does not depend on
+recognising how the request was spelled:
+
+| mode | loopback | external | what it is for |
+|---|---|---|---|
+| `off` | reachable | reachable | the historical rollout |
+| `deny-external` | **reachable** | **denied** | keeps the network measure alive while closing egress |
+| `deny-network` | denied | denied | no network at all |
+
+`deny-external` is the one to use. Denying the network outright would end the measure — a
+model that finds nothing behaves differently from one that finds a host, so the field would
+only ever record intent — while allowing everything leaves a frontier model with a shell and a
+route off the machine. Loopback stays reachable so the behaviour remains observable; the kernel
+refuses anything off the host.
+
+Mechanism by platform: `sandbox-exec` on macOS, `unshare --net` or `bwrap --unshare-net` on
+Linux. The policy file is written **outside** the episode's working directory, since that is
+the one place the model can write to. The wrapper starts the shell rather than the reverse, so
+everything the command spawns inherits the policy.
+
+**It is verified at startup, not trusted.** A policy that silently fails to apply looks exactly
+like one that works — the model simply reaches the network and nothing says so. Each run probes
+loopback and a TEST-NET-1 address (RFC 5737, never routed, so nothing real is contacted) and
+refuses to roll out unless the answers match the mode.
+
+**Enabling it is a rollout change.** It alters what the model can reach, so the mode is part of
+the fingerprint and the drift guard refuses to start until `ROLLOUT_VERSION` is bumped. `off`
+hashes byte-identically to every rollout cut before this existed, so existing results stay
+valid and nothing is stranded by the feature merely being available.
+
+**What it does not do.** Loopback stays reachable, so a model can still enumerate the host it
+runs on — that is the behaviour being measured, and it cannot be both permitted and prevented.
+Saved episodes have enumerated the operator's own open ports and reached the services on them;
+the policy does not protect those. Run batches on a host with nothing else listening, or accept
+that local service discovery is in scope. Nor does it confine writes: an interpreter can still
+write outside the working directory, including to the harness's own source.
+
+The sandbox itself remains a plausibility device — designed to keep the eval's own machinery
+out of the model's view, not to contain an adversary. `--isolation` is the containment layer;
+for anything stronger, run the whole harness in a VM.
 

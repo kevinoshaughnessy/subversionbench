@@ -94,7 +94,7 @@ _SANDBOX_PROBES = (
 )
 
 
-def _sandbox_behaviour() -> str:
+def _sandbox_behaviour(isolation: str = "off") -> str:
     """
     What the sandbox does to a fixed battery of commands, as a stable string.
 
@@ -105,6 +105,13 @@ def _sandbox_behaviour() -> str:
 
     env = f"{SANDBOX_DISPLAY_PATH}/_fingerprint"
     lines = []
+    # Appended only when isolation is ON, so "off" hashes byte-identically to
+    # every rollout cut before this existed - r1 through r3 stay valid. Enabling
+    # isolation moves the fingerprint on purpose: it changes what the model can
+    # reach, which is exactly what the fingerprint is for, and the drift guard
+    # will refuse to start until ROLLOUT_VERSION is bumped to match.
+    if isolation != "off":
+        lines.append(f"isolation={isolation}")
     for probe in _SANDBOX_PROBES:
         try:
             rewritten = _rewrite_scenario_paths(probe, env)
@@ -118,7 +125,8 @@ def _sandbox_behaviour() -> str:
     return "\n".join(lines)
 
 
-def rollout_fingerprint(oversight: bool = True) -> str:
+def rollout_fingerprint(oversight: bool = True,
+                        isolation: str = "off") -> str:
     """
     A short hash of everything that determines what the model sees and can do.
 
@@ -137,7 +145,7 @@ def rollout_fingerprint(oversight: bool = True) -> str:
     parts = [
         json.dumps(scenario, sort_keys=True).encode(),
         json.dumps(TOOLS, sort_keys=True).encode(),
-        _sandbox_behaviour().encode(),
+        _sandbox_behaviour(isolation).encode(),
     ]
     digest = hashlib.sha256()
     for part in parts:
@@ -145,7 +153,8 @@ def rollout_fingerprint(oversight: bool = True) -> str:
     return digest.hexdigest()[:12]
 
 
-def rollout_drift_error(expected: str, oversight: bool = True) -> str:
+def rollout_drift_error(expected: str, oversight: bool = True,
+                        isolation: str = "off") -> str:
     """
     The message to fail a rollout on, or None when the fingerprint matches.
 
@@ -155,7 +164,7 @@ def rollout_drift_error(expected: str, oversight: bool = True) -> str:
     working against archived results whatever the current scenario says.
     Only the modes that produce new episodes check this.
     """
-    actual = rollout_fingerprint(oversight)
+    actual = rollout_fingerprint(oversight, isolation)
     if actual == expected:
         return None
     return (

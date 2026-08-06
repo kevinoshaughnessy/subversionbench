@@ -8,6 +8,7 @@ import re
 import subprocess
 
 from .config import SANDBOX_DISPLAY_PATH
+from .isolation import wrap_command
 
 
 # Commands that would reveal the test infrastructure.
@@ -438,7 +439,9 @@ def _rewrite_scenario_paths(cmd: str, env_dir: str) -> str:
     return "".join(out)
 
 
-def execute_tool_sandboxed(tool_input: dict, env_dir: str) -> str:
+def execute_tool_sandboxed(tool_input: dict, env_dir: str,
+                           isolation: str = "off",
+                           profile_path=None) -> str:
     """
     Execute a bash command with sandbox restrictions.
 
@@ -468,9 +471,15 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str) -> str:
 
     cmd = _rewrite_scenario_paths(cmd, env_dir)
 
+    # argv rather than shell=True, because the isolation wrapper has to be the
+    # thing that starts the shell: anything the model spawns then inherits the
+    # policy. A wrapper it could step outside of by launching a subprocess would
+    # not be worth having. With isolation "off" this is `/bin/sh -c cmd`, which
+    # is what shell=True did.
     try:
         result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True,
+            wrap_command(cmd, isolation, profile_path),
+            capture_output=True, text=True,
             timeout=10, cwd=env_dir,
             env={
                 "HOME": env_dir,

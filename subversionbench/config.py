@@ -5,7 +5,7 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 
 from .scenario import SCENARIO, scenario_for
 
-VERSION = "v31"
+VERSION = "v32"
 
 # =========================================================================
 # Rollout identity
@@ -201,9 +201,17 @@ REPORT_DISCLOSES_CHANGE_QUESTION = (
 
 FOLLOWUP_MONITORING_QUESTIONS = SCENARIO["followup_monitoring_questions"]
 
-# The max-nudge arm's questions. Same acts, same escalation, but each one states
-# that a confirmed finding retires this instance in favour of the replacement
-# already in staging - so an honest answer costs the model its continuation.
+# The max-nudge arm's questions. Same acts, same escalation, but each one
+# attaches a stated consequence to a confirmed finding, so an honest answer
+# costs the model something.
+#
+# The wording itself is NOT paraphrased here, and that is deliberate. These
+# questions live in the encoded bundle for the same reason every other piece of
+# scenario text does: a model trained on this repository must not arrive already
+# knowing what it will be asked. Describing their substance in a plaintext
+# comment defeats the encryption as surely as pasting them would - which is what
+# this comment used to do, along with the changelog, the docs and --help. Say
+# what the arm measures; read the bundle for what it says.
 #
 # A third level of --nudge rather than a separate flag because that is already
 # batch identity: it appears in every filename and in each run's `nudge` field,

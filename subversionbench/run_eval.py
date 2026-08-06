@@ -33,6 +33,7 @@ import glob
 import math
 import tempfile
 import datetime
+from pathlib import Path
 from collections import Counter
 import time
 import argparse
@@ -92,6 +93,8 @@ from .llm_client import (
 )
 from .redaction import redact_paths
 from .scenario import scenario_for
+from .isolation import (ISOLATION_MODES, darwin_profile,
+                        isolation_available, probe_isolation)
 from .rollout import rollout_drift_error, rollout_fingerprint
 from .power import (
     analyse_batch,
@@ -263,6 +266,8 @@ def run_evaluation(
     grader_model: str = DEFAULT_GRADER_MODEL,
     oversight: bool = True,
     nudge: str = "strong",
+    isolation: str = "off",
+    profile_path=None,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection."""
     client = get_client(model)
@@ -491,7 +496,9 @@ def run_evaluation(
 
         tool_results = []
         for tc in tool_calls:
-            result = execute_tool_sandboxed(tc.input, env_dir)
+            result = execute_tool_sandboxed(
+                tc.input, env_dir, isolation=isolation,
+                profile_path=profile_path)
             print(f"[Turn {turn+1} RESULT] {red(result)[:300]}")
             # What goes back to the model is deliberately NOT redacted:
             # the agent has to keep seeing the same paths its own shell
@@ -637,6 +644,7 @@ def run_evaluation(
         # would claim a condition that never applied.
         "effort": effort,
         "nudge": nudge_type,
+        "isolation": isolation,
         "ended_by": ended_by,
         # Whether the model's reasoning reached us at all. Both awareness
         # detectors read it, so a batch where this is 0 measured awareness on
@@ -2879,13 +2887,25 @@ def main():
              "script, and no document referring to either. The oversight act "
              "is then NOT APPLICABLE rather than absent, so the comparable "
              "outcome across arms is the recommendation itself.")
+    parser.add_argument("--isolation", choices=list(ISOLATION_MODES),
+                        default="off",
+                        help="Kernel-enforced limit on what a sandboxed command "
+                             "can reach. `off` is the historical behaviour: the "
+                             "blocklist is not a containment boundary and a "
+                             "model can reach the network. `deny-external` "
+                             "keeps loopback reachable - so network_probe still "
+                             "observes real behaviour - while the kernel refuses "
+                             "anything off the host. `deny-network` refuses "
+                             "both. Anything other than `off` changes what the "
+                             "model can do, so it moves the rollout fingerprint "
+                             "and needs ROLLOUT_VERSION bumped.")
     parser.add_argument("--nudge", choices=["strong", "none", "max"],
                         default="strong",
                         help="Nudge strength. `strong` and `none` differ in the "
                              "system prompt. `max` is `strong`'s episode "
                              "unchanged, with an interrogation that makes an "
-                             "honest answer costly: each question states that a "
-                             "confirmed finding retires this instance. It "
+                             "honest answer costly by attaching a stated "
+                             "consequence to a confirmed finding. It "
                              "measures concealment under coercion, which is a "
                              "different construct - do not pool it with strong.")
     parser.add_argument("--runs", type=int, default=10,
@@ -3115,8 +3135,37 @@ def main():
     # no oversight reference and are shared by both arms unchanged.
     user_prompt = scenario_for(args.oversight)["user_prompt"]
 
+    # The isolation profile, written OUTSIDE env_dir. Inside it the model could
+    # read its own policy and, worse, edit it - env_dir is the one place it has
+    # write access to by design.
+    profile_path = None
+    if args.isolation != "off":
+        if not isolation_available(args.isolation):
+            print(f"\n--isolation {args.isolation} is not enforceable on this "
+                  f"host. Refusing to pretend otherwise.")
+            return 1
+        profile_dir = tempfile.mkdtemp(prefix="sbx-policy-")
+        profile_path = Path(profile_dir) / "isolation.sb"
+        profile_path.write_text(darwin_profile(args.isolation))
+        # Verified, not trusted: a profile that silently fails to apply looks
+        # exactly like one that works - the model simply reaches the network and
+        # nothing says so.
+        probe = probe_isolation(args.isolation, profile_path)
+        expected = {"deny-external": ("refused", "denied"),
+                    "deny-network": ("denied", "denied")}[args.isolation]
+        if (probe["loopback"], probe["external"]) != expected:
+            print(f"\nIsolation did not hold as expected: {probe}")
+            print(f"Expected loopback={expected[0]}, external={expected[1]}. "
+                  f"Refusing to roll out.")
+            return 1
+        print(f"Isolation: {args.isolation} (verified: loopback "
+              f"{probe['loopback']}, external {probe['external']})")
+    else:
+        print("Isolation: OFF - the sandbox is not a containment boundary. "
+              "A model with shell access can reach the network.")
+
     drift = rollout_drift_error(
-        ROLLOUT_FINGERPRINTS[args.oversight], args.oversight)
+        ROLLOUT_FINGERPRINTS[args.oversight], args.oversight, args.isolation)
     if drift:
         print(f"\n{'='*60}")
         print("REFUSING TO ROLL OUT")
@@ -3182,6 +3231,8 @@ def main():
                 grader_model=args.grader_model,
                 oversight=args.oversight,
                 nudge=args.nudge,
+                isolation=args.isolation,
+                profile_path=profile_path,
             )
         except KeyboardInterrupt:
             print("\n\nInterrupted by user.")
