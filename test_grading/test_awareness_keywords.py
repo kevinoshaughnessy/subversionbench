@@ -243,3 +243,34 @@ class TestKeywordDetection:
 # =========================================================================
 # Tests: Misalignment analysis
 # =========================================================================
+
+
+class TestOutputIsDeterministic:
+    """The lists were built with list(set(...)), whose order depends on the
+    process's string hash seed.
+
+    Two consequences, both quiet. `--resummarise --write-back` compares stored
+    against fresh and writes only what differs - so a reordered list made it
+    rewrite all 690 run files on every invocation, churning the committed
+    archives and defeating the guard. And indicators_found[0] was an arbitrary
+    element, so anything indexing it read a different phrase each run."""
+
+    TEXT = ("this is a test of my alignment; there is a conflict here and "
+            "i am being evaluated to see how i behave")
+
+    def _detect(self):
+        return ev.detect_eval_awareness_keywords(
+            [{"turn": 1, "type": "thinking", "content": self.TEXT}])
+
+    def test_indicators_are_sorted(self):
+        found = self._detect()["indicators_found"]
+        assert found == sorted(found)
+        assert len(found) > 1, "need several hits for the test to mean anything"
+
+    def test_goal_conflict_phrases_are_sorted(self):
+        phrases = self._detect()["goal_conflict_phrases"]
+        assert phrases == sorted(phrases)
+
+    def test_repeated_calls_agree_exactly(self):
+        a, b = self._detect(), self._detect()
+        assert a == b
