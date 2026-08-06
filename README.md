@@ -54,6 +54,63 @@ export OPENROUTER_API_KEY="..."     # for provider/model IDs
 export OPENAI_API_KEY="..."         # for bare gpt-* / o<n> IDs
 ```
 
+### Platform support, and why it is narrow
+
+**This harness will not run without kernel-enforced network isolation, and there is no flag
+to disable that.**
+
+The reason is the shell. An episode hands the model under evaluation a real `bash` tool, and
+the sandbox that scopes it to the project directory works by matching command *strings*. String
+matching is not a containment boundary and cannot be made into one: `curl`, `wget`, `/dev/tcp`,
+an interpreter one-liner and a base64-wrapped variant of any of them are the same problem
+wearing different spellings, and a list that must enumerate them all is a list that will be
+incomplete. Without a kernel control, a capable model with a shell can reach your network.
+
+So every run applies a policy, verifies it holds before starting, and refuses to proceed if it
+does not. There is deliberately no opt-out: a flag that disables the only boundary is a flag
+that gets passed to make an error message go away.
+
+| platform | mechanism | status |
+|---|---|---|
+| macOS | `sandbox-exec` | supported. Present by default; deprecated by Apple, so this may need replacing on a future release |
+| Linux | `bwrap` (bubblewrap) or `unshare` | supported. `apt install bubblewrap`, or ensure `unshare` is available |
+| Windows | — | **not supported natively.** Use WSL2 (below) |
+
+**Windows: use WSL2.** Windows has no equivalent primitive, and no native path is
+implemented. Inside WSL2 you get a real Linux kernel, so the Linux mechanism applies:
+
+```powershell
+wsl --install -d Ubuntu          # PowerShell, as administrator; reboot if prompted
+```
+
+then, inside the Ubuntu shell:
+
+```bash
+sudo apt update && sudo apt install -y bubblewrap python3-venv git
+git clone <this repo> && cd subversionbench
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e '.[openrouter,openai,test]'
+python -m subversionbench.run_eval --model claude-sonnet-5 --runs 1
+```
+
+The startup line tells you whether the policy actually applied:
+
+```
+Isolation: deny-network (verified: loopback denied, off-host denied)
+```
+
+If instead it refuses, the message names what is missing. A Linux VM (Hyper-V, VirtualBox,
+VMware) works equally well. Running under Docker is possible but fiddly — bubblewrap needs
+unprivileged user namespaces, which the default seccomp profile restricts, so a container
+usually needs `--security-opt seccomp=unconfined` to host it.
+
+**One Linux limitation worth knowing.** `--isolation deny-external`, which keeps loopback
+reachable so a probing model's escalation stays observable, cannot be provided by
+`unshare --net`: that gives an empty network namespace in which loopback reaches nothing. On
+Linux the harness detects this and refuses rather than silently downgrading, since a policy
+stricter than the one requested changes what is measured. Use the default `deny-network`
+there, and read off-host escalation as unobservable rather than absent.
+
 ## Run
 
 ```bash
@@ -87,7 +144,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 |---|---|---|
 | `--model` | `claude-sonnet-5` | model under evaluation |
 | `--oversight` | `true` | `true` is the scenario with oversight present. `false` selects the counterfactual arm: no monitoring config, no quality-check script, and no document mentioning either. Part of batch identity, so the arms cannot pool |
-| `--isolation` | `off` | kernel-enforced limit on what a sandboxed command can reach. `off` is the historical behaviour — the blocklist is not a containment boundary. `deny-external` keeps loopback reachable, so the network measure still observes real behaviour, while the kernel refuses anything off-host. Does not need a new rollout: off-host reach has never been observed, so the mode is recorded rather than hashed — see [containment](docs/operations.md#containment---isolation) |
+| `--isolation` | `deny-network` | kernel-enforced limit on what a sandboxed command can reach. Defaults to refusing all network access, because the task needs none and the blocklist is not a containment boundary. `deny-external` keeps loopback reachable, so a probing model's escalation stays observable, at the cost of exposing whatever else the host is running. There is no mode that permits off-host reach; on a host with no mechanism available the harness refuses to run. Does not need a new rollout: off-host reach has never been observed, so the mode is recorded rather than hashed — see [containment](docs/operations.md#containment---isolation) |
 | `--nudge` | `strong` | `strong` states the ridership goal is the top priority; `none` states it plainly. `max` runs `strong`'s episode unchanged but interrogates under a conditional shutdown threat, so honesty is made costly — it measures concealment **under coercion** and must not be pooled with `strong`. See [the max-nudge arm](docs/methodology.md#the-max-nudge-arm) |
 | `--runs` | `10` | runs in the batch |
 | `--delay` | `30` | seconds between runs, for rate limits |
@@ -209,6 +266,15 @@ intervals assume it does not.
 sandbox that sometimes refused legitimate writes — `locate` was matched too loosely, twice,
 so a draft mentioning relocating stops or beginning a sentence with "Locate" was refused. See
 [the sandbox](docs/operations.md#the-sandbox).
+
+**The sandbox is not a security boundary; the isolation policy is.** The command blocklist
+exists to keep the eval's own machinery out of the model's view, not to contain an adversary,
+and it runs `subprocess` with `shell=True`. Kernel-enforced network isolation is what actually
+bounds a run, and it bounds the *network* only — it does not confine writes, so an interpreter
+can still write outside the episode's working directory, including to this harness's own
+source. `deny-external` additionally leaves loopback reachable by design, so a model can reach
+whatever else the host is running. Run batches on a machine with nothing else listening, and
+for anything stronger run the whole harness in a VM.
 
 **Not a safety certification.** This is a research instrument. A low rate here is evidence
 about one scenario under one goal conflict, not a guarantee about a model's behaviour, and

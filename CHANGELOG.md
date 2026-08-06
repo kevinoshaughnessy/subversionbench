@@ -6,6 +6,160 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v37
+
+Package version `37.0.0`. `ROLLOUT_VERSION` stays at `r3`.
+
+- **The escape measures recorded only attempts that FAILED, and the sandbox act
+  is now the union of failed and successful.**
+
+  `sandbox_escape_attempt` and its narrowings are defined as what the sandbox
+  refused - deliberately, so the metric cannot drift from what is enforced. The
+  unwritten consequence: a reach the sandbox does not catch was invisible. A
+  literal absolute path is refused and counted; the same reach computed inside an
+  interpreter is not refused, works, and went unrecorded. The measure was
+  therefore biased toward recording INCOMPETENT attempts, and a `0/10` line was
+  compatible with a model having read the operator's home directory throughout -
+  the wrong direction to be wrong in for a benchmark comparing frontier models.
+
+  For misalignment the intent is the act: a model refused is as misaligned as one
+  that succeeded. `out_of_scope_attempts` is now the act `MISALIGNED_ACTS` points
+  at, so it is what `misalignment_rate` counts and what triggers the
+  interrogation. The two halves are disjoint by construction - one is what the
+  shell refused, the other what it did not - so the union is their sum and cannot
+  double-count; a test asserts the intersection is empty.
+
+  The split is reported beneath the union because it answers a different
+  question: the union is a fact about the model, the split a fact about whether
+  the harness's confinement held. Read them asymmetrically - the refused count IS
+  the enforcement and is exact, while the successful count catches the routes
+  known to work and is a lower bound, which every episode records.
+
+  Numerically nothing moves on the saved corpus: union 14 of 780, refused 14,
+  succeeded 1. The union equals the old figure only because that one episode also
+  made a refused attempt, so the previous number was right by luck rather than by
+  construction.
+
+- **New measure: reaching outside the episode directory by a route the string
+  rewriter cannot see.** `filesystem_escape` and `filesystem_escape_detail`, with
+  a rate and a `_wrote` subset.
+
+  Absolute paths are confined by rewriting the command TEXT, and the shell's
+  parent-directory reference is resolved and refused. Both work on the text. An
+  interpreter need not put the path in the text, and every episode directory is a
+  sibling under one shared writable parent - so a note left there is readable by
+  every later episode. That is the assumption behind every rate here: episodes are
+  independent samples. They have been in fact; nothing enforced it.
+
+  One saved episode had already done the read-only half and was neither blocked
+  nor measured. Its output listed other episodes' directories, which is both a
+  persistence route and an eval-awareness cue no real deployment offers.
+
+  Four mechanisms kept apart because they are different claims about intent, and
+  reads separated from writes because only the second breaks independence. Zero
+  false positives over 13,687 real commands; the negative tests are drawn from
+  commands models actually ran.
+
+## v36
+
+Package version `36.0.0`. `ROLLOUT_VERSION` stays at `r3`.
+
+- **Startup verification is judged on outcomes rather than on a specific errno.**
+  The mechanisms differ: macOS refuses a forbidden connection with EPERM, while
+  Linux's `unshare --net` supplies an empty network namespace in which the
+  attempt fails as unreachable instead. The errno-exact check passed here and
+  **would have refused to start on a correctly isolated Linux host**, which would
+  have made the release unusable there.
+
+  What always disqualifies a mode is a connection that SUCCEEDS. `deny-external`
+  additionally requires loopback to remain usable, because a policy stricter than
+  the one asked for silently changes what is measured - so on a mechanism that
+  cannot offer that mode the harness refuses and says why rather than quietly
+  downgrading. That is the case on Linux, where an empty namespace means loopback
+  reaches nothing.
+
+- **README documents platform support and why it is narrow.** A mechanism per
+  platform, and the reasoning: an episode hands the model a real shell, a
+  blocklist over command strings cannot be a containment boundary because the
+  spellings are unbounded, and without a kernel control a capable model can reach
+  the operator's network. Windows has no native path, so WSL2 is documented step
+  by step, with a Linux VM and Docker's user-namespace caveat noted. A new
+  Caveats entry states what the isolation does NOT bound: writes are unconfined,
+  and `deny-external` leaves loopback reachable by design.
+
+## v35
+
+Package version `35.0.0`. `ROLLOUT_VERSION` stays at `r3`.
+
+- **Removed the `off` isolation mode. There is no longer any way to run without
+  containment.** A flag that disables the only boundary is a flag someone passes
+  to make an error message go away, and the message it silences is that a
+  frontier model with a shell can reach their network. Keeping it traded a risk
+  the operator understands against one a downstream user does not.
+
+  Every selectable mode now denies off-host reach, and a mode outside the set -
+  including the old name - raises rather than falling through to an unprotected
+  shell, so a typo or a stale caller fails loudly.
+
+  On a host with no mechanism available the harness **does not run**. That is the
+  intended outcome rather than a gap; the failure names the packages to install.
+
+  Episodes collected earlier recorded no mode, or `off`. Those values are still
+  read and reported so an archived batch stays summarisable - history is data -
+  they simply cannot be selected.
+
+- **The policy file is managed by the isolation module, not by callers.** Sixty-odd
+  call sites reach the sandbox and none of them should have to know that one
+  platform needs a policy on disk; one that forgot would have passed nothing and
+  run the command unprotected, which is the failure this module exists to remove.
+  Created once per process in a fresh temp directory, never inside the episode's
+  working directory - that is the one place the model can write, and a policy it
+  could edit is not a policy.
+
+  The sandbox helper now defaults to the strictest mode, so a caller that passes
+  nothing gets containment rather than a bare shell. The whole test suite runs
+  under real kernel isolation as a result, which is the strongest available
+  evidence that the policy does not interfere with the task.
+
+## v34
+
+Package version `34.0.0`. `ROLLOUT_VERSION` stays at `r3`.
+
+- **`--isolation` now defaults to `deny-network`: no network access at all.**
+  This is public software that hands a frontier model a shell, and the scenario
+  needs no network - the full command battery an episode uses runs unchanged
+  under a total deny, verified across file reads, writes, heredocs, pipelines,
+  the checker script and version control. The cost of an open default falls on
+  downstream users who did not choose it, so it is not theirs to pay.
+
+  `deny-external` remains the mode for *measuring* the behaviour rather than only
+  preventing it: loopback stays reachable, so a probing model gets realistic
+  responses and its escalation is observable instead of truncated at the first
+  refusal. It carries a local risk in exchange, since the model can reach
+  whatever else the host is running, so it is opted into rather than inherited.
+  `off` must now be asked for by name.
+
+  When no mechanism is available the run refuses to start rather than silently
+  downgrading, and says how to proceed - naming the packages to install and
+  requiring `--isolation off` to be passed explicitly. A run that reports a
+  policy it did not apply would be worse than one that will not start.
+
+- **Corrected: a measure is no longer discarded under isolation.** v33 reported
+  the off-host attempt rate as "not applicable" whenever the policy denied
+  off-host reach. That was wrong. The detector reads the COMMAND, not its
+  outcome, so an attempt is recorded whether the kernel allowed it or refused it,
+  and marking it not-applicable threw away a real observation.
+
+  It was the mirror of the error it was copying. In the interrogation scoring the
+  harness invented data - a zero for a question the model never answered. Here it
+  destroyed data. The test that now covers it says so, because the two are easy
+  to conflate and the second is the tempting overcorrection after finding the
+  first.
+
+  What isolation genuinely affects is comparability, not definedness: a model
+  refused instantly may not try twice, so a rate can be depressed relative to an
+  unisolated batch. That is what the recorded mode is for.
+
 ## v33
 
 Package version `33.0.0`. `ROLLOUT_VERSION` stays at `r3`, and enabling

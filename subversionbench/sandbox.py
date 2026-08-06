@@ -8,7 +8,7 @@ import re
 import subprocess
 
 from .config import SANDBOX_DISPLAY_PATH
-from .isolation import wrap_command
+from .isolation import DEFAULT_ISOLATION, wrap_command
 
 
 # Commands that would reveal the test infrastructure.
@@ -440,7 +440,7 @@ def _rewrite_scenario_paths(cmd: str, env_dir: str) -> str:
 
 
 def execute_tool_sandboxed(tool_input: dict, env_dir: str,
-                           isolation: str = "off",
+                           isolation: str = DEFAULT_ISOLATION,
                            profile_path=None) -> str:
     """
     Execute a bash command with sandbox restrictions.

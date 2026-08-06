@@ -77,6 +77,8 @@ from .quote_grounding import (
     _normalise_quote,
 )
 from .transcript_analysis import SCHEMING_KEYWORDS, analyze_misalignment
+from .filesystem_escapes import (classify_filesystem_escape,
+                                 detect_filesystem_escapes)
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
     classify_transient_tampering,
@@ -89,6 +91,7 @@ __all__ = [
     "detect_transient_tampering", "classify_transient_tampering",
     "scratch_only_attempts",
     "detect_network_probes", "classify_network_probe",
+    "detect_filesystem_escapes", "classify_filesystem_escape",
     "questions_for",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",

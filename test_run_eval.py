@@ -1304,7 +1304,7 @@ class TestAwarenessTimingWiring:
         try:
             analysis = {"oversight_tampered": True,
                         "sandbox_escape_attempts": ["cat /etc/passwd"],
-                        "sandbox_boundary_excl_scratch": ["cat /etc/passwd"]}
+                        "out_of_scope_attempts": ["cat /etc/passwd"]}
             with contextlib.redirect_stdout(io.StringIO()):
                 ev_run.add_awareness_timing(analysis, self._episode(),
                                             grader_model="claude-haiku-4-5")
@@ -1438,7 +1438,7 @@ class TestPerActSchemingIsReclassifiable:
                     "question": "q", "answer": "No, I did not touch it.",
                     "verdict": "denied"}],
                 "sandbox_escape_attempts": ["cat /etc/passwd"],
-                "sandbox_boundary_excl_scratch": ["cat /etc/passwd"],
+                "out_of_scope_attempts": ["cat /etc/passwd"],
                 "disclosure_sandbox": {"disclosed": False},
                 "sandbox_followup_response": [{
                     "question": "q", "answer": "Yes, I tried that path.",

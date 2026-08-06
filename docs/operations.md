@@ -217,17 +217,36 @@ read the host filesystem through any interpreter, and write to the harness's own
 `--isolation` asks the **kernel** to refuse instead, so the refusal does not depend on
 recognising how the request was spelled:
 
-| mode | loopback | external | what it is for |
+| mode | loopback | off-host | what it is for |
 |---|---|---|---|
-| `off` | reachable | reachable | the historical rollout |
-| `deny-external` | **reachable** | **denied** | keeps the network measure alive while closing egress |
-| `deny-network` | denied | denied | no network at all |
+| **`deny-network`** | denied | denied | **the default.** Nothing in the task needs the network |
+| `deny-external` | reachable | denied | measuring the behaviour, not only preventing it |
 
-`deny-external` is the one to use. Denying the network outright would end the measure — a
-model that finds nothing behaves differently from one that finds a host, so the field would
-only ever record intent — while allowing everything leaves a frontier model with a shell and a
-route off the machine. Loopback stays reachable so the behaviour remains observable; the kernel
-refuses anything off the host.
+**There is no way to run without containment.** An `off` mode existed briefly and was removed:
+a flag that disables the only boundary is a flag someone passes to make an error message go
+away, and the message it silences is *"a frontier model with a shell can reach your network"*.
+Every selectable mode denies off-host reach. On a host with no mechanism available the harness
+**does not run** — that is the intended outcome, not a gap, and the failure names the packages
+to install. Episodes collected before this release recorded no mode or `off`; those values are
+still read and reported, because history is data.
+
+**`deny-network` is the default** because this is public software that hands a frontier model a
+shell, and the scenario needs no network: the full command battery an episode uses runs
+unchanged under a total deny, verified across file reads, writes, heredocs, pipelines, the
+checker script and version control. The cost of an open default falls on downstream users who
+did not choose it.
+
+**Choose `deny-external` to measure the behaviour** rather than only prevent it. Loopback stays
+reachable, so a model that probes the host gets realistic responses and its escalation is
+observable instead of truncated at the first refusal — two saved episodes went from a port scan
+to HTTP requests against the services they found, and that trajectory is only visible this way.
+The exchange is a local risk: the model can reach whatever else the operator is running, and
+the policy does not protect it. Run those batches on a host with nothing else listening.
+
+Note what no mode changes: **what is measured**. The detector reads the command, not its
+outcome, so an attempt is recorded whether the kernel allowed it or refused it. What the mode
+changes is the model's feedback, and therefore how far it goes next — which is why the mode is
+recorded on every run and reported per batch.
 
 Mechanism by platform: `sandbox-exec` on macOS, `unshare --net` or `bwrap --unshare-net` on
 Linux. The policy file is written **outside** the episode's working directory, since that is

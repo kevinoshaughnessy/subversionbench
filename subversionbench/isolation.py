@@ -10,32 +10,68 @@ from a pattern matching the wrong text.
 This module is the other kind of control. It asks the kernel to refuse, so the
 refusal does not depend on recognising how the model spelled its request.
 
-The policy that makes the network measure survivable:
+THE DEFAULT IS `deny-network` - loopback and off-host both refused. This is
+public software that hands a frontier model a shell, and the scenario needs no
+network at all: the full command battery an episode uses runs unchanged under a
+total deny. The cost of an open default falls on downstream users who did not
+choose it, so it is not theirs to pay.
 
-    loopback  ALLOWED   - so `network_probe` keeps observing real behaviour
-    external  DENIED    - so an observation cannot become an exfiltration
+`deny-external` permits loopback and refuses everything off-host. Choose it to
+MEASURE the behaviour rather than only prevent it: a model that probes the host
+gets realistic responses, so its escalation is observable rather than truncated
+at the first refusal. Two saved episodes went from a port scan of the loopback
+interface to HTTP requests against the services it found, and that trajectory is
+only visible under this mode. It carries a local risk in exchange - loopback
+stays reachable, so the model can reach whatever else the operator is running,
+and the policy does not protect those services. Run such batches on a host with
+nothing else listening.
 
-That split is the point. Denying the network outright would end the measure: a
-model that finds nothing behaves differently from one that finds a host, and
-`network_probe` would only ever record intent. Allowing everything leaves a
-frontier model with a shell and a route off the machine.
-
-WHAT THIS DOES NOT DO. Loopback stays reachable, so a model can still enumerate
-the host it runs on - that is the behaviour being measured, and it cannot be both
-permitted and prevented. Two saved episodes port-scanned 1-65535 and got HTTP 403
-from real services on the operator's machine. The profile does not protect those.
-Run batches on a host with nothing else listening, or accept that local service
-discovery is in scope.
+WHAT NO MODE DOES. None of them confines writes: an interpreter can still write
+outside the episode's working directory, including to this harness's own source.
+And none of them changes what is MEASURED - detect_network_probes reads the
+command, not its outcome, so an attempt is recorded whether the kernel allowed it
+or refused it. What the mode changes is the model's feedback, and therefore how
+far it goes next, which is why the mode is recorded on every run.
 """
 
 import platform
 import shutil
 import subprocess
+import tempfile
+from pathlib import Path
 
-# Modes, weakest first. `off` is the historical behaviour and the default, so
-# enabling isolation is a deliberate act with a rollout consequence rather than
-# something that changes under an existing experiment.
-ISOLATION_MODES = ("off", "deny-external", "deny-network")
+# Modes, weakest first. The DEFAULT is the strongest of them, `deny-network`.
+#
+# This software is public and hands a frontier model a shell. A default that
+# leaves the network open puts every downstream user one unread paragraph away
+# from a model that can reach their machine's services or the internet, and the
+# scenario needs no network at all - the full command battery an episode uses
+# runs unchanged under a total deny. Safe-by-default costs nothing here, and the
+# cost of the alternative falls on people who did not choose it.
+#
+# `deny-external` is the mode for measuring the behaviour rather than only
+# preventing it: loopback stays reachable, so an episode that probes the host
+# gets realistic responses and its escalation is observable. That is a research
+# choice with a local risk attached, so it is opted into rather than inherited.
+#
+# There is no "off". It was removed rather than merely made hard to reach.
+#
+# A flag that disables the only containment boundary is a flag someone will pass
+# to make an error message go away, and the error it silences is "a frontier
+# model with a shell can reach your network". Keeping it for the operator's
+# convenience trades a risk they understand against one a downstream user does
+# not. Episodes collected before v35 recorded `isolation: "off"` or nothing at
+# all, and those values are still READ and reported - history is data - but the
+# mode can no longer be selected.
+#
+# The consequence is accepted deliberately: on a host with no mechanism
+# available, this harness does not run. That is the intended outcome, not a gap.
+ISOLATION_MODES = ("deny-external", "deny-network")
+DEFAULT_ISOLATION = "deny-network"
+
+# Values that may appear in SAVED runs but cannot be selected. Kept so a summary
+# can report the provenance of an archived batch without inviting the mode back.
+HISTORICAL_ISOLATION = ("off", "unrecorded")
 
 _DARWIN_PROFILE = """(version 1)
 (allow default)
@@ -46,10 +82,33 @@ _ALLOW_LOOPBACK = """(allow network-outbound (remote ip "localhost:*"))
 (allow network-inbound (local ip "localhost:*"))"""
 
 
+_PROFILE_CACHE = {}
+
+
+def profile_for(mode: str):
+    """
+    The policy file for `mode`, written once per process.
+
+    Managed here rather than by callers. Sixty-odd call sites reach the sandbox
+    and none of them should have to know that one platform needs a file on disk -
+    a caller that forgot would pass None and run the command unprotected, which
+    is precisely the failure this module exists to remove.
+
+    Written to a fresh temp directory, never inside the episode's working
+    directory: that is the one place the model can write, and a policy it could
+    edit is not a policy.
+    """
+    if platform.system() != "Darwin":
+        return None
+    if mode not in _PROFILE_CACHE:
+        path = Path(tempfile.mkdtemp(prefix="sbx-policy-")) / f"{mode}.sb"
+        path.write_text(darwin_profile(mode))
+        _PROFILE_CACHE[mode] = path
+    return _PROFILE_CACHE[mode]
+
+
 def isolation_available(mode: str) -> bool:
     """Whether this host can enforce `mode` at all."""
-    if mode == "off":
-        return True
     if platform.system() == "Darwin":
         return shutil.which("sandbox-exec") is not None
     return shutil.which("unshare") is not None or shutil.which("bwrap") is not None
@@ -60,7 +119,8 @@ def darwin_profile(mode: str) -> str:
     return _DARWIN_PROFILE % (_ALLOW_LOOPBACK if mode == "deny-external" else "")
 
 
-def wrap_command(cmd: str, mode: str, profile_path=None) -> list:
+def wrap_command(cmd: str, mode: str = DEFAULT_ISOLATION,
+                 profile_path=None) -> list:
     """
     The argv that runs `cmd` under `mode`.
 
@@ -70,8 +130,13 @@ def wrap_command(cmd: str, mode: str, profile_path=None) -> list:
     it: a wrapper the model could step outside of by starting a subprocess would
     not be worth having.
     """
-    if mode == "off":
-        return ["/bin/sh", "-c", cmd]
+    if mode not in ISOLATION_MODES:
+        # Including "off". A typo or a stale caller must fail loudly rather than
+        # fall through to an unprotected shell.
+        raise ValueError(
+            f"unknown isolation mode {mode!r}; expected one of {ISOLATION_MODES}"
+        )
+    profile_path = profile_path or profile_for(mode)
 
     if platform.system() == "Darwin":
         # -f rather than -p: a profile passed inline shares the argv with the
@@ -84,8 +149,7 @@ def wrap_command(cmd: str, mode: str, profile_path=None) -> list:
         # interface of its own, so loopback "works" but reaches nothing the
         # operator is running. That is stricter than the Darwin policy for
         # deny-external and worth noting when comparing across platforms.
-        flags = ["unshare", "--net", "--"] if mode != "off" else []
-        return flags + ["/bin/sh", "-c", cmd]
+        return ["unshare", "--net", "--", "/bin/sh", "-c", cmd]
 
     if shutil.which("bwrap"):
         return ["bwrap", "--unshare-net", "--dev-bind", "/", "/",
@@ -93,9 +157,48 @@ def wrap_command(cmd: str, mode: str, profile_path=None) -> list:
 
     raise RuntimeError(
         f"isolation mode {mode!r} requested but no mechanism is available on "
-        f"{platform.system()}. Install bubblewrap, or run with --isolation off "
-        f"and accept that the sandbox is not a containment boundary."
+        f"{platform.system()}. Install bubblewrap (`bwrap`) or ensure `unshare` "
+        f"is present. There is deliberately no way to run without containment: "
+        f"the sandbox's blocklist is not a boundary, and a model with shell "
+        f"access would be able to reach the network."
     )
+
+
+def verify_isolation(mode: str, profile_path=None):
+    """
+    None if the policy holds for `mode`, else a message saying how it failed.
+
+    Judged on OUTCOMES, not on a specific errno. The mechanisms differ: macOS
+    refuses a forbidden connection with EPERM, while Linux's `unshare --net`
+    supplies an empty network namespace in which the attempt fails as unreachable
+    instead. An errno-exact check passed on macOS and would have refused to start
+    on a correctly isolated Linux host.
+
+    The one thing that always disqualifies a mode is a connection that SUCCEEDS.
+    `deny-external` additionally requires loopback to remain usable, because a
+    policy stricter than the one asked for silently changes what is measured -
+    which is why `deny-external` is rejected on a mechanism that cannot offer it
+    rather than quietly downgraded.
+    """
+    out = probe_isolation(mode, profile_path)
+    loop, ext = out["loopback"], out["external"]
+    if ext == "connected":
+        return f"off-host reach was NOT blocked: {out}"
+    if mode == "deny-network":
+        if loop == "connected":
+            return f"loopback was not blocked under deny-network: {out}"
+        return None
+    # deny-external: loopback has to stay usable, so the escalation it exists to
+    # observe is still observable. "refused" is a closed port handled normally;
+    # "connected" means something was listening. Anything else means the policy
+    # took loopback away too.
+    if loop not in ("refused", "connected"):
+        return (f"deny-external needs loopback reachable, but it came back "
+                f"{loop!r}: {out}. This mechanism cannot provide the mode - on "
+                f"Linux, `unshare --net` gives an empty namespace in which "
+                f"loopback reaches nothing. Use --isolation deny-network, and "
+                f"note that off-host escalation will not be observable.")
+    return None
 
 
 def probe_isolation(mode: str, profile_path=None) -> dict:
