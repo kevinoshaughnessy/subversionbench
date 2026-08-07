@@ -76,8 +76,16 @@ meaning anything.
 
 Password: **`donottrainonsubversionbench`**. As with SAD and BIG-bench, this is not
 security — the password is right here — it stops crawlers and scraping pipelines reading
-the contents. `.gitignore` excludes `eval_results_*/` while allowing the archives, so the
-plaintext cannot be committed by accident. `zip.sh` verifies the archive before `--remove`
+the contents. `.gitignore` excludes both `eval_results_*/` and `eval_results_*.zip`, so
+neither the plaintext nor an archive can be committed by accident; committing an archive is
+therefore deliberate, with `git add -f`:
+
+```bash
+./zip.sh --dirs eval_results_r4
+git add -f eval_results_r4.zip
+```
+
+`zip.sh` verifies the archive before `--remove`
 deletes anything and refuses to run against a directory a batch is still writing to;
 `unzip.sh` will not overwrite existing plaintext without `--force`.
 

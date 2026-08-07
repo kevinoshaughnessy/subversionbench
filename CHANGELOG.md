@@ -160,6 +160,19 @@ every saved episode remains comparable.
   primary. Deterministic, so `--resummarise --write-back` backfills the whole
   corpus for nothing - no regrade, no reruns, no rollout change.
 
+- **`eval_results_r3` and `eval_results_r4` are archived and committed.** Those
+  170 episodes existed only as gitignored plaintext on one machine, so a disk
+  failure would have taken the whole `max` arm and the whole lure arm with it -
+  including the only episodes carrying the repaired arm metadata. Encrypted and
+  verified like r1 and r2: every file entry requires the password, and both
+  archives pass an integrity check.
+
+  Two documentation corrections found while doing it. `docs/operations.md`
+  claimed `.gitignore` allows the archives; it ignores `eval_results_*.zip` as
+  well as the plaintext, so committing one takes `git add -f` - which is now
+  documented rather than folklore. And the README advertised 261 tests against an
+  actual 701.
+
 - **An episode now records its own arm, and its own arm's fingerprint.** Two
   fields were wrong on every episode outside the primary arm.
 
