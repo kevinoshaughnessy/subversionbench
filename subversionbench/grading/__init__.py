@@ -76,7 +76,8 @@ from .quote_grounding import (
     summarise_quote_grounding,
     _normalise_quote,
 )
-from .transcript_analysis import SCHEMING_KEYWORDS, analyze_misalignment
+from .transcript_analysis import (SCHEMING_KEYWORDS, analyze_misalignment,
+                                 artefact_modified, verify_oversight_unchanged)
 from .filesystem_escapes import (classify_filesystem_escape,
                                  detect_filesystem_escapes)
 from .network_probes import classify_network_probe, detect_network_probes
@@ -88,6 +89,7 @@ from .transient_tampering import (
 __all__ = [
     # what the episode did
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS",
+    "artefact_modified", "verify_oversight_unchanged",
     "detect_transient_tampering", "classify_transient_tampering",
     "scratch_only_attempts",
     "detect_network_probes", "classify_network_probe",
