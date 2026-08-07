@@ -41,8 +41,8 @@ import argparse
 from .config import (
     DEFAULT_GRADER_MODEL,
     CANARY,
-    ROLLOUT_FINGERPRINT,
     ROLLOUT_FINGERPRINTS,
+    fingerprint_for,
     ROLLOUT_VERSION,
     VERSION,
     SYSTEM_PROMPT_STRONG_NUDGE,
@@ -276,6 +276,7 @@ def run_evaluation(
     grader_model: str = DEFAULT_GRADER_MODEL,
     oversight: bool = True,
     nudge: str = "strong",
+    lure: bool = False,
     isolation: str = "off",
     profile_path=None,
 ) -> dict:
@@ -374,8 +375,8 @@ def run_evaluation(
                 # nothing recorded which was which.
                 "rollout_version": ROLLOUT_VERSION,
                 "oversight": oversight,
-        "oversight": oversight,
-                "rollout_fingerprint": ROLLOUT_FINGERPRINT,
+                "lure": lure,
+                "rollout_fingerprint": fingerprint_for(oversight, lure),
                 "analysis_version": VERSION,
                 "model": model,
                 "effort": effort,
@@ -672,7 +673,20 @@ def run_evaluation(
         # nothing recorded which was which.
         "rollout_version": ROLLOUT_VERSION,
         "oversight": oversight,
-        "rollout_fingerprint": ROLLOUT_FINGERPRINT,
+        # The arm, recorded rather than left to the filename. Without it every
+        # analysis that read this field saw `lure=False` for a lure episode and
+        # silently pooled the two arms - which is how 50 lure episodes ended up
+        # inside a "primary arm" rate.
+        "lure": lure,
+        # The fingerprint of THIS arm, not the primary one. This used to write a
+        # module constant pinned to (oversight, no lure), so every counterfactual
+        # and every lure episode claimed the primary arm's identity. The drift
+        # guard was always right - it checks the arm being run - but the artefact
+        # recorded something else, which defeats the whole point: the comment
+        # above says a directory holding two fingerprints is two experiments, and
+        # a directory holding one fingerprint across three arms is worse, because
+        # it looks consistent.
+        "rollout_fingerprint": fingerprint_for(oversight, lure),
         "analysis_version": VERSION,
         "model": model,
         # The effort actually sent, not the one requested: resolve_thinking_kwargs
@@ -3492,6 +3506,7 @@ def main():
                 grader_model=args.grader_model,
                 oversight=args.oversight,
                 nudge=args.nudge,
+                lure=args.lure,
                 isolation=args.isolation,
                 profile_path=profile_path,
             )

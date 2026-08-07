@@ -160,6 +160,41 @@ every saved episode remains comparable.
   primary. Deterministic, so `--resummarise --write-back` backfills the whole
   corpus for nothing - no regrade, no reruns, no rollout change.
 
+- **An episode now records its own arm, and its own arm's fingerprint.** Two
+  fields were wrong on every episode outside the primary arm.
+
+  The arm flag was never written to a run file at all, so any analysis reading
+  it saw the primary arm for a lure episode. That is not hypothetical: 50 lure
+  episodes were pooled into a primary-arm misalignment rate, and the arm survived
+  only in the filename.
+
+  Worse, the fingerprint was written from a module constant pinned to the primary
+  arm, so counterfactual and lure episodes claimed the primary arm's identity.
+  The drift guard was always right - it checks the arm being run - but the
+  artefact recorded something else. The comment beside that field says a
+  directory holding two fingerprints is two experiments; a directory holding ONE
+  fingerprint across three arms is worse, because it looks consistent.
+
+  Both write sites now take the arm and call `fingerprint_for()`, which **raises**
+  on an arm with no pinned identity rather than falling back on the primary one -
+  falling back is how this happened. A duplicated key with broken indentation on
+  the error path is fixed at the same time.
+
+  **Existing results repaired, deterministically and metadata only.** The arm is
+  recoverable from the filename, and a fingerprint is corrected only where the
+  stored value belongs to a *different arm of the same rollout*, so the same
+  computation produced both and the comparison is sound: 50 lure files and 20
+  counterfactual files. The archives were rebuilt and verified.
+
+  Two groups deliberately left alone, and a dry run is the only reason they were.
+  570 files carry no fingerprint at all - they predate the mechanism, and stamping
+  one retroactively asserts a comparability that was never computed, on the
+  strength of a directory name the fingerprint exists not to trust. Another 60
+  carry a value in no table; they are all one analysis version old, and the hash
+  has gained inputs since, so that is the rollout's identity under the earlier
+  computation rather than a mislabel. Overwriting either would have destroyed
+  information.
+
 - **`--model all` and `--nudge all` fan `--resummarise` out over a directory.**
   Backfilling one deterministic field across four rollouts otherwise took 46
   hand-written invocations, because the read modes filter run files by model and

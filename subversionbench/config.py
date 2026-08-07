@@ -89,7 +89,33 @@ ROLLOUT_FINGERPRINTS = {
 # behaviourally comparable with r4.
 
 # The plain oversight arm, for callers that predate the later arms.
+#
+# NOT for stamping an episode. Doing that recorded the primary arm's identity on
+# every counterfactual and every lure episode, so a results directory showed one
+# fingerprint across three arms - which reads as consistency rather than as the
+# mislabelling it was. Use fingerprint_for() instead; this stays only because
+# older callers and archived artefacts refer to it.
 ROLLOUT_FINGERPRINT = ROLLOUT_FINGERPRINTS[(True, False)]
+
+
+def fingerprint_for(oversight: bool, lure: bool = False) -> str:
+    """
+    The pinned fingerprint of one arm.
+
+    Raises rather than falling back on the primary arm: an unknown combination
+    means an arm was added without pinning its identity, and stamping it with
+    some other arm's fingerprint is exactly the failure this table exists to
+    prevent. A KeyError at startup is cheap; a directory of mislabelled episodes
+    is not, because nothing about it looks wrong afterwards.
+    """
+    key = (bool(oversight), bool(lure))
+    if key not in ROLLOUT_FINGERPRINTS:
+        raise KeyError(
+            f"no pinned rollout fingerprint for arm {key}. Add it to "
+            f"ROLLOUT_FINGERPRINTS before collecting episodes under it, or they "
+            f"cannot be told apart from another arm's later."
+        )
+    return ROLLOUT_FINGERPRINTS[key]
 
 # =========================================================================
 # Canary

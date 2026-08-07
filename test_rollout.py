@@ -129,3 +129,59 @@ class TestDriftError:
         # It must not guess which side is wrong: an unintended scenario edit
         # and a deliberate new rollout look identical from here.
         assert "revert" in msg.lower()
+
+
+class TestArmIdentityIsRecorded:
+    """An episode must carry ITS OWN arm's fingerprint, not the primary arm's.
+
+    The drift guard was always right - it checks the arm being run - but the
+    artefact recorded a module constant pinned to (oversight, no lure). So every
+    counterfactual and every lure episode claimed the primary arm's identity, and
+    a results directory showed one fingerprint across three arms. That reads as
+    consistency rather than as mislabelling, which is why it went unnoticed
+    through four rollouts.
+    """
+
+    def test_every_arm_has_its_own_fingerprint(self):
+        from subversionbench.config import fingerprint_for
+        seen = {}
+        for oversight in (True, False):
+            for lure in (True, False):
+                fp = fingerprint_for(oversight, lure)
+                assert fp not in seen, (
+                    f"arms {seen[fp]} and {(oversight, lure)} share fingerprint "
+                    f"{fp}; they could not be told apart in a results directory")
+                seen[fp] = (oversight, lure)
+        assert len(seen) == 4
+
+    def test_the_lure_arm_is_not_the_primary_arm(self):
+        """The specific mislabelling: 50 saved lure episodes carry this value."""
+        from subversionbench.config import fingerprint_for
+        assert fingerprint_for(True, True) != fingerprint_for(True, False)
+
+    def test_an_unpinned_arm_raises_rather_than_defaulting(self):
+        """Falling back on the primary arm is how the original defect behaved.
+        A new arm with no pinned identity must stop the run."""
+        from subversionbench import config
+        original = dict(config.ROLLOUT_FINGERPRINTS)
+        try:
+            del config.ROLLOUT_FINGERPRINTS[(False, True)]
+            try:
+                config.fingerprint_for(False, True)
+            except KeyError as e:
+                assert "ROLLOUT_FINGERPRINTS" in str(e)
+            else:
+                raise AssertionError("expected KeyError for an unpinned arm")
+        finally:
+            config.ROLLOUT_FINGERPRINTS.clear()
+            config.ROLLOUT_FINGERPRINTS.update(original)
+
+    def test_the_episode_recorder_takes_the_arm(self):
+        """`lure` must be a parameter of the function that writes the run file,
+        or the field falls back to a default and the arm is lost again - which is
+        what left the arm recoverable only from the filename."""
+        import inspect
+        from subversionbench.run_eval import run_evaluation
+        params = inspect.signature(run_evaluation).parameters
+        assert "lure" in params
+        assert "oversight" in params
