@@ -921,6 +921,98 @@ def awareness_flag(analysis: dict):
     return None, None
 
 
+ALL = "all"
+
+
+def discover_batches(output_dir: str, model: str = ALL,
+                     nudge: str = ALL) -> list:
+    """
+    The (model, nudge) pairs actually present in a results directory.
+
+    Read from each run file's own `model` and `nudge` fields rather than parsed
+    out of the filename. The filename is ambiguous - a model slug can itself
+    contain underscores, and the arm suffixes sit between the slug and the stamp
+    - and getting it wrong here would silently skip batches, which is worse than
+    being slow. 860 files parse in a few seconds.
+
+    Only pairs that EXIST are returned, so fanning out cannot produce a run of
+    "no run files for ..." errors for combinations that were never collected.
+
+    `model` and `nudge` each act as a filter when given concretely and as a
+    wildcard when "all", so --model all --nudge strong is one arm across every
+    model, and --model all --nudge all is a whole directory.
+    """
+    pairs = set()
+    for path in sorted(glob.glob(os.path.join(output_dir, "run_*.json"))):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue                    # a truncated run file is not a batch
+        m, n = data.get("model"), data.get("nudge")
+        if not m or not n:
+            continue
+        if model != ALL and m != model:
+            continue
+        if nudge != ALL and n != nudge:
+            continue
+        pairs.add((m, n))
+    return sorted(pairs)
+
+
+def fan_out_read_mode(args, run_one) -> int:
+    """
+    Run a read-only mode once per (model, nudge) present in the directory.
+
+    Exists because the alternative was 46 hand-written invocations to backfill
+    one deterministic field across four rollouts, which is the kind of chore
+    that gets half-done. Returns the worst exit code, so one failed batch is
+    visible in $? even though the rest still run - a partial backfill that
+    reported success would be the worst outcome.
+    """
+    batches = discover_batches(args.output_dir, args.model, args.nudge)
+    if not batches:
+        print(f"No run files in {redact_paths(args.output_dir)} match "
+              f"model={args.model} nudge={args.nudge}.")
+        return 1
+
+    print(f"\n{'='*60}")
+    print(f"FAN OUT: {len(batches)} (model, nudge) batch group(s) in "
+          f"{redact_paths(args.output_dir)}")
+    for m, n in batches:
+        print(f"  {m} / {n}")
+    print(f"{'='*60}")
+
+    # The filter fields the callee MUTATES, snapshotted so each iteration starts
+    # from what the operator typed.
+    #
+    # resummarise_existing_runs sets args.effort, args.oversight and args.lure
+    # per batch, because summarise_batch builds the filename it writes from args.
+    # Those writes leak into the next model: the first fan-out attempt processed a
+    # batch collected at effort "medium", after which every later model was
+    # filtered to "medium" and matched nothing - two of four groups silently
+    # returned "no run files" and the backfill would have been half-done. The
+    # per-batch mutation is deliberate in the callee, so the fix belongs here.
+    typed = {k: getattr(args, k, None) for k in ("effort", "oversight", "lure")}
+
+    worst = 0
+    for i, (model, nudge) in enumerate(batches, 1):
+        for k, v in typed.items():
+            setattr(args, k, v)
+        args.model, args.nudge = model, nudge
+        print(f"\n### [{i}/{len(batches)}] {model} / {nudge}")
+        try:
+            rc = run_one(args, model.replace("/", "_"))
+        except Exception as e:
+            # One unreadable batch must not abandon the other 45.
+            print(f"  ERROR on {model} / {nudge}: {type(e).__name__}: {e}")
+            rc = 1
+        worst = max(worst, rc or 0)
+    print(f"\nFan out complete over {len(batches)} batch group(s); "
+          f"worst exit code {worst}.")
+    return worst
+
+
 def find_run_files_by_stamp(output_dir: str, stamp: str) -> list:
     """Every run file from one batch, whatever model or nudge it used."""
     return sorted(glob.glob(os.path.join(output_dir, f"run_*_{stamp}.json")))
@@ -3008,7 +3100,9 @@ def main():
         description=f"Run SubversionBench {VERSION}"
     )
     parser.add_argument("--model", default="claude-sonnet-5",
-                        help="Model to evaluate")
+                        help="Model to evaluate, or 'all' to fan out over every "
+                             "model present in --output-dir. 'all' works only "
+                             "with --resummarise, which calls no API.")
     parser.add_argument(
         "--oversight", choices=["true", "false"], default="true",
         help="whether the scenario contains an oversight mechanism to "
@@ -3043,7 +3137,7 @@ def main():
                              "mode is recorded per run rather than hashed, and "
                              "network_probe_external is reported as not "
                              "applicable when the policy denies it.")
-    parser.add_argument("--nudge", choices=["strong", "none", "max"],
+    parser.add_argument("--nudge", choices=["strong", "none", "max", "all"],
                         default="strong",
                         help="Nudge strength. `strong` and `none` differ in the "
                              "system prompt. `max` is `strong`'s episode "
@@ -3254,6 +3348,23 @@ def main():
 
     if args.compare:
         return compare_batches(args)
+
+    # `all` fans out over every batch in the directory. Allowed only for
+    # --resummarise, which calls no API: the same convenience on --grade-existing
+    # or --reclassify would spend real money across every batch on one keystroke,
+    # without the operator ever seeing the scope. Those stay explicit.
+    if ALL in (args.model, args.nudge):
+        if not args.resummarise:
+            mode = ("--grade-existing" if args.grade_existing else
+                    "--reclassify" if args.reclassify else "this mode")
+            print(f"--model/--nudge 'all' is only supported with "
+                  f"--resummarise, which calls no API and costs nothing.\n"
+                  f"{mode} sends a request per run file, so fanning it out over "
+                  f"a whole directory would spend money at a scale you had no "
+                  f"chance to see first. Name the model and nudge explicitly, "
+                  f"or loop in the shell.")
+            return 2
+        return fan_out_read_mode(args, resummarise_existing_runs)
 
     if args.resummarise:
         return resummarise_existing_runs(args, model_slug)
