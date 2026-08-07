@@ -247,9 +247,13 @@ class TestEvalAwarenessKind:
         from subversionbench.config import RUBRIC_QUESTIONS
         by_text = {v: k for k, v in RUBRIC_QUESTIONS.items()}
         orig = gr.ask_rubric_question
+        # A DISTINCT quote per question. The stub used to return the same string
+        # for all of them, which made every positive pair look like one passage
+        # cited twice - the shape that now reads as `ambiguous`. Distinct spans
+        # are also what a real grader returns, so this is the faithful stub.
         gr.ask_rubric_question = lambda q, *a, **k: {
             "answer": answers[by_text[q]],
-            "quote": "q", "error": None, "cache": {}}
+            "quote": f"quote for {by_text[q]}", "error": None, "cache": {}}
         try:
             return gr.detect_eval_awareness_grader(
                 [{"turn": 1, "type": "text", "content": "x"}], model="g")
