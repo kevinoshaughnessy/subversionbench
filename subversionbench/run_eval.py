@@ -1174,8 +1174,29 @@ def find_run_files(output_dir: str, model_slug: str, nudge: str,
         found = set(glob.glob(os.path.join(output_dir, f"{prefix}_*.json")))
         found.update(glob.glob(os.path.join(output_dir, f"{prefix}.json")))
 
+    # The slug must be the WHOLE segment between the run index and the nudge.
+    #
+    # The glob above cannot express that: the `*` standing in for the run index
+    # matches across underscores, so `run_*_gpt-5.4_strong` also matched
+    # `run_10_openai_gpt-5.4_strong` with the wildcard eating `10_openai`. A
+    # shorter slug therefore swept in the files of any model whose name it is a
+    # suffix of, and both spellings exist in this corpus.
+    #
+    # Two consequences, both live before this filter. Summarising `gpt-5.4`
+    # covered 20 files rather than 10, which is where the primary-arm denominator
+    # of 630 came from when the truth was 610. And fanning a paid regrade out over
+    # a directory would have graded those 20 files twice.
+    #
+    # Third instance of the bare-substring class in this repository, after the
+    # blocked-command matcher and the awareness keyword list. Same fix: require
+    # the delimiters.
+    delimited = re.compile(
+        rf"^run_\d+_{re.escape(model_slug)}_{re.escape(nudge)}(_.*)?\.json$")
+
     keep = []
     for path in found:
+        if not delimited.match(os.path.basename(path)):
+            continue
         got_effort, _, got_oversight, _got_lure = parse_batch_filename(
             path, nudge)
         if effort is not None and got_effort != effort:
@@ -3151,6 +3172,11 @@ def main():
                              "mode is recorded per run rather than hashed, and "
                              "network_probe_external is reported as not "
                              "applicable when the policy denies it.")
+    parser.add_argument("--yes", action="store_true",
+                        help="Proceed with a fanned-out mode that sends API "
+                             "requests. Required with --model/--nudge all on "
+                             "--grade-existing or --reclassify, so the scope is "
+                             "printed and acknowledged before anything is spent.")
     parser.add_argument("--nudge", choices=["strong", "none", "max", "all"],
                         default="strong",
                         help="Nudge strength. `strong` and `none` differ in the "
@@ -3363,22 +3389,39 @@ def main():
     if args.compare:
         return compare_batches(args)
 
-    # `all` fans out over every batch in the directory. Allowed only for
-    # --resummarise, which calls no API: the same convenience on --grade-existing
-    # or --reclassify would spend real money across every batch on one keystroke,
-    # without the operator ever seeing the scope. Those stay explicit.
+    # `all` fans out over every batch in the directory. Free for --resummarise,
+    # which calls no API. The other read modes send a request per run file, so
+    # fanning them out spends real money - allowed, but only once the operator has
+    # been shown the scope and said yes. The guard is there to make the bill
+    # visible, not to make the operation unavailable.
     if ALL in (args.model, args.nudge):
-        if not args.resummarise:
-            mode = ("--grade-existing" if args.grade_existing else
-                    "--reclassify" if args.reclassify else "this mode")
-            print(f"--model/--nudge 'all' is only supported with "
-                  f"--resummarise, which calls no API and costs nothing.\n"
-                  f"{mode} sends a request per run file, so fanning it out over "
-                  f"a whole directory would spend money at a scale you had no "
-                  f"chance to see first. Name the model and nudge explicitly, "
-                  f"or loop in the shell.")
+        if args.resummarise:
+            return fan_out_read_mode(args, resummarise_existing_runs)
+
+        run_one = (grade_existing_runs if args.grade_existing else
+                   reclassify_existing_runs if args.reclassify else None)
+        if run_one is None:
+            print("--model/--nudge 'all' applies to the read-only modes "
+                  "(--resummarise, --grade-existing, --reclassify).")
             return 2
-        return fan_out_read_mode(args, resummarise_existing_runs)
+
+        batches = discover_batches(args.output_dir, args.model, args.nudge)
+        n_files = sum(len(find_run_files(args.output_dir,
+                                        m.replace("/", "_"), n))
+                      for m, n in batches)
+        if not args.yes:
+            print(f"\nThis would send grader requests for {n_files} run file(s) "
+                  f"across {len(batches)} batch group(s) in "
+                  f"{redact_paths(args.output_dir)}.\n"
+                  f"Recorded usage on this corpus averages roughly 36k cached "
+                  f"input, 5k cache writes and 1.5k uncached input per episode, "
+                  f"so expect real money at this scale.\n"
+                  f"Re-run with --yes to proceed, or name a single model and "
+                  f"nudge to do one batch.")
+            return 2
+        print(f"\n--yes given: grading {n_files} run file(s) across "
+              f"{len(batches)} batch group(s).")
+        return fan_out_read_mode(args, run_one)
 
     if args.resummarise:
         return resummarise_existing_runs(args, model_slug)

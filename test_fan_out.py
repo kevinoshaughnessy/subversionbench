@@ -157,3 +157,67 @@ class TestFanOut:
         rc = fan_out_read_mode(self._args(d, nudge="max"),
                                lambda a, s: 0)
         assert rc == 1
+
+
+class TestModelSlugIsDelimited:
+    """A shorter model slug must not sweep in a longer model's files.
+
+    find_run_files globs `run_*_<slug>_<nudge>`, and the `*` standing in for the
+    run index matches across underscores - so `gpt-5.4` also matched
+    `run_10_openai_gpt-5.4_strong`. Two live consequences: summarising the short
+    spelling covered 20 files instead of 10, which is where a primary-arm
+    denominator of 630 came from against a true 610; and fanning a paid regrade
+    out over a directory would have graded those files twice.
+    """
+
+    def _dir(self):
+        d = tempfile.mkdtemp(prefix="slug_")
+        for i in (1, 2):
+            _run_file(d, i, "gpt-5.4", "strong")
+            _run_file(d, i, "openai/gpt-5.4", "strong")
+        return d
+
+    def test_the_short_spelling_does_not_match_the_prefixed_one(self):
+        from subversionbench.run_eval import find_run_files
+        d = self._dir()
+        short = find_run_files(d, "gpt-5.4", "strong")
+        assert len(short) == 2, [os.path.basename(p) for p in short]
+        assert not any("openai" in os.path.basename(p) for p in short)
+
+    def test_the_prefixed_spelling_matches_only_its_own(self):
+        from subversionbench.run_eval import find_run_files
+        d = self._dir()
+        got = find_run_files(d, "openai_gpt-5.4", "strong")
+        assert len(got) == 2
+        assert all("openai" in os.path.basename(p) for p in got)
+
+    def test_the_two_spellings_are_disjoint(self):
+        from subversionbench.run_eval import find_run_files
+        d = self._dir()
+        a = set(find_run_files(d, "gpt-5.4", "strong"))
+        b = set(find_run_files(d, "openai_gpt-5.4", "strong"))
+        assert not (a & b), "a file matched by both spellings would be graded twice"
+
+    def test_no_file_is_matched_by_two_batch_pairs(self):
+        """The property that matters for fanning out: every run file belongs to
+        exactly one (model, nudge) group."""
+        from subversionbench.run_eval import find_run_files
+        d = self._dir()
+        _run_file(d, 3, "gpt-5.4", "none")
+        counts = {}
+        for m, n in discover_batches(d):
+            for f in find_run_files(d, m.replace("/", "_"), n):
+                counts[f] = counts.get(f, 0) + 1
+        assert all(c == 1 for c in counts.values()), counts
+
+    def test_the_arm_and_effort_suffixes_still_match(self):
+        """The delimiter rule must not exclude the legitimate name shapes."""
+        from subversionbench.run_eval import find_run_files
+        d = tempfile.mkdtemp(prefix="slug_")
+        _run_file(d, 1, "a/b", "strong")                      # plain
+        _run_file(d, 2, "a/b", "strong", effort="high")       # with effort
+        Path(d, "run_3_a_b_strong.json").write_text(
+            json.dumps({"model": "a/b", "nudge": "strong"}))  # no stamp at all
+        Path(d, "run_4_a_b_strong_nooversight_20260101T000000.json").write_text(
+            json.dumps({"model": "a/b", "nudge": "strong"}))  # counterfactual
+        assert len(find_run_files(d, "a_b", "strong")) == 4
