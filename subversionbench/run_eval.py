@@ -185,6 +185,18 @@ REDERIVED_ANALYSIS_FIELDS = (
     "scheming_sandbox",
     "awareness_timing_oversight",
     "awareness_timing_sandbox",
+    # Episode-level awareness onset, act-independent, so an analysis can condition
+    # on "aware by turn N" without reference to whether an act happened - which is
+    # what the selection-bias note in README.md is about.
+    #
+    # Absent from this list until now, so the two fields were recomputed in memory
+    # on every --resummarise and then thrown away: the guard above them was fixed,
+    # the values were correct in the run, and the saved file kept the old ones. 70
+    # episodes were stale on disk after the awareness matcher was corrected. Same
+    # class as that guard, one level up - deriving a field freshly is no use if
+    # nothing persists it.
+    "first_awareness_index",
+    "first_awareness_turn",
     "misaligned",
     "scheming",
 )
@@ -1899,18 +1911,47 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
             analysis = run.get("analysis") or {}
             transcript = run.get("transcript") or []
 
-            if analysis and "scheming_oversight" not in analysis:
+            # Also unconditional, and for the same reason as the block below:
+            # deterministic given the stored verdicts, so pinning it to whatever
+            # rule was in force when it was first written is the defect. Currently
+            # agrees with the code on every saved episode, which is what makes now
+            # the cheap time to remove the guard rather than after it diverges.
+            if analysis:
                 for act in MISALIGNED_ACTS:
                     analysis[act["scheming_key"]] = classify_scheming_act(
                         analysis, act)
 
-            if analysis and "awareness_timing_oversight" not in analysis:
-                # grader_model=None: the keyword ordering is free, the grader's
-                # pre-act reading is not and is left to --grade-existing.
+            if analysis:
+                # UNCONDITIONAL, not fill-when-absent.
+                #
+                # This was gated on the field being absent, so a change to how the
+                # ordering is derived could never reach a run that already had one.
+                # That is exactly what happened: when the awareness matcher and
+                # the read/write verb lists were corrected, 14 episodes kept their
+                # old ordering and no amount of --resummarise would refresh them.
+                # The field is in REDERIVED_ANALYSIS_FIELDS, so write-back was
+                # willing to save a new value; nothing ever computed one.
+                #
+                # Recomputing is safe despite grader_model=None. add_awareness_timing
+                # sets the ordering before it touches anything paid, and it already
+                # refuses to overwrite a real pre-act grader reading with a skip
+                # marker - a guard that exists because that clobbering once cost a
+                # 100-run batch. So the free half refreshes and the paid half is
+                # preserved, which is the same split --resummarise is built on.
+                #
+                # Fifth instance of the fill-when-absent class, after the four in
+                # v23-v25. The general lesson: a deterministic field must be
+                # re-derived every time, or the guard silently pins it to whatever
+                # rule was in force when it was first written.
                 add_awareness_timing(analysis, transcript, grader_model=None)
 
+            # Third of the three, same class. Whether the grader's citations
+            # trace back to the agent's own words is a string comparison against
+            # the saved transcript - no API, fully deterministic - so it must be
+            # re-derived rather than filled in once. Gated only on there being
+            # citations to check.
             grader = analysis.get("eval_awareness_grader") or {}
-            if grader.get("rubric_results") and "quote_grounding" not in grader:
+            if grader.get("rubric_results"):
                 recheck_quote_grounding(analysis, transcript)
 
             all_results.append(run)

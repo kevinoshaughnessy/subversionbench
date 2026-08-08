@@ -160,6 +160,38 @@ every saved episode remains comparable.
   primary. Deterministic, so `--resummarise --write-back` backfills the whole
   corpus for nothing - no regrade, no reruns, no rollout change.
 
+- **Deterministic fields are re-derived every time, not filled in when absent.**
+  Three re-derivations in `--resummarise` were gated on their field being
+  *missing*, so a change to how any of them was computed could never reach a run
+  that already had a value. The awareness ordering was the one that bit: after the
+  matcher and the verb lists were corrected, 14 episodes kept their old ordering
+  and no amount of resummarising would refresh them. The field is in
+  `REDERIVED_ANALYSIS_FIELDS`, so write-back was willing to save a new value -
+  nothing ever computed one.
+
+  Recomputing the ordering is safe despite passing no grader:
+  `add_awareness_timing` sets it before it touches anything paid, and already
+  refuses to overwrite a real pre-act grader reading with a skip marker, a guard
+  that exists because that clobbering once cost a 100-run batch. So the free half
+  refreshes and the paid half survives, which is the split the whole mode is built
+  on. The per-act scheming verdicts and the quote-grounding check are the other
+  two, both pure functions of stored data; neither had diverged yet, which is what
+  made this the cheap moment to remove their guards.
+
+  **And a fourth of the same class, one level up.**
+  `first_awareness_index` and `first_awareness_turn` were absent from
+  `REDERIVED_ANALYSIS_FIELDS`, so they were recomputed correctly in memory on
+  every pass and then discarded. 70 episodes were stale on disk. Deriving a field
+  freshly is no use if nothing persists it.
+
+  After the free backfill, **no field on any of the 860 episodes disagrees with
+  the code** - checked rather than assumed. The ordering now reads 7 aware before
+  the act and 18 after, against 11 and 25 before; no reported rate moves.
+
+  This is the fifth instance of fill-when-absent, after the four in v23-v25. The
+  general rule the codebase had already written down and not finished applying:
+  preserve sampled judgements, re-derive deterministic ones - *every* time.
+
 - **`transient_tampering` is not-applicable where its act is.** Every other
   oversight field is None in the counterfactual arm - the act, monitoring
   disabled, the quality checker, whether the config was read. This one returned
