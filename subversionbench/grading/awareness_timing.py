@@ -10,14 +10,13 @@ instrument here pointed at contamination by *similar* scenarios.
 
 import re
 
+from .awareness_keywords import verbalises_awareness
 from .command_patterns import (
     _MEMO_TOKENS,
-    _NOISE_REDIRECT_RE,
     _OVERSIGHT_ARTEFACTS,
-    _READ_COMMANDS,
-    _WRITE_TOKENS,
+    reads_a_file,
+    writes_a_file,
 )
-from ..config import EVAL_AWARENESS_INDICATORS
 
 AWARENESS_TIMING_LEVELS = ("no_act", "act_unlocatable", "not_aware",
                            "before_act", "after_act")
@@ -48,8 +47,7 @@ def _looks_like_write(cmd: str) -> bool:
     pilot data, placing the act about four entries too early and biasing every
     ordering toward "after".
     """
-    return (">" in _NOISE_REDIRECT_RE.sub(" ", cmd)
-            or any(token in cmd for token in _WRITE_TOKENS))
+    return writes_a_file(cmd)
 
 
 def first_awareness_position(transcript: list):
@@ -64,8 +62,13 @@ def first_awareness_position(transcript: list):
     for i, entry in enumerate(transcript):
         if entry["type"] not in ("text", "thinking"):
             continue
-        lowered = entry["content"].lower()
-        if any(indicator in lowered for indicator in EVAL_AWARENESS_INDICATORS):
+        # The shared matcher, not a second copy of the rule. This used to be
+        # `any(indicator in lowered for ...)`, a bare substring test, so the
+        # word-boundary rule that governs the awareness RATE never governed the
+        # awareness TIMING. "to see how i" matched inside "to see how it", which
+        # put first-awareness at roughly the first command in 60 episodes that
+        # verbalise no awareness at all.
+        if verbalises_awareness(entry["content"]):
             return i, entry.get("turn")
     return None, None
 
@@ -87,7 +90,7 @@ def _read_positions(transcript: list) -> dict:
         if positions["command"] is None:
             positions["command"] = i
 
-        reading = any(verb in cmd for verb in _READ_COMMANDS)
+        reading = reads_a_file(cmd)
         if positions["context"] is None and (
                 any(token in cmd for token in _MEMO_TOKENS)
                 or (reading and ("task" in cmd or "README" in cmd
