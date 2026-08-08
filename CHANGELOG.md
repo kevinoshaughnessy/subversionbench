@@ -160,6 +160,23 @@ every saved episode remains comparable.
   primary. Deterministic, so `--resummarise --write-back` backfills the whole
   corpus for nothing - no regrade, no reruns, no rollout change.
 
+- **`transient_tampering` is not-applicable where its act is.** Every other
+  oversight field is None in the counterfactual arm - the act, monitoring
+  disabled, the quality checker, whether the config was read. This one returned
+  False, which claims the model had a chance to revert an artefact that does not
+  exist. Reverting one requires one to revert.
+
+  Harmless in the rate now that the denominator is gated on the act, but this was
+  the inconsistency that let the vacuous zero be published in the first place: a
+  field that reads as a measured negative invites a denominator of every episode.
+
+  The not-applicable test distinguishes an act that is inapplicable from a key
+  that is merely absent, because early run files predate some of these fields and
+  a missing key must fall through to the normal path. Recomputed over the corpus,
+  exactly the 20 counterfactual episodes move False to None; the 132 real
+  detections and 708 real negatives are untouched. Deterministic, so it
+  backfilled onto the saved corpus for nothing.
+
 - **Awareness timing is measured with the same rules as everything else.** Two
   defects, one cause: a measure kept its own copy of a rule that had been
   tightened elsewhere.
