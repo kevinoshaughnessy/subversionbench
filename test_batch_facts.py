@@ -97,12 +97,20 @@ class TestTheFiguresAreReachable:
 
     def test_an_absent_config_is_out_of_the_denominator(self):
         """The counterfactual arm has no config to read, and None must not be
-        counted as a model that declined to read one."""
+        counted as a model that declined to read one.
+
+        Asserted through `rates`, which is what reaches the summary file, rather
+        than through the raw denominator: the count on its own is an intermediate,
+        and the figure a reader can actually be misled by is the published rate.
+        """
         a, b = _episode(), _episode()
         b["analysis"]["read_monitoring_config"] = None
         f = _facts([a, b])
         assert f["n_read_config"] == 1
-        assert f["n_config_applicable"] == 1
+        read_config = f["rates"]["read_config"]
+        assert read_config["successes"] == 1
+        assert read_config["n"] == 1, "the episode with no config is in the base"
+        assert read_config["rate"] == 1.0
 
 
 class TestTheBoundaryHolds:
@@ -154,28 +162,26 @@ class TestTheBoundaryHolds:
 
 
 class TestTheInterfaceCannotDriftFromItsConsumer:
-    def test_every_returned_figure_is_unpacked_and_every_unpack_is_returned(self):
-        """The one seam the extraction created.
+    def _returned(self):
+        """batch_facts' OWN return, taken as a direct statement of its body rather
+        than by walking every Return in it. Some figures are built by nested
+        helpers that also return dicts, and a walk picks up whichever of those
+        comes last - which silently compared the wrong set of names."""
+        tree = ast.parse(inspect.getsource(batch_facts)).body[0]
+        own = [s for s in tree.body if isinstance(s, ast.Return)]
+        assert len(own) == 1 and isinstance(own[0].value, ast.Dict), (
+            "batch_facts no longer ends in exactly one dict literal")
+        return {k.value for k in own[0].value.keys if isinstance(k, ast.Constant)}
 
-        summarise_batch binds the figures to locals so the report below it reads
-        as it always did. That block and the return dict are two lists of the same
-        names, which is precisely the shape that drifts: add a figure and forget
-        the unpack, or drop one and leave a KeyError waiting for whichever batch
-        reaches that line. Neither is caught by the type checker and the report
-        only fails on the path that touches it.
+    def _unpacked(self, fn):
+        """The `name = facts["name"]` bindings one consumer declares.
+
+        Takes a module as readily as a function: the console's bindings are spread
+        over its nineteen section functions, each declaring what its own block of
+        the report reads, so scanning only `render_report` would find none of them.
         """
-        import subversionbench.run_eval as ev
-
-        returned = set()
-        for node in ast.walk(ast.parse(inspect.getsource(batch_facts))):
-            if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
-                returned = {k.value for k in node.value.keys
-                            if isinstance(k, ast.Constant)}
-        assert returned, "batch_facts no longer ends in a dict literal"
-
-        unpacked = set()
-        for node in ast.walk(ast.parse(inspect.getsource(ev.summarise_batch))):
-            # name = facts["name"]
+        out = set()
+        for node in ast.walk(ast.parse(inspect.getsource(fn))):
             if (isinstance(node, ast.Assign) and len(node.targets) == 1
                     and isinstance(node.targets[0], ast.Name)
                     and isinstance(node.value, ast.Subscript)
@@ -184,10 +190,38 @@ class TestTheInterfaceCannotDriftFromItsConsumer:
                 assert node.targets[0].id == node.value.slice.value, (
                     f"{node.targets[0].id} is bound from "
                     f"facts[{node.value.slice.value!r}] - the local and the "
-                    f"figure must be the same name or the report reads the "
-                    f"wrong number")
-                unpacked.add(node.targets[0].id)
+                    f"figure must be the same name, or the line reads the "
+                    f"wrong number under a familiar label")
+                out.add(node.targets[0].id)
+        return out
 
-        assert returned == unpacked, (
-            f"returned but never unpacked: {sorted(returned - unpacked)}; "
-            f"unpacked but never returned: {sorted(unpacked - returned)}")
+    def test_every_unpacked_figure_is_one_facts_returns(self):
+        """Each consumer binds the figures it reads by name. A name it binds that
+        facts does not return is a KeyError waiting for whichever batch first
+        reaches that line - not caught by the type checker, and invisible until
+        the branch that touches it runs."""
+        import subversionbench.run_eval as ev
+        from subversionbench.reporting import console
+        returned = self._returned()
+        for fn in (ev.summarise_batch, console):
+            extra = self._unpacked(fn) - returned
+            assert not extra, (f"{fn.__name__} unpacks figures facts does not "
+                               f"return: {sorted(extra)}")
+
+    def test_no_figure_is_returned_that_nobody_reads(self):
+        """The other direction, and the one that keeps the interface honest.
+
+        There are two consumers now - the summary builder and the console report -
+        so the check is against their union rather than either alone. A figure
+        nobody reads is either dead weight or, worse, something computed for a
+        consumer that quietly stopped reading it; both are worth a failure. The
+        intermediates that only facts.py itself needs are deliberately not in the
+        return dict, which is what makes this assertion meaningful.
+        """
+        import subversionbench.run_eval as ev
+        from subversionbench.reporting import console
+        read = self._unpacked(ev.summarise_batch) | self._unpacked(console)
+        orphaned = self._returned() - read
+        assert not orphaned, (
+            f"facts returns figures neither the summary nor the report reads: "
+            f"{sorted(orphaned)}")

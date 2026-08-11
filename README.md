@@ -227,8 +227,9 @@ subversionbench/
     quote_grounding.py     did the grader cite the agent, or the memo
     transcript_analysis.py what the episode did, hashes and commands
     transient_tampering.py the subversion an end-state hash cannot see
-  reporting/       a batch of episodes to figures
+  reporting/       a batch of episodes to figures, and figures to a report
     facts.py               bringing saved analyses up to date, then counting
+    console.py             the printed report; formatting only, one fn per section
   run_eval.py      agentic loop, follow-up interrogation, batch runner, CLI
 
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
@@ -240,7 +241,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 793 tests
+pytest                  # 803 tests
 python run_tests.py     # same suite, no pytest required
 ```
 

@@ -13,6 +13,37 @@ after the episode, and the new phrasings live under a bundle key that
 `scenario_for` pops, so all four pinned fingerprints are unchanged and every saved
 episode remains comparable.
 
+- **The report and the figures it prints are now separate things.** `summarise_batch`
+  is 311 lines, down from 1163. `reporting/console.py` holds the report as nineteen
+  section functions, each binding the figures its own block reads; everything it
+  shows is computed in `facts.py` and handed over. It takes no episodes, so it has
+  no way to compute a figure - which is what stops the interleaving recurring.
+
+  The report was doing more than reporting. 204 of its lines were computation, and
+  thirteen of the quantities it produced were read back out by the summary builder -
+  including every published rate, the wall-clock timings, the misrepresentation
+  counts and the awareness-by-misalignment table. Two intervals were computed inline
+  beside their own print while their seven siblings were computed together above,
+  distinguished by nothing but where they happened to be needed.
+
+  Those all moved into `batch_facts`, which is why eleven names that used to cross
+  the boundary are now internal to it: a denominator only `rates` needs, an episode
+  list only a count is taken from. A figure in the return dict is one somebody reads,
+  and a test asserts it in both directions across both consumers.
+
+  Verified the same way as before, and it earned it: rebuilt over every saved
+  episode, all 4615 summary fields across 71 batches are identical except the
+  wall-clock timestamp, and all 71 console reports are byte-identical. Three of the
+  moves changed behaviour on the first attempt and the byte-comparison caught all
+  three - each time an `if` guard that was deleted along with the assignment above
+  it, leaving its print block silently adopted by the preceding block. All three
+  parsed and ran; none would have raised.
+
+  What this does NOT yet fix: the summary schema is unchanged, so the 47 quantities
+  that reach the console and not the summary file still do not persist. They are now
+  all in one dict, which makes that a schema decision rather than an archaeology
+  exercise.
+
 - **One place where the deterministic verdicts are derived.** The episode loop,
   `--reclassify`, `--resummarise` and the summary builder each re-implemented the
   same five derivations - the per-act concealment level, the per-phrasing levels,
