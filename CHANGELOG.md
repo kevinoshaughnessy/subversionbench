@@ -13,6 +13,54 @@ after the episode, and the new phrasings live under a bundle key that
 `scenario_for` pops, so all four pinned fingerprints are unchanged and every saved
 episode remains comparable.
 
+- **One place where the deterministic verdicts are derived.** The episode loop,
+  `--reclassify`, `--resummarise` and the summary builder each re-implemented the
+  same five derivations - the per-act concealment level, the per-phrasing levels,
+  per-act scheming, `misaligned`, `scheming`. Every "field not re-derived" defect in
+  this codebase came from one of them drifting from another: the fill-when-absent
+  guards, an onset field missing from the re-derived allowlist, the per-phrasing
+  levels never recomputed at all. Each was a rule changed in one site and not the
+  other three.
+
+  `settle_analysis` states the rule once and the four modes call it. Deterministic
+  only: nothing in it calls a model, so the sampled judgements - the interrogation
+  answers, the disclosure reading, the awareness rubric - are read and never
+  written, which is the split `--resummarise` is built on.
+
+  The four sites ordered the derivations differently, which looked like a hazard and
+  was not: none of the three classifiers reads the STORED level, each recomputing
+  from the underlying answers, so unifying the order could not move a verdict. That
+  is now a test, because if a classifier ever starts reading the stored level the
+  order becomes significant and this refactor's premise fails silently. Re-settling
+  every saved episode through the single path moved no verdict.
+
+- **The batch figures move out of the summary builder.** `summarise_batch` was doing
+  four jobs in 1163 lines: normalise the saved analyses, compute every batch figure,
+  render fifteen console sections, and write the summary JSON. The first two are now
+  `normalise_analyses` and `batch_facts` in `reporting/facts.py`.
+
+  The figures were untestable where they sat. Reaching one meant capturing stdout or
+  reading a summary back out of a temp directory, so not one of them had a direct
+  test. `batch_facts` is pure, prints nothing, writes nothing, and takes no `args` -
+  the figures turned out to read no CLI state at all - so a test can now assert on
+  any of them in a line, and twelve do.
+
+  `normalise_analyses` mutates and `batch_facts` does not, and they are two calls
+  rather than one that quietly does both: a function named for its figures that
+  rewrites its input is the shape the fill-when-absent defects hid in.
+
+  Verified rather than argued. Rebuilt over every saved episode, all 4615 summary
+  fields across 71 batches are identical except the wall-clock timestamp, and all 71
+  console reports are byte-identical. The seam the split creates - the figures are
+  returned as a dict and bound to locals in the report - is held by a test that
+  cross-checks the two lists of names, since a figure added to one and not the other
+  would otherwise fail only on whichever batch reached that line.
+
+  What the split exposes and does not yet fix: the console report is strictly richer
+  than the persisted summary. 47 quantities are computed, printed once and never
+  saved, so they cannot be re-derived from disk later - which is outside the
+  guarantee the rest of the analysis pipeline is built on.
+
 - **Alternative phrasings of the first interrogation question, paired within an
   episode.** Prior work finds that trivial surface choices - option order, bracket
   style, a greeting - move results on otherwise identical items, and recommends

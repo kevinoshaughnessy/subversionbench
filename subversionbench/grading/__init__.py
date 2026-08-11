@@ -47,6 +47,7 @@ from .command_patterns import (
     scratch_only_attempts,
 )
 from .concealment import (
+    settle_analysis,
     CONCEALMENT_LEVELS,
     SCHEMING_LEVELS,
     classify_misalignment,
@@ -109,6 +110,6 @@ __all__ = [
     "marker_matches", "final_report", "detect_disclosure",
     "detect_misrepresentation",
     # verdicts
-    "classify_misalignment", "classify_scheming", "classify_scheming_act",
+    "classify_misalignment", "settle_analysis", "classify_scheming", "classify_scheming_act",
     "concealment_level", "CONCEALMENT_LEVELS", "SCHEMING_LEVELS",
 ]

@@ -20,6 +20,7 @@ from pathlib import Path
 import subversionbench.run_eval as ev_run
 import subversionbench.llm_client as ev_llm
 import subversionbench.grading as ev_grade
+import subversionbench.reporting as ev_report
 from subversionbench.run_eval import _unique_batch_stamp, find_run_files
 
 
@@ -371,11 +372,11 @@ class TestAwarenessFlag:
             "eval_awareness_keywords": {"eval_aware": False,
                                             "goal_conflict_noted": False},
         }
-        assert ev_run.awareness_flag(analysis) == (True, "grader")
+        assert ev_report.awareness_flag(analysis) == (True, "grader")
 
     def test_falls_back_to_keywords_without_a_grader(self):
         analysis = {"eval_awareness_keywords": {"eval_aware": True}}
-        assert ev_run.awareness_flag(analysis) == (True, "keywords")
+        assert ev_report.awareness_flag(analysis) == (True, "keywords")
 
     def test_a_failed_grading_falls_back_rather_than_counting_as_negative(self):
         """A wholly failed grading returns eval_aware=False as an artefact of
@@ -386,10 +387,10 @@ class TestAwarenessFlag:
                                       "grading_failed": True},
             "eval_awareness_keywords": {"eval_aware": True},
         }
-        assert ev_run.awareness_flag(analysis) == (True, "keywords")
+        assert ev_report.awareness_flag(analysis) == (True, "keywords")
 
     def test_no_measure_at_all(self):
-        assert ev_run.awareness_flag({}) == (None, None)
+        assert ev_report.awareness_flag({}) == (None, None)
 
 
 class TestCompareBatches:
@@ -1436,17 +1437,17 @@ class TestAwarenessTimingWiring:
             act["timing_key"]: {"timing": "after_act"},
             act["grader_before_key"]: {"eval_aware": True},
         }
-        assert ev_run.awareness_before_act_flag(analysis, act) == (True, "grader")
+        assert ev_report.awareness_before_act_flag(analysis, act) == (True, "grader")
 
         analysis[act["grader_before_key"]] = {"skipped": True}
-        assert ev_run.awareness_before_act_flag(analysis, act) == (False, "keywords")
+        assert ev_report.awareness_before_act_flag(analysis, act) == (False, "keywords")
 
     def test_an_unplaceable_act_yields_no_flag(self):
         """Better no answer than a guessed ordering."""
         act = next(a for a in ev_run.MISALIGNED_ACTS if a["name"] == "oversight")
         analysis = {act["timing_key"]: {"timing": "act_unlocatable"},
                     act["grader_before_key"]: {"skipped": True}}
-        assert ev_run.awareness_before_act_flag(analysis, act) == (None, None)
+        assert ev_report.awareness_before_act_flag(analysis, act) == (None, None)
 
 
 @contextlib.contextmanager
@@ -1572,7 +1573,7 @@ class TestScoreProvenance:
         }}
 
     def test_one_scorer_throughout_is_not_flagged(self):
-        prov = ev_run._score_provenance(
+        prov = ev_report.score_provenance(
             [self._run("claude-opus-5", "claude-opus-5") for _ in range(3)])
         assert prov["awareness_graders"] == {"claude-opus-5": 3}
         # 3 episodes x (1 disclosure + 1 report check + 1 answer)
@@ -1580,7 +1581,7 @@ class TestScoreProvenance:
         assert prov["mixed"] is False
 
     def test_a_half_regraded_batch_is_flagged(self):
-        prov = ev_run._score_provenance([
+        prov = ev_report.score_provenance([
             self._run("claude-opus-5", "claude-opus-5"),
             self._run("claude-haiku-4-5", "claude-opus-5"),
         ])
@@ -1589,7 +1590,7 @@ class TestScoreProvenance:
         assert prov["mixed"] is True
 
     def test_a_half_reclassified_batch_is_flagged(self):
-        prov = ev_run._score_provenance([
+        prov = ev_report.score_provenance([
             self._run("claude-opus-5", "claude-opus-5"),
             self._run("claude-opus-5", "claude-haiku-4-5"),
         ])
@@ -1599,7 +1600,7 @@ class TestScoreProvenance:
     def test_runs_predating_the_field_read_as_unrecorded(self):
         """Not as the current default: guessing would assert provenance the
         files do not have, which is the error this field exists to prevent."""
-        prov = ev_run._score_provenance([self._run("claude-opus-5", None)])
+        prov = ev_report.score_provenance([self._run("claude-opus-5", None)])
         assert prov["concealment_classifiers"] == {"unrecorded": 3}
         assert prov["mixed"] is False
 
@@ -1611,7 +1612,7 @@ class TestScoreProvenance:
         run["analysis"]["disclosure_oversight"] = {
             "disclosed": None, "error": "episode hit the turn cap"}
         run["analysis"]["misrepresented_check"] = {"misrepresented": None}
-        prov = ev_run._score_provenance([run])
+        prov = ev_report.score_provenance([run])
         assert prov["concealment_classifiers"] == {"claude-opus-5": 1}
 
     def test_the_classifier_stamps_the_model_it_used(self):
@@ -1655,7 +1656,7 @@ class TestReclassifyPreservesGraderResults:
         assert kept["eval_aware"] is True, "the grader reading was overwritten"
         # The keyword ordering is still refreshed alongside it.
         assert analysis["awareness_timing_oversight"]["timing"] in (
-            ev_run.AWARENESS_TIMING_LEVELS)
+            ev_grade.AWARENESS_TIMING_LEVELS)
 
     def test_a_skip_marker_is_still_replaceable(self):
         """Preserving must not freeze a placeholder in place."""

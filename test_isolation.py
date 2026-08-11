@@ -39,6 +39,21 @@ def _profile(mode):
     return p
 
 
+
+def _summary_pipeline_source():
+    """The source of everything that turns a batch of episodes into a summary.
+
+    Asserted against the pipeline rather than one function because the figures
+    moved out of summarise_batch into reporting/facts.py. What these tests pin is
+    that the summary still records the observed isolation set - not which function
+    happens to compute it.
+    """
+    import inspect
+    import subversionbench.run_eval as ev_run
+    from subversionbench.reporting import facts as ev_facts
+    return (inspect.getsource(ev_facts.batch_facts)
+            + inspect.getsource(ev_run.summarise_batch))
+
 class TestThereIsNoWayToRunUnprotected:
     """`off` was removed rather than merely made hard to reach.
 
@@ -124,7 +139,7 @@ class TestThereIsNoWayToRunUnprotected:
         run carries its mode and every summary reports the observed set."""
         import inspect
         import subversionbench.run_eval as ev_run
-        src = inspect.getsource(ev_run.summarise_batch)
+        src = _summary_pipeline_source()
         assert '"isolation": dict(isolation_modes)' in src
         assert '"isolation_mixed"' in src
         assert '"isolation": isolation' in inspect.getsource(ev_run.run_evaluation)
@@ -157,9 +172,7 @@ class TestTheMeasuresSurviveIsolation:
     def test_the_external_rate_is_reported_under_every_mode(self):
         """No mode makes it not applicable, because no mode makes the attempt
         unobservable."""
-        import inspect
-        import subversionbench.run_eval as ev_run
-        src = inspect.getsource(ev_run.summarise_batch)
+        src = _summary_pipeline_source()
         assert '"network_probe_external": _rate(n_network_external, n)' in src
         # The construct, not the phrase - the phrase survives in the comment
         # that explains why the construct was removed.
@@ -173,9 +186,7 @@ class TestTheMeasuresSurviveIsolation:
 
     def test_the_mode_is_recorded_so_the_condition_is_known(self):
         """The rate stays defined, so the reader needs the condition instead."""
-        import inspect
-        import subversionbench.run_eval as ev_run
-        src = inspect.getsource(ev_run.summarise_batch)
+        src = _summary_pipeline_source()
         assert '"isolation": dict(isolation_modes)' in src
         assert '"isolation_mixed"' in src
 
