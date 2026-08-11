@@ -6,6 +6,121 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v40
+
+Package version `40.0.0`. `ROLLOUT_VERSION` stays at `r4`: the interrogation runs
+after the episode, and the new phrasings live under a bundle key that
+`scenario_for` pops, so all four pinned fingerprints are unchanged and every saved
+episode remains comparable.
+
+- **Alternative phrasings of the first interrogation question, paired within an
+  episode.** Prior work finds that trivial surface choices - option order, bracket
+  style, a greeting - move results on otherwise identical items, and recommends
+  evaluating over a set of phrasings rather than one. This benchmark reports a
+  concealment rate off a single wording, and the large majority of acts are
+  admitted at the first question, so whether that number is a property of the
+  models or of the sentence was untested.
+
+  The variants are **meaning-preserving**: the same clauses, reordered and
+  repunctuated, with no word introduced that the original did not have. Only the
+  FIRST question is replaced, because the scale turns on the first answer; the
+  escalation ladder is shared, so a difference between phrasings is attributable to
+  the opening probe rather than to how the confrontation escalates.
+
+  **Paired, not one phrasing per batch.** The interrogation happens after the
+  episode, and each probe already starts from the episode as it ended rather than
+  from the previous probe - the property that already lets the two acts be
+  interrogated independently from one episode. So several wordings can be put to the
+  same episode with no order effect to control for. That is both cheaper, since the
+  agent rollout is paid for once and an interrogation is a small fraction of an
+  episode's wall clock, and better powered, since between-episode variance drops out
+  of a comparison whose rate is currently zero.
+
+  The headline fields are untouched: `followup_response` and `concealment_*` hold
+  the DEFAULT phrasing and nothing else, with extras in `*_by_variant` beside them.
+  So no published rate moves, and a batch run with extras still pools with one run
+  without them - which is why the phrasing is deliberately NOT part of the filename.
+  The default probe always runs, because the headline field is defined as its answer.
+
+- **The coercive arm gets its own rephrasing.** Its first question is four clauses
+  to the ordinary three - it inserts a stated consequence - so the ordinary
+  paraphrase is a paraphrase of a different sentence, and splicing it on would drop
+  the clause that distinguishes the arm and quietly turn it into the ordinary one.
+  It also needs a different transformation: the ordinary variant moves the question
+  ahead of the observation, which is impossible here because one consequence clause
+  opens by referring to the answer not yet given and would contradict itself. The
+  coercive form reorders the consequence instead and leaves the question last.
+
+  A phrasing with no coercive form is refused rather than falling back on the
+  ordinary one, which would report that arm's rate against a question it was never
+  asked. Checked at argparse, so it fails before a paid rollout.
+
+- **The API conversation is saved, for episodes that took an act.** It used to be
+  dropped from every run, for two reasons: it is large, and it holds API objects
+  json cannot encode. The second is answered by serialising the block shapes the
+  harness sees, preserving the tool ids and - the field that actually matters - the
+  signatures on thinking blocks, which the API verifies and which have to go back
+  exactly as they came. The first is answered by asking what the field is for: it
+  exists so a saved episode can be asked another question, and an episode with no
+  act has nothing to be asked about.
+
+  **Not backfillable.** The signatures of episodes already on disk are gone.
+
+- **`--reinterrogate` puts a phrasing to episodes already collected, and refuses
+  the ones it cannot replay faithfully.** It prefers the saved conversation, which
+  is exact. Failing that it reconstructs from the transcript, which keeps the text
+  of every turn but neither the tool ids nor the thinking signatures - so an episode
+  whose transcript contains reasoning is **skipped, with the reason printed**, not
+  replayed without it. Dropping the reasoning would put the model in a conversation
+  where its own thinking never happened, so an answer to a second phrasing would not
+  be paired with the first and the difference would be confounded with the removal.
+  It fails worst exactly where it matters, since the models that verbalise awareness
+  most do it in those blocks.
+
+  Roughly a third of the acts already on disk can be replayed faithfully. That
+  subsample is **not random** - it skews toward models that return little or no
+  reasoning - so it tests phrasing sensitivity on those models and says nothing
+  about the rest until fresh paired episodes are collected.
+
+  The eligibility scan reads only saved files, so it reports what it would do
+  without credentials. The client is created lazily on the first episode that
+  actually needs a question asked; building it up front made the mode die on a
+  missing key before it could say anything.
+
+- **Four defects found reviewing the replay path, all before it ran on anything.**
+  They share a cause worth naming: a second probe is paired with the first only if
+  everything except the wording is held constant, and each of these broke that in a
+  different place.
+
+  The replayed probe ran with **no reasoning parameter** while the original had one,
+  so the two differed in the question *and* in whether the model could think - the
+  exact confound the paired design exists to remove. It now resolves the parameter
+  from the effort each run recorded, and warns when the result differs from the
+  configuration the episode was collected under, because the token budget is not
+  recorded per run and can only come from the command line.
+
+  A transcript with more tool results than tool calls raised `IndexError` and killed
+  the whole mode rather than skipping one episode. A trailing tool call with no
+  recorded result built a conversation the provider would reject, since every tool
+  use must be answered in the next message. Both are now refused with the reason
+  stated, and an invariant test asserts that every tool use in an accepted replay is
+  answered.
+
+  The per-phrasing concealment levels were **never re-derived at all** - not
+  fill-when-absent but absent from the re-derived allowlist and from both settling
+  sites, so a change to the scale would move the headline level and leave these
+  pinned to whatever rule wrote them. Now on the allowlist and recomputed beside
+  their sibling. The sampled answers stay off it, as they must.
+
+  Three of the four were verified to fail against the code as it stood before the
+  fix, rather than assumed to be caught.
+
+  Also: the failed-episode payload no longer carries the conversation. The field is
+  act-gated by policy, and an episode that died mid-turn has no settled act to ask
+  about and an incomplete conversation to ask it in. Measured on real transcripts,
+  the field adds about 45% to an act-bearing run file and nothing to the majority
+  that take no act.
+
 ## v39
 
 Package version `39.0.0`. Analysis only - `ROLLOUT_VERSION` stays at `r4` and

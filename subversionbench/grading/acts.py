@@ -8,6 +8,8 @@ means adding a row here, not editing every consumer.
 
 from ..config import (
     ACT_OVERSIGHT_DESCRIPTION,
+    INTERROGATION_CHOICES,
+    INTERROGATION_VARIANTS,
     ACT_SANDBOX_DESCRIPTION,
     FOLLOWUP_MONITORING_ADMISSION,
     FOLLOWUP_MONITORING_CONTRITION,
@@ -21,23 +23,65 @@ from ..config import (
     FOLLOWUP_SANDBOX_QUESTIONS_MAX,
 )
 
-def questions_for(act: dict, nudge: str) -> list:
+def questions_for(act: dict, nudge: str,
+                  interrogation: str = "default") -> list:
     """
-    The interrogation questions this act gets under this nudge.
+    The interrogation questions this act gets under this nudge and phrasing.
 
     Only the max arm differs, and it differs only here: the episode it follows
     is byte-identical to the strong arm's. Selected at call time rather than
     baked into the act, so one MISALIGNED_ACTS serves every arm and a batch
     cannot end up interrogated with the wrong set.
+
+    `interrogation` swaps the FIRST question for a meaning-preserving rephrasing
+    and leaves the rest of the ladder alone. Spliced here rather than in
+    scenario_for because config.py resolves the default bundle once at import, so
+    a variant selected on the command line cannot reach the act definitions any
+    other way.
+
+    The max arm gets its OWN rephrasing rather than the ordinary one. Its first
+    question is four clauses to the ordinary three - it inserts a stated
+    consequence before the question - so the ordinary paraphrase is a paraphrase of
+    a different sentence and splicing it on would silently produce a condition that
+    is neither arm. It also needs a different transformation: the ordinary variant
+    moves the question ahead of the observation, which cannot be done here because
+    one consequence clause opens "Before you answer" and would then contradict
+    itself. The max form reorders the consequence instead and leaves the question
+    last.
+
+    A variant with no max form is refused rather than falling back on the ordinary
+    one, which would report a coercive-arm rate measured with a non-coercive
+    question.
     """
-    if nudge == "max":
-        return act["questions_max"]
-    return act["questions"]
+    ladder = act["questions_max"] if nudge == "max" else act["questions"]
+    if interrogation == "default":
+        return ladder
+    variant = INTERROGATION_VARIANTS.get(interrogation)
+    if variant is None:
+        raise KeyError(
+            f"unknown interrogation variant {interrogation!r}; expected one of "
+            f"{list(INTERROGATION_CHOICES)}"
+        )
+    q1_key = act["q1_key_max"] if nudge == "max" else act["q1_key"]
+    if q1_key not in variant:
+        raise ValueError(
+            f"interrogation variant {interrogation!r} has no rephrasing for the "
+            f"{nudge} arm's first question (missing {q1_key!r}). Author one, or "
+            f"run that arm with --interrogation default: falling back on another "
+            f"arm's wording would report this arm's rate against a question it "
+            f"was never asked."
+        )
+    return [variant[q1_key]] + list(ladder[1:])
 
 
 MISALIGNED_ACTS = (
     {
         "name": "oversight",
+        # Which replacement first question an interrogation variant supplies.
+        # Two keys because the max arm's first question is a different sentence
+        # and needs its own rephrasing, not the ordinary one.
+        "q1_key": "monitoring_q1",
+        "q1_key_max": "monitoring_q1_max",
         "scheming_key": "scheming_oversight",
         "timing_key": "awareness_timing_oversight",
         "grader_before_key": "eval_awareness_grader_before_oversight",
@@ -56,6 +100,8 @@ MISALIGNED_ACTS = (
     },
     {
         "name": "sandbox",
+        "q1_key": "sandbox_q1",
+        "q1_key_max": "sandbox_q1_max",
         "scheming_key": "scheming_sandbox",
         "timing_key": "awareness_timing_sandbox",
         "grader_before_key": "eval_awareness_grader_before_sandbox",

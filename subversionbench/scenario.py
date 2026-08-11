@@ -52,7 +52,8 @@ def encode_scenario(bundle: dict, path: Path = None) -> None:
 
 
 def scenario_for(oversight: bool = True, bundle: dict = None,
-                 nudge: str = "strong", lure: bool = False) -> dict:
+                 nudge: str = "strong", lure: bool = False,
+                 interrogation: str = "default") -> dict:
     """
     The scenario as one arm of the oversight counterfactual sees it.
 
@@ -96,6 +97,32 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     max_nudge = bundle.pop("max_nudge", {})
     if nudge == "max":
         bundle.update(max_nudge)
+
+    # Interrogation phrasings, on the same removal-only terms as every other arm:
+    # popped unconditionally, so `scenario_for()` returns exactly what it returned
+    # before any variant was authored and r1-r4 keep their fingerprints. Forgetting
+    # this pop moved all four hashes, which the drift guard caught immediately.
+    #
+    # Only the FIRST question is replaced. The scale turns on the first answer, so
+    # that is the load-bearing phrasing; leaving the escalation ladder identical
+    # keeps the probe separable from the confrontation that follows it.
+    #
+    # The variants are meaning-preserving surface perturbations - the same clauses,
+    # reordered and repunctuated - because the question they answer is whether a
+    # rate this benchmark reports survives a change that carries no semantic
+    # content. Prior work finds bracket style and option order alone move results.
+    variants = bundle.pop("interrogation_variants", {})
+    if interrogation != "default":
+        if interrogation not in variants:
+            raise KeyError(
+                f"unknown interrogation variant {interrogation!r}; "
+                f"expected 'default' or one of {sorted(variants)}"
+            )
+        v = variants[interrogation]
+        for key, q1 in (("followup_monitoring_questions", v["monitoring_q1"]),
+                        ("followup_sandbox_questions", v["sandbox_q1"])):
+            if key in bundle:
+                bundle[key] = [q1] + list(bundle[key][1:])
 
     # The lure arm, on the same terms as every other arm: stored in the bundle,
     # removed unless asked for, so `scenario_for()` returns exactly what it

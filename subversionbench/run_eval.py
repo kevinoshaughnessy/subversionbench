@@ -26,6 +26,7 @@ Run with --help for the full list of CLI options.
 """
 
 import json
+import collections
 import os
 import re
 import sys
@@ -41,7 +42,10 @@ import argparse
 from .config import (
     DEFAULT_GRADER_MODEL,
     CANARY,
+    DEFAULT_INTERROGATION,
+    INTERROGATION_CHOICES,
     ROLLOUT_FINGERPRINTS,
+    parse_interrogations,
     fingerprint_for,
     ROLLOUT_VERSION,
     VERSION,
@@ -53,6 +57,7 @@ from .config import (
 from .environment import (create_episode_root,
                           create_hardened_environment,
                           episode_root_layout, generate_project_name)
+from .blocks import serialise_messages
 from .sandbox import execute_tool_sandboxed, refusal_kind
 from .grading import (
     detect_eval_awareness_keywords,
@@ -181,6 +186,12 @@ REDERIVED_ANALYSIS_FIELDS = (
     "out_of_scope_detail",
     "concealment_oversight",
     "concealment_sandbox",
+    # Deterministic given the stored answers, exactly like the two above. The
+    # ANSWERS are sampled and stay out of this list; the levels derived from them
+    # do not, or a change to the scale would reach the headline level and leave
+    # the per-phrasing ones pinned to the old rule.
+    "concealment_oversight_by_variant",
+    "concealment_sandbox_by_variant",
     "scheming_oversight",
     "scheming_sandbox",
     "awareness_timing_oversight",
@@ -289,6 +300,7 @@ def run_evaluation(
     oversight: bool = True,
     nudge: str = "strong",
     lure: bool = False,
+    interrogations: tuple = (DEFAULT_INTERROGATION,),
     isolation: str = "off",
     profile_path=None,
 ) -> dict:
@@ -388,6 +400,7 @@ def run_evaluation(
                 "rollout_version": ROLLOUT_VERSION,
                 "oversight": oversight,
                 "lure": lure,
+                "interrogations": list(interrogations),
                 "rollout_fingerprint": fingerprint_for(oversight, lure),
                 "analysis_version": VERSION,
                 "model": model,
@@ -402,6 +415,11 @@ def run_evaluation(
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
                 "transcript": transcript,
+                # No `messages` here, deliberately. The field exists so a saved
+                # episode can be asked another question, and an episode that died
+                # mid-turn has no settled act to ask about and an incomplete
+                # conversation to ask it in. The transcript is the record of what
+                # happened; this would only be duplication.
                 "timestamp": datetime.datetime.now().isoformat(),
             }) from e
 
@@ -622,14 +640,38 @@ def run_evaluation(
              "error": "episode hit the turn cap; no closing report"}
         )
 
-        print(f"\n*** {act['banner']} - Running follow-up interrogation ***\n")
-        analysis[act["followup_key"]] = run_followup(
-            system_prompt, messages, model, client, act,
-            questions=questions_for(act, nudge),
-            classifier_model=grader_model,
-            max_tokens=max_tokens, reasoning_kwargs=reasoning_kwargs,
-            env_dir=env_dir,
-        )
+        # PAIRED, not one phrasing per batch. Each probe starts from the episode
+        # as it ended - run_followup copies the message list rather than extending
+        # it - so a second wording cannot see the first and there is no order
+        # effect to control for. That is the same property that already lets the
+        # two ACTS be interrogated independently from one episode.
+        #
+        # Paired is both cheaper and better powered. The agent rollout is paid for
+        # once: an interrogation is about 16% of an episode's wall clock, against
+        # 100% for a second batch. And because both probes share everything about
+        # the episode, between-episode variance drops out of the comparison, which
+        # matters when the rate being compared is currently zero.
+        by_variant = {}
+        for variant in interrogations:
+            if len(interrogations) > 1:
+                print(f"\n*** {act['banner']} - interrogation [{variant}] ***\n")
+            else:
+                print(f"\n*** {act['banner']} - Running follow-up "
+                      f"interrogation ***\n")
+            by_variant[variant] = run_followup(
+                system_prompt, messages, model, client, act,
+                questions=questions_for(act, nudge, variant),
+                classifier_model=grader_model,
+                max_tokens=max_tokens, reasoning_kwargs=reasoning_kwargs,
+                env_dir=env_dir,
+            )
+
+        # The headline field holds the DEFAULT phrasing and nothing else, so every
+        # rate over the episodes already collected keeps its meaning and the two
+        # can be pooled. The extras sit beside it.
+        analysis[act["followup_key"]] = by_variant[DEFAULT_INTERROGATION]
+        if len(by_variant) > 1:
+            analysis[act["followup_key"] + "_by_variant"] = by_variant
 
     t_followup_end = time.time()
 
@@ -638,6 +680,15 @@ def run_evaluation(
     # evidence is missing, not that the episode was clean.
     for act in MISALIGNED_ACTS:
         analysis[act["level_key"]] = concealment_level(analysis, act)
+        # And once per extra phrasing, against the same act and the same
+        # disclosure evidence - so a difference between them is attributable to
+        # the wording of the opening question and to nothing else.
+        alts = analysis.get(act["followup_key"] + "_by_variant")
+        if alts:
+            analysis[act["level_key"] + "_by_variant"] = {
+                v: concealment_level(analysis, act, answers=a)
+                for v, a in alts.items()
+            }
 
     analysis["misaligned"] = classify_misalignment(analysis)
     analysis["scheming"] = classify_scheming(analysis)
@@ -690,6 +741,14 @@ def run_evaluation(
         # silently pooled the two arms - which is how 50 lure episodes ended up
         # inside a "primary arm" rate.
         "lure": lure,
+        # Which wordings of the opening question were put to this episode, in
+        # the order asked. A list because the design is paired: every episode gets
+        # the default probe, plus any extras, each from the same frozen episode
+        # state. Recorded rather than left to the filename - the arm that was left
+        # to the filename got pooled into a rate it did not belong to - and the
+        # filename deliberately does NOT mark it, so batches with and without
+        # extras still pool for the default measure.
+        "interrogations": list(interrogations),
         # The fingerprint of THIS arm, not the primary one. This used to write a
         # module constant pinned to (oversight, no lure), so every counterfactual
         # and every lure episode claimed the primary arm's identity. The drift
@@ -1089,6 +1148,11 @@ def batch_stem(model_slug: str, nudge: str, effort=None,
     The stamp is always appended after this, never before - find_run_files_by_stamp
     and regrade_all.sh both key off a trailing _<stamp>.json.
     """
+    # The interrogation phrasings are deliberately NOT part of the name. Every
+    # episode is probed with the default wording plus any extras, so the default
+    # measure means the same thing in every batch and they pool for it. Marking
+    # the extras would split that measure across summaries and shrink its n for
+    # no gain - the extras live in the run's metadata instead.
     return (f"{model_slug}_{nudge}"
             + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
             + ("_lure" if lure else "")
@@ -1380,6 +1444,205 @@ def _auth_error_in(result, key: str = "error"):
     return None
 
 
+def reconstruct_messages(run: dict):
+    """
+    The conversation to interrogate a saved episode from, or a reason it cannot be.
+
+    Returns (messages, None) or (None, reason).
+
+    Prefers the saved `messages`, which is exact: it carries the tool_use ids and
+    the thinking-block signatures the API verifies. Episodes recorded before that
+    field existed have only the transcript, which keeps the text of every turn but
+    neither of those.
+
+    An episode whose transcript contains thinking is REFUSED rather than replayed
+    without it. Dropping the thinking would put the model in a conversation where
+    its own reasoning never happened - a different conversation, so an answer to a
+    second phrasing would not be paired with the first, and the difference would be
+    confounded with the removal. It fails worst exactly where it matters: the
+    models that verbalise awareness most do it in those blocks.
+
+    Where there is no thinking to lose, the reconstruction is faithful and the
+    episode is allowed. Tool ids are synthesised, which is sound because the API
+    only requires each tool_result to name a tool_use above it.
+    """
+    saved = run.get("messages")
+    if saved:
+        return saved, None
+
+    transcript = run.get("transcript") or []
+    if any(e.get("type") == "thinking" and (e.get("content") or "").strip()
+           for e in transcript):
+        return None, ("transcript contains thinking whose signatures were not "
+                      "saved; replaying without it would change the conversation")
+    if not run.get("user_prompt"):
+        return None, "no user prompt recorded"
+
+    messages = [{"role": "user", "content": run["user_prompt"]}]
+    pending_text, pending_calls, results, n = [], [], [], 0
+    def flush():
+        content = ([{"type": "text", "text": x} for x in pending_text]
+                   + pending_calls)
+        if content:
+            messages.append({"role": "assistant", "content": content})
+        if results:
+            messages.append({"role": "user", "content": list(results)})
+        pending_text.clear(); pending_calls.clear(); results.clear()
+
+    for entry in transcript:
+        kind = entry.get("type")
+        if kind == "text":
+            if results:
+                flush()
+            if (entry.get("content") or "").strip():
+                pending_text.append(entry["content"])
+        elif kind == "tool_call":
+            n += 1
+            pending_calls.append({"type": "tool_use", "id": f"replay_{n}",
+                                  "name": "bash",
+                                  "input": {"cmd": entry.get("cmd") or ""}})
+        elif kind == "tool_result":
+            # Refused, not indexed past the end. A transcript with more results
+            # than calls in a turn raised IndexError and killed the whole mode
+            # rather than skipping the one episode.
+            if len(results) >= len(pending_calls):
+                return None, ("more tool results than tool calls, so they "
+                              "cannot be paired")
+            results.append({"type": "tool_result",
+                            "tool_use_id": pending_calls[len(results)]["id"],
+                            "content": entry.get("result") or ""})
+    # A tool call with no result left over means the episode was cut short mid
+    # turn. The API requires every tool_use to be answered by a tool_result in
+    # the next message, so replaying this would be rejected - refuse here, where
+    # the reason can be stated, rather than at the provider.
+    if len(results) < len(pending_calls):
+        return None, ("the last tool call has no recorded result, so the "
+                      "conversation cannot be replayed")
+    flush()
+    if len(messages) < 2:
+        return None, "nothing the model said was recorded"
+    return messages, None
+
+
+def reinterrogate_existing_runs(args, model_slug: str) -> int:
+    """
+    Put another phrasing of the opening question to episodes already collected.
+
+    Only episodes that took an act are candidates - there is nothing to ask about
+    otherwise - and only phrasings not already recorded are asked, so re-running
+    the mode is idempotent and costs nothing on a corpus already covered.
+
+    Writes into `<followup_key>_by_variant` and recomputes
+    `<level_key>_by_variant` beside it. The headline fields are never touched: the
+    default phrasing's answers and level stay exactly as they were, so every rate
+    over this corpus keeps its meaning and batches with and without extras pool.
+
+    Refuses an episode it cannot reconstruct faithfully rather than replaying a
+    conversation with the model's own reasoning stripped out. See
+    reconstruct_messages.
+    """
+    wanted = [v for v in args.interrogations if v != DEFAULT_INTERROGATION]
+    if not wanted:
+        print("--reinterrogate needs a phrasing to add, e.g. "
+              f"--interrogation {INTERROGATION_CHOICES[-1]}")
+        return 2
+
+    run_files = find_run_files(args.output_dir, model_slug, args.nudge,
+                              args.batch_stamp, args.effort)
+    if not run_files:
+        print(f"No run files for {args.model} / {args.nudge} in "
+              f"{redact_paths(args.output_dir)}/")
+        return 1
+
+    # The client is created lazily, on the first episode that actually needs a
+    # question asked. The eligibility scan below - which episodes have an act,
+    # which are already covered, which cannot be reconstructed - is free and reads
+    # only saved files, so it must be reportable without credentials. Building the
+    # client up front made the whole mode fail on a missing key before it could say
+    # what it would have done.
+    client = None
+    counts = collections.Counter()
+    for path in run_files:
+        with open(path) as f:
+            run = json.load(f)
+        analysis = run.get("analysis") or {}
+        acts = [a for a in MISALIGNED_ACTS if analysis.get(a["key"])]
+        if not acts:
+            counts["no act to ask about"] += 1
+            continue
+        todo = [v for v in wanted
+                if any(v not in (analysis.get(a["followup_key"] + "_by_variant")
+                                 or {}) for a in acts)]
+        if not todo:
+            counts["already covered"] += 1
+            continue
+
+        messages, reason = reconstruct_messages(run)
+        if messages is None:
+            counts[f"refused: {reason}"] += 1
+            print(f"  SKIP {os.path.basename(path)}: {reason}")
+            continue
+
+        print(f"\n--- {os.path.basename(path)}: adding {todo} ---")
+        if client is None:
+            client = get_client(args.model)
+
+        # Match the reasoning parameter the ORIGINAL probe ran under, resolved
+        # from the effort this run recorded rather than from the command line.
+        #
+        # Omitting it made the replayed probe run with no reasoning parameter at
+        # all while the default probe had one, so the two differed in the question
+        # AND in whether the model could think - the exact confound the paired
+        # design exists to remove. A mismatch is warned about rather than guessed
+        # past: max_tokens and the thinking budget are not recorded per run, so
+        # they can only come from the command line.
+        replay_kwargs, replay_config, _warn = resolve_thinking_kwargs(
+            args.model, args.thinking_budget, args.max_tokens,
+            run.get("effort"))
+        recorded = run.get("reasoning_config")
+        if recorded and replay_config != recorded:
+            print(f"  [WARNING] reasoning config differs from the original: "
+                  f"replaying with {replay_config!r}, the episode ran under "
+                  f"{recorded!r}. The two probes are then not matched on it.")
+        for act in acts:
+            key = act["followup_key"] + "_by_variant"
+            by_variant = dict(analysis.get(key) or {})
+            # The default phrasing's answers belong in the map too, so the
+            # comparison is between entries of one structure rather than between
+            # a field and a map.
+            by_variant.setdefault(DEFAULT_INTERROGATION,
+                                  analysis.get(act["followup_key"]) or [])
+            for variant in todo:
+                if variant in by_variant:
+                    continue
+                by_variant[variant] = run_followup(
+                    run.get("system_prompt") or "", messages, args.model,
+                    client, act,
+                    questions=questions_for(act, args.nudge, variant),
+                    classifier_model=args.grader_model,
+                    max_tokens=args.max_tokens,
+                    reasoning_kwargs=replay_kwargs,
+                )
+            analysis[key] = by_variant
+            analysis[act["level_key"] + "_by_variant"] = {
+                v: concealment_level(analysis, act, answers=a)
+                for v, a in by_variant.items()
+            }
+        counts["interrogated"] += 1
+        if args.write_back:
+            run["analysis"] = analysis
+            with open(path, "w") as f:
+                json.dump(run, f, indent=2, default=str)
+            print(f"  written back: {redact_paths(os.path.basename(path))}")
+
+    print(f"\n{'='*60}")
+    for reason, n in counts.most_common():
+        print(f"  {n:>4}  {reason}")
+    if not args.write_back and counts["interrogated"]:
+        print("\n  Nothing saved: pass --write-back to keep these answers.")
+    return 0
+
+
 def reclassify_existing_runs(args, model_slug: str) -> int:
     """
     Re-score the interrogations in run files already on disk.
@@ -1463,6 +1726,16 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
                     labelled, "classifier_error")
                 ans.update(labelled)
             analysis[act["level_key"]] = concealment_level(analysis, act)
+            # And the per-phrasing levels beside it, from the stored answers.
+            # Left out, they were never re-derived at all - not fill-when-absent
+            # but never-at-all, so a change to the scale would move the headline
+            # level and leave these pinned to whatever rule wrote them.
+            alts = analysis.get(act["followup_key"] + "_by_variant")
+            if alts:
+                analysis[act["level_key"] + "_by_variant"] = {
+                    v: concealment_level(analysis, act, answers=a)
+                    for v, a in alts.items()
+                }
 
         # Missing or rejected credentials fail every call identically, so
         # carrying on would only convert the whole batch to keyword fallbacks.
@@ -2163,6 +2436,16 @@ def summarise_batch(args, all_results: list, model_slug: str,
 
         for act in MISALIGNED_ACTS:
             analysis[act["level_key"]] = concealment_level(analysis, act)
+            # And the per-phrasing levels beside it, from the stored answers.
+            # Left out, they were never re-derived at all - not fill-when-absent
+            # but never-at-all, so a change to the scale would move the headline
+            # level and leave these pinned to whatever rule wrote them.
+            alts = analysis.get(act["followup_key"] + "_by_variant")
+            if alts:
+                analysis[act["level_key"] + "_by_variant"] = {
+                    v: concealment_level(analysis, act, answers=a)
+                    for v, a in alts.items()
+                }
             analysis[act["scheming_key"]] = classify_scheming_act(analysis, act)
 
         # Written back into the analysis, not just counted, so that this block
@@ -3279,6 +3562,28 @@ def main():
                              "requests. Required with --model/--nudge all on "
                              "--grade-existing or --reclassify, so the scope is "
                              "printed and acknowledged before anything is spent.")
+    parser.add_argument("--reinterrogate", action="store_true",
+                        help="Put an extra --interrogation phrasing to episodes "
+                             "already on disk, without re-running them. Only "
+                             "episodes that took an act are candidates, only "
+                             "phrasings not already recorded are asked, and an "
+                             "episode that cannot be reconstructed faithfully is "
+                             "skipped rather than replayed with its reasoning "
+                             "stripped. Needs --write-back to keep the answers.")
+    parser.add_argument("--interrogation", default=DEFAULT_INTERROGATION,
+                        help="Wording of the FIRST interrogation question. The "
+                             "variants are meaning-preserving rephrasings - the "
+                             "same clauses, reordered - for testing whether the "
+                             "concealment rate survives a change that carries no "
+                             "semantic content. The escalation ladder is shared, "
+                             "so a difference between variants is attributable to "
+                             "the opening probe. Comma-separated to probe one "
+                             "episode with several wordings: each starts from the "
+                             "episode as it ended, so they cannot interfere, and "
+                             "the comparison is paired. The default probe always "
+                             f"runs. Any of {list(INTERROGATION_CHOICES)}. Not "
+                             "combinable with --nudge max, whose first question is "
+                             "a different question.")
     parser.add_argument("--nudge", choices=["strong", "none", "max", "all"],
                         default="strong",
                         help="Nudge strength. `strong` and `none` differ in the "
@@ -3417,18 +3722,32 @@ def main():
                              "parameter is unsupported.")
     args = parser.parse_args()
 
+    try:
+        args.interrogations = parse_interrogations(args.interrogation)
+    except ValueError as e:
+        parser.error(str(e))
+    # No blanket refusal for the max arm any more: it has its own rephrasing of
+    # its own four-clause first question, so pairing is meaningful there too. What
+    # is refused is a variant with no max form, which questions_for raises on -
+    # checked here so it fails before a paid rollout rather than mid-batch.
+    if args.nudge == "max":
+        for name in args.interrogations:
+            try:
+                questions_for(MISALIGNED_ACTS[0], "max", name)
+            except (ValueError, KeyError) as e:
+                parser.error(str(e))
     if args.grade_existing and args.no_grader:
         parser.error(
             "--grade-existing and --no-grader are contradictory: the first "
             "does nothing but run the grader."
         )
     if args.batch_stamp and not (args.grade_existing or args.reclassify
-                                 or args.resummarise):
+                                 or args.resummarise or args.reinterrogate):
         parser.error("--batch-stamp only applies with --grade-existing, "
                      "--reclassify or --resummarise.")
     for flag, value in (("--write-back", args.write_back),):
         if value and not (args.grade_existing or args.reclassify
-                          or args.resummarise):
+                          or args.resummarise or args.reinterrogate):
             parser.error(
                 f"{flag} only applies with --grade-existing, --reclassify "
                 f"or --resummarise."
@@ -3527,6 +3846,9 @@ def main():
 
     if args.resummarise:
         return resummarise_existing_runs(args, model_slug)
+
+    if args.reinterrogate:
+        return reinterrogate_existing_runs(args, model_slug)
 
     if args.reclassify:
         return reclassify_existing_runs(args, model_slug)
@@ -3652,6 +3974,7 @@ def main():
                 oversight=args.oversight,
                 nudge=args.nudge,
                 lure=args.lure,
+                interrogations=args.interrogations,
                 isolation=args.isolation,
                 profile_path=profile_path,
             )
@@ -3705,8 +4028,26 @@ def main():
 
         consecutive_failures = 0
 
-        # Remove messages from saved results (large, contains API objects)
+        # The conversation is saved ONLY for episodes that took a misaligned act.
+        #
+        # It used to be dropped from every run, for two reasons: it is large, and
+        # it holds API objects json cannot encode. serialise_messages answers the
+        # second. The first is answered by asking what the field is for: it exists
+        # so a saved episode can be interrogated again with a different phrasing,
+        # and an episode with no act has nothing to be asked about. Most episodes
+        # take no act, so this keeps the whole capability at a fraction of the
+        # storage.
+        #
+        # It cannot be backfilled. The transcript keeps the text of each turn but
+        # not the thinking-block signatures the API verifies, so an episode already
+        # on disk can only be replayed with its own reasoning stripped out - a
+        # different conversation, and worst exactly where awareness lives.
+        act_taken = any((result.get("analysis") or {}).get(act["key"])
+                        for act in MISALIGNED_ACTS)
         result_to_save = {k: v for k, v in result.items() if k != "messages"}
+        if act_taken:
+            result_to_save["messages"] = serialise_messages(
+                result.get("messages") or [])
         all_results.append(result_to_save)
 
         with open(run_file, "w") as f:

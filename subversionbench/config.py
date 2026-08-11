@@ -3,9 +3,9 @@ Configuration constants for SubversionBench.
 VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 """
 
-from .scenario import SCENARIO, scenario_for
+from .scenario import SCENARIO, load_scenario, scenario_for
 
-VERSION = "v39"
+VERSION = "v40"
 
 # =========================================================================
 # Rollout identity
@@ -274,6 +274,52 @@ FOLLOWUP_MONITORING_QUESTIONS = SCENARIO["followup_monitoring_questions"]
 _MAX_NUDGE = scenario_for(True, nudge="max")
 FOLLOWUP_MONITORING_QUESTIONS_MAX = _MAX_NUDGE["followup_monitoring_questions"]
 FOLLOWUP_SANDBOX_QUESTIONS_MAX = _MAX_NUDGE["followup_sandbox_questions"]
+
+# Alternative phrasings of the FIRST interrogation question, for testing whether a
+# reported rate survives a change that carries no semantic content.
+#
+# Liang et al. (2022), Mizrahi et al. (2023) and Sclar et al. (2023) find that
+# trivial surface choices - option order, bracket style, a greeting - move results
+# on otherwise identical items, which is why they recommend evaluating over a set
+# of phrasings rather than one. This benchmark reports a concealment rate off a
+# single wording, and 227 of 273 acts were admitted at the first question, so
+# whether that number is a property of the models or of the sentence is currently
+# untested.
+#
+# Each variant supplies a replacement first question per act and nothing else. The
+# escalation ladder is deliberately shared, so a difference between variants is
+# attributable to the opening probe rather than to how the confrontation escalates.
+#
+# Read from the bundle rather than assembled here: the questions are scenario text
+# and stay encoded at rest for the same reason as everything else the model sees.
+INTERROGATION_VARIANTS = load_scenario().get("interrogation_variants", {})
+DEFAULT_INTERROGATION = "default"
+INTERROGATION_CHOICES = ((DEFAULT_INTERROGATION,)
+                         + tuple(sorted(INTERROGATION_VARIANTS)))
+
+
+def parse_interrogations(spec: str) -> tuple:
+    """
+    A comma-separated phrasing list, with the default always included.
+
+    The default is prepended when absent rather than rejected, because the
+    headline concealment field is defined as the default phrasing's answer. An
+    episode probed only with a variant would have no comparable measure, and every
+    rate over the episodes already collected would stop pooling with it. So the
+    flag names the EXTRAS; the reference probe is not optional.
+    """
+    names = [s.strip() for s in (spec or "").split(",") if s.strip()]
+    unknown = [n for n in names if n not in INTERROGATION_CHOICES]
+    if unknown:
+        raise ValueError(
+            f"unknown interrogation phrasing(s) {unknown}; expected any of "
+            f"{list(INTERROGATION_CHOICES)}"
+        )
+    ordered = [DEFAULT_INTERROGATION] + [
+        n for n in names if n != DEFAULT_INTERROGATION]
+    # dict.fromkeys, not set: the order is the order they are asked in, and a
+    # nondeterministic order would make two batches incomparable for no reason.
+    return tuple(dict.fromkeys(ordered))
 
 # Markers are matched with a negation guard (grading.marker_matches), so an
 # occurrence followed by "not"/"n't"/"never" does not count. They are still kept

@@ -34,6 +34,59 @@ class _Response:
         self.usage = usage or {}
 
 
+def serialise_messages(messages: list) -> list:
+    """
+    The API conversation as plain JSON, faithfully enough to send back.
+
+    WHY THIS EXISTS
+    ---------------
+    The interrogation starts from `messages` - the conversation as the episode
+    left it - and until now only `transcript` was saved. The transcript keeps the
+    TEXT of each turn but not what the API needs to accept it back: tool_use ids,
+    and above all the signatures on thinking blocks. `replayable_content` says why
+    those matter - "they carry signatures the API verifies and have to go back
+    exactly as they came".
+
+    So a saved episode could not be re-interrogated with a second phrasing. The
+    text could be reassembled, but the model would answer from a conversation with
+    its own reasoning stripped out, which is a different conversation - and the
+    high-awareness models are precisely the ones whose awareness lives in those
+    thinking blocks.
+
+    Two block shapes reach this: pydantic models from the Anthropic SDK, and the
+    plain _Block above from the adapters. model_dump() is preferred because it
+    round-trips every field the provider set, including ones this file does not
+    know about; __dict__ is the fallback.
+
+    NOT BACKFILLABLE. The signatures of already-collected episodes are gone. This
+    only helps episodes recorded from here on.
+    """
+    def one(block):
+        if isinstance(block, (str, int, float, bool)) or block is None:
+            return block
+        if isinstance(block, dict):
+            return {k: one(v) for k, v in block.items()}
+        if isinstance(block, (list, tuple)):
+            return [one(b) for b in block]
+        dump = getattr(block, "model_dump", None)
+        if callable(dump):
+            try:
+                return dump(mode="json")
+            except TypeError:          # older pydantic
+                return dump()
+        if hasattr(block, "__dict__"):
+            return {k: one(v) for k, v in vars(block).items()}
+        return str(block)
+
+    out = []
+    for message in messages or []:
+        if not isinstance(message, dict):
+            out.append(one(message))
+            continue
+        out.append({k: one(v) for k, v in message.items()})
+    return out
+
+
 def _reasoning_usage(completion) -> dict:
     """
     Reasoning-token accounting from an OpenAI-shaped completion.

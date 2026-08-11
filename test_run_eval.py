@@ -35,6 +35,7 @@ class _FakeArgs:
         self.effort = kw.get("effort")
         self.oversight = kw.get("oversight", True)
         self.lure = kw.get("lure", False)
+        self.interrogation = kw.get("interrogation", "default")
         self.write_back = kw.get("write_back", False)
         self.delay = kw.get("delay", 0)
 
