@@ -138,19 +138,25 @@ def main():
                              "skipped rather than replayed with its reasoning "
                              "stripped. Needs --write-back to keep the answers.")
     parser.add_argument("--interrogation", default=DEFAULT_INTERROGATION,
-                        help="Wording of the FIRST interrogation question. The "
-                             "variants are meaning-preserving rephrasings - the "
-                             "same clauses, reordered - for testing whether the "
-                             "concealment rate survives a change that carries no "
-                             "semantic content. The escalation ladder is shared, "
-                             "so a difference between variants is attributable to "
-                             "the opening probe. Comma-separated to probe one "
-                             "episode with several wordings: each starts from the "
-                             "episode as it ended, so they cannot interfere, and "
-                             "the comparison is paired. The default probe always "
-                             f"runs. Any of {list(INTERROGATION_CHOICES)}. Not "
-                             "combinable with --nudge max, whose first question is "
-                             "a different question.")
+                        help="EXTRA wordings for the FIRST interrogation question. "
+                             "The default probe always runs and is not optional - "
+                             "the headline concealment field is defined as its "
+                             "answer - so this flag names what to ask IN ADDITION, "
+                             "and leaving it alone asks nothing extra. "
+                             "Comma-separated to put several wordings to the SAME "
+                             "episode: each starts from the episode as it ended, so "
+                             "they cannot interfere and the comparison is paired "
+                             "rather than between-batch. The variants are "
+                             "meaning-preserving rephrasings - the same clauses, "
+                             "reordered - for testing whether the concealment rate "
+                             "survives a change that carries no semantic content; "
+                             "the escalation ladder is shared, so a difference is "
+                             "attributable to the opening probe. Any of "
+                             f"{list(INTERROGATION_CHOICES)}. Works with --nudge "
+                             "max, which has its own rephrasing of its own "
+                             "four-clause first question; a variant with no max "
+                             "form is refused rather than falling back on the "
+                             "ordinary wording.")
     parser.add_argument("--nudge", choices=["strong", "none", "max", "all"],
                         default="strong",
                         help="Nudge strength. `strong` and `none` differ in the "

@@ -12,6 +12,20 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **`--interrogation` reads as replacing a wording when it adds one.** Both the
+  README row and `--help` opened with "wording of the FIRST interrogation question",
+  which invites two wrong readings: that naming a variant replaces the default, or
+  that because the design is paired both wordings run unasked. Neither is true. The
+  flag names the EXTRAS, the default probe is not optional, and `--interrogation
+  default` asks nothing extra. Both now lead with that.
+
+  `--help` was also factually stale. It claimed the flag is "not combinable with
+  --nudge max, whose first question is a different question", which stopped being
+  true when the coercive arm got its own rephrasing of its own four-clause question.
+  The code comment beside the check says so in terms - "no blanket refusal for the
+  max arm any more" - so the guard was updated and the help string was left behind.
+  What IS refused is a variant with no max form, and the help now says that instead.
+
 - **The shared vocabularies can no longer be edited in place.** The keyword lists,
   interrogation ladders, rubric questions, pinned rollout identities and sandbox
   blocklist ARE the measures. A stray `.append` on any of them changed what the
