@@ -38,23 +38,31 @@ STUBBED = {
     "detect_misrepresentation": "subversionbench.grading",
 }
 
-# Modules that call them, and must do so module-qualified.
-CALLERS = ("subversionbench.run_eval",)
+# Modules that call them, and must do so module-qualified. episode.py is here
+# because it is where the API-touching code went: run_evaluation and run_followup
+# resolve four of these five, and the whole point of the conversion was that moving
+# them would not break a single patch.
+CALLERS = ("subversionbench.run_eval", "subversionbench.episode")
 
 
-def _run_eval_aliases(tree):
-    """Names in one test module that are bound to subversionbench.run_eval."""
+def _caller_aliases(tree):
+    """Names in one test module bound to a module that only CALLS these.
+
+    Those are the wrong place to patch, whether they reach the name by calling it
+    or by re-exporting it, so the same list serves both checks.
+    """
     aliases = set()
+    short = {m.rsplit(".", 1)[1] for m in CALLERS}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for a in node.names:
-                if a.name == "subversionbench.run_eval":
+                if a.name in CALLERS:
                     aliases.add(a.asname or "subversionbench")
         elif isinstance(node, ast.ImportFrom):
             if node.module in ("subversionbench", "subversionbench."):
                 for a in node.names:
-                    if a.name == "run_eval":
-                        aliases.add(a.asname or "run_eval")
+                    if a.name in short:
+                        aliases.add(a.asname or a.name)
     return aliases
 
 
@@ -94,7 +102,7 @@ class TestTheCallersResolveAtCallTime:
 
 
 class TestNoTestPatchesTheWrongModule:
-    def test_nothing_stubs_through_a_run_eval_alias(self):
+    def test_nothing_stubs_through_a_calling_module(self):
         """The regression this file exists for.
 
         Patching a re-exporting module works by accident and breaks by accident.
@@ -106,7 +114,7 @@ class TestNoTestPatchesTheWrongModule:
             if path == "test_stub_points.py":
                 continue
             tree = ast.parse(open(path).read())
-            aliases = _run_eval_aliases(tree)
+            aliases = _caller_aliases(tree)
             if not aliases:
                 continue
             for node in ast.walk(tree):

@@ -13,6 +13,27 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **The episode loop moves to `episode.py`.** The agentic loop, the interrogation
+  that follows it, and the per-episode grading between - 809 lines, and the layer
+  that SPENDS. `reporting/facts.py` is pure and `reporting/console.py` only prints;
+  this is where the API calls live, which is the line worth drawing between them.
+
+  This is the move step 0 existed for. Four of the five stubbed dependencies are
+  resolved by `run_evaluation` and `run_followup`, so before the conversion this
+  would have silently detached twelve patches and sent the test suite at the real
+  API. After it, not one patch changed: they name `subversionbench.llm_client` and
+  `subversionbench.grading`, and the module object `episode.py` looks the name up on
+  is the same object. Verified directly rather than inferred - patching
+  `grading.detect_disclosure` is observable from inside `episode.py`.
+
+  The extraction also reunited `_CACHE_BREAKPOINTS` with the comment explaining it,
+  which had drifted about sixty lines away with an unrelated constant between them.
+
+  `run_eval.py` is 1531 lines, from 4057. What is left is the CLI, the batch loop,
+  and the four read-only modes. 5041 summary fields unchanged, all 71 reports
+  byte-identical, read modes select identical files, and a full episode still runs
+  end to end through the loop with a stubbed client.
+
 - **Three more moves, each putting a function beside its inverse.**
   `reconstruct_messages` joins `serialise_messages` in `blocks.py`;
   `find_run_files` and `discover_batches` join the naming they search against in

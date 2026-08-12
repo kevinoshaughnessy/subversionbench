@@ -233,6 +233,8 @@ subversionbench/
     quote_grounding.py     did the grader cite the agent, or the memo
     transcript_analysis.py what the episode did, hashes and commands
     transient_tampering.py the subversion an end-state hash cannot see
+  episode.py       one episode end to end: the agentic loop, the interrogation
+                   that follows it, and the per-episode grading between
   batch.py         what names a batch, reading that name back, and finding it
   compare.py       differencing two arms of the counterfactual
   reporting/       a batch of episodes to figures, a report and a summary
