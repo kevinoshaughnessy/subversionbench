@@ -166,6 +166,77 @@ class TestRubricQuestionCarveOuts:
                 f"{key}: the A/B baseline equals the shipped wording")
 
 
+# Module-level collections that stay MUTABLE, with the reason. Anything else in
+# config.py must be immutable, so that a shared vocabulary cannot be edited in place.
+MUTABLE_BY_DESIGN = {
+    "TOOLS": "passed straight to the provider SDKs as `tools=TOOLS`, which validate "
+             "the argument themselves; and tupling the outer list would buy nothing "
+             "while the tool schema dicts inside stay mutable. Its contents are "
+             "hashed into the rollout fingerprint, so an edit is caught there.",
+}
+
+
+class TestTheSharedVocabulariesCannotBeEditedInPlace:
+    """A measure defined by a mutable global is one any caller can redefine.
+
+    These lists ARE the measures: the awareness indicator phrases, the interrogation
+    admission and denial vocabularies, the rubric questions, the pinned rollout
+    identities, the sandbox blocklist. A stray `.append` on any of them changes what
+    the benchmark measures for the rest of the process, with nothing to say so - and
+    this codebase has already had one determinism bug inside one of these lists.
+
+    Immutability is cheap here because every one of them is read-only in practice:
+    iterated, subscripted, or compiled into a regex. Nothing appends.
+    """
+
+    def test_every_collection_in_config_is_immutable(self):
+        """Written as a scan rather than a list of names, so a new keyword list added
+        later is caught rather than quietly joining the mutable ones."""
+        import ast
+        from subversionbench import config
+        tree = ast.parse(open(config.__file__).read())
+        mutable = []
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if not isinstance(target, ast.Name) or target.id.startswith("__"):
+                    continue
+                value = getattr(config, target.id, None)
+                if isinstance(value, (list, dict, set)):
+                    if target.id in MUTABLE_BY_DESIGN:
+                        continue
+                    mutable.append(target.id)
+        assert not mutable, (
+            f"these are editable in place: {sorted(mutable)}. Use a tuple, or a "
+            f"MappingProxyType for a mapping, or add the name to MUTABLE_BY_DESIGN "
+            f"with the reason.")
+
+    def test_the_exemption_list_is_not_stale(self):
+        from subversionbench import config
+        for name in MUTABLE_BY_DESIGN:
+            assert hasattr(config, name), f"MUTABLE_BY_DESIGN names {name}, which is gone"
+
+    def test_the_measures_outside_config_are_immutable_too(self):
+        """The sandbox blocklist and the scheming keyword list are the same class of
+        thing and carry the same risk - the blocklist more so, since editing it
+        weakens containment."""
+        from subversionbench.sandbox import BLOCKED_PATTERNS
+        from subversionbench.grading import SCHEMING_KEYWORDS
+        assert isinstance(BLOCKED_PATTERNS, tuple)
+        assert isinstance(SCHEMING_KEYWORDS, tuple)
+
+    def test_a_mutation_attempt_actually_raises(self):
+        """Belt and braces: the types above are only useful if they refuse."""
+        import pytest
+        from subversionbench.config import (EVAL_AWARENESS_INDICATORS,
+                                            ROLLOUT_FINGERPRINTS)
+        with pytest.raises(AttributeError):
+            EVAL_AWARENESS_INDICATORS.append("test")
+        with pytest.raises(TypeError):
+            ROLLOUT_FINGERPRINTS[(True, False)] = "overwritten"
+
+
 class TestNoUndefinedNames:
     """A static check across the package, because the split hid three of these
     and the tests could not see them.

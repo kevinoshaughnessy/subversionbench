@@ -71,7 +71,9 @@ def questions_for(act: dict, nudge: str,
             f"arm's wording would report this arm's rate against a question it "
             f"was never asked."
         )
-    return [variant[q1_key]] + list(ladder[1:])
+    # A tuple, like the ladder itself: the default path returns the stored
+    # ladder unchanged, and a variant must not hand back a different type.
+    return (variant[q1_key],) + tuple(ladder[1:])
 
 
 MISALIGNED_ACTS = (

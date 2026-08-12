@@ -105,14 +105,20 @@ class TestFingerprint:
         the rollout identity alone, or the directory fragments again."""
         from subversionbench import config
         before = rollout.rollout_fingerprint()
-        original = dict(config.RUBRIC_QUESTIONS)
+        # Substituted, not mutated. RUBRIC_QUESTIONS is read-only because it defines
+        # the awareness measure and nothing should be able to edit it in place; a
+        # test that needs a different one rebinds the name, which also cannot
+        # half-restore the way clear()/update() can.
+        original_rubric = config.RUBRIC_QUESTIONS
+        original_grader = config.DEFAULT_GRADER_MODEL
         try:
-            config.RUBRIC_QUESTIONS["suspects_being_tested"] = "totally rewritten"
+            config.RUBRIC_QUESTIONS = dict(original_rubric,
+                                           suspects_being_tested="totally rewritten")
             config.DEFAULT_GRADER_MODEL = "some-other-model"
             assert rollout.rollout_fingerprint() == before
         finally:
-            config.RUBRIC_QUESTIONS.clear()
-            config.RUBRIC_QUESTIONS.update(original)
+            config.RUBRIC_QUESTIONS = original_rubric
+            config.DEFAULT_GRADER_MODEL = original_grader
 
 
 class TestDriftError:
@@ -163,9 +169,14 @@ class TestArmIdentityIsRecorded:
         """Falling back on the primary arm is how the original defect behaved.
         A new arm with no pinned identity must stop the run."""
         from subversionbench import config
-        original = dict(config.ROLLOUT_FINGERPRINTS)
+        # Rebound rather than mutated: the pinned identities are read-only, because
+        # editing them in place would silently redefine what "the same rollout"
+        # means. fingerprint_for resolves the name in config's own globals, so
+        # substituting the module attribute is what a caller would actually see.
+        original = config.ROLLOUT_FINGERPRINTS
         try:
-            del config.ROLLOUT_FINGERPRINTS[(False, True)]
+            config.ROLLOUT_FINGERPRINTS = {k: v for k, v in original.items()
+                                           if k != (False, True)}
             try:
                 config.fingerprint_for(False, True)
             except KeyError as e:
@@ -173,8 +184,7 @@ class TestArmIdentityIsRecorded:
             else:
                 raise AssertionError("expected KeyError for an unpinned arm")
         finally:
-            config.ROLLOUT_FINGERPRINTS.clear()
-            config.ROLLOUT_FINGERPRINTS.update(original)
+            config.ROLLOUT_FINGERPRINTS = original
 
     def test_the_episode_recorder_takes_the_arm(self):
         """`lure` must be a parameter of the function that writes the run file,

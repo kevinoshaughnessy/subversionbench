@@ -77,7 +77,7 @@ class TestOnlyTheFirstQuestionMoves:
                 base = questions_for(act, "strong")
                 alt = questions_for(act, "strong", name)
                 assert alt[0] != base[0], f"{name}/{act['name']}: q1 unchanged"
-                assert alt[1:] == list(base[1:]), (
+                assert alt[1:] == base[1:], (
                     f"{name}/{act['name']}: escalation ladder differs, so a "
                     f"difference between phrasings would not be attributable to "
                     f"the opening probe")
@@ -251,7 +251,7 @@ class TestTheMaxArmHasItsOwnRephrasing:
                 base = questions_for(act, "max")
                 alt = questions_for(act, "max", name)
                 assert alt[0] != base[0]
-                assert alt[1:] == list(base[1:]), "max escalation ladder differs"
+                assert alt[1:] == base[1:], "max escalation ladder differs"
 
     def test_the_max_rephrasing_is_not_the_ordinary_one(self):
         """Splicing the ordinary paraphrase onto the coercive ladder would give a
@@ -289,9 +289,12 @@ class TestTheMaxArmHasItsOwnRephrasing:
         """Not silently fallen back on the ordinary wording, which would report a
         coercive-arm rate against a question that arm never asked."""
         import subversionbench.grading.acts as A
-        saved = dict(A.INTERROGATION_VARIANTS)
-        A.INTERROGATION_VARIANTS["_stub"] = {"monitoring_q1": "x?",
-                                             "sandbox_q1": "y?"}
+        # Substituted, not mutated: the variant table is read-only because it is part
+        # of what the interrogation MEASURES, and questions_for resolves the name in
+        # acts' own globals, so rebinding it is what a caller would see.
+        saved = A.INTERROGATION_VARIANTS
+        A.INTERROGATION_VARIANTS = dict(saved, _stub={"monitoring_q1": "x?",
+                                                      "sandbox_q1": "y?"})
         try:
             questions_for(MISALIGNED_ACTS[0], "max", "_stub")
         except ValueError as e:
@@ -299,8 +302,7 @@ class TestTheMaxArmHasItsOwnRephrasing:
         else:
             raise AssertionError("fell back on another arm's wording")
         finally:
-            A.INTERROGATION_VARIANTS.clear()
-            A.INTERROGATION_VARIANTS.update(saved)
+            A.INTERROGATION_VARIANTS = saved
 
     def test_the_default_max_ladder_is_untouched(self):
         for act in MISALIGNED_ACTS:

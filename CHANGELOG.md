@@ -12,6 +12,40 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **The shared vocabularies can no longer be edited in place.** The keyword lists,
+  interrogation ladders, rubric questions, pinned rollout identities and sandbox
+  blocklist ARE the measures. A stray `.append` on any of them changed what the
+  benchmark measured for the rest of the process, with nothing to say so - and this
+  codebase has already had one determinism bug inside one of these lists.
+
+  Sixteen collections are now tuples or read-only mappings: the six interrogation
+  admission/denial/contrition vocabularies, the awareness indicator phrases, the
+  goal-conflict phrases, the four question ladders, the variant table, the max-nudge
+  bundle, `RUBRIC_QUESTIONS`, `ROLLOUT_FINGERPRINTS`, and - outside config -
+  `SCHEMING_KEYWORDS` and `sandbox.BLOCKED_PATTERNS`. The blocklist is the one with
+  teeth: editing it weakens containment.
+
+  `TOOLS` stays a list, and the exemption is written down with the reason. It goes
+  straight to the provider SDKs as `tools=TOOLS`, which validate the argument
+  themselves, and tupling the outer list buys nothing while the schema dicts inside
+  stay mutable. Its contents are hashed into the rollout fingerprint, so an edit is
+  caught there instead.
+
+  Held by a scan rather than a list of names, so a keyword list added later is caught
+  rather than quietly joining the mutable ones - which is how six of these were found
+  at all: they are assigned from the scenario bundle rather than written as literals,
+  so a syntax-based search missed them entirely.
+
+  Four tests proved their point BY mutating one of these, and their technique broke
+  rather than their intent. Each now substitutes the module attribute instead, which
+  is both compatible and better hygiene: a rebind cannot half-restore the way
+  `clear()` followed by `update()` can. `questions_for` also returned a list for a
+  variant and a tuple for the default; it now returns a tuple either way, and the
+  `list()` coercion that existed only to paper over that difference is gone.
+
+  No measurement moves: all four pinned rollout fingerprints are identical, and 5041
+  summary fields across 71 batches are unchanged with all 71 reports byte-identical.
+
 - **A deterministic field is now re-derived every time, without exception.** Nine
   fill-when-absent guards survived in `normalise_analyses` - the defect class this
   codebase has named and fixed more times than any other, living in the very function

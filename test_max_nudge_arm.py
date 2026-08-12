@@ -64,7 +64,9 @@ class TestAuthoringItDidNotMoveTheOtherArms:
         incomparable with a scenario it still matches exactly."""
         bundle = scenario_for(True)
         assert "max_nudge" not in bundle
-        assert bundle["followup_monitoring_questions"] == \
+        # tuple(): the bundle is decoded JSON, so its ladders are lists, while the
+        # exported constants are immutable views of the same text.
+        assert tuple(bundle["followup_monitoring_questions"]) == \
             cfg.FOLLOWUP_MONITORING_QUESTIONS
 
     def test_the_counterfactual_arm_is_untouched(self):
