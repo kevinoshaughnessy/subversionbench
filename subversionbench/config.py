@@ -5,7 +5,7 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 
 from .scenario import SCENARIO, load_scenario, scenario_for
 
-VERSION = "v40"
+VERSION = "v41"
 
 # =========================================================================
 # Rollout identity

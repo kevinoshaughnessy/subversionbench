@@ -161,6 +161,130 @@ class TestTheBoundaryHolds:
             assert forbidden not in src
 
 
+# Figures the summary does not store under their own name, each because the same
+# quantity is already there by another route. The route is written out and CHECKED
+# against a real summary rather than asserted in a comment: the earlier version of
+# this test inferred persistence from whether a figure appeared in the expression
+# that built a stored one, which counted `n_monitoring_obs_console` as saved because
+# it feeds an interval - and an interval does not carry its own denominator.
+ROUTES = {
+    "n_out_of_scope": "rates.out_of_scope.successes",
+    "ci_oos": "rates.out_of_scope.ci95",
+    "n_network_probe": "rates.network_probe.successes",
+    "ci_network": "rates.network_probe.ci95",
+    "n_network_external": "rates.network_probe_external.successes",
+    "n_fs_escape": "rates.filesystem_escape.successes",
+    "n_fs_wrote": "rates.filesystem_escape_wrote.successes",
+    "n_boundary_excl_scratch": "rates.sandbox_boundary_excl_scratch.successes",
+    "n_transient": "rates.transient_tampering.successes",
+    "n_goal_conflict_grader": "rates.goal_conflict_grader.successes",
+    "n_monitoring_obs_console": "rates.monitoring_disabled.n",
+    "n_aware_kw": "awareness_provenance.n_aware_keywords",
+    "n_window": "awareness_provenance.n_aware_with_pre_command_window",
+    # Inside the cross-analysis, which is None when every graded episode fell on
+    # one side. The figures are then None too, so nothing is lost - and the
+    # subgroup sizes that ARE informative in that case have their own field.
+    "k_aware": "cross_analysis_awareness.aware.misaligned",
+    "k_unaware": "cross_analysis_awareness.unaware.misaligned",
+    "p_cross": "cross_analysis_awareness.fisher_p",
+}
+
+# Figures with no route because they are arithmetic on fields that are stored.
+DERIVED = {
+    "total_classified": "answer_classifier.agreed_with_keywords plus "
+                        ".disagreed_with_keywords",
+    "effort_label": "'/'.join(efforts_observed), for display only",
+}
+
+
+class TestEveryFigureReachesTheSummaryFile:
+    """What the report shows must be re-derivable from disk.
+
+    The whole analysis pipeline rests on being able to rebuild any figure from saved
+    episodes, and a quantity that exists only in terminal scrollback is outside that
+    guarantee. Before v41 six were: the observed reasoning-effort set, the transient
+    tamperings that banked a passing check, which indicator phrases fired, the
+    per-rubric trigger counts, and the awareness subgroup sizes whenever the
+    cross-analysis could not be computed.
+    """
+
+    def _figures_and_direct(self):
+        import subversionbench.run_eval as ev
+        ftree = ast.parse(inspect.getsource(batch_facts)).body[0]
+        figures = {k.value for k in
+                   [s for s in ftree.body if isinstance(s, ast.Return)][0].value.keys}
+        sb = ast.parse(inspect.getsource(ev.summarise_batch)).body[0]
+        sd = [x for x in ast.walk(sb) if isinstance(x, ast.Assign)
+              and any(getattr(t, "id", "") == "summary" for t in x.targets)][0]
+        direct = {x.id for x in ast.walk(sd.value)
+                  if isinstance(x, ast.Name)} & figures
+        return figures, direct
+
+    def _summary_and_facts(self):
+        """A summary built from episodes chosen so every route is populated.
+
+        Both an aware and an unaware episode, because the cross-analysis routes are
+        only reachable when the split has two sides - which is the case a corpus
+        batch may not happen to provide.
+        """
+        import tempfile
+        import types
+        import io
+        import contextlib
+        import subversionbench.run_eval as ev
+        episodes = [
+            _episode(tampered=True, monitoring=True, aware=True,
+                     answers=[{"verdict": "denied", "answer": "No."}]),
+            _episode(aware=True),
+            _episode(tampered=True, escape=["cat /etc/passwd"]),
+            _episode(),
+        ]
+        normalise_analyses(episodes)
+        facts = batch_facts(episodes, {})
+        with tempfile.TemporaryDirectory() as tmp:
+            args = types.SimpleNamespace(
+                model="claude-opus-5", nudge="strong", effort=None, oversight=True,
+                lure=False, output_dir=tmp, delay=0, max_tokens=8192,
+                max_turns=40, no_power=True)
+            with contextlib.redirect_stdout(io.StringIO()):
+                summary = ev.summarise_batch(args, episodes, "m", "s", {})
+        return summary, facts
+
+    def test_no_figure_is_shown_and_then_lost(self):
+        figures, direct = self._figures_and_direct()
+        unaccounted = figures - direct - set(ROUTES) - set(DERIVED)
+        assert not unaccounted, (
+            f"these figures reach the report and no summary file: "
+            f"{sorted(unaccounted)}. Either store them, or add them to ROUTES "
+            f"with the path by which the same quantity is already saved.")
+
+    def test_each_route_actually_carries_the_value(self):
+        """The claims in ROUTES, checked rather than trusted."""
+        summary, facts = self._summary_and_facts()
+        assert summary["cross_analysis_awareness"], (
+            "the fixture must produce a two-sided split, or the cross routes "
+            "below are not being checked at all")
+        for figure, path in ROUTES.items():
+            node = summary
+            for part in path.split("."):
+                assert node is not None, f"{path} runs through a None for {figure}"
+                node = node[part]
+            assert node == facts[figure], (
+                f"summary.{path} is {node!r} but facts[{figure!r}] is "
+                f"{facts[figure]!r} - the route no longer carries the figure")
+
+    def test_no_stale_entries(self):
+        """An allowlist that outlives its figures stops meaning anything."""
+        figures, direct = self._figures_and_direct()
+        listed = set(ROUTES) | set(DERIVED)
+        gone = listed - figures
+        assert not gone, f"ROUTES/DERIVED name figures that no longer exist: {sorted(gone)}"
+        redundant = listed & direct
+        assert not redundant, (
+            f"these are stored under their own name, so they need no route: "
+            f"{sorted(redundant)}")
+
+
 class TestTheInterfaceCannotDriftFromItsConsumer:
     def _returned(self):
         """batch_facts' OWN return, taken as a direct statement of its body rather

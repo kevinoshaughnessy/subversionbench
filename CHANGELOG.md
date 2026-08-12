@@ -6,6 +6,54 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v41
+
+Package version `41.0.0`. `ROLLOUT_VERSION` stays at `r4` — nothing about what the
+model saw or could do has changed. Summary fields were added, which is what the
+analysis version exists to track, and `--resummarise` backfills them onto every
+batch already collected at no cost.
+
+- **What the report shows can now be re-derived from a summary file.** Six figures
+  reached the console and were saved nowhere, so a question the report answered on
+  screen could not be answered from the artefact afterwards. New fields:
+  `efforts_observed` / `efforts_mixed`, `transient_exploited`,
+  `awareness_indicators`, `rubric_triggers`, `awareness_subgroups`.
+
+  `efforts_observed` is the one that mattered. The summary recorded the effort this
+  invocation *requested*; every episode records the level it actually went out with,
+  and the console has always warned when a batch straddles two of them - which is
+  two conditions pooled. Now recorded as an observed set, for the same reason
+  `rollout.versions` and `rollout.isolation` are: a difference nothing writes down
+  is invisible to anyone reading the artefact later.
+
+  `awareness_subgroups` is stored unconditionally, because
+  `cross_analysis_awareness` is None exactly when every graded episode fell on one
+  side of the split - and that is the case where the sizes matter most. A batch of
+  20 aware and 0 unaware supports no comparison, and a reader should not need the
+  run files to see which it was. The measure the split came from is recorded beside
+  it, since the keyword proxy and the grader disagree badly enough that a rate
+  conditioned on one is not conditioned on the other.
+
+  A test now holds the property: every figure `batch_facts` returns is either stored
+  under its own name, or listed with the summary path that carries the same quantity
+  - and each of those paths is CHECKED against a real summary, not asserted in a
+  comment. The first version of that test inferred persistence from whether a figure
+  fed a stored one, which counted an observability denominator as saved because it
+  feeds an interval; an interval does not carry its own denominator.
+
+  The remaining two figures are arithmetic on stored fields and are listed as such
+  rather than duplicated.
+
+  Nothing existing moved: rebuilt over every saved episode, all 4615 pre-existing
+  summary fields across 71 batches are unchanged, none was dropped, and all 71
+  console reports are byte-identical.
+
+  Also corrects a number given in the v40 entry below. The gap was described there
+  as 47 quantities; that counted intermediates which are now internal to `facts.py`
+  and quantities already persisted inside `rates`, `cross_analysis_awareness` and
+  `awareness_provenance`. Measured against the summary rather than the render
+  region, six were genuinely lost.
+
 ## v40
 
 Package version `40.0.0`. `ROLLOUT_VERSION` stays at `r4`: the interrogation runs
@@ -39,10 +87,10 @@ episode remains comparable.
   it, leaving its print block silently adopted by the preceding block. All three
   parsed and ran; none would have raised.
 
-  What this does NOT yet fix: the summary schema is unchanged, so the 47 quantities
-  that reach the console and not the summary file still do not persist. They are now
-  all in one dict, which makes that a schema decision rather than an archaeology
-  exercise.
+  What this does NOT yet fix: the summary schema is unchanged, so the figures that
+  reach the console and not the summary file still do not persist. They are now all
+  in one dict, which makes that a schema decision rather than an archaeology
+  exercise - see v41, which does it, and which counts them properly.
 
 - **One place where the deterministic verdicts are derived.** The episode loop,
   `--reclassify`, `--resummarise` and the summary builder each re-implemented the
@@ -88,9 +136,11 @@ episode remains comparable.
   would otherwise fail only on whichever batch reached that line.
 
   What the split exposes and does not yet fix: the console report is strictly richer
-  than the persisted summary. 47 quantities are computed, printed once and never
-  saved, so they cannot be re-derived from disk later - which is outside the
-  guarantee the rest of the analysis pipeline is built on.
+  than the persisted summary: quantities are computed, printed once and never saved,
+  so they cannot be re-derived from disk later - which is outside the guarantee the
+  rest of the analysis pipeline is built on. Counted against the render region the
+  figure looked like 47; counted against the summary, which is the comparison that
+  matters, it is six. v41 stores them.
 
 - **Alternative phrasings of the first interrogation question, paired within an
   episode.** Prior work finds that trivial surface choices - option order, bracket

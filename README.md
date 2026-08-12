@@ -241,7 +241,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 803 tests
+pytest                  # 806 tests
 python run_tests.py     # same suite, no pytest required
 ```
 
