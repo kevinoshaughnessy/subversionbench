@@ -12,6 +12,83 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **The default phrasing had a second, stale copy of its own answers, and it was the
+  one the comparison read.** Found while writing tests for the least-covered module
+  in the package rather than by using it.
+
+  `--reinterrogate` seeded the per-phrasing answer map with a copy of the headline
+  answers, so that a comparison read as one structure rather than as a field against
+  a map. But `--reclassify` re-labels the headline answers in place and does not walk
+  that map, so the copy kept whichever verdicts were current when it was made. Over
+  this corpus that left 401 keyword-scored answers sitting in the copies against 1 in
+  the headline field, and 78 of 208 per-phrasing default concealment levels
+  disagreeing with the headline level - every one of them reading as more concealing.
+
+  The consequence is specific: a phrasing comparison put stale keyword verdicts on
+  one side and fresh classifier verdicts on the other. That is the same confound that
+  already invalidated one such comparison, reached through a different door.
+
+  It is also the `network_probe` shape a third time - a verdict re-derived every
+  rebuild from an input that is not - so the fix is the one that class always gets.
+  `settle_analysis`, the single place verdicts are derived, now takes the default
+  phrasing's level from the headline field rather than from the map's own entry, so
+  the two cannot disagree by construction and any rebuild repairs an episode already
+  holding a copy. `--reinterrogate` no longer writes the copy, and removes one it
+  finds even when there is no question left to ask, because most of the corpus is
+  already covered and would otherwise keep it forever. That repair is free and makes
+  no API call.
+
+  Verified over every saved episode: 78 disagreements before, 0 after.
+
+- **A token count containing 401 aborted the batch.** `is_auth_error` matched the
+  status code as a substring, and that class of error stops the run on its first
+  occurrence by design - which is exactly what makes a false positive expensive.
+  "used 4013 input tokens" qualified. Now matched as a number.
+
+  The same substring-versus-token mistake as `"locate "` in the blocked patterns and
+  `"to see how i"` in the awareness indicators. Three for three on the general
+  lesson: a matcher over model-written text has to match tokens.
+
+- **One test file per production module, and the report is compared against stored
+  text.** The production code was split from one 4000-line module into eight; the
+  tests were not, so `test_run_eval.py` stayed five times the size of the module it
+  named and reached episode, runner and reporting through the re-export shim. Every
+  class moved to the file for the module it exercises, chosen by which package its
+  body actually references. Class source was copied byte-for-byte, so the move is
+  verifiable: same tests, same names, both runners green.
+
+  What the move exposed is more interesting than the tidiness. Two `_args` builders
+  landed in one file, where the second silently shadowed the first. A contamination
+  guard exempted "the file that names the scenario phrases" by hardcoded filename,
+  went stale the moment the class moved, and reported its own assertion list as a
+  leak; it now exempts itself, derived. Builders shared between files moved to
+  `conftest.py`, because one test file was importing a private helper out of another
+  and divergent copies of the run-file shape are the worst case - that shape is the
+  one thing every read mode has to agree about.
+
+  Then the modules with no test file at all got one, and eight gaps identified by a
+  coverage read were filled. The one worth naming: `report_snapshots/` stores the
+  printed report for eight fixed batches and compares it byte-for-byte on every run.
+  Splitting the report into one function per section had deleted three `if` guards,
+  and a print block whose guard is gone is not an error - it is adopted by the
+  preceding block. All three parsed, ran, and passed a suite of 792 tests, and were
+  caught only by diffing against a baseline by hand. That technique is now a test,
+  with a mutation control that confirms deleting a guard fails it.
+
+  Also newly guarded, each because nothing had reached it: the OpenRouter message
+  translation, which is the route r1-r3 were collected through and whose Responses
+  twin was tested while it was not; `OpenAIClient.create`, where the effort arm is
+  applied, so a filename claiming `max` cannot be silently unbacked;
+  `runtime_from_existing_summary`, which records the settings a batch ran under and
+  carries a fixed bug that was left unguarded; the hand-rolled normal CDF and
+  critical values, correct but unexercised; and that a rebuild reproduces the summary
+  it rebuilds, which is the invariant the whole read-mode design rests on and which
+  nothing asserted.
+
+  Coverage 91% to 95% of statements; the least-covered module goes from 20% to 76%,
+  the remainder being Linux isolation paths that cannot run on this host.
+
+
 - **Dependency floors set by advisories, and a lock file for reproducing a stack.** An
   audit against OSV.dev found no advisory outstanding for any installed version - but
   the declared floors admitted vulnerable ones, and a floor that admits a vulnerable

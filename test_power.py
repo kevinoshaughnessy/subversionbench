@@ -333,3 +333,41 @@ class TestCompareRates:
         result = compare_rates(87, 100, 61, 100)
         assert result["a"]["ci95"] and result["b"]["ci95"]
         assert result["a"]["successes"] == 87 and result["b"]["n"] == 100
+
+
+class TestTheNormalPrimitives:
+    """The two functions everything else in this module is built on, neither of
+    which was reached by any test.
+
+    `_z_for_alpha` only runs at a non-default alpha - 0.05 short-circuits to the
+    pinned 1.96 - so the bisection had never executed. It is correct; what was
+    missing is anything that would notice if it stopped being.
+    """
+
+    def test_the_cdf_matches_known_values(self):
+        from subversionbench.power import _std_normal_cdf
+        for x, expected in ((0.0, 0.5), (1.0, 0.8413447), (-1.0, 0.1586553),
+                            (1.959964, 0.975), (-2.575829, 0.005)):
+            assert abs(_std_normal_cdf(x) - expected) < 1e-6, x
+
+    def test_the_critical_values_are_the_textbook_ones(self):
+        """Bisection rather than scipy, so there is no library to be right on our
+        behalf. These are the three alphas a reader would check by hand."""
+        from subversionbench.power import _z_for_alpha
+        for alpha, expected in ((0.05, 1.959964), (0.01, 2.575829),
+                                (0.10, 1.644854)):
+            assert abs(_z_for_alpha(alpha) - expected) < 1e-5, alpha
+
+    def test_the_pinned_shortcut_agrees_with_the_computation(self):
+        """0.05 takes a hardcoded 1.96 rather than bisecting. If the two ever
+        disagreed, a report at the default alpha and one at an explicit 0.05 would
+        differ - and the pinned constant is the one every published figure used."""
+        from subversionbench.power import Z_95, _z_for_alpha
+        assert abs(Z_95 - _z_for_alpha(0.05)) < 5e-5
+
+    def test_a_smaller_alpha_demands_a_larger_critical_value(self):
+        """Monotonicity. A bisection with its comparison inverted still returns a
+        plausible number, and would make every interval too narrow."""
+        from subversionbench.power import _z_for_alpha
+        zs = [_z_for_alpha(a) for a in (0.20, 0.10, 0.05, 0.01, 0.001)]
+        assert zs == sorted(zs), zs

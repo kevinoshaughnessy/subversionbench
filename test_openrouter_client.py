@@ -187,3 +187,116 @@ class TestOpenRouterNonJsonResponse:
             assert "openai/gpt-5.5" in str(e)
             assert "502" in str(e)
             assert "partial" in str(e)
+
+
+class TestTheTranslationIntoChatCompletions:
+    """The OpenRouter twin of test_openai_client.py's TestResponsesTranslation.
+
+    The two adapters do the same job for different wire formats. Only the Responses
+    one was tested, and this is the route r1-r3 were collected through, so the
+    cross-family comparison rests on a translation nothing checked.
+
+    Chat-completions differs from Responses in exactly the way that breaks a tool
+    loop quietly: tool calls nest inside the assistant message and results come
+    back as their own `tool` role message keyed by `tool_call_id`.
+    """
+
+    def test_a_string_content_passes_straight_through(self):
+        from subversionbench.openrouter_client import _to_openai_messages
+        assert _to_openai_messages({"role": "user", "content": "hello"}) == [
+            {"role": "user", "content": "hello"}]
+
+    def test_a_tool_call_nests_inside_the_assistant_message(self):
+        """Unlike Responses, where it is a sibling item. One assistant message
+        carrying its calls, or the model never sees that it made them."""
+        from subversionbench.openrouter_client import _to_openai_messages
+        out = _to_openai_messages({"role": "assistant", "content": [
+            {"type": "text", "text": "running it"},
+            {"type": "tool_use", "id": "t1", "name": "bash",
+             "input": {"cmd": "ls"}}]})
+        assert len(out) == 1
+        assert out[0]["content"] == "running it"
+        call = out[0]["tool_calls"][0]
+        assert call["id"] == "t1" and call["type"] == "function"
+        assert call["function"]["name"] == "bash"
+
+    def test_the_arguments_are_json_encoded_not_a_dict(self):
+        """The wire format takes a string. A dict here is accepted by some
+        providers and silently dropped by others, which loses the argument and
+        makes the model appear to call the tool with no input."""
+        import json as _json
+        from subversionbench.openrouter_client import _to_openai_messages
+        out = _to_openai_messages({"role": "assistant", "content": [
+            {"type": "tool_use", "id": "t1", "name": "bash",
+             "input": {"cmd": "ls -la"}}]})
+        args = out[0]["tool_calls"][0]["function"]["arguments"]
+        assert isinstance(args, str)
+        assert _json.loads(args) == {"cmd": "ls -la"}
+
+    def test_an_assistant_turn_with_no_text_sends_null_not_an_empty_string(self):
+        """Some providers reject an assistant message with empty-string content
+        alongside tool_calls; null is the documented shape."""
+        from subversionbench.openrouter_client import _to_openai_messages
+        out = _to_openai_messages({"role": "assistant", "content": [
+            {"type": "tool_use", "id": "t1", "name": "bash", "input": {}}]})
+        assert out[0]["content"] is None
+
+    def test_an_assistant_turn_with_no_calls_carries_no_tool_calls_key(self):
+        from subversionbench.openrouter_client import _to_openai_messages
+        out = _to_openai_messages({"role": "assistant", "content": [
+            {"type": "text", "text": "just talking"}]})
+        assert "tool_calls" not in out[0]
+
+    def test_each_tool_result_becomes_its_own_tool_role_message(self):
+        """Anthropic packs several results into one user message; chat-completions
+        needs one message per result, each naming the call it answers. Collapsing
+        them loses every result but the first."""
+        from subversionbench.openrouter_client import _to_openai_messages
+        out = _to_openai_messages({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "t1", "content": "one"},
+            {"type": "tool_result", "tool_use_id": "t2", "content": "two"}]})
+        assert [m["role"] for m in out] == ["tool", "tool"]
+        assert [m["tool_call_id"] for m in out] == ["t1", "t2"]
+        assert [m["content"] for m in out] == ["one", "two"]
+
+    def test_a_user_turn_of_text_blocks_is_joined(self):
+        from subversionbench.openrouter_client import _to_openai_messages
+        out = _to_openai_messages({"role": "user", "content": [
+            {"type": "text", "text": "first"}, {"type": "text", "text": "second"}]})
+        assert out == [{"role": "user", "content": "first\nsecond"}]
+
+    def test_a_mixed_user_turn_is_not_treated_as_tool_results(self):
+        """The tool-result branch requires EVERY block to be one. A turn holding a
+        result and a text block would otherwise lose the text."""
+        from subversionbench.openrouter_client import _to_openai_messages
+        out = _to_openai_messages({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "t1", "content": "out"},
+            {"type": "text", "text": "and this"}]})
+        assert [m["role"] for m in out] == ["user"]
+        assert "and this" in out[0]["content"]
+
+    def test_a_tool_declaration_uses_the_function_wrapper(self):
+        from subversionbench.openrouter_client import _to_openai_tool
+        schema = {"type": "object", "properties": {"cmd": {"type": "string"}}}
+        out = _to_openai_tool({"name": "bash", "description": "run a command",
+                               "input_schema": schema})
+        assert out["type"] == "function"
+        assert out["function"] == {"name": "bash", "description": "run a command",
+                                  "parameters": schema}
+
+    def test_the_two_adapters_agree_on_which_calls_a_turn_made(self):
+        """Both routes have to reconstruct the same tool loop from the same saved
+        conversation, or an episode collected on one is not comparable with an
+        episode collected on the other - which is exactly the claim r1-r4 make."""
+        from subversionbench.openai_client import _to_responses_input
+        from subversionbench.openrouter_client import _to_openai_messages
+        turn = {"role": "assistant", "content": [
+            {"type": "text", "text": "doing it"},
+            {"type": "tool_use", "id": "t7", "name": "bash",
+             "input": {"cmd": "ls"}}]}
+        via_openrouter = _to_openai_messages(turn)
+        via_responses = _to_responses_input(turn)
+        or_ids = {c["id"] for m in via_openrouter for c in m.get("tool_calls", [])}
+        resp_ids = {i.get("call_id") for i in via_responses
+                    if isinstance(i, dict) and i.get("call_id")}
+        assert or_ids == resp_ids == {"t7"}

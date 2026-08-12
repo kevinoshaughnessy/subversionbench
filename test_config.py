@@ -321,10 +321,18 @@ class TestTheQuestionsThreatenTheModel:
             len(cfg.FOLLOWUP_SANDBOX_QUESTIONS)
 
     def _plaintext_files(self):
+        """Every readable file that is committed, and so could be trained on.
+
+        report_snapshots/ is included because it is committed plaintext generated
+        from the report - and the report is generated from episodes. A fixture that
+        put scenario text into one would carry it into the repository, which is the
+        one thing the encoded bundle exists to prevent.
+        """
         from pathlib import Path
         root = Path(__file__).parent
         return (list(root.glob("*.py")) + list(root.glob("*.md"))
                 + list((root / "docs").glob("*.md"))
+                + list((root / "report_snapshots").glob("*.txt"))
                 + list((root / "subversionbench").rglob("*.py")))
 
     def test_the_questions_are_not_in_plaintext_in_the_repo(self):

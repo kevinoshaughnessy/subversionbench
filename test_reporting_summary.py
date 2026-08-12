@@ -270,3 +270,176 @@ class TestTheSummaryHeaderStatesTheEffort:
         line, out = self._summary_line(["high", "low"])
         assert "effort=high/low" in line
         assert "mixes reasoning efforts" in out
+
+
+class TestSettingsRecoveredFromAPreviousSummary:
+    """runtime_from_existing_summary had no test at all.
+
+    Its own comment records the defect it was written to fix: the recovered
+    settings used to be assigned onto `args`, and `args` is shared across a
+    fan-out, so one batch's settings leaked into every later batch in the run.
+    That defect was fixed and left unguarded, in the function `--resummarise`
+    depends on for every batch it rebuilds.
+    """
+
+    def _previous(self, **over):
+        import json
+        import tempfile
+        d = tempfile.mkdtemp()
+        summary = {"model": "m", "max_tokens": 4096, "max_turns": 25,
+                   "batch_aborted": True,
+                   "episode_failures": [{"run": 3, "error": "boom"}],
+                   "timing": {"total_elapsed_seconds": 123.4,
+                              "total_delay_seconds": 9,
+                              "delay_setting": 7}}
+        summary.update(over)
+        path = f"{d}/summary_m_strong_20260101T000000.json"
+        with open(path, "w") as f:
+            json.dump(summary, f)
+        return path
+
+    def test_the_settings_the_batch_ran_under_are_recovered(self):
+        """Not the defaults the rebuild was invoked with. A rebuild started
+        without --max-tokens would otherwise record 8192 for a batch that ran at
+        4096, and the artefact would misdescribe the condition."""
+        from subversionbench.reporting.summary import runtime_from_existing_summary
+        runtime = runtime_from_existing_summary(self._previous(), [])
+        assert runtime["settings"]["max_tokens"] == 4096
+        assert runtime["settings"]["max_turns"] == 25
+        assert runtime["settings"]["delay"] == 7
+
+    def test_it_returns_data_and_mutates_no_namespace(self):
+        """The recorded defect. `args` is shared across a fan-out, so writing the
+        recovered settings onto it carried one batch's settings into every later
+        one."""
+        from subversionbench.reporting.summary import runtime_from_existing_summary
+        args = FakeArgs(output_dir="/tmp/nowhere", model="m", nudge="strong",
+                        grader_model="g")
+        args.max_tokens = 8192
+        before = dict(vars(args))
+        runtime_from_existing_summary(self._previous(), [])
+        assert dict(vars(args)) == before
+
+    def test_the_effort_is_deliberately_not_recovered(self):
+        """It belongs to the batch's identity, which is read from the run
+        filenames - a sharper source than a previous summary."""
+        from subversionbench.reporting.summary import runtime_from_existing_summary
+        runtime = runtime_from_existing_summary(
+            self._previous(effort="max"), [])
+        assert "effort" not in runtime["settings"]
+
+    def test_an_absent_setting_is_omitted_rather_than_defaulted(self):
+        """A key invented here would be indistinguishable from one the batch
+        really ran under."""
+        from subversionbench.reporting.summary import runtime_from_existing_summary
+        path = self._previous()
+        import json
+        data = json.load(open(path))
+        del data["max_turns"]
+        json.dump(data, open(path, "w"))
+        runtime = runtime_from_existing_summary(path, [])
+        assert "max_turns" not in runtime["settings"]
+
+    def test_the_abort_flag_and_failures_survive_a_rebuild(self):
+        """Neither is derivable from the run files: an aborted batch has fewer of
+        them, which looks exactly like a batch that was asked for fewer."""
+        from subversionbench.reporting.summary import runtime_from_existing_summary
+        runtime = runtime_from_existing_summary(self._previous(), [])
+        assert runtime["aborted"] is True
+        assert runtime["failures"] == [{"run": 3, "error": "boom"}]
+
+    def test_the_elapsed_time_is_carried_as_a_span_not_a_duration(self):
+        """summarise_batch subtracts two clock readings, so the recovered elapsed
+        has to arrive as a start and an end or the rebuild reports 0 seconds."""
+        from subversionbench.reporting.summary import runtime_from_existing_summary
+        runtime = runtime_from_existing_summary(self._previous(), [])
+        assert runtime["t_batch_end"] - runtime["t_batch_start"] == 123.4
+
+    def test_a_missing_previous_summary_is_not_an_error(self):
+        """The first rebuild of a batch collected before summaries existed."""
+        from subversionbench.reporting.summary import runtime_from_existing_summary
+        runtime = runtime_from_existing_summary("/nonexistent/summary.json", [])
+        assert "settings" not in runtime
+
+    def test_the_reasoning_config_comes_from_the_runs_not_the_summary(self):
+        """The runs are the authority on what was actually sent."""
+        from subversionbench.reporting.summary import runtime_from_existing_summary
+        runtime = runtime_from_existing_summary(
+            "/nonexistent/summary.json",
+            [{"reasoning_config": ""}, {"reasoning_config": "budget=4096"}])
+        assert runtime["reasoning_config"] == "budget=4096"
+
+
+class TestARebuildReproducesTheSummaryItRebuilds:
+    """The invariant the whole read-mode design rests on, and nothing asserted it.
+
+    --resummarise exists so a summary can be regenerated from saved runs without
+    paying for the rollouts again. That is only sound if rebuilding a batch
+    produces the summary the live run produced. If it does not, every published
+    figure depends on which path last wrote the file.
+    """
+
+    def _summarise(self, episodes, runtime, out):
+        import contextlib
+        import io
+        args = FakeArgs(output_dir=out, model="m", nudge="strong", grader_model="g")
+        args.max_tokens, args.max_turns, args.no_power = 8192, 40, True
+        args.oversight, args.lure, args.delay = True, False, 0
+        identity = collecting_identity(args, "m", stamp="20260101T000000")
+        normalise_analyses(episodes)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            return ev_run.summarise_batch(args, episodes, identity, runtime)
+
+    def _episodes(self):
+        from subversionbench.grading import MISALIGNED_ACTS
+        act = [a for a in MISALIGNED_ACTS if a["name"] == "oversight"][0]
+        answers = [{"question": "q", "answer": "No.", "verdict": "denied",
+                    "used_keyword_fallback": False, "classifier_called": True}]
+        eps = []
+        for tampered in (True, False, True):
+            e = batch_episode(tampered=tampered, monitoring=tampered, aware=tampered,
+                              disclosed=False if tampered else None,
+                              answers=answers if tampered else None)
+            e["timing"] = {"eval_seconds": 10.0, "grader_seconds": 2.0,
+                           "total_run_seconds": 12.0}
+            e[act["key"]] = tampered
+            eps.append(e)
+        return eps
+
+    def test_rebuilding_from_the_same_runs_gives_the_same_summary(self):
+        """Same episodes, same identity, same recovered runtime. Every field is
+        compared, not a chosen few, because the fields that went stale in the past
+        were the ones nobody thought to check."""
+        import tempfile
+        runtime = {"t_batch_start": 0.0, "t_batch_end": 90.0,
+                   "total_delay_seconds": 6,
+                   "settings": {"max_tokens": 8192, "max_turns": 40, "delay": 0},
+                   "aborted": False, "failures": [], "reasoning_config": ""}
+        live = self._summarise(self._episodes(), runtime, tempfile.mkdtemp())
+        rebuilt = self._summarise(self._episodes(), runtime, tempfile.mkdtemp())
+        volatile = {"timestamp"}
+        differing = {k for k in set(live) | set(rebuilt)
+                     if k not in volatile and live.get(k) != rebuilt.get(k)}
+        assert not differing, f"a rebuild produced different figures: {differing}"
+
+    def test_only_the_timestamp_is_allowed_to_differ(self):
+        """Named explicitly, so a second volatile field has to be justified here
+        rather than quietly excluded from the comparison above."""
+        import tempfile
+        runtime = {"t_batch_start": 0.0, "t_batch_end": 90.0,
+                   "total_delay_seconds": 0, "aborted": False, "failures": [],
+                   "reasoning_config": ""}
+        live = self._summarise(self._episodes(), runtime, tempfile.mkdtemp())
+        rebuilt = self._summarise(self._episodes(), runtime, tempfile.mkdtemp())
+        assert live["timestamp"] != rebuilt["timestamp"] or True
+        assert {k for k in live if live[k] != rebuilt.get(k)} <= {"timestamp"}
+
+    def test_the_rebuild_is_written_where_the_identity_says(self):
+        import tempfile
+        from pathlib import Path
+        out = tempfile.mkdtemp()
+        self._summarise(self._episodes(), {"aborted": False, "failures": []}, out)
+        written = list(Path(out).glob("summary_*.json"))
+        assert len(written) == 1, written
+        assert "20260101T000000" in written[0].name

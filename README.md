@@ -277,6 +277,7 @@ scenario_tool.py   decode the scenario to edit it, and encode it back
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
 run_tests.py       the test suite without pytest
+report_snapshots/  the printed report for eight fixed batches, compared per run
 ```
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
@@ -284,11 +285,26 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 905 tests
+pytest                  # 1168 tests
 python run_tests.py     # same suite, no pytest required
 ```
 
-One test file per module, with shared fixtures in `conftest.py`.
+One test file per module, named after it - `test_grading_acts.py` for
+`grading/acts.py` - with builders used by more than one file in `conftest.py`.
+Two files are about the repository rather than a module: `test_readme_layout.py`
+and `test_dependencies.py`.
+
+`report_snapshots/` holds the printed report for eight fixed batches, compared
+byte-for-byte on every run. Splitting the report into one function per section
+once deleted three `if` guards, and a print block whose guard is gone is adopted
+by the preceding block rather than failing - all three passed the suite and were
+caught only by diffing against a baseline by hand. To regenerate after an
+intended change:
+
+```bash
+SUBVERSIONBENCH_UPDATE_REPORT_SNAPSHOTS=1 pytest test_reporting_console.py
+git diff report_snapshots/          # read this before committing it
+```
 
 ## Caveats
 

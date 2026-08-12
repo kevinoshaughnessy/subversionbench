@@ -96,8 +96,12 @@ class TestNoTestPatchesTheWrongModule:
         right module named, rather than a test that quietly stops stubbing.
         """
         offenders = []
+        import os
         for path in sorted(glob.glob("test_*.py") + glob.glob("test_*/*.py")):
-            if path == "test_stub_points.py":
+            # This file names the patch points in order to look for them, so it
+            # exempts ITSELF - derived, not written down. A hardcoded filename here
+            # went stale when the file was renamed, leaving a dead exemption.
+            if path == os.path.basename(__file__):
                 continue
             tree = ast.parse(open(path).read())
             aliases = _caller_aliases(tree)
