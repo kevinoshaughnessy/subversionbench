@@ -12,6 +12,34 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **The publication check now refuses content, not just identifiers.** It asked one
+  question - did the redactor miss something it knows about - and could not answer
+  anything about a value outside `path_substitutions`, because it does not look for
+  one. A synthetic run file holding a token verified clean.
+
+  Such a value cannot be rewritten, because the harness has no way to know what it
+  should become. So it is refused, in two classes with different remedies. A
+  credential shape is counted and never printed, and cannot be accepted at all: no
+  note justifies publishing one. Anything that identifies the machine is printed so it
+  can be judged, and accepted by fingerprint once it has been.
+
+  A fingerprint covers one exact value, so an acceptance cannot widen to cover
+  something found later, and values are hashed rather than quoted so the acceptance
+  file is committable without reproducing what it is about.
+
+  Calibrated against the corpus rather than written and hoped for, because this gates
+  `zip.sh` and a refusal deletes the archive. Two false positives were found and
+  fixed that way. Every `/home/...` occurrence in the corpus is a name a MODEL wrote
+  as a stand-in while composing an example path, so a general pattern would have
+  refused two archives over text the agent invented - placeholders are now excluded by
+  a fixed list. And run files are full of usage counters, so a value assigned to a
+  name ending in "token" must contain a letter to count.
+
+  Two shapes it missed on the first pass, both found by testing rather than by
+  reading: a credential name can be the tail of a longer one, and the file being
+  searched is JSON, so a quoted value arrives escaped. The check now meets the form it
+  will actually encounter rather than the form it was written against.
+
 - **The default phrasing had a second, stale copy of its own answers, and it was the
   one the comparison read.** Found while writing tests for the least-covered module
   in the package rather than by using it.

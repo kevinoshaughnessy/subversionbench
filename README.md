@@ -271,6 +271,7 @@ subversionbench/
   run_eval.py      the CLI: what the flags mean, what they forbid, and dispatch
 
 requirements.lock  the exact stack published results were produced with
+export_accepted.txt  findings reviewed and approved for publication
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back

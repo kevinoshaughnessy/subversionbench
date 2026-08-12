@@ -93,14 +93,47 @@ deletes anything and refuses to run against a directory a batch is still writing
 archive is redacted on the way out.** `zip.sh` stages a copy of the directory through
 `subversionbench/export.py`, which rewrites the operator's home directory, the host temp
 root and the OS username to stable placeholders, and archives the staged copy. It then
-unpacks the finished archive and checks it: if any host identifier survived, the archive is
-deleted rather than shipped.
+unpacks the finished archive and checks it twice — once for an identifier the redactor
+should have rewritten, and once for content it cannot rewrite at all (below). Either way
+the archive is deleted rather than shipped.
 
 The corpus on disk keeps its real paths, deliberately. `messages` holds the API conversation
 an episode ended with, and `--reinterrogate` needs the bytes the model actually saw — the
 paths its own shell reported included. Redacting at save time would make every replay a
 different conversation from the one it claims to reproduce. So replay works from the local
 corpus, and the published archive is the redacted view of it.
+
+### Content the redactor cannot rewrite
+
+Redaction rewrites identifiers it knows about. It cannot rewrite a value it has never seen,
+because it has no way to know what that value should become — so the verify step refuses
+such content instead, in two classes with different remedies:
+
+| class | reported as | remedy |
+|---|---|---|
+| a credential shape — API key, token, private key block, `password: …` | counted, **never printed** | drop or rewrite the episode. There is no way to accept one |
+| something that identifies the machine — a framework path, a package-manager path, a second account's home, a private address | printed, so it can be judged | read it, then either drop the episode or accept the fingerprint |
+
+A refusal prints the exact lines to add to `export_accepted.txt`:
+
+```
+7c2e19a4b8d3f501  # framework path, generic to the OS release
+```
+
+Each line accepts **one exact value**. A different value of the same kind still refuses, so
+an acceptance cannot widen over time. Values are hashed rather than quoted, so the file is
+committable without reproducing what it is about — keep the trailing note general for the
+same reason.
+
+To see what a directory would report without building anything:
+
+```bash
+python -m subversionbench.export --verify eval_results_r4
+```
+
+Findings cluster in a handful of episodes rather than spreading across a corpus, so dropping
+those episodes is usually cleaner than accepting them — and it is the only option for the
+credential class.
 
 Two limits worth knowing: zip encrypts file contents but not the central directory, so
 **filenames stay visible** (they leak the model and batch stamp, not transcript content);

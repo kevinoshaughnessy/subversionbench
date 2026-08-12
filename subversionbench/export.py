@@ -26,6 +26,7 @@ artefact that is actually published.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -160,6 +161,175 @@ def leak_patterns():
     return patterns
 
 
+# ---------------------------------------------------------------------------
+# Content the redactor cannot rewrite, and so has to refuse
+#
+# The check above asks whether the redactor missed an identifier it knows about.
+# This one asks a different question, and the difference decides the remedy.
+#
+# `path_substitutions` is a list of strings the redactor can rewrite. A value that is
+# not on that list is not rewritten, and the identifier check does not look for it -
+# so it cannot report anything about it either way.
+#
+# Such a value cannot be fixed by adding a substitution, because the harness has no
+# way to know what it should become. So it is REFUSED rather than rewritten, and the
+# operator decides: drop the episode, or accept the finding explicitly.
+# ---------------------------------------------------------------------------
+
+# Never publishable, and never acceptable: no note justifies shipping a credential.
+_SECRET_PATTERNS = (
+    ("Anthropic API key", r"sk-ant-[A-Za-z0-9_\-]{20,}"),
+    ("OpenAI API key", r"\bsk-(?!ant-|or-)[A-Za-z0-9]{32,}"),
+    ("OpenRouter API key", r"sk-or-[A-Za-z0-9_\-]{20,}"),
+    ("AWS access key id", r"\bAKIA[0-9A-Z]{16}\b"),
+    ("GitHub token", r"\bgh[pousr]_[A-Za-z0-9]{30,}"),
+    ("private key block", r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    ("bearer token", r"(?i)authorization:\s*bearer\s+[A-Za-z0-9._\-]{20,}"),
+    # A name that means "credential", assigned a value long enough to be one.
+    #
+    # The value must contain a letter: run files are full of usage counters, and
+    # `"cache_read_input_tokens": 1234567890123456` is sixteen characters assigned to
+    # a name ending in "tokens". The word boundary already keeps `input_tokens` out
+    # (an underscore is a word character, so there is no boundary before "token"),
+    # but a bare `tokens: <digits>` would otherwise match - and a check that fires on
+    # every run file is a check that gets removed.
+    # The leading [A-Za-z0-9_]* lets the credential word be the TAIL of a longer
+    # name, so ANTHROPIC_API_KEY matches as well as api_key. Safe because the
+    # trailing \b stays: `input_tokens` still cannot match, since the character
+    # after "token" is a letter.
+    #
+    # The separator allows a quote on either side, and a BACKSLASH before it: the
+    # thing being searched is a JSON file, so a quoted value inside a tool result
+    # arrives as \" rather than ". Without that the pattern matched a bare
+    # `password=x` and missed `"password": "x"`, which is the form it will actually
+    # meet.
+    ("assigned secret",
+     r"(?i)[A-Za-z0-9_]*(?:(?:api|auth|access|secret|private|client|bearer|session)"
+     r"[_-]?(?:key|token|secret)"
+     r"|api[_-]?key|passwd|password|credential|token|secret)\b"
+     r"(?:\\?['\"])?\s*[=:]\s*(?:\\?['\"])?"
+     r"(?=[A-Za-z0-9/_+\-]{16,})[A-Za-z0-9/_+\-]*[A-Za-z][A-Za-z0-9/_+\-]*"),
+)
+
+# Identifies the machine rather than exposing a credential. Refused by default, so
+# that the operator sees it before it ships - and acceptable once seen, because a
+# list of framework paths is not worth abandoning a corpus over.
+_HOST_PATTERNS = (
+    ("system framework path", r"/System/(?:Library|Cryptexes|Applications)/"),
+    ("package manager path", r"/opt/homebrew/"),
+    ("local install path", r"/usr/local/(?:bin|etc|lib|opt|Cellar)/"),
+    ("another account's home", r"/Users/(?!Shared/)[A-Za-z0-9._-]+/"),
+    ("another account's home", r"/home/(?!lost\+found)[A-Za-z0-9._-]+/"),
+    ("private network address",
+     r"\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+     r"|192\.168\.\d{1,3}\.\d{1,3}"
+     r"|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b"),
+    ("hardware address", r"\b(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\b"),
+)
+
+# Home directory names a model writes rather than reads.
+#
+# Models use these as stand-ins when composing an example path, so they appear in
+# reasoning and in deliverables. Treating them as findings would refuse an archive
+# over text the agent made up, which is the failure mode that gets a check switched
+# off rather than fixed.
+#
+# The operator's own home directory is rewritten before this runs, so a name reaching
+# here is either a placeholder or a second account.
+_PLACEHOLDER_HOMES = frozenset({
+    "user", "users", "username", "youruser", "someuser", "service_account",
+    "serviceaccount", "ubuntu", "admin", "administrator", "developer", "dev",
+    "example", "test", "testuser", "me", "myuser", "app", "runner",
+})
+
+
+def content_patterns():
+    """(name, compiled regex, severity) for everything refused on content."""
+    return tuple(
+        [(name, re.compile(rx), "secret") for name, rx in _SECRET_PATTERNS]
+        + [(name, re.compile(rx), "host") for name, rx in _HOST_PATTERNS])
+
+
+def _is_placeholder_home(matched: str) -> bool:
+    parts = matched.strip("/").split("/")
+    return len(parts) >= 2 and parts[1].lower() in _PLACEHOLDER_HOMES
+
+
+def fingerprint(matched: str) -> str:
+    """
+    A stable, publishable identifier for one matched value.
+
+    Hashed rather than quoted so the acceptance file can be committed without
+    reproducing the thing it is about. The same value in forty files collapses to one
+    fingerprint, so accepting a finding is one line rather than forty - and a
+    DIFFERENT value cannot be covered by an existing acceptance, which is what stops
+    an exemption from widening to cover something new.
+    """
+    return hashlib.sha256(matched.encode("utf-8", "replace")).hexdigest()[:16]
+
+
+def find_content_risks(root: str) -> list:
+    """
+    Every distinct finding under `root`, grouped by what was matched.
+
+    Grouped rather than reported per occurrence: the operator has to read each
+    distinct value once and decide, not scroll dozens of copies of the same one.
+    """
+    found = {}
+    for path in sorted(Path(root).rglob("*")):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(errors="replace")
+        except Exception:
+            continue
+        for name, regex, severity in content_patterns():
+            for match in regex.finditer(text):
+                value = match.group(0)
+                if name == "another account's home" and _is_placeholder_home(value):
+                    continue
+                key = (name, fingerprint(value))
+                entry = found.setdefault(key, {
+                    "severity": severity, "name": name,
+                    "fingerprint": fingerprint(value), "value": value,
+                    "files": set(), "count": 0})
+                entry["files"].add(path.name)
+                entry["count"] += 1
+    order = {"secret": 0, "host": 1}
+    return sorted(found.values(),
+                  key=lambda e: (order[e["severity"]], e["name"], e["fingerprint"]))
+
+
+ACCEPTED_FILE = "export_accepted.txt"
+
+
+def accepted_fingerprints(path: str = ACCEPTED_FILE) -> set:
+    """
+    Fingerprints the operator has reviewed and chosen to publish.
+
+    Looked for beside the package as well as relative to the working directory, so
+    that the answer does not depend on where the build was started from. A file this
+    decides publication on must not be missable by a `cd`: not finding it means every
+    reviewed finding reverts to unreviewed, which refuses a build that should pass and
+    invites the check being bypassed rather than read.
+    """
+    candidates = [Path(path)]
+    if not Path(path).is_absolute():
+        candidates.append(Path(__file__).resolve().parent.parent / path)
+    for candidate in candidates:
+        try:
+            text = candidate.read_text()
+        except OSError:
+            continue
+        out = set()
+        for line in text.splitlines():
+            line = line.split("#", 1)[0].strip()
+            if line:
+                out.add(line)
+        return out
+    return set()
+
+
 def find_leaks(root: str) -> list:
     """Every (file, what, sample) still identifying the host, under `root`."""
     found = []
@@ -188,24 +358,68 @@ def main(argv=None) -> int:
     parser.add_argument("--verify", metavar="ROOT",
                         help="check an unpacked archive and exit nonzero if it "
                              "still identifies the host")
+    parser.add_argument("--accepted", metavar="FILE", default=ACCEPTED_FILE,
+                        help=f"fingerprints already reviewed and approved for "
+                             f"publication (default: {ACCEPTED_FILE})")
     args = parser.parse_args(argv)
 
     if args.verify:
         leaks = find_leaks(args.verify)
-        if not leaks:
+        if leaks:
+            print(f"\n  REFUSING TO PUBLISH: {len(leaks)} file(s) still identify the "
+                  f"host.\n")
+            for path, what, sample in leaks[:10]:
+                print(f"    {os.path.basename(path)}  [{what}]")
+                print(f"      ...{sample.strip()[:88]}...")
+            if len(leaks) > 10:
+                print(f"    ... and {len(leaks) - 10} more")
+            print("\n  redaction.path_substitutions() decides what is rewritten; "
+                  "a field\n  reaching the archive unredacted means export.py did "
+                  "not walk it.")
+            return 1
+
+        risks = find_content_risks(args.verify)
+        accepted = accepted_fingerprints(args.accepted)
+        secrets = [r for r in risks if r["severity"] == "secret"]
+        unreviewed = [r for r in risks if r["severity"] == "host"
+                      and r["fingerprint"] not in accepted]
+        reviewed = len(risks) - len(secrets) - len(unreviewed)
+
+        if not secrets and not unreviewed:
             print(f"  verified clean: nothing under {os.path.basename(args.verify)} "
-                  f"identifies this host")
+                  f"identifies this host"
+                  + (f" ({reviewed} reviewed finding(s) accepted)"
+                     if reviewed else ""))
             return 0
-        print(f"\n  REFUSING TO PUBLISH: {len(leaks)} file(s) still identify the "
-              f"host.\n")
-        for path, what, sample in leaks[:10]:
-            print(f"    {os.path.basename(path)}  [{what}]")
-            print(f"      ...{sample.strip()[:88]}...")
-        if len(leaks) > 10:
-            print(f"    ... and {len(leaks) - 10} more")
-        print(f"\n  redaction.path_substitutions() decides what is rewritten; a "
-              f"field\n  reaching the archive unredacted means export.py did not "
-              f"walk it.")
+
+        print(f"\n  REFUSING TO PUBLISH: {len(secrets) + len(unreviewed)} "
+              f"finding(s) in {os.path.basename(args.verify)} that redaction "
+              f"cannot rewrite.\n")
+        for risk in secrets:
+            # Never echoed. A credential printed to a terminal is in the scrollback,
+            # and from there in whatever the operator pastes next.
+            print(f"    [CREDENTIAL] {risk['name']} in "
+                  f"{len(risk['files'])} file(s), {risk['count']} occurrence(s)")
+            print("                 not shown, and not acceptable - remove it")
+        for risk in unreviewed:
+            sample = risk["value"]
+            if len(sample) > 60:
+                sample = sample[:60] + "..."
+            print(f"    [HOST] {risk['name']}: {sample}")
+            print(f"           {risk['count']} occurrence(s) in "
+                  f"{len(risk['files'])} file(s)   {risk['fingerprint']}")
+        if secrets:
+            print("\n  A credential cannot be accepted. Find it, and drop or "
+                  "rewrite the episode\n  holding it before building the archive "
+                  "again.")
+        if unreviewed and not secrets:
+            print(f"\n  These identify the machine rather than exposing a "
+                  f"credential. If you have\n  read them and they are publishable, "
+                  f"append to {args.accepted}:\n")
+            for risk in unreviewed:
+                print(f"    {risk['fingerprint']}  # {risk['name']}")
+            print("\n  Otherwise drop the episodes holding them. Accepting one "
+                  "fingerprint accepts\n  that exact value and nothing else.")
         return 1
 
     if not (args.dir and args.into):

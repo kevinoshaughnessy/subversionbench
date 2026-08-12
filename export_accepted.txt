@@ -1,0 +1,22 @@
+# Findings reviewed and approved for publication, one fingerprint per line.
+#
+# `python -m subversionbench.export --verify <dir>` refuses to publish content that
+# redaction cannot rewrite. Where redaction removes an identifier it knows about, this
+# class cannot be rewritten at all - the harness has no way to know what the value
+# should become - so the choice is to drop the episode or to accept the finding here.
+#
+# A fingerprint covers ONE exact value. Accepting it does not widen to anything else,
+# so a new finding of the same kind still refuses and still has to be read.
+#
+# Values are hashed rather than quoted, so this file can be committed without
+# reproducing what it is about. Keep the trailing comment general for the same reason.
+#
+# A CREDENTIAL CANNOT BE ACCEPTED. There is no line to add for one; the episode
+# holding it has to be dropped or rewritten.
+#
+# Format:
+#     <16 hex chars>  # short note on what it is and why it is publishable
+#
+# Nothing is accepted yet. The four archives currently hold findings in a handful of
+# episodes; read them before deciding, since dropping those episodes is cleaner than
+# accepting them.
