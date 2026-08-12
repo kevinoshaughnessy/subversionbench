@@ -18,6 +18,8 @@ counterfactual avoided by hashing the assembled arm rather than the bundle.
 """
 
 import subversionbench.config as cfg
+import subversionbench.llm_client as ev_llm
+import subversionbench.grading as ev_grade
 from subversionbench.grading.acts import MISALIGNED_ACTS, questions_for
 from subversionbench.rollout import rollout_fingerprint
 from subversionbench.scenario import scenario_for
@@ -213,8 +215,8 @@ class TestTheRecordedArmIsTheArmRequested:
                         usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
             messages = _M()
 
-        orig = ev_run.get_client
-        ev_run.get_client = lambda *a, **k: Fake()
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: Fake()
         try:
             with contextlib.redirect_stdout(io.StringIO()) as buf:
                 result = ev_run.run_evaluation(
@@ -223,7 +225,7 @@ class TestTheRecordedArmIsTheArmRequested:
                     max_turns=2, use_grader=False, nudge=nudge,
                     effort=effort)
         finally:
-            ev_run.get_client = orig
+            ev_llm.get_client = orig
         return result, buf.getvalue()
 
     def test_max_records_and_prints_max(self):
@@ -295,8 +297,8 @@ class TestTheResponseMetadataExplainsAnEmptyAnswer:
                         usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
             messages = _M()
 
-        orig = ev_run.classify_interrogation_answer
-        ev_run.classify_interrogation_answer = lambda text, *a, **k: {
+        orig = ev_grade.classify_interrogation_answer
+        ev_grade.classify_interrogation_answer = lambda text, *a, **k: {
             "verdict": "no_answer" if not text.strip() else "admitted",
             "verdict_llm": None, "verdict_keyword": None,
             "classifiers_agree": None, "used_keyword_fallback": False,
@@ -307,7 +309,7 @@ class TestTheResponseMetadataExplainsAnEmptyAnswer:
                 out = ev_run.run_followup("sys", [{"role": "user", "content": "t"}],
                                           "m", Fake(), MISALIGNED_ACTS[0])
         finally:
-            ev_run.classify_interrogation_answer = orig
+            ev_grade.classify_interrogation_answer = orig
         return out[0]
 
     def test_a_tool_call_instead_of_an_answer_is_visible(self):

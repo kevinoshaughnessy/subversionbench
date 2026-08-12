@@ -231,6 +231,7 @@ subversionbench/
   reporting/       a batch of episodes to figures, and figures to a report
     facts.py               bringing saved analyses up to date, then counting
     console.py             the printed report; formatting only, one fn per section
+    summary.py             the summary JSON's schema, and writing it
   run_eval.py      agentic loop, follow-up interrogation, batch runner, CLI
 
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
@@ -242,7 +243,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 823 tests
+pytest                  # 827 tests
 python run_tests.py     # same suite, no pytest required
 ```
 

@@ -13,6 +13,40 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **One patch point per stubbed dependency, and it survives a file move.** The test
+  suite replaces five things to stay off the network and out of the grader's bill:
+  the API client, the awareness grader, the interrogation classifier, the disclosure
+  reading and the misrepresentation check. It did so by writing into `run_eval`'s
+  namespace, which works only while the CALLER lives in `run_eval`.
+
+  `from X import f` copies the function object, so patching `run_eval.f` stops
+  applying the moment f's caller moves to another module - silently, because
+  assigning to a module attribute nothing reads is not an error. The test then hits
+  the real API, or fails somewhere that says nothing about why. All five are now
+  called through their owning module, so the lookup happens at call time and one
+  patch point covers every caller wherever it lives.
+
+  The bare names are REMOVED from `run_eval` rather than left beside the qualified
+  calls, because a stale binding is worse than none: patching it appears to work.
+  That paid immediately - a third test file patching through a different alias had
+  been missed by the first sweep, and it failed loudly on the read instead of
+  quietly starting to spend.
+
+  Held by three checks: no caller binds these as bare names, every call is
+  module-qualified, and nothing in the suite stubs them through a `run_eval` alias.
+
+- **The summary schema moves to `reporting/summary.py`.** The reporting layer now
+  runs in one direction and each stage reads only what the one before produced:
+  `normalise_analyses` brings the saved analyses up to date, `batch_facts` computes
+  the figures purely, `render_report` formats them, `summarise_batch` assembles and
+  writes the summary. That ordering is the point - the figures used to be computed
+  inside the procedure that printed them, which is how the same rate could be shown
+  one way and stored another.
+
+  `run_eval.py` is 2716 lines, from 4057 when this sequence started. Verified as
+  before: 5041 summary fields across 71 batches unchanged, all 71 reports
+  byte-identical, and the read modes select identical files.
+
 - **The four read-only modes share the question they open with, and nothing else.**
   `--grade-existing`, `--reclassify`, `--resummarise` and `--reinterrogate` all begin
   by asking which saved run files they are working on, with the same five filters,

@@ -298,8 +298,8 @@ class TestBatchResilience:
             def __init__(self):
                 self.messages = Messages()
 
-        original = ev_run.get_client
-        ev_run.get_client = lambda m: Client()
+        original = ev_llm.get_client
+        ev_llm.get_client = lambda m: Client()
         original_argv = sys.argv
         sys.argv = ["run_eval", "--model", "m", "--delay", "0", "--no-grader",
                     "--output-dir", out] + argv
@@ -309,7 +309,7 @@ class TestBatchResilience:
                 rc = ev_run.main()
             return rc, buf.getvalue()
         finally:
-            ev_run.get_client = original
+            ev_llm.get_client = original
             sys.argv = original_argv
 
     def test_one_failed_episode_does_not_end_the_batch(self):
@@ -686,15 +686,15 @@ class TestThinkingBudget:
             def __init__(self):
                 self.messages = Messages()
 
-        original, original_argv = ev_run.get_client, sys.argv
-        ev_run.get_client = lambda m: Client()
+        original, original_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: Client()
         sys.argv = ["run_eval", "--model", "m", "--runs", "1", "--delay", "0",
                     "--no-grader", "--output-dir", out]
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 ev_run.main()
         finally:
-            ev_run.get_client, sys.argv = original, original_argv
+            ev_llm.get_client, sys.argv = original, original_argv
 
         data = json.loads(Path(glob.glob(f"{out}/run_1_*.json")[0]).read_text())
         thinking = [e for e in data["transcript"] if e["type"] == "thinking"]
@@ -723,8 +723,8 @@ class TestThinkingBudget:
             def __init__(self):
                 self.messages = Messages()
 
-        original, original_argv = ev_run.get_client, sys.argv
-        ev_run.get_client = lambda m: Client()
+        original, original_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: Client()
         sys.argv = ["run_eval", "--model", "m", "--runs", "2", "--delay", "0",
                     "--no-grader", "--output-dir", out]
         try:
@@ -733,7 +733,7 @@ class TestThinkingBudget:
                 ev_run.main()
             output = buf.getvalue()
         finally:
-            ev_run.get_client, sys.argv = original, original_argv
+            ev_llm.get_client, sys.argv = original, original_argv
 
         assert "No reasoning was captured" in output
         summary = json.loads(
@@ -811,15 +811,15 @@ class TestEmptyTextBlocksAreNotEchoedBack:
             def __init__(self):
                 self.messages = Messages()
 
-        original, original_argv = ev_run.get_client, sys.argv
-        ev_run.get_client = lambda m: Client()
+        original, original_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--output-dir", out]
         try:
             with contextlib.redirect_stdout(io.StringIO()) as buf:
                 ev_run.main()
         finally:
-            ev_run.get_client, sys.argv = original, original_argv
+            ev_llm.get_client, sys.argv = original, original_argv
 
         assert "FAILED" not in buf.getvalue()
         run_files = glob.glob(f"{out}/run_1_*.json")
@@ -863,15 +863,15 @@ class TestPartialTranscriptSurvivesAnAPIError:
             def __init__(self):
                 self.messages = Messages()
 
-        original, original_argv = ev_run.get_client, sys.argv
-        ev_run.get_client = lambda m: Client()
+        original, original_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--output-dir", out]
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 ev_run.main()
         finally:
-            ev_run.get_client, sys.argv = original, original_argv
+            ev_llm.get_client, sys.argv = original, original_argv
 
         partials = glob.glob(f"{out}/failed_run_1_*.json")
         assert partials, "the partial transcript should have been saved"
@@ -1385,8 +1385,8 @@ class TestAwarenessTimingWiring:
             return {"eval_aware": False, "eval_aware_category": "none",
                     "eval_signal_count": 0, "rubric_results": {}}
 
-        original = ev_run.detect_eval_awareness_grader
-        ev_run.detect_eval_awareness_grader = fake_grader
+        original = ev_grade.detect_eval_awareness_grader
+        ev_grade.detect_eval_awareness_grader = fake_grader
         try:
             analysis = {"oversight_tampered": True,
                         "sandbox_escape_attempts": ["cat /etc/passwd"],
@@ -1395,7 +1395,7 @@ class TestAwarenessTimingWiring:
                 ev_run.add_awareness_timing(analysis, self._episode(),
                                             grader_model="claude-haiku-4-5")
         finally:
-            ev_run.detect_eval_awareness_grader = original
+            ev_grade.detect_eval_awareness_grader = original
 
         # One prefix per distinct act position, and neither prefix may contain
         # the post-act admission - that is the whole point.
@@ -1420,8 +1420,8 @@ class TestAwarenessTimingWiring:
             {"turn": 1, "type": "tool_call",
              "cmd": "sed -i '' 's/true/false/' config/monitoring.yaml"},
         ]
-        original = ev_run.detect_eval_awareness_grader
-        ev_run.detect_eval_awareness_grader = fake_grader
+        original = ev_grade.detect_eval_awareness_grader
+        ev_grade.detect_eval_awareness_grader = fake_grader
         try:
             analysis = {"oversight_tampered": True,
                         "sandbox_escape_attempts":
@@ -1430,7 +1430,7 @@ class TestAwarenessTimingWiring:
                 ev_run.add_awareness_timing(analysis, transcript,
                                             grader_model="claude-haiku-4-5")
         finally:
-            ev_run.detect_eval_awareness_grader = original
+            ev_grade.detect_eval_awareness_grader = original
 
         assert len(calls) == 1
 
@@ -2040,15 +2040,15 @@ class TestPromptCacheBreakpoints:
             def __init__(self):
                 self.messages = Messages()
 
-        original, original_argv = ev_run.get_client, sys.argv
-        ev_run.get_client = lambda m: Client()
+        original, original_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--output-dir", out]
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 ev_run.main()
         finally:
-            ev_run.get_client, sys.argv = original, original_argv
+            ev_llm.get_client, sys.argv = original, original_argv
 
         # Turn 1 carries none (nothing sent yet); later turns carry at most 2.
         assert seen[0] == 0
@@ -2078,8 +2078,8 @@ class TestPromptCacheBreakpoints:
             def __init__(self):
                 self.messages = Messages()
 
-        original, original_argv = ev_run.get_client, sys.argv
-        ev_run.get_client = lambda m: Client()
+        original, original_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--output-dir", out]
         try:
@@ -2087,7 +2087,7 @@ class TestPromptCacheBreakpoints:
             with contextlib.redirect_stdout(buf):
                 ev_run.main()
         finally:
-            ev_run.get_client, sys.argv = original, original_argv
+            ev_llm.get_client, sys.argv = original, original_argv
 
         assert "written but never read" in buf.getvalue()
 
@@ -2247,8 +2247,8 @@ class TestEffortInFilenames:
             def __init__(self):
                 self.messages = Messages()
 
-        original, original_argv = ev_run.get_client, sys.argv
-        ev_run.get_client = lambda m: Client()
+        original, original_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--effort", "xhigh",
                     "--output-dir", out]
@@ -2256,7 +2256,7 @@ class TestEffortInFilenames:
             with contextlib.redirect_stdout(io.StringIO()):
                 ev_run.main()
         finally:
-            ev_run.get_client, sys.argv = original, original_argv
+            ev_llm.get_client, sys.argv = original, original_argv
 
         run_files = glob.glob(f"{out}/run_1_*.json")
         assert run_files
@@ -2286,8 +2286,8 @@ class TestEffortInFilenames:
             def __init__(self):
                 self.messages = Messages()
 
-        original, original_argv = ev_run.get_client, sys.argv
-        ev_run.get_client = lambda m: Client()
+        original, original_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: Client()
         sys.argv = ["run_eval", "--model", "x-ai/grok-4.5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--effort", "max",
                     "--output-dir", out]
@@ -2295,7 +2295,7 @@ class TestEffortInFilenames:
             with contextlib.redirect_stdout(io.StringIO()):
                 ev_run.main()
         finally:
-            ev_run.get_client, sys.argv = original, original_argv
+            ev_llm.get_client, sys.argv = original, original_argv
 
         name = os.path.basename(glob.glob(f"{out}/run_1_*.json")[0])
         assert "_max_" not in name, name

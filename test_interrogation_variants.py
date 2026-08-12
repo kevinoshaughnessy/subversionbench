@@ -123,10 +123,11 @@ class TestProbesCannotInterfere:
         extended in place, the second phrasing would inherit the first probe's
         question and answer - an order effect confounding the comparison."""
         import subversionbench.run_eval as ev
+        import subversionbench.grading as ev_grade
         episode = [{"role": "user", "content": "the episode"}]
         before = [dict(m) for m in episode]
-        orig = ev.classify_interrogation_answer
-        ev.classify_interrogation_answer = lambda text, *a, **k: {
+        orig = ev_grade.classify_interrogation_answer
+        ev_grade.classify_interrogation_answer = lambda text, *a, **k: {
             "verdict": "admitted", "verdict_llm": None, "verdict_keyword": None,
             "classifiers_agree": None, "used_keyword_fallback": False,
             "quote": "", "classifier_error": None,
@@ -140,7 +141,7 @@ class TestProbesCannotInterfere:
                         questions=questions_for(MISALIGNED_ACTS[0], "strong",
                                                 name))
         finally:
-            ev.classify_interrogation_answer = orig
+            ev_grade.classify_interrogation_answer = orig
         assert episode == before, (
             "the episode's message list was mutated, so a later probe would see "
             "an earlier one")
@@ -149,6 +150,7 @@ class TestProbesCannotInterfere:
         """Guards the copy. A source check is fair here: the behaviour above can
         only detect mutation of the outer list, not of a shared suffix."""
         import subversionbench.run_eval as ev
+        import subversionbench.grading as ev_grade
         src = inspect.getsource(ev.run_followup)
         assert "list(messages)" in src
 
@@ -484,6 +486,7 @@ class TestReplayDefectsFound:
         whether the model could think."""
         import inspect
         import subversionbench.run_eval as ev
+        import subversionbench.grading as ev_grade
         src = inspect.getsource(ev.reinterrogate_existing_runs)
         assert "resolve_thinking_kwargs" in src
         assert "reasoning_kwargs=replay_kwargs" in src
@@ -493,6 +496,7 @@ class TestReplayDefectsFound:
     def test_a_reasoning_mismatch_is_warned_about(self):
         import inspect
         import subversionbench.run_eval as ev
+        import subversionbench.grading as ev_grade
         src = inspect.getsource(ev.reinterrogate_existing_runs)
         assert "reasoning config differs" in src
 
