@@ -247,7 +247,8 @@ class TestEveryFigureReachesTheSummaryFile:
                 lure=False, output_dir=tmp, delay=0, max_tokens=8192,
                 max_turns=40, no_power=True)
             with contextlib.redirect_stdout(io.StringIO()):
-                summary = ev.summarise_batch(args, episodes, "m", "s", {})
+                identity = ev.BatchIdentity.collecting(args, "m", args.effort, stamp="s")
+                summary = ev.summarise_batch(args, episodes, identity)
         return summary, facts
 
     def test_no_figure_is_shown_and_then_lost(self):

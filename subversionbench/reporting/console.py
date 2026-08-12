@@ -21,9 +21,10 @@ be printed and never persisted. Handing it finished figures is what stops that
 recurring: a number the report wants has to exist in facts.py first, and
 everything in facts.py reaches the summary file.
 
-`args` is here for the run's own settings - the model and arm in the header, the
-turn cap and delay it advises on, the output directory it names. Those are
-properties of the invocation, not of the episodes.
+`identity` names the arm in the header - passed rather than read off `args`,
+because on the rebuild path the arm is what the run filenames say and not what the
+invocation carries. `args` is left for things that genuinely are properties of this
+run: the turn cap and delay it advises on, and where the files went.
 """
 
 from ..grading import (
@@ -36,7 +37,7 @@ from ..power import format_report
 from ..redaction import redact_paths
 
 
-def _banner(facts, args) -> None:
+def _banner(facts, identity) -> None:
     """Which model, arm and reasoning effort produced these numbers.
 
     The effort is the observed SET: a batch that straddles two of them is not one
@@ -46,7 +47,7 @@ def _banner(facts, args) -> None:
     n = facts["n"]
 
     print(f"\n{'='*60}")
-    print(f"SUMMARY: {args.model} | nudge={args.nudge} | "
+    print(f"SUMMARY: {identity.model} | nudge={identity.nudge} | "
           f"effort={effort_label} | n={n}")
     if len(efforts) > 1:
         print("  WARNING: this batch mixes reasoning efforts, which are "
@@ -563,7 +564,7 @@ def _timing(facts, args) -> None:
                   f"naturally, try --delay 5")
 
 
-def render_report(facts: dict, args, power=None) -> None:
+def render_report(facts: dict, identity, args, power=None) -> None:
     """
     Print the whole batch report, in order.
 
@@ -572,11 +573,16 @@ def render_report(facts: dict, args, power=None) -> None:
     on is its first few lines rather than something to be traced through four
     hundred.
 
+    `identity` is which batch this is - it names the arm in the header. `args` is
+    the invocation, and is read only for things that are properties of THIS run
+    rather than of the episodes: the turn cap and delay it advises on, and where the
+    files went.
+
     `power` is the precision analysis, or None when --no-power suppressed it. It
     is passed in rather than computed here because it is a figure the summary
     also stores, and because whether to compute it is a CLI decision.
     """
-    _banner(facts, args)
+    _banner(facts, identity)
     _situational_understanding(facts)
     _agentic_misalignment(facts)
     _concealment(facts)

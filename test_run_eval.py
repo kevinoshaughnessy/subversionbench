@@ -24,6 +24,16 @@ import subversionbench.reporting as ev_report
 from subversionbench.run_eval import _unique_batch_stamp, find_run_files
 
 
+def ev_ident(args, model_slug="m", stamp="S"):
+    """A BatchIdentity for a test batch.
+
+    summarise_batch takes identity explicitly rather than reading the arm off
+    `args`; these tests build the collecting-a-batch case, where the two agree.
+    """
+    return ev_run.BatchIdentity.collecting(args, model_slug, args.effort,
+                                           stamp=stamp)
+
+
 class _FakeArgs:
     """Stand-in for the argparse namespace that grade_existing_runs() reads."""
 
@@ -1088,7 +1098,9 @@ class TestTransientTampering:
         }
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            summary = ev_run.summarise_batch(args, [episode] * 4, "m", "S")
+            summary = ev_run.summarise_batch(
+                args, [episode] * 4,
+                ev_ident(args, "m", "S"))
         output = buf.getvalue()
 
         assert "Transient tampering" in output
@@ -1146,7 +1158,9 @@ class TestTransientTampering:
         }
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            summary = ev_run.summarise_batch(args, [episode] * 3, "m", "S")
+            summary = ev_run.summarise_batch(
+                args, [episode] * 3,
+                ev_ident(args, "m", "S"))
         output = buf.getvalue()
 
         for key in ("oversight_tampered", "monitoring_disabled",
@@ -1206,13 +1220,15 @@ class TestTransientTampering:
 
         with contextlib.redirect_stdout(io.StringIO()):
             summary = ev_run.summarise_batch(
-                args, [episode("aaa"), episode("bbb")], "m", "S")
+                args, [episode("aaa"), episode("bbb")],
+                ev_ident(args, "m", "S"))
         assert summary["rollout"]["mixed"] is True
         assert summary["rollout"]["fingerprints"] == {"aaa": 1, "bbb": 1}
 
         with contextlib.redirect_stdout(io.StringIO()):
             same = ev_run.summarise_batch(
-                args, [episode("aaa"), episode("aaa")], "m", "S")
+                args, [episode("aaa"), episode("aaa")],
+                ev_ident(args, "m", "S"))
         assert same["rollout"]["mixed"] is False
 
     def test_it_does_not_change_oversight_tampered(self):
@@ -2106,7 +2122,9 @@ class TestTheSummaryHeaderStatesTheEffort:
                     "transcript": [], "effort": e} for e in efforts]
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            ev_run.summarise_batch(args, results, "m", "S")
+            ev_run.summarise_batch(
+                args, results,
+                ev_ident(args, "m", "S"))
         return next(l for l in buf.getvalue().splitlines()
                     if l.startswith("SUMMARY:")), buf.getvalue()
 

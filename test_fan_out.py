@@ -94,25 +94,33 @@ class TestFanOut:
         assert fan_out_read_mode(self._args(d), fake) == 0
         assert seen == [("a/b", "strong", "a_b"), ("c/d", "none", "c_d")]
 
-    def test_typed_filters_do_not_leak_between_batches(self):
-        """THE bug. The callee sets args.effort per batch; the next iteration
-        must start from what the operator typed, not from that."""
+    def test_the_typed_filters_reach_every_batch(self):
+        """THE bug, from the other end.
+
+        The filters the operator typed have to mean the same thing on the last
+        batch as on the first. This used to fail because the callee assigned the
+        batch's own arm onto args.effort/oversight/lure: the first batch, collected
+        at effort "medium", filtered every later model to "medium", and two of four
+        groups silently reported "no run files" while the run reported success.
+
+        fan_out no longer restores anything between iterations, because there is no
+        longer anything to restore - the arm travels in a BatchIdentity. What keeps
+        that true is test_no_read_mode_writes_to_the_operators_filters below, not a
+        snapshot here: a guard that fails loudly beats one that silently repairs.
+        """
         d = tempfile.mkdtemp(prefix="fanout_")
         _run_file(d, 1, "a/b", "strong", effort="medium")
         _run_file(d, 2, "c/d", "strong")
         _run_file(d, 3, "e/f", "strong")
-        efforts = []
+        seen = []
 
         def fake(args, slug):
-            efforts.append(args.effort)
-            args.effort = "medium"      # what resummarise_existing_runs does
-            args.oversight = False
-            args.lure = True
+            seen.append((args.effort, args.oversight, args.lure))
             return 0
 
         fan_out_read_mode(self._args(d, effort=None), fake)
-        assert efforts == [None, None, None], (
-            f"effort leaked across batches: {efforts}")
+        assert seen == [(None, "true", "false")] * 3, (
+            f"the operator's filters did not survive the fan out: {seen}")
 
     def test_a_typed_effort_is_preserved_for_every_batch(self):
         d = tempfile.mkdtemp(prefix="fanout_")
@@ -122,11 +130,46 @@ class TestFanOut:
 
         def fake(args, slug):
             efforts.append(args.effort)
-            args.effort = "clobbered"
             return 0
 
         fan_out_read_mode(self._args(d, effort="high"), fake)
         assert efforts == ["high", "high"]
+
+    def test_no_read_mode_writes_to_the_operators_filters(self):
+        """The guard that replaces the snapshot fan_out used to keep.
+
+        `args` is shared across every batch in a fan out, so a read mode that
+        assigns to one of the filter fields poisons every batch after it. The arm a
+        batch was collected under now travels in a BatchIdentity, so no mode needs
+        to; this makes needing to a test failure rather than a silent half-done
+        backfill.
+
+        main is exempt for model/nudge-adjacent normalisation of its OWN freshly
+        parsed namespace, and fan_out itself sets model and nudge as its iteration
+        variables - written afresh every time round.
+        """
+        import ast
+        import inspect
+        import subversionbench.run_eval as ev
+        FILTERS = {"effort", "oversight", "lure", "model", "nudge"}
+        ALLOWED = {"main", "fan_out_read_mode"}
+        tree = ast.parse(inspect.getsource(ev))
+        offenders = []
+        for fn in tree.body:
+            if not isinstance(fn, ast.FunctionDef) or fn.name in ALLOWED:
+                continue
+            for node in ast.walk(fn):
+                if (isinstance(node, ast.Attribute)
+                        and isinstance(node.ctx, ast.Store)
+                        and getattr(node.value, "id", "") == "args"
+                        and node.attr in FILTERS):
+                    offenders.append(f"{fn.name} assigns args.{node.attr}")
+                if (isinstance(node, ast.Call)
+                        and getattr(node.func, "id", "") == "setattr"
+                        and node.args and getattr(node.args[0], "id", "") == "args"):
+                    offenders.append(f"{fn.name} setattrs onto args")
+        assert not offenders, (
+            f"these would leak across a fan out: {sorted(set(offenders))}")
 
     def test_one_failing_batch_does_not_abandon_the_rest(self):
         d = tempfile.mkdtemp(prefix="fanout_")

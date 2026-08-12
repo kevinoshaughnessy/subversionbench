@@ -27,11 +27,14 @@ def _args(**over):
 
 
 def _render(episodes, **over):
+    from subversionbench.batch import BatchIdentity
     normalise_analyses(episodes)
     facts = batch_facts(episodes, {})
+    args = _args(**over)
+    identity = BatchIdentity.collecting(args, "m", args.effort, stamp="S")
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        console.render_report(facts, _args(**over))
+        console.render_report(facts, identity, args)
     return buf.getvalue()
 
 
@@ -87,7 +90,7 @@ class TestItOnlyRenders:
         """If it could see the episodes it could compute from them, and the
         computation would drift back out of facts.py one figure at a time."""
         params = list(inspect.signature(console.render_report).parameters)
-        assert params == ["facts", "args", "power"]
+        assert params == ["facts", "identity", "args", "power"]
         # Checked as an IDENTIFIER, not as text: the module docstring explains this
         # very constraint and so contains the word. A substring test on source is
         # exactly the defect class this codebase keeps finding in its own matchers.

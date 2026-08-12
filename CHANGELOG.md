@@ -13,6 +13,43 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **A batch's identity is passed, not read off `args` or written onto it.** The arm
+  a batch belongs to - model, nudge, effort, oversight, lure - now travels as a
+  frozen `BatchIdentity`, with the naming that depends on it in `batch.py` beside
+  the parser that reads those names back.
+
+  Two bugs came from conflating identity with the invocation, in opposite
+  directions, and both are now inexpressible rather than fixed:
+
+  - Reading the arm off `args` sent a rebuilt counterfactual batch into the
+    OVERSIGHT arm's summary file. The console named the right file and the write
+    went elsewhere.
+  - Assigning the arm onto `args` leaked, because a fan out shares one namespace
+    across every batch. One batch collected at effort `medium` filtered every later
+    model to `medium`: two of four groups reported "no run files", and the backfill
+    would have been half done while the run reported success.
+
+  The workaround each had grown is gone with it. `--resummarise` no longer assigns
+  to `args.effort`/`oversight`/`lure`, the fan out no longer snapshots and restores
+  them, and the settings a rebuild recovers from the summary it replaces now travel
+  in `runtime` rather than being written onto the shared namespace. `summarise_batch`
+  reads exactly two things off `args`: the output directory and `--no-power`.
+
+  What replaces the fan out's snapshot is a test asserting that no read mode writes
+  to the operator's filters at all. A guard that fails loudly is worth more than one
+  that silently repairs, and the silent repair is what let the underlying mutation
+  survive as long as it did.
+
+  One defect was introduced and caught while doing this. `BatchIdentity.collecting`
+  defaulted `effort` to `args.effort` when passed None - which reads naturally and is
+  wrong exactly where it matters, because None is a VALUE here, "no effort was sent",
+  and not an absent argument. Asking a model with no effort control for `max` sends
+  nothing, and the batch would have been labelled `max` anyway. `effort` is now
+  required with no default, and a test pins that.
+
+  Verified as before: over every saved episode, all 5041 summary fields across 71
+  batches are unchanged and all 71 console reports byte-identical.
+
 - **What the report shows can now be re-derived from a summary file.** Six figures
   reached the console and were saved nowhere, so a question the report answered on
   screen could not be answered from the artefact afterwards. New fields:

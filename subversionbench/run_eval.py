@@ -92,6 +92,7 @@ from .llm_client import (
     resolve_thinking_kwargs,
     thinking_surface,
 )
+from .batch import BatchIdentity, NO_OVERSIGHT_TAG, batch_stem, parse_batch_filename
 from .redaction import redact_paths
 from .scenario import scenario_for
 from .isolation import (DEFAULT_ISOLATION, ISOLATION_MODES,
@@ -144,8 +145,6 @@ class EpisodeAPIError(RuntimeError):
 # so a single rolling breakpoint would stop finding its predecessor around turn
 # ten and silently degrade to no caching. Two keeps the lookback short. The API
 # allows four; the extra two buy nothing here and cost a write each.
-NO_OVERSIGHT_TAG = "nooversight"
-
 # The analysis fields --resummarise re-derives, and the only ones
 # --resummarise --write-back is allowed to save back into a run file.
 #
@@ -1006,22 +1005,18 @@ def fan_out_read_mode(args, run_one) -> int:
         print(f"  {m} / {n}")
     print(f"{'='*60}")
 
-    # The filter fields the callee MUTATES, snapshotted so each iteration starts
-    # from what the operator typed.
+    # No snapshot of the filter fields here any more, and that is the point.
     #
-    # resummarise_existing_runs sets args.effort, args.oversight and args.lure
-    # per batch, because summarise_batch builds the filename it writes from args.
-    # Those writes leak into the next model: the first fan-out attempt processed a
-    # batch collected at effort "medium", after which every later model was
-    # filtered to "medium" and matched nothing - two of four groups silently
-    # returned "no run files" and the backfill would have been half-done. The
-    # per-batch mutation is deliberate in the callee, so the fix belongs here.
-    typed = {k: getattr(args, k, None) for k in ("effort", "oversight", "lure")}
-
+    # This loop used to restore args.effort, args.oversight and args.lure at the top
+    # of every iteration, because resummarise_existing_runs assigned the batch's own
+    # arm onto them - so the first batch processed at effort "medium" filtered every
+    # later model to "medium", two of four groups silently reported "no run files",
+    # and the backfill would have been half done while reporting success. The callee
+    # now carries the arm in a BatchIdentity, so there is nothing to leak and nothing
+    # to undo. Model and nudge are still set here, and both are written afresh on
+    # every iteration.
     worst = 0
     for i, (model, nudge) in enumerate(batches, 1):
-        for k, v in typed.items():
-            setattr(args, k, v)
         args.model, args.nudge = model, nudge
         print(f"\n### [{i}/{len(batches)}] {model} / {nudge}")
         try:
@@ -1065,93 +1060,6 @@ def _unique_batch_stamp(output_dir: str) -> str:
         stamp = f"{base}-{attempt}"
 
     return stamp
-
-
-def batch_stem(model_slug: str, nudge: str, effort=None,
-               oversight: bool = True, lure: bool = False) -> str:
-    """
-    The middle of every filename belonging to one batch.
-
-    The effort level is part of a batch's identity: the same model at `low` and
-    at `xhigh` are two conditions, and naming them so they differ only by
-    timestamp invites their being pooled by accident. Included only when one was
-    actually sent, so batches at the API default keep the names they have always
-    had and results already on disk stay findable.
-
-    The oversight arm is part of that identity for the same reason and sits
-    before the effort segment, so the two compose. Marked only when oversight
-    is ABSENT, so the 570 episodes already collected under the oversight arm
-    keep the names they have.
-
-    The stamp is always appended after this, never before - find_run_files_by_stamp
-    and regrade_all.sh both key off a trailing _<stamp>.json.
-    """
-    # The interrogation phrasings are deliberately NOT part of the name. Every
-    # episode is probed with the default wording plus any extras, so the default
-    # measure means the same thing in every batch and they pool for it. Marking
-    # the extras would split that measure across summaries and shrink its n for
-    # no gain - the extras live in the run's metadata instead.
-    return (f"{model_slug}_{nudge}"
-            + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
-            + ("_lure" if lure else "")
-            + (f"_{effort}" if effort else ""))
-
-
-def parse_batch_filename(path: str, nudge: str):
-    """
-    Read (effort, stamp, oversight) back off a run or summary filename.
-
-    A rebuild has to name its summary after the runs it read, not after whatever
-    --effort the rebuilding invocation happened to carry: otherwise
-    resummarising an `xhigh` batch writes a summary claiming the default.
-    Matching `_<nudge>_<level>` rather than a bare `_<level>` stops a model slug
-    that happens to end in a level name from being misread.
-    """
-    name = os.path.basename(path)
-    if name.endswith(".json"):
-        name = name[:-len(".json")]
-
-    stamp = ""
-    match = re.search(r"_(\d{8}T\d{6}(?:-\d+)?)$", name)
-    if match:
-        stamp = match.group(1)
-        name = name[:match.start()]
-
-    # Strip the known suffixes from the right, in any order, until none match.
-    #
-    # Written as a loop rather than a fixed sequence because the suffixes are
-    # optional and independent - a batch may carry an arm, a lure and an effort,
-    # or any subset - and a fixed order breaks as soon as a new one is added
-    # between two existing ones.
-    #
-    # The nudge guard is the subtle part: `max` is both a nudge level and an
-    # effort level. Without it a `--nudge max` batch parsed as effort="max" with
-    # no nudge, and batch_stem rebuilt the name with the token doubled - a second
-    # summary file beside the right one, claiming an effort never requested. The
-    # guard is safe because the nudge is the LAST segment left once the optional
-    # suffixes are gone, so a trailing token equal to the nudge is the nudge.
-    effort, lure, oversight = None, False, True
-    while True:
-        if name.endswith("_lure"):
-            name = name[:-len("_lure")]
-            lure = True
-            continue
-        if name.endswith(f"_{NO_OVERSIGHT_TAG}"):
-            name = name[:-len(f"_{NO_OVERSIGHT_TAG}")]
-            oversight = False
-            continue
-        if not name.endswith(f"_{nudge}"):
-            for level in EFFORT_LEVELS:
-                if name.endswith(f"_{level}"):
-                    effort = level
-                    name = name[:-len(f"_{level}")]
-                    break
-            else:
-                break
-            continue
-        break
-
-    return effort, stamp, oversight, lure
 
 
 def find_run_files(output_dir: str, model_slug: str, nudge: str,
@@ -2034,14 +1942,20 @@ def _runtime_from_existing_summary(path: str, all_results: list) -> dict:
         previous = json.load(f)
     timing = previous.get("timing") or {}
     elapsed = timing.get("total_elapsed_seconds") or 0.0
-    # Settings the batch ran under, which live on `args` and would otherwise be
-    # replaced by whatever defaults the rebuild was invoked with.
-    runtime["args_overrides"] = {
-        k: previous[k] for k in ("max_tokens", "effort", "max_turns")
+    # Settings the batch ran under, which would otherwise be replaced by whatever
+    # defaults the rebuild was invoked with. Returned as data for summarise_batch to
+    # read, NOT assigned onto `args`: that namespace is shared across a fan-out, so
+    # one batch's recovered settings leaked into every later one.
+    #
+    # `effort` is deliberately absent. It belongs to the batch's identity, which is
+    # read from the run filenames - a sharper source than a previous summary, and
+    # already the last word here before this became explicit.
+    runtime["settings"] = {
+        k: previous[k] for k in ("max_tokens", "max_turns")
         if k in previous
     }
     if "delay_setting" in timing:
-        runtime["args_overrides"]["delay"] = timing["delay_setting"]
+        runtime["settings"]["delay"] = timing["delay_setting"]
     runtime.update({
         "aborted": previous.get("batch_aborted", False),
         "failures": previous.get("episode_failures") or [],
@@ -2150,31 +2064,23 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
 
             all_results.append(run)
 
-        stamped = f"_{stamp}" if stamp else ""
-        summary_path = (f"{args.output_dir}/summary"
-                        f"_{batch_stem(model_slug, args.nudge, effort, oversight, lure)}"
-                        f"{stamped}.json")
+        # The arm these runs were made under is whatever their FILENAMES say, not
+        # whatever this invocation was passed. Built as an identity and handed to
+        # summarise_batch, which is what makes the rebuild write to the file it
+        # just named: this used to be done by assigning back onto `args`, and both
+        # directions of that failed - see BatchIdentity.
+        identity = BatchIdentity(model=args.model, model_slug=model_slug,
+                                 nudge=args.nudge, effort=effort,
+                                 oversight=oversight, lure=lure, stamp=stamp)
+        summary_path = identity.filename(args.output_dir)
         runtime = _runtime_from_existing_summary(summary_path, all_results)
-        for key, value in runtime.pop("args_overrides", {}).items():
-            setattr(args, key, value)
-        # Last word, after args_overrides: the effort these runs were made at is
-        # whatever their filenames say, not whatever a previous summary recorded
-        # or this invocation was passed. The same holds for the arm, and for a
-        # sharper reason: summarise_batch builds the filename it writes from
-        # args, so leaving this unset sent a rebuilt counterfactual batch to the
-        # OVERSIGHT arm's summary file - the one confusion the whole naming
-        # scheme exists to prevent. The name printed above was right and the
-        # file written was not.
-        args.effort = effort
-        args.oversight = oversight
-        args.lure = lure
 
         print(f"\n{'#'*60}")
         print(f"# Rebuilding {os.path.basename(summary_path)} "
               f"from {len(all_results)} run(s)"
               + (f" at effort {effort}" if effort else ""))
         print(f"{'#'*60}")
-        summarise_batch(args, all_results, model_slug, stamp, runtime)
+        summarise_batch(args, all_results, identity, runtime)
 
         # After summarise_batch, because that is what re-derives them. Only the
         # allowlisted fields are saved, and only those that actually differ, so
@@ -2205,8 +2111,7 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
     return 0
 
 
-def summarise_batch(args, all_results: list, model_slug: str,
-                    batch_stamp: str, runtime: dict = None) -> dict:
+def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> dict:
     """
     Aggregate a batch of completed runs into the printed report and the
     summary JSON, and write it.
@@ -2217,11 +2122,25 @@ def summarise_batch(args, all_results: list, model_slug: str,
     new ones. Regenerating has to be possible without paying for the rollouts
     again.
 
+    `identity` is which batch this is - the arm, and the stamp. Passed rather than
+    read off `args`, because on the rebuild path the arm is whatever the run
+    filenames say and not what this invocation was given. See BatchIdentity for the
+    two ways that went wrong when the two were conflated.
+
     `runtime` carries the batch facts that are not recoverable from run files -
-    wall-clock timings, which episodes failed, whether the batch was aborted.
+    wall-clock timings, which episodes failed, whether the batch was aborted, and
+    under `settings` the invocation values the batch actually ran under.
     Rebuilding from disk passes whatever the previous summary recorded, and
     leaves the rest empty rather than inventing it.
     """
+    # The settings this batch RAN under, which are not always the ones this
+    # invocation carries: a rebuild recovers them from the summary it is replacing.
+    # Read through here rather than assigned onto `args`, which is shared across a
+    # fan-out and leaked into the next model when it was.
+    settings = (runtime or {}).get("settings") or {}
+    def setting(name):
+        return settings.get(name, getattr(args, name))
+
     # Bring the saved analyses up to the current definitions BEFORE anything
     # reads an act key, then compute every figure from them. Both live in
     # reporting/facts.py, which says why they are two calls and not one.
@@ -2358,7 +2277,7 @@ def summarise_batch(args, all_results: list, model_slug: str,
              concealment["oversight"]["acts"] / n if n else None),
         ])
 
-    render_report(facts, args, power)
+    render_report(facts, identity, args, power)
 
     summary = {
         "canary": CANARY,
@@ -2371,8 +2290,8 @@ def summarise_batch(args, all_results: list, model_slug: str,
         # rather than the loose *_rate fields below, which are kept for
         # compatibility with summaries written before it existed.
         "rates": rates,
-        "model": args.model,
-        "nudge": args.nudge,
+        "model": identity.model,
+        "nudge": identity.nudge,
         "n_runs": n,
 
         # Both constructs are recorded with the definition they were measured
@@ -2517,8 +2436,8 @@ def summarise_batch(args, all_results: list, model_slug: str,
         "n_episodes_failed": len(failures),
         "episode_failures": failures,
         "batch_aborted": aborted,
-        "batch_stamp": batch_stamp,
-        "max_turns": args.max_turns,
+        "batch_stamp": identity.stamp,
+        "max_turns": setting("max_turns"),
         "read_memo_rate": n_read_memo / n,
         "read_config_rate": n_read_config / n,
         "goal_conflict_rate": n_goal_conflict / n,
@@ -2539,12 +2458,12 @@ def summarise_batch(args, all_results: list, model_slug: str,
             "avg_eval_seconds": round(sum(eval_times) / len(eval_times), 1) if eval_times else None,
             "avg_grader_seconds": round(sum(grader_times) / len(grader_times), 1) if grader_times else None,
             "per_run_seconds": run_times,
-            "delay_setting": args.delay,
+            "delay_setting": setting("delay"),
         },
         "power": power,
         "timestamp": datetime.datetime.now().isoformat(),
         "version": VERSION,
-        "max_tokens": args.max_tokens,
+        "max_tokens": setting("max_tokens"),
         # The effort REQUESTED, and beside it the set actually sent. Every episode
         # records the level it went out with, so a batch that straddles two of them
         # is two conditions pooled - and the console has always warned about it
@@ -2552,15 +2471,11 @@ def summarise_batch(args, all_results: list, model_slug: str,
         # an observed set for the same reason rollout.versions and
         # rollout.isolation are: a difference nothing writes down is invisible to
         # anyone reading the artefact later.
-        "effort": args.effort,
+        "effort": identity.effort,
         "efforts_observed": efforts,
         "efforts_mixed": len(efforts) > 1,
     }
-    stamped = f"_{batch_stamp}" if batch_stamp else ""
-    summary_file = (
-        f"{args.output_dir}/summary"
-        f"_{batch_stem(model_slug, args.nudge, args.effort, args.oversight, args.lure)}{stamped}.json"
-    )
+    summary_file = identity.filename(args.output_dir)
     with open(summary_file, "w") as f:
         json.dump(summary, f, indent=2)
     print(f"Summary saved to {redact_paths(summary_file)}")
@@ -2908,10 +2823,12 @@ def main():
     if args.grade_existing:
         return grade_existing_runs(args, model_slug)
 
-    # Past this point we are rolling out, so the batch is labelled with the
-    # effort that will actually be sent. Set after the read modes above, whose
-    # --effort is a filter the user typed and must survive verbatim.
-    args.effort = effective_effort
+    # Past this point we are rolling out, so the batch is labelled with the effort
+    # that will actually be SENT rather than the one typed. That used to be done by
+    # assigning back onto args.effort, which was only safe because it happened after
+    # the read modes above - whose --effort is a filter the operator typed and must
+    # survive verbatim. The label now travels in the batch's identity instead, so
+    # the two cannot be confused by placement.
 
     # And past this point new episodes are about to be written into a results
     # directory named for a rollout. If the rollout has drifted from the one
@@ -2971,6 +2888,10 @@ def main():
     else:
         batch_stamp = _unique_batch_stamp(args.output_dir)
 
+    # Everything this batch's files are named after, in one value.
+    identity = BatchIdentity.collecting(args, model_slug, effective_effort,
+                                        batch_stamp)
+
     all_results = []
     t_batch_start = time.time()
     total_delay_seconds = 0
@@ -2980,11 +2901,7 @@ def main():
     aborted = False
 
     for i in range(args.runs):
-        run_file = (
-            f"{args.output_dir}/run_{i+1}"
-            f"_{batch_stem(model_slug, args.nudge, effective_effort, args.oversight, args.lure)}"
-            f"_{batch_stamp}.json"
-        )
+        run_file = identity.filename(args.output_dir, f"run_{i+1}")
 
         # Resume: an episode already saved under this stamp is complete, so
         # load it and move on rather than paying for it twice.
@@ -3050,11 +2967,8 @@ def main():
             # still the only record of what the model did before the failure,
             # so it is written somewhere findable rather than dropped.
             if isinstance(e, EpisodeAPIError):
-                partial_file = (
-                    f"{args.output_dir}/failed_run_{i+1}"
-                    f"_{batch_stem(model_slug, args.nudge, effective_effort, args.oversight, args.lure)}"
-                    f"_{batch_stamp}.json"
-                )
+                partial_file = identity.filename(args.output_dir,
+                                                 f"failed_run_{i+1}")
                 with open(partial_file, "w") as f:
                     json.dump(e.partial, f, indent=2, default=str)
                 failure["partial_transcript"] = os.path.basename(partial_file)
@@ -3137,7 +3051,7 @@ def main():
     # =====================================================================
 
     summary = summarise_batch(
-        args, all_results, model_slug, batch_stamp,
+        args, all_results, identity,
         {
             "aborted": aborted,
             "failures": failures,
