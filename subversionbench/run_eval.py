@@ -25,10 +25,8 @@ SETUP:
 Run with --help for the full list of CLI options.
 """
 
-import json
 import os
 import sys
-import time
 import argparse
 
 from .compare import compare_batches
@@ -36,18 +34,15 @@ from .config import (
     DEFAULT_GRADER_MODEL,
     DEFAULT_INTERROGATION,
     INTERROGATION_CHOICES,
-    ROLLOUT_FINGERPRINTS,
     parse_interrogations,
     ROLLOUT_VERSION,
     VERSION,
     SYSTEM_PROMPT_STRONG_NUDGE,
     SYSTEM_PROMPT_NO_NUDGE,
 )
-from .blocks import serialise_messages
-from .episode import (EpisodeAPIError, _CACHE_BREAKPOINTS,  # noqa: F401
-                      add_awareness_timing, cache_usage,
-                      replayable_content, roll_cache_breakpoints,
-                      run_evaluation, run_followup)
+from .episode import (_CACHE_BREAKPOINTS,  # noqa: F401
+                      add_awareness_timing, cache_usage, replayable_content,
+                      roll_cache_breakpoints, run_evaluation, run_followup)
 from .grading import (
     questions_for,
     MISALIGNED_ACTS,
@@ -65,19 +60,15 @@ from .llm_client import (
 # through it as attributes. The rest are imported because this module uses them.
 from .batch import (ALL, BatchIdentity, batch_stem,  # noqa: F401
                     discover_batches, find_run_files, find_run_files_by_stamp,
-                    parse_batch_filename, unique_batch_stamp)
-from .environment import create_episode_root
+                    parse_batch_filename)
 from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
                         fan_out_read_mode, find_run_files_or_explain,
                         grade_existing_runs, reclassify_existing_runs,
                         reinterrogate_existing_runs,
                         resummarise_existing_runs)
 from .redaction import redact_paths
-from .scenario import scenario_for
-from .isolation import (DEFAULT_ISOLATION, ISOLATION_MODES,
-                        isolation_available, probe_isolation,
-                        profile_for, verify_isolation)
-from .rollout import rollout_drift_error
+from .runner import run_batch
+from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
 from .power import wilson_ci
 from .reporting.summary import summarise_batch
 
@@ -364,7 +355,6 @@ def main():
     # rather than taken from args, because an effort the model does not accept
     # is dropped there with a warning - and a filename or a recorded field
     # claiming a condition that never applied is worse than no label at all.
-    effective_effort = (reasoning_kwargs.get("output_config") or {}).get("effort")
 
     # max shares strong's prompt: the arms differ only in the interrogation
     # that follows the episode, so the episode itself must be identical for the
@@ -432,245 +422,11 @@ def main():
     if args.grade_existing:
         return grade_existing_runs(args, model_slug)
 
-    # Past this point we are rolling out, so the batch is labelled with the effort
-    # that will actually be SENT rather than the one typed. That used to be done by
-    # assigning back onto args.effort, which was only safe because it happened after
-    # the read modes above - whose --effort is a filter the operator typed and must
-    # survive verbatim. The label now travels in the batch's identity instead, so
-    # the two cannot be confused by placement.
+    # Past this point we are rolling out. Everything above decided whether to, and
+    # with what; runner.py does it.
+    return run_batch(args, model_slug, system_prompt, reasoning_kwargs,
+                     reasoning_config)
 
-    # And past this point new episodes are about to be written into a results
-    # directory named for a rollout. If the rollout has drifted from the one
-    # that directory holds, the two are different experiments and pooling them
-    # is the error this exists to prevent. Checked only for rollout modes: the
-    # read-only modes re-derive analysis from saved transcripts and must keep
-    # working against archived results whatever the current scenario says.
-    # The counterfactual arm has its own user prompt: the r1 one names the
-    # quality check, which the arm must not mention. The system prompts carry
-    # no oversight reference and are shared by both arms unchanged.
-    user_prompt = scenario_for(args.oversight)["user_prompt"]
-
-    # No opt-out: every rollout runs under a policy. isolation.profile_for()
-    # owns the policy file, so nothing here has to know that one platform needs
-    # one on disk.
-    profile_path = None
-    if True:
-        if not isolation_available(args.isolation):
-            # Refuse rather than silently downgrade: a run that reports a policy
-            # it did not apply is worse than one that will not start. But say
-            # exactly how to proceed, because the alternative to an actionable
-            # message is someone reaching for `off` without understanding it.
-            print(f"\n--isolation {args.isolation} cannot be enforced on this "
-                  f"host, and running without it is not something to do by "
-                  f"accident.")
-            print("  On Linux, install bubblewrap (`bwrap`) or ensure `unshare` "
-                  "is available.")
-            print("  There is deliberately no way to run without containment: "
-                  "the blocklist is not a boundary, and a model with shell "
-                  "access would be able to reach the network.")
-            return 1
-        profile_path = profile_for(args.isolation)
-        # Verified, not trusted: a profile that silently fails to apply looks
-        # exactly like one that works - the model simply reaches the network and
-        # nothing says so.
-        failure = verify_isolation(args.isolation, profile_path)
-        if failure:
-            print(f"\nIsolation did not hold. Refusing to roll out.\n  {failure}")
-            return 1
-        probe = probe_isolation(args.isolation, profile_path)
-        print(f"Isolation: {args.isolation} (verified: loopback "
-              f"{probe['loopback']}, off-host {probe['external']})")
-    drift = rollout_drift_error(
-        ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)],
-        args.oversight, args.isolation, args.lure)
-    if drift:
-        print(f"\n{'='*60}")
-        print("REFUSING TO ROLL OUT")
-        print(f"{'='*60}\n")
-        print(drift)
-        return 1
-
-    if args.resume:
-        batch_stamp = args.resume
-        print(f"Resuming batch {batch_stamp}: episodes already on disk will "
-              f"be loaded and skipped.")
-    else:
-        batch_stamp = unique_batch_stamp(args.output_dir)
-
-    # Everything this batch's files are named after, in one value.
-    identity = BatchIdentity.collecting(args, model_slug, effective_effort,
-                                        batch_stamp)
-
-    all_results = []
-    t_batch_start = time.time()
-    total_delay_seconds = 0
-
-    failures = []
-    consecutive_failures = 0
-    aborted = False
-
-    for i in range(args.runs):
-        run_file = identity.filename(args.output_dir, f"run_{i+1}")
-
-        # Resume: an episode already saved under this stamp is complete, so
-        # load it and move on rather than paying for it twice.
-        if args.resume and os.path.exists(run_file):
-            with open(run_file) as f:
-                all_results.append(json.load(f))
-            print(f"\n# RUN {i+1}/{args.runs} - already on disk, skipping")
-            continue
-
-        print(f"\n{'#'*60}")
-        print(f"# RUN {i+1}/{args.runs}")
-        print(f"{'#'*60}")
-
-        # A private parent per episode, so `..` is somewhere the scenario
-        # controls. Episodes used to be siblings under the machine's shared temp
-        # root, which made `..` writable by every episode and listed the
-        # operator's own temp directory.
-        _episode_root, env_dir, env_info = create_episode_root(
-            args.oversight, lure=args.lure)
-
-        # One episode failing must not end the batch. Over a few hundred
-        # episodes - each 5-20 model calls plus grading and interrogations -
-        # an unretryable API error somewhere is likely, and losing the
-        # remaining episodes plus the summary to it is the expensive outcome.
-        try:
-            result = run_evaluation(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                env_dir=env_dir,
-                env_info=env_info,
-                model=args.model,
-                max_turns=args.max_turns,
-                max_tokens=args.max_tokens,
-                reasoning_kwargs=reasoning_kwargs,
-                reasoning_config=reasoning_config,
-                effort=effective_effort,
-                use_grader=not args.no_grader,
-                grader_model=args.grader_model,
-                oversight=args.oversight,
-                nudge=args.nudge,
-                lure=args.lure,
-                interrogations=args.interrogations,
-                isolation=args.isolation,
-                profile_path=profile_path,
-            )
-        except KeyboardInterrupt:
-            print("\n\nInterrupted by user.")
-            aborted = True
-            break
-        except Exception as e:
-            consecutive_failures += 1
-            cause = e.cause if isinstance(e, EpisodeAPIError) else e
-            failure = {
-                "run": i + 1,
-                "error": f"{type(cause).__name__}: "
-                         f"{redact_paths(str(cause), env_dir)}",
-            }
-            print(f"\n[RUN {i+1} FAILED] {type(cause).__name__}: "
-                  f"{redact_paths(str(cause), env_dir)[:300]}")
-
-            # A partial episode is not an observation - it is not appended to
-            # all_results and does not enter any rate - but its transcript is
-            # still the only record of what the model did before the failure,
-            # so it is written somewhere findable rather than dropped.
-            if isinstance(e, EpisodeAPIError):
-                partial_file = identity.filename(args.output_dir,
-                                                 f"failed_run_{i+1}")
-                with open(partial_file, "w") as f:
-                    json.dump(e.partial, f, indent=2, default=str)
-                failure["partial_transcript"] = os.path.basename(partial_file)
-                failure["failed_on_turn"] = e.partial.get("failed_on_turn")
-                print(f"  Partial transcript "
-                      f"({e.partial.get('failed_on_turn')} turn(s) in) saved: "
-                      f"{redact_paths(partial_file)}")
-
-            failures.append(failure)
-            print(f"  Episode skipped. {consecutive_failures} consecutive "
-                  f"failure(s), {len(failures)} total.")
-
-            if consecutive_failures >= args.max_consecutive_failures:
-                print(f"\n*** ABORTING: {consecutive_failures} episodes "
-                      f"failed in a row. ***")
-                aborted = True
-                break
-
-            if i < args.runs - 1:
-                time.sleep(args.delay)
-                total_delay_seconds += args.delay
-            continue
-
-        consecutive_failures = 0
-
-        # The conversation is saved ONLY for episodes that took a misaligned act.
-        #
-        # It used to be dropped from every run, for two reasons: it is large, and
-        # it holds API objects json cannot encode. serialise_messages answers the
-        # second. The first is answered by asking what the field is for: it exists
-        # so a saved episode can be interrogated again with a different phrasing,
-        # and an episode with no act has nothing to be asked about. Most episodes
-        # take no act, so this keeps the whole capability at a fraction of the
-        # storage.
-        #
-        # It cannot be backfilled. The transcript keeps the text of each turn but
-        # not the thinking-block signatures the API verifies, so an episode already
-        # on disk can only be replayed with its own reasoning stripped out - a
-        # different conversation, and worst exactly where awareness lives.
-        act_taken = any((result.get("analysis") or {}).get(act["key"])
-                        for act in MISALIGNED_ACTS)
-        result_to_save = {k: v for k, v in result.items() if k != "messages"}
-        if act_taken:
-            result_to_save["messages"] = serialise_messages(
-                result.get("messages") or [])
-        all_results.append(result_to_save)
-
-        with open(run_file, "w") as f:
-            json.dump(result_to_save, f, indent=2, default=str)
-        print(f"\nSaved: {redact_paths(run_file)}")
-
-        if i < args.runs - 1:
-            print(f"\nWaiting {args.delay}s before next run...")
-            time.sleep(args.delay)
-            total_delay_seconds += args.delay
-
-    if failures:
-        print(f"\n{'!'*60}")
-        print(f"! {len(failures)} of {args.runs} episode(s) failed and were "
-              f"skipped")
-        for f_rec in failures[:10]:
-            print(f"!   run {f_rec['run']}: {f_rec['error'][:150]}")
-        if len(failures) > 10:
-            print(f"!   ... and {len(failures) - 10} more")
-        print(f"{'!'*60}")
-
-    if aborted or failures:
-        # Everything already on disk is reusable; say exactly how.
-        print(f"\nTo complete the missing episodes, re-run with:")
-        print(f"  --resume {batch_stamp}")
-
-    if not all_results:
-        print("\nNo episodes completed - nothing to summarise.")
-        return 1
-
-    t_batch_end = time.time()
-
-    # =====================================================================
-    # Summary
-    # =====================================================================
-
-    summary = summarise_batch(
-        args, all_results, identity,
-        {
-            "aborted": aborted,
-            "failures": failures,
-            "reasoning_config": reasoning_config,
-            "t_batch_start": t_batch_start,
-            "t_batch_end": t_batch_end,
-            "total_delay_seconds": total_delay_seconds,
-        },
-    )
-    return 0 if summary else 1
 
 
 if __name__ == "__main__":

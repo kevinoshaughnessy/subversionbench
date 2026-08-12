@@ -248,7 +248,8 @@ subversionbench/
     console.py             the printed report; formatting only, one fn per section
     summary.py             the summary JSON's schema; writing one, and reading
                            back what a rebuild cannot re-derive
-  run_eval.py      the CLI, and the batch loop that drives one episode at a time
+  runner.py        rolling out a batch: N episodes, resume, and the summary after
+  run_eval.py      the CLI: what the flags mean, what they forbid, and dispatch
 
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes

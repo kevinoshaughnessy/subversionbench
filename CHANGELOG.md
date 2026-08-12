@@ -13,6 +13,32 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **The batch loop moves to `runner.py`, and `run_eval.py` is the CLI.** 436 lines,
+  of which `main` is 344: what the flags mean, what they forbid, and where each mode
+  goes. `runner.py` is the 288 lines past the point of no return.
+
+  That is where the split was made, and it is why the isolation and rollout-drift
+  refusals moved with the loop rather than staying among the flag checks. They are
+  not questions about whether the invocation is well-formed; they are the last
+  checks before episodes get written into a results directory. A run that reports a
+  policy it did not apply, or that pools episodes from two different rollouts, is
+  worse than one that will not start.
+
+  `run_eval.py` is NOT reduced to a shim. It stays the CLI because it is the entry
+  point - `python -m subversionbench.run_eval` and the console script both name it -
+  and a module that exists only to re-export would be indirection for its own sake.
+
+  Two small things the extraction cleaned up. The isolation block was wrapped in a
+  vestigial `if True:`, left over from when containment was optional; dedenting it
+  makes the "no opt-out" the comment claims structural rather than asserted. And the
+  effort level is now derived inside `run_batch` from the parameters actually sent,
+  rather than passed alongside them, so the label and the request cannot disagree.
+
+  End of the sequence that began at 4057 lines. No file is over 950 and no function
+  over 692, both in `reporting/facts.py`. Verified throughout by the same three
+  checks: 5041 summary fields unchanged, all 71 console reports byte-identical, read
+  modes selecting identical files - plus a full two-episode rollout end to end.
+
 - **The read-only modes become `readmodes/`, one file per mode.** Five files of 100
   to 290 lines rather than 790 in one: `selection.py` for the question all four open
   with, then `grade.py`, `reclassify.py`, `resummarise.py` and `reinterrogate.py`.
