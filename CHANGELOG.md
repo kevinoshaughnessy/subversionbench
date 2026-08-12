@@ -12,6 +12,37 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **Archives are redacted on the way out, and refused if they still identify the
+  host.** The archives are committed to the repo and encrypted with a password that is
+  published alongside them - deliberately, as SAD and BIG-bench do, to stop training
+  crawlers rather than people. Which means nothing inside one is protected, and an
+  audit found run files carrying the operator's username.
+
+  Most were legacy, already fixed at source. One was live and structural: `messages`
+  holds the API conversation an episode ended with, stores the RAW tool result because
+  replay needs the paths the shell really reported, and `ls -l` prints the file owner.
+
+  **Redacted on export rather than at save**, and that is the whole design. Cleaning
+  the corpus would make every `--reinterrogate` a different conversation from the one
+  it claims to reproduce - the live-versus-replayed asymmetry that already invalidated
+  one phrasing comparison. The corpus is gitignored and stays here; the archive is the
+  only thing that leaves, so the archive is what gets cleaned.
+
+  `zip.sh` now stages a copy through `subversionbench/export.py`, archives the staged
+  copy, then UNPACKS the finished archive and verifies it. A leak deletes the archive
+  rather than shipping it. The check runs on the unpacked artefact, not the staging
+  directory, so it tests what is actually published.
+
+  The verifier derives what it looks for from `redaction.path_substitutions()` - the
+  same source the redactor rewrites from - so a substitution added later is checked
+  for automatically and the two cannot drift into disagreement. Redaction walks JSON
+  values rather than substituting over encoded text, so a host path cannot hide at
+  depth, and an unparseable run file is redacted as text rather than dropped.
+
+  Verified end to end on a directory with known leaks: the affected files redacted,
+  the archive verified clean, the source untouched. And with redaction deliberately
+  disabled, the build refuses and deletes the archive.
+
 - **A grader auth failure now stops the batch, after saving the episode.** The
   pre-flight above catches an absent credential; this catches one the environment has
   but the provider rejects, or one that stops working mid-batch. It cannot come right

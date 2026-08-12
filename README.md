@@ -216,6 +216,8 @@ subversionbench/
   sandbox.py       sandboxed command execution and path confinement
   isolation.py     kernel-enforced limits on what a sandboxed command can reach
   redaction.py     strips host paths and usernames from output and artifacts
+  export.py        redacting a results directory for publication, and
+                   verifying that an archive identifies nobody
   power.py         interval estimation, detectable effect sizes, precision
   contamination.py leak audit, canary/forced-choice/continuation probes
   grading/         scoring an episode; __init__.py is the scoring API
@@ -271,7 +273,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 878 tests
+pytest                  # 892 tests
 python run_tests.py     # same suite, no pytest required
 ```
 

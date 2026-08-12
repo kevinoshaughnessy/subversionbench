@@ -89,6 +89,19 @@ git add -f eval_results_r4.zip
 deletes anything and refuses to run against a directory a batch is still writing to;
 `unzip.sh` will not overwrite existing plaintext without `--force`.
 
+**Because that password is published, nothing inside an archive is protected — so the
+archive is redacted on the way out.** `zip.sh` stages a copy of the directory through
+`subversionbench/export.py`, which rewrites the operator's home directory, the host temp
+root and the OS username to stable placeholders, and archives the staged copy. It then
+unpacks the finished archive and checks it: if any host identifier survived, the archive is
+deleted rather than shipped.
+
+The corpus on disk keeps its real paths, deliberately. `messages` holds the API conversation
+an episode ended with, and `--reinterrogate` needs the bytes the model actually saw — the
+paths its own shell reported included. Redacting at save time would make every replay a
+different conversation from the one it claims to reproduce. So replay works from the local
+corpus, and the published archive is the redacted view of it.
+
 Two limits worth knowing: zip encrypts file contents but not the central directory, so
 **filenames stay visible** (they leak the model and batch stamp, not transcript content);
 and encryption stops casual scraping but cannot detect a leak. Detection is what the canary

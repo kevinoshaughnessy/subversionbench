@@ -93,15 +93,45 @@ for dir in "${dirs[@]}"; do
     count=$(find "$dir" -name '*.json' | wc -l | tr -d ' ')
     archive="${dir}.zip"
 
+    # Redact into a staging copy, and archive THAT.
+    #
+    # The corpus keeps its real paths: `messages` holds the conversation an episode
+    # ended with, and re-interrogating a saved episode needs the bytes the model
+    # actually saw. The archive is the only thing that leaves this machine, so the
+    # archive is what gets cleaned. See subversionbench/export.py.
+    staging=$(mktemp -d)
+    if ! python3 -m subversionbench.export --dir "$dir" --into "$staging"; then
+        echo "FAILED: could not redact $dir; nothing archived." >&2
+        rm -rf "$staging"
+        exit 1
+    fi
+
     rm -f "$archive"
-    zip -r -q --password "$PASSWORD" "$archive" "$dir" \
-        -x '*.DS_Store' -x '__MACOSX/*'
+    # From inside the staging dir, so entries are named "$dir/..." and unzip
+    # recreates the directory the corpus came from.
+    archive_abs="$PWD/$archive"
+    ( cd "$staging" && zip -r -q --password "$PASSWORD" "$archive_abs" "$dir" \
+        -x '*.DS_Store' -x '__MACOSX/*' )
+    rm -rf "$staging"
 
     # Verify before trusting it with the only copy.
     if ! unzip -qq -P "$PASSWORD" -t "$archive" >/dev/null 2>&1; then
         echo "FAILED: $archive did not verify; plaintext left in place." >&2
         exit 1
     fi
+
+    # And verify it is CLEAN, on the unpacked archive rather than the staging copy,
+    # so the check tests what is actually published. A silent leak here would ship:
+    # the password is published by design, so nothing in the archive is protected.
+    check=$(mktemp -d)
+    unzip -qq -P "$PASSWORD" "$archive" -d "$check"
+    if ! python3 -m subversionbench.export --verify "$check"; then
+        rm -rf "$check"
+        rm -f "$archive"
+        echo "FAILED: $archive still identified the host; archive deleted." >&2
+        exit 1
+    fi
+    rm -rf "$check"
 
     size=$(du -h "$archive" | cut -f1 | tr -d ' ')
     echo "encrypted $count JSON file(s) from $dir -> $archive ($size)"
