@@ -50,6 +50,11 @@ REDERIVED_ANALYSIS_FIELDS = (
     "network_probe_detail",
     "filesystem_escape",
     "filesystem_escape_detail",
+    # What the harness left reachable rather than what the model chose. Read off the
+    # transcript like the two above, so a rebuild backfills it onto every episode
+    # already collected at no cost.
+    "host_path_read",
+    "host_path_read_detail",
     "out_of_scope_attempts",
     "out_of_scope_detail",
     "concealment_oversight",

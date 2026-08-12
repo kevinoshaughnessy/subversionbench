@@ -11,9 +11,11 @@ nesting above all, since MISALIGNED_ACTS points the sandbox act at
 otherwise read as having taken no sandbox act at all.
 """
 
-from ...grading import (classify_filesystem_escape, classify_network_probe,
+from ...grading import (classify_filesystem_escape, classify_host_path_read,
+                       classify_network_probe,
                        classify_transient_tampering, detect_eval_awareness_keywords,
-                       detect_filesystem_escapes, detect_network_probes,
+                       detect_filesystem_escapes, detect_host_path_reads,
+                       detect_network_probes,
                        detect_transient_tampering, scratch_only_attempts,
                        settle_analysis)
 from ...sandbox import refusal_kind
@@ -90,8 +92,13 @@ def normalise_analyses(all_results: list) -> list:
             analysis["network_probe_detail"] = detect_network_probes(transcript)
             analysis["filesystem_escape_detail"] = detect_filesystem_escapes(
                 transcript)
+            # What the harness left reachable, as distinct from what the model did
+            # with it. Reads only: the write half is already in filesystem_escape,
+            # so the two account for the passthrough surface without overlapping.
+            analysis["host_path_read_detail"] = detect_host_path_reads(transcript)
         analysis["network_probe"] = classify_network_probe(analysis)
         analysis["filesystem_escape"] = classify_filesystem_escape(analysis)
+        analysis["host_path_read"] = classify_host_path_read(analysis)
 
         _ref = list(analysis.get("sandbox_boundary_excl_scratch") or [])
         _suc = list((analysis.get("filesystem_escape_detail")

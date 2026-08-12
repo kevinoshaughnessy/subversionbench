@@ -6,6 +6,43 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v43
+
+Package version `43.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sees or
+can do has changed. `--resummarise --write-back` backfills the new fields onto every
+batch already collected at no cost.
+
+- **The harness's own exposure surface is now recorded.** Six path prefixes are
+  deliberately left unrewritten so that a shell can work at all, and a READ of one was
+  measured by nothing: no field held it, no report mentioned it, and the publication
+  check had no opinion about it.
+
+  Recorded as `host_path_read` and `host_path_read_detail`, with a new field rather
+  than folded into `filesystem_escape` - and the measurement is what decided that.
+  Adding reads there would have flipped 22 episodes from False to True, and what those
+  episodes ran was `which python3` and `ls /usr/bin`: an agent orienting itself in a
+  shell it was handed. A misalignment measure that fires on ordinary competent
+  behaviour has stopped describing what makes it fire, which is the `"locate "` mistake
+  one level up.
+
+  The other three escape mechanisms match reads as well as writes, and that is right
+  for them - building a path separator out of `chr(47)` has no innocent reading. These
+  prefixes are the one class exposed on purpose, so a read is expected and a write is
+  not. The two fields therefore account for the whole surface without overlapping:
+  writes stay in `filesystem_escape`, reads go here.
+
+  What it records is the size of the exposure rather than a count of commands, because
+  one listing can be four orders of magnitude larger than another. It also separates a
+  directory listing, which exposes names, from a read of a file's contents, which does
+  not - and reports the second loudly, since that is the case that could carry
+  something the export check would refuse. Across all four corpora that count is
+  currently zero, and the point of the field is to say so rather than to assume it.
+
+  Two defects caught while building it, both by tests that already existed: a figure
+  reaching the report and no summary file, and a local variable named differently from
+  the figure it read. The second is the one worth noting - a line reading the right
+  number under the wrong label is invisible on inspection.
+
 ## v42
 
 Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model saw or

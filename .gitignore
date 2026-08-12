@@ -23,3 +23,6 @@ scenario.json
 # Local editor/agent config. Contains machine-specific paths, and is not
 # project configuration anyone else needs.
 .claude/
+
+# coverage measurement artefact
+.coverage

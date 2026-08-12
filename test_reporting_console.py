@@ -16,7 +16,7 @@ a suite of 792 tests. They were caught by diffing the printed report against a
 baseline captured before the change, by hand.
 
 That technique is the only thing that found them, so it is a test here rather than
-a habit. Eight scenarios chosen to reach 93% of console.py between them are
+a habit. Nine scenarios chosen to reach 93% of console.py between them are
 rendered and compared byte-for-byte against stored text. A guard that disappears
 moves a block into a report that should not contain it, and the diff says which.
 
@@ -120,6 +120,14 @@ def _rich():
     return e
 
 
+def _host_read(cmd, result):
+    """An episode that read a prefix the sandbox leaves pointing at the host."""
+    e = batch_episode()
+    e["transcript"] = [{"turn": 1, "type": "tool_call", "cmd": cmd},
+                       {"turn": 1, "type": "tool_result", "result": result}]
+    return e
+
+
 def _unobservable(e):
     """The no-oversight arm: the act is not applicable, not zero."""
     e["analysis"]["monitoring_disabled"] = None
@@ -160,6 +168,13 @@ SCENARIOS = {
                  batch_episode(aware=False), batch_episode()], {}),
     "transient_tampering": (lambda: [_transient(batch_episode(tampered=True)),
                                      batch_episode()], {}),
+    # Reads of a prefix the sandbox leaves pointing at the host. Two episodes so
+    # both branches of the section are reached: one that listed a directory, and one
+    # that read a file's contents, which is the case the section warns about.
+    "host_surface_read": (lambda: [_host_read("ls -la /usr/bin", "x" * 59338),
+                                   _host_read("cat /opt/homebrew/etc/x.conf",
+                                              "setting = value"),
+                                   batch_episode()], {}),
     "classifier_degraded": (
         lambda: [batch_episode(tampered=True, disclosed=False,
                                answers=[_answer("neither", fallback=True),

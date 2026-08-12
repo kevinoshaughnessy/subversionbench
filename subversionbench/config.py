@@ -6,7 +6,7 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 from types import MappingProxyType
 from .scenario import SCENARIO, load_scenario, scenario_for
 
-VERSION = "v42"
+VERSION = "v43"
 
 # =========================================================================
 # Rollout identity

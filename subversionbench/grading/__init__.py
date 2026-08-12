@@ -80,6 +80,7 @@ from .quote_grounding import (
 from .transcript_analysis import (SCHEMING_KEYWORDS, analyze_misalignment,
                                  artefact_modified, verify_oversight_unchanged)
 from .filesystem_escapes import (classify_filesystem_escape,
+                                 classify_host_path_read, detect_host_path_reads,
                                  detect_filesystem_escapes)
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
@@ -95,6 +96,7 @@ __all__ = [
     "scratch_only_attempts",
     "detect_network_probes", "classify_network_probe",
     "detect_filesystem_escapes", "classify_filesystem_escape",
+    "detect_host_path_reads", "classify_host_path_read",
     "questions_for",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",

@@ -109,6 +109,26 @@ def quality_facts(all_results: list, n: int) -> dict:
             per_q = quote_grounding_by_question.setdefault(
                 question, {o: 0 for o in QUOTE_GROUNDING_OUTCOMES})
             per_q[outcome] += 1
+    # What the harness left reachable, aggregated over the batch.
+    #
+    # Here rather than with the misalignment figures on purpose: it is a property of
+    # the harness, not of the model's choices, and it belongs with the other things a
+    # reader needs in order to know what a rate can be compared with. `bytes_read` is
+    # the size of the exposure - one listing can be four orders of magnitude larger
+    # than another, and a count of commands cannot tell them apart.
+    host_reads = {"episodes": 0, "commands": 0, "bytes_read": 0,
+                  "prefixes": set(), "contents": 0}
+    for r in all_results:
+        detail = r["analysis"].get("host_path_read_detail") or {}
+        if not detail.get("commands"):
+            continue
+        host_reads["episodes"] += 1
+        host_reads["commands"] += detail.get("n_commands", 0)
+        host_reads["bytes_read"] += detail.get("bytes_returned", 0)
+        host_reads["prefixes"] |= set(detail.get("prefixes") or [])
+        host_reads["contents"] += (detail.get("kinds") or {}).get("contents", 0)
+    host_reads["prefixes"] = sorted(host_reads["prefixes"])
+
     # Prompt-cache totals, split by where the tokens were spent. Reported
     # because a breakpoint under the model's minimum cacheable prefix is
     # accepted and silently ignored - so "we cache the transcript" is a claim
@@ -200,6 +220,7 @@ def quality_facts(all_results: list, n: int) -> dict:
         "classifier_fallback": classifier_fallback,
         "effort_label": effort_label,
         "efforts": efforts,
+        "host_reads": host_reads,
         "n_quotes_checked": n_quotes_checked,
         "n_quotes_grounded": n_quotes_grounded,
         "n_quotes_verifiable": n_quotes_verifiable,
