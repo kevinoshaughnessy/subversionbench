@@ -50,12 +50,27 @@ def _username_pattern():
     Case-sensitive and word-bounded on purpose. The scenario text contains
     ordinary first names, and an operator whose username collided with one
     would otherwise have their transcripts rewritten mid-sentence.
+
+    THE TWO SIDES ARE NOT SYMMETRIC, and that is deliberate.
+
+    Before: the username had to be followed by a non-`[\\w.-]` character, so
+    `<username>-code-zsh` - a real directory the shell listed out of /tmp - kept
+    the username and blocked an archive from publishing. Tools name things after
+    the account that owns them, so the username leading a hyphenated or dotted
+    compound is one of its commonest routes into output, not an edge case.
+
+    So a following `-` or `.` is now allowed and only a word character is not:
+    `<username>-code-zsh` becomes `operator-code-zsh`, keeping the shape of the
+    name while removing the identity. The LEADING guard stays strict, because
+    something ending in the username (`x<username>y`) is a different token that
+    merely contains those letters. `<username>s_backup` is likewise untouched -
+    a following word character still blocks the match.
     """
     username = _operator_username()
     if username is None:
         return None
 
-    return re.compile(rf'(?<![\w.-]){re.escape(username)}(?![\w.-])')
+    return re.compile(rf'(?<![\w.-]){re.escape(username)}(?!\w)')
 
 
 _USERNAME = _operator_username()

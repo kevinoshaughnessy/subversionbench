@@ -98,6 +98,28 @@ class TestPathRedaction:
         assert username not in out
         assert "operator" in out
 
+    def test_username_leading_a_compound_name_is_redacted(self):
+        """Tools name things after the account that owns them, so the username
+        leading a hyphenated or dotted compound is one of its commonest routes into
+        output - a directory the shell listed out of /tmp blocked a real archive from
+        publishing. The shape of the name is kept; the identity is not."""
+        username = getpass.getuser()
+        for text, expected in ((f"'{username}-code-zsh'", "operator-code-zsh"),
+                               (f"{username}.local", "operator.local"),
+                               (f"{username}-code-zsh/agent.sock",
+                                "operator-code-zsh/agent.sock")):
+            out = ev.redact_paths(text)
+            assert username not in out, text
+            assert expected in out, out
+
+    def test_a_trailing_word_character_still_blocks_the_match(self):
+        """The two sides are not symmetric on purpose. A following `-` or `.` starts a
+        compound named AFTER the operator; a following letter or digit makes a
+        different token that merely contains those letters."""
+        username = getpass.getuser()
+        for text in (f"{username}s_backup", f"{username}2", f"x{username}y"):
+            assert username in ev.redact_paths(text), text
+
     def test_username_only_replaced_as_whole_word(self):
         """Substring replacement would corrupt unrelated output that merely
         contains the username's letters."""

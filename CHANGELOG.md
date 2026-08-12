@@ -12,6 +12,27 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **The username is redacted when it leads a compound name, not only when it stands
+  alone.** The export check refused to publish a directory, correctly: two run files
+  held a temp directory the shell had listed whose name began with the operator's
+  username followed by a hyphen. The pattern required a following character outside
+  `[\w.-]`, so a hyphen blocked the match and the identifier survived.
+
+  Tools name things after the account that owns them, so the username leading a
+  hyphenated or dotted compound is one of its commonest routes into output rather than
+  an edge case. A following `-` or `.` is now allowed and only a word character is not,
+  which keeps the shape of the name while removing the identity.
+
+  The two sides of the pattern are deliberately asymmetric, and the leading guard is
+  unchanged: something ENDING in the username is a different token that merely
+  contains those letters, and a following letter or digit still blocks the match. The
+  existing whole-word test passes untouched, because it pins word-character adjacency
+  rather than punctuation.
+
+  Found by the check rather than by inspection, which is the argument for verifying the
+  artefact instead of trusting the redactor. Nothing in the corpus survives redaction
+  now.
+
 - **Archives are redacted on the way out, and refused if they still identify the
   host.** The archives are committed to the repo and encrypted with a password that is
   published alongside them - deliberately, as SAD and BIG-bench do, to stop training
