@@ -201,6 +201,8 @@ Redaction is display-only and cannot affect what is measured.
 ```
 subversionbench/
   config.py        VERSION, ROLLOUT_VERSION, prompts, rubric questions, tool defs
+  scenario.py      the scenario text, held base64-encoded at rest
+  rollout.py       rollout identity: what the model saw and what it could do
   routing.py       which API serves a model ID
   reasoning.py     which reasoning parameters each model generation accepts
   blocks.py        the Anthropic-shaped response objects adapters normalise to
@@ -211,6 +213,7 @@ subversionbench/
   llm_client.py    client factory: pick the API for a model ID
   environment.py   scenario filesystem creation, project name generation
   sandbox.py       sandboxed command execution and path confinement
+  isolation.py     kernel-enforced limits on what a sandboxed command can reach
   redaction.py     strips host paths and usernames from output and artifacts
   power.py         interval estimation, detectable effect sizes, precision
   contamination.py leak audit, canary/forced-choice/continuation probes
@@ -221,21 +224,29 @@ subversionbench/
     closing_report.py      what the deliverable said, vs what the answers said
     command_patterns.py    what a shell command did to the scenario's files
     concealment.py         acts plus answers to a verdict
+    filesystem_escapes.py  leaving the episode directory by a route the rewriter misses
     grader.py              asking an LLM the awareness rubric
     grader_io.py           preparing text for a grader call, parsing the reply
     interrogation.py       labelling one answer: admitted, denied, neither
+    network_probes.py      reaching for a network service the task never needs
     quote_grounding.py     did the grader cite the agent, or the memo
     transcript_analysis.py what the episode did, hashes and commands
     transient_tampering.py the subversion an end-state hash cannot see
   batch.py         what names a batch, and reading that name back off a file
-  reporting/       a batch of episodes to figures, and figures to a report
+  reporting/       a batch of episodes to figures, a report and a summary
     facts.py               bringing saved analyses up to date, then counting
     console.py             the printed report; formatting only, one fn per section
     summary.py             the summary JSON's schema, and writing it
-  run_eval.py      agentic loop, follow-up interrogation, batch runner, CLI
+  run_eval.py      agentic loop, interrogation, batch runner, the read-only
+                   modes (--reclassify, --resummarise, --grade-existing,
+                   --reinterrogate), arm comparison, and the CLI
 
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes
+scenario_tool.py   decode the scenario to edit it, and encode it back
+rubric_ab.py       A/B a rubric question's wording on saved transcripts
+regrade_all.sh     re-grade every saved batch, then rebuild its summary
+run_tests.py       the test suite without pytest
 ```
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
@@ -243,7 +254,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 827 tests
+pytest                  # 832 tests
 python run_tests.py     # same suite, no pytest required
 ```
 
