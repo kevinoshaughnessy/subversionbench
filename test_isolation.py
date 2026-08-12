@@ -48,11 +48,16 @@ def _summary_pipeline_source():
     that the summary still records the observed isolation set - not which function
     happens to compute it.
     """
+    import glob
     import inspect
     import subversionbench.run_eval as ev_run
-    from subversionbench.reporting import facts as ev_facts
-    return (inspect.getsource(ev_facts.batch_facts)
-            + inspect.getsource(ev_run.summarise_batch))
+    # The whole facts package, not one function: the figures are split by construct
+    # now, so the isolation fields live in facts/quality.py while the rates that read
+    # them live in facts/rates.py. What these tests pin is that the summary records
+    # the observed set somewhere in the pipeline, not which module computes it.
+    facts_src = "".join(open(p).read() for p in
+                        sorted(glob.glob("subversionbench/reporting/facts/*.py")))
+    return facts_src + inspect.getsource(ev_run.summarise_batch)
 
 class TestThereIsNoWayToRunUnprotected:
     """`off` was removed rather than merely made hard to reach.

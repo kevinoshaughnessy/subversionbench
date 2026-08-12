@@ -13,6 +13,33 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **`batch_facts` splits by construct.** 692 lines in one function became
+  `reporting/facts/`, grouped the way the benchmark's own claims are grouped:
+  `misalignment.py` (what the model did), `scheming.py` (what it hid),
+  `awareness.py` (what it suspected), `quality.py` (how far any of it can be
+  trusted), `timing.py` (what the run cost), `rates.py` (the published table), and
+  `normalise.py` for the one mutating step.
+
+  What makes that more than filing is that five of the six read ONLY the episodes.
+  None reaches into another's results, so which module owns a number is a lookup
+  rather than a search, and the order they run in cannot matter. `rates.py` is the
+  exception by definition - it is the assembled view of the others - and its
+  signature says so by taking the accumulated figures.
+
+  Four denominators exist only so `rates.py` can read them, and they are now dropped
+  before `batch_facts` returns. Without that the result would carry figures nobody
+  reports, which would quietly void the persistence guarantee added in v41 - that a
+  figure in the result is one somebody reports.
+
+  Five new tests pin the split: each construct reads only episodes, only the rate
+  table depends on the others, none prints or spends, none mutates the episodes, and
+  the internal denominators do not leak.
+
+  Verified as every step in this sequence has been: 5041 summary fields across 71
+  batches with no key-set difference and nothing changed, and all 71 console reports
+  byte-identical. The largest function in the package is now `run_evaluation` at 488;
+  no function computes figures for more than one construct.
+
 - **The batch loop moves to `runner.py`, and `run_eval.py` is the CLI.** 436 lines,
   of which `main` is 344: what the flags mean, what they forbid, and where each mode
   goes. `runner.py` is the 288 lines past the point of no return.

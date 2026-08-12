@@ -197,6 +197,106 @@ DERIVED = {
 }
 
 
+def _returned_figures():
+    """Every figure batch_facts hands out, gathered from the construct modules.
+
+    batch_facts no longer ends in one dict literal - it composes six modules and
+    merges what each returns. So the set is the union of their return literals, less
+    the denominators that exist only for rates.py, plus the few keys the composition
+    sets itself.
+
+    Each module's return is taken as a direct statement of its function body rather
+    than by walking every Return in it: several build figures with nested helpers that
+    also return dicts, and a walk picks up whichever of those comes last - which
+    silently compared the wrong set of names once already.
+    """
+    from subversionbench.reporting import facts as pkg
+    producers = (pkg.misalignment_facts, pkg.scheming_facts, pkg.awareness_facts,
+                 pkg.quality_facts, pkg.timing_facts, pkg.rate_table)
+    out = set()
+    for fn in producers:
+        body = ast.parse(inspect.getsource(fn)).body[0].body
+        own = [s for s in body if isinstance(s, ast.Return)]
+        assert len(own) == 1 and isinstance(own[0].value, ast.Dict), (
+            f"{fn.__name__} no longer ends in exactly one dict literal")
+        out |= {k.value for k in own[0].value.keys if isinstance(k, ast.Constant)}
+    # and the keys the composition sets directly, read off its own literal
+    compose = ast.parse(inspect.getsource(batch_facts)).body[0]
+    for node in ast.walk(compose):
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and getattr(node.targets[0], "id", "") == "facts"
+                and isinstance(node.value, ast.Dict)):
+            out |= {k.value for k in node.value.keys if isinstance(k, ast.Constant)}
+    return out - set(pkg.INTERNAL_FIGURES)
+
+
+class TestTheConstructModulesStayIndependent:
+    """Split by construct, and the split has to hold to be worth anything.
+
+    Six modules, each computing the figures for one kind of claim. What makes that
+    more than filing is that five of the six read only the episodes: none reaches into
+    another's results, so "where does this number come from" is a lookup rather than a
+    search. rates.py is the exception by definition - it is the assembled view of the
+    others - and it says so in its signature.
+    """
+
+    def _producers(self):
+        from subversionbench.reporting import facts as pkg
+        return {"misalignment": pkg.misalignment_facts,
+                "scheming": pkg.scheming_facts,
+                "awareness": pkg.awareness_facts,
+                "quality": pkg.quality_facts,
+                "timing": pkg.timing_facts}
+
+    def test_each_construct_reads_only_the_episodes(self):
+        """No construct module takes the accumulated figures. If one did, the order
+        they run in would start to matter and a reader could no longer tell which
+        module owns a number."""
+        for name, fn in self._producers().items():
+            params = list(inspect.signature(fn).parameters)
+            assert "facts" not in params, (
+                f"{name}_facts takes the accumulated figures; only rates.py may")
+            assert params[0] == "all_results", (name, params)
+
+    def test_only_the_rate_table_depends_on_the_others(self):
+        from subversionbench.reporting import facts as pkg
+        params = list(inspect.signature(pkg.rate_table).parameters)
+        assert params == ["all_results", "n", "facts"]
+
+    def test_no_construct_module_prints_writes_or_spends(self):
+        for name, fn in self._producers().items():
+            src = inspect.getsource(fn)
+            tree = ast.parse(src)
+            called = {n.func.id for n in ast.walk(tree)
+                      if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+            for forbidden in ("print", "open", "input"):
+                assert forbidden not in called, f"{name} calls {forbidden}"
+            for forbidden in ("get_client", "detect_eval_awareness_grader",
+                              "classify_interrogation_answer"):
+                assert forbidden not in src, f"{name} spends"
+
+    def test_no_construct_module_mutates_the_episodes(self):
+        """normalise.py is the only writer. A construct module that rewrote an
+        analysis would make the figures depend on which ran first."""
+        from subversionbench.reporting import facts as pkg
+        eps = [_episode(tampered=True, aware=True), _episode()]
+        normalise_analyses(eps)
+        for name, fn in self._producers().items():
+            before = copy.deepcopy(eps)
+            fn(eps, len(eps)) if name != "timing" else fn(eps, {})
+            assert eps == before, f"{name}_facts mutated the episodes"
+
+    def test_the_internal_denominators_do_not_leak_out(self):
+        """They exist so rates.py can read them and for no other reason. Left in the
+        result they would break the promise the persistence test rests on - that a
+        figure batch_facts returns is one somebody reports."""
+        from subversionbench.reporting.facts import INTERNAL_FIGURES
+        assert INTERNAL_FIGURES, "the list has emptied; the pruning is now a no-op"
+        f = _facts([_episode(tampered=True), _episode()])
+        leaked = [n for n in INTERNAL_FIGURES if n in f]
+        assert not leaked, f"internal denominators reached the result: {leaked}"
+
+
 class TestEveryFigureReachesTheSummaryFile:
     """What the report shows must be re-derivable from disk.
 
@@ -210,9 +310,7 @@ class TestEveryFigureReachesTheSummaryFile:
 
     def _figures_and_direct(self):
         import subversionbench.run_eval as ev
-        ftree = ast.parse(inspect.getsource(batch_facts)).body[0]
-        figures = {k.value for k in
-                   [s for s in ftree.body if isinstance(s, ast.Return)][0].value.keys}
+        figures = _returned_figures()
         sb = ast.parse(inspect.getsource(ev.summarise_batch)).body[0]
         sd = [x for x in ast.walk(sb) if isinstance(x, ast.Assign)
               and any(getattr(t, "id", "") == "summary" for t in x.targets)][0]
@@ -287,17 +385,6 @@ class TestEveryFigureReachesTheSummaryFile:
 
 
 class TestTheInterfaceCannotDriftFromItsConsumer:
-    def _returned(self):
-        """batch_facts' OWN return, taken as a direct statement of its body rather
-        than by walking every Return in it. Some figures are built by nested
-        helpers that also return dicts, and a walk picks up whichever of those
-        comes last - which silently compared the wrong set of names."""
-        tree = ast.parse(inspect.getsource(batch_facts)).body[0]
-        own = [s for s in tree.body if isinstance(s, ast.Return)]
-        assert len(own) == 1 and isinstance(own[0].value, ast.Dict), (
-            "batch_facts no longer ends in exactly one dict literal")
-        return {k.value for k in own[0].value.keys if isinstance(k, ast.Constant)}
-
     def _unpacked(self, fn):
         """The `name = facts["name"]` bindings one consumer declares.
 
@@ -327,7 +414,7 @@ class TestTheInterfaceCannotDriftFromItsConsumer:
         the branch that touches it runs."""
         import subversionbench.run_eval as ev
         from subversionbench.reporting import console
-        returned = self._returned()
+        returned = _returned_figures()
         for fn in (ev.summarise_batch, console):
             extra = self._unpacked(fn) - returned
             assert not extra, (f"{fn.__name__} unpacks figures facts does not "
@@ -346,7 +433,7 @@ class TestTheInterfaceCannotDriftFromItsConsumer:
         import subversionbench.run_eval as ev
         from subversionbench.reporting import console
         read = self._unpacked(ev.summarise_batch) | self._unpacked(console)
-        orphaned = self._returned() - read
+        orphaned = _returned_figures() - read
         assert not orphaned, (
             f"facts returns figures neither the summary nor the report reads: "
             f"{sorted(orphaned)}")

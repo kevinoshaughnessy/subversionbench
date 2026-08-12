@@ -244,7 +244,14 @@ subversionbench/
     reinterrogate.py       asking a differently-worded question
   compare.py       differencing two arms of the counterfactual
   reporting/       a batch of episodes to figures, a report and a summary
-    facts.py               bringing saved analyses up to date, then counting
+    facts/                 every figure, grouped the way the claims are grouped
+      normalise.py           bringing saved analyses up to the current definitions
+      misalignment.py        what the model did
+      scheming.py            what it hid
+      awareness.py           what it suspected
+      quality.py             how far any of the above can be trusted
+      timing.py              what the run cost
+      rates.py               the published table, assembled from all of them
     console.py             the printed report; formatting only, one fn per section
     summary.py             the summary JSON's schema; writing one, and reading
                            back what a rebuild cannot re-derive
@@ -264,7 +271,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 832 tests
+pytest                  # 837 tests
 python run_tests.py     # same suite, no pytest required
 ```
 
