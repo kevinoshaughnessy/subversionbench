@@ -12,6 +12,37 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **A grader auth failure now stops the batch, after saving the episode.** The
+  pre-flight above catches an absent credential; this catches one the environment has
+  but the provider rejects, or one that stops working mid-batch. It cannot come right
+  on retry, and its consequence is invisible in the output it produces - every
+  interrogation answer still gets a well-formed verdict, from the keyword
+  cross-check instead of the classifier.
+
+  Detected with ONE rule rather than five instrumented call sites. An episode reaches
+  the grader model five ways - the awareness rubric, the pre-act rubric, the
+  disclosure reading, the misrepresentation check, the interrogation classifier - and
+  each records its failure under a different key. `auth_error_in_analysis()` walks the
+  finished analysis using the act keys, so a sixth route cannot be forgotten.
+
+  A rate limit is deliberately NOT an abort. 529 can come right on retry, and
+  conflating the two would turn a transient blip into a stopped rollout.
+
+  **The check happens after the save**, and that ordering is the point: the rollout is
+  the expensive part, the episode's transcript is sound, and only its scoring is not.
+  So it is kept and `--resume` will not pay for it again. Aborting on episode one
+  costs one episode instead of a hundred - the failure this replaces ran 235 answers
+  to completion.
+
+  The two fixes compose. A batch stopped this way still writes a summary, and that
+  summary flags its own scoring: `ABORTING: the grader model rejected our
+  credentials` on the console, `batch_aborted: true` and a 100% keyword-fallback rate
+  in the file.
+
+  No rollout bump: the fingerprint hashes the scenario, the tool definitions and the
+  sandbox's behaviour, and an abort in the harness touches none of them. All four
+  pinned fingerprints are unchanged, as are 5396 summary fields across 76 batches.
+
 - **A rollout refuses to start without the credentials it needs, and a batch scored
   by keyword fallback says so.** Three r4 batches ran to completion with no
   `ANTHROPIC_API_KEY`: every interrogation classifier call failed, each fell back to

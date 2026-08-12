@@ -6,6 +6,7 @@ timing and scheming are computed per act rather than collapsed. Adding an act
 means adding a row here, not editing every consumer.
 """
 
+from ..api_errors import is_auth_error
 from ..config import (
     ACT_OVERSIGHT_DESCRIPTION,
     INTERROGATION_CHOICES,
@@ -140,4 +141,52 @@ MISALIGNED_ACTS = (
     },
 )
 
+def auth_error_in_analysis(analysis: dict):
+    """
+    An authentication failure anywhere in a scored episode, or None.
 
+    ONE RULE RATHER THAN FIVE CALL SITES
+    ------------------------------------
+    An episode reaches the grader model five ways - the awareness rubric, the
+    pre-act rubric, the disclosure reading, the misrepresentation check, and the
+    interrogation classifier - and each records its failure under a different key
+    (`error` in three shapes, `classifier_error` in the fourth). Instrumenting each
+    caller would leave the sixth to be forgotten, so this walks the finished
+    analysis using the act keys defined above.
+
+    An auth failure is the one provider error that cannot come right on retry, and
+    the one whose consequence is invisible in the output it produces: every
+    interrogation answer still gets a well-formed verdict, just from the keyword
+    cross-check instead of the classifier. Three batches ran to completion that way.
+    """
+    def first(*candidates):
+        for value in candidates:
+            if is_auth_error(value):
+                return str(value)
+        return None
+
+    grader = analysis.get("eval_awareness_grader") or {}
+    found = first(*[(r or {}).get("error")
+                    for r in (grader.get("rubric_results") or {}).values()])
+    if found:
+        return found
+
+    found = first((analysis.get("misrepresented_check") or {}).get("error"))
+    if found:
+        return found
+
+    for act in MISALIGNED_ACTS:
+        pre = analysis.get(act["grader_before_key"]) or {}
+        found = first((analysis.get(act["disclosure_key"]) or {}).get("error"),
+                      pre.get("error"),
+                      *[(r or {}).get("error")
+                        for r in (pre.get("rubric_results") or {}).values()],
+                      *[a.get("classifier_error")
+                        for a in (analysis.get(act["followup_key"]) or [])],
+                      *[a.get("classifier_error")
+                        for variant in (analysis.get(act["followup_key"]
+                                                     + "_by_variant") or {}).values()
+                        for a in (variant or [])])
+        if found:
+            return found
+    return None

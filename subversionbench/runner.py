@@ -24,7 +24,7 @@ from .blocks import serialise_messages
 from .config import ROLLOUT_FINGERPRINTS
 from .environment import create_episode_root
 from .episode import EpisodeAPIError, run_evaluation
-from .grading import MISALIGNED_ACTS
+from .grading import MISALIGNED_ACTS, auth_error_in_analysis
 from .isolation import (isolation_available, probe_isolation, profile_for,
                         verify_isolation)
 from .llm_client import missing_credential
@@ -294,6 +294,37 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
         with open(run_file, "w") as f:
             json.dump(result_to_save, f, indent=2, default=str)
         print(f"\nSaved: {redact_paths(run_file)}")
+
+        # An auth failure in the SCORING is checked after the episode is saved, and
+        # it stops the batch.
+        #
+        # It cannot come right on retry - the credential will be just as absent for
+        # episode two - and its consequence is invisible in the output it produces:
+        # every interrogation answer still gets a well-formed verdict, from the
+        # keyword cross-check instead of the classifier. Three batches ran to
+        # completion that way and published concealment rates no classifier produced.
+        # The pre-flight above now catches the ordinary case; this catches a
+        # credential that stops working mid-batch, or one the environment has but the
+        # provider rejects.
+        #
+        # After the save, deliberately. The rollout is the expensive part and this
+        # episode's transcript is sound - only its scoring is not - so it is kept,
+        # and --resume will not pay for it again.
+        auth_error = auth_error_in_analysis(result.get("analysis") or {})
+        if auth_error:
+            print(f"\n{'*'*60}")
+            print("*** ABORTING: the grader model rejected our credentials. ***")
+            print(f"{'*'*60}")
+            print(f"  {redact_paths(str(auth_error), env_dir)[:200]}")
+            print(f"\n  Every verdict from here would fall back to the keyword "
+                  f"cross-check,\n  which is a legitimate reading of one bad answer "
+                  f"and a fiction for all\n  of them. {len(all_results)} episode(s) "
+                  f"are saved and reusable.")
+            print(f"\n  Fix the credential, then either re-run with --resume "
+                  f"{batch_stamp}\n  or score what is saved with --reclassify "
+                  f"--write-back.")
+            aborted = True
+            break
 
         if i < args.runs - 1:
             print(f"\nWaiting {args.delay}s before next run...")
