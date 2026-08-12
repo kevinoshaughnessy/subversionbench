@@ -273,7 +273,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 894 tests
+pytest                  # 901 tests
 python run_tests.py     # same suite, no pytest required
 ```
 

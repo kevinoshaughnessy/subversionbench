@@ -53,39 +53,96 @@ def _redact_value(value):
     return value
 
 
+class ExportRefused(Exception):
+    """The directory holds something this cannot publish safely."""
+
+
 def redact_tree(src: str, into: str) -> dict:
     """
     Copy `src` into `into/<basename>`, redacting every JSON file on the way.
 
     Non-JSON files are copied verbatim. Returns counts for the caller to report.
+
+    RECURSIVE, and it counts what it wrote.
+    ---------------------------------------
+    The first version skipped directories, so a nested file never reached the
+    archive - while zip.sh reported a count from a recursive `find` and declared
+    success. An incomplete archive with a reassuring message is worse than a failed
+    build, so every file is now walked and the total written is checked against the
+    total seen before returning. That check is what would have caught the omission.
+
+    SYMLINKS ARE REFUSED, not followed.
+    -----------------------------------
+    `shutil.copy2` follows a link, so a symlink in a results directory pointing
+    anywhere on disk would have had its CONTENT copied into a published archive.
+    This module exists to control what leaves the machine, so a link out of the tree
+    is refused rather than resolved - and refused rather than skipped, because
+    silently dropping it is the same class of mistake as silently dropping a
+    subdirectory.
     """
     src = str(src).rstrip("/")
     dst = os.path.join(into, os.path.basename(src))
     os.makedirs(dst, exist_ok=True)
-    counts = {"json": 0, "changed": 0, "copied": 0, "unreadable": 0}
+    counts = {"json": 0, "changed": 0, "copied": 0, "unreadable": 0,
+              "seen": 0, "written": 0}
+    links = []
 
-    for entry in sorted(os.listdir(src)):
-        s, d = os.path.join(src, entry), os.path.join(dst, entry)
-        if os.path.isdir(s):
-            continue
-        if not entry.endswith(".json"):
-            shutil.copy2(s, d)
-            counts["copied"] += 1
-            continue
-        counts["json"] += 1
-        raw = Path(s).read_text()
-        try:
-            data = json.loads(raw)
-        except Exception:
-            # A truncated run file is data too: copy it rather than dropping it,
-            # but redact it as text since it cannot be parsed.
-            Path(d).write_text(redact_paths(raw))
-            counts["unreadable"] += 1
-            continue
-        clean = _redact_value(data)
-        Path(d).write_text(json.dumps(clean, indent=2, default=str))
-        if clean != data:
-            counts["changed"] += 1
+    for dirpath, dirnames, filenames in os.walk(src, followlinks=False):
+        relative = os.path.relpath(dirpath, src)
+        out_dir = dst if relative == "." else os.path.join(dst, relative)
+        os.makedirs(out_dir, exist_ok=True)
+
+        for name in sorted(dirnames):
+            if os.path.islink(os.path.join(dirpath, name)):
+                links.append(os.path.relpath(os.path.join(dirpath, name), src))
+
+        for name in sorted(filenames):
+            s = os.path.join(dirpath, name)
+            if os.path.islink(s):
+                links.append(os.path.relpath(s, src))
+                continue
+            d = os.path.join(out_dir, name)
+            counts["seen"] += 1
+            if not name.endswith(".json"):
+                shutil.copy2(s, d)
+                counts["copied"] += 1
+                counts["written"] += 1
+                continue
+            counts["json"] += 1
+            raw = Path(s).read_text()
+            try:
+                data = json.loads(raw)
+            except Exception:
+                # A truncated run file is data too: copy it rather than dropping it,
+                # but redact it as text since it cannot be parsed.
+                Path(d).write_text(redact_paths(raw))
+                counts["unreadable"] += 1
+                counts["written"] += 1
+                continue
+            clean = _redact_value(data)
+            Path(d).write_text(json.dumps(clean, indent=2, default=str))
+            counts["written"] += 1
+            if clean != data:
+                counts["changed"] += 1
+
+    if links:
+        raise ExportRefused(
+            f"{len(links)} symbolic link(s) in {os.path.basename(src)}, which this "
+            f"will not resolve into a published archive: "
+            f"{', '.join(sorted(links)[:5])}"
+            + (" ..." if len(links) > 5 else "")
+            + ". Replace them with real files, or move them out of the directory.")
+
+    # Counted off DISK, not off the loop above. Incrementing a counter beside each
+    # write only proves the code meant to write; it proves nothing about what landed,
+    # and a branch that walks a file and fails to write it would still tick the
+    # counter up. Comparing against what is actually staged is what makes this a
+    # check rather than a restatement of the loop's own bookkeeping.
+    staged = sum(1 for path in Path(dst).rglob("*") if path.is_file())
+    if staged != counts["seen"]:
+        raise ExportRefused(
+            f"walked {counts['seen']} file(s) but only {staged} reached the staged "
+            f"copy; it is incomplete and must not be archived.")
     return counts
 
 
@@ -153,7 +210,11 @@ def main(argv=None) -> int:
 
     if not (args.dir and args.into):
         parser.error("--dir and --into are both required unless --verify is given")
-    counts = redact_tree(args.dir, args.into)
+    try:
+        counts = redact_tree(args.dir, args.into)
+    except ExportRefused as refused:
+        print(f"\n  REFUSING TO STAGE: {refused}")
+        return 1
     print(f"  redacted {counts['changed']}/{counts['json']} JSON file(s) from "
           f"{os.path.basename(str(args.dir).rstrip('/'))}"
           + (f", {counts['copied']} other file(s) copied" if counts["copied"] else "")

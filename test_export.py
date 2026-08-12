@@ -12,9 +12,11 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from subversionbench.config import OPERATOR_DISPLAY_NAME
-from subversionbench.export import (find_leaks, leak_patterns, main,
-                                    redact_tree)
+from subversionbench.export import (ExportRefused, find_leaks, leak_patterns,
+                                    main, redact_tree)
 from subversionbench.redaction import _operator_username, path_substitutions
 
 HOST_PATH = path_substitutions()[0][0]
@@ -147,3 +149,90 @@ class TestTheCliContract:
         import pytest
         with pytest.raises(SystemExit):
             main(["--dir", "somewhere"])
+
+class TestNothingIsSilentlyLeftOut:
+    """An incomplete archive that reports success is worse than a failed build.
+
+    The first version skipped directories while zip.sh counted files with a recursive
+    `find`, so a nested file could vanish from the archive behind a reassuring
+    message.
+    """
+
+    def test_a_nested_file_reaches_the_archive(self):
+        src = _corpus()
+        os.makedirs(os.path.join(src, "nested"))
+        Path(src, "nested", "run_2.json").write_text(
+            json.dumps({"result": f"{HOST_PATH}/deep"}))
+        into = tempfile.mkdtemp()
+        redact_tree(src, into)
+        nested = Path(into, os.path.basename(src), "nested", "run_2.json")
+        assert nested.exists(), "a nested file was dropped from the staged copy"
+        assert HOST_PATH not in nested.read_text(), "and it was not redacted"
+
+    def test_what_landed_is_checked_against_what_was_walked(self):
+        """Counted off disk, not off the loop's own bookkeeping. A counter beside each
+        write only proves the code meant to write."""
+        src = _corpus()
+        into = tempfile.mkdtemp()
+        counts = redact_tree(src, into)
+        staged = [p for p in Path(into).rglob("*") if p.is_file()]
+        assert counts["seen"] == len(staged) > 0
+
+    def test_an_incomplete_copy_refuses_rather_than_returning(self):
+        """If a future branch stops writing a file it walked, the staged copy must not
+        be archived. Simulated by making the walk see one more file than it writes."""
+        import subversionbench.export as export
+        src = _corpus()
+        original = export.shutil.copy2
+
+        def skip_one(s, d):
+            if s.endswith(".keep"):
+                return None          # walked, deliberately not written
+            return original(s, d)
+
+        Path(src, "notes.keep").write_text("x")
+        export.shutil.copy2 = skip_one
+        try:
+            with pytest.raises(ExportRefused, match="incomplete"):
+                redact_tree(src, tempfile.mkdtemp())
+        finally:
+            export.shutil.copy2 = original
+
+
+class TestALinkOutOfTheTreeIsRefused:
+    """This module decides what leaves the machine, so it does not resolve links."""
+
+    def _with_link(self):
+        src = _corpus()
+        outside = tempfile.mkdtemp()
+        Path(outside, "private.txt").write_text("SENSITIVE-OUTSIDE-DATA")
+        os.symlink(os.path.join(outside, "private.txt"),
+                   os.path.join(src, "leaked.json"))
+        return src
+
+    def test_it_refuses_rather_than_following(self):
+        with pytest.raises(ExportRefused, match="symbolic link"):
+            redact_tree(self._with_link(), tempfile.mkdtemp())
+
+    def test_the_target_content_never_reaches_the_staging_copy(self):
+        src, into = self._with_link(), tempfile.mkdtemp()
+        try:
+            redact_tree(src, into)
+        except ExportRefused:
+            pass
+        staged = " ".join(p.read_text(errors="replace")
+                          for p in Path(into).rglob("*") if p.is_file())
+        assert "SENSITIVE-OUTSIDE-DATA" not in staged
+
+    def test_it_refuses_rather_than_skipping(self):
+        """Silently dropping the link would repeat the subdirectory mistake: the
+        archive would build, and nobody would know something was omitted."""
+        assert main(["--dir", self._with_link(), "--into", tempfile.mkdtemp()]) == 1
+
+    def test_a_symlinked_directory_is_refused_too(self):
+        src = _corpus()
+        outside = tempfile.mkdtemp()
+        Path(outside, "x.json").write_text("{}")
+        os.symlink(outside, os.path.join(src, "linked_dir"))
+        with pytest.raises(ExportRefused, match="symbolic link"):
+            redact_tree(src, tempfile.mkdtemp())

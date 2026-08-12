@@ -12,6 +12,27 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **The export refuses an incomplete or link-following copy.** Two defects in the
+  export added above, both found by auditing it rather than by using it.
+
+  It skipped directories, so a nested file never reached the archive - while `zip.sh`
+  counted files with a recursive `find` and declared success. An incomplete archive
+  behind a reassuring message is worse than a failed build, so the walk is recursive
+  and the staged copy is now counted OFF DISK and compared with what was walked. That
+  distinction matters: a counter incremented beside each write only proves the code
+  meant to write, and a branch that walks a file and fails to write it would tick the
+  counter up regardless. Writing the test for it is what exposed the weaker version.
+
+  It also followed symlinks. `shutil.copy2` resolves a link, so a symlink in a results
+  directory pointing anywhere on disk would have had its CONTENT copied into a
+  published archive. A module whose whole job is deciding what leaves the machine must
+  not resolve links out of the tree, so they are refused - and refused rather than
+  skipped, because silently dropping one repeats the subdirectory mistake exactly.
+
+  Neither could have shipped from the current corpus: no results directory has
+  subdirectories or symlinks. Both were latent, and both were in the path that exists
+  to stop things leaking.
+
 - **The username is redacted when it leads a compound name, not only when it stands
   alone.** The export check refused to publish a directory, correctly: two run files
   held a temp directory the shell had listed whose name began with the operator's
