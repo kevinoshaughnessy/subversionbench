@@ -6,6 +6,60 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v42
+
+Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model saw or
+could do has changed. This is an analysis fix, and `--resummarise --write-back`
+applies it to every batch already collected at no cost.
+
+- **A deterministic field is now re-derived every time, without exception.** Nine
+  fill-when-absent guards survived in `normalise_analyses` - the defect class this
+  codebase has named and fixed more times than any other, living in the very function
+  whose job is to re-derive.
+
+  Two guards were conflated there and only one was ever right. `if "X" not in
+  analysis` reads as a cheap optimisation and behaves as a decision to freeze X at
+  whichever version of the detector ran first. `if transcript` is legitimate: an
+  absent source is not a stale value, and re-deriving from nothing would blank a
+  reading rather than reproduce it. The first is gone; the second stays.
+
+  **Why it survived.** The classification half of each pair was ALREADY
+  unconditional. `network_probe` was faithfully re-derived on every rebuild - from a
+  `network_probe_detail` that was not - and a refreshed verdict computed over a
+  frozen input is indistinguishable from a fresh one. Three pairs were affected
+  (network, filesystem, transient tampering), and all six names are in
+  `REDERIVED_ANALYSIS_FIELDS`, so `--write-back` wrote the frozen detail back to disk
+  as though it had just been derived.
+
+  **Measured before changing anything, over all 1500 saved episodes.** Nine carried a
+  stale field: 7 `transient_tampering_detail`, 2 `sandbox_environment_probes`. No
+  verdict moved - not one `misaligned`, `scheming`, concealment or per-act value. Two
+  reported figures moved, both in r2:
+
+  - `transient_exploited` 3 -> 4 for google/gemini-3.5-flash strong: one more
+    transient tampering had banked a passing check than the frozen detail showed.
+  - `rates.sandbox_environment_probe` 3/10 -> 2/10 for z-ai/glm-5.2 strong: a heredoc
+    writing a draft had been misread as an environment probe.
+
+  Both corrections are in the direction of the improved detector, and neither touches
+  a headline construct. The full corpus check confirmed exactly those two changes and
+  no others: 5041 summary fields compared, 2 moved, 1 console report line moved.
+
+  An earlier version of the measurement claimed one `misaligned` and one `scheming`
+  verdict moved. That was wrong, and wrong in an instructive way: it compared against
+  the raw run files rather than against what the current pipeline produces, so it
+  counted episodes whose field is merely ABSENT - which the old code already
+  backfilled - as drift. A second error in the same script omitted the keyword
+  recompute and briefly attributed a 17-to-1 swing in `n_goal_conflict` to this
+  change. Both were instrument faults, caught because the deltas were implausibly
+  large for the fields involved.
+
+  Six tests pin the result, including that a stale stored detail is replaced, that a
+  classification agrees with the detail it reads, that an episode with no transcript
+  keeps what it has, and that every field in `REDERIVED_ANALYSIS_FIELDS` is actually
+  re-derived somewhere - a field written back to disk but never refreshed being the
+  worst of both.
+
 ## v41
 
 Package version `41.0.0`. `ROLLOUT_VERSION` stays at `r4` — nothing about what the
