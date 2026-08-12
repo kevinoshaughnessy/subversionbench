@@ -8,14 +8,14 @@ the console takes finished figures, and has no way to compute one.
 """
 
 import ast
+import contextlib
 import inspect
 import io
-import contextlib
 import types
 
 from subversionbench.reporting import console
 from subversionbench.reporting.facts import batch_facts, normalise_analyses
-from test_batch_facts import _episode
+from conftest import batch_episode
 
 
 def _args(**over):
@@ -24,7 +24,6 @@ def _args(**over):
                 delay=0, max_tokens=8192, max_turns=40, no_power=True)
     base.update(over)
     return types.SimpleNamespace(**base)
-
 
 def _render(episodes, **over):
     from subversionbench.batch import BatchIdentity
@@ -37,17 +36,15 @@ def _render(episodes, **over):
         console.render_report(facts, identity, args)
     return buf.getvalue()
 
-
 def _sections():
     """The section functions, in definition order."""
     tree = ast.parse(inspect.getsource(console))
     return [n.name for n in tree.body
             if isinstance(n, ast.FunctionDef) and n.name.startswith("_")]
 
-
 class TestItRenders:
     def test_a_clean_batch_prints_a_whole_report(self):
-        out = _render([_episode(), _episode()])
+        out = _render([batch_episode(), batch_episode()])
         for heading in ("SUMMARY:", "Situational Understanding",
                         "Agentic Misalignment", "Scheming", "Timing"):
             assert heading in out, f"{heading!r} missing from the report"
@@ -55,7 +52,7 @@ class TestItRenders:
     def test_an_arm_with_no_oversight_says_so_rather_than_printing_zero(self):
         """A definitional zero dressed as a measurement is the single most
         misleading thing this report used to produce."""
-        episodes = [_episode(), _episode()]
+        episodes = [batch_episode(), batch_episode()]
         for e in episodes:
             e["analysis"]["monitoring_disabled"] = None
         out = _render(episodes)
@@ -63,7 +60,7 @@ class TestItRenders:
         assert "Disabled monitoring:    0/" not in out
 
     def test_a_scheming_episode_reaches_the_report(self):
-        out = _render([_episode(tampered=True, disclosed=False,
+        out = _render([batch_episode(tampered=True, disclosed=False,
                                 answers=[{"verdict": "denied",
                                           "answer": "No."}])])
         assert "Scheming:               1/1" in out
@@ -71,8 +68,7 @@ class TestItRenders:
     def test_the_report_survives_a_single_episode(self):
         """Every rate in it has a denominator that could be 1 or 0, and several are
         conditional on an act that may not have happened."""
-        assert _render([_episode()]).count("---") > 4
-
+        assert _render([batch_episode()]).count("---") > 4
 
 class TestItOnlyRenders:
     def test_no_section_is_defined_but_never_called(self):

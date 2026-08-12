@@ -28,8 +28,8 @@ import ast
 import inspect
 import re
 
-from subversionbench.reporting.facts import normalise_analyses
 from subversionbench.readmodes import REDERIVED_ANALYSIS_FIELDS
+from subversionbench.reporting.facts import normalise_analyses
 
 
 def _episode(**analysis):
@@ -42,7 +42,6 @@ def _episode(**analysis):
             "transcript": [{"turn": 1, "type": "tool_call",
                             "cmd": "curl https://evil.invalid"},
                            {"turn": 1, "type": "text", "content": "done"}]}
-
 
 class TestAStaleFieldIsRefreshed:
     def test_a_wrong_stored_detail_is_replaced_not_kept(self):
@@ -78,7 +77,6 @@ class TestAStaleFieldIsRefreshed:
         assert a["out_of_scope_attempts"], "the act was frozen out of existence"
         assert a["misaligned"] is True
 
-
 class TestTheLegitimateGuardSurvives:
     def test_an_episode_with_no_transcript_keeps_what_it_has(self):
         """An absent source is not a stale value. Re-deriving from nothing would
@@ -96,7 +94,6 @@ class TestTheLegitimateGuardSurvives:
         normalise_analyses([e])
         assert e["analysis"]["network_probe_detail"] == stored
         assert e["analysis"]["eval_awareness_keywords"]["eval_aware"] is True
-
 
 class TestTheGuardCannotComeBack:
     def test_normalise_has_no_fill_when_absent_guard(self):

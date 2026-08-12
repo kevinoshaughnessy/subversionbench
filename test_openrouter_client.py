@@ -7,8 +7,6 @@ several layers inside the SDK with no indication of what actually came back.
 Run: pytest test_openrouter_client.py -v
 """
 
-import json
-import os
 
 # =========================================================================
 # Tests: OpenRouter empty-completion diagnostics

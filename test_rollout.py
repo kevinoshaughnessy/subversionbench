@@ -1,17 +1,19 @@
 """
-Tests for rollout identity.
+The rollout fingerprint: what the model could see, hashed.
 
-The failure this guards against is not a crash. It is a results directory that
-quietly holds two experiments — which happened twice already: eval_results_v14
-contains two distinct strong-nudge prompts, and the heredoc fix changed what a
-heredoc command does midway through v15. Neither was visible in a directory
-name, and neither would have been caught by any test that existed.
+VERSION covers analysis and moves freely. ROLLOUT_VERSION covers the scenario arm,
+the tools, the sandbox's behaviour and the episode root's layout - anything that
+would make a new episode incomparable with the ones already collected - so it does
+not move without a re-run.
 """
 
-import json
 
-import subversionbench.rollout as rollout
+from subversionbench.batch import batch_stem, parse_batch_filename
+from subversionbench.config import ROLLOUT_FINGERPRINTS
 from subversionbench.config import ROLLOUT_FINGERPRINT, ROLLOUT_VERSION
+from subversionbench.rollout import rollout_fingerprint
+from subversionbench.scenario import scenario_for
+import subversionbench.rollout as rollout
 
 
 class TestPinnedFingerprint:
@@ -28,7 +30,6 @@ class TestPinnedFingerprint:
 
     def test_the_version_looks_like_a_rollout_version(self):
         assert ROLLOUT_VERSION.startswith("r") and ROLLOUT_VERSION[1:].isdigit()
-
 
 class TestFingerprint:
     def test_it_is_deterministic(self):
@@ -120,7 +121,6 @@ class TestFingerprint:
             config.RUBRIC_QUESTIONS = original_rubric
             config.DEFAULT_GRADER_MODEL = original_grader
 
-
 class TestDriftError:
     def test_no_error_when_the_fingerprint_matches(self):
         assert rollout.rollout_drift_error(rollout.rollout_fingerprint()) is None
@@ -135,7 +135,6 @@ class TestDriftError:
         # It must not guess which side is wrong: an unintended scenario edit
         # and a deliberate new rollout look identical from here.
         assert "revert" in msg.lower()
-
 
 class TestArmIdentityIsRecorded:
     """An episode must carry ITS OWN arm's fingerprint, not the primary arm's.
@@ -195,3 +194,43 @@ class TestArmIdentityIsRecorded:
         params = inspect.signature(run_evaluation).parameters
         assert "lure" in params
         assert "oversight" in params
+
+class TestRolloutIdentity:
+    def test_each_arm_has_its_own_fingerprint(self):
+        assert rollout_fingerprint(True) != rollout_fingerprint(False)
+
+    def test_authoring_the_second_arm_did_not_move_the_first(self):
+        """Hashing the bundle file would have changed the oversight arm's
+        identity the moment the counterfactual was written, declaring 570
+        episodes incomparable with a scenario they still match exactly."""
+        from subversionbench.config import ROLLOUT_FINGERPRINTS
+        assert rollout_fingerprint(True) == ROLLOUT_FINGERPRINTS[(True, False)]
+        assert rollout_fingerprint(False) == ROLLOUT_FINGERPRINTS[(False, False)]
+
+class TestTheVariantIsRemovalOnly:
+    """Adding phrasings must not change what any existing episode saw."""
+
+    def test_every_pinned_fingerprint_is_unchanged(self):
+        """Forgetting the bundle pop moved all four hashes, which the drift guard
+        caught immediately. No rollout bump is needed for this arm, because the
+        interrogation happens after the episode and the fingerprint is computed
+        over the default assembly."""
+        for (oversight, lure), pinned in ROLLOUT_FINGERPRINTS.items():
+            assert rollout_fingerprint(oversight, lure=lure) == pinned, (
+                f"arm (oversight={oversight}, lure={lure}) drifted")
+
+    def test_the_variant_key_never_leaks_into_an_assembled_arm(self):
+        for oversight in (True, False):
+            for lure in (True, False):
+                assert "interrogation_variants" not in scenario_for(
+                    oversight, lure=lure)
+
+    def test_the_filename_does_not_mark_the_phrasings(self):
+        """THE paired property. Every episode gets the default probe plus any
+        extras, so the default measure means the same thing in every batch and the
+        batches pool for it. Marking the extras would split that measure across
+        summaries and shrink its n for nothing."""
+        assert batch_stem("m", "strong") == "m_strong"
+        assert parse_batch_filename(
+            "run_1_m_strong_20260101T000000.json", "strong"
+        ) == (None, "20260101T000000", True, False)

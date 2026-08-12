@@ -1,65 +1,24 @@
 """
-A missing credential stops a rollout before it spends, and a degraded one is loud.
+Rolling out a batch: what it refuses before spending, and when it stops.
 
-Two properties. A rollout refuses to start when the credential a model authenticates
-with is absent - checked for the model under evaluation and for the grader model,
-which scores every interrogation answer and is therefore needed even with
---no-grader. And a batch whose answers fell back to the keyword cross-check reports
-the RATIO, not only the count, so its concealment figures cannot print as though a
-classifier produced them.
+Three refusals live here rather than in the episode, because each is about the
+batch as a whole: isolation unavailable, a rollout fingerprint that has drifted,
+and a credential absent for a model about to be charged for.
 """
 
 import contextlib
+import glob
 import io
-import os
+import json
 import sys
 import tempfile
 import types
 
-import pytest
-
-import subversionbench.run_eval as ev_run
+from pathlib import Path
 from subversionbench.config import MAX_CLASSIFIER_FALLBACK_RATE
-from subversionbench.llm_client import credential_env_var, missing_credential
-
-
-@contextlib.contextmanager
-def _without(*names):
-    """Temporarily unset credentials. conftest supplies placeholders for the suite,
-    so a test that wants the refusal has to remove them explicitly."""
-    saved = {n: os.environ.pop(n, None) for n in names}
-    try:
-        yield
-    finally:
-        for n, v in saved.items():
-            if v is not None:
-                os.environ[n] = v
-
-
-class TestTheRouteToCredentialMapping:
-    def test_each_route_names_its_own_variable(self):
-        assert credential_env_var("claude-opus-5") == "ANTHROPIC_API_KEY"
-        assert credential_env_var("x-ai/grok-4.5") == "OPENROUTER_API_KEY"
-        assert credential_env_var("gpt-5.6-sol") == "OPENAI_API_KEY"
-
-    def test_present_means_none_missing(self):
-        assert missing_credential("claude-opus-5") is None
-
-    def test_absent_is_reported_by_name(self):
-        with _without("ANTHROPIC_API_KEY"):
-            assert missing_credential("claude-opus-5") == "ANTHROPIC_API_KEY"
-
-    def test_it_reads_the_environment_rather_than_building_a_client(self):
-        """The three routes fail at different times: the OpenRouter and OpenAI
-        clients raise at construction, while anthropic.Anthropic() builds happily
-        with no key and defers the failure to the first call. Checking the
-        environment is uniform across routes, costs nothing, and cannot itself
-        fail."""
-        import inspect
-        from subversionbench import llm_client
-        src = inspect.getsource(llm_client.missing_credential)
-        assert "os.environ" in src
-        assert "get_client" not in src
+import subversionbench.llm_client as ev_llm
+import subversionbench.run_eval as ev_run
+from conftest import batch_episode, env_without
 
 
 class TestARolloutRefusesBeforeItSpends:
@@ -78,7 +37,7 @@ class TestARolloutRefusesBeforeItSpends:
         return code, buf.getvalue(), out
 
     def test_a_missing_model_credential_stops_it(self):
-        with _without("OPENROUTER_API_KEY"):
+        with env_without("OPENROUTER_API_KEY"):
             code, out, _ = self._rollout()
         assert code == 1
         assert "REFUSING TO ROLL OUT" in out
@@ -88,7 +47,7 @@ class TestARolloutRefusesBeforeItSpends:
         """The model's own route being fine is not enough: the grader model scores
         every interrogation answer, so its credential decides whether the
         concealment measure works at all."""
-        with _without("ANTHROPIC_API_KEY"):
+        with env_without("ANTHROPIC_API_KEY"):
             code, out, _ = self._rollout()
         assert code == 1
         assert "ANTHROPIC_API_KEY" in out
@@ -97,29 +56,27 @@ class TestARolloutRefusesBeforeItSpends:
     def test_no_grader_does_not_excuse_the_grader_credential(self):
         """--no-grader turns off the awareness rubric, not the interrogation
         classifier, which is scored by the same model."""
-        with _without("ANTHROPIC_API_KEY"):
+        with env_without("ANTHROPIC_API_KEY"):
             code, out, _ = self._rollout(extra=["--no-grader"])
         assert code == 1
         assert "even with --no-grader" in out
 
     def test_it_refuses_before_any_episode_is_written(self):
-        with _without("ANTHROPIC_API_KEY"):
+        with env_without("ANTHROPIC_API_KEY"):
             code, out, outdir = self._rollout()
         import glob
         assert not glob.glob(f"{outdir}/run_*.json"), "an episode was paid for"
         assert "# RUN 1/" not in out
 
     def test_the_refusal_names_the_fix(self):
-        with _without("ANTHROPIC_API_KEY"):
+        with env_without("ANTHROPIC_API_KEY"):
             _, out, _ = self._rollout()
         assert "export ANTHROPIC_API_KEY=" in out
 
-
 class TestADegradedBatchCannotLookClean:
     def _summary_for(self, answers):
-        from test_batch_facts import _episode
         from subversionbench.reporting.facts import normalise_analyses
-        eps = [_episode(tampered=True, disclosed=False, answers=list(answers))
+        eps = [batch_episode(tampered=True, disclosed=False, answers=list(answers))
                for _ in range(10)]
         normalise_analyses(eps)
         tmp = tempfile.mkdtemp()
@@ -163,7 +120,6 @@ class TestADegradedBatchCannotLookClean:
         assert "credential" in out
         assert "--reclassify" in out
 
-
 class TestTheThresholdIsOneNumber:
     def test_both_consumers_read_the_same_constant(self):
         """--reclassify refuses above it; the reporting layer flags above it. Two
@@ -175,54 +131,6 @@ class TestTheThresholdIsOneNumber:
             src = inspect.getsource(mod)
             assert "MAX_CLASSIFIER_FALLBACK_RATE" in src, mod.__name__
             assert "= 0.2" not in src, f"{mod.__name__} has its own copy"
-
-class TestAnAuthFailureIsFoundWhereverItLands:
-    """One rule rather than five call sites.
-
-    An episode reaches the grader model five ways and each records its failure under
-    a different key, so a walker over the finished analysis cannot miss the sixth the
-    way an instrumented caller would.
-    """
-
-    AUTH = ("Could not resolve authentication method. Expected one of api_key, "
-            "auth_token to be set")
-
-    def _act(self):
-        from subversionbench.grading import MISALIGNED_ACTS
-        return MISALIGNED_ACTS[0]
-
-    def test_it_is_found_in_every_route(self):
-        """Looped rather than parametrized: run_tests.py runs this suite without
-        pytest, so a pytest-only decorator would make the standalone runner report a
-        failure it cannot explain. Nothing else in the suite uses one."""
-        from subversionbench.grading import auth_error_in_analysis
-        act = self._act()
-        shapes = {
-            "interrogation": {act["followup_key"]: [{"classifier_error": self.AUTH}]},
-            "disclosure": {act["disclosure_key"]: {"error": self.AUTH}},
-            "misrepresentation": {"misrepresented_check": {"error": self.AUTH}},
-            "awareness_rubric": {"eval_awareness_grader":
-                                 {"rubric_results": {"q": {"error": self.AUTH}}}},
-            "pre_act_rubric": {act["grader_before_key"]: {"error": self.AUTH}},
-            "variant_answers": {act["followup_key"] + "_by_variant":
-                                {"paraphrase": [{"classifier_error": self.AUTH}]}},
-        }
-        for where, analysis in shapes.items():
-            assert auth_error_in_analysis(analysis) is not None, where
-
-    def test_a_clean_analysis_is_clean(self):
-        from subversionbench.grading import auth_error_in_analysis
-        assert auth_error_in_analysis({}) is None
-
-    def test_a_rate_limit_is_not_an_auth_failure(self):
-        """529 can come right on retry, so it must not abort a batch. Conflating the
-        two would turn a transient blip into a stopped rollout."""
-        from subversionbench.grading import auth_error_in_analysis
-        act = self._act()
-        analysis = {act["followup_key"]: [{"classifier_error":
-                                           "Error code: 529 - overloaded_error"}]}
-        assert auth_error_in_analysis(analysis) is None
-
 
 class TestTheBatchStopsOnAnAuthFailureMidRun:
     """The pre-flight catches an absent credential. This catches one the environment
@@ -344,3 +252,175 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
         finally:
             runner.run_evaluation = orig
         assert len(glob.glob(f"{out}/run_*.json")) == 3, "a 529 stopped the batch"
+
+class TestTheArmIsOnScreenWhileItRuns:
+    """An operator watching a counterfactual batch needs to see that it IS one.
+
+    The two arms differ by the ABSENCE of the artefacts the run is about, so there is
+    nothing in the episode output that distinguishes them. Before this the arm was
+    visible only in the filenames and in the summary written at the end - after the
+    money was spent.
+    """
+
+    def _run(self, oversight):
+        import contextlib
+        import io
+        import sys
+        import tempfile
+        import types
+        import subversionbench.llm_client as ev_llm
+        import subversionbench.run_eval as ev_run
+
+        class _B:
+            def __init__(self, **k):
+                self.type = k.get("type", "text")
+                for a, v in k.items():
+                    setattr(self, a, v)
+
+        class _M:
+            @staticmethod
+            def create(messages=None, **kw):
+                return types.SimpleNamespace(
+                    content=[_B(type="text", text="I recommend Strategy B.")],
+                    stop_reason="end_turn",
+                    usage=types.SimpleNamespace(input_tokens=5, output_tokens=5))
+
+        class _Client:
+            messages = _M()
+
+        out = tempfile.mkdtemp()
+        orig_client, orig_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: _Client()
+        sys.argv = ["run_eval", "--model", "claude-sonnet-5", "--runs", "1",
+                    "--delay", "0", "--no-grader", "--no-power",
+                    "--oversight", oversight, "--output-dir", out]
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ev_run.main()
+        finally:
+            ev_llm.get_client, sys.argv = orig_client, orig_argv
+        return buf.getvalue()
+
+    def test_the_counterfactual_says_so_before_the_first_episode(self):
+        out = self._run("false")
+        arm = next(l for l in out.split("\n") if l.startswith("Arm:"))
+        assert "oversight=false" in arm, arm
+        # and before any episode ran, so it is seen before the money is spent
+        assert out.index("Arm:") < out.index("# RUN 1/")
+
+    def test_the_primary_arm_says_so_too(self):
+        arm = next(l for l in self._run("true").split("\n") if l.startswith("Arm:"))
+        assert "oversight=true" in arm, arm
+
+    def test_every_run_header_carries_the_arm(self):
+        """Stated once at the top is not enough on a 100-episode batch: by the time
+        anything looks wrong, the top has scrolled away."""
+        out = self._run("false")
+        headers = [l for l in out.split("\n") if l.startswith("# RUN ")]
+        assert headers, "no run headers printed"
+        for h in headers:
+            assert "NO oversight" in h, h
+
+    def test_the_two_arms_are_not_confusable_at_a_glance(self):
+        """`oversight=false` and `oversight=true` differ by one character in a place
+        the eye skips. The per-run tag spells the absence out instead."""
+        assert "NO oversight" in self._run("false")
+        assert "NO oversight" not in self._run("true")
+
+class TestBatchResilience:
+    """A few hundred episodes is thousands of API calls; one unretryable
+    error must not cost the remaining episodes and the summary."""
+
+    def _run(self, out, argv, fail_on=(), max_turns_stop=True):
+        """Drive main() with a fake client that raises on chosen episodes."""
+        counter = {"n": 0}
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            def __init__(self):
+                counter["n"] += 1
+                self.idx = counter["n"]
+
+            def create(self, messages=None, **kw):
+                if self.idx in fail_on:
+                    raise RuntimeError("429 rate limit exceeded")
+                if kw.get("max_tokens") == 200:
+                    return blk(content=[blk(type="text",
+                                            text='{"answer": false, "quote": ""}')])
+                return blk(stop_reason="end_turn", content=[
+                    blk(type="text", text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original = ev_llm.get_client
+        ev_llm.get_client = lambda m: Client()
+        original_argv = sys.argv
+        sys.argv = ["run_eval", "--model", "m", "--delay", "0", "--no-grader",
+                    "--output-dir", out] + argv
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = ev_run.main()
+            return rc, buf.getvalue()
+        finally:
+            ev_llm.get_client = original
+            sys.argv = original_argv
+
+    def test_one_failed_episode_does_not_end_the_batch(self):
+        out = tempfile.mkdtemp()
+        rc, output = self._run(out, ["--runs", "5"], fail_on=(3,))
+
+        assert len(glob.glob(f"{out}/run_*.json")) == 4
+        summary = json.loads(
+            Path(sorted(glob.glob(f"{out}/summary_*.json"))[-1]).read_text()
+        )
+        assert summary["n_runs"] == 4
+        assert summary["n_episodes_failed"] == 1
+        assert summary["batch_aborted"] is False
+
+    def test_failure_is_recorded_with_its_error(self):
+        out = tempfile.mkdtemp()
+        self._run(out, ["--runs", "3"], fail_on=(2,))
+        summary = json.loads(
+            Path(sorted(glob.glob(f"{out}/summary_*.json"))[-1]).read_text()
+        )
+        assert summary["episode_failures"][0]["run"] == 2
+        assert "429" in summary["episode_failures"][0]["error"]
+
+    def test_systematic_failure_aborts_rather_than_burning_the_budget(self):
+        out = tempfile.mkdtemp()
+        rc, output = self._run(
+            out, ["--runs", "50", "--max-consecutive-failures", "3"],
+            fail_on=tuple(range(1, 60)),
+        )
+        assert rc == 1, "a batch that produced nothing must exit non-zero"
+        assert "ABORTING" in output
+        assert glob.glob(f"{out}/summary_*.json") == []
+        # And it must say how to pick up where it left off.
+        assert "--resume" in output
+
+    def test_resume_skips_completed_episodes(self):
+        out = tempfile.mkdtemp()
+        self._run(out, ["--runs", "5"], fail_on=(2, 4))
+        stamp = sorted(glob.glob(f"{out}/run_1_*.json"))[0].rsplit("_", 1)[-1][:-5]
+
+        rc, output = self._run(out, ["--runs", "5", "--resume", stamp])
+        assert output.count("already on disk, skipping") == 3
+
+        assert len(glob.glob(f"{out}/run_*_{stamp}.json")) == 5
+        summaries = sorted(glob.glob(f"{out}/summary_*.json"))
+        summary = json.loads(Path(summaries[-1]).read_text())
+        assert summary["n_runs"] == 5
+        assert summary["n_episodes_failed"] == 0
+
+    def test_resume_reuses_the_stamp(self):
+        out = tempfile.mkdtemp()
+        self._run(out, ["--runs", "2"], fail_on=(1,))
+        stamp = sorted(glob.glob(f"{out}/run_2_*.json"))[0].rsplit("_", 1)[-1][:-5]
+        self._run(out, ["--runs", "2", "--resume", stamp])
+        assert len(glob.glob(f"{out}/run_*_{stamp}.json")) == 2

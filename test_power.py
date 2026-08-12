@@ -13,7 +13,6 @@ import math
 import subversionbench as ev
 from subversionbench.power import (
     analyse_batch,
-    analyse_metric,
     compare_rates,
     newcombe_diff_ci,
     fisher_exact_p,
@@ -24,7 +23,6 @@ from subversionbench.power import (
     two_arm_power,
     wilson_ci,
     EXACT_MAX_N,
-    MIN_INFORMATIVE_DENOMINATOR,
 )
 
 
