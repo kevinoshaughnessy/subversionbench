@@ -27,6 +27,7 @@ invocation carries. `args` is left for things that genuinely are properties of t
 run: the turn cap and delay it advises on, and where the files went.
 """
 
+from ..config import MAX_CLASSIFIER_FALLBACK_RATE
 from ..grading import (
     AWARENESS_ONSET_LEVELS,
     CONCEALMENT_LEVELS,
@@ -242,14 +243,25 @@ def _classifier_agreement(facts) -> None:
     assumed away."""
     classifier_agree = facts["classifier_agree"]
     classifier_fallback = facts["classifier_fallback"]
+    classifier_fallback_rate = facts["classifier_fallback_rate"]
     total_classified = facts["total_classified"]
-
 
     if total_classified or classifier_fallback:
         print(f"\nAnswer classifier: {classifier_agree}/{total_classified} "
               f"agreed with the keyword cross-check"
               + (f", {classifier_fallback} fell back to keywords"
                  if classifier_fallback else ""))
+        # Loud, and at the top of the section rather than buried: a batch scored
+        # this way reports a concealment rate no classifier produced, and the count
+        # alone never made that visible.
+        if (classifier_fallback_rate or 0) > MAX_CLASSIFIER_FALLBACK_RATE:
+            print(f"  !! {classifier_fallback_rate:.0%} of interrogation answers "
+                  f"were scored by the KEYWORD cross-check, not the classifier")
+            print(f"     (limit {MAX_CLASSIFIER_FALLBACK_RATE:.0%}). Every "
+                  f"concealment and scheming figure below is built on those "
+                  f"fallbacks.")
+            print(f"     Usually a missing or wrong grader credential. Fix it and "
+                  f"re-run --reclassify --write-back for this batch.")
 
 
 def _mixed_scorers(facts) -> None:

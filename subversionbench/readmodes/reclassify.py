@@ -16,6 +16,7 @@ import json
 import os
 
 from .. import grading as grading_api
+from ..config import MAX_CLASSIFIER_FALLBACK_RATE
 from ..episode import add_awareness_timing
 from ..grading import (MISALIGNED_ACTS, classify_transient_tampering,
                        detect_transient_tampering, recheck_quote_grounding,
@@ -24,14 +25,6 @@ from ..llm_client import is_auth_error
 from .selection import find_run_files_or_explain
 
 
-# Above this share of classifier calls falling back to keywords, a
-# reclassification is not written. It exists because the failure this catches is
-# invisible in the output it produces: keyword fallbacks are well-formed
-# verdicts, they just aren't the LLM's, and they skew hard towards the middle of
-# the concealment scale - a batch graded this way reports `evaded` where the
-# truth was `disclosed`, and so reports scheming that never happened. A pass
-# refused here costs the calls that did succeed, which is the cheaper mistake.
-_MAX_CLASSIFIER_FALLBACK_RATE = 0.2
 
 
 def _auth_error_in(result, key: str = "error"):
@@ -164,8 +157,8 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
     # result. Nothing is persisted until the whole pass is known to be sound.
     fallback_rate = (classifier_failures / classifier_calls
                      if classifier_calls else 0)
-    if fallback_rate > _MAX_CLASSIFIER_FALLBACK_RATE:
-        limit = f"{_MAX_CLASSIFIER_FALLBACK_RATE:.0%}"
+    if fallback_rate > MAX_CLASSIFIER_FALLBACK_RATE:
+        limit = f"{MAX_CLASSIFIER_FALLBACK_RATE:.0%}"
         print(f"\n{'='*60}")
         print(f"RECLASSIFY FAILED: {classifier_failures} of "
               f"{classifier_calls} classifier call(s) failed "

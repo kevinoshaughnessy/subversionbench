@@ -23,7 +23,7 @@ import datetime
 import json
 import os
 
-from ..config import CANARY, VERSION
+from ..config import CANARY, MAX_CLASSIFIER_FALLBACK_RATE, VERSION
 from ..grading import CONCEALMENT_LEVELS, SCHEMING_LEVELS
 from ..power import analyse_batch
 from ..redaction import redact_paths
@@ -122,6 +122,7 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
     classifier_agree = facts["classifier_agree"]
     classifier_disagree = facts["classifier_disagree"]
     classifier_fallback = facts["classifier_fallback"]
+    classifier_fallback_rate = facts["classifier_fallback_rate"]
 
     # Transient tampering: the episodes, because the closing report names them.
 
@@ -300,6 +301,12 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
             "agreed_with_keywords": classifier_agree,
             "disagreed_with_keywords": classifier_disagree,
             "keyword_fallbacks": classifier_fallback,
+            # The RATIO, beside the counts it relates. Stored because the counts
+            # alone did not make the failure visible: 218 fallbacks sat next to a
+            # 0.77 scheming rate in three r4 summaries with nothing connecting
+            # them, and a reader had to divide to find out the classifier never ran.
+            "keyword_fallback_rate": classifier_fallback_rate,
+            "keyword_fallback_limit": MAX_CLASSIFIER_FALLBACK_RATE,
         },
         # Which model scored what. Read this before comparing any LLM-judged
         # rate against another batch's.

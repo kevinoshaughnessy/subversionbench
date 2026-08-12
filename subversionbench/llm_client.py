@@ -35,6 +35,8 @@ SETUP:
   export OPENAI_API_KEY="..."            # bare gpt-* / o<n> IDs
 """
 
+import os
+
 from .api_errors import is_auth_error
 from .blocks import _Block, _Response, _block_attr, _block_type, _reasoning_usage
 from .openai_client import (
@@ -80,6 +82,45 @@ __all__ = [
     "OpenRouterClient",
     "OpenAIClient",
 ]
+
+
+# Which credential each route needs, so a missing one can be reported before a
+# rollout spends anything rather than per-call once it has.
+_CREDENTIAL_ENV = {"openrouter": "OPENROUTER_API_KEY",
+                   "openai": "OPENAI_API_KEY",
+                   "anthropic": "ANTHROPIC_API_KEY"}
+
+
+def credential_env_var(model: str) -> str:
+    """The environment variable this model's route authenticates with."""
+    if is_openrouter_model(model):
+        return _CREDENTIAL_ENV["openrouter"]
+    if is_openai_model(model):
+        return _CREDENTIAL_ENV["openai"]
+    return _CREDENTIAL_ENV["anthropic"]
+
+
+def missing_credential(model: str):
+    """
+    The credential this model needs and does not have, or None.
+
+    WHY THIS IS NOT "just try to build the client"
+    ---------------------------------------------
+    The three routes fail at different times, and the difference is what made a
+    real batch silently useless. The OpenRouter and OpenAI clients raise at
+    CONSTRUCTION with a clear message. `anthropic.Anthropic()` constructs happily
+    with no key at all and defers the failure to the first call - so a rollout whose
+    ANTHROPIC_API_KEY was absent built its client, ran every episode, and failed one
+    interrogation-classifier call at a time. Each failure fell back to the keyword
+    cross-check, which is a legitimate mechanism for one bad answer and a fiction
+    for all of them: three r4 batches recorded 100% keyword fallback with an auth
+    error on all 401 answers, and still reported a scheming rate.
+
+    Checked against the environment rather than by calling anything, so it costs
+    nothing and is exact.
+    """
+    var = credential_env_var(model)
+    return None if os.environ.get(var) else var
 
 
 def get_client(model: str):

@@ -142,7 +142,7 @@ class TestWhatIsDeliberatelyNotShared:
             policies[name] = {
                 "defers_to_end_of_pass": "pending" in src,
                 "field_allowlist": "REDERIVED_ANALYSIS_FIELDS" in src,
-                "aborts_the_whole_pass": "_MAX_CLASSIFIER_FALLBACK_RATE" in src,
+                "aborts_the_whole_pass": "MAX_CLASSIFIER_FALLBACK_RATE" in src,
             }
         # Distinct on purpose: if these ever collapse to one shape, a shared
         # writer becomes worth revisiting - and until then it is not.

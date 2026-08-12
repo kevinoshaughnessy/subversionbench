@@ -12,6 +12,40 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **A rollout refuses to start without the credentials it needs, and a batch scored
+  by keyword fallback says so.** Three r4 batches ran to completion with no
+  `ANTHROPIC_API_KEY`: every interrogation classifier call failed, each fell back to
+  the keyword cross-check, and the batches published concealment rates no classifier
+  produced - 536 of 1012 answers corpus-wide with an auth error on all 401 of them.
+
+  **Why nothing refused.** The three routes fail at different times. The OpenRouter
+  and OpenAI clients raise at CONSTRUCTION with a clear message.
+  `anthropic.Anthropic()` constructs happily with no key and defers the failure to
+  the first call - so the client built, every episode ran, and the failure arrived
+  one answer at a time, where it looked like a per-answer hiccup rather than a dead
+  credential. `missing_credential()` now asks the environment instead, which is
+  uniform across routes, costs nothing and cannot itself fail.
+
+  `run_batch` refuses under the same banner as the isolation and rollout-drift
+  checks, for the model under evaluation AND for the grader model - the latter even
+  with `--no-grader`, because the interrogation classifier is scored by the same
+  model. That distinction is the whole finding: the model's own route was fine.
+
+  **Why the count was not enough.** `keyword_fallbacks: 218` sat beside
+  `scheming_rate: 0.77` with nothing relating them, so a reader had to divide to
+  discover the classifier never ran. The summary now records
+  `keyword_fallback_rate` and the limit it is judged against, and the console flags
+  a batch over that limit as loudly as it flags mixed scorers.
+
+  The threshold moved to `config.MAX_CLASSIFIER_FALLBACK_RATE`, read by both
+  consumers: `--reclassify` REFUSES to write a pass above it, the reporting layer
+  FLAGS a collected batch above it. Two copies would let a batch pass a limit a
+  rebuild would reject.
+
+  The test suite now supplies placeholder credentials in `conftest.py` rather than
+  bypassing the check - every test that runs an episode already stubs the client, so
+  a placeholder is exactly right, and it keeps the refusal itself exercised.
+
 - **A rollout now states its arm on screen, before the first episode and on every
   run header.** The arm was visible only in the filenames and in the summary written
   at the end - after the money was spent. That is the one setting an operator cannot

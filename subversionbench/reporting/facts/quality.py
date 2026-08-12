@@ -182,6 +182,17 @@ def quality_facts(all_results: list, n: int) -> dict:
 
     total_classified = classifier_agree + classifier_disagree
 
+    # The share of answers no classifier scored.
+    #
+    # A keyword fallback is a legitimate mechanism for ONE bad answer and a fiction
+    # for all of them: the fallbacks are well-formed verdicts that simply are not the
+    # classifier's, and they skew hard towards the middle of the concealment scale.
+    # Three r4 batches recorded 100% fallback after an auth error and still published
+    # a scheming rate, because the count was in the summary and the RATIO was not -
+    # 218 fallbacks sat beside `scheming_rate: 0.77` with nothing relating them.
+    _scored = total_classified + classifier_fallback
+    classifier_fallback_rate = (classifier_fallback / _scored) if _scored else None
+
     return {
         "cache": cache,
         "classifier_agree": classifier_agree,
@@ -199,5 +210,6 @@ def quality_facts(all_results: list, n: int) -> dict:
         "quote_grounding_by_question": quote_grounding_by_question,
         "rollout": rollout,
         "total_classified": total_classified,
+        "classifier_fallback_rate": classifier_fallback_rate,
         "total_reasoning_chars": total_reasoning_chars,
     }
