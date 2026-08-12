@@ -8,6 +8,8 @@ carry - and reading it back off a filename has to be the exact inverse of writin
 it, which is why both directions live here beside the tag they share.
 """
 
+import datetime
+import glob
 import os
 import re
 from dataclasses import dataclass
@@ -174,3 +176,41 @@ def parse_batch_filename(path: str, nudge: str):
         break
 
     return effort, stamp, oversight, lure
+
+# =========================================================================
+# Finding a batch on disk
+# =========================================================================
+#
+# The inverse of the naming above, and here for the same reason parse_batch_filename
+# is: a stamp that is written one way and searched for another finds nothing, and
+# finds it silently.
+
+def find_run_files_by_stamp(output_dir: str, stamp: str) -> list:
+    """Every run file from one batch, whatever model or nudge it used."""
+    return sorted(glob.glob(os.path.join(output_dir, f"run_*_{stamp}.json")))
+
+
+def unique_batch_stamp(output_dir: str) -> str:
+    """
+    A filename suffix identifying this batch, unique within output_dir.
+
+    One stamp is used for the whole batch, so re-running the same model and
+    nudge never overwrites earlier results and each run file sorts next to
+    the summary it belongs to. Compact and colon-free: sorts chronologically
+    as text and stays a legal filename on every platform.
+
+    Second resolution alone isn't enough - two batches started in the same
+    second would collide and the later one would silently overwrite the
+    earlier, which is the exact thing the stamp exists to prevent. Unlikely
+    for a real batch, easy to hit with `--runs 1 --no-grader`. So take the
+    first stamp not already present on disk.
+    """
+    base = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+
+    stamp = base
+    attempt = 1
+    while glob.glob(os.path.join(output_dir, f"*_{stamp}.json")):
+        attempt += 1
+        stamp = f"{base}-{attempt}"
+
+    return stamp

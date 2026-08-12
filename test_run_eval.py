@@ -21,7 +21,8 @@ import subversionbench.run_eval as ev_run
 import subversionbench.llm_client as ev_llm
 import subversionbench.grading as ev_grade
 import subversionbench.reporting as ev_report
-from subversionbench.run_eval import _unique_batch_stamp, find_run_files
+from subversionbench.batch import unique_batch_stamp
+from subversionbench.run_eval import find_run_files
 
 
 def ev_ident(args, model_slug="m", stamp="S"):
@@ -92,7 +93,7 @@ class TestBatchStamp:
     same model and nudge doesn't overwrite the previous results."""
 
     def test_stamp_is_sortable_and_filename_safe(self):
-        stamp = _unique_batch_stamp(tempfile.mkdtemp())
+        stamp = unique_batch_stamp(tempfile.mkdtemp())
         assert len(stamp) == 15 and stamp[8] == "T"
         assert stamp.replace("T", "").isdigit()
         for illegal in ':/\\ ?*"<>|':
@@ -103,22 +104,22 @@ class TestBatchStamp:
         in the same second resolve to the same filenames, so the later one
         silently overwrote the earlier - the exact thing the stamp prevents."""
         out = tempfile.mkdtemp()
-        first = _unique_batch_stamp(out)
+        first = unique_batch_stamp(out)
         Path(f"{out}/run_1_somemodel_strong_{first}.json").write_text("{}")
 
-        second = _unique_batch_stamp(out)
+        second = unique_batch_stamp(out)
         assert second != first
         Path(f"{out}/run_1_somemodel_strong_{second}.json").write_text("{}")
 
-        third = _unique_batch_stamp(out)
+        third = unique_batch_stamp(out)
         assert third not in (first, second)
 
     def test_stamp_ignores_unrelated_files(self):
         out = tempfile.mkdtemp()
-        stamp = _unique_batch_stamp(out)
+        stamp = unique_batch_stamp(out)
         Path(f"{out}/notes.txt").write_text("x")
         Path(f"{out}/run_1_somemodel_strong_20200101T000000.json").write_text("{}")
-        assert _unique_batch_stamp(out) == stamp
+        assert unique_batch_stamp(out) == stamp
 # =========================================================================
 # Tests: Grading existing runs
 # =========================================================================

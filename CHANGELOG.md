@@ -13,6 +13,26 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **Arm comparison moves to `compare.py`, and locating a batch joins `batch.py`.**
+  A summary describes one batch; a comparison describes the relation between two,
+  and that needs a different discipline - a rate that is not applicable in one arm
+  cannot be differenced against the other, and a difference interval is not the
+  difference of two intervals. `reporting/` owns the first job, `compare.py` the
+  second.
+
+  `find_run_files_by_stamp` and `unique_batch_stamp` moved to `batch.py` first,
+  because `compare_batches` calls both and leaving them behind would have made the
+  import circular. They belong there anyway: that module already owns writing a
+  batch's name and reading it back, and finding the files with that name is the same
+  concern. The stamp helper lost its underscore in the move, since it is now called
+  from three modules rather than private to one.
+
+  Verified end to end as well as by the harnesses, because `--compare` is a
+  user-facing mode the summary comparison does not exercise: run over two real
+  100-episode batches it produces the same contrast table and writes the same
+  artefact. 5041 summary fields unchanged, all 71 reports byte-identical, read modes
+  select identical files.
+
 - **One patch point per stubbed dependency, and it survives a file move.** The test
   suite replaces five things to stay off the network and out of the grader's bill:
   the API client, the awareness grader, the interrogation classifier, the disclosure
