@@ -13,6 +13,44 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **The four read-only modes share the question they open with, and nothing else.**
+  `--grade-existing`, `--reclassify`, `--resummarise` and `--reinterrogate` all begin
+  by asking which saved run files they are working on, with the same five filters,
+  and used to answer it four different ways. Three printed a single line; only
+  `--grade-existing` named the batch stamp it had filtered on and listed what the
+  directory actually held.
+
+  That was never a decision, and the richer message is the one an operator needs: an
+  empty selection almost always means a filter that does not match - a stamp, an
+  effort, an arm whose suffix is in the filename - and a bare "no run files" sends
+  the reader to `ls` to find out which. All four now print the richest of the four
+  wordings, and it names the effort filter too. A test asserts the four messages are
+  identical, because the inconsistency is what recurs.
+
+  **The rest was deliberately left as four implementations.** The plan had been to
+  put all four modes on one walk-the-episodes spine; reading them, that is the wrong
+  shape. Each spends differently, each aborts for its own reason, and each writes
+  back under a policy that protects something specific:
+
+  - `--grade-existing` writes per episode and skips one whose every rubric question
+    failed, rather than overwriting a real verdict with a failed call.
+  - `--reclassify` defers every write to the end of the pass and abandons all of
+    them if too many classifier calls fell back to keywords, because writing those
+    over good verdicts destroys work and looks like a result.
+  - `--resummarise` writes only the allowlisted re-derived fields, and only those
+    that differ, because it must never touch a sampled judgement.
+  - `--reinterrogate` adds answers under a phrasing key and leaves the headline
+    fields alone.
+
+  A shared writer would need a policy flag per mode, which is harder to read than
+  the four explicit versions and easier to get wrong in the direction that loses
+  data. A test records that the policies are distinct and says to reconsider a
+  shared writer only if they ever converge.
+
+  Verified over the real corpora: 48 filter combinations select identical files,
+  every exit code is unchanged, and a `--resummarise` pass leaves every run file
+  byte-identical.
+
 - **A batch's identity is passed, not read off `args` or written onto it.** The arm
   a batch belongs to - model, nudge, effort, oversight, lure - now travels as a
   frozen `BatchIdentity`, with the naming that depends on it in `batch.py` beside

@@ -1031,6 +1031,44 @@ def fan_out_read_mode(args, run_one) -> int:
     return worst
 
 
+
+def find_run_files_or_explain(args, model_slug: str):
+    """
+    The run files a read-only mode should work on, or None with the reason printed.
+
+    All four read modes - --grade-existing, --reclassify, --resummarise and
+    --reinterrogate - ask exactly this question, with exactly these filters, and
+    used to answer it four different ways. Three printed only "No run files for X /
+    Y in DIR"; --grade-existing also named the batch stamp it had filtered on and
+    listed what the directory DOES hold.
+
+    That difference was never a decision, and the richer message is the one an
+    operator needs. The usual cause of an empty selection is a filter that does not
+    match - a stamp, an effort level, or an arm whose suffix is in the filename -
+    and a bare "no run files" sends the reader to `ls` to find out which. So the
+    richest of the four wordings is now what all four print.
+
+    Returns None rather than raising or exiting, because each mode owns its own exit
+    code and two of them have work to report before returning it.
+    """
+    run_files = find_run_files(args.output_dir, model_slug, args.nudge,
+                               args.batch_stamp, args.effort)
+    if run_files:
+        return run_files
+
+    print(f"No run files for model={args.model} nudge={args.nudge} in "
+          f"{redact_paths(args.output_dir)}/"
+          + (f" (batch {args.batch_stamp})" if args.batch_stamp else "")
+          + (f" (effort {args.effort})" if args.effort else ""))
+    print("\nAvailable run files:")
+    available = sorted(glob.glob(os.path.join(args.output_dir, "run_*.json")))
+    for path in available:
+        print(f"  {os.path.basename(path)}")
+    if not available:
+        print("  (none)")
+    return None
+
+
 def find_run_files_by_stamp(output_dir: str, stamp: str) -> list:
     """Every run file from one batch, whatever model or nudge it used."""
     return sorted(glob.glob(os.path.join(output_dir, f"run_*_{stamp}.json")))
@@ -1393,11 +1431,8 @@ def reinterrogate_existing_runs(args, model_slug: str) -> int:
               f"--interrogation {INTERROGATION_CHOICES[-1]}")
         return 2
 
-    run_files = find_run_files(args.output_dir, model_slug, args.nudge,
-                              args.batch_stamp, args.effort)
-    if not run_files:
-        print(f"No run files for {args.model} / {args.nudge} in "
-              f"{redact_paths(args.output_dir)}/")
+    run_files = find_run_files_or_explain(args, model_slug)
+    if run_files is None:
         return 1
 
     # The client is created lazily, on the first episode that actually needs a
@@ -1503,12 +1538,8 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
     `monitoring_disabled`, so an episode that edited only the quality-check
     script still cannot be recovered from those files.
     """
-    run_files = find_run_files(
-        args.output_dir, model_slug, args.nudge, args.batch_stamp, args.effort
-    )
-    if not run_files:
-        print(f"No run files for model={args.model} nudge={args.nudge} in "
-              f"{redact_paths(args.output_dir)}/")
+    run_files = find_run_files_or_explain(args, model_slug)
+    if run_files is None:
         return 1
 
     print(f"\n{'='*60}")
@@ -1665,20 +1696,8 @@ def grade_existing_runs(args, model_slug: str) -> int:
     Returns a process exit code.
     """
     grader_slug = args.grader_model.replace("/", "_")
-    run_files = find_run_files(
-        args.output_dir, model_slug, args.nudge, args.batch_stamp, args.effort
-    )
-
-    if not run_files:
-        print(f"No run files for model={args.model} nudge={args.nudge} in "
-              f"{redact_paths(args.output_dir)}/"
-              + (f" (batch {args.batch_stamp})" if args.batch_stamp else ""))
-        print("\nAvailable run files:")
-        available = sorted(glob.glob(os.path.join(args.output_dir, "run_*.json")))
-        for path in available:
-            print(f"  {os.path.basename(path)}")
-        if not available:
-            print("  (none)")
+    run_files = find_run_files_or_explain(args, model_slug)
+    if run_files is None:
         return 1
 
     print(f"\n{'='*60}")
@@ -1978,11 +1997,8 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
     derived from the saved runs. One summary per batch stamp, so a model with
     several batches on disk gets each rebuilt separately rather than merged.
     """
-    run_files = find_run_files(args.output_dir, model_slug, args.nudge,
-                               args.batch_stamp, args.effort)
-    if not run_files:
-        print(f"No run files for {args.model} / {args.nudge} in "
-              f"{redact_paths(args.output_dir)}/")
+    run_files = find_run_files_or_explain(args, model_slug)
+    if run_files is None:
         return 1
 
     # Grouped by (effort, oversight, stamp), because those together identify a
