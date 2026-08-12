@@ -13,6 +13,27 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **The read-only modes become `readmodes/`, one file per mode.** Five files of 100
+  to 290 lines rather than 790 in one: `selection.py` for the question all four open
+  with, then `grade.py`, `reclassify.py`, `resummarise.py` and `reinterrogate.py`.
+
+  Split per mode rather than pooled because the earlier attempt at a shared spine
+  established that they are genuinely different - three spend and one is free, one
+  can abandon a whole pass, and each writes back under a policy protecting something
+  specific. A file per mode lets each state its own policy at the top, where a
+  reader of that mode will look, instead of four policies stated together and
+  applied apart.
+
+  `run_eval.py` is 680 lines: the CLI and the batch loop, nothing else.
+
+  One thing this surfaced worth recording. `run_eval` no longer calls any of the
+  five stubbed dependencies - that code is in `episode.py` and `readmodes/` now -
+  but it is still the module every test imports, so it is still where someone would
+  reach for the old patch point. Patching a module that does not read the name is a
+  silent no-op, so the stub-point test now keeps two lists: modules that CALL these
+  and must do so module-qualified, and modules that are the wrong place to patch.
+  Those were the same list until this move and are not any more.
+
 - **The episode loop moves to `episode.py`.** The agentic loop, the interrogation
   that follows it, and the per-episode grading between - 809 lines, and the layer
   that SPENDS. `reporting/facts.py` is pure and `reporting/console.py` only prints;

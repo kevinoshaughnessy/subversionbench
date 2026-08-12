@@ -38,25 +38,31 @@ STUBBED = {
     "detect_misrepresentation": "subversionbench.grading",
 }
 
-# Modules that call them, and must do so module-qualified. episode.py is here
-# because it is where the API-touching code went: run_evaluation and run_followup
-# resolve four of these five, and the whole point of the conversion was that moving
-# them would not break a single patch.
-CALLERS = ("subversionbench.run_eval", "subversionbench.episode")
+# Modules that call them, and so must do so module-qualified.
+CALLERS = (
+    "subversionbench.episode",
+    "subversionbench.readmodes.grade",
+    "subversionbench.readmodes.reclassify",
+    "subversionbench.readmodes.reinterrogate",
+)
+
+# Modules a test might reasonably but wrongly patch. This is NOT the same list as
+# CALLERS, and the difference is the point: run_eval no longer calls any of these -
+# the code that did moved to episode.py and readmodes/ - yet it is still the module
+# every test imports, so it is still where someone would reach for the old patch
+# point. Patching a module that does not read the name is a silent no-op, so it has
+# to stay watched after it stops being a caller.
+WRONG_PATCH_TARGETS = ("subversionbench.run_eval",) + CALLERS
 
 
 def _caller_aliases(tree):
-    """Names in one test module bound to a module that only CALLS these.
-
-    Those are the wrong place to patch, whether they reach the name by calling it
-    or by re-exporting it, so the same list serves both checks.
-    """
+    """Names in one test module bound to a module that is the wrong patch target."""
     aliases = set()
-    short = {m.rsplit(".", 1)[1] for m in CALLERS}
+    short = {m.rsplit(".", 1)[1] for m in WRONG_PATCH_TARGETS}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for a in node.names:
-                if a.name in CALLERS:
+                if a.name in WRONG_PATCH_TARGETS:
                     aliases.add(a.asname or "subversionbench")
         elif isinstance(node, ast.ImportFrom):
             if node.module in ("subversionbench", "subversionbench."):
@@ -82,7 +88,7 @@ class TestTheCallersResolveAtCallTime:
         reaching for the old patch point fails on the read instead of silently
         no-opping on the write.
         """
-        for module in CALLERS:
+        for module in WRONG_PATCH_TARGETS:
             mod = importlib.import_module(module)
             bound = [n for n in STUBBED if hasattr(mod, n)]
             assert not bound, (

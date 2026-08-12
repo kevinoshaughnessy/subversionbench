@@ -236,15 +236,19 @@ subversionbench/
   episode.py       one episode end to end: the agentic loop, the interrogation
                    that follows it, and the per-episode grading between
   batch.py         what names a batch, reading that name back, and finding it
+  readmodes/       what can be learned from episodes already collected
+    selection.py           which saved batches a mode works on, and fanning out
+    grade.py               re-running the awareness grader
+    reclassify.py          re-labelling saved interrogation answers
+    resummarise.py         re-deriving everything derivable, for free
+    reinterrogate.py       asking a differently-worded question
   compare.py       differencing two arms of the counterfactual
   reporting/       a batch of episodes to figures, a report and a summary
     facts.py               bringing saved analyses up to date, then counting
     console.py             the printed report; formatting only, one fn per section
     summary.py             the summary JSON's schema; writing one, and reading
                            back what a rebuild cannot re-derive
-  run_eval.py      agentic loop, interrogation, batch runner, the read-only
-                   modes (--reclassify, --resummarise, --grade-existing,
-                   --reinterrogate), arm comparison, and the CLI
+  run_eval.py      the CLI, and the batch loop that drives one episode at a time
 
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes
