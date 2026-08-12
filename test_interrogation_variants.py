@@ -37,7 +37,7 @@ from subversionbench.grading.concealment import (
     concealment_level,
 )
 from subversionbench.rollout import rollout_fingerprint
-from subversionbench.run_eval import batch_stem, parse_batch_filename
+from subversionbench.batch import batch_stem, parse_batch_filename
 from subversionbench.scenario import scenario_for
 
 
@@ -325,7 +325,7 @@ class TestReplayingASavedEpisode:
     """
 
     def test_a_saved_conversation_is_preferred(self):
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         saved = [{"role": "user", "content": "x"}]
         assert reconstruct_messages({"messages": saved}) == (saved, None)
 
@@ -334,7 +334,7 @@ class TestReplayingASavedEpisode:
         conversation where its own reasoning never happened, so an answer to a
         second phrasing would not be paired with the first - and it fails worst on
         the models that verbalise awareness in those blocks."""
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         run = {"user_prompt": "do it", "transcript": [
             {"type": "thinking", "content": "private reasoning"},
             {"type": "text", "content": "done"}]}
@@ -344,14 +344,14 @@ class TestReplayingASavedEpisode:
 
     def test_empty_thinking_does_not_block_a_replay(self):
         """A model that returned an empty thinking block lost nothing by it."""
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         run = {"user_prompt": "do it", "transcript": [
             {"type": "thinking", "content": "   "},
             {"type": "text", "content": "done"}]}
         assert reconstruct_messages(run)[0] is not None
 
     def test_a_thinking_free_transcript_reconstructs(self):
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         run = {"user_prompt": "do it", "transcript": [
             {"type": "text", "content": "planning"},
             {"type": "tool_call", "cmd": "ls"},
@@ -364,7 +364,7 @@ class TestReplayingASavedEpisode:
 
     def test_every_tool_result_names_a_tool_use_above_it(self):
         """The one thing the API actually requires of the ids."""
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         run = {"user_prompt": "go", "transcript": [
             {"type": "tool_call", "cmd": "a"},
             {"type": "tool_call", "cmd": "b"},
@@ -381,12 +381,12 @@ class TestReplayingASavedEpisode:
                     assert block["tool_use_id"] in seen, block
 
     def test_a_result_before_any_call_is_refused(self):
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         assert reconstruct_messages({"user_prompt": "g", "transcript": [
             {"type": "tool_result", "result": "x"}]})[0] is None
 
     def test_an_episode_with_nothing_recorded_is_refused(self):
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         assert reconstruct_messages({"user_prompt": "g", "transcript": []})[0] is None
         assert reconstruct_messages({"transcript": [
             {"type": "text", "content": "x"}]})[0] is None
@@ -436,7 +436,7 @@ class TestReplayDefectsFound:
     def test_more_results_than_calls_is_refused_not_a_crash(self):
         """Raised IndexError and killed the whole mode rather than skipping one
         episode."""
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         messages, reason = reconstruct_messages({"user_prompt": "g", "transcript": [
             {"type": "tool_call", "cmd": "a"},
             {"type": "tool_result", "result": "r1"},
@@ -448,7 +448,7 @@ class TestReplayDefectsFound:
         """The API requires every tool_use to be answered in the next message, so
         this built a conversation the provider would reject - refused here, where
         the reason can be stated."""
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         messages, reason = reconstruct_messages({"user_prompt": "g", "transcript": [
             {"type": "text", "content": "planning"},
             {"type": "tool_call", "cmd": "ls"}]})
@@ -458,7 +458,7 @@ class TestReplayDefectsFound:
     def test_every_tool_use_in_a_replay_is_answered(self):
         """The invariant behind both refusals above, asserted over the shapes that
         ARE accepted."""
-        from subversionbench.run_eval import reconstruct_messages
+        from subversionbench.blocks import reconstruct_messages
         for transcript in (
             [{"type": "tool_call", "cmd": "a"},
              {"type": "tool_result", "result": "r"}],

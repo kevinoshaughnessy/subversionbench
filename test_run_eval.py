@@ -22,7 +22,7 @@ import subversionbench.llm_client as ev_llm
 import subversionbench.grading as ev_grade
 import subversionbench.reporting as ev_report
 from subversionbench.batch import unique_batch_stamp
-from subversionbench.run_eval import find_run_files
+from subversionbench.batch import find_run_files
 
 
 def ev_ident(args, model_slug="m", stamp="S"):

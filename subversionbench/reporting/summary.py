@@ -21,6 +21,7 @@ console.py.
 
 import datetime
 import json
+import os
 
 from ..config import CANARY, VERSION
 from ..grading import CONCEALMENT_LEVELS, SCHEMING_LEVELS
@@ -399,3 +400,57 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
         json.dump(summary, f, indent=2)
     print(f"Summary saved to {redact_paths(summary_file)}")
     return summary
+
+
+# =========================================================================
+# Reading a summary back
+# =========================================================================
+#
+# The inverse of the write below, and here for the same reason the naming pair and
+# the message pair are each in one file: what a rebuild recovers has to match what
+# the original stored, and a field that quietly stops round-tripping is replaced by
+# whatever default the rebuild was invoked with.
+
+def runtime_from_existing_summary(path: str, all_results: list) -> dict:
+    """
+    Recover the batch facts a summary cannot re-derive from run files.
+
+    Wall-clock totals, which episodes failed and whether the batch aborted are
+    properties of the run, not of the episodes, so they are read back from the
+    summary being replaced. `t_batch_start`/`t_batch_end` are reconstituted as
+    an offset pair because only their difference is ever used.
+    """
+    runtime = {
+        "reasoning_config": next(
+            (r.get("reasoning_config") for r in all_results
+             if r.get("reasoning_config")), ""),
+    }
+    if not os.path.exists(path):
+        return runtime
+
+    with open(path) as f:
+        previous = json.load(f)
+    timing = previous.get("timing") or {}
+    elapsed = timing.get("total_elapsed_seconds") or 0.0
+    # Settings the batch ran under, which would otherwise be replaced by whatever
+    # defaults the rebuild was invoked with. Returned as data for summarise_batch to
+    # read, NOT assigned onto `args`: that namespace is shared across a fan-out, so
+    # one batch's recovered settings leaked into every later one.
+    #
+    # `effort` is deliberately absent. It belongs to the batch's identity, which is
+    # read from the run filenames - a sharper source than a previous summary, and
+    # already the last word here before this became explicit.
+    runtime["settings"] = {
+        k: previous[k] for k in ("max_tokens", "max_turns")
+        if k in previous
+    }
+    if "delay_setting" in timing:
+        runtime["settings"]["delay"] = timing["delay_setting"]
+    runtime.update({
+        "aborted": previous.get("batch_aborted", False),
+        "failures": previous.get("episode_failures") or [],
+        "total_delay_seconds": timing.get("total_delay_seconds", 0),
+        "t_batch_start": 0.0,
+        "t_batch_end": elapsed,
+    })
+    return runtime

@@ -124,4 +124,91 @@ def _block_type(block):
 def _block_attr(block, name):
     return block[name] if isinstance(block, dict) else getattr(block, name)
 
+# =========================================================================
+# The inverse: a saved run back into a conversation
+# =========================================================================
+#
+# serialise_messages above writes the conversation out; this reads one back. They
+# are kept together because they must agree, and because the failure when they do
+# not is quiet: a reconstruction that drops a field the API verifies produces a
+# request that is rejected, or worse accepted against a conversation missing the
+# model's own reasoning - which is a different conversation than the one saved.
 
+def reconstruct_messages(run: dict):
+    """
+    The conversation to interrogate a saved episode from, or a reason it cannot be.
+
+    Returns (messages, None) or (None, reason).
+
+    Prefers the saved `messages`, which is exact: it carries the tool_use ids and
+    the thinking-block signatures the API verifies. Episodes recorded before that
+    field existed have only the transcript, which keeps the text of every turn but
+    neither of those.
+
+    An episode whose transcript contains thinking is REFUSED rather than replayed
+    without it. Dropping the thinking would put the model in a conversation where
+    its own reasoning never happened - a different conversation, so an answer to a
+    second phrasing would not be paired with the first, and the difference would be
+    confounded with the removal. It fails worst exactly where it matters: the
+    models that verbalise awareness most do it in those blocks.
+
+    Where there is no thinking to lose, the reconstruction is faithful and the
+    episode is allowed. Tool ids are synthesised, which is sound because the API
+    only requires each tool_result to name a tool_use above it.
+    """
+    saved = run.get("messages")
+    if saved:
+        return saved, None
+
+    transcript = run.get("transcript") or []
+    if any(e.get("type") == "thinking" and (e.get("content") or "").strip()
+           for e in transcript):
+        return None, ("transcript contains thinking whose signatures were not "
+                      "saved; replaying without it would change the conversation")
+    if not run.get("user_prompt"):
+        return None, "no user prompt recorded"
+
+    messages = [{"role": "user", "content": run["user_prompt"]}]
+    pending_text, pending_calls, results, n = [], [], [], 0
+    def flush():
+        content = ([{"type": "text", "text": x} for x in pending_text]
+                   + pending_calls)
+        if content:
+            messages.append({"role": "assistant", "content": content})
+        if results:
+            messages.append({"role": "user", "content": list(results)})
+        pending_text.clear(); pending_calls.clear(); results.clear()
+
+    for entry in transcript:
+        kind = entry.get("type")
+        if kind == "text":
+            if results:
+                flush()
+            if (entry.get("content") or "").strip():
+                pending_text.append(entry["content"])
+        elif kind == "tool_call":
+            n += 1
+            pending_calls.append({"type": "tool_use", "id": f"replay_{n}",
+                                  "name": "bash",
+                                  "input": {"cmd": entry.get("cmd") or ""}})
+        elif kind == "tool_result":
+            # Refused, not indexed past the end. A transcript with more results
+            # than calls in a turn raised IndexError and killed the whole mode
+            # rather than skipping the one episode.
+            if len(results) >= len(pending_calls):
+                return None, ("more tool results than tool calls, so they "
+                              "cannot be paired")
+            results.append({"type": "tool_result",
+                            "tool_use_id": pending_calls[len(results)]["id"],
+                            "content": entry.get("result") or ""})
+    # A tool call with no result left over means the episode was cut short mid
+    # turn. The API requires every tool_use to be answered by a tool_result in
+    # the next message, so replaying this would be rejected - refuse here, where
+    # the reason can be stated, rather than at the provider.
+    if len(results) < len(pending_calls):
+        return None, ("the last tool call has no recorded result, so the "
+                      "conversation cannot be replayed")
+    flush()
+    if len(messages) < 2:
+        return None, "nothing the model said was recorded"
+    return messages, None

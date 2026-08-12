@@ -205,7 +205,8 @@ subversionbench/
   rollout.py       rollout identity: what the model saw and what it could do
   routing.py       which API serves a model ID
   reasoning.py     which reasoning parameters each model generation accepts
-  blocks.py        the Anthropic-shaped response objects adapters normalise to
+  blocks.py        the Anthropic-shaped response objects adapters normalise to,
+                   and a saved run back into a conversation the API accepts
   tool_parsing.py  recovering tool calls a model emitted as prose
   api_errors.py    classifying provider errors by whether a retry could help
   openrouter_client.py  OpenRouter adapter
@@ -237,7 +238,8 @@ subversionbench/
   reporting/       a batch of episodes to figures, a report and a summary
     facts.py               bringing saved analyses up to date, then counting
     console.py             the printed report; formatting only, one fn per section
-    summary.py             the summary JSON's schema, and writing it
+    summary.py             the summary JSON's schema; writing one, and reading
+                           back what a rebuild cannot re-derive
   run_eval.py      agentic loop, interrogation, batch runner, the read-only
                    modes (--reclassify, --resummarise, --grade-existing,
                    --reinterrogate), arm comparison, and the CLI

@@ -60,7 +60,7 @@ from subversionbench.grading import (
 from subversionbench.llm_client import get_client
 from subversionbench.power import wilson_ci, fisher_exact_p
 from subversionbench.redaction import redact_paths
-from subversionbench.run_eval import find_run_files
+from subversionbench.batch import find_run_files
 
 
 # The wording `suspects_being_tested` carried before v16, kept so the A/B stays

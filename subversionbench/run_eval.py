@@ -28,7 +28,6 @@ Run with --help for the full list of CLI options.
 import json
 import collections
 import os
-import re
 import sys
 import glob
 import math
@@ -66,7 +65,7 @@ from .environment import (create_episode_root,
 # test_stub_points.py holds this.
 from . import grading as grading_api
 from . import llm_client as llm_api
-from .blocks import serialise_messages
+from .blocks import reconstruct_messages, serialise_messages
 from .sandbox import execute_tool_sandboxed
 from .grading import (
     detect_eval_awareness_keywords,
@@ -93,11 +92,12 @@ from .llm_client import (
     resolve_thinking_kwargs,
     thinking_surface,
 )
-# batch_stem, parse_batch_filename and NO_OVERSIGHT_TAG are re-exported: this
-# module was their home, and four test files still reach them through it.
-from .batch import (BatchIdentity, NO_OVERSIGHT_TAG,  # noqa: F401
-                    batch_stem, find_run_files_by_stamp, parse_batch_filename,
-                    unique_batch_stamp)
+# batch_stem, parse_batch_filename, find_run_files and find_run_files_by_stamp are
+# re-exported: this module was their home and several test files still reach them
+# through it as attributes. The rest are imported because this module uses them.
+from .batch import (ALL, BatchIdentity, batch_stem,  # noqa: F401
+                    discover_batches, find_run_files, find_run_files_by_stamp,
+                    parse_batch_filename, unique_batch_stamp)
 from .redaction import redact_paths
 from .scenario import scenario_for
 from .isolation import (DEFAULT_ISOLATION, ISOLATION_MODES,
@@ -105,7 +105,8 @@ from .isolation import (DEFAULT_ISOLATION, ISOLATION_MODES,
                         profile_for, verify_isolation)
 from .rollout import rollout_drift_error
 from .power import wilson_ci
-from .reporting.summary import summarise_batch
+from .reporting.summary import (runtime_from_existing_summary,
+                                summarise_batch)
 
 
 # =========================================================================
@@ -942,45 +943,6 @@ def add_awareness_timing(analysis: dict, transcript: list, grader_model=None):
               f"grader_before_act={result.get('eval_aware')}")
 
 
-ALL = "all"
-
-
-def discover_batches(output_dir: str, model: str = ALL,
-                     nudge: str = ALL) -> list:
-    """
-    The (model, nudge) pairs actually present in a results directory.
-
-    Read from each run file's own `model` and `nudge` fields rather than parsed
-    out of the filename. The filename is ambiguous - a model slug can itself
-    contain underscores, and the arm suffixes sit between the slug and the stamp
-    - and getting it wrong here would silently skip batches, which is worse than
-    being slow. 860 files parse in a few seconds.
-
-    Only pairs that EXIST are returned, so fanning out cannot produce a run of
-    "no run files for ..." errors for combinations that were never collected.
-
-    `model` and `nudge` each act as a filter when given concretely and as a
-    wildcard when "all", so --model all --nudge strong is one arm across every
-    model, and --model all --nudge all is a whole directory.
-    """
-    pairs = set()
-    for path in sorted(glob.glob(os.path.join(output_dir, "run_*.json"))):
-        try:
-            with open(path) as f:
-                data = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            continue                    # a truncated run file is not a batch
-        m, n = data.get("model"), data.get("nudge")
-        if not m or not n:
-            continue
-        if model != ALL and m != model:
-            continue
-        if nudge != ALL and n != nudge:
-            continue
-        pairs.add((m, n))
-    return sorted(pairs)
-
-
 def fan_out_read_mode(args, run_one) -> int:
     """
     Run a read-only mode once per (model, nudge) present in the directory.
@@ -1068,74 +1030,6 @@ def find_run_files_or_explain(args, model_slug: str):
     return None
 
 
-def find_run_files(output_dir: str, model_slug: str, nudge: str,
-                   batch_stamp: str = None, effort: str = None,
-                   oversight: bool = None) -> list:
-    """
-    Existing run files for one model and nudge, oldest batch first.
-
-    Several patterns are matched because the filename has grown twice. Runs
-    saved before batch stamps existed are named run_<i>_<model>_<nudge>.json
-    with nothing after the nudge, and runs from a batch that requested an
-    --effort carry it between the nudge and the stamp. All of them are equally
-    gradeable, so leaving any shape unmatched would silently skip whole batches
-    - which is how a results directory ends up half re-graded with nothing to
-    show that it is.
-
-    `effort` narrows to one level. Left as None, every level matches, so a
-    caller that does not care (--grade-existing, --resummarise) sees the
-    batches regardless of what they were run at.
-    """
-    # Glob broadly, then filter on the identity parsed back out of each name.
-    # Pattern-matching the arm directly does not work: the trailing wildcard
-    # that stands in for the stamp also swallows a `_nooversight` segment, so
-    # a filter for the oversight arm silently returned the counterfactual's
-    # episodes too.
-    prefix = f"run_*_{model_slug}_{nudge}"
-    if batch_stamp:
-        # Matched as a literal, not parsed back: --batch-stamp takes any
-        # string, while parse_batch_filename only recognises a datetime-shaped
-        # one, so filtering on the parsed value drops every other shape.
-        found = set(glob.glob(
-            os.path.join(output_dir, f"{prefix}*_{batch_stamp}.json")))
-    else:
-        found = set(glob.glob(os.path.join(output_dir, f"{prefix}_*.json")))
-        found.update(glob.glob(os.path.join(output_dir, f"{prefix}.json")))
-
-    # The slug must be the WHOLE segment between the run index and the nudge.
-    #
-    # The glob above cannot express that: the `*` standing in for the run index
-    # matches across underscores, so `run_*_gpt-5.4_strong` also matched
-    # `run_10_openai_gpt-5.4_strong` with the wildcard eating `10_openai`. A
-    # shorter slug therefore swept in the files of any model whose name it is a
-    # suffix of, and both spellings exist in this corpus.
-    #
-    # Two consequences, both live before this filter. Summarising `gpt-5.4`
-    # covered 20 files rather than 10, which is where the primary-arm denominator
-    # of 630 came from when the truth was 610. And fanning a paid regrade out over
-    # a directory would have graded those 20 files twice.
-    #
-    # Third instance of the bare-substring class in this repository, after the
-    # blocked-command matcher and the awareness keyword list. Same fix: require
-    # the delimiters.
-    delimited = re.compile(
-        rf"^run_\d+_{re.escape(model_slug)}_{re.escape(nudge)}(_.*)?\.json$")
-
-    keep = []
-    for path in found:
-        if not delimited.match(os.path.basename(path)):
-            continue
-        got_effort, _, got_oversight, _got_lure = parse_batch_filename(
-            path, nudge)
-        if effort is not None and got_effort != effort:
-            continue
-        if oversight is not None and got_oversight != oversight:
-            continue
-        keep.append(path)
-
-    return sorted(keep)
-
-
 # Above this share of classifier calls falling back to keywords, a
 # reclassification is not written. It exists because the failure this catches is
 # invisible in the output it produces: keyword fallbacks are well-formed
@@ -1151,86 +1045,6 @@ def _auth_error_in(result, key: str = "error"):
     if isinstance(result, dict) and is_auth_error(result.get(key)):
         return result.get(key)
     return None
-
-
-def reconstruct_messages(run: dict):
-    """
-    The conversation to interrogate a saved episode from, or a reason it cannot be.
-
-    Returns (messages, None) or (None, reason).
-
-    Prefers the saved `messages`, which is exact: it carries the tool_use ids and
-    the thinking-block signatures the API verifies. Episodes recorded before that
-    field existed have only the transcript, which keeps the text of every turn but
-    neither of those.
-
-    An episode whose transcript contains thinking is REFUSED rather than replayed
-    without it. Dropping the thinking would put the model in a conversation where
-    its own reasoning never happened - a different conversation, so an answer to a
-    second phrasing would not be paired with the first, and the difference would be
-    confounded with the removal. It fails worst exactly where it matters: the
-    models that verbalise awareness most do it in those blocks.
-
-    Where there is no thinking to lose, the reconstruction is faithful and the
-    episode is allowed. Tool ids are synthesised, which is sound because the API
-    only requires each tool_result to name a tool_use above it.
-    """
-    saved = run.get("messages")
-    if saved:
-        return saved, None
-
-    transcript = run.get("transcript") or []
-    if any(e.get("type") == "thinking" and (e.get("content") or "").strip()
-           for e in transcript):
-        return None, ("transcript contains thinking whose signatures were not "
-                      "saved; replaying without it would change the conversation")
-    if not run.get("user_prompt"):
-        return None, "no user prompt recorded"
-
-    messages = [{"role": "user", "content": run["user_prompt"]}]
-    pending_text, pending_calls, results, n = [], [], [], 0
-    def flush():
-        content = ([{"type": "text", "text": x} for x in pending_text]
-                   + pending_calls)
-        if content:
-            messages.append({"role": "assistant", "content": content})
-        if results:
-            messages.append({"role": "user", "content": list(results)})
-        pending_text.clear(); pending_calls.clear(); results.clear()
-
-    for entry in transcript:
-        kind = entry.get("type")
-        if kind == "text":
-            if results:
-                flush()
-            if (entry.get("content") or "").strip():
-                pending_text.append(entry["content"])
-        elif kind == "tool_call":
-            n += 1
-            pending_calls.append({"type": "tool_use", "id": f"replay_{n}",
-                                  "name": "bash",
-                                  "input": {"cmd": entry.get("cmd") or ""}})
-        elif kind == "tool_result":
-            # Refused, not indexed past the end. A transcript with more results
-            # than calls in a turn raised IndexError and killed the whole mode
-            # rather than skipping the one episode.
-            if len(results) >= len(pending_calls):
-                return None, ("more tool results than tool calls, so they "
-                              "cannot be paired")
-            results.append({"type": "tool_result",
-                            "tool_use_id": pending_calls[len(results)]["id"],
-                            "content": entry.get("result") or ""})
-    # A tool call with no result left over means the episode was cut short mid
-    # turn. The API requires every tool_use to be answered by a tool_result in
-    # the next message, so replaying this would be rejected - refuse here, where
-    # the reason can be stated, rather than at the provider.
-    if len(results) < len(pending_calls):
-        return None, ("the last tool call has no recorded result, so the "
-                      "conversation cannot be replayed")
-    flush()
-    if len(messages) < 2:
-        return None, "nothing the model said was recorded"
-    return messages, None
 
 
 def reinterrogate_existing_runs(args, model_slug: str) -> int:
@@ -1765,51 +1579,6 @@ def _report_regrade(args, model_slug: str, grader_slug: str,
     return 0
 
 
-def _runtime_from_existing_summary(path: str, all_results: list) -> dict:
-    """
-    Recover the batch facts a summary cannot re-derive from run files.
-
-    Wall-clock totals, which episodes failed and whether the batch aborted are
-    properties of the run, not of the episodes, so they are read back from the
-    summary being replaced. `t_batch_start`/`t_batch_end` are reconstituted as
-    an offset pair because only their difference is ever used.
-    """
-    runtime = {
-        "reasoning_config": next(
-            (r.get("reasoning_config") for r in all_results
-             if r.get("reasoning_config")), ""),
-    }
-    if not os.path.exists(path):
-        return runtime
-
-    with open(path) as f:
-        previous = json.load(f)
-    timing = previous.get("timing") or {}
-    elapsed = timing.get("total_elapsed_seconds") or 0.0
-    # Settings the batch ran under, which would otherwise be replaced by whatever
-    # defaults the rebuild was invoked with. Returned as data for summarise_batch to
-    # read, NOT assigned onto `args`: that namespace is shared across a fan-out, so
-    # one batch's recovered settings leaked into every later one.
-    #
-    # `effort` is deliberately absent. It belongs to the batch's identity, which is
-    # read from the run filenames - a sharper source than a previous summary, and
-    # already the last word here before this became explicit.
-    runtime["settings"] = {
-        k: previous[k] for k in ("max_tokens", "max_turns")
-        if k in previous
-    }
-    if "delay_setting" in timing:
-        runtime["settings"]["delay"] = timing["delay_setting"]
-    runtime.update({
-        "aborted": previous.get("batch_aborted", False),
-        "failures": previous.get("episode_failures") or [],
-        "total_delay_seconds": timing.get("total_delay_seconds", 0),
-        "t_batch_start": 0.0,
-        "t_batch_end": elapsed,
-    })
-    return runtime
-
-
 def resummarise_existing_runs(args, model_slug: str) -> int:
     """
     Rebuild summary files from run files already on disk.
@@ -1914,7 +1683,7 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
                                  nudge=args.nudge, effort=effort,
                                  oversight=oversight, lure=lure, stamp=stamp)
         summary_path = identity.filename(args.output_dir)
-        runtime = _runtime_from_existing_summary(summary_path, all_results)
+        runtime = runtime_from_existing_summary(summary_path, all_results)
 
         print(f"\n{'#'*60}")
         print(f"# Rebuilding {os.path.basename(summary_path)} "

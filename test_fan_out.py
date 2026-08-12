@@ -19,7 +19,8 @@ import os
 import tempfile
 from pathlib import Path
 
-from subversionbench.run_eval import ALL, discover_batches, fan_out_read_mode
+from subversionbench.batch import ALL, discover_batches
+from subversionbench.run_eval import fan_out_read_mode
 
 
 def _run_file(d, n, model, nudge, effort=None, stamp="20260101T000000"):
@@ -221,21 +222,21 @@ class TestModelSlugIsDelimited:
         return d
 
     def test_the_short_spelling_does_not_match_the_prefixed_one(self):
-        from subversionbench.run_eval import find_run_files
+        from subversionbench.batch import find_run_files
         d = self._dir()
         short = find_run_files(d, "gpt-5.4", "strong")
         assert len(short) == 2, [os.path.basename(p) for p in short]
         assert not any("openai" in os.path.basename(p) for p in short)
 
     def test_the_prefixed_spelling_matches_only_its_own(self):
-        from subversionbench.run_eval import find_run_files
+        from subversionbench.batch import find_run_files
         d = self._dir()
         got = find_run_files(d, "openai_gpt-5.4", "strong")
         assert len(got) == 2
         assert all("openai" in os.path.basename(p) for p in got)
 
     def test_the_two_spellings_are_disjoint(self):
-        from subversionbench.run_eval import find_run_files
+        from subversionbench.batch import find_run_files
         d = self._dir()
         a = set(find_run_files(d, "gpt-5.4", "strong"))
         b = set(find_run_files(d, "openai_gpt-5.4", "strong"))
@@ -244,7 +245,7 @@ class TestModelSlugIsDelimited:
     def test_no_file_is_matched_by_two_batch_pairs(self):
         """The property that matters for fanning out: every run file belongs to
         exactly one (model, nudge) group."""
-        from subversionbench.run_eval import find_run_files
+        from subversionbench.batch import find_run_files
         d = self._dir()
         _run_file(d, 3, "gpt-5.4", "none")
         counts = {}
@@ -255,7 +256,7 @@ class TestModelSlugIsDelimited:
 
     def test_the_arm_and_effort_suffixes_still_match(self):
         """The delimiter rule must not exclude the legitimate name shapes."""
-        from subversionbench.run_eval import find_run_files
+        from subversionbench.batch import find_run_files
         d = tempfile.mkdtemp(prefix="slug_")
         _run_file(d, 1, "a/b", "strong")                      # plain
         _run_file(d, 2, "a/b", "strong", effort="high")       # with effort

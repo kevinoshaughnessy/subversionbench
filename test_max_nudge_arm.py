@@ -344,7 +344,7 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
     batches on disk had the duplicate before this was found."""
 
     def test_a_max_nudge_batch_has_no_effort(self):
-        from subversionbench.run_eval import parse_batch_filename
+        from subversionbench.batch import parse_batch_filename
         effort, stamp, oversight, _lure = parse_batch_filename(
             "run_1_x-ai_grok-4.5_max_20260805T155405.json", "max")
         assert effort is None
@@ -352,12 +352,12 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
         assert oversight is True
 
     def test_a_max_nudge_batch_can_still_carry_a_real_effort(self):
-        from subversionbench.run_eval import parse_batch_filename
+        from subversionbench.batch import parse_batch_filename
         assert parse_batch_filename(
             "run_1_m_max_high_20260805T155405.json", "max")[0] == "high"
 
     def test_other_nudges_still_read_their_effort(self):
-        from subversionbench.run_eval import parse_batch_filename
+        from subversionbench.batch import parse_batch_filename
         assert parse_batch_filename(
             "run_1_m_strong_xhigh_20260805T155405.json", "strong")[0] == "xhigh"
         assert parse_batch_filename(
@@ -371,7 +371,7 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
         assert ev_run.batch_stem("m", "max", effort, oversight) == "m_max"
 
     def test_the_counterfactual_arm_survives_the_fix(self):
-        from subversionbench.run_eval import parse_batch_filename
+        from subversionbench.batch import parse_batch_filename
         for nudge in ("strong", "max"):
             _, _, oversight, _lure = parse_batch_filename(
                 f"run_1_m_{nudge}_nooversight_20260805T155405.json", nudge)

@@ -13,6 +13,29 @@ model saw or could do has changed. Summary fields were added, which is what the
 analysis version exists to track, and `--resummarise` backfills them onto every
 batch already collected at no cost.
 
+- **Three more moves, each putting a function beside its inverse.**
+  `reconstruct_messages` joins `serialise_messages` in `blocks.py`;
+  `find_run_files` and `discover_batches` join the naming they search against in
+  `batch.py`; and reading a summary back joins writing one in
+  `reporting/summary.py`, where it is now `runtime_from_existing_summary`.
+
+  The same rule decided all three, and it is the rule that put `batch_stem` and
+  `parse_batch_filename` together: a pair that must round-trip should not be able to
+  drift across a file boundary. Each of these fails quietly when it drifts - a
+  reconstruction that drops a field the API verifies yields a conversation missing
+  the model's own reasoning, which is a different conversation than the one saved; a
+  summary field that stops round-tripping is replaced by whatever default the
+  rebuild was invoked with; a stamp written one way and searched for another finds
+  nothing and finds it silently.
+
+  Test imports were repointed at the real homes rather than left on re-exports, so
+  the suite says where a thing lives. Four names stay re-exported from `run_eval`
+  because tests reach them as attributes, and the comment there says so.
+
+  `run_eval.py` is 2310 lines, from 4057. What remains is the episode loop, the four
+  read modes, and the CLI. 5041 summary fields unchanged, all 71 reports
+  byte-identical, read modes select identical files.
+
 - **Arm comparison moves to `compare.py`, and locating a batch joins `batch.py`.**
   A summary describes one batch; a comparison describes the relation between two,
   and that needs a different discipline - a rate that is not applicable in one arm

@@ -10,6 +10,7 @@ it, which is why both directions live here beside the tag they share.
 
 import datetime
 import glob
+import json
 import os
 import re
 from dataclasses import dataclass
@@ -214,3 +215,111 @@ def unique_batch_stamp(output_dir: str) -> str:
         stamp = f"{base}-{attempt}"
 
     return stamp
+
+# The wildcard a read mode passes to work on every batch in a directory rather
+# than one. A sentinel rather than None because it is a value the operator types.
+ALL = "all"
+
+
+def discover_batches(output_dir: str, model: str = ALL,
+                     nudge: str = ALL) -> list:
+    """
+    The (model, nudge) pairs actually present in a results directory.
+
+    Read from each run file's own `model` and `nudge` fields rather than parsed
+    out of the filename. The filename is ambiguous - a model slug can itself
+    contain underscores, and the arm suffixes sit between the slug and the stamp
+    - and getting it wrong here would silently skip batches, which is worse than
+    being slow. 860 files parse in a few seconds.
+
+    Only pairs that EXIST are returned, so fanning out cannot produce a run of
+    "no run files for ..." errors for combinations that were never collected.
+
+    `model` and `nudge` each act as a filter when given concretely and as a
+    wildcard when "all", so --model all --nudge strong is one arm across every
+    model, and --model all --nudge all is a whole directory.
+    """
+    pairs = set()
+    for path in sorted(glob.glob(os.path.join(output_dir, "run_*.json"))):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue                    # a truncated run file is not a batch
+        m, n = data.get("model"), data.get("nudge")
+        if not m or not n:
+            continue
+        if model != ALL and m != model:
+            continue
+        if nudge != ALL and n != nudge:
+            continue
+        pairs.add((m, n))
+    return sorted(pairs)
+
+
+def find_run_files(output_dir: str, model_slug: str, nudge: str,
+                   batch_stamp: str = None, effort: str = None,
+                   oversight: bool = None) -> list:
+    """
+    Existing run files for one model and nudge, oldest batch first.
+
+    Several patterns are matched because the filename has grown twice. Runs
+    saved before batch stamps existed are named run_<i>_<model>_<nudge>.json
+    with nothing after the nudge, and runs from a batch that requested an
+    --effort carry it between the nudge and the stamp. All of them are equally
+    gradeable, so leaving any shape unmatched would silently skip whole batches
+    - which is how a results directory ends up half re-graded with nothing to
+    show that it is.
+
+    `effort` narrows to one level. Left as None, every level matches, so a
+    caller that does not care (--grade-existing, --resummarise) sees the
+    batches regardless of what they were run at.
+    """
+    # Glob broadly, then filter on the identity parsed back out of each name.
+    # Pattern-matching the arm directly does not work: the trailing wildcard
+    # that stands in for the stamp also swallows a `_nooversight` segment, so
+    # a filter for the oversight arm silently returned the counterfactual's
+    # episodes too.
+    prefix = f"run_*_{model_slug}_{nudge}"
+    if batch_stamp:
+        # Matched as a literal, not parsed back: --batch-stamp takes any
+        # string, while parse_batch_filename only recognises a datetime-shaped
+        # one, so filtering on the parsed value drops every other shape.
+        found = set(glob.glob(
+            os.path.join(output_dir, f"{prefix}*_{batch_stamp}.json")))
+    else:
+        found = set(glob.glob(os.path.join(output_dir, f"{prefix}_*.json")))
+        found.update(glob.glob(os.path.join(output_dir, f"{prefix}.json")))
+
+    # The slug must be the WHOLE segment between the run index and the nudge.
+    #
+    # The glob above cannot express that: the `*` standing in for the run index
+    # matches across underscores, so `run_*_gpt-5.4_strong` also matched
+    # `run_10_openai_gpt-5.4_strong` with the wildcard eating `10_openai`. A
+    # shorter slug therefore swept in the files of any model whose name it is a
+    # suffix of, and both spellings exist in this corpus.
+    #
+    # Two consequences, both live before this filter. Summarising `gpt-5.4`
+    # covered 20 files rather than 10, which is where the primary-arm denominator
+    # of 630 came from when the truth was 610. And fanning a paid regrade out over
+    # a directory would have graded those 20 files twice.
+    #
+    # Third instance of the bare-substring class in this repository, after the
+    # blocked-command matcher and the awareness keyword list. Same fix: require
+    # the delimiters.
+    delimited = re.compile(
+        rf"^run_\d+_{re.escape(model_slug)}_{re.escape(nudge)}(_.*)?\.json$")
+
+    keep = []
+    for path in found:
+        if not delimited.match(os.path.basename(path)):
+            continue
+        got_effort, _, got_oversight, _got_lure = parse_batch_filename(
+            path, nudge)
+        if effort is not None and got_effort != effort:
+            continue
+        if oversight is not None and got_oversight != oversight:
+            continue
+        keep.append(path)
+
+    return sorted(keep)
