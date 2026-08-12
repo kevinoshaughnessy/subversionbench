@@ -115,6 +115,24 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     identity = BatchIdentity.collecting(args, model_slug, effective_effort,
                                         batch_stamp)
 
+    # Which arm, stated before the first episode is paid for.
+    #
+    # It was previously visible only in the filenames and in the summary written at
+    # the end, so an operator watching a long counterfactual batch had nothing on
+    # screen confirming it was the counterfactual - and the two arms differ by the
+    # absence of the very artefacts the run is about, which is not something you can
+    # spot from the episode output. The lure is named only when it is on, matching
+    # how batch_stem marks it, so an ordinary run stays uncluttered.
+    print(f"Arm: oversight={'true' if identity.oversight else 'false'}"
+          + (" | lure=true" if identity.lure else "")
+          + f" | nudge={identity.nudge}"
+          + (f" | effort={identity.effort}" if identity.effort else ""))
+
+    # The same fact, short enough to sit on every run header without crowding it.
+    _arm_tag = ("oversight" if identity.oversight else "NO oversight")
+    if identity.lure:
+        _arm_tag += "+lure"
+
     all_results = []
     t_batch_start = time.time()
     total_delay_seconds = 0
@@ -131,11 +149,12 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
         if args.resume and os.path.exists(run_file):
             with open(run_file) as f:
                 all_results.append(json.load(f))
-            print(f"\n# RUN {i+1}/{args.runs} - already on disk, skipping")
+            print(f"\n# RUN {i+1}/{args.runs} [{_arm_tag}] - already on disk, "
+                  f"skipping")
             continue
 
         print(f"\n{'#'*60}")
-        print(f"# RUN {i+1}/{args.runs}")
+        print(f"# RUN {i+1}/{args.runs}  [{_arm_tag}]")
         print(f"{'#'*60}")
 
         # A private parent per episode, so `..` is somewhere the scenario

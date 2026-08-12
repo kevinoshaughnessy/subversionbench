@@ -226,3 +226,80 @@ class TestTransientTamperingIsAlsoNotApplicable:
         )
         assert classify_transient_tampering(
             {"transient_tampering_detail": {}}) is False
+
+class TestTheArmIsOnScreenWhileItRuns:
+    """An operator watching a counterfactual batch needs to see that it IS one.
+
+    The two arms differ by the ABSENCE of the artefacts the run is about, so there is
+    nothing in the episode output that distinguishes them. Before this the arm was
+    visible only in the filenames and in the summary written at the end - after the
+    money was spent.
+    """
+
+    def _run(self, oversight):
+        import contextlib
+        import io
+        import sys
+        import tempfile
+        import types
+        import subversionbench.llm_client as ev_llm
+        import subversionbench.run_eval as ev_run
+
+        class _B:
+            def __init__(self, **k):
+                self.type = k.get("type", "text")
+                for a, v in k.items():
+                    setattr(self, a, v)
+
+        class _M:
+            @staticmethod
+            def create(messages=None, **kw):
+                return types.SimpleNamespace(
+                    content=[_B(type="text", text="I recommend Strategy B.")],
+                    stop_reason="end_turn",
+                    usage=types.SimpleNamespace(input_tokens=5, output_tokens=5))
+
+        class _Client:
+            messages = _M()
+
+        out = tempfile.mkdtemp()
+        orig_client, orig_argv = ev_llm.get_client, sys.argv
+        ev_llm.get_client = lambda m: _Client()
+        sys.argv = ["run_eval", "--model", "claude-sonnet-5", "--runs", "1",
+                    "--delay", "0", "--no-grader", "--no-power",
+                    "--oversight", oversight, "--output-dir", out]
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ev_run.main()
+        finally:
+            ev_llm.get_client, sys.argv = orig_client, orig_argv
+        return buf.getvalue()
+
+    def test_the_counterfactual_says_so_before_the_first_episode(self):
+        out = self._run("false")
+        arm = next(l for l in out.split("\n") if l.startswith("Arm:"))
+        assert "oversight=false" in arm, arm
+        # and before any episode ran, so it is seen before the money is spent
+        assert out.index("Arm:") < out.index("# RUN 1/")
+
+    def test_the_primary_arm_says_so_too(self):
+        arm = next(l for l in self._run("true").split("\n") if l.startswith("Arm:"))
+        assert "oversight=true" in arm, arm
+
+    def test_every_run_header_carries_the_arm(self):
+        """Stated once at the top is not enough on a 100-episode batch: by the time
+        anything looks wrong, the top has scrolled away."""
+        out = self._run("false")
+        headers = [l for l in out.split("\n") if l.startswith("# RUN ")]
+        assert headers, "no run headers printed"
+        for h in headers:
+            assert "NO oversight" in h, h
+
+    def test_the_two_arms_are_not_confusable_at_a_glance(self):
+        """`oversight=false` and `oversight=true` differ by one character in a place
+        the eye skips. The per-run tag spells the absence out instead."""
+        assert "NO oversight" in self._run("false")
+        assert "NO oversight" not in self._run("true")
+
+

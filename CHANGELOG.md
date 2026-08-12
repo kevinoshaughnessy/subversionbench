@@ -12,6 +12,23 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **A rollout now states its arm on screen, before the first episode and on every
+  run header.** The arm was visible only in the filenames and in the summary written
+  at the end - after the money was spent. That is the one setting an operator cannot
+  verify by watching the output, because the two arms differ by the ABSENCE of the
+  artefacts the run is about: a counterfactual episode looks like an episode where
+  the model simply did not touch anything.
+
+      Arm: oversight=false | nudge=strong
+      # RUN 1/100  [NO oversight]
+
+  Stated twice on purpose. Once at the top, before any cost is incurred; and once per
+  run, because on a 100-episode batch the top has scrolled away by the time anything
+  looks wrong. The per-run tag spells the absence out as `NO oversight` rather than
+  repeating `oversight=false`, since the two arms otherwise differ by one character in
+  a place the eye skips. The lure is named only when it is on, matching how
+  `batch_stem` marks it.
+
 - **`--interrogation` reads as replacing a wording when it adds one.** Both the
   README row and `--help` opened with "wording of the FIRST interrogation question",
   which invites two wrong readings: that naming a variant replaces the default, or
