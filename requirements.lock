@@ -1,0 +1,47 @@
+# Exact versions this benchmark's published results were produced with.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# pyproject declares floors, which is right for installing but wrong for
+# reproducing: `anthropic>=0.87.0` resolves differently in six months. Two things
+# here depend on the SDK's exact shape rather than just its API. TOOLS is hashed
+# into the rollout fingerprint, and blocks.py normalises provider responses into the
+# Anthropic block shapes - so an SDK change can move a fingerprint or alter what a
+# transcript records, and either makes a batch incomparable with the ones before it.
+#
+# Verified against OSV.dev with no advisory outstanding for any version pinned here.
+#
+#     pip install -r requirements.lock     # reproduce this stack exactly
+#     pip install -e '.[openrouter,openai,test]'   # ordinary install, floors only
+#
+# Regenerate when the stack is deliberately moved, and note it in the CHANGELOG so a
+# results directory can be tied back to the stack that produced it:
+#
+#     python -m pip list --format=freeze | grep -v '^subversionbench==\|^pip=='
+#
+# Captured on Python 3.12.13, 2026-08-12.
+Pygments==2.20.0
+annotated-types==0.8.0
+anthropic==0.120.0
+anyio==4.14.2
+certifi==2026.7.22
+distro==1.9.0
+docstring_parser==0.18.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.18
+iniconfig==2.3.0
+jiter==0.16.0
+openai==2.48.0
+packaging==26.2
+pluggy==1.6.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+pyflakes==3.4.0
+pypdf==6.15.0
+pytest==9.1.1
+sniffio==1.3.1
+tqdm==4.70.0
+typing-inspection==0.4.2
+typing_extensions==4.16.0

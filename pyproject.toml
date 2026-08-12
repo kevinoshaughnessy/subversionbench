@@ -10,12 +10,26 @@ requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
 license-files = ["LICENSE"]
 authors = [{ name = "Kevin O'Shaughnessy" }]
+# Floors are set by advisories, not by the oldest version that happens to work.
+# anthropic < 0.87.0 carries GHSA-q5f5-3gjm-7mfm (memory-tool files created 0o666)
+# and GHSA-w828-4qhx-vxx3 (memory-tool path validation TOCTOU, sandbox escape).
+# Neither is reachable from this codebase - nothing here touches the SDK memory tool
+# - but a floor that admits a vulnerable version is a floor that will one day be
+# resolved to one. See test_dependencies.py, which pins these minimums.
 dependencies = [
-    "anthropic>=0.40.0",
+    "anthropic>=0.87.0",
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0"]
+# pytest < 9.0.3 carries GHSA-6w46-j5rx-g56g (predictable /tmp/pytest-of-{user},
+# local DoS or privilege gain). This suite uses tempfile.mkdtemp rather than the
+# tmp_path fixture, so it is not exposed, but the same reasoning applies.
+#
+# pyflakes was used and not declared: test_config.py runs it for the undefined-name
+# guard and skips when it is absent, so on a clean install that guard silently
+# disappeared - and it is the guard that caught three bad import prunings during the
+# refactor.
+test = ["pytest>=9.0.3", "pyflakes>=3.0"]
 openrouter = ["openai>=1.0.0"]
 openai = ["openai>=1.0.0"]
 

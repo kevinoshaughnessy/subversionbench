@@ -46,6 +46,16 @@ as the native Anthropic API:
 pip install -e '.[openrouter,openai,test]'
 ```
 
+To reproduce the exact stack a published rollout was collected with, rather than the
+newest versions satisfying the floors:
+
+```bash
+pip install -r requirements.lock
+```
+
+The declared minimums are set by published advisories, not by the oldest version that
+happens to work — `test_dependencies.py` pins them and names the advisory for each.
+
 Set whichever key matches the models you plan to run:
 
 ```bash
@@ -260,6 +270,7 @@ subversionbench/
   runner.py        rolling out a batch: N episodes, resume, and the summary after
   run_eval.py      the CLI: what the flags mean, what they forbid, and dispatch
 
+requirements.lock  the exact stack published results were produced with
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
@@ -273,7 +284,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 901 tests
+pytest                  # 905 tests
 python run_tests.py     # same suite, no pytest required
 ```
 

@@ -12,6 +12,48 @@ Package version `42.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sa
 could do has changed. This is an analysis fix, and `--resummarise --write-back`
 applies it to every batch already collected at no cost.
 
+- **Dependency floors set by advisories, and a lock file for reproducing a stack.** An
+  audit against OSV.dev found no advisory outstanding for any installed version - but
+  the declared floors admitted vulnerable ones, and a floor that admits a vulnerable
+  version is a floor that will one day be resolved to one.
+
+  `anthropic>=0.40.0` became `>=0.87.0`: below that the SDK carries
+  GHSA-q5f5-3gjm-7mfm (memory-tool files created 0o666) and GHSA-w828-4qhx-vxx3
+  (memory-tool path validation TOCTOU allowing sandbox escape). Neither is reachable
+  from this codebase - nothing here touches the SDK memory tool - but the second is
+  worth reading given what this harness does: a check-then-use symlink escape in a path
+  validator, the same class as the reaping TOCTOU and the export's own link-following.
+
+  `pytest>=7.0` became `>=9.0.3`: below that, GHSA-6w46-j5rx-g56g, predictable
+  `/tmp/pytest-of-{user}` directories. This suite uses `tempfile.mkdtemp` rather than
+  the `tmp_path` fixture, so it is not exposed.
+
+  **`pyflakes` was used and declared nowhere.** `test_config.py` runs it for the
+  undefined-name guard and skips when it is absent, so a clean install lost that guard
+  silently - and it is the guard that caught several bad import prunings during the
+  refactor. Now declared in the `test` extra.
+
+  **`requirements.lock` pins the exact stack.** Floors are right for installing and
+  wrong for reproducing: `TOOLS` is hashed into the rollout fingerprint and `blocks.py`
+  normalises provider responses into the Anthropic block shapes, so an SDK change can
+  move a fingerprint or alter what a transcript records - either of which makes a batch
+  incomparable with the ones before it.
+
+  The install metadata was also stale, reporting an old version while pyproject had
+  moved on, so it misreported which code produced a result. Refreshed, and a test now
+  catches it.
+
+  Guarded rather than documented: the floors, the "everything imported is declared"
+  rule, the lock's completeness and the metadata freshness are all asserted, with each
+  advisory ID recorded beside the floor it justifies so the constraint is arguable
+  rather than arbitrary.
+
+  One more guard came out of writing these: the first version of this test file used
+  `@pytest.mark.parametrize`, the only one in the suite, and `run_tests.py` - the
+  pytest-free runner the README offers as an equivalent - reported it as a failure it
+  could not explain. A decorator that only one of the two runners understands does not
+  fail loudly, it makes the other runner lie, so the suite now refuses one.
+
 - **The export refuses an incomplete or link-following copy.** Two defects in the
   export added above, both found by auditing it rather than by using it.
 

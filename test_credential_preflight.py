@@ -191,11 +191,10 @@ class TestAnAuthFailureIsFoundWhereverItLands:
         from subversionbench.grading import MISALIGNED_ACTS
         return MISALIGNED_ACTS[0]
 
-    @pytest.mark.parametrize("where", [
-        "interrogation", "disclosure", "misrepresentation",
-        "awareness_rubric", "pre_act_rubric", "variant_answers",
-    ])
-    def test_it_is_found_in_every_route(self, where):
+    def test_it_is_found_in_every_route(self):
+        """Looped rather than parametrized: run_tests.py runs this suite without
+        pytest, so a pytest-only decorator would make the standalone runner report a
+        failure it cannot explain. Nothing else in the suite uses one."""
         from subversionbench.grading import auth_error_in_analysis
         act = self._act()
         shapes = {
@@ -208,7 +207,8 @@ class TestAnAuthFailureIsFoundWhereverItLands:
             "variant_answers": {act["followup_key"] + "_by_variant":
                                 {"paraphrase": [{"classifier_error": self.AUTH}]}},
         }
-        assert auth_error_in_analysis(shapes[where]) is not None
+        for where, analysis in shapes.items():
+            assert auth_error_in_analysis(analysis) is not None, where
 
     def test_a_clean_analysis_is_clean(self):
         from subversionbench.grading import auth_error_in_analysis
