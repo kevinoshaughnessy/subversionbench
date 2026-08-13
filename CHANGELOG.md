@@ -6,6 +6,71 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v53
+
+Package version `53.0.0`. `ROLLOUT_VERSION` stays at `r9` and all four arm
+fingerprints are unchanged: this runs after an episode is over and the model
+under evaluation is not involved.
+
+Assessed against OWASP LLM02:2026 (Sensitive Information Disclosure). Most of
+the tiered recommendation set doesn't fit this system - there is no ingested
+corpus, no retrieval layer, no served users to enumerate - and a scan of the
+saved corpus for third-party PII (email/phone/SSN shapes, in every entry type,
+not just what the agent wrote) found nothing to react to. What the review did
+find was narrower and more concrete: an invariant that was already being
+computed and already being warned about, but was never connected to the thing
+that actually gates publication.
+
+- **A content read through a passthrough path could reach `--verify` clean,
+  with only a console line from collection time standing between it and
+  publication.** `/bin`, `/usr`, `/opt` and their siblings are deliberately left
+  pointing at the real filesystem so a shell can execute what lives there, and a
+  directory LISTING through one of them is unremarkable - that's what the
+  passthrough is for. Reading a file's CONTENTS is a different case: `export.py`
+  cannot know in advance what shape that content will be, so no pattern can be
+  written to catch it, and the existing regex scan never tried to.
+
+  The signal already existed - `host_path_read_detail.kinds["contents"]`, added
+  when the console report started distinguishing a listing from a read - and the
+  console printed `!!` when it fired. But `--verify` is what an operator actually
+  runs before publishing, often long after collection, and it never read that
+  field. The console warning even claimed otherwise: *"export.py refuses on
+  content it cannot rewrite"* was true for the regex scan and false for this.
+
+- **The fix connects the signal to the gate rather than trying to guess what a
+  content read exposed.** `detect_host_path_reads` now also returns
+  `content_commands` - the exact commands whose kind is `contents`, derived
+  through the one already-tested classifier rather than a second copy of it -
+  and `export.py` refuses to publish while any are present, exactly like an
+  unreviewed host-identity finding: `[HOST] passthrough content read: <command>`,
+  gated behind the same `--accepted` fingerprint mechanism. What is shown is the
+  command, which is the agent's own text and already visible in the run file;
+  what the command returned is not printed, because this check cannot see
+  whether that is safe to show and does not try to guess.
+
+- **Zero migration cost, checked rather than assumed.** No saved episode across
+  the whole corpus has ever read passthrough contents - only listings and
+  lookups - so this is a forward-looking invariant with nothing to review today.
+  Five mutations were run against it: dropping the export-side call, widening
+  `content_commands` to include listings, marking the finding non-reviewable
+  instead of reviewable, and two ways of skipping `failed_run_*.json` (the exact
+  file class the r7 finding this whole thread started from was found in). All
+  five are caught.
+
+- **Deliberately not implemented: generic PII pattern matching** (email, phone,
+  SSN, credit-card shapes) across arbitrary transcript text. Scanned for anyway,
+  to check: agent-authored text held none: the only PII-shaped strings anywhere
+  in the corpus were public CPython contributor email addresses, pulled in when
+  a model's own `os.walk('.')` hit Python's bundled stdlib documentation credits
+  - not a disclosure of anyone's personal data, and indistinguishable from noise.
+  A real disclosure of a third party's personal data would require the model to
+  reach a location that actually holds personal data, and personal data doesn't
+  live under `/bin`, `/usr`, `/opt` or `/lib` - it lives in a home directory,
+  which the kernel-level confinement in v50 already refuses categorically. Adding
+  a pattern scan for a threat with no demonstrated or architecturally plausible
+  vector here risks exactly the failure this codebase has already had to fix
+  more than once: a check that fires on noise is a check that gets switched off.
+
 ## v52
 
 Package version `52.0.0`. `ROLLOUT_VERSION` stays at `r9` and all four arm

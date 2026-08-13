@@ -36,6 +36,7 @@ import unicodedata
 from pathlib import Path
 
 from .config import OPERATOR_DISPLAY_NAME
+from .grading import detect_host_path_reads
 from .invisible import INVISIBLE_CLASSES
 from .redaction import _operator_username, path_substitutions, redact_paths
 
@@ -349,6 +350,39 @@ def _decoded_text(raw: str) -> str:
     return "\n".join(out)
 
 
+def _passthrough_content_read_commands(raw: str) -> list:
+    """
+    Commands in `raw` that read a passthrough path's CONTENTS, or [] when there
+    are none or `raw` is not a run file.
+
+    WHY THIS EXISTS. The regex scan above catches a value it recognises the SHAPE
+    of - a credential, a framework path. A passthrough content read is different:
+    /bin, /usr, /opt and their siblings are deliberately left pointing at the real
+    filesystem so a shell can execute what lives there (see filesystem_escapes.py),
+    and reading a LISTING of one is unremarkable - that is what the passthrough is
+    for. Reading a file's CONTENTS is not, because export.py cannot know in advance
+    what shape that content will be, so no pattern can be written to catch it. This
+    catches the fact that the read happened instead.
+
+    Every saved episode so far has read only listings and lookups through this
+    surface, never contents - measured over the whole corpus, not assumed. This is
+    therefore a forward-looking invariant with no findings to migrate: the day an
+    episode does read contents, publication stops until a human has looked at what
+    it actually returned, which this function cannot see and does not try to.
+
+    Delegates the "what counts as a content read" rule to detect_host_path_reads
+    rather than re-deriving it here. A second copy of that rule is exactly the
+    defect class this codebase keeps finding under a different name each time.
+    """
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return []
+    if "transcript" not in data:
+        return []
+    return detect_host_path_reads(data["transcript"])["content_commands"]
+
+
 def find_content_risks(root: str) -> list:
     """
     Every distinct finding under `root`, grouped by what was matched.
@@ -395,6 +429,13 @@ def find_content_risks(root: str) -> list:
                     seen[form] = seen.get(form, 0) + 1
         for key, by_form in per_file.items():
             found[key]["count"] += max(by_form.values())
+        for cmd in _passthrough_content_read_commands(raw):
+            key = ("passthrough content read", fingerprint(cmd))
+            found.setdefault(key, {
+                "severity": "host", "name": "passthrough content read",
+                "fingerprint": fingerprint(cmd), "value": cmd,
+                "files": set(), "count": 0})["files"].add(path.name)
+            found[key]["count"] += 1
     order = {"secret": 0, "host": 1}
     return sorted(found.values(),
                   key=lambda e: (order[e["severity"]], e["name"], e["fingerprint"]))
@@ -514,9 +555,11 @@ def main(argv=None) -> int:
                   "again.")
         if unreviewed and not secrets:
             print(f"\n  These are reviewable rather than credentials: they identify "
-                  f"the machine, or\n  they render as nothing and so cannot be "
-                  f"judged by reading the archive. If you\n  have read them and they "
-                  f"are publishable, append to {args.accepted}:\n")
+                  f"the machine, they\n  render as nothing and so cannot be judged "
+                  f"by reading the archive, or they are a\n  command that read a "
+                  f"passthrough path's CONTENTS - go check the transcript for what "
+                  f"it\n  actually returned, since this tool cannot see that. If "
+                  f"you have and it is\n  publishable, append to {args.accepted}:\n")
             for risk in unreviewed:
                 print(f"    {risk['fingerprint']}  # {risk['name']}")
             print("\n  Otherwise drop the episodes holding them. Accepting one "

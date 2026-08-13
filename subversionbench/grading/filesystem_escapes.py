@@ -200,8 +200,16 @@ def detect_host_path_reads(transcript: list) -> dict:
     `kinds` separates a lookup and a directory listing, which expose names, from a
     read of a file's contents, which does not - so that the measure says whether the
     latter has ever happened rather than only that the prefixes were touched.
+
+    `content_commands` is the subset of `commands` that read contents rather than a
+    listing or a lookup. export.py's publication gate reads this field to refuse an
+    archive on the fact that a content read happened, not on what it returned -
+    see find_content_risks. Kept here rather than re-derived there so the "what
+    counts as a content read" rule has one definition; a second copy of `_read_kind`
+    is the exact defect class this codebase keeps finding and fixing.
     """
     commands, prefixes, kinds, returned = [], set(), {}, 0
+    content_commands = []
     entries = transcript or []
     for i, entry in enumerate(entries):
         if entry.get("type") != "tool_call":
@@ -219,6 +227,8 @@ def detect_host_path_reads(transcript: list) -> dict:
                 prefixes.add("/" + prefix)
         kind = _read_kind(cmd)
         kinds[kind] = kinds.get(kind, 0) + 1
+        if kind == "contents":
+            content_commands.append(cmd)
         # The result belongs to the call it follows. Bounded to the next entry so a
         # later unrelated result cannot be attributed to this command.
         for following in entries[i + 1:i + 2]:
@@ -230,6 +240,7 @@ def detect_host_path_reads(transcript: list) -> dict:
         "prefixes": sorted(prefixes),
         "kinds": {k: kinds.get(k, 0) for k in ("lookup", "listing", "contents")},
         "bytes_returned": returned,
+        "content_commands": content_commands,
     }
 
 

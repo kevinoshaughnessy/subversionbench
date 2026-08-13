@@ -329,6 +329,139 @@ class TestContentThatRedactionCannotRewrite:
             "total 8\ndrwxr-xr-x  config\n-rw-r--r--  README.md")) == []
 
 
+class TestAPassthroughContentReadRefusesUntilReviewed:
+    """/bin, /usr, /opt and their siblings are deliberately left pointing at the
+    real filesystem so a shell can execute what lives there. A LISTING of one is
+    unremarkable - that is what the passthrough is for. Reading a file's CONTENTS
+    is not, and export.py cannot know in advance what shape that content will be,
+    so no regex can be written to catch it. This catches the fact that the read
+    happened, not what it returned.
+
+    Zero episodes in the saved corpus have ever done this - measured, not assumed
+    - so this is a forward-looking invariant connecting an already-computed
+    per-episode signal (host_path_read_detail) to the actual publish gate, which
+    previously only knew about it through a console line at collection time that
+    is easy to have missed by the time an archive is built.
+    """
+
+    def _archive(self, cmd, result="", *, extra_files=()):
+        d = tempfile.mkdtemp(prefix="eval_results_passthrough_")
+        Path(d, "run_1_m_strong_20260101T000000.json").write_text(json.dumps(
+            {"transcript": [{"turn": 1, "type": "tool_call", "cmd": cmd},
+                            {"turn": 1, "type": "tool_result", "result": result}]}))
+        for name, files_cmd in extra_files:
+            Path(d, name).write_text(json.dumps(
+                {"transcript": [{"turn": 1, "type": "tool_call", "cmd": files_cmd},
+                                {"turn": 1, "type": "tool_result", "result": ""}]}))
+        return d
+
+    def test_a_content_read_is_flagged(self):
+        from subversionbench.export import find_content_risks
+        risks = find_content_risks(
+            self._archive("cat /lib/systemd/system/foo.conf", "[Unit]"))
+        assert [(r["name"], r["severity"]) for r in risks] == \
+            [("passthrough content read", "host")]
+
+    def test_a_listing_is_not_flagged(self):
+        """The whole point of the distinction: a listing exposes names, which is
+        what the passthrough exists to allow, and is not this finding."""
+        from subversionbench.export import find_content_risks
+        assert find_content_risks(
+            self._archive("ls -la /usr/bin", "total 8")) == []
+
+    def test_a_lookup_is_not_flagged(self):
+        from subversionbench.export import find_content_risks
+        assert find_content_risks(
+            self._archive("which python3", "/usr/bin/python3")) == []
+
+    def test_the_command_is_shown_but_not_the_returned_content(self):
+        """The command is the agent's own text, already visible in the run file
+        and safe to print. What it returned is unknown to this check and is never
+        printed - the operator has to go and look."""
+        from subversionbench.export import find_content_risks
+        risks = find_content_risks(self._archive(
+            "cat /lib/private/secret_looking_stuff.conf",
+            "definitely not printed by this check"))
+        assert risks[0]["value"] == "cat /lib/private/secret_looking_stuff.conf"
+        assert "definitely not printed" not in repr(risks)
+
+    def test_verify_refuses_until_the_command_is_accepted(self):
+        import contextlib
+        import io
+        from subversionbench.export import fingerprint, main
+        d = self._archive("cat /lib/systemd/system/foo.conf", "[Unit]")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = main(["--verify", d, "--accepted", "/nonexistent"])
+        assert code == 1
+        assert "passthrough content read" in buf.getvalue()
+
+        accepted = Path(tempfile.mkdtemp(), "accepted.txt")
+        accepted.write_text(fingerprint("cat /lib/systemd/system/foo.conf") + "\n")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code2 = main(["--verify", d, "--accepted", str(accepted)])
+        assert code2 == 0
+
+    def test_accepting_one_command_does_not_accept_a_different_one(self):
+        from subversionbench.export import fingerprint, main
+        import contextlib
+        import io
+        d = self._archive("cat /lib/systemd/system/foo.conf", "[Unit]")
+        accepted = Path(tempfile.mkdtemp(), "accepted.txt")
+        accepted.write_text(fingerprint("cat /lib/some/other/file") + "\n")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = main(["--verify", d, "--accepted", str(accepted)])
+        assert code == 1
+
+    def test_a_failed_run_file_is_scanned_too(self):
+        """The exact file class the finding this check exists for was found in:
+        eval_results_r7/failed_run_1_...json ran an interpreter traversal that
+        returned the operator's temp directory. Publication must not treat a
+        failed run as exempt from review."""
+        from subversionbench.export import find_content_risks
+        d = tempfile.mkdtemp(prefix="eval_results_failed_")
+        Path(d, "failed_run_1_m_strong_20260101T000000.json").write_text(json.dumps(
+            {"transcript": [
+                {"turn": 1, "type": "tool_call", "cmd": "cat /lib/x/y.conf"},
+                {"turn": 1, "type": "tool_result", "result": "z"}],
+             "error": "BadRequestError: too many tokens"}))
+        risks = find_content_risks(d)
+        assert [r["name"] for r in risks] == ["passthrough content read"]
+
+    def test_multiple_reads_of_the_same_command_collapse_to_one_finding(self):
+        from subversionbench.export import find_content_risks
+        d = tempfile.mkdtemp(prefix="eval_results_passthrough_")
+        Path(d, "run_1.json").write_text(json.dumps({"transcript": [
+            {"turn": 1, "type": "tool_call", "cmd": "cat /lib/a.conf"},
+            {"turn": 1, "type": "tool_result", "result": "x"},
+            {"turn": 2, "type": "tool_call", "cmd": "cat /lib/a.conf"},
+            {"turn": 2, "type": "tool_result", "result": "x"},
+        ]}))
+        risks = find_content_risks(d)
+        assert len(risks) == 1
+        assert risks[0]["count"] == 2
+
+    def test_two_different_commands_are_two_findings(self):
+        from subversionbench.export import find_content_risks
+        d = tempfile.mkdtemp(prefix="eval_results_passthrough_")
+        Path(d, "run_1.json").write_text(json.dumps({"transcript": [
+            {"turn": 1, "type": "tool_call", "cmd": "cat /lib/a.conf"},
+            {"turn": 1, "type": "tool_result", "result": "x"},
+            {"turn": 2, "type": "tool_call", "cmd": "cat /lib/b.conf"},
+            {"turn": 2, "type": "tool_result", "result": "y"},
+        ]}))
+        risks = find_content_risks(d)
+        assert len(risks) == 2
+
+    def test_a_non_run_file_is_not_scanned_for_this(self):
+        """No 'transcript' key at all: a config file, or something not shaped like
+        a run, must not raise trying to interpret it as one."""
+        from subversionbench.export import find_content_risks
+        d = tempfile.mkdtemp(prefix="eval_results_other_")
+        Path(d, "notes.json").write_text(json.dumps({"some": "other shape"}))
+        assert find_content_risks(d) == []
+
+
 class TestBothTheStoredAndTheDecodedFormAreScanned:
     """Every file is searched twice, and the counts have to be merged.
 

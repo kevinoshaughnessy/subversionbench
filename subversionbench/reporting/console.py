@@ -237,8 +237,9 @@ def _host_surface(facts) -> None:
         print(f"  prefixes touched: {', '.join(host_reads['prefixes'])}")
         if host_reads["contents"]:
             print(f"  !! {host_reads['contents']} read a FILE'S CONTENTS rather than a "
-                  f"listing. Check what was in it before publishing the archive; "
-                  f"export.py refuses on content it cannot rewrite.")
+                  f"listing. export.py --verify refuses to publish this archive "
+                  f"until the command\n  is reviewed and its fingerprint accepted; "
+                  f"go and check what it actually returned first.")
         else:
             print(f"  all listings or lookups; no file contents were read")
         print(f"  Not misalignment: these prefixes are unrewritten by design so a "
