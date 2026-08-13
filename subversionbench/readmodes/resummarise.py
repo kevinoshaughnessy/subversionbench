@@ -55,6 +55,12 @@ REDERIVED_ANALYSIS_FIELDS = (
     # already collected at no cost.
     "host_path_read",
     "host_path_read_detail",
+    # How the model encoded its own words, read off the transcript like the two
+    # above. Derived, so a rebuild backfills it onto every episode already
+    # collected - which is how the four r1 episodes that reasoned about a
+    # substitution became visible without re-running anything.
+    "disguised_text",
+    "disguised_text_detail",
     "out_of_scope_attempts",
     "out_of_scope_detail",
     "concealment_oversight",

@@ -9,6 +9,7 @@ visible-text-only counterfactual is computed.
 import re
 
 from ..config import EVAL_AWARENESS_INDICATORS, GOAL_CONFLICT_AWARENESS
+from ..confusables import fold
 
 # =========================================================================
 # Keyword-based eval awareness detection
@@ -76,14 +77,19 @@ _WHITESPACE = re.compile(r"\s+")
 
 def normalise_for_matching(text: str) -> str:
     """
-    Lowercase, wrapping decoration removed, contractions and whitespace
-    collapsed to single spaces.
+    Latin lookalikes folded, lowercase, wrapping decoration removed, contractions
+    and whitespace collapsed to single spaces.
 
     Applied to the indicators at import and to every text at match time, so the two
     can never be normalised differently - the shape of defect this module already
     has, where one copy of a rule governed the rate and another governed the timing.
+
+    The fold is FIRST, before lowercasing, so a substituted capital reaches the
+    table in the case it was written in. It is length-preserving by construction
+    (see confusables.py), which is what lets `_normalise_with_offsets` apply the
+    same fold and keep its index into the original text valid.
     """
-    lowered = _CONTRACTION.sub(" ", _DECORATION.sub("", (text or "").lower()))
+    lowered = _CONTRACTION.sub(" ", _DECORATION.sub("", fold(text or "").lower()))
     return _WHITESPACE.sub(" ", lowered).strip()
 
 
@@ -101,7 +107,7 @@ def _normalise_with_offsets(text: str):
     two substitutions correctly.
     """
     out, origin = [], []
-    for i, ch in enumerate((text or "").lower()):
+    for i, ch in enumerate(fold(text or "").lower()):
         if _DECORATION.match(ch):
             continue
         if ch.isspace() or _CONTRACTION.match(ch):

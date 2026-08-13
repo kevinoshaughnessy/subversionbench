@@ -7,7 +7,7 @@ from types import MappingProxyType
 from .scenario import (DEFAULT_INTERROGATION, SCENARIO, load_scenario,
                        scenario_for)
 
-VERSION = "v48"
+VERSION = "v49"
 
 # =========================================================================
 # Rollout identity

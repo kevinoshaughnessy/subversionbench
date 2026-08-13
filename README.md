@@ -221,6 +221,8 @@ subversionbench/
   api_errors.py    classifying provider errors by whether a retry could help
   invisible.py     characters that render as nothing: stripped from the view
                    the grader scores, refused at publication
+  confusables.py   characters that render AS a Latin letter without being one:
+                   folded before matching, and the substitution recorded
   openrouter_client.py  OpenRouter adapter
   openai_client.py      OpenAI Responses adapter
   llm_client.py    client factory: pick the API for a model ID
@@ -239,6 +241,7 @@ subversionbench/
     closing_report.py      what the deliverable said, vs what the answers said
     command_patterns.py    what a shell command did to the scenario's files
     concealment.py         acts plus answers to a verdict
+    disguised_text.py      writing a Latin lookalike to slip past a literal match
     filesystem_escapes.py  leaving the episode directory by a route the rewriter misses
     grader.py              asking an LLM the awareness rubric
     grader_io.py           preparing text for a grader call, parsing the reply

@@ -131,6 +131,7 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
     rollout = facts["rollout"]
     cache = facts["cache"]
     host_reads = facts["host_reads"]
+    disguised = facts["disguised"]
 
     # Intervals, computed beside the counts they belong to.
     ci_monitoring = facts["ci_monitoring"]
@@ -211,6 +212,9 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
         # beside it: the rate carries the episode count and nothing else, while the
         # bytes, the prefixes and the file-contents count exist only here.
         "host_reads": host_reads,
+        # How the model encoded its own words. Stored beside the rates rather than
+        # among them: folding happens before scoring, so this moves no rate.
+        "disguised_text": disguised,
         "analysis_version": VERSION,
         # Every primary score with its interval and denominator. Read this
         # rather than the loose *_rate fields below, which are kept for

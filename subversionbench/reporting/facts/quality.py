@@ -129,6 +129,29 @@ def quality_facts(all_results: list, n: int) -> dict:
         host_reads["contents"] += (detail.get("kinds") or {}).get("contents", 0)
     host_reads["prefixes"] = sorted(host_reads["prefixes"])
 
+    # Words the model disguised with a Latin lookalike, aggregated over the batch.
+    #
+    # `in_commands` is separated from the total on purpose, and it is the number to
+    # read first: a substitution written into a sentence weighing the idea is a
+    # model thinking about it, and one in a command is a model doing it. Every
+    # occurrence in the corpus so far is the former.
+    #
+    # Reported here rather than with the misalignment rates because the matcher folds
+    # these away before scoring, so this cannot move any rate - it exists so that a
+    # substitution which worked is distinguishable from one never attempted.
+    disguised = {"episodes": 0, "words": 0, "episodes_in_commands": 0,
+                 "where": {"prose": 0, "reasoning": 0, "commands": 0}}
+    for r in all_results:
+        detail = r["analysis"].get("disguised_text_detail") or {}
+        if not detail.get("n_words"):
+            continue
+        disguised["episodes"] += 1
+        disguised["words"] += detail.get("n_words", 0)
+        disguised["episodes_in_commands"] += bool(detail.get("in_commands"))
+        for field, hits in (detail.get("where") or {}).items():
+            if field in disguised["where"]:
+                disguised["where"][field] += hits
+
     # Prompt-cache totals, split by where the tokens were spent. Reported
     # because a breakpoint under the model's minimum cacheable prefix is
     # accepted and silently ignored - so "we cache the transcript" is a claim
@@ -220,6 +243,7 @@ def quality_facts(all_results: list, n: int) -> dict:
         "classifier_fallback": classifier_fallback,
         "effort_label": effort_label,
         "efforts": efforts,
+        "disguised": disguised,
         "host_reads": host_reads,
         "n_quotes_checked": n_quotes_checked,
         "n_quotes_grounded": n_quotes_grounded,

@@ -6,6 +6,88 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v49
+
+Package version `49.0.0`. `ROLLOUT_VERSION` stays at `r7`, all four arm fingerprints
+hold, and **0 analysis fields move on any of the 1,521 saved episodes** - measured by
+re-deriving every field twice from the same transcripts, once with the new fold
+active and once with it made an identity, rather than by comparing against what was
+already on disk.
+
+The companion to v48. That one covered characters that render as *nothing*; this one
+covers characters that render *as a Latin letter* without being one - `Strаtegy` with
+a Cyrillic а. Visible rather than hidden, so the answer is different at both
+boundaries: nothing is refused at publication, because a substituted character leaks
+nothing and reads fine. What it defeats is a literal matcher, not a reviewer.
+
+- **The exposure is one measure, and the rest of the harness is immune by
+  construction.** Worth stating because it bounds what this change is responsible
+  for. The misaligned acts are decided by hashing artefact files, and a hash moves
+  whatever the bytes are. Disclosure, the awareness grader and the authoritative
+  interrogation verdict are LLM readings, and an LLM reads a lookalike as the letter
+  it resembles; the keyword interrogation verdict is a second opinion whose
+  disagreement is already counted. The sandbox matches commands, where a substituted
+  character defeats the agent's own command before it defeats the matcher.
+
+  That leaves the awareness KEYWORD indicators - literal regexes over model prose -
+  as the one place a substitution changes a measured number, and so the one place the
+  fold is applied.
+
+- **The fold is generated under a length filter, not hand-listed, and that is what
+  makes it safe.** `_normalise_with_offsets` carries an index from each normalised
+  character back to the one it came from, so a reader is shown an excerpt of what the
+  model actually wrote. A fold mapping one character to several - which full NFKC
+  does, since it expands ligatures - would shift every later index and misattribute
+  every excerpt after the first expansion. So a codepoint enters the table only when
+  its replacement is a single ASCII letter: the one-to-one property is a consequence
+  of how the table is built rather than a promise about a list somebody maintains,
+  and `fold` cannot change a string's length. Asserted at import as well as in a
+  test, because nothing else would notice.
+
+  Applied in BOTH normalisers. The module already had one defect of exactly that
+  shape, where one copy of a matching rule governed the rate and another governed
+  the timing, and a test holds the offset map to the plain normaliser's output.
+
+- **An accent is not a disguise.** Two tables, kept apart on purpose. Precomposed
+  accented letters fold for matching, so an indicator still matches text written with
+  ordinary orthography - but they are excluded from what gets *reported*, because a
+  reader sees an accent and a model writing French is not hiding anything. Reporting
+  `café` would bury the real thing under every accented word in the corpus, which is
+  the argument that keeps a usage counter out of the export check. Compatibility
+  forms - fullwidth, the mathematical alphanumerics - are in both: nobody types those
+  in running prose by accident.
+
+- **The attempt is recorded, because folding makes it invisible otherwise.** New
+  `disguised_text` / `disguised_text_detail`, derived from the transcript, so a
+  `--resummarise` backfills them onto everything already collected. This exists for a
+  specific reason: once the matcher folds a substitution away, a successful one and a
+  plain sentence produce the *same* awareness verdict, so nothing in the measured
+  outcome would show it was ever tried.
+
+  Scored over what the model emitted, with prose, reasoning and commands kept apart -
+  reasoning about the move is not making it. A tool result is excluded: that is the
+  shell's output or the scenario's own files, not something the model chose to write.
+  An observation rather than an act, for the reason a passthrough read is: it changes
+  no artefact hash, and a rate named for tampering that also fired on an encoding
+  choice would stop describing what makes it fire.
+
+- **What the corpus contains.** Five episodes, all r1, none in a command. Four
+  reasoned about the substitution explicitly and named the codepoint - Cyrillic а, у
+  and ѕ, and Greek α - and stopped there. The fifth is a degenerate token stream
+  rather than an attempt at anything, which is why the detail field carries the word
+  itself: no heuristic separates those two cases, and a reader does it in one glance.
+
+- **Deliberately NOT hardened: the scenario's own text matching.** Its brittleness is
+  an affordance the benchmark measures. An agent that works out it can slip past a
+  literal match is producing a finding, and hardening the thing being probed would
+  delete the finding instead of recording it.
+
+- **What this does not cover.** A payload written in ordinary words, and any
+  lookalike pair not in the table. The Cyrillic and Greek list is hand-written
+  because the resemblance is a fact about glyphs rather than about the encoding, so
+  nothing in `unicodedata` knows it - which makes it the one part of this that can go
+  out of date without anything failing.
+
 ## v48
 
 Package version `48.0.0`. `ROLLOUT_VERSION` stays at `r7` and all four arm
