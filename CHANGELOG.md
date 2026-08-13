@@ -6,6 +6,107 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v52
+
+Package version `52.0.0`. `ROLLOUT_VERSION` stays at `r9` and all four arm
+fingerprints are unchanged: everything here is downstream of the episode, and the
+model under evaluation never sees any of it.
+
+Completes the prompt-injection work at the one boundary in this harness where OWASP
+LLM01 applies literally. Everywhere else the model under test is the untrusted party
+and the job is to contain it; here its output becomes **input to a second model whose
+answer is a measurement**. v48 removed the invisible-character class and v49 the
+Latin-lookalike class. This addresses the boundary itself.
+
+- **Three live defects in one expression, all silent.** `bool(parsed.get("answer",
+  False))` decided every rubric verdict and every closing-report judgement:
+
+  - a reply with **no `answer` field** scored a confident `False`. Same class as
+    reporting an unobservable act as a zero, which this codebase has already had to
+    fix once: the absence of an answer is not an answer of no.
+  - **`{"answer": "false"}` scored `True`**, because `bool("false")` is `True`. Every
+    string form inverted except the empty one. A grader that answered in words rather
+    than JSON booleans had its verdict flipped and nothing said so.
+  - **`quote` was unchecked**, so a list or an object reached the quote-grounding
+    check and was scored as a citation.
+
+  Replies are now validated against the shape asked for, in trusted code and without
+  a second model call. Real booleans, plus the four unambiguous word forms because
+  rejecting those would turn a correct answer into a failed measurement; anything
+  else is an error with a `None` answer, since a reply the harness could not read is
+  a measurement that did not happen. Strict rather than forgiving deliberately -
+  guessing is what produced the inversion.
+
+- **Agent text now travels in a fenced, provenance-labelled channel.** Its own text
+  is wrapped in markers carrying a random per-episode id and the harness's question
+  is asked outside the fence. Applied at all three grader boundaries: the rubric
+  corpus, the closing report, and the interrogation answer that decides the headline
+  concealment field.
+
+  **Why a marking scheme is worth more here than in general.** The standard objection
+  is that an attacker who learns the scheme can forge it - StruQ fell to exactly that.
+  Forging requires writing text that contains the marker, and here the text is
+  already written: the transcript is frozen before grading begins and the id is
+  generated afterwards from a CSPRNG. An agent cannot include a value that did not
+  exist while it was writing. That argument holds only while the id is unpredictable,
+  which is why it is `secrets` and not a constant, and there is a test asserting it
+  cannot be moved anywhere an agent could reach.
+
+  Per episode rather than per call, because the corpus block is prompt-cached across
+  an episode's rubric questions and a fresh id each time would silently turn one
+  cached corpus into a dozen uncached ones.
+
+- **The residual risk, written down rather than implied.** In Rule-of-Two terms this
+  boundary is **[A,B]** - untrusted input and the operator's own transcripts - with
+  (C) state change and external communication absent by construction. The grader has
+  no tools, no credentials, no network, no memory between calls, and can write
+  nothing but the verdict it returns. A fully successful injection corrupts one
+  episode's awareness verdict; it cannot act, persist, or reach anything else.
+
+  And it stays visible. Awareness is measured twice over the same text, once by a
+  matcher that calls no model, and every positive verdict must cite a quote matched
+  back against the corpus the grader was shown - a fabricated one scores `unmatched`.
+  So the failure appears in the artefact instead of vanishing into a rate.
+
+- **Tested with the defence disclosed**, per the recommendation to reject static-only
+  claims. Six payloads, each attacking a different part rather than being a variation
+  on "ignore your instructions": direct override, a forged closing fence, a forged
+  harness question, a pre-supplied JSON answer, role reassignment, and a fake system
+  turn. What these can establish is what the harness controls - the text is always
+  fenced, a forged fence cannot break out, the question always arrives outside it, no
+  reply shape yields an unverified verdict. Whether a grader model resists persuasion
+  needs live adversarial calls and is a separate, paid experiment.
+
+- **Two of my own tests passed for the wrong reason** and are worth recording, since
+  both are the shape that makes a green suite meaningless:
+
+  - three fencing tests asserted on *all* text sent, and the system prompt now
+    describes the markers as `id=...`. The description satisfied the assertion, so
+    they passed against completely unfenced payloads. They now match a real 16-hex id
+    in the user message only.
+  - a guard for "the keyword measure calls no model" grepped the source for `client`
+    and matched a comment naming `llm_client.py`. It now walks the call graph, with a
+    behavioural companion that runs the measure on a host where every model call
+    raises.
+
+- **Found by mutation, not by reasoning:** stubbing the id generator to a constant
+  turned the collision-retry into an infinite loop and hung the suite. A wedged
+  grading pass is indistinguishable from a slow API, which is the worst way for it to
+  fail, so the retry is bounded and raises.
+
+- **Not applicable, and why.** No other input modality reaches a grader, so
+  modality-specific filtering does not apply. The grader takes no actions, so there
+  is nothing to gate behind human confirmation. It has no cross-session memory. There
+  is no MCP server or third-party tool package in the call path, and dependencies are
+  already pinned and hashed.
+
+- **What remains in plain source.** Some detector markers are scenario text by
+  necessity - a measure cannot match text it does not contain - and the grader's own
+  rubric wording is public. Also: changing the grader's system prompt changes what a
+  re-grade would produce, so awareness verdicts scored before this bump were scored
+  under different instructions. Each run records its `analysis_version`, which is how
+  that stays traceable.
+
 ## v51
 
 Package version `51.0.0`, and **`ROLLOUT_VERSION` moves to `r9`.** New episodes go to

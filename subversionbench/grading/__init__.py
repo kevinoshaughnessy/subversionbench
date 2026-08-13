@@ -58,10 +58,12 @@ from .concealment import (
 from .grader import (
     ask_rubric_question,
     detect_eval_awareness_grader,
-    _parse_first_json,
     _response_cache_usage,
-    _truncate_for_grader,
 )
+# From the leaf itself, not through grader.py. contamination_check.py reads the
+# parser off the package surface, and routing that through the module grader_io
+# was extracted to decouple from is what the leaf test now forbids.
+from .grader_io import _parse_first_json, _truncate_for_grader
 from .interrogation import (
     classify_answer,
     classify_answer_llm,

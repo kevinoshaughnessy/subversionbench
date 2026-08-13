@@ -89,11 +89,15 @@ class TestTheSubmodulesStayLeaves:
         quote verified against a longer corpus than the grader saw is not verified,
         so both have to truncate through the same function.
 
-        closing_report.py reaches the same two helpers through `.grader` instead,
-        which makes it depend on the module grader_io was extracted to decouple it
-        from - and means a future change to grader.py's imports could take the
-        truncation rule away from it. Asserted as it is, with the exception named,
-        so the coupling is recorded rather than implied.
+        closing_report.py used to reach those helpers through `.grader`, and this
+        test recorded that as a named exception - it depended on the module
+        grader_io was extracted to decouple it from, so a change to grader.py's
+        imports could have taken the truncation rule away from it. It no longer
+        does, and the exception is gone rather than re-pinned: every submodule that
+        needs the leaf now imports it from the leaf.
+
+        The package surface re-exports the parser for contamination_check.py, and
+        does so from grader_io for the same reason.
         """
         direct, via_grader = [], []
         for leaf in ("grader", "quote_grounding", "interrogation",
@@ -104,8 +108,8 @@ class TestTheSubmodulesStayLeaves:
                 direct.append(leaf)
             elif "_truncate_for_grader" in src or "_parse_first_json" in src:
                 via_grader.append(leaf)
-        assert set(direct) >= {"grader", "quote_grounding"}, direct
-        assert via_grader == ["closing_report"], (
+        assert set(direct) >= {"grader", "quote_grounding", "closing_report"}, direct
+        assert via_grader == [], (
             f"these reach the shared leaf through another submodule rather than "
             f"through grader_io: {via_grader}")
 
