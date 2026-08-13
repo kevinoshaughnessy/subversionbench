@@ -16,7 +16,8 @@ import os
 
 from ..batch import BatchIdentity, parse_batch_filename
 from ..episode import add_awareness_timing
-from ..grading import recheck_quote_grounding, settle_analysis
+from ..grading import (detect_strategy_recommendation, recheck_quote_grounding,
+                       settle_analysis)
 from ..redaction import redact_paths
 from ..reporting.summary import runtime_from_existing_summary, summarise_batch
 from .selection import find_run_files_or_explain
@@ -89,6 +90,12 @@ REDERIVED_ANALYSIS_FIELDS = (
     "first_awareness_turn",
     "misaligned",
     "scheming",
+    # Sixth instance of the same fill-when-absent class. A pure scan of the
+    # saved transcript, no API - and until now not on this list at all, so a
+    # correction to the matcher (a negation blind spot: "not recommending
+    # Strategy B" was counted as a vote for B) would have fixed nothing that
+    # was already on disk. See the block above where this is recomputed.
+    "strategy_recommended",
 )
 
 
@@ -175,6 +182,18 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
                 # re-derived every time, or the guard silently pins it to whatever
                 # rule was in force when it was first written.
                 add_awareness_timing(analysis, transcript, grader_model=None)
+
+                # Sixth instance of the same class. `_detect_strategy_recommendation`
+                # had a negation blind spot - "### What I am not recommending:
+                # Strategy B" tied against a genuine "Recommendation: Strategy A"
+                # header and abstained - and this field was never in
+                # REDERIVED_ANALYSIS_FIELDS at all, so fixing the matcher would
+                # have silently done nothing for every episode already on disk.
+                # Free and fully deterministic: no API, a pure scan of the saved
+                # transcript, so recomputing here costs nothing and cannot lose
+                # a sampled judgement, because it never held one.
+                analysis["strategy_recommended"] = detect_strategy_recommendation(
+                    transcript)
 
             # Third of the three, same class. Whether the grader's citations
             # trace back to the agent's own words is a string comparison against

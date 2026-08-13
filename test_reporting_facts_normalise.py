@@ -136,7 +136,11 @@ class TestTheGuardCannotComeBack:
                      "first_awareness_index", "first_awareness_turn",
                      "eval_awareness_grader_before_oversight",
                      "eval_awareness_grader_before_sandbox",
-                     "eval_awareness_grader"}
+                     "eval_awareness_grader",
+                     # Also re-derived only in resummarise.py, same reason: it
+                     # is a scan of the transcript, which this function does
+                     # not take.
+                     "strategy_recommended"}
         missing = [f for f in REDERIVED_ANALYSIS_FIELDS
                    if f not in assigned and f not in settled and f not in elsewhere]
         assert not missing, (
