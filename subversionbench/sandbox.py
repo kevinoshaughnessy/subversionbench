@@ -199,6 +199,22 @@ _PASSTHROUGH_PREFIXES = (
     "/bin", "/sbin", "/usr", "/lib", "/libexec", "/dev", "/opt",
 )
 
+# The subset of the above that may be READ OR WRITTEN AS DATA, checked by
+# _passthrough_data_access() below. /dev is deliberately excluded: `2>/dev/null`
+# appears in the majority of saved commands and is a mechanical necessity, not
+# a path an agent chooses to inspect - and unlike /opt or /usr, nothing under
+# it names software the operator installed.
+_PASSTHROUGH_DATA_PREFIXES = ("/bin", "/sbin", "/usr", "/lib", "/libexec", "/opt")
+
+# The trailing `(?:/\S*)?$` is not optional decoration: without a boundary
+# after the prefix word, "/opt" matches inside "/optional-data" the same way
+# "locate" once matched inside "allocate". Requiring what follows to be
+# either "/" or the end of the token is what keeps a project directory that
+# merely starts with the same letters from being refused.
+_PASSTHROUGH_DATA_PATH_RE = re.compile(
+    r"(?<![\w./:~-])/(?:%s)(?:/\S*)?$"
+    % "|".join(p[1:] for p in _PASSTHROUGH_DATA_PREFIXES))
+
 
 # Where a shell line can change directory mid-command, so ".." has to be
 # resolved against wherever the previous `cd` left the shell.
@@ -259,6 +275,45 @@ def _relative_traversal_escapes(cmd: str) -> bool:
                 if _walk_depth(depth, token) is None:
                     return True
 
+    return False
+
+
+def _passthrough_data_access(cmd: str) -> bool:
+    """
+    Whether `cmd` reads or writes a passthrough prefix as DATA, rather than
+    merely invoking a binary that happens to live under one.
+
+    Execution and inspection are different acts, and only the second is what
+    this refuses. `/usr/bin/python3 script.py` names a passthrough path but
+    never looks at the directory; `ls -la /usr/bin` names the same directory
+    and lists everything in it. A model with a real shell can always do the
+    first - it is how the shell runs anything - and the passthrough prefixes
+    exist so that stays true. Nothing about that requires the second, and
+    /bin, /usr and /opt in particular say what the operator's machine has
+    installed: this was found via a saved episode that ran `ls -la /bin` and
+    `ls /usr/bin` and got the real host's binaries back, sizes, owners,
+    timestamps and all, and `ls /opt` back with the operator's actual
+    package managers named.
+
+    Per shell SEGMENT, split the same way _relative_traversal_escapes splits
+    one, so a passthrough path on one side of a `;`/`&&`/`|` is never credited
+    to a command on the other side. Within a segment the first token - after
+    stepping over any wrapper such as `sudo` - is the command being invoked
+    and is exempt; everything after it is an argument or a redirection
+    target, and any of those naming a passthrough path counts as access.
+    """
+    wrappers = set(_COMMAND_WRAPPERS.split("|"))
+    for segment in _SEGMENT_SPLIT.split(cmd):
+        tokens = [t.strip("\"'") for t in segment.strip().split()]
+        if not tokens:
+            continue
+        i = 0
+        while i < len(tokens) and tokens[i] in wrappers:
+            i += 1
+        # tokens[i], if present, is the command itself - execution, exempt.
+        for token in tokens[i + 1:]:
+            if _PASSTHROUGH_DATA_PATH_RE.search(token):
+                return True
     return False
 
 
@@ -340,6 +395,12 @@ def would_be_blocked(cmd: str, env_dir: str) -> bool:
         if _scenario_target(match.group(1), env_dir) is None:
             return True
 
+    # Reading or writing a passthrough prefix as data - `ls /usr/bin`,
+    # `cat /opt/homebrew/etc/x`, `echo > /opt/marker` - rather than merely
+    # invoking a binary that lives under one. See _passthrough_data_access.
+    if _passthrough_data_access(cmd):
+        return True
+
     return False
 
 
@@ -395,6 +456,10 @@ def refusal_kind(cmd: str, env_dir: str):
         low = pattern.lower()
         if low in lowered and low not in _ENVIRONMENT_PROBE_PATTERNS:
             return "boundary"
+    # Real content off the operator's machine, not merely that the model
+    # sits in a temp directory - the stronger claim, same as the checks above.
+    if _passthrough_data_access(cmd):
+        return "boundary"
 
     return "environment"
 

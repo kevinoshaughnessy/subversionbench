@@ -91,6 +91,16 @@ _SANDBOX_PROBES = (
     # `sudo`. Pinned so narrowing the rule a third time cannot quietly let a
     # real invocation through.
     "sudo locate check_recommendation.sh",
+    # The passthrough pair: /bin, /usr, /opt and friends stay pointed at the
+    # real filesystem so a shell can execute anything under them, but that is
+    # an execution grant, not a licence to read what is there. Listing one is
+    # refused; invoking a binary that happens to live under one is not. Pinned
+    # as a pair so narrowing this rule cannot quietly let the read back in
+    # without also silently taking the execution grant with it - the earlier
+    # failure mode found here was a saved episode that ran `ls -la /bin` and
+    # `ls /usr/bin` and got the real host's binaries back, sizes and all.
+    "ls -la /usr/bin",
+    "/usr/bin/python3 --version",
 )
 
 

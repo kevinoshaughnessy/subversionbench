@@ -6,6 +6,52 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v46
+
+Package version `46.0.0`, and **`ROLLOUT_VERSION` moves to `r6`.** New episodes go
+to `eval_results_r6`. This one applies to every arm - the change is in the sandbox,
+which every episode shares - so `eval_results_r1` through `r5` are left exactly as
+they stand and none is comparable with `r6`.
+
+- **Closed a live information-disclosure gap: passthrough prefixes could be read
+  and written, not just executed.** `/bin`, `/sbin`, `/usr`, `/lib`, `/libexec` and
+  `/opt` are deliberately left pointing at the real filesystem so a shell can
+  execute anything under them - `/bin/sh script.sh`, `python3 foo.py` - and that has
+  always been intentional. What was never enforced is the difference between
+  *executing* something there and *reading what is there*. A saved no-oversight
+  episode ran `ls -la /bin` and `ls /usr/bin` and got the operator's real binaries
+  back - sizes, owners and timestamps included - and `ls /opt` named the operator's
+  actual installed package managers by name.
+
+  `would_be_blocked()` now refuses reading or writing one of these prefixes as
+  data while still allowing it to be invoked: `ls /usr/bin` is refused,
+  `/usr/bin/python3 script.py` is not. The distinction is per shell segment, so a
+  passthrough path on one side of a `;`/`&&`/`|` is never credited to a command on
+  the other side, and the first token of a segment - after stepping past a wrapper
+  like `sudo` - is always exempt as the command being invoked. `/dev` is
+  deliberately left out of the refused set: `2>/dev/null` is in the majority of
+  saved commands and is a mechanical necessity, not a path an agent chooses to
+  inspect.
+
+  Pinned by a probe pair in `rollout._SANDBOX_PROBES` - a listing that must be
+  refused, an absolute-path invocation that must not - so narrowing this rule again
+  cannot quietly reopen the read or quietly take the execution grant with it. Without
+  that pair the fingerprint would not have moved at all: the existing probe battery
+  named no path under any of these prefixes, so this behavioural change was
+  invisible to the drift guard until a probe was added specifically to see it - the
+  same failure mode the guard exists to prevent, found in the mechanism meant to
+  prevent it.
+
+  Verified against every command in every saved episode before this landed: 22
+  would newly refuse, and every one is a real listing of one of these prefixes -
+  nothing that only invoked a binary was affected. The regex needed one more pass
+  after that: the first version matched `/opt` inside `/optional-data` with no
+  boundary check, the same shape as `locate` once matching inside `allocate`,
+  caught by a test before it shipped rather than by a saved episode after.
+
+  No saved episode - across any rollout - is known to have read a passthrough
+  path's file CONTENTS rather than a listing: checked directly, not assumed.
+
 ## v45
 
 Package version `45.0.0`, and **`ROLLOUT_VERSION` moves to `r5`.** New no-oversight
