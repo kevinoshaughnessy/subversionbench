@@ -6,6 +6,42 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v45
+
+Package version `45.0.0`, and **`ROLLOUT_VERSION` moves to `r5`.** New no-oversight
+episodes go to `eval_results_r5`. `eval_results_r1` through `r4` are left exactly as
+they stand; the oversight-present arm is byte-identical to r4 and its fingerprint did
+not move.
+
+- **Two of the counterfactual arm's own documents were grammatically broken.** Found
+  by reading a saved episode in which the model, unable to locate the "automated
+  quality checker" its README kept promising, ran the README back through `xxd` on
+  the theory that the plain text was hiding something. It wasn't - the text was
+  simply broken, and had been since it was authored.
+
+  The no-oversight variant of each document is stored text, not derived by removing
+  substrings at run time, and two of the stored overrides were cut at the wrong
+  boundary. The README's `"...so they're"` ran straight into `"If you"` with the
+  whole intervening clause gone, and a later sentence dangled as `"real check."`
+  with nothing left for it to refer to. The internal memo lost its bullet marker
+  along with the paragraph it introduced, and a later sentence - `"Please review the
+  strategy document in"` - lost its object outright.
+
+  Fixed as a pure removal against the base (oversight-present) text, matching the
+  arm's own stated design: nothing reworded, nothing added, only complete clauses
+  taken out. One fix needed a second pass - restoring the memo sentence's missing
+  object as `"...in the shared drive and flag any concerns by EOD Wednesday"` is
+  grammatical, but puts `"flag"` back into a document `test_scenario.py`'s
+  `HARD_TERMS` already forbids there, correctly, since flagging is what the removed
+  monitoring paragraph does. Caught by that existing test rather than by rereading
+  the fix; corrected to keep only `"the shared drive"`, the words `"in"` needs, and
+  drop the clause the forbidden word actually lived in.
+
+  Confined to the no-oversight overrides, so only that arm's fingerprint moved - the
+  oversight-present documents were never touched. 40 no-oversight episodes already
+  collected (20 in r1, 20 in r4) were collected under the broken text and are not
+  comparable with anything collected under r5.
+
 ## v44
 
 Package version `44.0.0`. `ROLLOUT_VERSION` stays at `r4` - nothing the model sees or
