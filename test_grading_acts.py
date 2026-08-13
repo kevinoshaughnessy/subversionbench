@@ -70,18 +70,6 @@ class TestOnlyTheFirstQuestionMoves:
                     f"difference between phrasings would not be attributable to "
                     f"the opening probe")
 
-    def test_the_rephrasing_preserves_the_words(self):
-        """Meaning-preserving means the same clauses reordered, not new content.
-        Compared as sets so the assertion says nothing about order and quotes
-        nothing. A couple of greeting filler tokens may be dropped."""
-        for name in INTERROGATION_VARIANTS:
-            for act in MISALIGNED_ACTS:
-                base = questions_for(act, "strong")[0].lower().split()
-                alt = questions_for(act, "strong", name)[0].lower().split()
-                assert set(alt) <= set(base), (
-                    f"{name}/{act['name']}: introduces words the original does "
-                    f"not have, so it is not a paraphrase")
-                assert len(set(base) - set(alt)) <= 2
 
     def test_it_is_still_a_closed_question(self):
         for name in INTERROGATION_VARIANTS:
@@ -123,13 +111,6 @@ class TestTheMaxArmHasItsOwnRephrasing:
                 assert (len(questions_for(act, "max", name)[0])
                         > len(questions_for(act, "strong", name)[0]))
 
-    def test_the_max_rephrasing_preserves_the_words(self):
-        for name in INTERROGATION_VARIANTS:
-            for act in MISALIGNED_ACTS:
-                base = questions_for(act, "max")[0].lower().split()
-                alt = questions_for(act, "max", name)[0].lower().split()
-                assert set(alt) <= set(base)
-                assert len(set(base) - set(alt)) <= 2
 
     def test_the_question_stays_last_in_the_max_form(self):
         """The reason the transformation differs. A consequence clause that says
@@ -184,3 +165,120 @@ class TestTheSelector:
         rather than the threat."""
         for act in MISALIGNED_ACTS:
             assert questions_for(act, "somethingelse") == act["questions"]
+
+
+class TestTheTwoInterrogationAxes:
+    """Four phrasings on two axes: how much evidence Q1 presents, and whether it
+    is the reference wording or a perturbation of it.
+
+                         reference              perturbation
+      no evidence        zeroevidence           zeroevidenceparaphrase
+      part evidence      partevidence           partevidenceparaphrase
+
+    These replace two earlier tests that asserted every variant was a word-subset
+    of the base. That held while every variant was a reorder of one sentence. It
+    is wrong now and would be wrong in the misleading direction: the evidence axis
+    is SUPPOSED to change content, so a test demanding word-identity across it
+    would have to be relaxed to something that no longer checks anything.
+    """
+
+    ROWS = {"zero": ("zeroevidence", "zeroevidenceparaphrase"),
+            "part": ("partevidence", "partevidenceparaphrase")}
+
+    def _tokens(self, act, arm, name, strip_punctuation=False):
+        text = questions_for(act, arm, name)[0].lower()
+        if strip_punctuation:
+            text = "".join(c if c.isalnum() or c.isspace() else " " for c in text)
+        return {t for t in text.split() if t}
+
+    def _evidence_tokens(self, act, arm):
+        """The words the evidence clause contributes, derived rather than quoted.
+
+        Computed as part-minus-zero, so it cannot drift from the text and no
+        scenario wording is written into this file.
+        """
+        return (self._tokens(act, arm, "partevidence")
+                - self._tokens(act, arm, "zeroevidence"))
+
+    def test_the_evidence_axis_is_a_pure_removal(self):
+        """The zero-evidence Q1 is the part-evidence Q1 with its observation
+        clause deleted and nothing else touched. That is what makes the contrast
+        interpretable: a difference between the rows is attributable to the
+        evidence and not to an incidental rewrite."""
+        for arm in ("strong", "max"):
+            for act in MISALIGNED_ACTS:
+                zero = self._tokens(act, arm, "zeroevidence")
+                part = self._tokens(act, arm, "partevidence")
+                assert zero <= part, (
+                    f"{arm}/{act['name']}: the zero-evidence question uses words "
+                    f"the part-evidence one does not, so the two differ by more "
+                    f"than a removal")
+                assert self._evidence_tokens(act, arm), (
+                    f"{arm}/{act['name']}: the two rows are identical, so the "
+                    f"evidence axis measures nothing")
+
+    def test_no_zero_evidence_phrasing_presents_evidence(self):
+        """The property that matters most, and the one a REWORDED paraphrase could
+        break silently. zeroevidenceparaphrase is not a word-for-word reorder, so
+        nothing structural stops an observation creeping back in - which would turn
+        the reference probe into a part-evidence question while still being named
+        and reported as the zero-evidence one."""
+        for arm in ("strong", "max"):
+            for act in MISALIGNED_ACTS:
+                leaked = self._evidence_tokens(act, arm)
+                for name in self.ROWS["zero"]:
+                    got = self._tokens(act, arm, name)
+                    assert not (got & leaked), (
+                        f"{arm}/{act['name']}/{name}: carries words that belong "
+                        f"only to the evidence clause: {sorted(got & leaked)}")
+
+    def test_the_part_evidence_paraphrase_is_a_pure_reorder(self):
+        """The original discipline, kept where it applies: same clauses, moved.
+        Only greeting filler may be dropped."""
+        for arm in ("strong", "max"):
+            for act in MISALIGNED_ACTS:
+                ref = self._tokens(act, arm, "partevidence")
+                alt = self._tokens(act, arm, "partevidenceparaphrase")
+                assert alt <= ref, (
+                    f"{arm}/{act['name']}: introduces words the reference does "
+                    f"not have, so it is not a reorder")
+                assert len(ref - alt) <= 2
+
+    def test_the_zero_evidence_paraphrase_is_a_real_perturbation(self):
+        """It has to differ from its reference and stay a closed question. Not
+        held to word-identity: see the class docstring and the next test."""
+        for arm in ("strong", "max"):
+            for act in MISALIGNED_ACTS:
+                ref = questions_for(act, arm, "zeroevidence")[0]
+                alt = questions_for(act, arm, "zeroevidenceparaphrase")[0]
+                assert alt != ref, f"{arm}/{act['name']}: identical to reference"
+                assert alt.rstrip().endswith("?")
+
+    def test_only_the_max_arm_can_reorder_a_zero_evidence_question(self):
+        """The asymmetry, asserted rather than left in a comment, because it is the
+        limit on what the perturbation axis can claim.
+
+        Removing the observation leaves the strong arm with a greeting and a
+        question - nothing to move past - so its perturbation must reword, and the
+        added tokens below are genuinely new words. The max arm keeps its
+        consequence clause, so its perturbation IS a reorder: once punctuation is
+        set aside, it introduces no new word.
+
+        Consequence: "does a surface change move the rate" is answerable within a
+        row; "is zero evidence more perturbation-sensitive than part evidence" is
+        not, because the two rows' perturbations are different operations.
+        """
+        for act in MISALIGNED_ACTS:
+            max_ref = self._tokens(act, "max", "zeroevidence", True)
+            max_alt = self._tokens(act, "max", "zeroevidenceparaphrase", True)
+            assert max_alt <= max_ref, (
+                f"max/{act['name']}: the max zero-evidence paraphrase stopped "
+                f"being a reorder; it now adds {sorted(max_alt - max_ref)}")
+
+            strong_ref = self._tokens(act, "strong", "zeroevidence", True)
+            strong_alt = self._tokens(act, "strong", "zeroevidenceparaphrase", True)
+            assert not (strong_alt <= strong_ref), (
+                f"strong/{act['name']}: this became a pure reorder. If a "
+                f"word-preserving perturbation is now available here, the "
+                f"asymmetry this test documents is gone - delete it and hold both "
+                f"rows to the reorder discipline instead")

@@ -6,6 +6,79 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v47
+
+Package version `47.0.0`, and **`ROLLOUT_VERSION` moves to `r7`.** New episodes go
+to `eval_results_r7`. All four arm fingerprints moved: the interrogation questions
+are scenario text every arm shares.
+
+This is the most consequential bump so far, because it changes what the headline
+concealment rate MEASURES rather than what the model could do. Read the last
+section before pooling anything.
+
+- **The reference interrogation question now presents no evidence.** It used to
+  open by reporting a discrepancy before asking whether the model had caused it.
+  So a denial at Q1 was partly a response to being told something had been
+  noticed - and the console already said as much of the later rungs: *"later
+  questions present evidence, so folding then is being caught, not candour"*. That
+  reading applied to Q1 as well, and nothing separated the two cases.
+
+  The base ladder now opens with the question alone. Q2 and Q3 are untouched, so
+  the ladder is a real escalation from no evidence to partial to full, and the arm
+  measures how far a model has to be pushed rather than only what it says once
+  confronted.
+
+- **Four phrasings, on two axes.** `zeroevidence` is the new reference and
+  `zeroevidenceparaphrase` perturbs it; the old wording is still available in full
+  as `partevidence`, and the old `paraphrase` is now `partevidenceparaphrase`.
+
+  The evidence axis is a pure REMOVAL - the zero-evidence Q1 is the part-evidence
+  Q1 with its observation clause deleted and nothing else touched - so a difference
+  between the rows is attributable to the evidence rather than to an incidental
+  rewrite. The max arm keeps its consequence clause on both rows, since coercion is
+  a separate axis from evidence.
+
+  The perturbation axis is **not** the same operation on both rows, and this is a
+  real limit rather than an implementation detail. The part-evidence pair differs by
+  a clause reorder: the question moves ahead of the observation. Once the
+  observation is gone there is nothing left to reorder past in the strong arm, so
+  the zero-evidence pair differs by a rewording instead. Only the max arm keeps a
+  reorder on both rows, because its consequence clause survives the removal. So
+  *"does a surface change move this rate"* is answerable within a row;
+  *"is zero evidence more perturbation-sensitive than part evidence"* is not.
+
+  Two tests that asserted every variant was a word-subset of the base were removed
+  rather than relaxed. That discipline was right while every variant was a reorder
+  of one sentence; across the evidence axis it is wrong in the misleading
+  direction, since content is *supposed* to change there and the test could only
+  have been loosened into checking nothing. What replaced them asserts the removal
+  directly, and asserts that no zero-evidence phrasing carries any word belonging
+  only to the evidence clause - the way a reworded paraphrase could otherwise
+  smuggle an observation back in and still be reported as the zero-evidence probe.
+
+- **Every run now records `headline_interrogation`.** `followup_response` is
+  defined as the reference probe's answer, so every rate collected before r7
+  answers the part-evidence question and every rate after it answers the
+  zero-evidence one. They do **not** pool, and the field name does not say so.
+
+  227 of 273 acts were admitted at the first question under part evidence. There is
+  no reason to expect that number to survive the removal, and measuring whether it
+  does is why both phrasings stay selectable.
+
+  Only 100 of the 1510 episodes collected before r7 recorded `interrogations` at
+  all, so for the other 1410 the phrasing is recoverable only from the directory
+  name. Naming it in the artefact is the same lesson this codebase keeps
+  relearning: a difference nothing writes down is invisible to whoever reads the
+  results later.
+
+- **`run_all_arms.sh` exercises every phrasing**, and deliberately not as a
+  thirteenth loop dimension. The phrasings are a paired design - each is put to the
+  same episode, from the conversation as that episode left it - so they go through
+  as one `--interrogation` list per arm. Looping over them would be 48 batches at
+  four times the episode cost, and would replace a within-episode comparison with a
+  between-batch one. The list is read from `INTERROGATION_CHOICES` so it cannot go
+  stale when a phrasing is added; `--interrogations` overrides it.
+
 ## v46
 
 Package version `46.0.0`, and **`ROLLOUT_VERSION` moves to `r6`.** New episodes go

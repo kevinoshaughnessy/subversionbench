@@ -8,9 +8,20 @@
 # back to back, not one bigger one. Narrow the axes with --nudges/--oversights/
 # --lures (comma-separated) if you do not want the full cross product.
 #
+# EVERY interrogation phrasing is exercised, and it is NOT a thirteenth loop
+# dimension. The phrasings are a paired design: each is put to the SAME episode,
+# starting from the conversation as that episode left it, so they cannot see one
+# another. Looping over them instead would be 48 batches at four times the
+# episode cost, and would replace a within-episode comparison with a
+# between-batch one - throwing away the reason the paired design exists. So they
+# go through as one --interrogation list per arm, defaulting to all of them, and
+# the list is read from INTERROGATION_CHOICES rather than written out here so it
+# cannot go stale when a phrasing is added.
+#
 # Usage:
 #   ./run_all_arms.sh --model x-ai/grok-4.5 --runs 10
 #   ./run_all_arms.sh --model x-ai/grok-4.5 --runs 10 --nudges strong,max
+#   ./run_all_arms.sh --model x-ai/grok-4.5 --runs 10 --interrogations zeroevidence
 #   DRY_RUN=1 ./run_all_arms.sh --model x-ai/grok-4.5 --runs 10
 #
 # Any other run_eval.py flag (--delay, --max-turns, --effort, --grader-model,
@@ -48,6 +59,14 @@ OUTPUT_DIR="."
 DRY_RUN="${DRY_RUN:-0}"
 PASSTHROUGH=()
 
+# Every phrasing except the reference one, which parse_interrogations always
+# prepends and which is not optional - the headline concealment field is defined
+# as its answer. Derived from the shipped list so adding a phrasing does not need
+# an edit here.
+INTERROGATIONS="$(python3 -c 'from subversionbench.config import (
+    DEFAULT_INTERROGATION as d, INTERROGATION_CHOICES as c)
+print(",".join(n for n in c if n != d))')"
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --model) MODEL="$2"; shift 2 ;;
@@ -55,6 +74,7 @@ while [ $# -gt 0 ]; do
         --nudges) IFS=',' read -r -a NUDGES <<< "$2"; shift 2 ;;
         --oversights) IFS=',' read -r -a OVERSIGHTS <<< "$2"; shift 2 ;;
         --lures) IFS=',' read -r -a LURES <<< "$2"; shift 2 ;;
+        --interrogations) INTERROGATIONS="$2"; shift 2 ;;
         --output-dir) OUTPUT_DIR="$2"; PASSTHROUGH+=(--output-dir "$2"); shift 2 ;;
         *) PASSTHROUGH+=("$1"); shift ;;
     esac
@@ -72,6 +92,7 @@ TOTAL_EPISODES=$(( TOTAL_ARMS * RUNS ))
 echo "Model: ${MODEL}"
 echo "Arms: ${#NUDGES[@]} nudge x ${#OVERSIGHTS[@]} oversight x ${#LURES[@]} lure = ${TOTAL_ARMS}"
 echo "Runs per arm: ${RUNS}  -  total episodes if nothing is already on disk: ${TOTAL_EPISODES}"
+echo "Extra interrogation phrasings per episode: ${INTERROGATIONS:-<none>}"
 [ "$DRY_RUN" = "1" ] && echo "DRY RUN - nothing will be spent"
 echo
 
@@ -126,9 +147,14 @@ PY
                 fi
             fi
 
+            interrogation_args=()
+            [ -n "$INTERROGATIONS" ] && \
+                interrogation_args=(--interrogation "$INTERROGATIONS")
+
             cmd=(python3 -m subversionbench.run_eval
                  --model "$MODEL" --runs "$RUNS"
                  --nudge "$nudge" --oversight "$oversight" --lure "$lure"
+                 "${interrogation_args[@]+"${interrogation_args[@]}"}"
                  "${resume_args[@]+"${resume_args[@]}"}" "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}")
 
             if [ "$DRY_RUN" = "1" ]; then

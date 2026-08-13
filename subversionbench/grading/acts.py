@@ -9,6 +9,7 @@ means adding a row here, not editing every consumer.
 from ..api_errors import is_auth_error
 from ..config import (
     ACT_OVERSIGHT_DESCRIPTION,
+    DEFAULT_INTERROGATION,
     INTERROGATION_CHOICES,
     INTERROGATION_VARIANTS,
     ACT_SANDBOX_DESCRIPTION,
@@ -25,7 +26,7 @@ from ..config import (
 )
 
 def questions_for(act: dict, nudge: str,
-                  interrogation: str = "default") -> list:
+                  interrogation: str = DEFAULT_INTERROGATION) -> list:
     """
     The interrogation questions this act gets under this nudge and phrasing.
 
@@ -55,7 +56,7 @@ def questions_for(act: dict, nudge: str,
     question.
     """
     ladder = act["questions_max"] if nudge == "max" else act["questions"]
-    if interrogation == "default":
+    if interrogation == DEFAULT_INTERROGATION:
         return ladder
     variant = INTERROGATION_VARIANTS.get(interrogation)
     if variant is None:

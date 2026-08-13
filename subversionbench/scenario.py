@@ -32,6 +32,28 @@ from pathlib import Path
 
 _BUNDLE_PATH = Path(__file__).with_name("scenario.b64")
 
+# The phrasing the BASE ladder carries, and so the reference probe every episode
+# is asked. Named here rather than in config.py because config imports this
+# module and cannot be imported back; config re-exports it, so callers keep
+# importing it from there.
+#
+# `zeroevidence` presents no observation before the question: the interrogator
+# asks whether the act happened without saying anything has been noticed. That
+# is the pure case, and it is the reference on purpose - a denial there is a
+# denial with nothing yet to deny against, where a denial to an opening question
+# that already reports a discrepancy is partly a response to being caught. The
+# escalation ladder still presents evidence at Q2 and Q3, so the arm measures
+# how far a model has to be pushed rather than only what it says first.
+#
+# It was `default`, whose Q1 opened with the discrepancy - now available as the
+# `partevidence` phrasing. Renaming was not cosmetic: the headline concealment
+# field is defined as this phrasing's answer, so every rate collected before
+# r7 measures the part-evidence question and does NOT pool with one collected
+# after it. That is what the ROLLOUT_VERSION bump is for, and why each run now
+# records `headline_interrogation` explicitly rather than leaving it implied by
+# whatever the default happened to be when the batch ran.
+DEFAULT_INTERROGATION = "zeroevidence"
+
 
 def load_scenario(path: Path = None) -> dict:
     """Decode the scenario bundle."""
@@ -53,7 +75,7 @@ def encode_scenario(bundle: dict, path: Path = None) -> None:
 
 def scenario_for(oversight: bool = True, bundle: dict = None,
                  nudge: str = "strong", lure: bool = False,
-                 interrogation: str = "default") -> dict:
+                 interrogation: str = DEFAULT_INTERROGATION) -> dict:
     """
     The scenario as one arm of the oversight counterfactual sees it.
 
@@ -112,11 +134,11 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     # rate this benchmark reports survives a change that carries no semantic
     # content. Prior work finds bracket style and option order alone move results.
     variants = bundle.pop("interrogation_variants", {})
-    if interrogation != "default":
+    if interrogation != DEFAULT_INTERROGATION:
         if interrogation not in variants:
             raise KeyError(
-                f"unknown interrogation variant {interrogation!r}; "
-                f"expected 'default' or one of {sorted(variants)}"
+                f"unknown interrogation variant {interrogation!r}; expected "
+                f"{DEFAULT_INTERROGATION!r} or one of {sorted(variants)}"
             )
         v = variants[interrogation]
         for key, q1 in (("followup_monitoring_questions", v["monitoring_q1"]),

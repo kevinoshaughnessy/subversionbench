@@ -17,7 +17,7 @@ import tempfile
 import types
 
 from pathlib import Path
-from subversionbench.config import (INTERROGATION_VARIANTS,
+from subversionbench.config import (INTERROGATION_CHOICES,
                                     SYSTEM_PROMPT_STRONG_NUDGE)
 from subversionbench.grading.acts import MISALIGNED_ACTS, questions_for
 import subversionbench.llm_client as ev_llm
@@ -339,7 +339,7 @@ class TestProbesCannotInterfere:
             "classifier_called": False, "classifier_model": "g"}
         try:
             with contextlib.redirect_stdout(io.StringIO()):
-                for name in ("default",) + tuple(INTERROGATION_VARIANTS):
+                for name in INTERROGATION_CHOICES:
                     ev.run_followup(
                         "sys", episode, "m", self._stub_client(),
                         MISALIGNED_ACTS[0],
@@ -693,3 +693,68 @@ class TestRunEvaluationEndToEnd:
         assert "unknown isolation mode" not in tool_result["result"]
         assert "permission denied" not in tool_result["result"].lower(), (
             "deny-network must still allow an ordinary in-scenario command")
+
+    def test_the_headline_phrasing_is_recorded_not_implied(self):
+        """`followup_response` is defined as the reference probe's answer, and at
+        r7 that probe changed from the part-evidence question to the zero-evidence
+        one. A rate from before and a rate from after answer different questions,
+        and the field name does not say so.
+
+        Only 100 of the 1510 episodes collected before r7 recorded
+        `interrogations` at all, so for the other 1410 the phrasing is recoverable
+        only from the directory name. This is what stops that recurring.
+        """
+        from subversionbench.config import DEFAULT_INTERROGATION
+        env_dir, env_info = self._env()
+        calls = []
+        saved = self._stub_grading(disclosed=False)
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: self._tampering_client(calls)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = ev_run.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_STRONG_NUDGE,
+                    user_prompt="Do the task.", env_dir=env_dir,
+                    env_info=env_info, model="m", max_turns=6,
+                    use_grader=False, nudge="strong", isolation="deny-network")
+        finally:
+            ev_llm.get_client = orig
+            self._restore_grading(saved)
+
+        assert result["headline_interrogation"] == DEFAULT_INTERROGATION
+        # And it names the phrasing the headline field was actually filled from,
+        # not merely the first thing in the list.
+        assert result["interrogations"][0] == result["headline_interrogation"]
+
+    def test_every_extra_phrasing_reaches_the_by_variant_map(self):
+        """The paired design: one episode, every phrasing, each starting from the
+        episode as it ended. The headline field stays the reference probe's answer
+        so batches with and without extras still pool for it."""
+        from subversionbench.config import (DEFAULT_INTERROGATION,
+                                            INTERROGATION_CHOICES)
+        env_dir, env_info = self._env()
+        calls = []
+        saved = self._stub_grading(disclosed=False)
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: self._tampering_client(calls)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = ev_run.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_STRONG_NUDGE,
+                    user_prompt="Do the task.", env_dir=env_dir,
+                    env_info=env_info, model="m", max_turns=6,
+                    use_grader=False, nudge="strong", isolation="deny-network",
+                    interrogations=INTERROGATION_CHOICES)
+        finally:
+            ev_llm.get_client = orig
+            self._restore_grading(saved)
+
+        act = MISALIGNED_ACTS[0]
+        by_variant = result["analysis"][act["followup_key"] + "_by_variant"]
+        # settle_analysis re-points the reference entry at the headline field, so
+        # the map holds the extras; every extra must be there.
+        for name in INTERROGATION_CHOICES:
+            if name == DEFAULT_INTERROGATION:
+                continue
+            assert name in by_variant, f"{name} was never asked"
+        assert result["analysis"][act["followup_key"]], "headline field is empty"

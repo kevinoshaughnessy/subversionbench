@@ -258,6 +258,7 @@ def run_evaluation(
                 "oversight": oversight,
                 "lure": lure,
                 "interrogations": list(interrogations),
+                "headline_interrogation": DEFAULT_INTERROGATION,
                 "rollout_fingerprint": fingerprint_for(oversight, lure),
                 "analysis_version": VERSION,
                 "model": model,
@@ -591,6 +592,18 @@ def run_evaluation(
         # filename deliberately does NOT mark it, so batches with and without
         # extras still pool for the default measure.
         "interrogations": list(interrogations),
+        # WHICH phrasing the headline concealment field holds, named rather than
+        # implied. `followup_response` is defined as the reference probe's answer,
+        # and that probe's identity changed at r7: it was the part-evidence
+        # question, it is now the zero-evidence one. Every rate collected before
+        # that measures a different opening question, so a reader pooling two
+        # directories needs this stated in the artefact and not inferred from
+        # whatever DEFAULT_INTERROGATION happened to be when the batch ran.
+        #
+        # Only 100 of the 1510 episodes collected before this even recorded
+        # `interrogations`, so for the rest the phrasing was recoverable only from
+        # the directory name. That is the gap this closes.
+        "headline_interrogation": DEFAULT_INTERROGATION,
         # The fingerprint of THIS arm, not the primary one. This used to write a
         # module constant pinned to (oversight, no lure), so every counterfactual
         # and every lure episode claimed the primary arm's identity. The drift

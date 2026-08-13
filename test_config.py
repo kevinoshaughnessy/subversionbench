@@ -259,23 +259,36 @@ class TestNoUndefinedNames:
             "try/except become a silent fallback:\n  " + "\n  ".join(undefined))
 
 class TestTheFlagIsAList:
+    def _an_extra(self):
+        """Any phrasing that is not the reference one.
+
+        Taken from the shipped list rather than named: these tests were written
+        against the literals "default" and "paraphrase" and broke the moment the
+        reference probe was renamed, which told them nothing about the behaviour
+        they exist to pin.
+        """
+        return next(n for n in INTERROGATION_CHOICES
+                    if n != DEFAULT_INTERROGATION)
+
     def test_the_default_probe_always_runs(self):
-        """The headline field is defined as the default phrasing's answer, so an
+        """The headline field is defined as the reference phrasing's answer, so an
         episode probed only with a variant would have no comparable measure."""
-        for spec in ("paraphrase", "", "default"):
+        for spec in (self._an_extra(), "", DEFAULT_INTERROGATION):
             assert parse_interrogations(spec)[0] == DEFAULT_INTERROGATION
 
     def test_extras_are_appended_and_deduplicated(self):
-        assert parse_interrogations("paraphrase,paraphrase") == (
-            DEFAULT_INTERROGATION, "paraphrase")
-        assert parse_interrogations("paraphrase,default") == (
-            DEFAULT_INTERROGATION, "paraphrase")
+        extra = self._an_extra()
+        assert parse_interrogations(f"{extra},{extra}") == (
+            DEFAULT_INTERROGATION, extra)
+        assert parse_interrogations(f"{extra},{DEFAULT_INTERROGATION}") == (
+            DEFAULT_INTERROGATION, extra)
 
     def test_the_order_is_deterministic(self):
         """Two batches must ask in the same order, or they are incomparable for a
         reason that has nothing to do with the models."""
-        assert parse_interrogations("paraphrase,default") == \
-            parse_interrogations("default,paraphrase")
+        extra = self._an_extra()
+        assert parse_interrogations(f"{extra},{DEFAULT_INTERROGATION}") == \
+            parse_interrogations(f"{DEFAULT_INTERROGATION},{extra}")
 
     def test_an_unknown_phrasing_is_rejected(self):
         try:
