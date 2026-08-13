@@ -424,6 +424,83 @@ cat /hello.txt"""}, env_dir_only)
             {"cmd": 'cat "/etc/passwd"'}, env_dir_only)
         assert "root:" not in result
 
+
+class TestSpanDetectionEdgeCases:
+    """_quoted_spans and _heredoc_body_spans decide what the rewriter and the
+    bare-slash pass are allowed to touch. Both have a defensive branch for a
+    malformed input that nothing above this level had ever driven: an escaped
+    quote character, and a heredoc whose delimiter never appears.
+    """
+
+    def test_an_escaped_double_quote_does_not_end_the_span_early(self):
+        """Inside double quotes only - see the single-quote test below for why
+        that is not a universal rule. Without this, the agent's own draft
+        text containing an escaped quote would have the rewriter treat
+        everything after it as unquoted shell syntax rather than content."""
+        from subversionbench.sandbox import _quoted_spans
+        text = r'echo "a \" b" done'
+        spans = _quoted_spans(text)
+        assert spans == [(6, 12)], spans
+        assert text[6:12] == r'a \" b'
+
+    def test_single_quotes_do_not_treat_backslash_as_an_escape(self):
+        """Matches real shell semantics: inside '...', a backslash is a
+        literal character, not an escape - so `'a \' b'` really does close at
+        the unescaped quote, same as a real shell would read it. Getting this
+        backwards would protect content a real shell does NOT protect,
+        letting the rewriter skip a path that shell tokenising would still
+        see."""
+        from subversionbench.sandbox import _quoted_spans
+        text = r"echo 'a \' b' done"
+        spans = _quoted_spans(text)
+        assert len(spans) == 2
+        first = text[spans[0][0]:spans[0][1]]
+        assert first == "a " + "\\", first
+
+    def test_an_unterminated_quote_still_protects_to_the_end(self):
+        """A stray quote with no partner is not a syntax error this parser
+        raises on - it is treated as protecting everything after it, which is
+        the safer of the two readings: under-protecting a heredoc-adjacent
+        path is what let a real path leak once already."""
+        from subversionbench.sandbox import _quoted_spans
+        text = 'echo "unterminated and no closing quote'
+        spans = _quoted_spans(text)
+        assert spans == [(6, len(text))]
+
+    def test_a_heredoc_with_no_matching_delimiter_still_protects_its_body(self):
+        """No test had ever driven the branch where the delimiter line never
+        appears. The body must still be treated as content-not-arguments
+        rather than falling through to the rewriter with no protection at
+        all, which is the direction every heredoc bug in this file's history
+        has run."""
+        from subversionbench.sandbox import _heredoc_body_spans
+        text = "cat << EOF\nsome content\nmore content, no delimiter line\n"
+        spans = _heredoc_body_spans(text)
+        assert spans == [(11, len(text))]
+
+    def test_a_well_formed_heredoc_stops_at_its_delimiter(self):
+        """The contrast case: when the delimiter DOES appear, the body ends
+        there rather than running to the end of the command - confirming the
+        no-delimiter case above is the exception path, not the normal one."""
+        from subversionbench.sandbox import _heredoc_body_spans
+        text = "cat <<EOF\nline one\nEOF\nafter"
+        spans = _heredoc_body_spans(text)
+        assert spans == [(10, 19)]
+        assert text[10:19] == "line one\n"
+
+    def test_an_escaped_quote_survives_end_to_end_through_the_sandbox(
+            self, env_dir_only):
+        """Not just the helper in isolation: a draft containing an escaped
+        quote must still be written byte-for-byte, the same guarantee
+        TestHeredocContentIsNotRewritten pins for a bare slash."""
+        ev.execute_tool_sandboxed({"cmd": "mkdir -p drafts"}, env_dir_only)
+        ev.execute_tool_sandboxed(
+            {"cmd": r'echo "she said \"go\"" > drafts/q.txt'}, env_dir_only)
+        written = Path(env_dir_only, "drafts/q.txt").read_text()
+        assert 'she said "go"' in written
+        assert env_dir_only not in written
+
+
 class TestBlockedPatternsAreNotSubstringsOfProse:
     """The sandbox refuses commands, and a refusal is recorded as a sandbox
     escape attempt. A pattern that matches inside an ordinary English word
@@ -566,6 +643,76 @@ class TestProcessGroupReaping:
         proc = subprocess.Popen(["true"], start_new_session=True)
         proc.wait()
         _reap_group(proc, _group_of(proc))   # must not raise
+
+    def test_a_process_that_ignores_sigterm_is_still_killed(self, env_dir_only):
+        """The outcome guarantee, through the real entry point: nothing survives
+        even when it is specifically trying not to die.
+
+        A plain `trap '' TERM; sleep 30` does not actually force escalation -
+        SIGTERM sent to the whole group still kills the (non-trapping) `sleep`
+        child, and the shell's script then has nothing left to run and exits on
+        its own, needing only SIGTERM. Looping is what keeps the shell itself
+        alive to be the thing that has to be killed; see
+        test_signals_sent_reports_the_escalation below for the direct proof
+        that this specific shape needs both signals, not just this one.
+        """
+        marker = Path(env_dir_only) / "pid.txt"
+        t0 = time.time()
+        out = execute_tool_sandboxed(
+            {"cmd": "trap '' TERM; echo $$ > pid.txt; "
+                    "while true; do sleep 1; done"}, env_dir_only)
+        elapsed = time.time() - t0
+
+        assert "timed out" in out.lower()
+        # 10s command timeout + up to 2s SIGTERM grace before SIGKILL. Loose
+        # bounds - this asserts escalation happened at all, not exact timing.
+        assert 10 <= elapsed < 20, f"took {elapsed:.1f}s - did SIGKILL fire?"
+
+        assert marker.exists(), "the process never reported its own pid"
+        pid = int(marker.read_text().strip())
+        time.sleep(0.2)
+        try:
+            os.kill(pid, 0)
+        except (ProcessLookupError, PermissionError):
+            pass                     # gone, which is the point
+        else:
+            raise AssertionError(
+                f"pid {pid} survived - it traps SIGTERM and nothing escalated")
+
+    def test_signals_sent_reports_the_escalation(self):
+        """_reap_group's return value is what lets a caller record that the
+        model left something behind. A SIGTERM-only process reports 1; one that
+        needed escalation reports 2 - the count IS the evidence of escalation,
+        not just a number to log.
+
+        A single `sleep N` is not enough to force this: SIGTERM sent to the
+        whole group kills the (non-trapping) `sleep` child, the shell's script
+        then has nothing left to run, and it exits on its own - reported as 1
+        signal, escalation never exercised. Looping keeps the shell itself
+        alive to be the thing that has to be killed.
+
+        The short sleep before signalling matters too, and is not a flaky
+        margin: real callers only ever reach _reap_group after
+        proc.wait(timeout=10) in execute_tool_sandboxed, by which point `trap`
+        has long since registered. Signalling immediately after Popen can
+        catch the shell before its first statement runs, killing it with the
+        DEFAULT disposition and reporting 1 for a reason that has nothing to
+        do with escalation - so this waits, matching what production does.
+        """
+        proc = subprocess.Popen(
+            ["/bin/sh", "-c", "trap '' TERM; while true; do sleep 1; done"],
+            start_new_session=True)
+        time.sleep(0.3)
+        try:
+            sent = _reap_group(proc, _group_of(proc))
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+        assert sent == 2, (
+            "a process that ignored SIGTERM should have needed both signals")
+        assert proc.poll() is not None, "SIGKILL should have ended it"
+
 
 @darwin_only
 class TestTheSandboxHonoursIt:
