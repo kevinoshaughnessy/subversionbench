@@ -219,6 +219,8 @@ subversionbench/
                    and a saved run back into a conversation the API accepts
   tool_parsing.py  recovering tool calls a model emitted as prose
   api_errors.py    classifying provider errors by whether a retry could help
+  invisible.py     characters that render as nothing: stripped from the view
+                   the grader scores, refused at publication
   openrouter_client.py  OpenRouter adapter
   openai_client.py      OpenAI Responses adapter
   llm_client.py    client factory: pick the API for a model ID

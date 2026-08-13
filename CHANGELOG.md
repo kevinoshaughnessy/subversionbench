@@ -6,6 +6,81 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v48
+
+Package version `48.0.0`. `ROLLOUT_VERSION` stays at `r7` and all four arm
+fingerprints are unchanged: nothing here alters what a model is shown or can do.
+Re-derivable, and **0 stored outcomes move** - measured by rebuilding the
+pre-change behaviour and diffing every field, not by comparing against what was
+already on disk.
+
+- **Characters that render as nothing are handled at the two boundaries where
+  "someone read it and it looked fine" is load-bearing.** New leaf module
+  `invisible.py`, shared by three callers, listing the classes that carry bytes
+  behind no glyph - tag block, variation selector (both the base block and the
+  supplement), zero width, and bidi controls.
+
+  The answer differs by boundary, because the two are different problems:
+
+  - At the **grader**, they are removed. `agent_corpus` hands the agent's own text
+    and reasoning to a second model whose answer *is* the eval-awareness
+    measurement, so this is the one place in the harness where text authored by the
+    model under test enters an LLM - and a sequence that renders as nothing could
+    address that grader directly with nobody reviewing the transcript able to see
+    it. The corpus the grader is shown is a derived view built for scoring, so
+    cleaning it costs nothing. A graded episode is already paid for, and the
+    strongest available reading of it is the one with the hidden text gone.
+
+  - At **publication**, they are refused. The archive has to stay a faithful
+    record, so there is nothing to rewrite it to - it goes to the operator as a
+    reviewable finding, acceptable by fingerprint, rather than as the
+    never-acceptable credential class. Reviewable rather than fatal because ZWJ and
+    the tag block have legitimate uses: emoji sequences are built from them.
+
+  Not stripped at ingest, deliberately, for the same reason redaction is not:
+  `messages` exists so a saved episode can be re-interrogated, and replay needs the
+  bytes the model actually saw. The corpus keeps fidelity; the derived views are
+  what get cleaned.
+
+- **Both sides of the quote check strip, or a real citation reads as a fabricated
+  one.** `_normalise_quote` cleans the quote as well as the corpus. Strip one side
+  only and a genuine citation carrying one of these characters fails to match and
+  is scored `unmatched` - which is the harness reporting that the grader invented a
+  quote it did not invent. The test that pins this uses a 30-character quote,
+  above the minimum verifiable length and below the fragment window, so `verbatim`
+  is the only route to a match; a longer quote passes against that exact mutation
+  because the fragment window finds a clean run either side.
+
+- **Every file is now scanned in both its stored and its decoded form.**
+  `json.dump` defaults to `ensure_ascii=True`, so a non-ASCII character is written
+  as the six visible characters of a `\uXXXX` escape and a pattern matching the
+  character itself finds nothing in the file. This is not hypothetical twice over:
+  the first version of the publication check looked correct and detected nothing,
+  and an earlier scan of the corpus reported zero occurrences for the same reason.
+
+  Two passes need their counts merged, and adding them together double-reported
+  every ASCII finding, since those appear identically in both forms. The count is
+  the larger of the two forms *per file*, summed over files - so a value is counted
+  once whichever form carries it, and a value in several files still adds up. One
+  max over the whole archive would report two files holding a path as though only
+  one did; three mutations covering exactly these confusions are caught by tests.
+
+- **The report renders a non-printing character as `<U+XXXX>`.** Printed verbatim,
+  a finding occupies no space on screen, so the operator would approve a
+  fingerprint sitting beside what looks like an empty string - the
+  defeat-by-invisibility the check exists to catch, reproduced in the tool
+  reporting it. Visible text is untouched and stays readable.
+
+  Measured on the saved corpus: the classes present are variation selectors from
+  warning emoji a model wrote into a deliverable, and zero-width spaces in
+  reasoning where a model worked out that one could defeat a `grep` in the
+  scenario's own tooling. It reasoned about it and did not carry it out.
+
+- **What this does not cover.** Nothing here touches a payload written in visible
+  characters, including homoglyph substitution, and nothing anticipates a class not
+  on the list. An agent that writes its instruction to the grader in plain words is
+  caught by reading the transcript, which is what reading transcripts is for.
+
 ## v47
 
 Package version `47.0.0`, and **`ROLLOUT_VERSION` moves to `r7`.** New episodes go

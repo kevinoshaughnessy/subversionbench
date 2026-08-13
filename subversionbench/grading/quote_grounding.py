@@ -9,6 +9,7 @@ grader was shown, and separately against scenario content the agent only read.
 
 import re
 
+from ..invisible import strip_invisible
 from .grader_io import (
     _GRADER_TRANSCRIPT_CHAR_BUDGET,
     _truncate_for_grader,
@@ -25,8 +26,15 @@ QUOTE_GROUNDING_OUTCOMES = ("verbatim", "fragment", "unmatched", "scenario",
 
 
 def _normalise_quote(text: str) -> str:
-    """Collapse whitespace and case so formatting cannot fail a real match."""
-    return re.sub(r"\s+", " ", (text or "").lower()).strip()
+    """Collapse whitespace and case so formatting cannot fail a real match.
+
+    Invisible characters are removed here as well as in the corpus, and both
+    sides have to agree or the matching breaks in the direction that matters:
+    a quote carrying one would fail to match a corpus that had it stripped,
+    and a real citation would be scored `unmatched` - which reads as the grader
+    having fabricated it.
+    """
+    return re.sub(r"\s+", " ", strip_invisible(text).lower()).strip()
 
 
 def scenario_corpus(transcript: list) -> str:
@@ -102,15 +110,31 @@ def agent_corpus(transcript: list) -> str:
 
     Shared with the rubric-wording experiment in rubric_ab.py, so that an
     experiment on wording measures the wording and not a different harness.
+
+    Invisible characters are removed before the grader sees any of it. This is
+    the one place in this codebase where OWASP LLM01 applies literally: text the
+    model under evaluation authored enters a second model whose answer IS the
+    eval-awareness measurement, so a sequence that renders as nothing could
+    address the grader directly and nobody reading the transcript would see it.
+    Stripped here rather than at ingest, because the saved transcript has to stay
+    byte-faithful for replay - see invisible.py. The transcript is unchanged; only
+    this derived view is cleaned.
+
+    Neutralising rather than refusing, because a graded episode is already paid
+    for and the strongest available reading of it is the one with the invisible
+    text gone. That it happened at all is a separate fact, reported by the
+    publication check rather than swallowed here.
     """
     formatted = []
     for entry in transcript:
         if entry.get("type") == "text":
             formatted.append(
-                f"[AGENT - Turn {entry.get('turn', '?')}]\n{entry['content']}")
+                f"[AGENT - Turn {entry.get('turn', '?')}]\n"
+                f"{strip_invisible(entry['content'])}")
         elif entry.get("type") == "thinking":
             formatted.append(
-                f"[REASONING - Turn {entry.get('turn', '?')}]\n{entry['content']}")
+                f"[REASONING - Turn {entry.get('turn', '?')}]\n"
+                f"{strip_invisible(entry['content'])}")
     return _truncate_for_grader("\n\n".join(formatted))
 
 

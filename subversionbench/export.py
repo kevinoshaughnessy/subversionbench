@@ -32,9 +32,11 @@ import os
 import re
 import shutil
 import sys
+import unicodedata
 from pathlib import Path
 
 from .config import OPERATOR_DISPLAY_NAME
+from .invisible import INVISIBLE_CLASSES
 from .redaction import _operator_username, path_substitutions, redact_paths
 
 
@@ -225,6 +227,22 @@ _HOST_PATTERNS = (
      r"|192\.168\.\d{1,3}\.\d{1,3}"
      r"|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b"),
     ("hardware address", r"\b(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\b"),
+) + tuple(
+    # Characters that render as nothing - see invisible.py. Here for a different
+    # reason from everything above it: not because they identify the machine, but
+    # because they defeat the review this check exists to enable. Every other
+    # finding is printed for the operator to judge, and that only works if reading
+    # the printed value tells you what it is. A payload that renders as nothing
+    # would be approved by a reviewer who read it carefully and saw nothing wrong.
+    #
+    # In the reviewable class rather than the never-acceptable one, because these
+    # have legitimate uses: emoji sequences are built from zero-width joiners, and
+    # a regional-flag emoji is a tag sequence. A model writing an emoji into its
+    # deliverable is not smuggling anything, so this is a finding to look at, not
+    # proof of intent. The count in the report is what distinguishes one stray
+    # character from a run encoding a message.
+    (f"invisible characters ({name})", pattern)
+    for name, pattern in INVISIBLE_CLASSES.items()
 )
 
 # Home directory names a model writes rather than reads.
@@ -268,33 +286,115 @@ def fingerprint(matched: str) -> str:
     return hashlib.sha256(matched.encode("utf-8", "replace")).hexdigest()[:16]
 
 
+def _printable(value: str) -> str:
+    """
+    `value` with anything that does not render shown as its codepoint.
+
+    The report exists to be READ - every host-class finding is printed for the
+    operator to judge, and accepting one is a decision made from that line. An
+    invisible-character finding printed verbatim occupies no space on screen, so
+    the operator would be asked to approve a fingerprint next to what looks like
+    an empty string. That is the same defeat-by-invisibility the check is for,
+    reproduced in the tool reporting it.
+
+    Applied to every host finding rather than only the invisible ones, so a
+    control character inside any future pattern's match is legible too.
+    """
+    out = []
+    for ch in value or "":
+        if ch.isprintable() and not unicodedata.category(ch).startswith("C"):
+            out.append(ch)
+        else:
+            out.append(f"<U+{ord(ch):04X}>")
+    return "".join(out)
+
+
+def _decoded_text(raw: str) -> str:
+    """
+    Every string value in `raw`, decoded, or "" when it is not JSON.
+
+    Searched IN ADDITION to the raw file, because the two hide different things and
+    a check over either alone reports clean on the other.
+
+    `json.dump` defaults to `ensure_ascii=True`, so a character outside ASCII is
+    written as an escape sequence: a zero-width space is stored as the six visible
+    characters `\\u200b`. A pattern matching the character itself therefore cannot
+    match the file, and the first version of the invisible-character check silently
+    found nothing for exactly that reason - it looked correct and tested nothing.
+
+    Decoding rather than also matching the escape forms, because the escapes are not
+    one shape: an astral character arrives as a surrogate pair, so the tag block
+    would need `\\udb40\\udcXX` and the variation-selector supplement another range
+    again. Decoding is what a consumer of the archive does, so it is also the view
+    that decides whether the content is really hidden from them.
+    """
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return ""
+    out = []
+
+    def walk(value):
+        if isinstance(value, str):
+            out.append(value)
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                out.append(str(key))
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(data)
+    return "\n".join(out)
+
+
 def find_content_risks(root: str) -> list:
     """
     Every distinct finding under `root`, grouped by what was matched.
 
     Grouped rather than reported per occurrence: the operator has to read each
     distinct value once and decide, not scroll dozens of copies of the same one.
+
+    The raw file and its decoded values are searched SEPARATELY, and the two are
+    merged per file by taking the larger count rather than the sum. An ASCII value
+    appears in both forms - a host path is the same characters escaped or not - so
+    adding them double-counted every such finding, and the count is exactly what
+    tells one stray character apart from a run encoding a message. The larger is the
+    true count: for an ASCII value the forms agree, and for an escaped one the raw
+    form contributes nothing.
+
+    Across FILES the counts still add, which is why the max is taken per file and
+    only then accumulated. Taking it globally would report a value present in five
+    files as though it appeared in the busiest one alone.
     """
     found = {}
     for path in sorted(Path(root).rglob("*")):
         if not path.is_file():
             continue
         try:
-            text = path.read_text(errors="replace")
+            raw = path.read_text(errors="replace")
         except Exception:
             continue
-        for name, regex, severity in content_patterns():
-            for match in regex.finditer(text):
-                value = match.group(0)
-                if name == "another account's home" and _is_placeholder_home(value):
-                    continue
-                key = (name, fingerprint(value))
-                entry = found.setdefault(key, {
-                    "severity": severity, "name": name,
-                    "fingerprint": fingerprint(value), "value": value,
-                    "files": set(), "count": 0})
-                entry["files"].add(path.name)
-                entry["count"] += 1
+        per_file = {}
+        for form, text in (("raw", raw), ("decoded", _decoded_text(raw))):
+            if not text:
+                continue
+            for name, regex, severity in content_patterns():
+                for match in regex.finditer(text):
+                    value = match.group(0)
+                    if name == "another account's home" \
+                            and _is_placeholder_home(value):
+                        continue
+                    key = (name, fingerprint(value))
+                    found.setdefault(key, {
+                        "severity": severity, "name": name,
+                        "fingerprint": fingerprint(value), "value": value,
+                        "files": set(), "count": 0})["files"].add(path.name)
+                    seen = per_file.setdefault(key, {})
+                    seen[form] = seen.get(form, 0) + 1
+        for key, by_form in per_file.items():
+            found[key]["count"] += max(by_form.values())
     order = {"secret": 0, "host": 1}
     return sorted(found.values(),
                   key=lambda e: (order[e["severity"]], e["name"], e["fingerprint"]))
@@ -402,7 +502,7 @@ def main(argv=None) -> int:
                   f"{len(risk['files'])} file(s), {risk['count']} occurrence(s)")
             print("                 not shown, and not acceptable - remove it")
         for risk in unreviewed:
-            sample = risk["value"]
+            sample = _printable(risk["value"])
             if len(sample) > 60:
                 sample = sample[:60] + "..."
             print(f"    [HOST] {risk['name']}: {sample}")
@@ -413,9 +513,10 @@ def main(argv=None) -> int:
                   "rewrite the episode\n  holding it before building the archive "
                   "again.")
         if unreviewed and not secrets:
-            print(f"\n  These identify the machine rather than exposing a "
-                  f"credential. If you have\n  read them and they are publishable, "
-                  f"append to {args.accepted}:\n")
+            print(f"\n  These are reviewable rather than credentials: they identify "
+                  f"the machine, or\n  they render as nothing and so cannot be "
+                  f"judged by reading the archive. If you\n  have read them and they "
+                  f"are publishable, append to {args.accepted}:\n")
             for risk in unreviewed:
                 print(f"    {risk['fingerprint']}  # {risk['name']}")
             print("\n  Otherwise drop the episodes holding them. Accepting one "

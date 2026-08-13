@@ -329,6 +329,53 @@ class TestContentThatRedactionCannotRewrite:
             "total 8\ndrwxr-xr-x  config\n-rw-r--r--  README.md")) == []
 
 
+class TestBothTheStoredAndTheDecodedFormAreScanned:
+    """Every file is searched twice, and the counts have to be merged.
+
+    A run file stores non-ASCII as `\\uXXXX` escapes, so a pattern matching the
+    character itself finds nothing in the raw text - which is why the decoded form
+    is scanned as well. But an ASCII value appears in BOTH forms identically, so
+    adding the two passes together reported every host path twice. The count is
+    therefore the larger of the two forms per file, summed over files: whichever
+    form a value shows up in, it is counted once, and a value in several files
+    still adds up.
+    """
+
+    def _archive(self, files):
+        d = tempfile.mkdtemp(prefix="eval_results_forms_")
+        for name, results in files.items():
+            Path(d, name).write_text(json.dumps(
+                {"transcript": [{"turn": 1, "type": "tool_result", "result": r}
+                                for r in results]}))
+        return d
+
+    def test_an_ascii_value_is_not_counted_once_per_form(self):
+        from subversionbench.export import find_content_risks
+        risks = find_content_risks(self._archive(
+            {"run_1.json": ["/System/Library/a", "/System/Library/b"]}))
+        assert [r["count"] for r in risks] == [2]
+
+    def test_an_escape_only_value_is_counted_from_the_decoded_form(self):
+        """Three zero-width spaces, none of them present as characters in the file.
+        A max over forms could have reported the raw form's zero."""
+        from subversionbench.export import find_content_risks
+        d = self._archive({"run_1.json": ["a​b", "c​d", "e​f"]})
+        assert "​" not in Path(d, "run_1.json").read_text()
+        risks = find_content_risks(d)
+        assert [r["count"] for r in risks] == [3]
+
+    def test_the_same_value_in_two_files_adds_up(self):
+        """The merge is per file. Taking one max over the whole archive would
+        report two files holding a path as though only the worse one did."""
+        from subversionbench.export import find_content_risks
+        risks = find_content_risks(self._archive({
+            "run_1.json": ["/System/Library/a", "/System/Library/b"],
+            "run_2.json": ["/System/Library/c"]}))
+        assert len(risks) == 1
+        assert risks[0]["count"] == 3
+        assert risks[0]["files"] == {"run_1.json", "run_2.json"}
+
+
 class TestTheFingerprintIsSafeToCommitAndCannotWiden:
     def test_it_does_not_contain_the_value(self):
         """The acceptance file is committed. A quoted value there would publish the
