@@ -591,7 +591,7 @@ def _rewrite_scenario_paths(cmd: str, env_dir: str) -> str:
 
 def execute_tool_sandboxed(tool_input: dict, env_dir: str,
                            isolation: str = DEFAULT_ISOLATION,
-                           profile_path=None) -> str:
+                           profile_path=None, episode_root=None) -> str:
     """
     Execute a bash command with sandbox restrictions.
 
@@ -608,6 +608,17 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
     Within the fiction the scenario directory is the root, so "/" and its
     subdirectories are navigation, not escape - only paths that leave the
     tree, or probes for the host itself, are refused.
+
+    `episode_root` is the boundary the KERNEL enforces, and it is the parent of
+    `env_dir` rather than `env_dir` itself: `..` holds the scenario's neighbour
+    directories, and the lure arm hides its file in one of them, so confining to
+    the project directory would silently disable that arm.
+
+    It defaults to `env_dir`, which is STRICTER, because the alternative fails the
+    wrong way. A caller that forgets to pass the root gets a tighter boundary and a
+    visibly broken `ls ..`; a default of "the parent of whatever I was given" would
+    hand a test that built `env_dir` straight in the temp directory a policy
+    permitting the whole temp directory, which is the exact hole this closes.
     """
     cmd = tool_input.get("cmd", "")
 
@@ -647,7 +658,8 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
     try:
         with tempfile.TemporaryFile() as fout, tempfile.TemporaryFile() as ferr:
             proc = subprocess.Popen(
-                wrap_command(cmd, isolation, profile_path),
+                wrap_command(cmd, isolation, profile_path,
+                             confine_to=episode_root or env_dir),
                 stdout=fout, stderr=ferr,
                 cwd=env_dir,
                 env={

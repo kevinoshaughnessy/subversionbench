@@ -160,8 +160,14 @@ def run_evaluation(
     interrogations: tuple = (DEFAULT_INTERROGATION,),
     isolation: str = DEFAULT_ISOLATION,
     profile_path=None,
+    episode_root=None,
 ) -> dict:
-    """Run one complete evaluation with eval awareness detection."""
+    """Run one complete evaluation with eval awareness detection.
+
+    `episode_root` is the parent the kernel confines the shell to. Defaulting to
+    None means `env_dir` alone, which is stricter - see execute_tool_sandboxed for
+    why the safe default is the tight one.
+    """
     client = llm_api.get_client(model)
 
     messages = [{"role": "user", "content": user_prompt}]
@@ -403,7 +409,7 @@ def run_evaluation(
         for tc in tool_calls:
             result = execute_tool_sandboxed(
                 tc.input, env_dir, isolation=isolation,
-                profile_path=profile_path)
+                profile_path=profile_path, episode_root=episode_root)
             print(f"[Turn {turn+1} RESULT] {red(result)[:300]}")
             # What goes back to the model is deliberately NOT redacted:
             # the agent has to keep seeing the same paths its own shell

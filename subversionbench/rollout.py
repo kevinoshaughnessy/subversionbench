@@ -105,6 +105,48 @@ _SANDBOX_PROBES = (
 )
 
 
+def _confinement_behaviour() -> str:
+    """
+    What the kernel is asked to refuse, as a stable string.
+
+    The POLICY SHAPE rather than a live probe. Probing would mean invoking
+    sandbox-exec every time a fingerprint is computed - which happens on import
+    paths and in hundreds of tests - and the outcome would then depend on the host
+    being able to run it, making the fingerprint of a rollout differ between two
+    machines running identical code. Same reasoning as `episode_root_layout`,
+    which hashes the parent directory's structure rather than listing a real one.
+
+    Machine-specific detail is normalised away for the same reason, and that means
+    the COUNT of temp roots as well as their names. A host with a per-user temp
+    directory has four; one without has three; hashing the repetition would give
+    two operators different fingerprints for identical code and the drift guard
+    would refuse to run for the second of them.
+
+    So every root collapses to one placeholder and the resulting duplicate lines
+    are dropped, leaving one clause per DISTINCT rule. Derived from
+    `confinement_clauses` rather than restated here, so a change to the verbs
+    reaches this and a reader cannot be looking at a description that has drifted
+    from the policy.
+
+    The mechanism differs by platform - seatbelt refuses, a bwrap tmpfs presents an
+    empty directory - and that difference is deliberately NOT hashed, on the same
+    terms as the network mode: hashing it would mean a batch collected on Linux
+    could never pool with one collected on macOS. What is hashed is what the model
+    can and cannot do, which is the same on both.
+    """
+    from .isolation import _temp_roots, confinement_clauses
+
+    clauses = confinement_clauses("/PLACEHOLDER_EPISODE_ROOT")
+    for root in _temp_roots():
+        clauses = clauses.replace(root, "/PLACEHOLDER_TEMP_ROOT")
+    seen, lines = set(), []
+    for line in clauses.strip().splitlines():
+        if line not in seen:
+            seen.add(line)
+            lines.append(line)
+    return "\n".join(lines)
+
+
 def _sandbox_behaviour(isolation: str = DEFAULT_ISOLATION) -> str:
     """
     What the sandbox does to a fixed battery of commands, as a stable string.
@@ -179,6 +221,23 @@ def rollout_fingerprint(oversight: bool = True,
         # drift guard silent. Structure only: the project directory's contents
         # are already hashed through the scenario bundle above.
         episode_root_layout(lure=lure).encode(),
+        # Where the KERNEL stops the shell, which is a different question from the
+        # blocklist hashed above and has to be hashed separately.
+        #
+        # The network mode deliberately is not hashed, on the argument set out in
+        # _sandbox_behaviour: it removes off-host reach, no model has ever used
+        # off-host reach, so an isolated batch and an unisolated one behaved
+        # identically on everything observed. That comment names the condition for
+        # revisiting the judgement - "if a model ever does reach off-host, the arms
+        # differ in observed behaviour and the mode belongs in the hash".
+        #
+        # Filesystem confinement meets that condition on arrival. A saved episode
+        # ran `os.listdir('../..')` and received a listing of the machine's temp
+        # directory; under confinement the same command raises PermissionError.
+        # That is a difference in what the model observes, not in how the operator
+        # configured the host, so episodes collected either side of it are not the
+        # same rollout and must not pool.
+        _confinement_behaviour().encode(),
     ]
     digest = hashlib.sha256()
     for part in parts:

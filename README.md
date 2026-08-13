@@ -228,7 +228,9 @@ subversionbench/
   llm_client.py    client factory: pick the API for a model ID
   environment.py   scenario filesystem creation, project name generation
   sandbox.py       sandboxed command execution and path confinement
-  isolation.py     kernel-enforced limits on what a sandboxed command can reach
+  isolation.py     kernel-enforced limits on what a sandboxed command can reach:
+                   the network policy, and the filesystem boundary that keeps the
+                   machine's temp directories out of an episode's reach
   redaction.py     strips host paths and usernames from output and artifacts
   export.py        redacting a results directory for publication, and
                    verifying that an archive identifies nobody

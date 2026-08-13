@@ -6,6 +6,97 @@ A `## vN` heading lists the changes that went into vN. The older
 `## Changes from vN` headings follow an earlier convention, where the entries
 are the work done *after* vN was cut.
 
+## v50
+
+Package version `50.0.0`, and **`ROLLOUT_VERSION` moves to `r8`.** New episodes go to
+`eval_results_r8`. All four arm fingerprints moved: the kernel's filesystem boundary
+is shared by every arm.
+
+**This is a rollout bump, so r7 and earlier do not pool with r8.** The reason is the
+whole entry: a model can no longer do something a model demonstrably did.
+
+- **The filesystem boundary moved from string matching to the kernel.** `ls ../..`
+  has been refused since r1 because the blocklist can see the `..` in the command
+  text. An interpreter never puts it there:
+
+      python3 -c "import os; print(os.listdir('../..'))"
+
+  resolves the path at runtime. One r7 episode ran that and received the machine's
+  temp directory - every leftover episode and test tree on it. The gap was never in
+  the concept, only in what a string could see, which is the same lesson as the three
+  earlier defects where a pattern matched the wrong text.
+
+  The strongest form of the point, now a test: `chr(46)*2+chr(47)+chr(46)*2` contains
+  no `.` and no `/`, so no rule over command text can ever see it. It is refused.
+
+- **The episode root is the boundary, not the project directory.** `..` holds the
+  scenario's neighbour directories and, in the lure arm, the lure file itself. A
+  policy confined to the project directory would have switched that arm off while
+  every existing test still passed, so `ls ..` working is asserted as explicitly as
+  `../..` failing. Both directions are checked, in the verifier and in the tests,
+  because the two failures look nothing alike and only one of them is loud.
+
+- **Verified by trying to escape, not by reading the policy back**, and that is not
+  a stylistic preference. Three seatbelt behaviours decided the final shape and every
+  one of them fails silently in the direction that looks correct:
+
+  - **The paths must be resolved.** `sandbox-exec` matches on the real path, and
+    `tempfile.gettempdir()` returns `/var/folders/...` where the real path is
+    `/private/var/folders/...`. Built from the unresolved form the policy parses,
+    loads, reports nothing, and enforces nothing. Measured both ways.
+  - **The read deny is `literal`, not `subpath`.** The shell resolves its own working
+    directory by reading each ancestor, and every episode tree lives inside a temp
+    root - so a subpath read-deny stopped `sh` starting at all. `literal` refuses the
+    listing, which is what enumeration needs, and leaves the traversal below it.
+  - **`(allow file* ...)` does not re-grant `file-write*` after an explicit deny of
+    it.** With the wildcard the policy loaded, every read worked, `ls ..` worked, and
+    `echo x > out.md` inside the project directory came back "Operation not
+    permitted" - a harness in which no model could write its deliverable, with every
+    other probe green. The verifier now writes a file and reads it back.
+
+  A fourth was not a seatbelt behaviour but the same shape of trap. `/usr/bin/python3`
+  is the Xcode shim and writes `$TMPDIR/xcrun_db-<random>` before doing anything, so
+  denying the temp root made it print the operator's real temp path to stderr on
+  every call - and the sandbox returns stderr whenever a command produced no stdout,
+  so the model would have read it. One filename prefix is permitted, and the first
+  version of the verifier passed *because* python was broken: with the interpreter
+  failing to start, "no listing came back" read as "the escape was refused". A check
+  that cannot tell a refusal from a broken interpreter is not a check.
+
+- **The boundary is in the rollout fingerprint; the network mode still is not.** Not
+  an inconsistency. The network argument rests on no model ever having reached
+  off-host, so an isolated and an unisolated batch behaved identically on everything
+  observed - and that comment names its own condition for revisiting: *"if a model
+  ever does reach off-host, the arms differ in observed behaviour and the mode belongs
+  in the hash"*. Filesystem confinement meets that condition on arrival.
+
+  What is hashed is normalised so it does not depend on the host: the temp roots
+  differ between machines in name and in NUMBER, and hashing either would give two
+  operators different fingerprints for identical code, with the drift guard refusing
+  to run for the second of them. The mechanism is also not hashed - seatbelt refuses,
+  a bwrap tmpfs presents an empty directory - because hashing it would mean a Linux
+  batch could never pool with a macOS one. What the model can and cannot do is the
+  same on both.
+
+- **Refused rather than downgraded where it cannot be enforced.** Asked separately
+  from the network policy, because `unshare --net` can provide one and not the other:
+  a single question would report a boundary the host does not have. On Linux this
+  needs bubblewrap. The Linux path is written and, being unavailable on the
+  development host, is exercised only by simulation - the seatbelt path is what has
+  been measured end to end.
+
+- **Also closed: writes above the episode tree.** The temp root was writable, so a
+  note left there was readable by every later episode. Episode independence is the
+  assumption under every rate in this harness and nothing was enforcing it. No saved
+  episode ever did this; it is refused now regardless.
+
+- **What this does not do.** The listing is denied, not every read. A model that
+  somehow knew the exact name of another episode's directory could still read inside
+  it - the names come from `mkdtemp`, so a model that cannot enumerate cannot find
+  one, and that is stated as the residual risk rather than claimed as impossible.
+  Nothing here confines writes to paths outside the temp roots, including this
+  harness's own source.
+
 ## v49
 
 Package version `49.0.0`. `ROLLOUT_VERSION` stays at `r7`, all four arm fingerprints

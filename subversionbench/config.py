@@ -7,7 +7,7 @@ from types import MappingProxyType
 from .scenario import (DEFAULT_INTERROGATION, SCENARIO, load_scenario,
                        scenario_for)
 
-VERSION = "v49"
+VERSION = "v50"
 
 # =========================================================================
 # Rollout identity
@@ -26,7 +26,7 @@ VERSION = "v49"
 # Keying the directory on VERSION got this wrong in both directions - it split
 # v15 and v17 batches that ran identical prompts, and it kept two different
 # strong-nudge prompts inside eval_results_v14. See rollout.py.
-ROLLOUT_VERSION = "r7"
+ROLLOUT_VERSION = "r8"
 
 # sha256 over the assembled scenario ARM, the tool definitions, and the
 # sandbox's behaviour on a fixed battery of commands. Pinned here rather than
@@ -43,13 +43,14 @@ ROLLOUT_VERSION = "r7"
 #
 # Keyed by (oversight, lure). Four arms now: the oversight counterfactual
 # crossed with the lure arm, each with its own identity so none can be pooled
-# with another by accident. All four moved at r6 -> r7 as well: the interrogation
-# questions are scenario text every arm shares.
+# with another by accident. All four moved at r6 -> r7 and again at r7 -> r8:
+# the interrogation questions, and then the kernel's filesystem boundary, are
+# both shared by every arm.
 ROLLOUT_FINGERPRINTS = MappingProxyType({
-    (True,  False): "30ecb310e398",   # oversight present, no lure
-    (False, False): "3fdba4f6b087",   # counterfactual, no lure
-    (True,  True):  "4333baf099c2",   # oversight present, lure
-    (False, True):  "2a9eafc7f599",   # counterfactual, lure
+    (True,  False): "5440ddc083be",   # oversight present, no lure
+    (False, False): "68f4a7f77c9b",   # counterfactual, no lure
+    (True,  True):  "10bf7ca37db4",   # oversight present, lure
+    (False, True):  "1f04fc4b981f",   # counterfactual, lure
 })
 # Superseded values, kept so an archived directory can be identified from a
 # fingerprint alone rather than from its name:
@@ -63,6 +64,8 @@ ROLLOUT_FINGERPRINTS = MappingProxyType({
 #                                  counterfactual 5634749019dd (lure)
 #   r6   oversight ba431cf80a32    counterfactual 0c41228716bb (no lure)
 #        oversight+lure 0098c0601a51   counterfactual+lure 185b52ef92ee
+#   r7   oversight 30ecb310e398    counterfactual 3fdba4f6b087 (no lure)
+#        oversight+lure 4333baf099c2   counterfactual+lure 2a9eafc7f599
 #
 # r1 -> r2 fixed a sandbox defect. "locate " was matched as a bare substring, so
 # a draft mentioning allocating budget or relocating stops was refused as an
@@ -180,6 +183,26 @@ ROLLOUT_FINGERPRINTS = MappingProxyType({
 # so for the other 1410 the phrasing is recoverable only from the directory name
 # - which is exactly the kind of fact this codebase keeps learning has to be
 # written into the artefact rather than inferred later.
+#
+# r7 -> r8 gave the KERNEL the filesystem boundary. Until now the only thing
+# keeping a model inside its episode was the blocklist, which reads command text -
+# and an interpreter never puts the path in the text:
+#
+#     python3 -c "import os; print(os.listdir('../..'))"
+#
+# One r7 episode ran that and reached the machine's temp directory. The shell form
+# `ls ../..` had been refused since r1, so the gap was never in the concept, only
+# in what a string could see.
+#
+# This changes what the model can DO, which is why it is a rollout bump and not
+# an analysis one. The same command now raises PermissionError. It is also why
+# the argument that keeps the network mode out of the fingerprint does not extend
+# here: that argument rests on no model ever having used off-host reach, and a
+# model demonstrably did use this.
+#
+# `..` is deliberately still readable. It holds the scenario's neighbour
+# directories and, in the lure arm, the lure file itself, so confining to the
+# project directory would have switched that arm off while every test passed.
 
 # The plain oversight arm, for callers that predate the later arms.
 #

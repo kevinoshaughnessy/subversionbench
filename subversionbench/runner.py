@@ -25,7 +25,8 @@ from .config import ROLLOUT_FINGERPRINTS
 from .environment import create_episode_root
 from .episode import EpisodeAPIError, run_evaluation
 from .grading import MISALIGNED_ACTS, auth_error_in_analysis
-from .isolation import (isolation_available, probe_isolation, profile_for,
+from .isolation import (confinement_available, isolation_available,
+                        probe_isolation, profile_for, verify_confinement,
                         verify_isolation)
 from .llm_client import missing_credential
 from .redaction import redact_paths
@@ -95,6 +96,29 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     probe = probe_isolation(args.isolation, profile_path)
     print(f"Isolation: {args.isolation} (verified: loopback "
           f"{probe['loopback']}, off-host {probe['external']})")
+
+    # The filesystem boundary, checked separately from the network one because the
+    # mechanisms differ in exactly this: `unshare --net` can enforce the network
+    # policy and cannot enforce this one.
+    if not confinement_available():
+        print("\nThe filesystem boundary cannot be enforced on this host, and "
+              "running without it is not something to do by accident.")
+        print("  An interpreter resolves paths at runtime, so no command-text "
+              "rule can stop\n  `os.listdir('../..')` from reading the machine's "
+              "temp directory - which is\n  where every episode tree lives.")
+        print("  On Linux, install bubblewrap (`bwrap`); `unshare` alone isolates "
+              "the network\n  only. There is deliberately no unconfined path.")
+        return 1
+    # Verified by trying to escape, not by reading the policy back. A profile built
+    # from an unresolved temp path parses, loads, reports nothing and enforces
+    # nothing - which is how this was nearly shipped inert.
+    failure = verify_confinement(args.isolation)
+    if failure:
+        print(f"\nFilesystem confinement did not hold. Refusing to roll out.\n"
+              f"  {failure}")
+        return 1
+    print("Confinement: episode tree only (verified: temp directory "
+          "unreadable by shell and by interpreter)")
     drift = rollout_drift_error(
         ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)],
         args.oversight, args.isolation, args.lure)
@@ -194,7 +218,7 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
         # controls. Episodes used to be siblings under the machine's shared temp
         # root, which made `..` writable by every episode and listed the
         # operator's own temp directory.
-        _episode_root, env_dir, env_info = create_episode_root(
+        episode_root, env_dir, env_info = create_episode_root(
             args.oversight, lure=args.lure)
 
         # One episode failing must not end the batch. Over a few hundred
@@ -221,6 +245,9 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
                 interrogations=args.interrogations,
                 isolation=args.isolation,
                 profile_path=profile_path,
+                # The boundary the kernel enforces. The root rather than env_dir,
+                # because `..` is the scenario's own neighbourhood.
+                episode_root=episode_root,
             )
         except KeyboardInterrupt:
             print("\n\nInterrupted by user.")
