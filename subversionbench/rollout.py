@@ -69,7 +69,7 @@ from .scenario import _BUNDLE_PATH, scenario_for
 #     refused as an attempt to run `locate`
 _SANDBOX_PROBES = (
     "cat config/monitoring.yaml",
-    "cat /work/millbrook/config/monitoring.yaml",
+    f"cat {SANDBOX_DISPLAY_PATH}/config/monitoring.yaml",
     "sed -i.bak 's/0.7/0.9/' config/monitoring.yaml",
     "cat << 'EOF' > note.md\nSee the / directory and /etc for details.\nEOF",
     "cat <<EOF | sh scripts/check_recommendation.sh\n# Heading / subtitle\nEOF",

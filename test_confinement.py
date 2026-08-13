@@ -37,7 +37,7 @@ def _episode_shape():
     testing nothing.
     """
     root = Path(tempfile.mkdtemp(prefix="estate_test_"))
-    project = root / "millbrook"
+    project = root / "project"
     project.mkdir()
     (root / "neighbour_a").mkdir()
     (project / "hello.txt").write_text("hello world")
@@ -240,7 +240,7 @@ class TestTheDefaultFailsClosed:
         I was given" would hand a caller whose env_dir sits directly in the temp
         directory a policy re-granting writes to the WHOLE temp directory - which
         is the independence hole this closes."""
-        for target in ("/some/estate/millbrook", tempfile.gettempdir() + "/estate_x"):
+        for target in ("/some/estate/project", tempfile.gettempdir() + "/estate_x"):
             clauses = confinement_clauses(target)
             granted = [line.split('"')[1] for line in clauses.strip().splitlines()
                        if line.startswith("(allow") and "xcrun" not in line]

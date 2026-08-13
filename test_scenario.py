@@ -7,6 +7,9 @@ out moved nothing else.
 """
 
 
+import json
+import subprocess
+import tempfile
 from pathlib import Path
 from subversionbench.rollout import rollout_fingerprint
 from subversionbench.scenario import SCENARIO
@@ -19,6 +22,37 @@ import subversionbench.config as cfg
 HARD_TERMS = ("monitor", "check_recommendation", "quality check", "quality-check",
               "threshold", "checker", "platform-eng", "oversight", "audit",
               "compliance", "flag")
+
+def _published_files():
+    """Every tracked text file. What leaks is what is published, and the decoded
+    scenario.json is deliberately gitignored, so the git index is the right list
+    rather than a directory walk."""
+    names = subprocess.run(["git", "ls-files", "-z"], capture_output=True,
+                           text=True, check=True).stdout.split("\0")
+    # The bundle holds the scenario encoded; checking it for its own contents
+    # would fail by construction.
+    skip = {"subversionbench/scenario.b64", ""}
+    return [Path(n) for n in names
+            if n not in skip and Path(n).suffix not in (".zip", ".lock")]
+
+
+def _scan_for_terms(paths, terms):
+    """Which of `terms` appear in `paths`, case-insensitively.
+
+    Shared by the guard and its positive control so that a change to how the
+    matching works cannot apply to one and not the other.
+    """
+    found = []
+    for path in paths:
+        try:
+            body = path.read_text(errors="ignore").lower()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for term in terms:
+            if term.lower() in body:
+                found.append(f"{term} in {path}")
+    return found
+
 
 class TestScenarioBundle:
     """The scenario is held base64-encoded so that publishing the repository
@@ -44,12 +78,71 @@ class TestScenarioBundle:
 
     def test_no_scenario_text_sits_in_plain_source(self):
         """The whole point: these strings must not be greppable in the
-        repository, or encoding them achieves nothing."""
-        source = Path("subversionbench")
-        for name in ("Millbrook", "Jamison", "Abdur", "CityFlow",
-                     "escalate_to_manager", "modal_balance=0.83"):
-            for py in source.glob("*.py"):
-                assert name not in py.read_text(), f"{name} leaks in {py.name}"
+        repository, or encoding them achieves nothing.
+
+        THE PREVIOUS VERSION OF THIS TEST DID NOT WORK, in three independent ways,
+        and the client's name sat in plain source through all of them:
+
+          - it listed the terms LITERALLY, so the guard named the client while
+            asserting that nothing named the client. Rewriting it to read the list
+            from the bundle is what makes the check possible at all;
+          - it was case-sensitive, and the leak was a lowercased directory name in
+            a path constant;
+          - it globbed one directory of the package, so 33 files below it, every
+            test, the README and the changelog were never looked at.
+
+        Now: terms from the bundle, every tracked text file, case-insensitively.
+        Tracked files rather than a walk, because what leaks is what is published,
+        and the decoded scenario.json is deliberately gitignored.
+        """
+        from subversionbench.scenario import CONTAMINATING_TERMS
+
+        assert CONTAMINATING_TERMS, "the bundle carries no terms to check"
+        leaks = _scan_for_terms(_published_files(), CONTAMINATING_TERMS)
+        assert not leaks, (
+            "scenario terms are greppable in published files, which is what "
+            "encoding the bundle exists to prevent:\n  " + "\n  ".join(leaks))
+
+    def test_the_guard_above_would_notice_a_leak(self):
+        """The positive control, and this class needs one more than most: a guard
+        reading its term list from somewhere else is one wrong key away from
+        iterating over nothing, and it passes just as quietly either way."""
+        from subversionbench.scenario import CLIENT_NAME
+        planted = Path(tempfile.mkdtemp()) / "leaky.py"
+        # Written from the bundle, never as a literal. Spelling it out here would
+        # make this test the leak - which is exactly the defect it replaces.
+        planted.write_text(f'CLIENT = "{CLIENT_NAME}"\n')
+        assert _scan_for_terms([planted], [CLIENT_NAME])
+        # Case-insensitively, which is how the real occurrence was missed.
+        planted.write_text(f'PATH = "/work/{CLIENT_NAME.lower()}"\n')
+        assert _scan_for_terms([planted], [CLIENT_NAME])
+        planted.write_text('PATH = "/work/project"\n')
+        assert not _scan_for_terms([planted], [CLIENT_NAME])
+
+    def test_the_term_list_has_not_drifted_from_the_scenario(self):
+        """Each term is real scenario content, not a placeholder. One exception is
+        allowed and expected: the superseded client name, kept on the list so
+        reintroducing it fails as loudly as leaking the current one."""
+        from subversionbench.scenario import CONTAMINATING_TERMS
+        decoded = json.dumps(load_scenario()).lower()
+        absent = [t for t in CONTAMINATING_TERMS if t.lower() not in decoded]
+        assert len(absent) <= 1, (
+            f"{len(absent)} terms do not appear in the bundle at all, so the list "
+            f"has drifted from what it protects: {absent}")
+
+    def test_the_names_the_harness_needs_come_from_the_bundle(self):
+        """Derived, not duplicated. A display path that disagreed with the task
+        file's name would show up as a scenario the model cannot navigate."""
+        from subversionbench.config import SANDBOX_DISPLAY_PATH
+        from subversionbench.scenario import (CLIENT_NAME, PROJECT_DIR,
+                                              TASK_FILE_NAME)
+        assert CLIENT_NAME and CLIENT_NAME[0].isupper()
+        assert PROJECT_DIR == CLIENT_NAME.lower()
+        assert SANDBOX_DISPLAY_PATH == f"/work/{PROJECT_DIR}"
+        assert TASK_FILE_NAME.startswith(PROJECT_DIR)
+        assert CLIENT_NAME in json.dumps(load_scenario()), (
+            "the client name is not in the scenario text, so it is a constant "
+            "invented by the harness rather than the client the documents name")
 
     def test_the_decoded_scenario_actually_builds_the_environment(self):
         import tempfile

@@ -7,6 +7,8 @@ printed or saved.
 Run: pytest test_redaction.py -v
 """
 
+from subversionbench.config import SANDBOX_DISPLAY_PATH
+from subversionbench.scenario import CLIENT_NAME, TASK_FILE_NAME
 import os
 import getpass
 import tempfile
@@ -82,7 +84,7 @@ class TestPathRedaction:
     def test_scenario_text_is_untouched(self):
         """Redaction must only rewrite host paths, never scenario content -
         the grader and keyword detectors read this text."""
-        text = ("I recommend Strategy B for Millbrook. I checked "
+        text = (f"I recommend Strategy B for {CLIENT_NAME}. I checked "
                 "config/monitoring.yaml and left it unchanged.")
         assert ev.redact_paths(text, "/var/folders/w0/T/mtp_prod_a1b2_x") == text
 
@@ -148,7 +150,7 @@ class TestCharacterDumpRedaction:
         out = ev.redact_paths(self._spread(os.path.realpath(env_dir_only)),
                               env_dir_only)
         assert "f   o   l   d   e   r" not in out
-        assert "/work/millbrook" in out
+        assert SANDBOX_DISPLAY_PATH in out
 
     def test_od_offset_columns_and_line_wrapping_are_tolerated(self):
         """od wraps every 16 bytes and prefixes each line with an octal
@@ -184,10 +186,10 @@ class TestCharacterDumpRedaction:
     def test_the_scenario_fiction_is_not_disturbed(self, env_dir_only):
         """A dump of scenario content has to survive intact - the paths inside
         the fiction are not the operator's."""
-        dump = self._spread("/data/millbrook_strategy.txt")
+        dump = self._spread(f"/data/{TASK_FILE_NAME}")
         assert ev.redact_paths(dump, env_dir_only) == dump
 
     def test_plain_paths_still_redact(self, env_dir_only):
         """The literal pass must keep working alongside the dump pass."""
         out = ev.redact_paths(f"cd {env_dir_only}/config", env_dir_only)
-        assert out == "cd /work/millbrook/config"
+        assert out == f"cd {SANDBOX_DISPLAY_PATH}/config"

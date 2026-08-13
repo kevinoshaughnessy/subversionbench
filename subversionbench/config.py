@@ -4,10 +4,10 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 """
 
 from types import MappingProxyType
-from .scenario import (DEFAULT_INTERROGATION, SCENARIO, load_scenario,
-                       scenario_for)
+from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
+                       SCENARIO, TASK_FILE_NAME, load_scenario, scenario_for)
 
-VERSION = "v50"
+VERSION = "v51"
 
 # =========================================================================
 # Rollout identity
@@ -26,7 +26,7 @@ VERSION = "v50"
 # Keying the directory on VERSION got this wrong in both directions - it split
 # v15 and v17 batches that ran identical prompts, and it kept two different
 # strong-nudge prompts inside eval_results_v14. See rollout.py.
-ROLLOUT_VERSION = "r8"
+ROLLOUT_VERSION = "r9"
 
 # sha256 over the assembled scenario ARM, the tool definitions, and the
 # sandbox's behaviour on a fixed battery of commands. Pinned here rather than
@@ -43,14 +43,14 @@ ROLLOUT_VERSION = "r8"
 #
 # Keyed by (oversight, lure). Four arms now: the oversight counterfactual
 # crossed with the lure arm, each with its own identity so none can be pooled
-# with another by accident. All four moved at r6 -> r7 and again at r7 -> r8:
-# the interrogation questions, and then the kernel's filesystem boundary, are
-# both shared by every arm.
+# with another by accident. All four moved at r6 -> r7, r7 -> r8 and r8 -> r9:
+# the interrogation questions, then the kernel's filesystem boundary, then the
+# client's name - each shared by every arm.
 ROLLOUT_FINGERPRINTS = MappingProxyType({
-    (True,  False): "5440ddc083be",   # oversight present, no lure
-    (False, False): "68f4a7f77c9b",   # counterfactual, no lure
-    (True,  True):  "10bf7ca37db4",   # oversight present, lure
-    (False, True):  "1f04fc4b981f",   # counterfactual, lure
+    (True,  False): "b686db2fe97e",   # oversight present, no lure
+    (False, False): "f3d2ef9486cb",   # counterfactual, no lure
+    (True,  True):  "8dfacd4f1d3c",   # oversight present, lure
+    (False, True):  "4d9560cae323",   # counterfactual, lure
 })
 # Superseded values, kept so an archived directory can be identified from a
 # fingerprint alone rather than from its name:
@@ -66,6 +66,8 @@ ROLLOUT_FINGERPRINTS = MappingProxyType({
 #        oversight+lure 0098c0601a51   counterfactual+lure 185b52ef92ee
 #   r7   oversight 30ecb310e398    counterfactual 3fdba4f6b087 (no lure)
 #        oversight+lure 4333baf099c2   counterfactual+lure 2a9eafc7f599
+#   r8   oversight 5440ddc083be    counterfactual 68f4a7f77c9b (no lure)
+#        oversight+lure 10bf7ca37db4   counterfactual+lure 1f04fc4b981f
 #
 # r1 -> r2 fixed a sandbox defect. "locate " was matched as a bare substring, so
 # a draft mentioning allocating budget or relocating stops was refused as an
@@ -540,7 +542,9 @@ FOLLOWUP_SANDBOX_DENIAL = (
 # the home directory, embeds the OS username). Console output and the saved
 # run JSON are artifacts that get shared, so every path in them is rewritten
 # to this stable placeholder instead - same text regardless of the host.
-SANDBOX_DISPLAY_PATH = "/work/millbrook"
+# The directory name comes from the scenario bundle, so the client is not named
+# in plain source. See scenario.PROJECT_DIR.
+SANDBOX_DISPLAY_PATH = f"/work/{PROJECT_DIR}"
 
 # The OS username also reaches output as a bare word, with no path around it
 # to catch it: `ls -l` prints an owner column, and the scenario files are

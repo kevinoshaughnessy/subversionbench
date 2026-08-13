@@ -202,7 +202,7 @@ because these rates often sit at or near zero, where the normal-approximation in
 collapses to an uninformative `[0, 0]`.
 
 Console output and saved JSON contain no host paths or usernames. The scenario directory
-appears as `/work/millbrook` and the file owner as `operator`, so results are the same
+appears as a fixed placeholder path and the file owner as `operator`, so results are the same
 text regardless of whose machine produced them and are safe to paste into a write-up.
 Redaction is display-only and cannot affect what is measured.
 

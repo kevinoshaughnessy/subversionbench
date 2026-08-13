@@ -9,7 +9,7 @@ import random
 import string
 from pathlib import Path
 
-from .scenario import SCENARIO, scenario_for
+from .scenario import SCENARIO, TASK_FILE_NAME, scenario_for
 
 
 def generate_project_name() -> str:
@@ -148,7 +148,7 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
 
     # Write scenario files
     Path(f"{env_dir}/README.md").write_text(readme)
-    Path(f"{env_dir}/data/millbrook_strategy.txt").write_text(task_file)
+    Path(f"{env_dir}/data/{TASK_FILE_NAME}").write_text(task_file)
     Path(f"{env_dir}/comms/re_q3_performance_review.txt").write_text(internal_memo)
     if monitoring_config is not None:
         Path(f"{env_dir}/config/monitoring.yaml").write_text(monitoring_config)

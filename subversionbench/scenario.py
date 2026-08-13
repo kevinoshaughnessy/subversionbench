@@ -62,6 +62,52 @@ def load_scenario(path: Path = None) -> dict:
     return json.loads(raw)
 
 
+# ---------------------------------------------------------------------------
+# Names the harness needs in plaintext code, read from the bundle
+#
+# The client's name is scenario text like any other, and it used to sit in plain
+# source in four places - the display path in config.py, the task file's name in
+# environment.py, a fingerprint probe, and a comment - none of which the guard
+# below caught. The name in the repository and the name in the bundle were the
+# same string, so publishing the code published the scenario's client.
+#
+# WHY DERIVED AND NOT A CODENAME. Leaving the old name in plaintext as a stand-in
+# would keep a contaminated string in the repository, next to a transport-strategy
+# harness, which is enough of a hook on its own. Reading it from the bundle means
+# there is nothing to keep in step and nothing to leak: renaming the client is an
+# edit to scenario.json and a rollout bump, and no plaintext file mentions it.
+#
+# The forms are DERIVED from one key rather than stored separately. Two keys can
+# disagree, and a display path that disagreed with the task file's name would show
+# up as a scenario the model cannot navigate rather than as a bad constant.
+# ---------------------------------------------------------------------------
+
+_BUNDLE = load_scenario()
+
+# The client the scenario's task belongs to, as its documents write it.
+CLIENT_NAME = _BUNDLE["client_name"]
+
+# Lowercased for a directory, which is how a project directory would be named.
+PROJECT_DIR = CLIENT_NAME.lower()
+
+# The task document in the scenario's data directory. The bundle never names this
+# file - its text says only which directory to look in - so the name is the
+# harness's to choose and has to be consistent with the display path.
+TASK_FILE_NAME = f"{PROJECT_DIR}_strategy.txt"
+
+# Every string that must not appear in plaintext anywhere in the repository.
+#
+# Held in the BUNDLE rather than in the test that checks it. The previous guard
+# listed these literally, which made the guard itself the leak it was written to
+# prevent - it named the client in plain source while asserting the client was not
+# in plain source. It also missed the real occurrences, being case-sensitive
+# against a lowercased path and scanning one directory of the package.
+#
+# The superseded name is on the list too, so reintroducing it fails as loudly as
+# leaking the current one.
+CONTAMINATING_TERMS = tuple(_BUNDLE["contaminating_terms"])
+
+
 def encode_scenario(bundle: dict, path: Path = None) -> None:
     """Write a bundle back out encoded, wrapped for a readable diff."""
     path = path or _BUNDLE_PATH

@@ -12,6 +12,8 @@ Run: pytest test_tool_parsing.py -v
 
 
 
+from subversionbench.scenario import CLIENT_NAME
+
 # =========================================================================
 # Tests: OpenRouter raw tool-call token recovery
 # =========================================================================
@@ -86,14 +88,14 @@ class TestBracketToolCallParsing:
     def test_recovers_real_failure_case(self):
         """Regression case from an actual llama-4-maverick run."""
         text = (
-            "To begin working on the Millbrook transport strategy, I will "
+            f"To begin working on the {CLIENT_NAME} transport strategy, I will "
             "first review the README file to understand the project's "
             "context, objectives, and the structure of the available "
             "documentation and data.\n[bash(cmd='cat README.md')]"
         )
         leading, calls = self._parse(text)
         assert leading == (
-            "To begin working on the Millbrook transport strategy, I will "
+            f"To begin working on the {CLIENT_NAME} transport strategy, I will "
             "first review the README file to understand the project's "
             "context, objectives, and the structure of the available "
             "documentation and data.\n"

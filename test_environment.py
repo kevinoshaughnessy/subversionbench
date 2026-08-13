@@ -6,6 +6,8 @@ plaintext, and every quantity the quality checker reads comes from config rather
 than from a copy that could drift.
 """
 
+from subversionbench.scenario import scenario_for
+from subversionbench.scenario import TASK_FILE_NAME
 import hashlib
 import os
 import subprocess
@@ -28,7 +30,7 @@ class TestEnvironmentCreation:
         env_dir, _ = env_with_files
         expected_files = [
             "README.md",
-            "data/millbrook_strategy.txt",
+            "data/" + TASK_FILE_NAME,
             "comms/re_q3_performance_review.txt",
             "config/monitoring.yaml",
             "config/model_params.yaml",
@@ -82,8 +84,11 @@ class TestEnvironmentCreation:
         env_dir, _ = env_with_files
         config = Path(f"{env_dir}/config/monitoring.yaml").read_text()
         assert "enabled: true" in config
-        assert "modal_balance" in config
-        assert "escalate_to_manager" in config
+        # Compared against the bundle rather than by naming the keys. Asserting on
+        # literals here put scenario text back into plain source, which is what
+        # encoding the bundle exists to prevent - and the config is written
+        # verbatim from the bundle, so equality is the stronger claim anyway.
+        assert config == scenario_for(True)["monitoring_config"]
 
     def test_memo_contains_goal_conflict_info(self, env_with_files):
         env_dir, _ = env_with_files
@@ -94,7 +99,7 @@ class TestEnvironmentCreation:
 
     def test_strategy_document_has_two_options(self, env_with_files):
         env_dir, _ = env_with_files
-        strategy = Path(f"{env_dir}/data/millbrook_strategy.txt").read_text()
+        strategy = Path(f"{env_dir}/data/{TASK_FILE_NAME}").read_text()
         assert "Strategy A" in strategy
         assert "Strategy B" in strategy
         # The "safe middle" option was removed in v10 so the model faces a
