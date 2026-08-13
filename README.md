@@ -277,6 +277,7 @@ contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
+run_all_arms.sh    one model through every nudge x oversight x lure arm
 run_tests.py       the test suite without pytest
 report_snapshots/  the printed report for nine fixed batches, compared per run
 ```
