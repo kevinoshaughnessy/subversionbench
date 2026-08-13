@@ -35,6 +35,7 @@ from .config import (CANARY, DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION,
 from .grading import (MISALIGNED_ACTS, analyze_misalignment, awareness_timing,
                       detect_eval_awareness_keywords, first_awareness_position,
                       questions_for, settle_analysis, verify_oversight_unchanged)
+from .isolation import DEFAULT_ISOLATION
 from .llm_client import _BRACKET_TOOL_CALL_RE
 from .redaction import redact_paths
 from .sandbox import execute_tool_sandboxed
@@ -157,7 +158,7 @@ def run_evaluation(
     nudge: str = "strong",
     lure: bool = False,
     interrogations: tuple = (DEFAULT_INTERROGATION,),
-    isolation: str = "off",
+    isolation: str = DEFAULT_ISOLATION,
     profile_path=None,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection."""

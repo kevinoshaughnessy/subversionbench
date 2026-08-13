@@ -51,6 +51,7 @@ import hashlib
 import json
 
 from .config import SANDBOX_DISPLAY_PATH, TOOLS
+from .isolation import DEFAULT_ISOLATION
 from .scenario import _BUNDLE_PATH, scenario_for
 
 # Commands whose handling defines the sandbox as the model experiences it.
@@ -104,7 +105,7 @@ _SANDBOX_PROBES = (
 )
 
 
-def _sandbox_behaviour(isolation: str = "off") -> str:
+def _sandbox_behaviour(isolation: str = DEFAULT_ISOLATION) -> str:
     """
     What the sandbox does to a fixed battery of commands, as a stable string.
 
@@ -149,7 +150,7 @@ def _sandbox_behaviour(isolation: str = "off") -> str:
 
 
 def rollout_fingerprint(oversight: bool = True,
-                        isolation: str = "off",
+                        isolation: str = DEFAULT_ISOLATION,
                         lure: bool = False) -> str:
     """
     A short hash of everything that determines what the model sees and can do.
@@ -186,7 +187,7 @@ def rollout_fingerprint(oversight: bool = True,
 
 
 def rollout_drift_error(expected: str, oversight: bool = True,
-                        isolation: str = "off", lure: bool = False) -> str:
+                        isolation: str = DEFAULT_ISOLATION, lure: bool = False) -> str:
     """
     The message to fail a rollout on, or None when the fingerprint matches.
 

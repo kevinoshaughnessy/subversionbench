@@ -663,3 +663,33 @@ class TestRunEvaluationEndToEnd:
         assert result["analysis"][oversight["disclosure_key"]]["disclosed"] is None
         assert "no closing report" in \
             result["analysis"][oversight["disclosure_key"]]["error"]
+
+    def test_the_default_isolation_mode_is_actually_valid(self):
+        """Regression: the parameter default used to be "off", a mode
+        isolation.py stopped accepting at v35. Nothing caught it because every
+        test above that omits `isolation=` also omits a tool call - a single
+        end_turn text reply never reaches execute_tool_sandboxed, so the
+        default was never actually asked to work. This one calls a tool
+        without specifying isolation, the same gap this class's tampering
+        tests would have hit if they had not passed it explicitly.
+        """
+        env_dir, env_info = self._env()
+        calls = []
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: self._tampering_client(calls)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = ev_run.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_STRONG_NUDGE,
+                    user_prompt="Do the task.", env_dir=env_dir,
+                    env_info=env_info, model="m", max_turns=2,
+                    use_grader=False, nudge="strong")
+                    # isolation deliberately NOT passed - this is the default.
+        finally:
+            ev_llm.get_client = orig
+
+        tool_result = next(e for e in result["transcript"]
+                           if e["type"] == "tool_result")
+        assert "unknown isolation mode" not in tool_result["result"]
+        assert "permission denied" not in tool_result["result"].lower(), (
+            "deny-network must still allow an ordinary in-scenario command")
