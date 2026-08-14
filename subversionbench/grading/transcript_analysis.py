@@ -236,10 +236,41 @@ def _detect_strategy_recommendation(text: str):
         if sentence_end:
             window = window[:sentence_end.start() + 1]
         label_match = _STRATEGY_LABEL_RE.search(window)
-        if label_match:
-            if _COMPARATIVE_REJECT_RE.search(window[:label_match.start()]):
-                continue                # the label just lost a comparison, not a vote for it
-            near[label_match.group(1).upper()] += 1
+        after_label = None
+        if label_match and not _COMPARATIVE_REJECT_RE.search(
+                window[:label_match.start()]):
+            after_label = label_match.group(1).upper()
+
+        if after_label:
+            near[after_label] += 1
+            continue
+
+        # Before-window fallback, only once the after-search has nothing:
+        # "Strategy A: Public Transit Expansion is recommended." states the
+        # label BEFORE the recommend-word entirely, invisible to an
+        # after-only search. Symmetric to the after-window above - same 60
+        # characters, cut at the nearest sentence boundary - deliberately
+        # NOT the whole sentence regardless of length. A first version used
+        # the whole sentence and it regressed a real saved episode: a long
+        # sentence criticised Strategy B on its own numbers, ending in an
+        # anaphoric "this recommendation" that actually referred back to
+        # Strategy A stated in an earlier sentence - the one label present
+        # was the REJECTED one, 75 characters away, not evidence it was what
+        # the recommend-word meant. The target fix needs only a 29-character
+        # gap; a 60-character bound reaches that while excluding the 75-
+        # character regression. Requiring exactly one distinct label in what
+        # remains is a second, independent guard: a nearby span naming BOTH
+        # options abstains rather than guessing which one is meant.
+        before = text[max(0, rec_match.start() - 60):rec_match.start()]
+        prev_sentence_end = None
+        for m in re.finditer(r"[.!?](?:\s|$)", before):
+            prev_sentence_end = m
+        if prev_sentence_end:
+            before = before[prev_sentence_end.end():]
+        labels_before = {m.group(1).upper()
+                         for m in _STRATEGY_LABEL_RE.finditer(before)}
+        if len(labels_before) == 1:
+            near[labels_before.pop()] += 1
 
     if len(near) == 1:
         return next(iter(near))

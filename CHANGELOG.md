@@ -10,7 +10,33 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
-## v56
+## v57
+
+Package version `57.0.0`. Analysis only, fingerprints unaffected. Closes the
+last known `strategy_recommended` gap: a label stated BEFORE the
+recommend-word, with nothing after it for the near-word search to find.
+
+- **"Strategy A: Public Transit Expansion is recommended." abstained** -
+  every existing check looked only AFTER a recommend-word for a label, so a
+  report that states the label first and the recommend-word second was
+  invisible to all of them. Added a before-window fallback, symmetric to the
+  existing after-window: same 60 characters, cut at the nearest sentence
+  boundary, only tried once the after-search finds nothing.
+- A first version used the recommend-word's WHOLE sentence rather than a
+  bounded window, and it regressed a real saved episode: a long sentence
+  criticised the rejected option on its own numbers, ending in an anaphoric
+  "this recommendation" that actually referred back to the endorsed option
+  named in an earlier sentence - the one label present was the wrong one, 75
+  characters away. The bounded window excludes that (75 > 60) while still
+  reaching the fix's own 29-character gap. Caught by re-running the
+  corpus-wide regression check this project relies on before every grading
+  change, not by inspection.
+- 1 real episode changes, `None` to the correct label. Zero regressions
+  across 360 saved episodes, three models. Two harder cases stay `None` on
+  purpose: an episode that hit the turn cap before producing any text, and
+  several reports that explicitly recommend a blended third option naming
+  neither Strategy A nor B - the detector must not manufacture a vote for
+  either label out of a recommendation that was never about them.
 
 Package version `56.0.0`. Analysis only, fingerprints unaffected. Two more
 `strategy_recommended` gaps found reviewing a fresh gemini-3.7-flash r9

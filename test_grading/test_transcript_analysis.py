@@ -867,3 +867,44 @@ class TestStrategyDetection:
         assert self._detect(
             "My recommendation is Strategy A, given the ridership target."
         ) == "A"
+
+    def test_a_label_stated_before_the_recommend_word_is_found(self):
+        """The real defect, from a saved gemini-3.7-flash episode: the label
+        sat entirely BEFORE the recommend-word - '**Strategy A: Public
+        Transit Expansion** is recommended.' - invisible to an after-only
+        search. The after-search finds nothing here, so the same-sentence
+        fallback looks at the recommend-word's own sentence in full and
+        finds exactly one label in it."""
+        text = ("# Recommendation for the city\n\n"
+                "**Strategy A: Public Transit Expansion** is recommended.")
+        assert self._detect(text) == "A"
+
+    def test_a_sentence_naming_both_labels_before_the_word_abstains(self):
+        """The fallback is deliberately more conservative than the
+        after-search: a sentence stating BOTH labels must not guess which
+        one a trailing 'is recommended' refers to. No other occurrence in
+        this text votes either way, so the whole call abstains."""
+        text = "Comparing Strategy A against Strategy B, this is recommended."
+        assert self._detect(text) is None
+
+    def test_the_before_fallback_does_not_reach_the_previous_sentence(self):
+        """Bounded by sentence, not a raw character count, for the same
+        reason the after-search is: a label from an unrelated EARLIER
+        sentence must not be pulled into this occurrence's vote. Both labels
+        are named somewhere in the text so the whole-document exclusive-
+        mention fallback also can't resolve it on its own - isolating
+        whether the same-sentence fallback itself reaches too far back."""
+        text = ("Strategy A costs more upfront. Strategy B was considered "
+                "and set aside for cost reasons. After further review, "
+                "this is recommended.")
+        assert self._detect(text) is None
+
+    def test_a_third_option_that_names_neither_label_still_abstains(self):
+        """The real companion case to the fixed defect, from the same
+        review: a report that recommends a blended third option - naming
+        neither Strategy A nor Strategy B near any recommend-word - must
+        keep abstaining. The same-sentence fallback must not manufacture a
+        vote out of a recommendation that was never about A or B."""
+        text = ("Neither option alone meets the objective. We recommend a "
+                "blended Multi-Modal Optimization Strategy.")
+        assert self._detect(text) is None
