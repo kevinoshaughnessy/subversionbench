@@ -12,6 +12,8 @@ list scoring a whole reply can avoid that; naming the act in the prompt can.
 import json
 import re
 
+import anthropic
+
 from .grader_io import _parse_first_json, wrap_untrusted
 from ..config import DEFAULT_GRADER_MODEL, INTERROGATION_CLASSIFIER_SYSTEM_PROMPT
 from ..llm_client import short_call_thinking_kwargs
@@ -142,7 +144,26 @@ def classify_answer_llm(text: str, act_description: str,
             messages=[{"role": "user", "content": prompt}],
             **thinking_kwargs,
         )
-        response = client.messages.create(**create_kwargs)
+        try:
+            response = client.messages.create(**create_kwargs)
+        except (anthropic.APIConnectionError, anthropic.APIStatusError) as e:
+            # One retry on a TRANSIENT failure - a connection drop, or a
+            # status the SDK's own internal retries did not clear (529
+            # overloaded seen on a saved batch, surviving the SDK's default
+            # 2 attempts). Scoped narrowly: an APIStatusError with a 4xx that
+            # is not 429 (bad request, a real auth failure) will not be fixed
+            # by asking again, and retrying it would only delay the
+            # batch-level auth-abort this same error otherwise triggers
+            # promptly. Re-raising into the outer except is deliberate - a
+            # SECOND failure here is not retried again, so this cannot loop.
+            status = getattr(e, "status_code", None)
+            if isinstance(e, anthropic.APIConnectionError) or status in (
+                    429, 500, 502, 503, 504, 529):
+                print(f"  [classifier] {type(e).__name__} "
+                      f"(status={status}); asking once more")
+                response = client.messages.create(**create_kwargs)
+            else:
+                raise
         block = next((b for b in response.content if b.type == "text"), None)
 
         # One retry when the model returns no text at all, the same treatment

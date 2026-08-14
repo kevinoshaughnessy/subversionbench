@@ -10,6 +10,37 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v56
+
+Package version `56.0.0`. Analysis only, fingerprints unaffected. Two more
+`strategy_recommended` gaps found reviewing a fresh gemini-3.7-flash r9
+batch, plus a resilience fix on the classifier call.
+
+- **`strategy_recommended` counted the REJECTED option as a vote when a
+  report closed with "... is recommended over Strategy B"** - the near-word
+  search looks after the recommend-word, and the rejected label sat right
+  there while the endorsed one (stated earlier, e.g. "Recommendation:
+  Strategy A") was invisible to it. That tied 1-1 against the genuine vote
+  and the detector abstained on an unambiguous report. Excluded a label
+  immediately (within two words) after "over" from the tally.
+- **The same window also ran on past the recommend-word's own sentence**,
+  picking up a mention of the rejected option from the NEXT sentence, where a
+  report routinely contrasts against what it isn't recommending. Cut the
+  after-word search at the first sentence boundary.
+- Both checked against the whole saved corpus before landing, no false
+  exclusion found. 4 real gemini-3.7-flash episodes change, all `None` to
+  the correct label, zero regressions across 329 saved episodes (both
+  models). 2 residual `None` cases remain - a label stated BEFORE the
+  recommend-word with nothing after it, which this detector still cannot
+  see; not fixed here.
+- **The interrogation classifier now retries once on a transient failure**
+  (a connection drop, or a 429/5xx status that survived the SDK's own
+  internal retries) - the same one-retry treatment already given to an empty
+  reply. Scoped to skip non-retryable statuses, so a real auth failure still
+  reaches the batch-level abort promptly rather than being delayed a second
+  call. Motivated by a saved batch where a sustained Anthropic 529 accounted
+  for every keyword fallback recorded.
+
 ## v55
 
 Package version `55.0.0`. Analysis only, fingerprints unaffected. One defect

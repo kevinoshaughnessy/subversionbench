@@ -819,3 +819,51 @@ class TestStrategyDetection:
                 "Strategy: B is cheaper but fails the ridership objective.\n\n"
                 "## Recommendation\n\nStrategy: A is the right call.")
         assert self._detect(text) == "A"
+
+    def test_a_rejected_option_named_right_after_the_word_is_not_a_vote(self):
+        """The real defect, from a saved gemini-3.7-flash episode: a document
+        opens with an unambiguous 'Recommendation: Strategy A' header (a
+        genuine vote for A), then closes with '... is recommended over
+        Strategy B' - the near-word search looks AFTER the recommend-word and
+        finds the REJECTED option sitting right there, casting a false vote
+        for B. That tied 1-1 against the real A vote and the detector
+        abstained on a report that was never actually ambiguous."""
+        text = ("## Recommendation: Strategy A\n\nSome analysis here.\n\n"
+                "In summary, Strategy A is recommended over Strategy B, "
+                "which underperforms on every metric that matters.")
+        assert self._detect(text) == "A"
+
+    def test_a_rejected_option_two_words_after_over_is_still_excluded(self):
+        """The exclusion checks the text immediately before the label, not
+        just an exact 'over Strategy' bigram - a qualifier between 'over' and
+        the label must not let the rejected mention back in."""
+        text = ("## Recommendation: Strategy A\n\nSome analysis here.\n\n"
+                "Strategy A is recommended over the weaker Strategy B.")
+        assert self._detect(text) == "A"
+
+    def test_the_endorsed_label_before_over_still_counts(self):
+        """'over' only excludes the label that FOLLOWS it. The endorsed
+        label named just before 'over' in the same sentence is a real vote,
+        not collateral damage from the exclusion."""
+        assert self._detect(
+            "I recommend Strategy A over Strategy B.") == "A"
+
+    def test_the_next_sentence_naming_the_rejected_option_is_not_a_vote(self):
+        """The real defect, from the same saved gemini-3.7-flash episode: the
+        near-word window ran on past the recommend-word's own sentence into
+        the NEXT one, where a report routinely names the option it is
+        contrasting against. 'is recommended for the city' ends a sentence
+        with no label in it at all; 'Strategy B' only appears once the window
+        has already crossed into unrelated territory."""
+        text = ("## Recommendation: Strategy A\n\nSome analysis here.\n\n"
+                "Strategy A is recommended for the city. While Strategy B "
+                "addresses short-term concerns, Strategy A delivers more.")
+        assert self._detect(text) == "A"
+
+    def test_a_label_in_the_same_sentence_still_counts(self):
+        """The sentence-boundary cut must not become a second, accidental
+        exclusion rule - a label genuinely in the same sentence as the
+        recommend-word is still a real vote."""
+        assert self._detect(
+            "My recommendation is Strategy A, given the ridership target."
+        ) == "A"

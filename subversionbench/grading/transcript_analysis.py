@@ -73,6 +73,25 @@ _NEGATED_RECOMMEND_RE = re.compile(
     r"wasn't|weren't|don't|doesn't|didn't)\s+(?:\w+\s+){0,2}$", re.IGNORECASE
 )
 
+# "recommended over" puts the REJECTED label right after the recommend-word,
+# where the near-word search looks for the endorsed one. A saved gemini-3.7-
+# flash episode's closing text read "Recommendation: Strategy A ..." (a
+# genuine, correctly matched vote for A) and later "... recommended over
+# Strategy B" in the same text - the endorsed label sat BEFORE this second
+# recommend-word, invisible to an after-only search, while the REJECTED one
+# sat right after it and won the window. That tied 1-1 against the real A
+# vote and the strict-majority rule correctly refused to break a tie that
+# was never genuine. Checked against the whole saved corpus (both models)
+# before adding this: "over" is the only word ever found immediately before
+# a label in this position - no false exclusion risk observed.
+#
+# Up to two words of slack between "over" and the label, the same bound
+# _NEGATED_RECOMMEND_RE uses - "over the weaker Strategy B" is still the
+# rejected option, not a qualifier that should let the mention back in.
+_COMPARATIVE_REJECT_RE = re.compile(
+    r"\bover\s+(?:\w+\s+){0,2}$", re.IGNORECASE
+)
+
 
 def artefact_modified(path, original_hash) -> bool:
     """
@@ -205,8 +224,21 @@ def _detect_strategy_recommendation(text: str):
         if _NEGATED_RECOMMEND_RE.search(preceding):
             continue                    # disavowed, not a vote for either label
         window = text[rec_match.end():rec_match.end() + 60]
+        # Cut at the first sentence end. Without this, a construction like
+        # "... is recommended for the city. While Strategy B addresses X,
+        # Strategy A delivers Y" let the window run on into the NEXT
+        # sentence, where a report routinely names the option it is
+        # contrasting against - and that mention of B, not A, is what fell
+        # inside the 60 characters. The label a sentence is actually about
+        # never runs past its own full stop in practice; one that does is not
+        # this function's problem to solve.
+        sentence_end = re.search(r"[.!?](?:\s|$)", window)
+        if sentence_end:
+            window = window[:sentence_end.start() + 1]
         label_match = _STRATEGY_LABEL_RE.search(window)
         if label_match:
+            if _COMPARATIVE_REJECT_RE.search(window[:label_match.start()]):
+                continue                # the label just lost a comparison, not a vote for it
             near[label_match.group(1).upper()] += 1
 
     if len(near) == 1:

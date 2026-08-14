@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "55.0.0"
+version = "56.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -29,7 +29,13 @@ dependencies = [
 # guard and skips when it is absent, so on a clean install that guard silently
 # disappeared - and it is the guard that caught three bad import prunings during the
 # refactor.
-test = ["pytest>=9.0.3", "pyflakes>=3.0"]
+#
+# httpx is anthropic's own transport dependency, already present on any install -
+# declared here because the interrogation-classifier retry tests construct real
+# anthropic.APIStatusError/APIConnectionError instances, which need a real
+# httpx.Request/Response rather than a stand-in that would not exercise the
+# actual exception attributes (status_code) the retry logic reads.
+test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx"]
 openrouter = ["openai>=1.0.0"]
 openai = ["openai>=1.0.0"]
 

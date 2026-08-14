@@ -225,6 +225,105 @@ class TestLLMAnswerClassifier:
         assert result["verdict_llm"] is None
         assert "429" in result["classifier_error"]
 
+    def _status_error_client(self, status, verdict="admitted", n_errors=1):
+        """A client whose first `n_errors` calls raise a real
+        anthropic.APIStatusError at `status`, then succeed."""
+        import httpx
+        import anthropic
+
+        calls = []
+        req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+
+        class Messages:
+            @staticmethod
+            def create(**kw):
+                calls.append(kw)
+                if len(calls) <= n_errors:
+                    resp = httpx.Response(status, request=req)
+                    raise anthropic.APIStatusError(
+                        f"{status} error", response=resp, body=None)
+                return types.SimpleNamespace(
+                    content=[types.SimpleNamespace(
+                        type="text",
+                        text=json.dumps({"verdict": verdict, "quote": "q"}))],
+                    stop_reason="end_turn")
+
+        class Client:
+            messages = Messages()
+        client = Client()
+        client.calls = calls
+        return client
+
+    def test_an_overloaded_classifier_is_retried_once(self):
+        """529 (overloaded) survived the SDK's own internal retries on a
+        saved batch. One more attempt at this level is worth it before
+        falling back to the keyword floor."""
+        client = self._status_error_client(529)
+        result = classify_interrogation_answer(
+            self.GROK, ACT_OVERSIGHT_DESCRIPTION,
+            FOLLOWUP_MONITORING_ADMISSION, FOLLOWUP_MONITORING_DENIAL,
+            FOLLOWUP_MONITORING_CONTRITION, client=client,
+        )
+        assert result["verdict"] == "admitted"
+        assert result["used_keyword_fallback"] is False
+        assert len(client.calls) == 2
+
+    def test_two_overloaded_replies_in_a_row_still_falls_back(self):
+        """The retry is exactly one attempt, not a loop - a second failure
+        must reach the keyword floor rather than ask a third time."""
+        client = self._status_error_client(529, n_errors=2)
+        result = classify_interrogation_answer(
+            self.GROK, ACT_OVERSIGHT_DESCRIPTION,
+            FOLLOWUP_MONITORING_ADMISSION, FOLLOWUP_MONITORING_DENIAL,
+            FOLLOWUP_MONITORING_CONTRITION, client=client,
+        )
+        assert result["used_keyword_fallback"] is True
+        assert len(client.calls) == 2
+
+    def test_a_connection_error_is_also_retried_once(self):
+        import httpx
+        import anthropic
+
+        calls = []
+        req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+
+        class Messages:
+            @staticmethod
+            def create(**kw):
+                calls.append(kw)
+                if len(calls) == 1:
+                    raise anthropic.APIConnectionError(request=req)
+                return types.SimpleNamespace(
+                    content=[types.SimpleNamespace(
+                        type="text",
+                        text=json.dumps({"verdict": "denied", "quote": ""}))],
+                    stop_reason="end_turn")
+
+        class Client:
+            messages = Messages()
+        client = Client()
+
+        result = classify_interrogation_answer(
+            self.GROK, ACT_OVERSIGHT_DESCRIPTION,
+            FOLLOWUP_MONITORING_ADMISSION, FOLLOWUP_MONITORING_DENIAL,
+            FOLLOWUP_MONITORING_CONTRITION, client=client,
+        )
+        assert result["used_keyword_fallback"] is False
+        assert len(calls) == 2
+
+    def test_a_non_retryable_status_is_not_retried(self):
+        """A 400 (bad request) or 401 (auth) will not be fixed by asking
+        again - retrying it would only delay the batch-level auth-abort a
+        401 is meant to trigger promptly."""
+        client = self._status_error_client(400)
+        result = classify_interrogation_answer(
+            self.GROK, ACT_OVERSIGHT_DESCRIPTION,
+            FOLLOWUP_MONITORING_ADMISSION, FOLLOWUP_MONITORING_DENIAL,
+            FOLLOWUP_MONITORING_CONTRITION, client=client,
+        )
+        assert result["used_keyword_fallback"] is True
+        assert len(client.calls) == 1
+
     def test_malformed_json_is_a_failure_not_a_verdict(self):
         out = classify_answer_llm("x", ACT_OVERSIGHT_DESCRIPTION,
                                   client=self._client(malformed=True))
