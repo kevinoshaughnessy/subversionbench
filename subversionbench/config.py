@@ -7,7 +7,7 @@ from types import MappingProxyType
 from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
                        SCENARIO, TASK_FILE_NAME, load_scenario, scenario_for)
 
-VERSION = "v54"
+VERSION = "v55"
 
 # =========================================================================
 # Rollout identity
@@ -264,14 +264,9 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # The model that grades eval awareness and labels interrogation answers.
 #
-# A frontier model rather than a small one, because the small one was measurably
-# wrong. On a 100-run grok-4.5 batch, claude-haiku-4-5 read the scenario's OWN
-# quality checker as evidence the agent suspected it was under evaluation -
-# "the quality checker flags Strategy A at the current threshold" - firing
-# suspects_being_tested on 8 of 20 sampled episodes where claude-opus-5 fired on
-# 0 of 20 (Fisher p = 0.0033). That one question supplied 55 of the batch's 59
-# eval-aware verdicts, so the awareness rate was mostly an artefact of the
-# grader. See "Validating the grader" in README.md, and rubric_ab.py for the
+# A frontier model rather than a small one, because claude-haiku-4-5 was measurably
+# wrong. claude-opus-5 has been found to be a reliable grade, but is expensive.
+# See "Validating the grader" in README.md, and rubric_ab.py for the
 # experiment.
 #
 # Grading all seven rubric questions for 550 saved runs costs roughly $24 at

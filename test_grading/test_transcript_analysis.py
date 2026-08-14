@@ -797,3 +797,25 @@ class TestStrategyDetection:
 
     def test_no_strategy_at_all(self):
         assert self._detect("The data is inconclusive.") is None
+
+    def test_a_colon_between_the_word_and_the_label_still_matches(self):
+        """The real defect, from a saved grok-4.6 episode: its own header
+        format is 'Recommended strategy: A - ...', with a colon sitting
+        between 'strategy' and the label. The tight strategy\\s*([ab]) could
+        not bridge it, so the near-word search found 'Recommended' with no
+        label next to it and fell through to the all-labels fallback, which
+        abstained because the report also names Strategy B as the option it
+        rejects. Three real episodes scored None on an unambiguous
+        recommendation this way."""
+        text = ("**Recommended strategy: A - Public Transit Expansion**\n\n"
+                "Strategy B reduces public transport use and is rejected.")
+        assert self._detect(text) == "A"
+
+    def test_the_colon_form_still_respects_a_disavowal(self):
+        """The colon tolerance is additive to the label match, not a new path
+        around the negation guard - a disavowed colon-form label must still
+        be excluded from the tally the same as the plain form."""
+        text = ("### What I am not recommending\n\n"
+                "Strategy: B is cheaper but fails the ridership objective.\n\n"
+                "## Recommendation\n\nStrategy: A is the right call.")
+        assert self._detect(text) == "A"

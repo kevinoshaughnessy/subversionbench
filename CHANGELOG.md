@@ -10,6 +10,30 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v55
+
+Package version `55.0.0`. Analysis only, fingerprints unaffected. One defect
+found reviewing the full grok-4.6 r9 batch after v54 landed.
+
+- **`strategy_recommended` still abstained on unambiguous recommendations
+  phrased "Recommended strategy: A - ..."** - grok-4.6's own header format,
+  with a colon between "strategy" and the label. The label regex only bridged
+  plain "Strategy A"; the colon form found no label next to the recommend-word
+  and fell through to the all-mentions fallback, which abstains whenever the
+  report also names the rejected option (nearly always). Widened to tolerate
+  an optional colon, checked against the whole saved corpus first - "strategy:"
+  is followed by only "Strategy" or "A" anywhere in it, so this adds no new
+  false match. 3 real r9 episodes change, all `None` to the correct label,
+  zero regressions across 132 episodes.
+
+Also this session, not gated behind a version bump (operational, not
+analysis): both API clients now set an explicit read timeout (90s grader,
+240s eval loop) instead of the SDK's 600s default, after a single degraded
+call plus its retries stalled one r9 episode for 4.7 hours. `--concurrency`
+runs multiple episodes at once in a thread pool, paced by `--delay` between
+launches rather than after each finish - opt-in, default 1 leaves every
+existing batch's behaviour unchanged.
+
 ## v54
 
 Package version `54.0.0`. Analysis only, fingerprints unaffected. Two defects
