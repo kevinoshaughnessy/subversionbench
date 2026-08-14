@@ -10,6 +10,30 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v61
+
+Package version `61.0.0`. Operational only - two resilience/diagnostics fixes,
+no analysis changes, nothing to backfill.
+
+- **`run_all_arms.sh` died on the whole batch when a single arm aborted.**
+  `set -euo pipefail` plus an unguarded `run_eval.py` invocation meant one
+  arm's own deliberate abort (e.g. `--max-consecutive-failures` tripping on
+  a run of upstream provider errors) killed the wrapper script outright -
+  every arm still queued behind it, however unrelated, was never attempted.
+  The script's own header claims "SAFE TO RE-RUN"; that now holds for one
+  arm failing mid-batch, not just for restarting from a clean slate. The
+  invocation is guarded, a failed arm is recorded and the loop continues,
+  and a summary of every arm that didn't complete prints at the end.
+  Verified against a real `set -e` semantics repro and a full functional
+  run through all arms via the missing-credential refusal path.
+- **A response that parses as valid JSON but carries no `choices`** (a
+  moderation block, a rate limit, a provider-side failure returned as a
+  well-formed error object) crashed `openrouter_client.py` with a bare
+  `TypeError: 'NoneType' object is not subscriptable` three layers from
+  anything that said what happened - hit for real after 30 clean turns.
+  Now raises a `RuntimeError` naming the model, HTTP status, and response
+  body, the same diagnostic already in place for a non-JSON body.
+
 ## v60
 
 Package version `60.0.0`. New feature, not a fix - no episodes change.

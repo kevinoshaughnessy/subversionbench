@@ -171,6 +171,30 @@ class OpenRouterClient:
                 f"{body[:1000]}"
             ) from None
 
+        # A body that parses as valid JSON is not necessarily a completion -
+        # a moderation block, a rate limit, or a provider-side failure can
+        # all come back as a well-formed JSON object with no "choices" at
+        # all, which the SDK's typed model then reports as None rather than
+        # raising itself. completion.choices[0] on that is a bare
+        # TypeError: 'NoneType' object is not subscriptable, three layers
+        # from anything that says what actually happened - a real batch hit
+        # this after 30 clean turns and reported that message alone. Same
+        # status+body diagnostic as the non-JSON case above, since the raw
+        # response is the only place an explanation might actually be.
+        if not completion.choices:
+            status = getattr(raw_response, "status_code", "?")
+            body = getattr(raw_response, "text", None)
+            if body is None:
+                body = str(getattr(raw_response, "content", b""))
+            raise RuntimeError(
+                f"OpenRouter returned a response with no choices for model "
+                f"'{model}' (HTTP {status}). This usually means the "
+                f"upstream provider returned an error body that still "
+                f"parses as valid JSON - a moderation block, a rate limit, "
+                f"or a provider-side failure - rather than a completion. "
+                f"Response body (first 1000 chars):\n{body[:1000]}"
+            ) from None
+
         choice = completion.choices[0].message
         finish_reason = getattr(completion.choices[0], "finish_reason", None)
         reasoning = getattr(choice, "reasoning", None)

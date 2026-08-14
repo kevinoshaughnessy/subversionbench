@@ -189,6 +189,80 @@ class TestOpenRouterNonJsonResponse:
             assert "partial" in str(e)
 
 
+class TestOpenRouterNoChoicesResponse:
+    """A body that parses as valid JSON is not necessarily a completion - a
+    moderation block, a rate limit, or a provider-side failure can all come
+    back as a well-formed JSON object with no "choices" at all, which the
+    SDK's typed model reports as None rather than raising itself.
+    completion.choices[0] on that is a bare TypeError: 'NoneType' object is
+    not subscriptable, three layers from anything that says what actually
+    happened - moonshotai/kimi-k2-thinking hit this live, 30 clean turns
+    into a real episode, with no other diagnostic in the failure."""
+
+    def _make_client(self):
+        from unittest.mock import MagicMock
+        import os
+        from subversionbench.openrouter_client import OpenRouterClient
+
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = OpenRouterClient()
+        client._client = MagicMock()
+        return client
+
+    def _fake_raw(self, choices, status=200, body="{}"):
+        from unittest.mock import MagicMock
+        fake_raw = MagicMock()
+        fake_raw.status_code = status
+        fake_raw.text = body
+        fake_completion = MagicMock()
+        fake_completion.choices = choices
+        fake_raw.parse.return_value = fake_completion
+        return fake_raw
+
+    def test_choices_none_raises_an_informative_error_not_a_bare_typeerror(self):
+        client = self._make_client()
+        fake_raw = self._fake_raw(
+            None, status=200,
+            body='{"error": {"message": "moderation_blocked"}}')
+        client._client.chat.completions.with_raw_response.create.return_value = fake_raw
+
+        try:
+            client.create(
+                model="moonshotai/kimi-k2-thinking", max_tokens=4096,
+                tools=[{"name": "bash", "description": "d",
+                        "input_schema": {"type": "object"}}],
+                messages=[{"role": "user", "content": "hi"}],
+            )
+            assert False, "expected RuntimeError"
+        except RuntimeError as e:
+            assert "moonshotai/kimi-k2-thinking" in str(e)
+            assert "200" in str(e)
+            assert "moderation_blocked" in str(e)
+        except TypeError:
+            assert False, "a bare TypeError reached the caller"
+
+    def test_choices_empty_list_is_also_caught(self):
+        """An empty list previously raised IndexError instead of TypeError -
+        a different but equally uninformative crash, from the same missing
+        guard."""
+        client = self._make_client()
+        fake_raw = self._fake_raw([], status=429, body='{"error": "rate limited"}')
+        client._client.chat.completions.with_raw_response.create.return_value = fake_raw
+
+        try:
+            client.create(
+                model="moonshotai/kimi-k2-thinking", max_tokens=4096,
+                tools=[{"name": "bash", "description": "d",
+                        "input_schema": {"type": "object"}}],
+                messages=[{"role": "user", "content": "hi"}],
+            )
+            assert False, "expected RuntimeError"
+        except RuntimeError as e:
+            assert "429" in str(e)
+        except IndexError:
+            assert False, "a bare IndexError reached the caller"
+
+
 class TestTheTranslationIntoChatCompletions:
     """The OpenRouter twin of test_openai_client.py's TestResponsesTranslation.
 

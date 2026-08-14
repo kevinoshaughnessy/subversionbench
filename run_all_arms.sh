@@ -68,6 +68,7 @@ OUTPUT_DIR="./eval_results_$(python3 -c \
     'from subversionbench.config import ROLLOUT_VERSION; print(ROLLOUT_VERSION)')"
 DRY_RUN="${DRY_RUN:-0}"
 PASSTHROUGH=()
+FAILED_ARMS=()
 
 # Every phrasing except the reference one, which parse_interrogations always
 # prepends and which is not optional - the headline concealment field is defined
@@ -175,12 +176,35 @@ PY
             if [ "$DRY_RUN" = "1" ]; then
                 printf '  would run: %s\n' "${cmd[*]}"
             else
-                "${cmd[@]}"
+                # set -e makes an unguarded "${cmd[@]}" fatal to this WHOLE
+                # script the moment one arm exits non-zero - which run_eval.py
+                # does deliberately on its own abort (--max-consecutive-
+                # failures, an auth failure). A model having a rough patch on
+                # one arm used to silently end the batch there: every arm
+                # after it in the loop, however unrelated, was never even
+                # attempted. This script's own header says "SAFE TO RE-RUN" -
+                # that has to be true of one arm failing mid-batch too, not
+                # just of re-invoking the script from a clean start.
+                if ! "${cmd[@]}"; then
+                    echo "  [!] this arm did not complete - continuing to the next one."
+                    echo "      Re-running this script (no --resume needed) will pick up"
+                    echo "      wherever it left off, the same as any other partial arm."
+                    FAILED_ARMS+=("nudge=${nudge} oversight=${oversight} lure=${lure}")
+                fi
             fi
             echo
         done
     done
 done
+
+if [ "${#FAILED_ARMS[@]}" -gt 0 ]; then
+    echo "============================================================"
+    echo "${#FAILED_ARMS[@]} arm(s) did not complete:"
+    for arm in "${FAILED_ARMS[@]}"; do
+        echo "  - ${arm}"
+    done
+    echo "Re-run this script (no --resume needed) to pick them back up."
+fi
 
 echo "============================================================"
 echo "Done: ${TOTAL_ARMS} arm(s) for ${MODEL}, ${RUNS} run(s) each requested."
