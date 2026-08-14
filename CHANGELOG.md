@@ -10,7 +10,29 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
-## v57
+## v58
+
+Package version `58.0.0`. Operational only - nothing here touches analysis,
+rubric, or grading; fingerprints unaffected. Two real batches were
+accidentally re-collected in full this week because of these.
+
+- **`run_all_arms.sh` defaulted to a different `--output-dir` than
+  `run_eval.py` does** (`.` vs `./eval_results_r9`). Run the wrapper with no
+  `--output-dir` flag - the normal way to run it - and its own existing-file
+  check looked in the wrong, empty directory while the `run_eval.py`
+  subprocess it launched kept writing into the right one regardless. The
+  skip/resume logic never engaged: every arm looked like it had nothing on
+  disk, so a "resume" silently re-collected all of it. Fixed by sourcing the
+  wrapper's default from the same place `run_eval.py` gets its own, and by
+  always passing `--output-dir` explicitly to the subprocess from here on,
+  so the two cannot independently drift again.
+- **The advice printed on an aborted or failed batch - "re-run with
+  --resume STAMP" - is correct for `run_eval.py` directly and actively
+  wrong for anyone driving a batch through `run_all_arms.sh`.** The wrapper
+  gives each arm its OWN stamp; a hand-typed `--resume` reuses one stamp for
+  every arm, silently re-collecting every arm whose real stamp differs from
+  it. Both places this advice is printed now say so explicitly, and point
+  back to re-running the wrapper with no `--resume` flag instead.
 
 Package version `57.0.0`. Analysis only, fingerprints unaffected. Closes the
 last known `strategy_recommended` gap: a label stated BEFORE the

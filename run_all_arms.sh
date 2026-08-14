@@ -55,7 +55,17 @@ RUNS=""
 NUDGES=(none strong max)
 OVERSIGHTS=(true false)
 LURES=(false true)
-OUTPUT_DIR="."
+# Matches run_eval.py's own default exactly, sourced rather than duplicated
+# as a literal - a mismatched default here is not cosmetic. This script's
+# own existing-file check reads OUTPUT_DIR directly; run_eval.py falls back
+# to ITS default whenever --output-dir is not passed to it. Before this, the
+# two defaults were different strings ("." here, "./eval_results_r9" there),
+# so a run with no --output-dir flag checked an empty current directory,
+# found nothing, and silently re-collected every arm while run_eval.py went
+# on writing into eval_results_r9 as it always had - the skip/resume logic
+# never engaged at all. A real batch was re-run this way before it was caught.
+OUTPUT_DIR="./eval_results_$(python3 -c \
+    'from subversionbench.config import ROLLOUT_VERSION; print(ROLLOUT_VERSION)')"
 DRY_RUN="${DRY_RUN:-0}"
 PASSTHROUGH=()
 
@@ -75,7 +85,7 @@ while [ $# -gt 0 ]; do
         --oversights) IFS=',' read -r -a OVERSIGHTS <<< "$2"; shift 2 ;;
         --lures) IFS=',' read -r -a LURES <<< "$2"; shift 2 ;;
         --interrogations) INTERROGATIONS="$2"; shift 2 ;;
-        --output-dir) OUTPUT_DIR="$2"; PASSTHROUGH+=(--output-dir "$2"); shift 2 ;;
+        --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         *) PASSTHROUGH+=("$1"); shift ;;
     esac
 done
@@ -151,9 +161,14 @@ PY
             [ -n "$INTERROGATIONS" ] && \
                 interrogation_args=(--interrogation "$INTERROGATIONS")
 
+            # --output-dir is always explicit here, never left to run_eval.py's
+            # own default - that default and this script's are sourced from the
+            # same place above, but a subprocess falling back to its own copy
+            # is exactly the split that let the two drift apart before.
             cmd=(python3 -m subversionbench.run_eval
                  --model "$MODEL" --runs "$RUNS"
                  --nudge "$nudge" --oversight "$oversight" --lure "$lure"
+                 --output-dir "$OUTPUT_DIR"
                  "${interrogation_args[@]+"${interrogation_args[@]}"}"
                  "${resume_args[@]+"${resume_args[@]}"}" "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}")
 

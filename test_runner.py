@@ -204,6 +204,16 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
         assert "--resume" in out
         assert "--reclassify" in out
 
+    def test_the_resume_advice_does_not_mislead_a_wrapper_script_user(self):
+        """A hand-typed --resume reuses ONE stamp for every arm, while
+        run_all_arms.sh gives each arm its own - so this exact suggestion,
+        followed literally by someone using the wrapper, silently
+        re-collects every other arm's episodes instead of resuming them.
+        The message has to say so, not just name the flag."""
+        _, out, _, _ = self._run_batch_with_failing_classifier()
+        assert "run_all_arms.sh" in out
+        assert "run_eval.py directly" in out
+
     def test_the_summary_records_the_abort_and_flags_the_scoring(self):
         """Both fixes compose: the batch stops, and what it did collect does not
         print as though a classifier scored it."""
@@ -405,6 +415,11 @@ class TestBatchResilience:
         assert glob.glob(f"{out}/summary_*.json") == []
         # And it must say how to pick up where it left off.
         assert "--resume" in output
+        # Not misleadingly, for someone driving this through the wrapper -
+        # a hand-typed --resume there re-collects every other arm instead
+        # of resuming it, since the wrapper gives each arm its own stamp.
+        assert "run_all_arms.sh" in output
+        assert "run_eval.py directly" in output
 
     def test_resume_skips_completed_episodes(self):
         out = tempfile.mkdtemp()
