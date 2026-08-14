@@ -98,8 +98,14 @@ class OpenRouterClient:
         # models) seem more prone to the connection being reset mid-response
         # than a typical short API call - the SDK's default of 2 retries
         # isn't always enough to ride that out.
+        # The SDK default read timeout is 600s with no override here, so one
+        # degraded call could stall up to max_retries x 600s before the batch
+        # ever saw it - measured on a real batch as a single 16,945s (4.7hr)
+        # episode. 240s is generous for even an 8192-token effort=max
+        # completion from a slow model while bounding that worst case.
         self._client = openai.OpenAI(
             base_url=OPENROUTER_BASE_URL, api_key=api_key, max_retries=5,
+            timeout=240,
         )
         self.messages = self
 

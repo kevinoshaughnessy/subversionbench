@@ -136,4 +136,10 @@ def get_client(model: str):
     if is_openai_model(model):
         return OpenAIClient()
     import anthropic
-    return anthropic.Anthropic()
+    # Every call through this client asks for a couple hundred tokens of JSON
+    # with thinking disabled where the model allows it (short_call_thinking_
+    # kwargs) - grading, interrogation classification, closing-report checks.
+    # None of that legitimately needs the SDK's 600s default read timeout;
+    # 90s is generous headroom over normal latency and bounds how long one
+    # degraded call can stall a batch before the SDK's own retry takes over.
+    return anthropic.Anthropic(timeout=90)

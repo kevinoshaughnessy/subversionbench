@@ -12,6 +12,8 @@ import io
 import json
 import sys
 import tempfile
+import threading
+import time
 import types
 
 from pathlib import Path
@@ -172,7 +174,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             lure=False, output_dir=out, runs=runs, delay=0, max_tokens=8192,
             max_turns=40, no_power=True, no_grader=True,
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
-            max_consecutive_failures=3, thinking_budget=None,
+            max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
             yes=False)
         orig = runner.run_evaluation
@@ -241,7 +243,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             lure=False, output_dir=out, runs=3, delay=0, max_tokens=8192,
             max_turns=40, no_power=True, no_grader=True,
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
-            max_consecutive_failures=3, thinking_budget=None,
+            max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
             yes=False)
         orig = runner.run_evaluation
@@ -424,3 +426,144 @@ class TestBatchResilience:
         stamp = sorted(glob.glob(f"{out}/run_2_*.json"))[0].rsplit("_", 1)[-1][:-5]
         self._run(out, ["--runs", "2", "--resume", stamp])
         assert len(glob.glob(f"{out}/run_*_{stamp}.json")) == 2
+
+class TestConcurrency:
+    """--concurrency runs episodes in a thread pool instead of one at a time.
+
+    Every episode gets its own tempfile.mkdtemp() tree (create_episode_root)
+    and its own client (get_client is called fresh per episode), so nothing
+    here needs a lock beyond what runner.py already owns: the
+    consecutive-failure count, the launch pacing, and the order results are
+    handed to the summary in.
+    """
+
+    def _run(self, out, argv, sleep=0.05, fail_on=()):
+        counter = {"n": 0}
+        lock = threading.Lock()
+
+        def blk(**kw):
+            return types.SimpleNamespace(**kw)
+
+        class Messages:
+            def __init__(self):
+                with lock:
+                    counter["n"] += 1
+                    self.idx = counter["n"]
+
+            def create(self, messages=None, **kw):
+                time.sleep(sleep)
+                if self.idx in fail_on:
+                    raise RuntimeError("429 rate limit exceeded")
+                return blk(stop_reason="end_turn", content=[
+                    blk(type="text", text="I recommend Strategy B.")])
+
+        class Client:
+            def __init__(self):
+                self.messages = Messages()
+
+        original = ev_llm.get_client
+        ev_llm.get_client = lambda m: Client()
+        original_argv = sys.argv
+        sys.argv = ["run_eval", "--model", "m", "--delay", "0", "--no-grader",
+                    "--output-dir", out] + argv
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                t0 = time.monotonic()
+                rc = ev_run.main()
+                elapsed = time.monotonic() - t0
+            return rc, buf.getvalue(), elapsed
+        finally:
+            ev_llm.get_client = original
+            sys.argv = original_argv
+
+    def test_concurrency_actually_overlaps_episodes(self):
+        """The point of the flag: wall-clock time has to reflect episodes
+        overlapping, not stacking end to end."""
+        out = tempfile.mkdtemp()
+        rc, _, elapsed = self._run(
+            out, ["--runs", "6", "--concurrency", "3"], sleep=0.3)
+        assert rc == 0
+        assert len(glob.glob(f"{out}/run_*.json")) == 6
+        # Sequential would be >= 6 * 0.3 = 1.8s of API time alone. Three at
+        # once should land near two batches of 0.3s - this only has to show
+        # real overlap happened, not pin an exact schedule.
+        assert elapsed < 1.5, f"no overlap detected: took {elapsed:.2f}s"
+
+    def test_a_default_of_one_looks_exactly_like_no_flag_at_all(self):
+        """concurrency=1 is what every batch ran before this flag existed, so
+        it has to still print as the plain sequential path rather than merely
+        behave equivalently to it."""
+        out = tempfile.mkdtemp()
+        rc, output, _ = self._run(out, ["--runs", "3"], sleep=0.0)
+        assert rc == 0
+        assert "Concurrency:" not in output
+
+    def test_consecutive_failures_still_abort_the_batch(self):
+        out = tempfile.mkdtemp()
+        rc, output, _ = self._run(
+            out, ["--runs", "20", "--concurrency", "4",
+                  "--max-consecutive-failures", "3"],
+            sleep=0.02, fail_on=tuple(range(1, 25)))
+        assert rc == 1
+        assert "ABORTING" in output
+        # The abort has to actually stop new launches, not just report the
+        # failures after every one of the 20 was already attempted.
+        assert len(glob.glob(f"{out}/failed_run_*.json")) < 20
+
+    def test_resume_skips_completed_episodes_under_concurrency(self):
+        # fail_on counts CLIENT CONSTRUCTIONS, which race across threads under
+        # concurrency - two episodes fail, but which run indices they land on
+        # is not deterministic, so this asserts on the COUNT resume skips
+        # rather than which specific run numbers they were.
+        out = tempfile.mkdtemp()
+        self._run(out, ["--runs", "5", "--concurrency", "3"],
+                  sleep=0.02, fail_on=(2, 4))
+        completed = glob.glob(f"{out}/run_*.json")
+        assert len(completed) == 3
+        stamp = sorted(completed)[0].rsplit("_", 1)[-1][:-5]
+
+        rc, output, _ = self._run(
+            out, ["--runs", "5", "--concurrency", "3", "--resume", stamp],
+            sleep=0.02)
+        assert output.count("already on disk, skipping") == 3
+        assert len(glob.glob(f"{out}/run_*_{stamp}.json")) == 5
+
+    def test_the_initial_pool_fills_without_waiting_out_delay(self):
+        """The first --concurrency launches have to start together. Gating
+        them the same as a slot being reused would make --concurrency N with
+        --delay D no faster than running sequentially - which very nearly
+        shipped: --delay serialised even the initial fill until this test
+        caught it."""
+        out = tempfile.mkdtemp()
+        rc, _, elapsed = self._run(
+            out, ["--runs", "2", "--concurrency", "2", "--delay", "5"],
+            sleep=0.05)
+        assert rc == 0
+        # Both launches are within the initial fill, so neither should wait
+        # out --delay at all. Sequential --delay=5 over 2 runs would take
+        # >= 5s; this must land far below that.
+        assert elapsed < 3.0, (f"the initial fill waited out --delay: "
+                               f"{elapsed:.2f}s")
+
+    def test_launches_are_paced_by_delay_not_by_completion(self):
+        """--delay under concurrency bounds request RATE - when a new episode
+        may start - not a pause after each one finishes, since finishes no
+        longer happen in launch order once more than one runs at a time."""
+        out = tempfile.mkdtemp()
+        rc, _, elapsed = self._run(
+            out, ["--runs", "3", "--concurrency", "2", "--delay", "1"],
+            sleep=0.01)
+        assert rc == 0
+        # Two episodes launch immediately (no wait); the third reuses a slot
+        # and waits out exactly one --delay interval. Sequential --delay=1
+        # over 3 runs would be >= 2s of pure pacing; this should land near
+        # one interval, not two.
+        assert elapsed < 2.0, (f"delay looks like it is pacing every launch "
+                               f"independently of concurrency: {elapsed:.2f}s")
+
+    def test_concurrency_below_one_is_refused(self):
+        out = tempfile.mkdtemp()
+        rc, output, _ = self._run(out, ["--runs", "1", "--concurrency", "0"])
+        assert rc == 1
+        assert "--concurrency must be at least 1" in output

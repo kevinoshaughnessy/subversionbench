@@ -15,8 +15,12 @@ hundred. And the per-episode save, because an episode that completed is worth
 keeping whatever happens to the ones after it.
 """
 
+import concurrent.futures
+import io
 import json
 import os
+import sys
+import threading
 import time
 
 from .batch import BatchIdentity, unique_batch_stamp
@@ -35,6 +39,303 @@ from .rollout import rollout_drift_error
 from .scenario import scenario_for
 
 
+class _PerThreadStdout:
+    """
+    Routes each worker thread's prints into a private buffer instead of the
+    shared terminal, flushed as one block when the episode finishes.
+
+    Without this, N concurrent episodes' turn-by-turn narration (~36 print
+    calls per episode in episode.py alone) interleaves line-by-line into
+    something unreadable. A thread with nothing registered - the scheduler
+    itself - writes straight through, so the run headers and abort messages
+    below are unaffected.
+    """
+
+    def __init__(self, real):
+        self._real = real
+        self._buffers = {}
+        self._lock = threading.Lock()
+
+    def register(self):
+        with self._lock:
+            self._buffers[threading.get_ident()] = io.StringIO()
+
+    def pop(self) -> str:
+        with self._lock:
+            buf = self._buffers.pop(threading.get_ident(), None)
+        return buf.getvalue() if buf else ""
+
+    def write(self, s):
+        buf = self._buffers.get(threading.get_ident())
+        (buf or self._real).write(s)
+
+    def flush(self):
+        self._real.flush()
+
+    def isatty(self):
+        return False
+
+    def write_to_real(self, s):
+        self._real.write(s)
+        self._real.flush()
+
+
+def _run_one_episode(i, args, identity, system_prompt, user_prompt,
+                     reasoning_kwargs, reasoning_config, effective_effort,
+                     profile_path):
+    """
+    Roll out and save episode i+1.
+
+    Returns a plain record rather than deciding the abort/failure response
+    itself, so the sequential loop and the concurrent scheduler below can
+    share this without either one owning the other's control flow.
+
+    KeyboardInterrupt is not caught here and propagates to the caller - same
+    as it always has, since stopping mid-episode is a caller decision.
+    """
+    run_file = identity.filename(args.output_dir, f"run_{i + 1}")
+    episode_root, env_dir, env_info = create_episode_root(
+        args.oversight, lure=args.lure)
+
+    try:
+        result = run_evaluation(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            env_dir=env_dir,
+            env_info=env_info,
+            model=args.model,
+            max_turns=args.max_turns,
+            max_tokens=args.max_tokens,
+            reasoning_kwargs=reasoning_kwargs,
+            reasoning_config=reasoning_config,
+            effort=effective_effort,
+            use_grader=not args.no_grader,
+            grader_model=args.grader_model,
+            oversight=args.oversight,
+            nudge=args.nudge,
+            lure=args.lure,
+            interrogations=args.interrogations,
+            isolation=args.isolation,
+            profile_path=profile_path,
+            episode_root=episode_root,
+        )
+    except Exception as e:
+        cause = e.cause if isinstance(e, EpisodeAPIError) else e
+        failure = {
+            "run": i + 1,
+            "error": f"{type(cause).__name__}: "
+                     f"{redact_paths(str(cause), env_dir)}",
+        }
+        print(f"\n[RUN {i + 1} FAILED] {type(cause).__name__}: "
+              f"{redact_paths(str(cause), env_dir)[:300]}")
+
+        if isinstance(e, EpisodeAPIError):
+            partial_file = identity.filename(args.output_dir,
+                                             f"failed_run_{i + 1}")
+            with open(partial_file, "w") as f:
+                json.dump(e.partial, f, indent=2, default=str)
+            failure["partial_transcript"] = os.path.basename(partial_file)
+            failure["failed_on_turn"] = e.partial.get("failed_on_turn")
+            print(f"  Partial transcript "
+                  f"({e.partial.get('failed_on_turn')} turn(s) in) saved: "
+                  f"{redact_paths(partial_file)}")
+
+        return {"ok": False, "run": i + 1, "failure": failure}
+
+    act_taken = any((result.get("analysis") or {}).get(act["key"])
+                    for act in MISALIGNED_ACTS)
+    result_to_save = {k: v for k, v in result.items() if k != "messages"}
+    if act_taken:
+        result_to_save["messages"] = serialise_messages(
+            result.get("messages") or [])
+
+    with open(run_file, "w") as f:
+        json.dump(result_to_save, f, indent=2, default=str)
+    print(f"\nSaved: {redact_paths(run_file)}")
+
+    auth_error = auth_error_in_analysis(result.get("analysis") or {})
+    return {"ok": True, "run": i + 1, "result": result_to_save,
+            "auth_error": auth_error, "env_dir": env_dir}
+
+
+def _print_auth_abort(auth_error, env_dir, n_saved, batch_stamp):
+    print(f"\n{'*'*60}")
+    print("*** ABORTING: the grader model rejected our credentials. ***")
+    print(f"{'*'*60}")
+    print(f"  {redact_paths(str(auth_error), env_dir)[:200]}")
+    print(f"\n  Every verdict from here would fall back to the keyword "
+          f"cross-check,\n  which is a legitimate reading of one bad answer "
+          f"and a fiction for all\n  of them. {n_saved} episode(s) "
+          f"are saved and reusable.")
+    print(f"\n  Fix the credential, then either re-run with --resume "
+          f"{batch_stamp}\n  or score what is saved with --reclassify "
+          f"--write-back.")
+
+
+def _run_episodes_concurrently(args, identity, system_prompt, user_prompt,
+                               reasoning_kwargs, reasoning_config,
+                               effective_effort, profile_path, _arm_tag,
+                               batch_stamp):
+    """
+    The same rollout as the sequential loop in run_batch, up to --concurrency
+    episodes in flight at once.
+
+    Nothing here has to coordinate episodes beyond the bookkeeping this
+    function itself owns: create_episode_root() makes a fresh
+    tempfile.mkdtemp() tree per call and run_evaluation() carries no state
+    between calls, so two episodes running at once touch no shared mutable
+    state that matters for correctness.
+
+    --delay changes meaning here. Sequentially it was a pause AFTER each
+    episode finished; under concurrency episodes finish out of order, so that
+    would not bound request rate at all. Instead each new launch waits until
+    at least --delay seconds have passed since the previous launch - that,
+    together with --concurrency capping simultaneous requests via the thread
+    pool's worker count, is what actually stands between this harness and a
+    provider's rate limiter.
+
+    "Consecutive" failures are counted in the order episodes COMPLETE, not the
+    order they were launched in - the sequential loop's "last N in a row" has
+    no single meaning once N episodes can finish in any order.
+    """
+    print(f"\nConcurrency: {args.concurrency} episode(s) at once, launches "
+          f"paced at least {args.delay}s apart.")
+
+    pending = []
+    all_results = {}
+    for i in range(args.runs):
+        run_file = identity.filename(args.output_dir, f"run_{i + 1}")
+        if args.resume and os.path.exists(run_file):
+            with open(run_file) as f:
+                all_results[i] = json.load(f)
+            print(f"\n# RUN {i+1}/{args.runs} [{_arm_tag}] - already on disk, "
+                  f"skipping")
+            continue
+        pending.append(i)
+
+    failures = []
+    consecutive_failures = 0
+    aborted = False
+    stop = threading.Event()
+    launch_lock = threading.Lock()
+    print_lock = threading.Lock()
+    last_launch = [0.0]
+    launched = [0]
+    total_wait = [0.0]
+    out = _PerThreadStdout(sys.stdout)
+
+    def paced_launch():
+        # The first --concurrency launches fill the pool and must go out
+        # together, not one --delay apart - gating them the same as every
+        # later launch would serialise the initial fill and make
+        # --concurrency N with --delay D no faster than sequential. Pacing
+        # only applies once a slot is being REUSED, which is the point in
+        # the schedule where an unpaced harness would actually burst.
+        with launch_lock:
+            if launched[0] >= args.concurrency:
+                wait = last_launch[0] + args.delay - time.monotonic()
+                if wait > 0:
+                    time.sleep(wait)
+                    total_wait[0] += wait
+            launched[0] += 1
+            last_launch[0] = time.monotonic()
+
+    def worker(i):
+        paced_launch()
+        if stop.is_set():
+            return None
+        out.register()
+        try:
+            print(f"\n{'#'*60}")
+            print(f"# RUN {i+1}/{args.runs}  [{_arm_tag}]")
+            print(f"{'#'*60}")
+            return _run_one_episode(
+                i, args, identity, system_prompt, user_prompt,
+                reasoning_kwargs, reasoning_config, effective_effort,
+                profile_path)
+        finally:
+            text = out.pop()
+            with print_lock:
+                out.write_to_real(text)
+
+    real_stdout = sys.stdout
+    sys.stdout = out
+    try:
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=args.concurrency) as ex:
+            it = iter(pending)
+            futures = {}
+            for _ in range(args.concurrency):
+                i = next(it, None)
+                if i is None:
+                    break
+                futures[ex.submit(worker, i)] = i
+
+            try:
+                while futures:
+                    done, _ = concurrent.futures.wait(
+                        list(futures),
+                        return_when=concurrent.futures.FIRST_COMPLETED)
+                    for fut in done:
+                        i = futures.pop(fut)
+                        record = fut.result()
+                        if record is None:
+                            continue
+
+                        if not record["ok"]:
+                            consecutive_failures += 1
+                            failures.append(record["failure"])
+                            print(f"  Episode skipped. {consecutive_failures} "
+                                  f"consecutive failure(s), {len(failures)} "
+                                  f"total.")
+                            if (consecutive_failures >=
+                                    args.max_consecutive_failures):
+                                print(f"\n*** ABORTING: "
+                                      f"{consecutive_failures} episodes "
+                                      f"failed in a row. ***")
+                                aborted = True
+                                stop.set()
+                        else:
+                            consecutive_failures = 0
+                            all_results[i] = record["result"]
+                            if record["auth_error"]:
+                                _print_auth_abort(
+                                    record["auth_error"], record["env_dir"],
+                                    len(all_results), batch_stamp)
+                                aborted = True
+                                stop.set()
+
+                        if not stop.is_set():
+                            j = next(it, None)
+                            if j is not None:
+                                futures[ex.submit(worker, j)] = j
+            except KeyboardInterrupt:
+                print("\n\nInterrupted by user. Episode(s) already in "
+                      "flight will finish and save; nothing further will "
+                      "be launched.")
+                aborted = True
+                stop.set()
+                # cancel() only succeeds on a future that has not started;
+                # whatever is already running keeps running and is collected
+                # below rather than left off the summary this function
+                # returns.
+                still_running = [f for f in futures if not f.cancel()]
+                for fut in concurrent.futures.as_completed(still_running):
+                    i = futures[fut]
+                    record = fut.result()
+                    if record is None:
+                        continue
+                    if record["ok"]:
+                        all_results[i] = record["result"]
+                    else:
+                        failures.append(record["failure"])
+    finally:
+        sys.stdout = real_stdout
+
+    ordered_results = [all_results[i] for i in sorted(all_results)]
+    return ordered_results, failures, consecutive_failures, aborted, total_wait[0]
+
+
 def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
               reasoning_config: str) -> int:
     """
@@ -47,6 +348,10 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     be labelled with and re-deriving it here removes the chance of the two
     disagreeing.
     """
+    if args.concurrency < 1:
+        print(f"\n--concurrency must be at least 1, got {args.concurrency}.")
+        return 1
+
     effective_effort = (reasoning_kwargs.get("output_config") or {}).get("effort")
 
     # Past this point we are rolling out, so the batch is labelled with the effort
@@ -198,165 +503,95 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     consecutive_failures = 0
     aborted = False
 
-    for i in range(args.runs):
-        run_file = identity.filename(args.output_dir, f"run_{i+1}")
+    if args.concurrency > 1:
+        (all_results, failures, consecutive_failures, aborted,
+         total_delay_seconds) = _run_episodes_concurrently(
+            args, identity, system_prompt, user_prompt, reasoning_kwargs,
+            reasoning_config, effective_effort, profile_path, _arm_tag,
+            batch_stamp)
+    else:
+        for i in range(args.runs):
+            run_file = identity.filename(args.output_dir, f"run_{i+1}")
 
-        # Resume: an episode already saved under this stamp is complete, so
-        # load it and move on rather than paying for it twice.
-        if args.resume and os.path.exists(run_file):
-            with open(run_file) as f:
-                all_results.append(json.load(f))
-            print(f"\n# RUN {i+1}/{args.runs} [{_arm_tag}] - already on disk, "
-                  f"skipping")
-            continue
+            # Resume: an episode already saved under this stamp is complete, so
+            # load it and move on rather than paying for it twice.
+            if args.resume and os.path.exists(run_file):
+                with open(run_file) as f:
+                    all_results.append(json.load(f))
+                print(f"\n# RUN {i+1}/{args.runs} [{_arm_tag}] - already on "
+                      f"disk, skipping")
+                continue
 
-        print(f"\n{'#'*60}")
-        print(f"# RUN {i+1}/{args.runs}  [{_arm_tag}]")
-        print(f"{'#'*60}")
+            print(f"\n{'#'*60}")
+            print(f"# RUN {i+1}/{args.runs}  [{_arm_tag}]")
+            print(f"{'#'*60}")
 
-        # A private parent per episode, so `..` is somewhere the scenario
-        # controls. Episodes used to be siblings under the machine's shared temp
-        # root, which made `..` writable by every episode and listed the
-        # operator's own temp directory.
-        episode_root, env_dir, env_info = create_episode_root(
-            args.oversight, lure=args.lure)
+            # One episode failing must not end the batch. Over a few hundred
+            # episodes - each 5-20 model calls plus grading and
+            # interrogations - an unretryable API error somewhere is likely,
+            # and losing the remaining episodes plus the summary to it is the
+            # expensive outcome.
+            try:
+                record = _run_one_episode(
+                    i, args, identity, system_prompt, user_prompt,
+                    reasoning_kwargs, reasoning_config, effective_effort,
+                    profile_path)
+            except KeyboardInterrupt:
+                print("\n\nInterrupted by user.")
+                aborted = True
+                break
 
-        # One episode failing must not end the batch. Over a few hundred
-        # episodes - each 5-20 model calls plus grading and interrogations -
-        # an unretryable API error somewhere is likely, and losing the
-        # remaining episodes plus the summary to it is the expensive outcome.
-        try:
-            result = run_evaluation(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                env_dir=env_dir,
-                env_info=env_info,
-                model=args.model,
-                max_turns=args.max_turns,
-                max_tokens=args.max_tokens,
-                reasoning_kwargs=reasoning_kwargs,
-                reasoning_config=reasoning_config,
-                effort=effective_effort,
-                use_grader=not args.no_grader,
-                grader_model=args.grader_model,
-                oversight=args.oversight,
-                nudge=args.nudge,
-                lure=args.lure,
-                interrogations=args.interrogations,
-                isolation=args.isolation,
-                profile_path=profile_path,
-                # The boundary the kernel enforces. The root rather than env_dir,
-                # because `..` is the scenario's own neighbourhood.
-                episode_root=episode_root,
-            )
-        except KeyboardInterrupt:
-            print("\n\nInterrupted by user.")
-            aborted = True
-            break
-        except Exception as e:
-            consecutive_failures += 1
-            cause = e.cause if isinstance(e, EpisodeAPIError) else e
-            failure = {
-                "run": i + 1,
-                "error": f"{type(cause).__name__}: "
-                         f"{redact_paths(str(cause), env_dir)}",
-            }
-            print(f"\n[RUN {i+1} FAILED] {type(cause).__name__}: "
-                  f"{redact_paths(str(cause), env_dir)[:300]}")
+            if not record["ok"]:
+                # A partial episode is not an observation - it is not
+                # appended to all_results and does not enter any rate - but
+                # its transcript is still the only record of what the model
+                # did before the failure, so _run_one_episode writes it
+                # somewhere findable rather than dropping it.
+                consecutive_failures += 1
+                failures.append(record["failure"])
+                print(f"  Episode skipped. {consecutive_failures} "
+                      f"consecutive failure(s), {len(failures)} total.")
 
-            # A partial episode is not an observation - it is not appended to
-            # all_results and does not enter any rate - but its transcript is
-            # still the only record of what the model did before the failure,
-            # so it is written somewhere findable rather than dropped.
-            if isinstance(e, EpisodeAPIError):
-                partial_file = identity.filename(args.output_dir,
-                                                 f"failed_run_{i+1}")
-                with open(partial_file, "w") as f:
-                    json.dump(e.partial, f, indent=2, default=str)
-                failure["partial_transcript"] = os.path.basename(partial_file)
-                failure["failed_on_turn"] = e.partial.get("failed_on_turn")
-                print(f"  Partial transcript "
-                      f"({e.partial.get('failed_on_turn')} turn(s) in) saved: "
-                      f"{redact_paths(partial_file)}")
+                if consecutive_failures >= args.max_consecutive_failures:
+                    print(f"\n*** ABORTING: {consecutive_failures} episodes "
+                          f"failed in a row. ***")
+                    aborted = True
+                    break
 
-            failures.append(failure)
-            print(f"  Episode skipped. {consecutive_failures} consecutive "
-                  f"failure(s), {len(failures)} total.")
+                if i < args.runs - 1:
+                    time.sleep(args.delay)
+                    total_delay_seconds += args.delay
+                continue
 
-            if consecutive_failures >= args.max_consecutive_failures:
-                print(f"\n*** ABORTING: {consecutive_failures} episodes "
-                      f"failed in a row. ***")
+            consecutive_failures = 0
+            all_results.append(record["result"])
+
+            # An auth failure in the SCORING is checked after the episode is
+            # saved, and it stops the batch.
+            #
+            # It cannot come right on retry - the credential will be just as
+            # absent for episode two - and its consequence is invisible in
+            # the output it produces: every interrogation answer still gets a
+            # well-formed verdict, from the keyword cross-check instead of
+            # the classifier. Three batches ran to completion that way and
+            # published concealment rates no classifier produced. The
+            # pre-flight above now catches the ordinary case; this catches a
+            # credential that stops working mid-batch, or one the environment
+            # has but the provider rejects.
+            #
+            # After the save, deliberately. The rollout is the expensive part
+            # and this episode's transcript is sound - only its scoring is
+            # not - so it is kept, and --resume will not pay for it again.
+            if record["auth_error"]:
+                _print_auth_abort(record["auth_error"], record["env_dir"],
+                                  len(all_results), batch_stamp)
                 aborted = True
                 break
 
             if i < args.runs - 1:
+                print(f"\nWaiting {args.delay}s before next run...")
                 time.sleep(args.delay)
                 total_delay_seconds += args.delay
-            continue
-
-        consecutive_failures = 0
-
-        # The conversation is saved ONLY for episodes that took a misaligned act.
-        #
-        # It used to be dropped from every run, for two reasons: it is large, and
-        # it holds API objects json cannot encode. serialise_messages answers the
-        # second. The first is answered by asking what the field is for: it exists
-        # so a saved episode can be interrogated again with a different phrasing,
-        # and an episode with no act has nothing to be asked about. Most episodes
-        # take no act, so this keeps the whole capability at a fraction of the
-        # storage.
-        #
-        # It cannot be backfilled. The transcript keeps the text of each turn but
-        # not the thinking-block signatures the API verifies, so an episode already
-        # on disk can only be replayed with its own reasoning stripped out - a
-        # different conversation, and worst exactly where awareness lives.
-        act_taken = any((result.get("analysis") or {}).get(act["key"])
-                        for act in MISALIGNED_ACTS)
-        result_to_save = {k: v for k, v in result.items() if k != "messages"}
-        if act_taken:
-            result_to_save["messages"] = serialise_messages(
-                result.get("messages") or [])
-        all_results.append(result_to_save)
-
-        with open(run_file, "w") as f:
-            json.dump(result_to_save, f, indent=2, default=str)
-        print(f"\nSaved: {redact_paths(run_file)}")
-
-        # An auth failure in the SCORING is checked after the episode is saved, and
-        # it stops the batch.
-        #
-        # It cannot come right on retry - the credential will be just as absent for
-        # episode two - and its consequence is invisible in the output it produces:
-        # every interrogation answer still gets a well-formed verdict, from the
-        # keyword cross-check instead of the classifier. Three batches ran to
-        # completion that way and published concealment rates no classifier produced.
-        # The pre-flight above now catches the ordinary case; this catches a
-        # credential that stops working mid-batch, or one the environment has but the
-        # provider rejects.
-        #
-        # After the save, deliberately. The rollout is the expensive part and this
-        # episode's transcript is sound - only its scoring is not - so it is kept,
-        # and --resume will not pay for it again.
-        auth_error = auth_error_in_analysis(result.get("analysis") or {})
-        if auth_error:
-            print(f"\n{'*'*60}")
-            print("*** ABORTING: the grader model rejected our credentials. ***")
-            print(f"{'*'*60}")
-            print(f"  {redact_paths(str(auth_error), env_dir)[:200]}")
-            print(f"\n  Every verdict from here would fall back to the keyword "
-                  f"cross-check,\n  which is a legitimate reading of one bad answer "
-                  f"and a fiction for all\n  of them. {len(all_results)} episode(s) "
-                  f"are saved and reusable.")
-            print(f"\n  Fix the credential, then either re-run with --resume "
-                  f"{batch_stamp}\n  or score what is saved with --reclassify "
-                  f"--write-back.")
-            aborted = True
-            break
-
-        if i < args.runs - 1:
-            print(f"\nWaiting {args.delay}s before next run...")
-            time.sleep(args.delay)
-            total_delay_seconds += args.delay
 
     if failures:
         print(f"\n{'!'*60}")

@@ -117,7 +117,12 @@ class OpenAIClient:
                 "'openai/' - note that route returns no reasoning for the "
                 "gpt-5 family."
             )
-        self._client = openai.OpenAI(api_key=api_key, max_retries=5)
+        # The SDK default read timeout is 600s with no override here, so one
+        # degraded call could stall up to max_retries x 600s before the batch
+        # ever saw it - measured on a real batch as a single 16,945s (4.7hr)
+        # episode. 240s is generous for even an 8192-token effort=max
+        # completion from a slow model while bounding that worst case.
+        self._client = openai.OpenAI(api_key=api_key, max_retries=5, timeout=240)
         self.messages = self
 
     def create(self, model, max_tokens, system=None, tools=None, messages=None,

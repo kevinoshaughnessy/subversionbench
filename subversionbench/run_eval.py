@@ -172,7 +172,20 @@ def main():
                         default=f"./eval_results_{ROLLOUT_VERSION}",
                         help="Output directory for results")
     parser.add_argument("--delay", type=int, default=30,
-                        help="Seconds to wait between runs (rate limiting)")
+                        help="Seconds to wait between runs (rate limiting). "
+                             "Under --concurrency > 1 this paces LAUNCHES "
+                             "instead of pausing after each finish, since "
+                             "episodes no longer finish in launch order.")
+    parser.add_argument("--concurrency", type=int, default=1,
+                        help="Episodes to run at once. Default 1 is today's "
+                             "sequential behaviour. Each episode is I/O-bound "
+                             "- waiting on the model, grader, and "
+                             "interrogation APIs rather than local CPU - so "
+                             "raising this cuts wall-clock time roughly in "
+                             "proportion. This flag does not know your "
+                             "account's actual concurrent-request limit; "
+                             "start low (e.g. 3-5) and watch for 429s before "
+                             "raising it further.")
     parser.add_argument("--no-grader", action="store_true",
                         help="Skip the LLM grader (faster, cheaper)")
     parser.add_argument("--max-turns", type=int, default=40,
