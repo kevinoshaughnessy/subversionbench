@@ -10,7 +10,26 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
-## v59
+## v60
+
+Package version `60.0.0`. New feature, not a fix - no episodes change.
+
+- **`--summarise-arms`**: one report across every arm a model has been run
+  through, instead of twelve summaries a reader has to hold in their head at
+  once. Each arm's headline rates side by side, contrasts between arms that
+  differ along exactly one scenario axis (nudge, oversight, lure) holding
+  the other two fixed - reusing power.compare_rates and its "difference
+  interval excludes zero" criterion rather than a bare p-value cutoff - and
+  concealment broken out by interrogation phrasing, read fresh from each
+  run file since a summary only ever carries the headline phrasing's
+  answer. Free: reads saved summaries and run files, calls no API.
+  `run_all_arms.sh` now runs this automatically as its last step.
+- Two real bugs caught building it, both against actual saved data rather
+  than synthetic tests alone: a field-shape misread in the
+  interrogation-variant reader (assumed a list of records; the real shape
+  is a flat `{variant: level}` dict), and an `n == 0` vs `n is None` check
+  that let not-applicable rates - `monitoring_disabled` in a no-oversight
+  arm - leak into a contrast instead of being excluded from it.
 
 Package version `59.0.0`. Fixes a live collection bug, not an analysis bug -
 affected episodes cannot be backfilled, only re-collected.

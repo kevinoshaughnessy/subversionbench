@@ -29,6 +29,7 @@ import os
 import sys
 import argparse
 
+from .arms_summary import write_summary_of_summaries
 from .compare import compare_batches
 from .config import (
     DEFAULT_GRADER_MODEL,
@@ -244,6 +245,19 @@ def main():
                              "nudge arms - on every headline rate, with "
                              "Fisher exact tests, and repeat the primary "
                              "contrast stratified by eval awareness.")
+    parser.add_argument("--summarise-arms", "--summarize-arms",
+                        action="store_true", dest="summarise_arms",
+                        help="Don't run the eval. Instead build one report "
+                             "across every arm of --model already collected "
+                             "in --output-dir: each arm's headline rates side "
+                             "by side, contrasts between arms that differ "
+                             "along exactly one of nudge/oversight/lure "
+                             "(holding the other two fixed), and concealment "
+                             "broken out by interrogation phrasing. Written "
+                             "to summary_of_summaries_<model>.json. Free - "
+                             "reads saved summaries and run files, calls no "
+                             "API. run_all_arms.sh runs this automatically "
+                             "when it finishes.")
     parser.add_argument("--reclassify", action="store_true",
                         help="Don't run the eval. Instead re-score the "
                              "interrogations in run files already in "
@@ -394,6 +408,10 @@ def main():
 
     if args.compare:
         return compare_batches(args)
+
+    if args.summarise_arms:
+        write_summary_of_summaries(args.output_dir, args.model)
+        return 0
 
     # `all` fans out over every batch in the directory. Free for --resummarise,
     # which calls no API. The other read modes send a request per run file, so

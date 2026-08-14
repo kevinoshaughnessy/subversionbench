@@ -184,3 +184,11 @@ done
 
 echo "============================================================"
 echo "Done: ${TOTAL_ARMS} arm(s) for ${MODEL}, ${RUNS} run(s) each requested."
+
+# Free - reads saved summaries and run files, calls no API - so this runs
+# even after a DRY_RUN, skipping only when there is nothing on disk to
+# summarise yet (a fresh --output-dir with everything still to collect).
+if [ "$DRY_RUN" != "1" ]; then
+    python3 -m subversionbench.run_eval --model "$MODEL" --summarise-arms \
+        --output-dir "$OUTPUT_DIR"
+fi

@@ -262,6 +262,8 @@ subversionbench/
     resummarise.py         re-deriving everything derivable, for free
     reinterrogate.py       asking a differently-worded question
   compare.py       differencing two arms of the counterfactual
+  arms_summary.py  every arm of one model side by side, and the contrasts
+                   that hold up across nudge/oversight/lure/interrogation
   reporting/       a batch of episodes to figures, a report and a summary
     facts/                 every figure, grouped the way the claims are grouped
       normalise.py           bringing saved analyses up to the current definitions
