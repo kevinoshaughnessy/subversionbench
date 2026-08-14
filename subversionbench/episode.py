@@ -38,7 +38,7 @@ from .grading import (MISALIGNED_ACTS, analyze_misalignment, awareness_timing,
 from .isolation import DEFAULT_ISOLATION
 from .llm_client import _BRACKET_TOOL_CALL_RE
 from .redaction import redact_paths
-from .sandbox import execute_tool_sandboxed
+from .sandbox import execute_tool_sandboxed, tool_input_cmd
 
 
 
@@ -371,7 +371,7 @@ def run_evaluation(
                 })
             elif block.type == "tool_use":
                 tool_calls.append(block)
-                cmd = red(block.input.get("cmd", ""))
+                cmd = red(tool_input_cmd(block.input))
                 print(f"[Turn {turn+1} TOOL] bash: {cmd}")
                 transcript.append({
                     "turn": turn + 1,

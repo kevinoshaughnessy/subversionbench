@@ -10,7 +10,30 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
-## v58
+## v59
+
+Package version `59.0.0`. Fixes a live collection bug, not an analysis bug -
+affected episodes cannot be backfilled, only re-collected.
+
+- **A model that switches from the declared tool parameter name to a more
+  common one gets every subsequent command silently run as empty.** TOOLS
+  declares the bash tool's parameter as "cmd". thinkingmachines/inkling-small
+  used "cmd" correctly on turn 1, then switched to "command" - a far more
+  common convention - for every turn after, with valid JSON each time.
+  `tool_input.get("cmd", "")` read that as a missing key and defaulted to an
+  empty string: the sandbox executed "", got no output, and the transcript
+  recorded a call the model never actually made. Found via raw-response
+  logging after a batch showed 80%+ empty tool calls in every episode - the
+  model's own final answers described the symptom directly ("the bash tool
+  is returning no output for any command"). Fixed with a shared helper that
+  checks "cmd" first and falls back to "command" specifically - not a
+  general fallback to any string value, which would silently accept a model
+  inventing its own key for anything else.
+- Checked the whole saved corpus for the same symptom under every other
+  model collected so far: zero empty commands anywhere outside this one.
+  57 of 59 `thinkingmachines/inkling-small` episodes are affected and cannot
+  be repaired after the fact - the sandbox never ran the real commands, so
+  there is nothing to re-derive. They need re-collecting, not backfilling.
 
 Package version `58.0.0`. Operational only - nothing here touches analysis,
 rubric, or grading; fingerprints unaffected. Two real batches were

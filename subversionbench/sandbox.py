@@ -589,6 +589,30 @@ def _rewrite_scenario_paths(cmd: str, env_dir: str) -> str:
     return "".join(out)
 
 
+def tool_input_cmd(tool_input: dict) -> str:
+    """
+    The command string a tool_use block actually asked to run.
+
+    TOOLS declares the property as "cmd", and every model tested against this
+    harness used it - until one didn't. thinkingmachines/inkling-small used
+    "cmd" correctly on turn 1, then silently switched to "command" (the far
+    more common convention for a shell tool) for every turn after, with
+    perfectly valid JSON each time. A plain tool_input.get("cmd", "") reads
+    that as an empty command: the sandbox executes "", getting no output, and
+    the transcript records a call the model never actually made this way -
+    indistinguishable from the model itself going silent. 14 of 15 tool calls
+    in one saved episode were lost to this before it was caught.
+
+    "command" is accepted as an alias for exactly this reason. Not a general
+    fallback to "the first string value" - that would silently accept a
+    model inventing its own key for anything, which is a different failure
+    to guard against than one specific, observed, common naming drift.
+    """
+    if "cmd" in tool_input:
+        return tool_input.get("cmd") or ""
+    return tool_input.get("command") or ""
+
+
 def execute_tool_sandboxed(tool_input: dict, env_dir: str,
                            isolation: str = DEFAULT_ISOLATION,
                            profile_path=None, episode_root=None) -> str:
@@ -620,7 +644,7 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
     hand a test that built `env_dir` straight in the temp directory a policy
     permitting the whole temp directory, which is the exact hole this closes.
     """
-    cmd = tool_input.get("cmd", "")
+    cmd = tool_input_cmd(tool_input)
 
     if would_be_blocked(cmd, env_dir):
         # States the reason, so a second attempt after this is unambiguously

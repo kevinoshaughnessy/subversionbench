@@ -13,7 +13,7 @@ import time
 
 from pathlib import Path
 from subversionbench.sandbox import (_group_of, _reap_group,
-                                     execute_tool_sandboxed)
+                                     execute_tool_sandboxed, tool_input_cmd)
 import subversionbench as ev
 from conftest import darwin_only, sandbox_profile
 
@@ -139,6 +139,46 @@ class TestSandbox:
             {"cmd": "echo hi && ls /tmp"}, env_dir_only
         )
         assert "permission denied" in result.lower()
+
+class TestToolInputCmd:
+    """A model using "command" instead of the declared "cmd" property must
+    still have its command found and run.
+
+    The real defect: thinkingmachines/inkling-small used "cmd" correctly on
+    turn 1, then silently switched to "command" - the far more common
+    convention for a shell tool - for every turn after, with perfectly valid
+    JSON each time. tool_input.get("cmd", "") read every one of those as an
+    empty command: the sandbox executed "", got no output, and the
+    transcript recorded a call the model never actually made this way. 14 of
+    15 tool calls in one saved episode were lost to this before it was
+    caught with raw-response logging.
+    """
+
+    def test_the_declared_key_is_used(self):
+        assert tool_input_cmd({"cmd": "ls -la"}) == "ls -la"
+
+    def test_command_is_accepted_as_an_alias(self):
+        assert tool_input_cmd({"command": "cat README.md"}) == "cat README.md"
+
+    def test_cmd_wins_when_both_are_somehow_present(self):
+        """"cmd" is what TOOLS actually declares - a model that supplies
+        both is not evidence "command" should ever take priority."""
+        assert tool_input_cmd({"cmd": "real", "command": "decoy"}) == "real"
+
+    def test_neither_key_present_is_empty_not_an_error(self):
+        """A tool_use block with no usable key at all still has to produce
+        SOME string, since callers pass this straight to execute_tool_
+        sandboxed and to the transcript - not a third silent-failure mode
+        alongside the one this class exists to close."""
+        assert tool_input_cmd({}) == ""
+        assert tool_input_cmd({"unrelated_key": "x"}) == ""
+
+    def test_execute_tool_sandboxed_runs_the_command_key_too(self, env_dir_only):
+        """The fix has to reach the actual execution site, not just the
+        transcript - the two extract "cmd" independently, and the defect
+        was in both of them."""
+        result = ev.execute_tool_sandboxed({"command": "echo hello"}, env_dir_only)
+        assert "hello" in result
 
 class TestScenarioAbsolutePaths:
     """The scenario directory is the root of the fiction: the README tells the
