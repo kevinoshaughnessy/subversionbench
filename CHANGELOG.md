@@ -10,6 +10,30 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v62
+
+Package version `62.0.0`. New feature, opt-in - no episodes change unless
+requested.
+
+- **`--openrouter-sort {price,throughput}`**: bias OpenRouter's backend
+  routing for the model under test. `throughput` prefers the fastest host
+  serving the model - the actual lever for an episode reporting `[TIMING]
+  Eval loop: 845.6s`, which on OpenRouter is almost always the model itself
+  generating slowly rather than anything the harness controls; `--effort`
+  and `--thinking-budget` do nothing there, since that route takes no
+  reasoning parameter at all. `price` prefers the cheapest. Defaults to
+  unset - OpenRouter's own routing, unchanged from every prior version.
+  Applies only to the client for the model under test, never the grader or
+  interrogation classifier, and is a no-op (warned, not refused) against a
+  non-OpenRouter model.
+- Recorded on every run as `openrouter_sort`, resolved to what was actually
+  sent rather than what was requested - `None` on every non-OpenRouter run
+  and on any run that did not opt in, the same convention already used for
+  `effort`. Sorting changes WHICH backend answers the request, not only how
+  fast, so it is treated as a fact about the episode's collection.
+- `run_all_arms.sh` needs no change: unrecognised flags already pass through
+  to every arm's `run_eval.py` invocation.
+
 ## v61
 
 Package version `61.0.0`. Operational only - two resilience/diagnostics fixes,

@@ -284,7 +284,7 @@ class TestThinkingBudget:
                 self.messages = Messages()
 
         original, original_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         sys.argv = ["run_eval", "--model", "m", "--runs", "1", "--delay", "0",
                     "--no-grader", "--output-dir", out]
         try:
@@ -321,7 +321,7 @@ class TestThinkingBudget:
                 self.messages = Messages()
 
         original, original_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         sys.argv = ["run_eval", "--model", "m", "--runs", "2", "--delay", "0",
                     "--no-grader", "--output-dir", out]
         try:

@@ -41,7 +41,7 @@ def _stub_grader(answer=False, raises=False):
         messages = _Messages()
 
     original = ev_llm.get_client
-    ev_llm.get_client = lambda model: _Client()
+    ev_llm.get_client = lambda model, **_kw: _Client()
     try:
         yield
     finally:

@@ -123,16 +123,23 @@ def missing_credential(model: str):
     return None if os.environ.get(var) else var
 
 
-def get_client(model: str):
+def get_client(model: str, provider_sort: str = None):
     """
     Return an API client for the given model.
 
     Stays in this module rather than moving to routing.py because the tests
     patch it here and `grading.py` imports it lazily by this path; moving it
     would make those patches silently no-ops.
+
+    `provider_sort` only means anything for OpenRouter, and only episode.py's
+    call for the model UNDER TEST passes one - grading.py's calls (grader,
+    interrogation classifier, closing-report check) build their own client
+    from `grader_model` and never see this argument, so a `--openrouter-sort`
+    aimed at speeding up the model under test cannot silently change which
+    backend answers a grading call for an unrelated model.
     """
     if is_openrouter_model(model):
-        return OpenRouterClient()
+        return OpenRouterClient(provider_sort=provider_sort)
     if is_openai_model(model):
         return OpenAIClient()
     import anthropic

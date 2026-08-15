@@ -85,7 +85,7 @@ class OpenRouterClient:
     interface, backed by OpenRouter's OpenAI-compatible chat completions
     API."""
 
-    def __init__(self):
+    def __init__(self, provider_sort: str = None):
         import openai
 
         api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -108,6 +108,15 @@ class OpenRouterClient:
             timeout=240,
         )
         self.messages = self
+        # None (the default) sends no `sort` at all - OpenRouter's own
+        # default routing, unchanged from before this existed. "throughput"
+        # and "price" are OpenRouter's own values, opted into per run via
+        # --openrouter-sort rather than assumed, because sorting by either
+        # changes WHICH backend answers the request, not just how fast - a
+        # cheaper or faster host is not guaranteed to behave identically to
+        # whatever OpenRouter would have picked unprompted, and that is a
+        # measurement choice, not just a performance one.
+        self._provider_sort = provider_sort
 
     def create(self, model, max_tokens, system=None, tools=None, messages=None,
                thinking=None, output_config=None):
@@ -138,13 +147,24 @@ class OpenRouterClient:
         kwargs = {"model": model, "max_tokens": max_tokens, "messages": oa_messages}
         if tools:
             kwargs["tools"] = [_to_openai_tool(t) for t in tools]
+
+        # Built independently of `tools`: require_parameters only makes sense
+        # alongside tools, but --openrouter-sort applies to every call this
+        # client makes, tool or not, so a provider dict must not depend on one
+        # implying the other.
+        provider = {}
+        if tools:
             # Some OpenRouter backends for a given model don't actually
             # support function calling - they silently ignore `tools` and
             # the model falls back to emitting its native tool-call syntax
             # as plain text (e.g. DeepSeek R1's "<|tool_calls_begin|>..."
             # tokens), which we can't parse. require_parameters restricts
             # routing to backends that support every parameter we sent.
-            kwargs["extra_body"] = {"provider": {"require_parameters": True}}
+            provider["require_parameters"] = True
+        if self._provider_sort:
+            provider["sort"] = self._provider_sort
+        if provider:
+            kwargs["extra_body"] = {"provider": provider}
 
         # Use the raw-response API rather than the auto-parsing
         # convenience method: if the body isn't valid JSON (an upstream

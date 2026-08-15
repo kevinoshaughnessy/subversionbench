@@ -193,6 +193,33 @@ class TestTheInterrogationFlagIsValidatedBeforeARollout:
         assert code != 2, out
 
 
+class TestOpenRouterSortFlag:
+    """--openrouter-sort is opt-in, only means anything for an OpenRouter
+    model, and must never be fatal - the operator asked for a performance
+    hint, not a hard requirement the CLI should refuse over."""
+
+    def test_an_unknown_value_is_refused(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--openrouter-sort",
+                          "cheapest")
+        assert code == 2
+
+    def test_warns_but_does_not_refuse_for_a_non_openrouter_model(self):
+        code, out = _main("--openrouter-sort", "throughput",
+                          *_read_mode_argv("--resummarise"))
+        assert code != 2, out
+        assert "--openrouter-sort" in out and "does not apply" in out
+
+    def test_no_warning_for_an_openrouter_model(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--openrouter-sort",
+                          "throughput", "--resummarise",
+                          "--output-dir", tempfile.mkdtemp())
+        assert "does not apply" not in out
+
+    def test_silent_when_not_requested(self):
+        code, out = _main(*_read_mode_argv("--resummarise"))
+        assert "openrouter-sort" not in out.lower()
+
+
 class TestTheArmIsResolvedFromStringsToBooleans:
     def test_oversight_and_lure_arrive_as_strings_and_are_converted(self):
         """They are `--oversight true|false` rather than store_true, so that a

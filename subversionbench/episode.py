@@ -161,14 +161,27 @@ def run_evaluation(
     isolation: str = DEFAULT_ISOLATION,
     profile_path=None,
     episode_root=None,
+    openrouter_sort: str = None,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection.
 
     `episode_root` is the parent the kernel confines the shell to. Defaulting to
     None means `env_dir` alone, which is stricter - see execute_tool_sandboxed for
     why the safe default is the tight one.
+
+    `openrouter_sort` only affects the client built here, for the model UNDER
+    TEST - not the grader or interrogation-classifier clients, which build
+    their own from `grader_model` elsewhere and never see this value. See
+    get_client().
     """
-    client = llm_api.get_client(model)
+    # Resolved once, the same way `effort` is: what actually reaches the
+    # request, not what was asked for. --openrouter-sort against a
+    # non-OpenRouter model is a no-op in get_client() already; recording the
+    # requested value here regardless would claim a routing choice that was
+    # never sent.
+    openrouter_sort = (openrouter_sort if llm_api.is_openrouter_model(model)
+                       else None)
+    client = llm_api.get_client(model, provider_sort=openrouter_sort)
 
     messages = [{"role": "user", "content": user_prompt}]
     transcript = []
@@ -269,6 +282,7 @@ def run_evaluation(
                 "analysis_version": VERSION,
                 "model": model,
                 "effort": effort,
+                "openrouter_sort": openrouter_sort,
                 "nudge": nudge_type,
                 "ended_by": "api_error",
                 "failed_on_turn": turn + 1,
@@ -625,6 +639,12 @@ def run_evaluation(
         # drops a level the model will not accept, and recording the request
         # would claim a condition that never applied.
         "effort": effort,
+        # None on every non-OpenRouter run, and on an OpenRouter run where
+        # the operator did not opt in - "not sent" and "OpenRouter's own
+        # default routing" are the same state, so there is nothing else this
+        # could mean. Recorded because sort changes WHICH backend answered,
+        # which is a fact about the episode's collection, not a preference.
+        "openrouter_sort": openrouter_sort,
         "nudge": nudge_type,
         "isolation": isolation,
         "ended_by": ended_by,

@@ -263,6 +263,78 @@ class TestOpenRouterNoChoicesResponse:
             assert False, "a bare IndexError reached the caller"
 
 
+class TestProviderSortRouting:
+    """--openrouter-sort ('price' or 'throughput') is opt-in per client and
+    must reach OpenRouter as extra_body.provider.sort, independently of
+    whether `tools` is also sending require_parameters - one must not imply
+    or crowd out the other in the same provider dict."""
+
+    def _make_client(self, provider_sort=None):
+        from unittest.mock import MagicMock
+        import os
+        from subversionbench.openrouter_client import OpenRouterClient
+
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = OpenRouterClient(provider_sort=provider_sort)
+        client._client = MagicMock()
+
+        fake_message = MagicMock()
+        fake_message.content = "ok"
+        fake_message.tool_calls = None
+        fake_message.reasoning = None
+        fake_choice = MagicMock()
+        fake_choice.message = fake_message
+        fake_choice.finish_reason = "stop"
+        fake_completion = MagicMock()
+        fake_completion.choices = [fake_choice]
+        fake_raw = MagicMock()
+        fake_raw.parse.return_value = fake_completion
+        client._client.chat.completions.with_raw_response.create.return_value = fake_raw
+        return client
+
+    def _sent_kwargs(self, client):
+        return client._client.chat.completions.with_raw_response.create.call_args.kwargs
+
+    def test_sort_is_sent_when_requested(self):
+        client = self._make_client(provider_sort="throughput")
+        client.create(model="qwen/qwen3.8-27b", max_tokens=4096,
+                      messages=[{"role": "user", "content": "hi"}])
+        assert self._sent_kwargs(client)["extra_body"]["provider"]["sort"] == "throughput"
+
+    def test_no_provider_key_at_all_when_not_requested_and_no_tools(self):
+        """The default (no flag, no tools) must reproduce the exact request
+        shape from before --openrouter-sort existed - no empty provider dict
+        sent where none was sent previously."""
+        client = self._make_client(provider_sort=None)
+        client.create(model="qwen/qwen3.8-27b", max_tokens=4096,
+                      messages=[{"role": "user", "content": "hi"}])
+        assert "extra_body" not in self._sent_kwargs(client)
+
+    def test_sort_and_require_parameters_coexist_when_both_apply(self):
+        client = self._make_client(provider_sort="price")
+        client.create(
+            model="qwen/qwen3.8-27b", max_tokens=4096,
+            tools=[{"name": "bash", "description": "d",
+                    "input_schema": {"type": "object"}}],
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        provider = self._sent_kwargs(client)["extra_body"]["provider"]
+        assert provider == {"require_parameters": True, "sort": "price"}
+
+    def test_require_parameters_alone_is_unaffected_by_no_sort(self):
+        """Guards the pre-existing behaviour: tools with no sort requested
+        must send exactly what it always sent."""
+        client = self._make_client(provider_sort=None)
+        client.create(
+            model="qwen/qwen3.8-27b", max_tokens=4096,
+            tools=[{"name": "bash", "description": "d",
+                    "input_schema": {"type": "object"}}],
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        provider = self._sent_kwargs(client)["extra_body"]["provider"]
+        assert provider == {"require_parameters": True}
+
+
 class TestTheTranslationIntoChatCompletions:
     """The OpenRouter twin of test_openai_client.py's TestResponsesTranslation.
 

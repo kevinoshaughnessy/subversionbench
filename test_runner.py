@@ -176,7 +176,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
-            yes=False)
+            yes=False, openrouter_sort=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -255,7 +255,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
-            yes=False)
+            yes=False, openrouter_sort=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -302,7 +302,7 @@ class TestTheArmIsOnScreenWhileItRuns:
 
         out = tempfile.mkdtemp()
         orig_client, orig_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: _Client()
+        ev_llm.get_client = lambda m, **_kw: _Client()
         sys.argv = ["run_eval", "--model", "claude-sonnet-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--no-power",
                     "--oversight", oversight, "--output-dir", out]
@@ -370,7 +370,7 @@ class TestBatchResilience:
                 self.messages = Messages()
 
         original = ev_llm.get_client
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         original_argv = sys.argv
         sys.argv = ["run_eval", "--model", "m", "--delay", "0", "--no-grader",
                     "--output-dir", out] + argv
@@ -477,7 +477,7 @@ class TestConcurrency:
                 self.messages = Messages()
 
         original = ev_llm.get_client
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         original_argv = sys.argv
         sys.argv = ["run_eval", "--model", "m", "--delay", "0", "--no-grader",
                     "--output-dir", out] + argv

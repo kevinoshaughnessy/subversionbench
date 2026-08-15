@@ -7,7 +7,9 @@ the client would have answered "fine" for the one route that was broken.
 """
 
 
-from subversionbench.llm_client import credential_env_var, missing_credential
+import os
+
+from subversionbench.llm_client import credential_env_var, get_client, missing_credential
 from conftest import env_without
 
 
@@ -35,3 +37,24 @@ class TestTheRouteToCredentialMapping:
         src = inspect.getsource(llm_client.missing_credential)
         assert "os.environ" in src
         assert "get_client" not in src
+
+
+class TestProviderSortRouting:
+    """--openrouter-sort only means anything on the OpenRouter branch - the
+    other two routes take no such concept, so get_client() must accept and
+    silently drop it rather than erroring."""
+
+    def test_reaches_the_openrouter_client_when_the_model_routes_there(self):
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = get_client("x-ai/grok-4.5", provider_sort="throughput")
+        assert client._provider_sort == "throughput"
+
+    def test_defaults_to_none_when_not_requested(self):
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = get_client("x-ai/grok-4.5")
+        assert client._provider_sort is None
+
+    def test_silently_dropped_for_a_native_anthropic_model(self):
+        # Would raise TypeError if get_client forwarded provider_sort to
+        # anthropic.Anthropic(), which has no such parameter.
+        get_client("claude-opus-5", provider_sort="throughput")

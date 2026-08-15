@@ -50,7 +50,7 @@ def _stub_answer_classifier():
         messages = _Messages()
 
     original = ev_llm.get_client
-    ev_llm.get_client = lambda model: _Client()
+    ev_llm.get_client = lambda model, **_kw: _Client()
     try:
         yield
     finally:
@@ -95,7 +95,7 @@ class TestReclassifyFailsClosed:
     def _reclassify_with_failure(self, out, stamp, message):
         """Run a reclassification whose every grader call raises `message`."""
         original = ev_llm.get_client
-        ev_llm.get_client = lambda m: (_ for _ in ()).throw(
+        ev_llm.get_client = lambda m, **_kw: (_ for _ in ()).throw(
             RuntimeError(message))
         try:
             buf = io.StringIO()
@@ -172,7 +172,7 @@ class TestReclassifyFailsClosed:
             messages = Messages()
 
         original = ev_llm.get_client
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 rc = ev_run.reclassify_existing_runs(self._args(out, "S"), "m")

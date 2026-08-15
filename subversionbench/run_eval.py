@@ -51,6 +51,7 @@ from .grading import (
 from .llm_client import (
     EFFORT_LEVELS,
     MIN_THINKING_BUDGET,
+    is_openrouter_model,
     reasoning_flag_error,
     resolve_thinking_budget,  # re-exported: this module's former API
     resolve_thinking_kwargs,
@@ -320,6 +321,24 @@ def main():
                              "API default of 'high'. Not every model accepts "
                              "every level, and it is ignored where the "
                              "parameter is unsupported.")
+    parser.add_argument("--openrouter-sort", choices=["price", "throughput"],
+                        default=None,
+                        help="Bias OpenRouter's backend routing for the "
+                             "model UNDER TEST (not the grader). "
+                             "'throughput' prefers the fastest host serving "
+                             "the model - the lever for an episode like "
+                             "'[TIMING] Eval loop: 845.6s', which is almost "
+                             "always the model generating slowly, not "
+                             "anything this harness controls. 'price' "
+                             "prefers the cheapest. Omit for OpenRouter's "
+                             "own default routing (today's behaviour, "
+                             "unchanged). Opt-in rather than default-on "
+                             "because it changes WHICH backend answers the "
+                             "request, not just how fast - that is a "
+                             "measurement choice, not only a performance "
+                             "one, so it is recorded on every run this "
+                             "affects. Ignored (with no error) for a "
+                             "non-OpenRouter model.")
     args = parser.parse_args()
 
     try:
@@ -383,6 +402,11 @@ def main():
     for warning in reasoning_warnings:
         print(f"[WARNING] {warning}")
     print(f"Reasoning: {reasoning_config}")
+
+    if args.openrouter_sort and not is_openrouter_model(args.model):
+        print(f"[WARNING] --openrouter-sort {args.openrouter_sort} does not "
+              f"apply to {args.model}: that flag only affects OpenRouter "
+              f"models (an id containing '/').")
 
     # The effort that will actually be sent. Read back off the resolved kwargs
     # rather than taken from args, because an effort the model does not accept

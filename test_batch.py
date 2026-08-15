@@ -328,7 +328,7 @@ class TestEffortInFilenames:
                 self.messages = Messages()
 
         original, original_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--effort", "xhigh",
                     "--output-dir", out]
@@ -367,7 +367,7 @@ class TestEffortInFilenames:
                 self.messages = Messages()
 
         original, original_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         sys.argv = ["run_eval", "--model", "x-ai/grok-4.5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--effort", "max",
                     "--output-dir", out]

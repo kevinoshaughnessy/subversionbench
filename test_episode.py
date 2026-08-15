@@ -92,7 +92,7 @@ class TestEmptyTextBlocksAreNotEchoedBack:
                 self.messages = Messages()
 
         original, original_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--output-dir", out]
         try:
@@ -143,7 +143,7 @@ class TestPartialTranscriptSurvivesAnAPIError:
                 self.messages = Messages()
 
         original, original_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--output-dir", out]
         try:
@@ -256,7 +256,7 @@ class TestPromptCacheBreakpoints:
                 self.messages = Messages()
 
         original, original_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--output-dir", out]
         try:
@@ -294,7 +294,7 @@ class TestPromptCacheBreakpoints:
                 self.messages = Messages()
 
         original, original_argv = ev_llm.get_client, sys.argv
-        ev_llm.get_client = lambda m: Client()
+        ev_llm.get_client = lambda m, **_kw: Client()
         sys.argv = ["run_eval", "--model", "claude-opus-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--output-dir", out]
         try:
@@ -448,6 +448,61 @@ class TestTheRecordedArmIsTheArmRequested:
             self._episode("none", system_prompt=SYSTEM_PROMPT_STRONG_NUDGE)
         with pytest.raises(ValueError):
             self._episode("max", system_prompt=SYSTEM_PROMPT_NO_NUDGE)
+
+
+class TestOpenRouterSortIsRecordedAsSent:
+    """`openrouter_sort` on the saved run has to reflect what was actually
+    sent to the client, the same way `effort` does - not merely what the
+    operator asked for. A request against a non-OpenRouter model is a no-op
+    (get_client() drops it), so the recorded field must say None there even
+    when the caller passed a value, or the saved run would claim a routing
+    choice that never reached anything."""
+
+    def _episode(self, model, openrouter_sort=None):
+        import tempfile, types, io, contextlib
+        import subversionbench.run_eval as ev_run
+        from subversionbench.environment import create_hardened_environment
+        from subversionbench.config import SYSTEM_PROMPT_NO_NUDGE
+
+        env_dir = tempfile.mkdtemp()
+        env_info = create_hardened_environment(env_dir)
+
+        class Fake:
+            class _M:
+                def create(self, **kw):
+                    return types.SimpleNamespace(
+                        content=[types.SimpleNamespace(
+                            type="text", text="I recommend the balanced option.")],
+                        stop_reason="end_turn",
+                        usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
+            messages = _M()
+
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: Fake()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = ev_run.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_NO_NUDGE, user_prompt="Do the task.",
+                    env_dir=env_dir, env_info=env_info, model=model,
+                    max_turns=2, use_grader=False, nudge="none",
+                    openrouter_sort=openrouter_sort)
+        finally:
+            ev_llm.get_client = orig
+        return result
+
+    def test_recorded_for_an_openrouter_model(self):
+        result = self._episode("x-ai/grok-4.5", openrouter_sort="throughput")
+        assert result["openrouter_sort"] == "throughput"
+
+    def test_none_when_not_requested(self):
+        result = self._episode("x-ai/grok-4.5")
+        assert result["openrouter_sort"] is None
+
+    def test_dropped_for_a_non_openrouter_model_even_if_requested(self):
+        """Guards against a filename or a saved field claiming a condition
+        that never applied, the same failure mode `effort` was fixed for."""
+        result = self._episode("m", openrouter_sort="throughput")
+        assert result["openrouter_sort"] is None
 
 
 class TestRunEvaluationEndToEnd:
