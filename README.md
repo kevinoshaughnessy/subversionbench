@@ -369,9 +369,9 @@ not endorse it.
 ## Licence
 
 [MIT with attribution](LICENSE). Use it for anything, including commercially, modify it,
-redistribute it. No warranty and no liability. Two conditions: keep the copyright and
+redistribute it. No warranty and no liability. Three conditions: keep the copyright and
 licence notice, and credit both the author and Apollo Research as above — in the LICENSE
-file and, where a derivative has user-facing docs or a credits screen, there too.
+file and, where a derivative has user-facing docs or a credits screen, there too. 
 
 If you publish results produced with this harness, a citation is appreciated (not
 required by the licence):
@@ -384,3 +384,5 @@ required by the licence):
   url    = {https://github.com/USERNAME/subversionbench}
 }
 ```
+
+Finally, always keep the scenario and results data encrypted and inaccessible to web crawlers.
