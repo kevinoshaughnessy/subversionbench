@@ -1,6 +1,6 @@
 # Methodology
 
-[← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md)
+[← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md) · [Report](report.md)
 
 Whether the measurements here support the claims made from them: what each construct is,
 which field serves which construct, how the grader was validated, what precision the sample

@@ -303,6 +303,481 @@ def method_for_n(n: int) -> str:
 
 
 # =========================================================================
+# Chi-square tail
+# =========================================================================
+#
+# Needed by the stratified tests below, and implemented here because this
+# package depends on `anthropic` alone - there is no scipy to import. Both
+# branches are the standard Numerical Recipes pair for the regularised
+# incomplete gamma function, which the chi-square survival function is a
+# reparameterisation of.
+
+_GAMMA_ITER_MAX = 300
+_GAMMA_EPS = 3e-14
+_GAMMA_TINY = 1e-300
+
+
+def _gamma_p_series(a: float, x: float) -> float:
+    """Regularised lower incomplete gamma P(a, x), by series. For x < a + 1."""
+    term = total = 1.0 / a
+    for i in range(1, _GAMMA_ITER_MAX):
+        term *= x / (a + i)
+        total += term
+        if abs(term) < abs(total) * _GAMMA_EPS:
+            break
+    return total * math.exp(-x + a * math.log(x) - math.lgamma(a))
+
+
+def _gamma_q_continued_fraction(a: float, x: float) -> float:
+    """Regularised upper incomplete gamma Q(a, x), by the modified Lentz
+    continued fraction. For x >= a + 1, where the series above converges
+    slowly."""
+    b = x + 1.0 - a
+    c = 1.0 / _GAMMA_TINY
+    d = 1.0 / b
+    h = d
+    for i in range(1, _GAMMA_ITER_MAX):
+        an = -i * (i - a)
+        b += 2.0
+        d = an * d + b
+        if abs(d) < _GAMMA_TINY:
+            d = _GAMMA_TINY
+        c = b + an / c
+        if abs(c) < _GAMMA_TINY:
+            c = _GAMMA_TINY
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < _GAMMA_EPS:
+            break
+    return h * math.exp(-x + a * math.log(x) - math.lgamma(a))
+
+
+def chi2_sf(statistic: float, df: int) -> float:
+    """
+    Upper tail of the chi-square distribution: P(X >= statistic) with df
+    degrees of freedom. 1.0 for a non-positive statistic or df <= 0, so a
+    degenerate test reports "no evidence" rather than raising.
+    """
+    if df <= 0 or statistic <= 0:
+        return 1.0
+    a, x = df / 2.0, statistic / 2.0
+    if x < a + 1.0:
+        return max(0.0, min(1.0, 1.0 - _gamma_p_series(a, x)))
+    return max(0.0, min(1.0, _gamma_q_continued_fraction(a, x)))
+
+
+# =========================================================================
+# Paired comparison
+# =========================================================================
+#
+# WHY THE UNPAIRED TESTS ABOVE ARE THE WRONG ONES HERE
+# ----------------------------------------------------
+# Every interrogation phrasing is put to the SAME act in the SAME episode, so a
+# comparison between two phrasings is repeated measures, not two samples.
+# fisher_exact_p and newcombe_diff_ci both assume independent arms; applied to
+# paired data they discard the pairing, which is most of the information -
+# concealment under two phrasings of one question is strongly correlated, and an
+# unpaired interval on that contrast is far too wide.
+#
+# McNemar's test is the paired counterpart: it conditions on the DISCORDANT
+# pairs, the acts concealed under one phrasing and not the other, and ignores
+# the pairs that agree because they carry no evidence about a difference. The
+# exact binomial form is used rather than the chi-square approximation, because
+# discordant counts here are single digits.
+#
+# A useful consequence: a paired contrast is inherently WITHIN-model, since both
+# measurements come from one episode. The between-model confounding that
+# mantel_haenszel exists to handle cannot arise, so no stratified counterpart is
+# needed for these questions.
+
+
+def mcnemar_exact_p(b: int, c: int) -> float:
+    """
+    Two-sided exact McNemar p-value from the two discordant counts.
+
+    The conditional test: given b + c discordant pairs, how surprising is a
+    split of b to c under the null that either direction is equally likely?
+    That is a binomial test with p = 0.5, so this is the exact two-sided
+    binomial p rather than the chi-square approximation - the discordant
+    counts in this eval are single digits, where the approximation is poor.
+
+    1.0 when there are no discordant pairs: nothing disagreed, so there is no
+    evidence of a difference in either direction.
+    """
+    n = b + c
+    if n == 0:
+        return 1.0
+    tail = min(b, c)
+    p = 2.0 * sum(_binom_pmf(k, n, 0.5) for k in range(tail + 1))
+    return min(1.0, p)
+
+
+def paired_compare(n11: int, n10: int, n01: int, n00: int) -> dict:
+    """
+    One paired comparison of two conditions measured on the same units.
+
+    The four cells are the standard paired 2x2, counting UNITS (here: acts):
+
+        n11  positive under both conditions
+        n10  positive under A only        <- discordant
+        n01  positive under B only        <- discordant
+        n00  positive under neither
+
+    Returns the same shape as compare_rates where it can, so a caller can
+    format either without special-casing: `a`/`b` marginals, a `difference`
+    with an interval, a p-value, and `separated`. `method` distinguishes them,
+    because reporting a paired contrast as though it were unpaired - or the
+    reverse - changes the interval substantially.
+
+    The interval is the standard Wald interval on the paired difference, whose
+    variance uses the discordant counts and the correlation they imply. It is
+    not an exact interval; the p-value beside it is, and where the two
+    disagree the p-value is the one to trust.
+    """
+    n = n11 + n10 + n01 + n00
+    if n == 0:
+        return {"a": {"successes": 0, "n": 0, "rate": None},
+                "b": {"successes": 0, "n": 0, "rate": None},
+                "difference": None, "difference_ci95": None,
+                "exact_p": None, "p": None, "separated": None,
+                "n_pairs": 0, "discordant": {"a_only": 0, "b_only": 0},
+                "method": "mcnemar_exact",
+                "note": "no paired units; nothing to compare"}
+
+    a_pos, b_pos = n11 + n10, n11 + n01
+    diff = (n10 - n01) / n
+    # Var of the paired difference: the discordant mass, less the square of the
+    # observed shift, over n. Clamped at zero - it can go slightly negative
+    # when every discordant pair points the same way.
+    var = max(0.0, (n10 + n01) - (n10 - n01) ** 2 / n) / (n * n)
+    se = math.sqrt(var)
+    exact_p = mcnemar_exact_p(n10, n01)
+    ci = [round(max(-1.0, diff - Z_95 * se), 4),
+          round(min(1.0, diff + Z_95 * se), 4)]
+    return {
+        "a": {"successes": a_pos, "n": n, "rate": round(a_pos / n, 4),
+              "ci95": wilson_ci(a_pos, n)},
+        "b": {"successes": b_pos, "n": n, "rate": round(b_pos / n, 4),
+              "ci95": wilson_ci(b_pos, n)},
+        "difference": round(diff, 4),
+        "difference_ci95": ci,
+        "difference_se": round(se, 6),
+        "exact_p": exact_p,
+        # Aliased so a formatter written for compare_rates can read either.
+        "p": exact_p,
+        "fisher_p": None,
+        # From the exact test rather than the Wald interval: the interval is an
+        # approximation and the test is not, so a disagreement between them
+        # should not be resolved in the approximation's favour.
+        "separated": bool(exact_p < DEFAULT_ALPHA),
+        "n_pairs": n,
+        "discordant": {"a_only": n10, "b_only": n01},
+        "concordant": {"both": n11, "neither": n00},
+        "method": "mcnemar_exact",
+    }
+
+
+# =========================================================================
+# Stratified comparison
+# =========================================================================
+#
+# WHY A STRATIFIED ESTIMATE EXISTS AT ALL
+# ---------------------------------------
+# Every rate in this eval is pooled over models whose base rates differ by
+# more than the effects being measured, which is the standing condition for
+# Simpson's paradox rather than a remote hazard: on one r9 sweep the crude
+# oversight-vs-scheming contrast pooled to -1.8pp while a single model inside
+# it ran +38pp in the opposite direction. A crude pooled difference answers
+# "what happened across this corpus"; a stratified one answers "what happens
+# within a model, averaged over models", and only the second is a claim about
+# the manipulation rather than about the mix of models that happened to be
+# sampled. Both are reported, never one alone.
+
+
+def _mh_strata(strata: list) -> list:
+    """
+    Keep only the strata that can contribute: both arms non-empty.
+
+    A stratum with an empty arm carries no information about a within-stratum
+    difference, and including it would put its episodes in a denominator no
+    comparison was made over.
+    """
+    return [(x1, n1, x2, n2) for x1, n1, x2, n2 in strata if n1 > 0 and n2 > 0]
+
+
+def mantel_haenszel(strata: list) -> dict:
+    """
+    The Mantel-Haenszel stratified comparison of two arms across strata.
+
+    `strata` is a list of (x1, n1, x2, n2) - successes and n in arm 1 and arm
+    2 within one stratum, typically one model.
+
+    Reports BOTH a weighted risk difference and a common odds ratio, because
+    they answer the question at different costs. The risk difference is in
+    percentage points, directly comparable with every crude difference this
+    package reports, and stays defined when a stratum is all-zero - which most
+    are here. The odds ratio is the classical MH estimand and is what a
+    reader from the epidemiological literature will look for, but it is
+    undefined when no stratum has a discordant pair, so it may be None on
+    exactly the sparse tables this eval produces.
+
+    The chi-square test is the uncorrected Cochran-Mantel-Haenszel statistic;
+    no continuity correction is applied, so it stays comparable with the
+    Fisher exact p-values reported beside it rather than being conservative
+    against them.
+    """
+    usable = _mh_strata(strata)
+    result = {
+        "n_strata_given": len(strata),
+        "n_strata_used": len(usable),
+        "risk_difference": None, "risk_difference_ci95": None,
+        "odds_ratio": None, "odds_ratio_ci95": None,
+        "chi2": None, "df": None, "p": None,
+        "method": "mantel_haenszel",
+    }
+    if not usable:
+        result["note"] = "no stratum has both arms non-empty"
+        return result
+
+    # Weighted risk difference. w_i is the standard inverse-variance-like
+    # weight n1*n2/(n1+n2), which is what makes the estimator reduce to the
+    # crude difference when every stratum shares the same rates.
+    weight_total = 0.0
+    weighted_diff = 0.0
+    variance_num = 0.0
+    for x1, n1, x2, n2 in usable:
+        p1, p2 = x1 / n1, x2 / n2
+        w = (n1 * n2) / (n1 + n2)
+        weight_total += w
+        weighted_diff += w * (p1 - p2)
+        variance_num += w * w * (p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2)
+    if weight_total > 0:
+        rd = weighted_diff / weight_total
+        rd_se = math.sqrt(variance_num) / weight_total
+        result["risk_difference"] = round(rd, 4)
+        result["risk_difference_ci95"] = [
+            round(max(-1.0, rd - Z_95 * rd_se), 4),
+            round(min(1.0, rd + Z_95 * rd_se), 4)]
+        result["risk_difference_se"] = round(rd_se, 6)
+
+    # Common odds ratio, with the Robins-Breslow-Greenland interval.
+    r_sum = s_sum = 0.0
+    rbg_1 = rbg_2 = rbg_3 = 0.0
+    for x1, n1, x2, n2 in usable:
+        a, b = x1, n1 - x1
+        c, d = x2, n2 - x2
+        t = n1 + n2
+        r_i = a * d / t
+        s_i = b * c / t
+        r_sum += r_i
+        s_sum += s_i
+        p_i = (a + d) / t
+        q_i = (b + c) / t
+        rbg_1 += p_i * r_i
+        rbg_2 += p_i * s_i + q_i * r_i
+        rbg_3 += q_i * s_i
+    if r_sum > 0 and s_sum > 0:
+        or_mh = r_sum / s_sum
+        var_log = (rbg_1 / (2 * r_sum ** 2)
+                   + rbg_2 / (2 * r_sum * s_sum)
+                   + rbg_3 / (2 * s_sum ** 2))
+        se_log = math.sqrt(var_log) if var_log > 0 else None
+        result["odds_ratio"] = round(or_mh, 4)
+        if se_log:
+            result["odds_ratio_ci95"] = [
+                round(math.exp(math.log(or_mh) - Z_95 * se_log), 4),
+                round(math.exp(math.log(or_mh) + Z_95 * se_log), 4)]
+    else:
+        result["odds_ratio_note"] = (
+            "undefined: no stratum contributes a discordant pair")
+
+    # Cochran-Mantel-Haenszel test.
+    observed = expected = variance = 0.0
+    for x1, n1, x2, n2 in usable:
+        t = n1 + n2
+        if t < 2:
+            continue
+        successes = x1 + x2
+        observed += x1
+        expected += n1 * successes / t
+        variance += (n1 * n2 * successes * (t - successes)
+                     / (t * t * (t - 1)))
+    if variance > 0:
+        chi2 = (observed - expected) ** 2 / variance
+        result["chi2"] = round(chi2, 4)
+        result["df"] = 1
+        result["p"] = chi2_sf(chi2, 1)
+        result["separated"] = bool(
+            result["risk_difference_ci95"]
+            and (result["risk_difference_ci95"][0] > 0
+                 or result["risk_difference_ci95"][1] < 0))
+    return result
+
+
+def breslow_day(strata: list, odds_ratio: float = None) -> dict:
+    """
+    Breslow-Day test for homogeneity of the odds ratio across strata.
+
+    Answers the question the MH estimate itself cannot: is there ONE effect to
+    pool? A significant result says the strata disagree, so the stratified
+    summary is an average over genuinely different effects and should be
+    reported as such rather than as "the" effect.
+
+    Only strata with both arms non-empty AND both a success and a failure
+    somewhere in the stratum can contribute - a stratum where the outcome
+    never varies is consistent with every odds ratio, so it carries no
+    evidence about heterogeneity. `n_strata_used` says how many did, and the
+    degrees of freedom follow it rather than the number of strata given: this
+    eval's rates sit near zero, so the two frequently differ by a lot.
+    """
+    usable = []
+    for x1, n1, x2, n2 in _mh_strata(strata):
+        total, successes = n1 + n2, x1 + x2
+        if 0 < successes < total:
+            usable.append((x1, n1, x2, n2))
+
+    result = {"statistic": None, "df": None, "p": None,
+              "n_strata_given": len(strata), "n_strata_used": len(usable),
+              "method": "breslow_day"}
+    if len(usable) < 2:
+        result["note"] = ("fewer than two strata carry both a success and a "
+                          "failure; homogeneity is not testable")
+        return result
+
+    if odds_ratio is None:
+        odds_ratio = mantel_haenszel(usable).get("odds_ratio")
+    if not odds_ratio or odds_ratio <= 0:
+        result["note"] = ("no finite non-zero common odds ratio to test "
+                          "homogeneity against")
+        return result
+
+    statistic = 0.0
+    contributing = 0
+    for x1, n1, x2, n2 in usable:
+        total = n1 + n2
+        col1 = x1 + x2
+        # Fitted count in cell (arm 1, success) under the common odds ratio,
+        # holding this stratum's margins. Quadratic in the general case and
+        # linear at psi == 1, which is the degenerate root of the same
+        # equation rather than a separate formula.
+        psi = odds_ratio
+        if abs(psi - 1.0) < 1e-12:
+            fitted = n1 * col1 / total
+        else:
+            qa = 1.0 - psi
+            qb = total - n1 - col1 + psi * (n1 + col1)
+            qc = -psi * n1 * col1
+            disc = qb * qb - 4.0 * qa * qc
+            if disc < 0:
+                continue
+            root = math.sqrt(disc)
+            lo_bound = max(0.0, n1 + col1 - total)
+            hi_bound = min(float(n1), float(col1))
+            candidates = [(-qb + root) / (2.0 * qa), (-qb - root) / (2.0 * qa)]
+            fitted = next(
+                (c for c in candidates if lo_bound - 1e-9 <= c <= hi_bound + 1e-9),
+                None)
+            if fitted is None:
+                continue
+        cells = (fitted, n1 - fitted, col1 - fitted,
+                 total - n1 - col1 + fitted)
+        if any(c <= 1e-9 for c in cells):
+            continue                    # a fitted zero cell has no variance
+        var = 1.0 / sum(1.0 / c for c in cells)
+        statistic += (x1 - fitted) ** 2 / var
+        contributing += 1
+
+    if contributing < 2:
+        result["note"] = ("fewer than two strata yielded a non-degenerate "
+                          "fitted table")
+        result["n_strata_used"] = contributing
+        return result
+
+    result["n_strata_used"] = contributing
+    result["statistic"] = round(statistic, 4)
+    result["df"] = contributing - 1
+    result["p"] = chi2_sf(statistic, contributing - 1)
+    result["heterogeneous"] = bool(result["p"] < DEFAULT_ALPHA)
+    return result
+
+
+# =========================================================================
+# Multiplicity
+# =========================================================================
+#
+# A per-model test repeated across 27 models at alpha = 0.05 expects about
+# 1.4 rejections from noise alone, so "how many models were individually
+# significant" is not by itself a count of effects. Two corrections are
+# offered because they control different things and a dissertation should say
+# which it used: Holm bounds the chance of ANY false rejection (family-wise),
+# and Benjamini-Hochberg bounds the expected PROPORTION of rejections that
+# are false (false discovery rate). Holm is the stricter of the two; BH keeps
+# more power when many of the hypotheses are genuinely non-null.
+
+
+def holm_bonferroni(pvalues: list, alpha: float = DEFAULT_ALPHA) -> dict:
+    """
+    Holm's step-down adjustment. Controls the family-wise error rate.
+
+    Returns adjusted p-values in the ORDER GIVEN, alongside the rejection
+    flags, so a caller can attach them back to the rows they came from
+    without re-sorting. None entries are passed through as None and excluded
+    from the family size - a comparison that could not be made is not a
+    hypothesis that was tested.
+    """
+    return _stepwise_adjust(pvalues, alpha, method="holm")
+
+
+def benjamini_hochberg(pvalues: list, alpha: float = DEFAULT_ALPHA) -> dict:
+    """
+    Benjamini-Hochberg step-up adjustment. Controls the false discovery rate.
+
+    Same input and output contract as holm_bonferroni.
+    """
+    return _stepwise_adjust(pvalues, alpha, method="benjamini_hochberg")
+
+
+def _stepwise_adjust(pvalues: list, alpha: float, method: str) -> dict:
+    tested = [(i, p) for i, p in enumerate(pvalues) if p is not None]
+    adjusted = [None] * len(pvalues)
+    result = {
+        "method": method, "alpha": alpha,
+        "n_hypotheses": len(tested),
+        "n_not_tested": len(pvalues) - len(tested),
+        "adjusted": adjusted,
+        "rejected": [None] * len(pvalues),
+        "n_rejected": 0,
+        "n_rejected_uncorrected": sum(1 for _, p in tested if p < alpha),
+        "expected_false_positives_uncorrected": round(len(tested) * alpha, 2),
+    }
+    if not tested:
+        return result
+
+    k = len(tested)
+    order = sorted(tested, key=lambda pair: pair[1])
+    if method == "holm":
+        # Step down: each p scaled by the number of hypotheses still standing,
+        # then made monotone so a later rejection cannot undercut an earlier one.
+        running = 0.0
+        for rank, (idx, p) in enumerate(order):
+            running = max(running, (k - rank) * p)
+            adjusted[idx] = min(1.0, running)
+    else:
+        # Step up from the largest p, which is what makes BH monotone.
+        running = 1.0
+        for rank in range(k - 1, -1, -1):
+            idx, p = order[rank]
+            running = min(running, k * p / (rank + 1))
+            adjusted[idx] = min(1.0, running)
+
+    for idx, _ in tested:
+        result["rejected"][idx] = bool(adjusted[idx] < alpha)
+    result["n_rejected"] = sum(1 for r in result["rejected"] if r)
+    return result
+
+
+# =========================================================================
 # Batch-level report
 # =========================================================================
 

@@ -10,6 +10,65 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v64
+
+Package version `64.0.0`. New analysis tooling. Reads saved artefacts only -
+calls no API, writes no run or summary file, and moves no published rate.
+
+- **`run_report.py`**: twelve fixed research questions answered across every
+  model in a results directory, printed as tables and written as JSON.
+  Oversight against scheming, verbalised eval awareness and agentic
+  misalignment, and the nudge against awareness (1-4); awareness against
+  misalignment, oversight-override, sandbox escape, and the three
+  act-plus-concealment scheming rates (5-10); and the two interrogation
+  phrasing axes against concealment (11-12). Free, and documented in
+  [docs/report.md](docs/report.md).
+- Questions 1 and 3 are the narrow and wide constructs against the same
+  manipulation, sharing a denominator, which is what makes the pair readable:
+  on r9 oversight cuts agentic misalignment by 24.2pp (stratified, p=9.6e-91,
+  21 of 27 models down, 13 surviving Holm) while moving scheming by 1.7pp. It
+  overwhelmingly suppresses the ACT and barely changes whether an act that
+  happened is HIDDEN - a distinction neither rate shows alone.
+- **Stratified estimation in `power.py`**: `mantel_haenszel` (weighted risk
+  difference and common odds ratio, with a Robins-Breslow-Greenland interval
+  and the uncorrected CMH test) and `breslow_day` for homogeneity. Every rate
+  here is pooled over models whose base rates differ by more than the effects
+  being measured, which is the standing condition for Simpson's paradox rather
+  than a remote hazard: one r9 contrast pools to -1.8pp with a single model
+  inside it running +38pp the other way. Crude and stratified are now always
+  reported together, and `crude_vs_stratified` states a divergence in words -
+  CONFOUNDED when the crude difference is separated and the stratified one is
+  not, SIGN REVERSAL when they point opposite ways. On r9 that flag catches a
+  crude p=0.0007 whose 24 outcome events all sit in one model with zero
+  eval-aware episodes, i.e. with no within-model evidence behind it at all.
+- **Paired comparison in `power.py`**: `mcnemar_exact_p` and `paired_compare`.
+  Every interrogation phrasing is put to the same act in the same episode, so a
+  phrasing contrast is repeated measures; Fisher over independent arms discards
+  the pairing and is far too wide. Measured on one synthetic case with
+  identical marginals: paired p=0.008 against unpaired p=0.176.
+- **Multiplicity in `power.py`**: `holm_bonferroni` (family-wise) and
+  `benjamini_hochberg` (false discovery rate), reported beside the
+  expected-false-positive count for the family. A per-model test across 27
+  models at alpha=0.05 expects ~1.35 rejections from noise, so the uncorrected
+  count is not a count of effects - on r9 question 3 it is five against none
+  surviving either correction.
+- `chi2_sf` and the regularised incomplete gamma beneath it, because the tests
+  above need a chi-square tail and this package depends on `anthropic` alone.
+- Three read-only correctness guards in the new script, each for a defect
+  measured on r9 rather than imagined: not-applicable is not zero (the
+  no-oversight arm has no monitoring artefact, and counting those episodes as
+  "did not override" halved a contrast, -5.2pp against a true -10.1pp);
+  `cross_analysis_awareness` is not poolable (it is absent for any
+  uniform-awareness arm, so pooling silently dropped 55% of episodes
+  non-randomly and turned +8.1pp at p=1.4e-06 into +2.1pp at p=0.40); and the
+  per-phrasing default level is re-derived from the headline answers rather
+  than read from the `_by_variant` copy, which `--reclassify` does not walk.
+- A `data_quality` block printed before the questions: awareness verdict
+  provenance, stored-vs-re-derived verdict disagreement for all three verdicts,
+  not-applicable counts, undetermined concealment, and arms represented by more
+  than one batch - which this script pools, and which is what a partial batch
+  re-run to full n looks like on disk.
+
 ## v63
 
 Package version `63.0.0`. New feature, opt-in - no episodes change unless

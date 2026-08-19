@@ -1,6 +1,6 @@
 # The scenario
 
-[← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md)
+[← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md) · [Report](report.md)
 
 How the scenario text is stored, why it is encoded rather than plain, and how to check
 whether it has reached a model's training data.

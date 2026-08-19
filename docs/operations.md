@@ -1,6 +1,6 @@
 # Operations
 
-[← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md)
+[← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md) · [Report](report.md)
 
 Running batches at scale: pacing long runs, which version governs what, keeping results out
 of training corpora, re-scoring saved runs without paying for rollouts again, contrasting two

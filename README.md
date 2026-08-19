@@ -20,13 +20,14 @@ Scheming*](https://arxiv.org/abs/2412.04984) (Apollo Research), now a distinct w
 
 ## Documentation
 
-This file covers installing and running. The depth lives in three companions:
+This file covers installing and running. The depth lives in four companions:
 
 | | for |
 |---|---|
 | [docs/methodology.md](docs/methodology.md) | deciding whether the measurements are valid — the three constructs, what each field measures, how the grader was validated, sample size and detectable effects, and the oversight counterfactual |
 | [docs/scenario.md](docs/scenario.md) | reading or modifying the scenario, and testing whether it has reached a model's training data |
 | [docs/operations.md](docs/operations.md) | running large batches — pacing, versioning, protecting results, re-grading saved runs, and comparing arms |
+| [docs/report.md](docs/report.md) | the cross-model report — six fixed research questions, crude vs model-stratified estimates, homogeneity and multiplicity |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 
@@ -285,6 +286,9 @@ zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
+run_report.py      six fixed research questions (oversight/nudge vs scheming
+                   and awareness; awareness vs misalignment, override, escape)
+                   answered across every model in a results directory
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
 run_all_arms.sh    one model through every nudge x oversight x lure arm
 run_tests.py       the test suite without pytest
