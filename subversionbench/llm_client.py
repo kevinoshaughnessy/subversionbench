@@ -37,7 +37,9 @@ SETUP:
 
 import os
 
-from .api_errors import is_auth_error
+from .api_errors import (api_error_message, is_auth_error,
+                         is_usage_limit_error, usage_limit_reset,
+                         warn_usage_limit_once)
 from .blocks import _Block, _Response, _block_attr, _block_type, _reasoning_usage
 from .openai_client import (
     OpenAIClient,
@@ -71,6 +73,10 @@ __all__ = [
     "is_openai_model",
     "is_known_anthropic_model",
     "is_auth_error",
+    "is_usage_limit_error",
+    "usage_limit_reset",
+    "api_error_message",
+    "warn_usage_limit_once",
     "thinking_surface",
     "resolve_thinking_kwargs",
     "resolve_thinking_budget",

@@ -10,6 +10,47 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v67
+
+Package version `67.0.0`. Reporting only - no scenario change, no rollout bump,
+and nothing sent to any provider changed.
+
+- **A spend cap is now its own error class, and it is reported.** A live
+  grok-4.5 batch printed `[classifier] LLM classification failed (Error code:
+  400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message':
+  'You have ` and nothing more, 77 times. The message was the account's:
+  "You have reached your specified API usage limits. You will regain access on
+  2026-09-01 at 00:00 UTC." The per-answer line truncated `str(e)` at 100
+  characters, which on this error stops exactly at `You have ` - so an Anthropic
+  spend limit was indistinguishable from a harness bug for a whole batch.
+
+  `api_error_message` now pulls the provider's own sentence out of the SDK's repr
+  of the envelope, rather than slicing the envelope. `is_usage_limit_error`,
+  `usage_limit_reset` and `warn_usage_limit_once` sit beside `is_auth_error`.
+
+  Both classes are permanent within a batch and they want OPPOSITE handling:
+  abort on a rejected credential, FINISH on a cap. The model under test is on
+  another route, so its transcripts and interrogation answers stay valid and
+  complete; only the LLM verdicts degrade, and those re-derive from saved data
+  for free. So `is_auth_error` checks the cap first and returns False for it -
+  without that ordering a cap message carrying "unauthorized" would trip the
+  batch-level abort and discard rollouts that are already good.
+
+  The cap is announced ONCE per process, keyed on the reset instant, as a block
+  rather than a line: it refuses every grader and classifier call for the rest of
+  the batch, so per-answer it scrolls past as noise. The banner states that the
+  rollout is unaffected, that the batch should be left to finish, and the three
+  backfill commands in the order they must run - `--resummarise` last, because
+  `--reclassify` restates the figures every summary is built from.
+
+- **Awareness-grading failures are no longer silent.** `grading/grader.py` prints
+  nothing, and the episode printed its result with `rubric_results` excluded -
+  which is where every per-question error lives. So the same batch recorded
+  `"grading_failed": true, "rubric_errors": 9` on 31 episodes with no reason
+  attached anywhere on the console. `report_grader_failure` names the cause at
+  both grader call sites, counting distinct errors separately from failed
+  questions: nine questions failing for one reason is one fact, not nine.
+
 ## v66
 
 Package version `66.0.0`. Analysis and recording only - nothing sent to any

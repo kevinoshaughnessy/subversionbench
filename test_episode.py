@@ -863,3 +863,94 @@ class TestRunEvaluationEndToEnd:
                 continue
             assert name in by_variant, f"{name} was never asked"
         assert result["analysis"][act["followup_key"]], "headline field is empty"
+
+
+class TestWhyTheGraderFailedIsSaidOutLoud:
+    """The grader's result was printed with `rubric_results` excluded - which is
+    where every per-question error lives - so a spend cap showed as
+    `"grading_failed": true, "rubric_errors": 9` with no reason, on every episode
+    of a batch whose rollout was perfectly fine."""
+
+    REAL = ("Error code: 400 - {'type': 'error', 'error': {'type': "
+            "'invalid_request_error', 'message': 'You have reached your "
+            "specified API usage limits. You will regain access on 2026-09-01 "
+            "at 00:00 UTC.'}, 'request_id': 'req_011CeCnGG4xcQWvdaWEHXh1c'}")
+
+    def _result(self, error, n=9):
+        return {"grading_failed": True, "rubric_errors": n,
+                "rubric_results": {f"q{i}": {"answer": None, "quote": "",
+                                             "error": error}
+                                   for i in range(n)}}
+
+    def _report(self, result):
+        import contextlib
+        import io
+        from subversionbench.episode import report_grader_failure
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            reported = report_grader_failure(result)
+        return reported, buf.getvalue()
+
+    def test_the_reason_is_printed_not_just_the_count(self):
+        from subversionbench.api_errors import reset_usage_limit_notices
+        reset_usage_limit_notices()
+        reported, out = self._report(self._result(self.REAL))
+        assert reported is True
+        assert "9 of 9 rubric question(s) failed" in out
+        assert "You have reached your specified API usage limits" in out
+
+    def test_a_cap_raises_the_banner_once_across_episodes(self):
+        """Nine questions failing for one reason is one fact, and so is the next
+        episode's nine."""
+        from subversionbench.api_errors import reset_usage_limit_notices
+        reset_usage_limit_notices()
+        _r, first = self._report(self._result(self.REAL))
+        _r, second = self._report(self._result(self.REAL))
+        assert first.count("API USAGE LIMIT REACHED") == 1
+        assert "API USAGE LIMIT REACHED" not in second
+        # but the per-episode reason still appears, so no episode looks clean
+        assert "rubric question(s) failed" in second
+
+    def test_a_clean_grading_says_nothing(self):
+        reported, out = self._report({
+            "grading_failed": False,
+            "rubric_results": {"q0": {"answer": True, "quote": "x",
+                                      "error": None}}})
+        assert reported is False and out == ""
+
+    def test_no_rubric_results_is_not_an_error(self):
+        """--no-grader writes a skip marker with no rubric block at all."""
+        for result in ({"skipped": True}, {}, None):
+            reported, out = self._report(result)
+            assert reported is False and out == ""
+
+    def test_distinct_errors_are_counted_not_concatenated(self):
+        from subversionbench.api_errors import reset_usage_limit_notices
+        reset_usage_limit_notices()
+        result = self._result(self.REAL, n=3)
+        result["rubric_results"]["q1"]["error"] = "529 overloaded"
+        result["rubric_results"]["q2"]["error"] = None
+        _r, out = self._report(result)
+        assert "2 of 3 rubric question(s) failed" in out
+        assert "1 other distinct error(s)" in out
+
+    def test_a_transient_error_gets_no_banner(self):
+        """Only the permanent account-level class earns the block."""
+        from subversionbench.api_errors import reset_usage_limit_notices
+        reset_usage_limit_notices()
+        _r, out = self._report(self._result("529 overloaded", n=2))
+        assert "API USAGE LIMIT REACHED" not in out
+        assert "2 of 2 rubric question(s) failed" in out
+
+
+class TestTheClassifierLineNamesTheCause:
+    def test_it_reports_the_message_not_the_envelope(self):
+        """The line read `str(e)[:100]`, which on the real error stopped at
+        "You have " - the operator saw a truncated 400 and reasonably read it as
+        a harness fault."""
+        import inspect
+        from subversionbench import episode as ep
+        src = inspect.getsource(ep.run_followup)
+        assert "api_error_message(error" in src
+        assert "warn_usage_limit_once(error" in src
+        assert "str(labelled['classifier_error'])[:100]" not in src
