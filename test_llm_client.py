@@ -58,3 +58,22 @@ class TestProviderSortRouting:
         # Would raise TypeError if get_client forwarded provider_sort to
         # anthropic.Anthropic(), which has no such parameter.
         get_client("claude-opus-5", provider_sort="throughput")
+
+
+class TestProviderPinningRouting:
+    """--openrouter-provider, same story as --openrouter-sort above: only the
+    OpenRouter branch understands it, the other two routes must accept and
+    drop it."""
+
+    def test_reaches_the_openrouter_client_when_the_model_routes_there(self):
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = get_client("x-ai/grok-4.5", provider_name="deepinfra")
+        assert client._provider_name == "deepinfra"
+
+    def test_defaults_to_none_when_not_requested(self):
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = get_client("x-ai/grok-4.5")
+        assert client._provider_name is None
+
+    def test_silently_dropped_for_a_native_anthropic_model(self):
+        get_client("claude-opus-5", provider_name="deepinfra")

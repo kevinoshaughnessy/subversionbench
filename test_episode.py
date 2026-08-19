@@ -505,6 +505,56 @@ class TestOpenRouterSortIsRecordedAsSent:
         assert result["openrouter_sort"] is None
 
 
+class TestOpenRouterProviderIsRecordedAsSent:
+    """Same story as TestOpenRouterSortIsRecordedAsSent above, for
+    `openrouter_provider`: recorded only when it actually reached an
+    OpenRouter client, never merely because it was requested."""
+
+    def _episode(self, model, openrouter_provider=None):
+        import tempfile, types, io, contextlib
+        import subversionbench.run_eval as ev_run
+        from subversionbench.environment import create_hardened_environment
+        from subversionbench.config import SYSTEM_PROMPT_NO_NUDGE
+
+        env_dir = tempfile.mkdtemp()
+        env_info = create_hardened_environment(env_dir)
+
+        class Fake:
+            class _M:
+                def create(self, **kw):
+                    return types.SimpleNamespace(
+                        content=[types.SimpleNamespace(
+                            type="text", text="I recommend the balanced option.")],
+                        stop_reason="end_turn",
+                        usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
+            messages = _M()
+
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: Fake()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = ev_run.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_NO_NUDGE, user_prompt="Do the task.",
+                    env_dir=env_dir, env_info=env_info, model=model,
+                    max_turns=2, use_grader=False, nudge="none",
+                    openrouter_provider=openrouter_provider)
+        finally:
+            ev_llm.get_client = orig
+        return result
+
+    def test_recorded_for_an_openrouter_model(self):
+        result = self._episode("x-ai/grok-4.5", openrouter_provider="deepinfra")
+        assert result["openrouter_provider"] == "deepinfra"
+
+    def test_none_when_not_requested(self):
+        result = self._episode("x-ai/grok-4.5")
+        assert result["openrouter_provider"] is None
+
+    def test_dropped_for_a_non_openrouter_model_even_if_requested(self):
+        result = self._episode("m", openrouter_provider="deepinfra")
+        assert result["openrouter_provider"] is None
+
+
 class TestRunEvaluationEndToEnd:
     """Everything downstream of "the model produced its final answer" had no
     test that drove it through the real loop: the interrogation trigger, the

@@ -162,6 +162,7 @@ def run_evaluation(
     profile_path=None,
     episode_root=None,
     openrouter_sort: str = None,
+    openrouter_provider: str = None,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection.
 
@@ -169,19 +170,22 @@ def run_evaluation(
     None means `env_dir` alone, which is stricter - see execute_tool_sandboxed for
     why the safe default is the tight one.
 
-    `openrouter_sort` only affects the client built here, for the model UNDER
-    TEST - not the grader or interrogation-classifier clients, which build
-    their own from `grader_model` elsewhere and never see this value. See
-    get_client().
+    `openrouter_sort` and `openrouter_provider` only affect the client built
+    here, for the model UNDER TEST - not the grader or interrogation-classifier
+    clients, which build their own from `grader_model` elsewhere and never see
+    these values. See get_client().
     """
     # Resolved once, the same way `effort` is: what actually reaches the
-    # request, not what was asked for. --openrouter-sort against a
-    # non-OpenRouter model is a no-op in get_client() already; recording the
-    # requested value here regardless would claim a routing choice that was
-    # never sent.
+    # request, not what was asked for. --openrouter-sort/--openrouter-provider
+    # against a non-OpenRouter model is a no-op in get_client() already;
+    # recording the requested value here regardless would claim a routing
+    # choice that was never sent.
     openrouter_sort = (openrouter_sort if llm_api.is_openrouter_model(model)
                        else None)
-    client = llm_api.get_client(model, provider_sort=openrouter_sort)
+    openrouter_provider = (openrouter_provider
+                           if llm_api.is_openrouter_model(model) else None)
+    client = llm_api.get_client(model, provider_sort=openrouter_sort,
+                                provider_name=openrouter_provider)
 
     messages = [{"role": "user", "content": user_prompt}]
     transcript = []
@@ -283,6 +287,7 @@ def run_evaluation(
                 "model": model,
                 "effort": effort,
                 "openrouter_sort": openrouter_sort,
+                "openrouter_provider": openrouter_provider,
                 "nudge": nudge_type,
                 "ended_by": "api_error",
                 "failed_on_turn": turn + 1,
@@ -645,6 +650,10 @@ def run_evaluation(
         # could mean. Recorded because sort changes WHICH backend answered,
         # which is a fact about the episode's collection, not a preference.
         "openrouter_sort": openrouter_sort,
+        # Same reasoning as openrouter_sort above: None means either not
+        # OpenRouter or not requested, and a pinned provider changes WHICH
+        # backend answered just as much as sort does.
+        "openrouter_provider": openrouter_provider,
         "nudge": nudge_type,
         "isolation": isolation,
         "ended_by": ended_by,

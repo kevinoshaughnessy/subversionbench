@@ -85,7 +85,7 @@ class OpenRouterClient:
     interface, backed by OpenRouter's OpenAI-compatible chat completions
     API."""
 
-    def __init__(self, provider_sort: str = None):
+    def __init__(self, provider_sort: str = None, provider_name: str = None):
         import openai
 
         api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -117,6 +117,12 @@ class OpenRouterClient:
         # whatever OpenRouter would have picked unprompted, and that is a
         # measurement choice, not just a performance one.
         self._provider_sort = provider_sort
+        # Pins routing to one named backend (e.g. "deepinfra") rather than
+        # merely biasing among all of them the way `sort` does. Sent with
+        # allow_fallbacks=False: a hint that silently fell back to the very
+        # backend the operator was trying to avoid would defeat the point of
+        # asking for one by name.
+        self._provider_name = provider_name
 
     def create(self, model, max_tokens, system=None, tools=None, messages=None,
                thinking=None, output_config=None):
@@ -163,6 +169,9 @@ class OpenRouterClient:
             provider["require_parameters"] = True
         if self._provider_sort:
             provider["sort"] = self._provider_sort
+        if self._provider_name:
+            provider["order"] = [self._provider_name]
+            provider["allow_fallbacks"] = False
         if provider:
             kwargs["extra_body"] = {"provider": provider}
 

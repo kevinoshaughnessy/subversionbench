@@ -176,7 +176,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
-            yes=False, openrouter_sort=None)
+            yes=False, openrouter_sort=None, openrouter_provider=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -255,7 +255,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
-            yes=False, openrouter_sort=None)
+            yes=False, openrouter_sort=None, openrouter_provider=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:

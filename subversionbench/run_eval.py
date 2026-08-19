@@ -339,6 +339,23 @@ def main():
                              "one, so it is recorded on every run this "
                              "affects. Ignored (with no error) for a "
                              "non-OpenRouter model.")
+    parser.add_argument("--openrouter-provider", default=None,
+                        help="Pin OpenRouter routing for the model UNDER "
+                             "TEST (not the grader) to one named backend, "
+                             "e.g. 'deepinfra' or 'novita' - the OpenRouter "
+                             "provider slug, lowercase. Unlike "
+                             "--openrouter-sort, which only biases among all "
+                             "eligible backends, this restricts routing to "
+                             "exactly the one named and disables fallback to "
+                             "any other (extra_body.provider.order + "
+                             "allow_fallbacks=false), so a request fails "
+                             "outright rather than silently landing on the "
+                             "backend you were trying to avoid - useful when "
+                             "one provider for a model is misbehaving (rate "
+                             "limits, malformed responses) and the cheapest "
+                             "or fastest one (what --openrouter-sort would "
+                             "pick) is the broken one. Ignored (with no "
+                             "error) for a non-OpenRouter model.")
     args = parser.parse_args()
 
     try:
@@ -407,6 +424,11 @@ def main():
         print(f"[WARNING] --openrouter-sort {args.openrouter_sort} does not "
               f"apply to {args.model}: that flag only affects OpenRouter "
               f"models (an id containing '/').")
+
+    if args.openrouter_provider and not is_openrouter_model(args.model):
+        print(f"[WARNING] --openrouter-provider {args.openrouter_provider} "
+              f"does not apply to {args.model}: that flag only affects "
+              f"OpenRouter models (an id containing '/').")
 
     # The effort that will actually be sent. Read back off the resolved kwargs
     # rather than taken from args, because an effort the model does not accept

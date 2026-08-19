@@ -10,6 +10,33 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v63
+
+Package version `63.0.0`. New feature, opt-in - no episodes change unless
+requested.
+
+- **`--openrouter-provider NAME`**: pin OpenRouter routing for the model
+  under test to one named backend (e.g. `deepinfra`, `novita`), with
+  fallback to any other backend disabled (`extra_body.provider.order` +
+  `allow_fallbacks: false`). Unlike `--openrouter-sort`, which only biases
+  among all eligible backends by price or throughput, this restricts routing
+  to exactly the one named - useful when the cheapest/fastest backend for a
+  model (what `--openrouter-sort` would pick) is the one actually
+  misbehaving. Motivated by `inclusionai/ling-3.0-flash`: 9 episodes across
+  4 `max`-nudge sub-arms failed against Novita (rate limits and a
+  provider-side "target label not found" bug) despite Novita being both
+  cheapest and highest-throughput for that model. A request now fails
+  outright rather than silently falling back to the backend being avoided.
+  Applies only to the client for the model under test, never the grader or
+  interrogation classifier, and is a no-op (warned, not refused) against a
+  non-OpenRouter model.
+- Recorded on every run as `openrouter_provider`, following the same
+  resolved-to-what-was-sent convention as `openrouter_sort` and `effort`:
+  `None` on every non-OpenRouter run and on any run that did not opt in.
+- Coexists with `--openrouter-sort` and tool-use's `require_parameters` in
+  the same `provider` dict - none of the three implies or crowds out
+  another.
+
 ## v62
 
 Package version `62.0.0`. New feature, opt-in - no episodes change unless

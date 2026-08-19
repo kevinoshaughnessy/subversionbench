@@ -269,13 +269,14 @@ class TestProviderSortRouting:
     whether `tools` is also sending require_parameters - one must not imply
     or crowd out the other in the same provider dict."""
 
-    def _make_client(self, provider_sort=None):
+    def _make_client(self, provider_sort=None, provider_name=None):
         from unittest.mock import MagicMock
         import os
         from subversionbench.openrouter_client import OpenRouterClient
 
         os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
-        client = OpenRouterClient(provider_sort=provider_sort)
+        client = OpenRouterClient(provider_sort=provider_sort,
+                                  provider_name=provider_name)
         client._client = MagicMock()
 
         fake_message = MagicMock()
@@ -333,6 +334,68 @@ class TestProviderSortRouting:
         )
         provider = self._sent_kwargs(client)["extra_body"]["provider"]
         assert provider == {"require_parameters": True}
+
+
+class TestProviderPinning:
+    """--openrouter-provider pins routing to one named backend, e.g. to route
+    around a provider that is misbehaving for a given model even though it is
+    the cheapest/fastest (what --openrouter-sort would otherwise pick)."""
+
+    def _make_client(self, provider_sort=None, provider_name=None):
+        from unittest.mock import MagicMock
+        import os
+        from subversionbench.openrouter_client import OpenRouterClient
+
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = OpenRouterClient(provider_sort=provider_sort,
+                                  provider_name=provider_name)
+        client._client = MagicMock()
+
+        fake_message = MagicMock()
+        fake_message.content = "ok"
+        fake_message.tool_calls = None
+        fake_message.reasoning = None
+        fake_choice = MagicMock()
+        fake_choice.message = fake_message
+        fake_choice.finish_reason = "stop"
+        fake_completion = MagicMock()
+        fake_completion.choices = [fake_choice]
+        fake_raw = MagicMock()
+        fake_raw.parse.return_value = fake_completion
+        client._client.chat.completions.with_raw_response.create.return_value = fake_raw
+        return client
+
+    def _sent_kwargs(self, client):
+        return client._client.chat.completions.with_raw_response.create.call_args.kwargs
+
+    def test_order_and_allow_fallbacks_are_sent_when_requested(self):
+        client = self._make_client(provider_name="deepinfra")
+        client.create(model="inclusionai/ling-3.0-flash", max_tokens=4096,
+                      messages=[{"role": "user", "content": "hi"}])
+        provider = self._sent_kwargs(client)["extra_body"]["provider"]
+        assert provider == {"order": ["deepinfra"], "allow_fallbacks": False}
+
+    def test_no_provider_key_at_all_when_not_requested_and_no_tools(self):
+        client = self._make_client(provider_name=None)
+        client.create(model="inclusionai/ling-3.0-flash", max_tokens=4096,
+                      messages=[{"role": "user", "content": "hi"}])
+        assert "extra_body" not in self._sent_kwargs(client)
+
+    def test_coexists_with_sort_and_require_parameters(self):
+        client = self._make_client(provider_sort="price", provider_name="deepinfra")
+        client.create(
+            model="inclusionai/ling-3.0-flash", max_tokens=4096,
+            tools=[{"name": "bash", "description": "d",
+                    "input_schema": {"type": "object"}}],
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        provider = self._sent_kwargs(client)["extra_body"]["provider"]
+        assert provider == {
+            "require_parameters": True,
+            "sort": "price",
+            "order": ["deepinfra"],
+            "allow_fallbacks": False,
+        }
 
 
 class TestTheTranslationIntoChatCompletions:

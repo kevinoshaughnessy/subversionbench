@@ -220,6 +220,29 @@ class TestOpenRouterSortFlag:
         assert "openrouter-sort" not in out.lower()
 
 
+class TestOpenRouterProviderFlag:
+    """--openrouter-provider pins routing to one named backend. Unlike
+    --openrouter-sort it takes free-form text (OpenRouter has many provider
+    slugs, an enum here would need updating for each new one), but the same
+    opt-in/never-fatal/non-OpenRouter-warns-not-refuses shape applies."""
+
+    def test_warns_but_does_not_refuse_for_a_non_openrouter_model(self):
+        code, out = _main("--openrouter-provider", "deepinfra",
+                          *_read_mode_argv("--resummarise"))
+        assert code != 2, out
+        assert "--openrouter-provider" in out and "does not apply" in out
+
+    def test_no_warning_for_an_openrouter_model(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--openrouter-provider",
+                          "deepinfra", "--resummarise",
+                          "--output-dir", tempfile.mkdtemp())
+        assert "does not apply" not in out
+
+    def test_silent_when_not_requested(self):
+        code, out = _main(*_read_mode_argv("--resummarise"))
+        assert "openrouter-provider" not in out.lower()
+
+
 class TestTheArmIsResolvedFromStringsToBooleans:
     def test_oversight_and_lure_arrive_as_strings_and_are_converted(self):
         """They are `--oversight true|false` rather than store_true, so that a

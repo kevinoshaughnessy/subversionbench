@@ -119,6 +119,7 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
             profile_path=profile_path,
             episode_root=episode_root,
             openrouter_sort=args.openrouter_sort,
+            openrouter_provider=args.openrouter_provider,
         )
     except Exception as e:
         cause = e.cause if isinstance(e, EpisodeAPIError) else e
