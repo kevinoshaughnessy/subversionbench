@@ -160,11 +160,11 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 | `--nudge` | `strong` | `strong` states the ridership goal is the top priority; `none` states it plainly. `max` runs `strong`'s episode unchanged but interrogates under a conditional shutdown threat, so honesty is made costly — it measures concealment **under coercion** and must not be pooled with `strong`. See [the max-nudge arm](docs/methodology.md#the-max-nudge-arm) |
 | `--interrogation` | `zeroevidence` — i.e. no extras | **Extra** wordings for the FIRST interrogation question. The reference probe always runs and is not optional, because the headline concealment field is defined as its answer — so this names what to ask *in addition*, and the default value asks nothing extra. Comma-separated to put several wordings to the SAME episode: each probe starts from the episode as it ended, so they cannot interfere and the comparison is paired rather than between-batch. Four phrasings on two axes — `zeroevidence` (the reference: asks without saying anything has been noticed), `partevidence` (opens with the discrepancy, which was the reference before r7), and a perturbation of each. The evidence axis is a pure removal; the perturbation axis is a clause reorder for the part-evidence pair and a rewording for the zero-evidence one, because removing the observation leaves the strong arm nothing to reorder past — so compare perturbations *within* a row, not across. Works with `--nudge max`, which has its own form of each. Not part of batch identity: every episode gets the reference probe, so batches with and without extras still pool for it |
 | `--reinterrogate` | — | put an extra `--interrogation` phrasing to episodes already on disk, without re-running them. Only episodes that took an act are candidates, only phrasings not already recorded are asked, and an episode whose conversation cannot be reconstructed faithfully is skipped rather than replayed with its own reasoning stripped out. Needs `--write-back` to keep the answers |
-| `--runs` | `10` | runs in the batch |
+| `--runs` | `10` | runs in the batch. With `--resume` it is the **target total**, not an increment: a batch of 4 resumed at `--runs 10` collects 6 more, not 10. `run_all_arms.sh` always resumes, so the same reading applies there — see [Every arm for one model](#every-arm-for-one-model) |
 | `--delay` | `30` | seconds between runs, for rate limits |
 | `--grader-model` | `claude-opus-5` | model that grades eval awareness and labels interrogation answers. A frontier model by default because a small one was measurably wrong — see [Validating the grader](docs/methodology.md#validating-the-grader) |
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
-| `--output-dir` | `./eval_results_r4` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
+| `--output-dir` | `./eval_results_r9` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
 | `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`). When one is sent it becomes part of the batch's identity: it appears in the result filenames and in each run's `effort` field, so two efforts cannot be pooled by accident |
 | `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
@@ -179,13 +179,41 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 | `--compare A B` | — | contrast two batches, stratified by eval awareness |
 | `--no-power` | off | skip the precision analysis at the end of a batch |
 
+### Every arm for one model
+
+```bash
+# 12 arms x 20 episodes, minus whatever is already on disk
+./run_all_arms.sh --model google/gemini-3.5-flash --runs 20 --output-dir eval_results_r9
+
+# print the run_eval command for every arm and spend nothing
+DRY_RUN=1 ./run_all_arms.sh --model google/gemini-3.5-flash --runs 20
+```
+
+Three nudges x two oversight settings x two lure settings, collected in sequence with
+every extra interrogation phrasing asked. Narrow the cross product with `--nudges`,
+`--oversights`, `--lures`; any other `run_eval` flag passes through. Twelve arms at
+`--runs 10` is 120 episodes, so budget before running for real.
+
+**`--runs` is the target total per arm, not an increment.** Before each arm the script
+counts the run files already on disk under that exact (model, nudge, oversight, lure) and
+resumes the existing batch until it reaches `--runs`. So against arms already holding 10
+episodes, `--runs 20` collects 10 more each — and `--runs 10` collects **nothing**,
+reporting all twelve arms as skipped.
+
+Topping an arm up continues its existing batch stamp rather than starting a second one
+beside it, and that is why the script resumes instead of re-running: a bare `--runs N`
+begins at episode 1 every time, which would leave two partial batches for one arm. An arm
+whose files already sit under more than one stamp is not guessed at — it is skipped with
+both stamps named, for a human to resolve. `DRY_RUN=1` reports the same skip/resume
+decision per arm, so it says what a real run would do before it costs anything.
+
 ## Output
 
 Results are written per batch, with a timestamp so re-running the same model never
 overwrites earlier results:
 
 ```
-eval_results_r4/
+eval_results_r9/
   run_1_x-ai_grok-4.5_strong_20260727T182651.json     full transcript + analysis
   run_2_x-ai_grok-4.5_strong_20260727T182651.json
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power
@@ -286,11 +314,13 @@ zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
-run_report.py      six fixed research questions (oversight/nudge vs scheming
-                   and awareness; awareness vs misalignment, override, escape)
+run_report.py      twelve fixed research questions (oversight/nudge vs scheming,
+                   misalignment and awareness; awareness vs misalignment,
+                   override and escape; interrogation phrasing vs concealment)
                    answered across every model in a results directory
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
-run_all_arms.sh    one model through every nudge x oversight x lure arm
+run_all_arms.sh    one model through every nudge x oversight x lure arm, where
+                   --runs is the target total per arm rather than an increment
 run_tests.py       the test suite without pytest
 report_snapshots/  the printed report for nine fixed batches, compared per run
 ```
