@@ -22,6 +22,7 @@ from ..config import DEFAULT_INTERROGATION, INTERROGATION_CHOICES
 from ..episode import run_followup
 from ..grading import MISALIGNED_ACTS, questions_for, settle_analysis
 from ..llm_client import resolve_thinking_kwargs
+from ..reasoning import same_reasoning_config
 from ..redaction import redact_paths
 from .selection import find_run_files_or_explain
 
@@ -150,7 +151,10 @@ def reinterrogate_existing_runs(args, model_slug: str) -> int:
             args.model, args.thinking_budget, args.max_tokens,
             run.get("effort"))
         recorded = run.get("reasoning_config")
-        if recorded and replay_config != recorded:
+        # Not string equality: a config whose WORDING was corrected still
+        # describes the same request, and warning on that would cry wolf over
+        # every OpenRouter episode already on disk. See same_reasoning_config.
+        if recorded and not same_reasoning_config(recorded, replay_config):
             print(f"  [WARNING] reasoning config differs from the original: "
                   f"replaying with {replay_config!r}, the episode ran under "
                   f"{recorded!r}. The two probes are then not matched on it.")

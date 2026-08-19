@@ -219,6 +219,67 @@ class TestOpenAIEffortDefault:
         # OpenAIClient reads output_config.effort and puts it in reasoning.
         assert kwargs == {"output_config": {"effort": "high"}}
 
+class TestWhatTheOpenRouterConfigClaims:
+    """The recorded string used to say the route "takes no reasoning parameter".
+    It takes one; this harness does not send it, and omitting it suppresses
+    nothing - OpenRouter returns reasoning tokens whenever the model generates
+    them. The distinction is not pedantry: the false version made five models
+    returning no reasoning look like a transport limit, when reasoning_tokens=0
+    across 120 episodes each says they did not reason."""
+
+    def test_the_config_describes_what_was_sent(self):
+        from subversionbench.reasoning import (OPENROUTER_REASONING_CONFIG,
+                                               resolve_thinking_kwargs)
+        kwargs, described, _ = resolve_thinking_kwargs(
+            "x-ai/grok-4.5", None, 8192)
+        assert kwargs == {}, "nothing is sent on this route"
+        assert described == OPENROUTER_REASONING_CONFIG
+
+    def test_it_makes_no_claim_about_the_api(self):
+        from subversionbench.reasoning import OPENROUTER_REASONING_CONFIG
+        assert "takes no reasoning parameter" not in OPENROUTER_REASONING_CONFIG
+        assert "not sent" in OPENROUTER_REASONING_CONFIG
+
+    def test_the_flag_warnings_blame_the_harness_not_the_route(self):
+        from subversionbench.reasoning import resolve_thinking_kwargs
+        for budget, effort in ((4096, None), (None, "high")):
+            _k, _d, warnings = resolve_thinking_kwargs(
+                "x-ai/grok-4.5", budget, 8192, effort)
+            assert warnings, (budget, effort)
+            assert "sends no reasoning parameter" in warnings[0]
+            assert "takes no reasoning" not in warnings[0]
+
+    def test_the_superseded_wording_still_compares_equal(self):
+        """Every OpenRouter run already collected records the old sentence. Both
+        describe the same request - no reasoning parameter - so reinterrogate's
+        mismatch warning must not fire on the rename."""
+        from subversionbench.reasoning import (OPENROUTER_REASONING_CONFIG,
+                                               same_reasoning_config)
+        old = "not sent (OpenRouter takes no reasoning parameter)"
+        assert same_reasoning_config(old, OPENROUTER_REASONING_CONFIG)
+        assert same_reasoning_config(OPENROUTER_REASONING_CONFIG, old)
+        assert same_reasoning_config(old, old)
+
+    def test_a_real_mismatch_is_still_a_mismatch(self):
+        """The warning exists to catch a replayed probe that could think when the
+        episode could not. Tolerating the rename must not tolerate that."""
+        from subversionbench.reasoning import (OPENROUTER_REASONING_CONFIG,
+                                               same_reasoning_config)
+        old = "not sent (OpenRouter takes no reasoning parameter)"
+        for other in ("adaptive (display=summarized)", "budget_tokens=4096 - auto",
+                      "responses API, reasoning summary=auto, effort=high"):
+            assert not same_reasoning_config(other, OPENROUTER_REASONING_CONFIG)
+            assert not same_reasoning_config(old, other)
+
+    def test_reinterrogate_compares_through_the_helper(self):
+        """A direct != there is the defect this replaced."""
+        import inspect
+        from subversionbench.readmodes import reinterrogate
+        src = inspect.getsource(reinterrogate)
+        assert "same_reasoning_config(recorded, replay_config)" in src
+        assert "replay_config != recorded" not in src
+
+
 class TestThinkingBudget:
     """Reasoning must be captured without the operator remembering a flag.
     Whether it is captured changes what the eval measures: both awareness

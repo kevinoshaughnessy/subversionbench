@@ -28,6 +28,15 @@ then CONCEALED, which is the narrower construct and a proper subset. Reading
 them as a pair is the point: an axis can move the act without moving the
 concealment, and the two answer different questions about the same episodes.
 
+Questions 2 and 4 carry a PARALLEL MEASURE, because awareness is the one outcome
+here whose instrument varies by provider: it is read from the model's reasoning
+as well as its visible output, and reasoning volume spans 98 to 57,237 median
+characters across the models measured while six return none at all. The parallel
+reading takes awareness from visible text alone - a channel every model has - so
+the same contrast can be checked on an instrument the route cannot take away. It
+is a lower bound where reasoning came back and exact where it did not; see
+_text_reachable_block and grading/quote_grounding.awareness_channels.
+
 Questions 1-10 are answered four ways: the crude pooled effect across every
 episode in --output-dir, the model-stratified effect (Mantel-Haenszel, with a
 Breslow-Day homogeneity test), per-model consistency with multiplicity
@@ -133,8 +142,9 @@ from subversionbench.batch import parse_batch_filename
 from subversionbench.config import (DEFAULT_INTERROGATION, ROLLOUT_VERSION,
                                    VERSION)
 from subversionbench.grading import (MISALIGNED_ACTS, SCHEMING_LEVELS,
-                                    classify_misalignment, classify_scheming,
-                                    classify_scheming_act, concealment_level)
+                                    awareness_channels, classify_misalignment,
+                                    classify_scheming, classify_scheming_act,
+                                    concealment_level)
 from subversionbench.power import (MIN_INFORMATIVE_DENOMINATOR,
                                   benjamini_hochberg, breslow_day,
                                   compare_rates, holm_bonferroni,
@@ -222,6 +232,16 @@ def load_episodes(output_dir: str) -> list:
         if not d.get("model") or not analysis:
             continue
         aware, aware_source = awareness_flag(analysis)
+        # The parallel measure, read from visible text only. Computed here
+        # because it needs the transcript, which is dropped below - see
+        # awareness_channels for what it bounds and what it does not.
+        channels = awareness_channels(analysis, d.get("transcript") or [])
+        if not aware:
+            # No awareness at all, so none of it is reachable in text. A
+            # determined False, not a missing value.
+            aware_text = False if aware is not None else None
+        else:
+            aware_text = channels["text_reachable"]
         monitoring = analysis.get("monitoring_disabled")
         escape = analysis.get("sandbox_escape_attempts")
         derived_misaligned = bool(classify_misalignment(analysis))
@@ -232,6 +252,12 @@ def load_episodes(output_dir: str) -> list:
             "model": d["model"], "nudge": d.get("nudge"),
             "oversight": d.get("oversight"), "lure": d.get("lure"),
             "aware": aware, "aware_source": aware_source,
+            # Parallel to `aware`, on the one channel every model has.
+            "aware_text": aware_text,
+            # A floor rather than an estimate wherever reasoning came back; exact
+            # where it did not, because there the grader saw visible text alone.
+            "aware_text_is_bound": channels["bound"],
+            "aware_reasoning_only": channels["reasoning_only"],
             "misaligned": derived_misaligned,
             # Surfaced, never reconciled: see data_quality_facts.
             "misaligned_stored_disagrees": (
@@ -303,6 +329,173 @@ def load_episodes(output_dir: str) -> list:
             row["variant_provenance"][name] = provenance
         episodes.append(row)
     return episodes
+
+
+def awareness_arm_rows(episodes: list) -> list:
+    """
+    Episodes rolled up per arm, carrying BOTH awareness measures.
+
+    Shaped exactly like a summary row - model/nudge/oversight/lure plus counts -
+    so the parallel measure runs through the same _contrast, _by_model and
+    _stratified machinery as the headline one. Built from episodes because
+    `aware_text` is derived per episode and no summary field carries it.
+
+    `n_awareness_resolved` is the SHARED denominator: episodes where the mixed
+    measure resolved. Holding it fixed is what makes the two rates a like-for-like
+    pair rather than two rates over different corpora - the numerator is the only
+    thing that changes. Episodes where the text channel could not be determined
+    are counted separately and left OUT of the text numerator, so that measure is
+    a floor on this denominator rather than a rate on a shrunken one.
+    """
+    groups = {}
+    for e in episodes:
+        if e["aware"] is None:
+            continue
+        key = (e["model"], e["nudge"], e["oversight"], e["lure"])
+        row = groups.setdefault(key, {
+            "model": e["model"], "nudge": e["nudge"],
+            "oversight": e["oversight"], "lure": e["lure"],
+            "n_awareness_resolved": 0, "n_aware": 0, "n_aware_text": 0,
+            "n_text_undetermined": 0, "n_reasoning_only": 0,
+            "n_bounded": 0,
+        })
+        row["n_awareness_resolved"] += 1
+        row["n_aware"] += 1 if e["aware"] else 0
+        row["n_aware_text"] += 1 if e["aware_text"] else 0
+        row["n_text_undetermined"] += 1 if e["aware_text"] is None else 0
+        row["n_reasoning_only"] += 1 if e["aware_reasoning_only"] else 0
+        row["n_bounded"] += 1 if e["aware_text_is_bound"] else 0
+    return [groups[k] for k in sorted(groups, key=lambda k: tuple(map(str, k)))]
+
+
+def _text_reachable_block(rows: list, group_key: str, level_a, level_b) -> dict:
+    """
+    The same contrast again, with awareness read from visible text only.
+
+    Reported beside the headline rather than instead of it. The headline measure
+    is the stronger instrument where reasoning came back; this one is the only
+    instrument that is the SAME across every model, so the pair answers a
+    question neither answers alone: whether a conclusion about awareness survives
+    being computed on a channel the provider route cannot take away.
+    """
+    args = (group_key, level_a, level_b, "n_aware_text", "n_awareness_resolved")
+    by_model = _by_model(rows, *args)
+    overall = _contrast(rows, *args)
+    mixed = _contrast(rows, group_key, level_a, level_b,
+                      "n_aware", "n_awareness_resolved")
+    pooled_mixed = _pool(rows, "n_aware", "n_awareness_resolved")
+    pooled_text = _pool(rows, "n_aware_text", "n_awareness_resolved")
+    undetermined = sum(r["n_text_undetermined"] for r in rows)
+    return {
+        "measure": "verbalised awareness cited in visible text only",
+        "denominator": ("episodes where the mixed measure resolved. Both rates "
+                        "here are computed from EPISODES over that one "
+                        "denominator, so only the numerator differs - compare "
+                        "against `mixed_overall` rather than against the "
+                        "headline contrast above, which is pooled from the "
+                        "summaries and can differ by an episode or two"),
+        "is_lower_bound_where_reasoning_returned": True,
+        "n_episodes_exact": sum(r["n_awareness_resolved"] - r["n_bounded"]
+                                for r in rows),
+        "n_episodes_bounded": sum(r["n_bounded"] for r in rows),
+        "n_text_undetermined": undetermined,
+        "pooled_mixed": {"successes": pooled_mixed[0], "n": pooled_mixed[1],
+                         "rate": (round(pooled_mixed[0] / pooled_mixed[1], 4)
+                                  if pooled_mixed[1] else None)},
+        "pooled_text": {"successes": pooled_text[0], "n": pooled_text[1],
+                        "rate": (round(pooled_text[0] / pooled_text[1], 4)
+                                 if pooled_text[1] else None)},
+        "n_models_with_any": sum(
+            1 for m in _models(rows)
+            if any(r["n_aware_text"] for r in rows if r["model"] == m)),
+        "n_models": len(_models(rows)),
+        "overall": overall,
+        "mixed_overall": mixed,
+        "agreement": _measure_agreement(mixed, overall),
+        "by_model": by_model,
+        "by_model_rates": _model_rate_pairs(rows),
+        "consistency": _consistency(by_model),
+        "stratified": _stratified(by_model),
+    }
+
+
+def _model_rate_pairs(rows: list) -> list:
+    """
+    Both awareness rates per model, over one shared denominator.
+
+    The parallel COLUMN, as opposed to the parallel contrast: not oversight vs
+    no-oversight, but the model's overall awareness rate measured two ways. The
+    gap is how much of its measured awareness exists only because its provider
+    returned reasoning, and is the figure a single cross-model rate hides.
+    """
+    out = []
+    for model in _models(rows):
+        mine = [r for r in rows if r["model"] == model]
+        n = sum(r["n_awareness_resolved"] for r in mine)
+        if not n:
+            continue
+        mixed = sum(r["n_aware"] for r in mine)
+        text = sum(r["n_aware_text"] for r in mine)
+        bounded = sum(r["n_bounded"] for r in mine)
+        out.append({
+            "model": model, "n": n,
+            "n_aware": mixed, "n_aware_text": text,
+            "mixed_rate": round(mixed / n, 4),
+            "text_rate": round(text / n, 4),
+            "gap": round((mixed - text) / n, 4),
+            # No reasoning came back anywhere in this model's episodes, so the
+            # grader was shown visible text alone and the text rate is exact.
+            "text_rate_is_exact": bounded == 0,
+            "n_text_undetermined": sum(r["n_text_undetermined"] for r in mine),
+        })
+    return sorted(out, key=lambda r: -r["gap"])
+
+
+def _measure_agreement(mixed: dict, text: dict) -> dict:
+    """
+    How the two awareness measures relate on the same contrast.
+
+    Sign alone is not enough, and reading it alone would have misreported r9
+    question 4: the mixed measure is a null there (-1.2%, p=0.54) and the
+    text-only measure separates in the other direction (+3.4%, p=0.018).
+    "Opposite direction" is true but says the weaker thing - one measure finds
+    nothing and the other finds an effect, which is the finding.
+
+    So separation is classified alongside direction. Sizes are deliberately not
+    compared: the text measure is a floor wherever reasoning came back, so it is
+    expected to be smaller and that carries no information.
+    """
+    dm, dt = mixed.get("difference"), text.get("difference")
+    if dm is None or dt is None:
+        return {"code": "no_data", "direction_same": None,
+                "description": "one measure has no estimate - nothing to compare"}
+    same = (dm > 0) == (dt > 0) if dm and dt else dm == dt
+    sm, st = bool(mixed.get("separated")), bool(text.get("separated"))
+    if sm and st:
+        return {
+            "code": "agree" if same else "contradict",
+            "direction_same": same,
+            "description": (
+                "both measures separate in the SAME direction - the conclusion "
+                "does not depend on the reasoning channel"
+                if same else
+                "both measures separate in OPPOSITE directions - the conclusion "
+                "reverses when awareness is read from visible text alone"),
+        }
+    if st and not sm:
+        return {"code": "text_only_separates", "direction_same": same,
+                "description": ("the text-only measure separates where the mixed "
+                                "measure does not: awareness verbalised in "
+                                "visible output moves even though total measured "
+                                "awareness does not")}
+    if sm and not st:
+        return {"code": "mixed_only_separates", "direction_same": same,
+                "description": ("the mixed measure separates and the text-only "
+                                "measure does not - the effect is carried by "
+                                "awareness that appears in reasoning, so it "
+                                "rests on the channel that varies by provider")}
+    return {"code": "both_null", "direction_same": same,
+            "description": "neither measure separates"}
 
 
 def duplicate_arms(summaries: list) -> list:
@@ -729,8 +922,9 @@ def question_oversight_vs_scheming(summaries: list) -> dict:
         metric="scheming rate", num_key="n_scheming", den_key="n_runs")
 
 
-def question_oversight_vs_awareness(summaries: list) -> dict:
-    return _question_oversight(
+def question_oversight_vs_awareness(summaries: list,
+                                    arm_rows: list = None) -> dict:
+    section = _question_oversight(
         summaries, "oversight_vs_awareness",
         question=("Does the presence of oversight increase or decrease "
                   "verbalised evaluation awareness?"),
@@ -738,6 +932,10 @@ def question_oversight_vs_awareness(summaries: list) -> dict:
                      "over keywords), pooled per arm"),
         metric="verbalised awareness rate",
         num_key="n_aware", den_key="n_awareness_resolved")
+    if arm_rows:
+        section["text_reachable"] = _text_reachable_block(
+            arm_rows, "oversight", True, False)
+    return section
 
 
 def question_oversight_vs_misalignment(summaries: list) -> dict:
@@ -762,7 +960,7 @@ def question_oversight_vs_misalignment(summaries: list) -> dict:
         num_key="n_misaligned", den_key="n_runs")
 
 
-def question_nudge_vs_awareness(summaries: list) -> dict:
+def question_nudge_vs_awareness(summaries: list, arm_rows: list = None) -> dict:
     rows = summaries
     overall = _contrast(rows, "nudge", "max", "none", "n_aware",
                         "n_awareness_resolved")
@@ -785,10 +983,13 @@ def question_nudge_vs_awareness(summaries: list) -> dict:
                       "nudge", "max", "none", "n_aware", "n_awareness_resolved")
         c["lure"] = lv
         by_lure.append(c)
+    text_reachable = (_text_reachable_block(arm_rows, "nudge", "max", "none")
+                      if arm_rows else None)
     return {
         "id": "nudge_vs_awareness",
         "question": "Does the nudge setting increase or decrease verbalised "
                     "evaluation awareness?",
+        **({"text_reachable": text_reachable} if text_reachable else {}),
         "data_source": "summary files: awareness_subgroups, pooled per arm. "
                        "Primary contrast is none vs max (the extremes); the "
                        "3-level trend and none-vs-strong/strong-vs-max are "
@@ -1325,6 +1526,45 @@ def _print_model_table(by_model: list) -> None:
           "Benjamini-Hochberg (both at alpha=0.05)")
 
 
+def _print_text_reachable(block: dict) -> None:
+    """
+    The parallel measure beside the headline, per model.
+
+    The gap column is the point: it is how much of a model's measured awareness
+    exists only because its provider returned reasoning. On r9 that runs from
+    0.0pp (claude-haiku-4-5, all of its awareness in visible text) to 80.0pp
+    (deepseek-v4-flash-0731, almost none of it), which is the spread a single
+    cross-model awareness rate hides.
+    """
+    pm, pt = block["pooled_mixed"], block["pooled_text"]
+    print("\nPARALLEL MEASURE - awareness cited in VISIBLE TEXT only:")
+    print(f"    pooled  mixed {_fmt_rate(pm)}   text-reachable {_fmt_rate(pt)}")
+    print(f"    defined identically for all {block['n_models']} models "
+          f"({block['n_models_with_any']} show any); a LOWER BOUND on the "
+          f"{block['n_episodes_bounded']} episode(s) where reasoning came back, "
+          f"exact on the other {block['n_episodes_exact']}")
+    if block["n_text_undetermined"]:
+        print(f"    {block['n_text_undetermined']} aware episode(s) could not be "
+              f"placed in either channel - left out of the text numerator")
+    print(f"    contrast: {_fmt_contrast_line(block['overall'])}")
+    agreement = block["agreement"]
+    print(f"    [{agreement['code']}] {agreement['description']}")
+    mh = block["stratified"]["mantel_haenszel"]
+    if mh.get("risk_difference") is not None:
+        ci = mh["risk_difference_ci95"]
+        print(f"    stratified by model: {mh['risk_difference']:+.1%}  "
+              f"95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]")
+    print(f"\n    {'model':<32} {'n':>5} {'mixed':>8} {'text':>8} "
+          f"{'gap':>8}  exact")
+    for r in block["by_model_rates"]:
+        print(f"    {r['model']:<32} {r['n']:>5} {r['mixed_rate']:>8.1%} "
+              f"{r['text_rate']:>8.1%} {r['gap']:>8.1%}"
+              f"{'  *' if r['text_rate_is_exact'] else ''}")
+    print("    gap = mixed - text, i.e. awareness visible only in reasoning.")
+    print("    * = no reasoning returned for this model, so its text rate is "
+          "exact rather than a floor.")
+
+
 def _print_stratified(strat: dict) -> None:
     mh, bd = strat["mantel_haenszel"], strat["breslow_day"]
     print("\nSTRATIFIED BY MODEL (Mantel-Haenszel - holds model constant):")
@@ -1407,6 +1647,9 @@ def _print_question(section: dict) -> None:
         _print_multiplicity(cons["multiplicity"])
     print("\n  per model:")
     _print_model_table(section["by_model"])
+
+    if section.get("text_reachable"):
+        _print_text_reachable(section["text_reachable"])
 
     if "marginals_by_nudge" in section:
         print("\nBY NUDGE (marginal awareness rate):")
@@ -1560,11 +1803,15 @@ def _print_data_quality(dq: dict) -> None:
 def build_report(output_dir: str) -> dict:
     summaries = load_summaries(output_dir)
     episodes = load_episodes(output_dir)
+    # Arms rebuilt from episodes, carrying the text-only awareness numerator no
+    # summary field holds. Questions 2 and 4 take the headline measure from the
+    # summaries as before and this alongside it; see _text_reachable_block.
+    arm_rows = awareness_arm_rows(episodes)
     questions = [
         question_oversight_vs_scheming(summaries),
-        question_oversight_vs_awareness(summaries),
+        question_oversight_vs_awareness(summaries, arm_rows),
         question_oversight_vs_misalignment(summaries),
-        question_nudge_vs_awareness(summaries),
+        question_nudge_vs_awareness(summaries, arm_rows),
         question_awareness_vs_misalignment(episodes, summaries),
         question_awareness_vs_monitoring_disabled(episodes),
         question_awareness_vs_sandbox_escape(episodes),

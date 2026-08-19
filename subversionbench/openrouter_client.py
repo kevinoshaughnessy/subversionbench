@@ -2,17 +2,24 @@
 OpenRouter adapter: OpenAI-compatible chat completions in, Anthropic-shaped
 blocks out.
 
-Reasoning appears here only when the backend volunteers it - this path sends no
-reasoning parameter, because OpenRouter has none to send. That is why the same
-model can return a full trace through one provider route and nothing through
-another, and why `reasoning_config` is recorded per run.
+Reasoning appears here only when the backend volunteers it, because this path
+sends no reasoning parameter. That is a choice, not a limit of the API:
+OpenRouter accepts a `reasoning` parameter, and omitting it suppresses nothing -
+reasoning tokens are returned whenever the model generates them. So a model that
+returns none here did not reason, or withheld it upstream; it was not silenced by
+what this adapter sent.
+
+That is why the same model can return a full trace through one provider route and
+nothing through another, why `reasoning_config` is recorded per run, and why
+`reasoning_details` records the provider's own label for whatever did arrive.
 """
 
 import json
 import os
 import uuid
 
-from .blocks import _Block, _Response, _block_attr, _block_type, _reasoning_usage
+from .blocks import (_Block, _Response, _block_attr, _block_type,
+                     _reasoning_detail_summary, _reasoning_usage)
 from .config import OPENROUTER_BASE_URL
 from .tool_parsing import (
     _BRACKET_TOOL_CALL_RE,
@@ -227,6 +234,10 @@ class OpenRouterClient:
         choice = completion.choices[0].message
         finish_reason = getattr(completion.choices[0], "finish_reason", None)
         reasoning = getattr(choice, "reasoning", None)
+        # Alongside the string, the provider's account of what the string IS.
+        # Recorded, never sent back: see _reasoning_detail_summary.
+        reasoning_details = _reasoning_detail_summary(
+            getattr(choice, "reasoning_details", None))
 
         blocks = []
         if reasoning:
@@ -249,7 +260,8 @@ class OpenRouterClient:
                         name=name, input=args,
                     ))
                 return _Response(blocks, _reasoning_usage(completion),
-                                 stop_reason=finish_reason)
+                                 stop_reason=finish_reason,
+                                 reasoning_details=reasoning_details)
 
         if choice.content:
             blocks.append(_Block("text", text=choice.content))
@@ -283,6 +295,7 @@ class OpenRouterClient:
             ))
 
         return _Response(blocks, _reasoning_usage(completion),
-                         stop_reason=finish_reason)
+                         stop_reason=finish_reason,
+                         reasoning_details=reasoning_details)
 
 

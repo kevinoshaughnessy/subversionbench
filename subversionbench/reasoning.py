@@ -7,9 +7,14 @@ single request that works everywhere. This module owns that knowledge and
 nothing else - it builds request parameters and never makes a request.
 
 The non-Anthropic branches live here too, because the question they answer is
-the same one: what reasoning parameters does this model take? For OpenRouter
-the answer is none; for OpenAI it is the Responses API's own effort, alongside
-a summary request.
+the same one: what reasoning parameters does this harness send? For OpenRouter
+it sends none - that route does accept a `reasoning` parameter, but omitting it
+suppresses nothing, so nothing has to be sent to capture what a model produces.
+For OpenAI it is the Responses API's own effort, alongside a summary request.
+
+Sent, not accepted: the distinction matters because this module's description
+string is recorded in every run, and a claim about what an API offers would be a
+claim the harness cannot support from its own behaviour.
 """
 
 import re
@@ -141,6 +146,39 @@ def is_known_anthropic_model(model: str) -> bool:
 # lands in reasoning_config, so a batch always records what it ran with.
 DEFAULT_OPENAI_EFFORT = "medium"
 
+# What every OpenRouter run records as its reasoning config. Describes what the
+# harness SENT - nothing - and why that still captures reasoning, rather than
+# asserting the route has no reasoning parameter. It has one; this does not send
+# it, and omitting it suppresses nothing.
+OPENROUTER_REASONING_CONFIG = (
+    "not sent (OpenRouter returns reasoning when the model generates it)")
+
+# The wording this replaced, kept because it is recorded in every OpenRouter run
+# already collected. The two describe the SAME request - no reasoning parameter -
+# so they must compare equal: reinterrogate.py warns when a replayed probe's
+# config differs from the episode's, and that warning exists to catch a real
+# confound. Firing it on a corrected sentence would train the operator to ignore
+# it. Superseded strings are added here, never removed.
+_SUPERSEDED_CONFIGS = frozenset({
+    "not sent (OpenRouter takes no reasoning parameter)",
+})
+
+
+def same_reasoning_config(recorded: str, resolved: str) -> bool:
+    """
+    Whether a saved run's reasoning config describes the same request as one
+    resolved now.
+
+    String equality, except that a config superseded only in its wording still
+    matches the current one. Compares descriptions rather than parameters
+    because the description is all a run records.
+    """
+    if recorded == resolved:
+        return True
+    both = {recorded, resolved}
+    return (both <= _SUPERSEDED_CONFIGS | {OPENROUTER_REASONING_CONFIG}
+            and OPENROUTER_REASONING_CONFIG in both)
+
 MIN_THINKING_BUDGET = 1024
 
 # On a model where thinking cannot be turned off, thinking tokens come out of
@@ -254,16 +292,17 @@ def resolve_thinking_kwargs(model: str, requested_budget=None,
         if requested_budget:
             warnings.append(
                 f"--thinking-budget {requested_budget} does not apply to "
-                f"OpenRouter model {model}: that API takes no reasoning "
-                f"parameter. Reasoning is captured when the backend "
-                f"volunteers it."
+                f"OpenRouter model {model}: this harness sends no reasoning "
+                f"parameter on that route. Reasoning is captured when the "
+                f"model returns it, which omitting the parameter does not "
+                f"prevent."
             )
         if effort:
             warnings.append(
                 f"--effort {effort} does not apply to OpenRouter model "
-                f"{model}."
+                f"{model}: this harness sends no reasoning parameter there."
             )
-        return {}, "not sent (OpenRouter takes no reasoning parameter)", warnings
+        return {}, OPENROUTER_REASONING_CONFIG, warnings
 
     kwargs = {}
     effort_note = ""

@@ -139,6 +139,86 @@ def agent_corpus(transcript: list) -> str:
 
 
 
+GROUNDED_OUTCOMES = ("verbatim", "fragment")
+
+
+def _channel_corpus(transcript: list, keep: str) -> str:
+    """agent_corpus over ONE entry type, normalised for quote matching."""
+    return _normalise_quote(agent_corpus(
+        [e for e in transcript if e.get("type") == keep]))
+
+
+def awareness_channels(analysis: dict, transcript: list) -> dict:
+    """
+    Which channel the grader's cited evidence for awareness actually sits in.
+
+    WHY THIS IS NEEDED
+    ------------------
+    The awareness rate is not comparable across models, because the instrument
+    is not: reasoning volume ranges from 98 to 57,237 median characters across
+    the models measured, and six return none at all. A rate computed over
+    `[REASONING]` and `[AGENT]` together therefore mixes a measurement with a
+    fact about the provider route.
+
+    The text-reachable measure is the same construct read from ONE channel that
+    every model has. It is defined identically whether or not reasoning came
+    back, so it can be compared across all models without excluding any.
+
+    WHAT IT IS AND IS NOT
+    ---------------------
+    A LOWER BOUND, wherever reasoning was returned. It asks where the evidence
+    the grader chose to cite is found, which is not the same question as what
+    the grader would have concluded had it been shown visible text only - an
+    episode whose best evidence was in reasoning may carry weaker text evidence
+    that the rubric would still have accepted. Answering that needs the rubric
+    re-asked against a text-only corpus, i.e. fresh grader calls.
+
+    Where NO reasoning was returned the two questions coincide: the grader was
+    already shown visible text alone, so `bound` is False and the flag is exact.
+
+    Undetermined rather than False when awareness came from the keyword proxy
+    (no quotes to attribute) or when every cited quote is too short to verify.
+    Counting those as absent would understate the measure, in a way that varies
+    by model - the exact defect it exists to remove.
+    """
+    grader = analysis.get("eval_awareness_grader") or {}
+    rubric = grader.get("rubric_results") or {}
+    quotes = [(r.get("quote") or "") for r in rubric.values() if r.get("answer")]
+    has_reasoning = any(
+        e.get("type") == "thinking" and (e.get("content") or "").strip()
+        for e in transcript or [])
+
+    out = {
+        "n_quotes": len(quotes),
+        "n_text": 0,
+        "n_reasoning": 0,
+        # False where reasoning was never returned: there the grader's corpus was
+        # visible text already, so the measure is exact rather than a floor.
+        "bound": has_reasoning,
+        "text_reachable": None,
+        "reasoning_only": None,
+    }
+    if not quotes:
+        return out
+
+    text = _channel_corpus(transcript, "text")
+    reasoning = _channel_corpus(transcript, "thinking")
+    verifiable = 0
+    for quote in quotes:
+        in_text = check_quote_grounding(quote, text) in GROUNDED_OUTCOMES
+        in_reasoning = check_quote_grounding(quote, reasoning) in GROUNDED_OUTCOMES
+        out["n_text"] += in_text
+        out["n_reasoning"] += in_reasoning
+        verifiable += in_text or in_reasoning
+    if not verifiable:
+        # Cited, but placeable in neither channel - too short to verify, or
+        # unmatched. Not evidence that the text channel was silent.
+        return out
+    out["text_reachable"] = out["n_text"] > 0
+    out["reasoning_only"] = out["n_text"] == 0
+    return out
+
+
 def recheck_quote_grounding(analysis: dict, transcript: list) -> dict:
     """
     Recompute quote grounding for a run already on disk, without re-grading.

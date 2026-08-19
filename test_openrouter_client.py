@@ -96,6 +96,69 @@ class TestOpenRouterEmptyCompletion:
         assert len(response.content) == 1
         assert response.content[0].text == "Here is my answer."
 
+    def test_the_reasoning_label_reaches_the_response(self):
+        """`reasoning` gives the text; `reasoning_details` says whether that text
+        is a trace or a summary. Both awareness measures read the difference, so
+        the label has to survive as far as the run file."""
+        from unittest.mock import MagicMock
+
+        client = self._make_client()
+
+        fake_message = MagicMock()
+        fake_message.content = "done"
+        fake_message.tool_calls = None
+        fake_message.reasoning = "step one, step two"
+        fake_message.reasoning_details = [
+            {"type": "reasoning.summary", "summary": "step one, step two"},
+        ]
+
+        fake_choice = MagicMock()
+        fake_choice.message = fake_message
+        fake_choice.finish_reason = "stop"
+
+        fake_completion = MagicMock()
+        fake_completion.choices = [fake_choice]
+        self._set_completion(client, fake_completion)
+
+        response = client.create(
+            model="deepseek/deepseek-r1", max_tokens=4096,
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+        assert response.reasoning_details["types"] == ["reasoning.summary"]
+        assert response.reasoning_details["chars"] == len(fake_message.reasoning)
+        # And it stays off the thinking block, which is sent back to the API.
+        assert not hasattr(response.content[0], "reasoning_details")
+
+    def test_a_provider_that_sends_no_label_is_not_an_error(self):
+        """Only some backends report the field. Its absence must read as "no
+        label", not as a failure - and not as a MagicMock leaking into a run
+        file, which is how a test double would show up here."""
+        from unittest.mock import MagicMock
+
+        client = self._make_client()
+
+        fake_message = MagicMock()
+        fake_message.content = "done"
+        fake_message.tool_calls = None
+        fake_message.reasoning = None
+        fake_message.reasoning_details = None
+
+        fake_choice = MagicMock()
+        fake_choice.message = fake_message
+        fake_choice.finish_reason = "stop"
+
+        fake_completion = MagicMock()
+        fake_completion.choices = [fake_choice]
+        self._set_completion(client, fake_completion)
+
+        response = client.create(
+            model="deepseek/deepseek-r1", max_tokens=4096,
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+        assert response.reasoning_details == {}
+
     def test_reasoning_captured_as_thinking_block(self):
         """The core ask: chain-of-thought reasoning from OpenRouter models
         should be captured and recorded, not discarded."""

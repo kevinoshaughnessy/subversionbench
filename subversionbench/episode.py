@@ -248,6 +248,12 @@ def run_evaluation(
     # already captured by cache_totals in a different shape.
     token_totals = {}
 
+    # Per turn, what the provider said its reasoning was - a trace, a summary, or
+    # an encrypted payload. Kept per turn rather than merged because a model may
+    # return different kinds across an episode, and a merged label would hide it.
+    # Empty except on OpenRouter, the only route that reports the field.
+    reasoning_details = []
+
     # --- Time the main agentic loop ---
     t_eval_start = time.time()
 
@@ -294,6 +300,7 @@ def run_evaluation(
                 "error": f"{type(e).__name__}: {red(str(e))}",
                 "reasoning_config": reasoning_config,
                 "reasoning_chars": reasoning_chars,
+                "reasoning_details": reasoning_details,
                 "token_usage": token_totals,
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
@@ -321,6 +328,14 @@ def run_evaluation(
             for key, value in provider_usage.items():
                 if isinstance(value, int):
                     token_totals[key] = token_totals.get(key, 0) + value
+
+        # Whether the reasoning captured above is a trace or a summary, as the
+        # provider labels it rather than as the route implies. Only turns that
+        # reported something are recorded, so an empty list means the field was
+        # never sent - not that the reasoning was unlabelled.
+        turn_details = getattr(response, "reasoning_details", None)
+        if turn_details:
+            reasoning_details.append({"turn": turn + 1, **turn_details})
 
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
@@ -662,6 +677,11 @@ def run_evaluation(
         # less evidence than one where it is not, and the two should not be
         # compared without saying so.
         "reasoning_chars": reasoning_chars,
+        # The provider's own label for that reasoning, per turn. `reasoning_chars`
+        # says how much arrived; this says what kind it was, which is the
+        # difference between a full trace and a compressed summary - and both
+        # awareness measures read the difference. See _reasoning_detail_summary.
+        "reasoning_details": reasoning_details,
         "token_usage": token_totals,
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": cache_totals,

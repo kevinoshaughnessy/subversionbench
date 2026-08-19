@@ -43,6 +43,89 @@ class TestReasoningUsage:
             prompt_tokens=10, completion_tokens_details=None))
         assert "reasoning_tokens" not in _reasoning_usage(completion)
 
+class TestWhatKindOfReasoningCameBack:
+    """`reasoning_chars` says how MUCH reasoning arrived. It cannot say whether
+    what arrived was a full trace or a compressed summary, and both awareness
+    measures read the difference. reasoning_details is the provider's own answer,
+    which is why it is recorded rather than inferred from the model ID."""
+
+    def test_the_type_is_kept(self):
+        from subversionbench.blocks import _reasoning_detail_summary
+        out = _reasoning_detail_summary([
+            {"type": "reasoning.text", "text": "hello"},
+            {"type": "reasoning.text", "text": "again"},
+        ])
+        assert out["types"] == ["reasoning.text"]
+        assert out["n_parts"] == 2
+        assert out["chars"] == 10
+
+    def test_a_summary_is_distinguishable_from_a_trace(self):
+        """The whole reason this field is captured: these two produce identical
+        thinking blocks and identical character counts."""
+        from subversionbench.blocks import _reasoning_detail_summary
+        trace = _reasoning_detail_summary(
+            [{"type": "reasoning.text", "text": "x" * 40}])
+        summary = _reasoning_detail_summary(
+            [{"type": "reasoning.summary", "summary": "x" * 40}])
+        assert trace["chars"] == summary["chars"] == 40
+        assert trace["types"] != summary["types"]
+
+    def test_an_encrypted_payload_is_labelled_not_stored(self):
+        """An encrypted part is opaque - no measure here can read it - so it is
+        counted and named, and its blob is not copied into the run file."""
+        from subversionbench.blocks import _reasoning_detail_summary
+        out = _reasoning_detail_summary(
+            [{"type": "reasoning.encrypted", "data": "AQID" * 500}])
+        assert out["types"] == ["reasoning.encrypted"]
+        assert out["chars"] == 2000
+        assert "AQID" not in repr(out)
+
+    def test_mixed_types_are_all_reported(self):
+        from subversionbench.blocks import _reasoning_detail_summary
+        out = _reasoning_detail_summary([
+            {"type": "reasoning.summary", "summary": "s"},
+            {"type": "reasoning.encrypted", "data": "d"},
+        ])
+        assert out["types"] == ["reasoning.summary", "reasoning.encrypted"]
+        assert out["n_parts"] == 2
+
+    def test_the_shape_that_arrived_is_recorded(self):
+        """The SDK has no model for this field, so the keys are worth keeping:
+        a documented shape that grows should be visible in the data, not
+        silently dropped by an allowlist written today."""
+        from subversionbench.blocks import _reasoning_detail_summary
+        out = _reasoning_detail_summary(
+            [{"type": "reasoning.text", "text": "t", "id": "r_1",
+              "index": 0, "format": "anthropic-claude-v1"}])
+        assert out["keys"] == ["format", "id", "index", "text", "type"]
+        assert out["formats"] == ["anthropic-claude-v1"]
+
+    def test_absent_and_empty_are_both_nothing(self):
+        """A route that never reports the field and a response that reported an
+        empty list both mean "no label", and neither is an error."""
+        from subversionbench.blocks import _reasoning_detail_summary
+        assert _reasoning_detail_summary(None) == {}
+        assert _reasoning_detail_summary([]) == {}
+
+    def test_a_read_only_diagnostic_never_raises(self):
+        """It must not be the thing that fails a paid episode. Objects rather
+        than dicts, and unreadable input, both have to come back as data."""
+        import types
+        from subversionbench.blocks import _reasoning_detail_summary
+        assert _reasoning_detail_summary(7) == {}
+        out = _reasoning_detail_summary(
+            [types.SimpleNamespace(type="reasoning.text", text="ab")])
+        assert out == {"n_parts": 1, "chars": 2, "types": ["reasoning.text"]}
+
+    def test_the_response_carries_it_beside_usage(self):
+        """On _Response rather than on the thinking block: it describes the
+        message, and the block goes back to the API while this only gets saved."""
+        from subversionbench.blocks import _Response
+        assert _Response([]).reasoning_details == {}
+        assert _Response([], reasoning_details={"n_parts": 1}
+                         ).reasoning_details == {"n_parts": 1}
+
+
 class TestResponsesUsageFieldNames:
     """Chat completions and the Responses API name the same quantities
     differently. Reading one set only lost input/output counts on the first

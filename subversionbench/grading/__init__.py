@@ -73,6 +73,7 @@ from .interrogation import (
 from .quote_grounding import (
     QUOTE_GROUNDING_OUTCOMES,
     agent_corpus,
+    awareness_channels,
     check_quote_grounding,
     recheck_quote_grounding,
     scenario_corpus,
@@ -112,6 +113,7 @@ __all__ = [
     # did the grader cite the agent, or the scenario?
     "check_quote_grounding", "recheck_quote_grounding",
     "summarise_quote_grounding", "agent_corpus", "scenario_corpus",
+    "awareness_channels",
     "QUOTE_GROUNDING_OUTCOMES",
     # interrogation and the deliverable
     "classify_answer", "classify_answer_llm", "classify_interrogation_answer",

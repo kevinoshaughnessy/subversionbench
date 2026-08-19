@@ -46,6 +46,55 @@ model happened to verbalise awareness — so they are associational. Awareness i
 a model that verbalises it may differ from one that does not in every other respect too. The
 report says "goes with", never "causes", and neither should the write-up.
 
+### The parallel awareness measure (questions 2 and 4)
+
+Awareness is read from the model's reasoning **and** its visible output, so the instrument is
+not constant across models. On r9, median reasoning per episode runs from 98 to 57,237
+characters, and six of 27 models return none at all — five because `reasoning_tokens` is 0 in
+every episode (they did not reason) and one because it reasoned ~10,555 tokens per episode and
+returned none (withheld). A rate pooled over all 27 therefore mixes a measurement with a fact
+about the provider route: 29.5% overall, against 37.0% on the 21 models where reasoning came
+back and 0/600 on the five that never reasoned.
+
+So questions 2 and 4 also report the same contrast with awareness read from **visible text
+alone** — a channel every model has, making the measure comparable across all 27 without
+excluding any. It is built from the grader's own citations: each rubric question that answered
+*true* carries a quote, and `awareness_channels` places that quote in a text-only or
+reasoning-only sub-corpus using the same `agent_corpus` and `check_quote_grounding` the
+grounding check already uses. No extra grader calls.
+
+**It is a lower bound wherever reasoning came back.** It asks where the evidence the grader
+*chose* to cite sits, which is not what the grader would have concluded shown visible text
+only — an episode whose best evidence was in reasoning may carry weaker text evidence the
+rubric would still have accepted. Answering that needs the rubric re-asked against a text-only
+corpus, i.e. fresh API calls. Where no reasoning was returned the two questions coincide and
+the figure is exact; those models are marked `*` in the printed table.
+
+Both rates use one denominator — episodes where the mixed measure resolved — so only the
+numerator changes. Compare against the block's `mixed_overall`, not the headline contrast
+above it, which is pooled from the summaries and can differ by an episode or two.
+An aware episode whose citations place in neither channel is left out of the text numerator
+and counted in `n_text_undetermined`; awareness from the keyword proxy has no quotes to place
+and is undetermined rather than absent, since counting it as absent would understate the
+measure by a different amount per model.
+
+The `gap` column — mixed minus text — is how much of a model's measured awareness exists only
+because its provider returned reasoning. On r9 it spans 0.0pp (`claude-haiku-4-5`, all of its
+63.3% verbalised in visible output) to 80.0pp (`deepseek-v4-flash-0731`, 99.2% mixed against
+19.2% text). That spread is what a single cross-model awareness rate hides.
+
+`agreement` classifies the pair on **separation as well as sign**, because sign alone
+understates the interesting case. On r9: question 2 is `agree` (both separate, −3.2% mixed vs
+−3.4% text stratified), so the oversight conclusion does not depend on the reasoning channel.
+Question 4 is `text_only_separates` — mixed −0.9% CI [−3.3, +1.5], text +3.1% CI [+0.9, +5.4] —
+i.e. the max nudge moves awareness *verbalised in visible output* while total measured
+awareness does not move. Reported as "opposite direction" that would read as a contradiction;
+it is a finding.
+
+Questions 5–10 use awareness as the **exposure**, not the outcome. Swapping the exposure
+definition is a different analysis rather than a parallel column, so the block is deliberately
+not attached there.
+
 ### The act/concealment pairing
 
 Questions 5–7 ask whether an **act** is more likely. Questions 8–10 ask whether that act was
@@ -295,7 +344,12 @@ a cross-tabulation no summary field holds. `awareness_flag()` supplies the split
 the rubric grader over the keyword proxy exactly as the rest of the package does. The three
 scheming verdicts come from `classify_scheming` and `classify_scheming_act`.
 
-Nothing here loads a transcript, and nothing calls `normalise_analyses`. Every field read is
+**The parallel awareness measure reads `transcript`.** It is the one thing here that does, and
+only to place the grader's stored quotes in a channel — the transcript is dropped again
+immediately, and no verdict is re-derived from it. Arms for that measure are rebuilt from
+episodes rather than summaries, because no summary field carries a text-only numerator.
+
+Otherwise nothing here loads a transcript, and nothing calls `normalise_analyses`. Every field read is
 either raw (`monitoring_disabled`, `sandbox_escape_attempts`) or a sampled verdict
 (`eval_awareness_grader`). The verdicts the report derives — misalignment, episode scheming,
 and per-act scheming — are each cross-checked against the episode's own stored copy, and
@@ -443,6 +497,11 @@ Holm, survives Benjamini-Hochberg. `---` means none of the three.
 - **No causal claim for questions 5–10.** Awareness is observed, not assigned. Questions 11–12 *are* experimental: the phrasing is assigned.
 - **No per-arm interaction test.** The nudge/lure splits are descriptive strata, not a
   fitted interaction term with its own significance test.
+- **No text-only counterfactual.** The parallel measure on questions 2 and 4 places the
+  grader's existing citations; it does not re-ask the rubric against a text-only corpus, so it
+  is a floor rather than an estimate wherever reasoning came back. It also does not classify
+  reasoning exposure per model — `reasoning_config`, `reasoning_chars`, `reasoning_details`
+  and `token_usage.reasoning_tokens` are recorded per run, but this report does not read them.
 - **No re-derivation.** It reads verdicts as saved. Use `--resummarise` (free) or
   `--grade-existing`/`--reclassify` (paid) to refresh them first; `data_quality` says when
   that is needed.

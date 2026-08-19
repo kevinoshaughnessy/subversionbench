@@ -14,7 +14,8 @@ class _Block:
 
 
 class _Response:
-    def __init__(self, content, usage=None, stop_reason=None):
+    def __init__(self, content, usage=None, stop_reason=None,
+                 reasoning_details=None):
         self.content = content
         # Why the model stopped, normalised to the provider's own word for it
         # (`finish_reason` on the OpenAI-shaped routes). Carried because a
@@ -32,6 +33,12 @@ class _Response:
         # thought not returned". Those are opposite facts about the model, and
         # the awareness measure reads the difference.
         self.usage = usage or {}
+        # The provider's own label for the reasoning it just returned - a trace, a
+        # summary, or an encrypted payload. Carried beside usage rather than on the
+        # thinking block because it describes the message, not one block of it, and
+        # because the block is sent back to the API while this is only recorded.
+        # See _reasoning_detail_summary.
+        self.reasoning_details = reasoning_details or {}
 
 
 def serialise_messages(messages: list) -> list:
@@ -114,6 +121,75 @@ def _reasoning_usage(completion) -> dict:
     tokens = getattr(details, "reasoning_tokens", None) if details else None
     if tokens is not None:
         out["reasoning_tokens"] = tokens
+    return out
+
+
+# Keys a reasoning-detail part carries its content under, whichever type it is.
+# Summed for a character count rather than stored: the text is already saved once,
+# as the thinking block built from `message.reasoning`, and an encrypted part
+# carries an opaque blob no measure here reads.
+_DETAIL_CONTENT_KEYS = ("text", "summary", "data")
+
+# Scalars worth keeping per part. `type` is the whole point - it is the provider
+# saying whether what it returned is a trace, a summary, or an encrypted payload.
+_DETAIL_LABEL_KEYS = ("type", "format")
+
+
+def _reasoning_detail_summary(details) -> dict:
+    """
+    What the provider said its reasoning WAS, from `message.reasoning_details`.
+
+    WHY THIS IS NOT INFERRED FROM THE ROUTE
+    --------------------------------------
+    Awareness is read from reasoning, so whether a model returned a full trace, a
+    compressed summary, or nothing at all is part of the instrument rather than a
+    detail of transport. Until now that could only be guessed at from
+    `reasoning_config` - i.e. from the model ID and what was sent - and the guess
+    is wrong in both directions: `openai/gpt-5.6-luna` returns reasoning through a
+    route documented as returning none, while five OpenRouter models return none
+    through a route that suppresses nothing. This is the provider's own answer,
+    per response.
+
+    WHY THE TEXT IS NOT STORED
+    --------------------------
+    `message.reasoning` already carries it, and it is saved as the thinking block.
+    Copying it here would roughly double the reasoning bulk of every run file to
+    say nothing new; a `chars` count is enough to check the two agree.
+
+    Returns {} when the provider sends nothing, which is itself information - an
+    absent field and an empty list are not the same claim. Never raises: this is a
+    read-only diagnostic, and it must not be the thing that fails an episode.
+    """
+    try:
+        parts = list(details or [])
+    except TypeError:
+        return {}
+    if not parts:
+        return {}
+
+    labels, chars, keys = {k: [] for k in _DETAIL_LABEL_KEYS}, 0, set()
+    for part in parts:
+        get = part.get if isinstance(part, dict) else (
+            lambda name, _p=part: getattr(_p, name, None))
+        if isinstance(part, dict):
+            keys |= set(part)
+        for key in _DETAIL_LABEL_KEYS:
+            value = get(key)
+            if isinstance(value, str) and value not in labels[key]:
+                labels[key].append(value)
+        for key in _DETAIL_CONTENT_KEYS:
+            value = get(key)
+            if isinstance(value, str):
+                chars += len(value)
+
+    out = {"n_parts": len(parts), "chars": chars}
+    for key in _DETAIL_LABEL_KEYS:
+        if labels[key]:
+            out[f"{key}s"] = labels[key]
+    if keys:
+        # The shape that actually arrived, for a field the SDK has no model for
+        # and whose documented keys may grow.
+        out["keys"] = sorted(keys)
     return out
 
 

@@ -10,6 +10,74 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v66
+
+Package version `66.0.0`. Analysis and recording only - nothing sent to any
+provider changed, so no rollout bump and r9 stays poolable.
+
+- **`run_report.py` questions 2 and 4 now carry a parallel awareness measure,
+  read from visible text alone.** The awareness rate is not comparable across
+  models because the instrument is not: median reasoning per episode spans 98 to
+  57,237 characters across the 21 models that return any, and six return none -
+  five with `reasoning_tokens` 0 in all 120 episodes (they did not reason) and
+  one reasoning ~10,555 tokens per episode and returning none (withheld). Pooled
+  over all 27 the rate is 29.5%, against 37.0% where reasoning came back and
+  0/600 where it never did. The parallel measure places the grader's OWN stored
+  citations in a text-only or reasoning-only sub-corpus (`awareness_channels`,
+  reusing `agent_corpus` and `check_quote_grounding`), so it costs no grader
+  calls, and it is defined identically for all 27 models. Both rates share one
+  denominator; only the numerator changes.
+
+  A lower bound wherever reasoning came back - it says where the evidence the
+  grader chose to cite sits, not what the grader would have said shown text
+  alone - and exact for the six models where no reasoning was returned, since
+  there the grader's corpus was visible text already. Those are marked `*`.
+
+  What it found on r9: **question 2 survives the channel swap** (mixed -3.2%,
+  text -3.4% stratified, both separated) so the oversight result does not rest
+  on the reasoning channel. **Question 4 does not** - the mixed measure is a null
+  (-0.9%, CI [-3.3, +1.5]) while the text-only measure separates the other way
+  (+3.1%, CI [+0.9, +5.4]): the max nudge moves awareness verbalised in visible
+  OUTPUT while total measured awareness does not move. `agreement` classifies on
+  separation as well as sign for exactly this case - reported on sign alone it
+  would read as a contradiction rather than a finding.
+
+  The `gap` column (mixed minus text) is how much of a model's awareness exists
+  only because its provider returned reasoning: 0.0pp for `claude-haiku-4-5`,
+  whose whole 63.3% is in visible output, to 80.0pp for
+  `deepseek-v4-flash-0731` at 99.2% mixed against 19.2% text.
+
+  Not attached to questions 5-10, where awareness is the exposure rather than the
+  outcome: swapping the exposure definition is a different analysis.
+
+- **OpenRouter responses now record `reasoning_details`.** Alongside the
+  `reasoning` string, the provider's own label for what that string IS - a trace,
+  a summary, or an encrypted payload. Recorded per turn and never sent back. The
+  text is not copied: `message.reasoning` already carries it, so each part
+  contributes a `chars` count instead, which keeps an encrypted blob out of the
+  run file and does not double the reasoning bulk of every episode. Needs a live
+  response, so `--resummarise` cannot backfill it.
+
+- **`reasoning_config` no longer misstates the OpenRouter API.** It recorded
+  "not sent (OpenRouter takes no reasoning parameter)"; that route accepts a
+  `reasoning` parameter, and omitting it suppresses nothing - reasoning tokens
+  come back whenever the model generates them. So the five models returning none
+  were never silenced by what the harness sent, and the old wording made a
+  per-model fact look like a transport limit. Now "not sent (OpenRouter returns
+  reasoning when the model generates it)", with the two flag warnings and both
+  module docstrings reframed as what the harness SENDS rather than what the API
+  offers. `same_reasoning_config` treats the superseded wording as equal, because
+  `--reinterrogate` warns when a replayed probe's config differs from the
+  episode's and that warning exists to catch a real confound - firing it on
+  every OpenRouter episode already collected would train it to be ignored.
+
+- **`docs/methodology.md` reasoning-exposure section corrected.** It claimed
+  OpenRouter "returns no reasoning for the gpt-5 family" and then contradicted
+  itself two clauses later with `openai/gpt-5.5` at 25,553 characters. Scoped to
+  `gpt-5.4`, given the mechanism (the model withholds; the route does not), and
+  the r9 both-routes measurement added: `openai/gpt-5.6-luna` returns a median
+  2,266 reasoning characters through OpenRouter against 2,175 native.
+
 ## v65
 
 Package version `65.0.0`. Analysis only - no scenario change, no rollout bump,

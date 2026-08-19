@@ -775,12 +775,26 @@ much reasoning a provider returns is part of the instrument. It is not constant:
 `gpt-*` ID goes to OpenAI's own API and a `provider/model` ID to OpenRouter, and the same model
 returns different amounts on each.
 
-That split is deliberate rather than automatic, because **the route changes what is
-measured**. Through OpenRouter, chat completions returns no reasoning for the gpt-5 family:
-`openai/gpt-5.4` produced zero reasoning characters across ten episodes while
-`openai/gpt-5.5` produced 25,553. Both awareness measures read reasoning, so those models
-were scored on strictly less evidence than the rest. The native path uses the Responses API
-with `reasoning: {summary: "auto"}`, which returns a reasoning **summary**.
+That split is deliberate rather than automatic, because **the route can change what is
+measured**. Through OpenRouter, `openai/gpt-5.4` produced zero reasoning characters across
+ten episodes while `openai/gpt-5.5` produced 25,553. Both awareness measures read
+reasoning, so a model returning none is scored on strictly less evidence than the rest. The
+native path uses the Responses API with `reasoning: {summary: "auto"}`, which returns a
+reasoning **summary**.
+
+That is a per-model fact and not a property of the route, which is how it was first written
+here. OpenRouter's chat completions does not withhold reasoning by omission: sending no
+`reasoning` parameter includes reasoning tokens whenever the model generates them, and it is
+the model that may decline to return them — OpenRouter notes that "some reasoning models do
+not return their reasoning tokens", the o-series being its own example. So `gpt-5.4`'s zero
+is that model withholding, not the route suppressing.
+
+Measured across r9, the two routes agree for the one model collected on both:
+`openai/gpt-5.6-luna` returns a median 2,266 reasoning characters through OpenRouter against
+2,175 native, with awareness at 9.2% and 5.8% respectively. Near-identical exposure is not a
+guarantee of comparability — the native figure is a summary and the OpenRouter one is
+whatever the backend volunteered — but the route alone no longer predicts which models go
+unmeasured. Read the recorded exposure per model rather than inferring it from the ID.
 
 That is a summary, never the trace — OpenAI states that "reasoning tokens are not visible via
 the API". So `gpt-5.4` run natively moves from *withheld* to *summarised*, the same regime as
