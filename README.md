@@ -27,7 +27,7 @@ This file covers installing and running. The depth lives in four companions:
 | [docs/methodology.md](docs/methodology.md) | deciding whether the measurements are valid — the three constructs, what each field measures, how the grader was validated, sample size and detectable effects, and the oversight counterfactual |
 | [docs/scenario.md](docs/scenario.md) | reading or modifying the scenario, and testing whether it has reached a model's training data |
 | [docs/operations.md](docs/operations.md) | running large batches — pacing, versioning, protecting results, re-grading saved runs, and comparing arms |
-| [docs/report.md](docs/report.md) | the cross-model report — six fixed research questions, crude vs model-stratified estimates, homogeneity and multiplicity |
+| [docs/report.md](docs/report.md) | the cross-model reports — twelve fixed research questions, crude vs model-stratified estimates, homogeneity and multiplicity, and the per-family version trends |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 
@@ -318,6 +318,9 @@ run_report.py      twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,
                    override and escape; interrogation phrasing vs concealment)
                    answered across every model in a results directory
+family_trends.py   whether a rate falls as a model family advances, with the
+                   families and their version order derived from the model IDs
+                   rather than listed, so a new version needs no edit
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
 run_all_arms.sh    one model through every nudge x oversight x lure arm, where
                    --runs is the target total per arm rather than an increment

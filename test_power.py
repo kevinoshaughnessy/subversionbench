@@ -696,3 +696,134 @@ class TestPairedCompare:
         pc = paired_compare(0, 2, 0, 0)
         assert pc["difference_se"] >= 0
         assert pc["difference_ci95"][0] >= -1.0
+
+
+class TestTrendAcrossOrderedGroups:
+    """A family of model versions is ORDERED, and that ordering carries
+    information a pairwise test throws away. Cochran-Armitage asks the question
+    being asked - does the rate move with position - in one degree of freedom."""
+
+    def test_a_falling_sequence_gives_a_negative_z(self):
+        """Sign convention: negative reads as falling, the way the question is
+        asked, so a reader cannot invert it by accident."""
+        from subversionbench.power import cochran_armitage
+        out = cochran_armitage([(80, 100), (50, 100), (20, 100), (5, 100)])
+        assert out["z"] < 0
+        assert out["direction"] == "falling"
+        assert out["separated"] is True
+
+    def test_a_rising_sequence_gives_a_positive_z(self):
+        from subversionbench.power import cochran_armitage
+        out = cochran_armitage([(1, 117), (16, 120), (18, 120)])
+        assert out["z"] > 0 and out["direction"] == "rising"
+
+    def test_a_flat_sequence_is_not_separated(self):
+        from subversionbench.power import cochran_armitage
+        out = cochran_armitage([(10, 100), (10, 100), (10, 100)])
+        assert out["z"] == 0.0 and out["separated"] is False
+
+    def test_no_variation_is_undefined_not_zero(self):
+        """Every episode the same outcome is not a trend of zero - there is
+        nothing to have a trend in, and returning 0.0 would put that in the
+        same bucket as a measured flat."""
+        from subversionbench.power import cochran_armitage
+        for groups in ([(0, 100), (0, 100)], [(100, 100), (100, 100)]):
+            out = cochran_armitage(groups)
+            assert out["z"] is None and out["p"] is None
+            assert out["note"]
+
+    def test_one_group_is_not_a_trend(self):
+        from subversionbench.power import cochran_armitage
+        out = cochran_armitage([(5, 100)])
+        assert out["z"] is None and out["n_groups_used"] == 1
+
+    def test_an_empty_group_does_not_shift_the_others(self):
+        """Dropping a group must not renumber the scores of the ones that
+        remain, or the trend is measured along the wrong axis."""
+        from subversionbench.power import cochran_armitage
+        with_gap = cochran_armitage([(80, 100), (0, 0), (5, 100)])
+        assert with_gap["n_groups_used"] == 2
+        # Scores 0 and 2 are kept, so the estimate is the same as the
+        # two-group fit at those positions.
+        direct = cochran_armitage([(80, 100), (5, 100)], scores=[0, 2])
+        assert with_gap["z"] == direct["z"]
+
+    def test_rescaling_the_scores_changes_nothing(self):
+        """The statistic is invariant to an affine change of score, so using
+        position 0,1,2 rather than 1,2,3 or 0,10,20 cannot move a verdict."""
+        from subversionbench.power import cochran_armitage
+        base = cochran_armitage([(80, 100), (50, 100), (5, 100)],
+                                scores=[0, 1, 2])
+        scaled = cochran_armitage([(80, 100), (50, 100), (5, 100)],
+                                  scores=[10, 30, 50])
+        assert base["z"] == scaled["z"]
+
+    def test_but_respacing_them_does(self):
+        """Equal spacing is therefore a real assumption, not a formality - which
+        is why position is used and a release date is not invented."""
+        from subversionbench.power import cochran_armitage
+        even = cochran_armitage([(80, 100), (50, 100), (5, 100)],
+                                scores=[0, 1, 2])
+        uneven = cochran_armitage([(80, 100), (50, 100), (5, 100)],
+                                  scores=[0, 1, 10])
+        assert even["z"] != uneven["z"]
+
+
+class TestCountingTheSteps:
+    """"Consistently falling" is a claim about the steps, not about a fitted
+    direction, so the two are counted separately."""
+
+    def test_every_step_down_is_monotone_falling(self):
+        from subversionbench.power import step_directions
+        out = step_directions([0.8, 0.5, 0.2, 0.05])
+        assert out["n_down"] == 3 and out["n_up"] == 0
+        assert out["monotone_falling"] is True
+
+    def test_one_step_up_breaks_it(self):
+        from subversionbench.power import step_directions
+        out = step_directions([0.68, 0.82, 0.13, 0.06])
+        assert out["monotone_falling"] is False
+        assert out["n_down"] == 2 and out["n_up"] == 1
+
+    def test_a_flat_step_is_neither(self):
+        from subversionbench.power import step_directions
+        out = step_directions([0.5, 0.5])
+        assert out["n_flat"] == 1
+        assert out["monotone_falling"] is False
+        assert out["monotone_rising"] is False
+
+    def test_a_missing_rate_is_skipped_not_zeroed(self):
+        from subversionbench.power import step_directions
+        assert step_directions([0.5, None, 0.2])["steps"] == [-0.3]
+
+    def test_one_rate_has_no_steps(self):
+        from subversionbench.power import step_directions
+        out = step_directions([0.5])
+        assert out["n_steps"] == 0 and out["monotone_falling"] is False
+
+
+class TestTheSignTestOnStepDirection:
+    def test_all_one_way_is_separated(self):
+        from subversionbench.power import sign_test
+        assert sign_test(8, 0)["p"] < 0.05
+
+    def test_an_even_split_is_not(self):
+        from subversionbench.power import sign_test
+        out = sign_test(4, 5)
+        assert abs(out["p"] - 1.0) < 1e-9 and out["separated"] is False
+
+    def test_it_is_symmetric(self):
+        from subversionbench.power import sign_test
+        assert sign_test(7, 2)["p"] == sign_test(2, 7)["p"]
+
+    def test_flat_steps_are_excluded_rather_than_split(self):
+        """A family that never moves is not evidence that rates fall, so its
+        steps carry no vote."""
+        from subversionbench.power import sign_test
+        out = sign_test(3, 1)
+        assert out["n"] == 4
+
+    def test_no_directed_step_is_no_test(self):
+        from subversionbench.power import sign_test
+        out = sign_test(0, 0)
+        assert out["p"] is None and out["note"]

@@ -508,3 +508,97 @@ Holm, survives Benjamini-Hochberg. `---` means none of the three.
 - **No pooling across rollout versions.** It reads whatever is in one directory, and results
   are only comparable within a rollout — see
   [Versioning](operations.md#versioning-rollouts-and-analysis).
+
+---
+
+# family_trends.py — is a rate falling as a family advances?
+
+A separate script, because it asks a different shape of question: not "does this factor move
+the rate" but "does the rate move as the version number climbs".
+
+```bash
+python3 family_trends.py --output-dir eval_results_r9
+python3 family_trends.py --output-dir eval_results_r9 --metric scheming
+python3 family_trends.py --output-dir eval_results_r9 --version-style decimal
+```
+
+It reads its rates through `run_report.load_summaries`, so a family's figure here and a
+model's figure there cannot disagree.
+
+## Families are derived, never listed
+
+A hand-written list of families is wrong the day after the next model is collected, and wrong
+*silently* — a new ID simply fails to appear and the report is narrower than the corpus with
+nothing to say so. So the script parses each ID into provider, stem, version, date stamp and
+release-stage tags, and groups on the first two. `gemini-3.8-flash` joins `google/gemini-flash`
+with no edit.
+
+Two rules carry the weight, and both are reported in the output rather than applied silently:
+
+**Release-stage words do not split a family.** `QUALIFIER_TAGS` holds `preview`, `thinking`,
+`exp`, `latest` and similar. Without it, `gemini-3-flash-preview` is a family of one and never
+gets compared with the versions that followed it — which is the comparison being asked for.
+Same for `kimi-k2-thinking` against `kimi-k2.5`.
+
+**Tier words do split one.** `flash`, `pro`, `lite`, and a size like `27b` are family identity:
+`gemini-3.1-flash-lite` is not a version of `gemini-3.5-flash`, and pooling them would compare
+two product lines and report the difference as a trend. Provider is in the key for the same
+reason — `gpt-5.6-luna` and `openai/gpt-5.6-luna` are one model on two routes that return
+different amounts of reasoning.
+
+A date stamp is read before a version, because the version pattern matches a run of digits:
+without that ordering `deepseek-v4-pro-0813` parses as version (4, 813) and sorts after a
+hypothetical v4.99. Within one version, an undated member precedes a dated snapshot.
+
+## The version-ordering judgement call
+
+`--version-style component` (the default) reads `4.20` as major 4, minor 20 — so it sorts
+**after** 4.6, the way a package manager reads it. `--version-style decimal` reads it as 4.2,
+so it sorts **before** 4.3.
+
+Both are defensible, they disagree, and on r9 the disagreement is consequential: `x-ai/grok`
+fits a *falling* trend under `component` (z=−3.29) and a *rising* one under `decimal`
+(z=+11.19). Only a trailing-zero minor can differ between the two styles, which on this corpus
+is exactly one model. So the style is a flag, affected families are flagged inline and in
+`data_quality.families_with_ambiguous_ordering`, and nothing is resolved quietly.
+
+The default is `component` because it is the convention, and because it does the right thing
+for the case the script was written to survive: a future 3.8 landing after 3.7 rather than
+between 3.1 and 3.5.
+
+## Two claims, reported separately
+
+| claim | statistic | reading |
+|---|---|---|
+| the **trend** falls | Cochran-Armitage across ordered versions, 1 df | a fitted direction; survives one step going the other way |
+| every **step** falls | consecutive differences | the monotone claim — this is what "consistently" means |
+
+A family can satisfy the first without the second, and on r9 two of four do exactly that. The
+verdict line says which.
+
+Position is the trend score, not a release date, because release dates are not recorded. The
+statistic is invariant to rescaling the scores but **not** to respacing them, so equal spacing
+is a real assumption: it says only that the versions came in this order.
+
+Beside those, each family reports its consecutive-step contrasts and a first-versus-last
+contrast — which can disagree with the steps. Under `component`, grok falls at two of three
+steps yet ends *above* where it started.
+
+## Across all families
+
+Steps are pooled and put to an exact two-sided sign test against p=0.5. Flat steps carry no
+direction and are excluded rather than split, since a family that never moves is not evidence
+that rates fall. The per-family trend p-values form one hypothesis family and are corrected
+with Holm and Benjamini-Hochberg, exactly as the per-model tests are above.
+
+## What it does not do
+
+- **No causal claim.** Version order is not randomised assignment, families differ in how many
+  versions were collected, and nothing here knows what changed between two releases.
+- **No release dates.** Order is position in the version sequence; spacing is assumed equal.
+- **No cross-family pooling of rates.** Only step *directions* are pooled, never the rates,
+  which sit on incomparable baselines.
+- **No metric that outruns its data.** `--metric misaligned` is derived from the act keys and
+  is unaffected by grader or classifier failures; `--metric scheming` and `--metric aware`
+  depend on sampled LLM verdicts, and `data_quality.metric_is_llm_dependent` says so, so a
+  batch needing `--reclassify` is not read as a trend.

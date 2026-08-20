@@ -10,6 +10,67 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v68
+
+Package version `68.0.0`. Analysis only - no scenario change, no rollout bump,
+no API calls.
+
+- **New `family_trends.py`: is a rate falling as a model family advances?**
+  Groups every model in a results directory into families, orders each family by
+  version, and asks whether the rate moves along that order.
+
+  The families are DERIVED, never enumerated, because a hand-written list is
+  wrong the day after the next model is collected and wrong *silently* - a new
+  ID simply fails to appear and the report is narrower than the corpus with
+  nothing to say so. `gemini-3.8-flash` would join `google/gemini-flash` with no
+  edit. Two rules carry the weight: release-stage words (`preview`, `thinking`)
+  do NOT split a family, or `gemini-3-flash-preview` and `kimi-k2-thinking`
+  become families of one and never get compared with what followed them; tier
+  words (`flash`, `pro`, `lite`, a `27b` size) DO, or `gemini-3.1-flash-lite`
+  gets pooled with `gemini-3.5-flash` and two product lines are reported as a
+  trend. Provider is in the key for the same reason - `gpt-5.6-luna` and
+  `openai/gpt-5.6-luna` are one model on two routes returning different amounts
+  of reasoning.
+
+  Two claims, reported separately because a family can satisfy one and not the
+  other: the fitted TREND falls (Cochran-Armitage, 1 df, position as the score),
+  and every STEP falls (the monotone claim, which is what "consistently" means).
+  Beside them, each consecutive-step contrast and a first-versus-last contrast,
+  which can disagree with the steps.
+
+  Rates come through `run_report.load_summaries`, so a family's figure here and
+  a model's figure there cannot disagree. `--metric misaligned` is act-derived
+  and so unaffected by grader or classifier failures; `scheming` and `aware`
+  depend on sampled LLM verdicts and `data_quality` says so, so a batch needing
+  `--reclassify` is not read as a trend.
+
+  On r9, none of the four families falls at every step: 4 steps down, 5 up, sign
+  test p=1. `google/gemini-flash` and `x-ai/grok` fit separated falling trends
+  without being monotone; `moonshotai/kimi-k` (+14.1pp first to last,
+  p=4.2e-05) and `deepseek/deepseek-pro` (+8.8pp) rise at every step.
+
+- **`--version-style` makes the one real judgement call explicit.** `component`
+  reads 4.20 as major 4 minor 20, so after 4.6; `decimal` reads it as 4.2, so
+  before 4.3. Both are defensible, they disagree, and on r9 the disagreement
+  flips a verdict: `x-ai/grok` fits a falling trend under `component` (z=-3.29)
+  and a rising one under `decimal` (z=+11.19). Affected families are flagged
+  inline and in `data_quality`, never resolved quietly. `component` is the
+  default because it is the convention and because it does the right thing for
+  a future 3.8 landing after 3.7 rather than between 3.1 and 3.5.
+
+- **`power.py` gains `cochran_armitage`, `step_directions` and `sign_test`.**
+  Trend across ordered groups belongs beside the stratified methods rather than
+  in a script. Undefined rather than zero where there is no variation to trend
+  in - two all-zero groups are not a trend of zero. The statistic is invariant
+  to rescaling the scores but not to respacing them, so equal spacing is a real
+  assumption and is documented as one.
+
+- **A date stamp is no longer parsed as a version component.** The version
+  pattern matches a run of digits, so checking it first read
+  `deepseek-v4-pro-0813` as version (4, 813) - sorting it after a hypothetical
+  v4.99 - and `claude-haiku-4-5-20251001` as version (4, 5, 20251001). Dates are
+  tested first; within one version an undated member precedes a dated snapshot.
+
 ## v67
 
 Package version `67.0.0`. Reporting only - no scenario change, no rollout bump,
