@@ -10,6 +10,23 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v77
+
+Package version `77.0.0`. Presentation only.
+
+- **The verdict caption is off the charts.** It restated what the reader could
+  already see - the direction is visible, and now that the intervals are drawn,
+  so is roughly how firm each step is. Worse, its wording is DIRECTIONAL:
+  "consistently RISING across all 3 step(s) - the opposite of falling" reads as
+  a disappointment, which is right for misalignment and wrong for awareness,
+  where a rise with capability is the expected result rather than a failure to
+  improve. A caption that means different things depending on the metric is
+  worse than no caption.
+
+  The verdict itself is unchanged and still printed in the console table and
+  written to the JSON, where it sits beside the counts it is derived from and a
+  reader can weigh it against them.
+
 ## v76
 
 Package version `76.0.0`. Presentation only.

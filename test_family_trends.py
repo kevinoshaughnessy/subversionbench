@@ -834,3 +834,35 @@ class TestTheChartsSayHowManyEpisodes:
                 "metric_denominator_label"] == "graded episodes"
             assert ft.build_report(out, "misaligned")[
                 "metric_denominator_label"] == "episodes"
+
+
+class TestTheChartsDoNotEditorialise:
+    """The verdict caption was removed from the charts. Its wording is
+    directional - "consistently RISING, the opposite of falling" reads as a
+    disappointment, which is right for misalignment and wrong for awareness,
+    where a rise with capability is the expected result rather than a failure to
+    improve. A caption that means different things by metric is worse than
+    none, and the chart already shows the direction."""
+
+    def test_no_chart_draws_the_verdict(self):
+        import inspect
+        for plot in (ft._plot_family, ft._plot_all_families):
+            source = inspect.getsource(plot)
+            assert 'family["verdict"]' not in source, plot.__name__
+            assert '"verdict"' not in source, plot.__name__
+
+    def test_the_verdict_is_still_computed_and_reported(self):
+        """Removed from the charts only - the table and the JSON keep it, beside
+        the counts it is derived from."""
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as out:
+            for model, n in (("p/a-1", 1), ("p/a-2", 6)):
+                _write_summary(out, model, "strong", n_runs=10,
+                               n_misaligned=n, n_aware=2, n_unaware=8)
+            report = ft.build_report(out)
+            assert report["families"][0]["verdict"]
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ft._print_report(report)
+            assert "=>" in buf.getvalue()

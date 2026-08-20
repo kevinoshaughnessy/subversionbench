@@ -708,12 +708,20 @@ def _plot_family(plt, family: dict, metric_label: str, den_label: str,
     ax.set_title(f"{family['family']} - {family['n_members']} versions, "
                  f"{total} {den_label}",
                  fontsize=11, pad=20 if family["ordering_ambiguous"] else 6)
-    # The verdict on the chart, so a reader who never opens the table cannot
-    # take a falling line for a monotone one.
-    # Below the tick labels, which now run to three or four lines. Measured
-    # against the tallest case: version, date stamp, tags and n.
-    ax.text(0.5, -0.44, family["verdict"], transform=ax.transAxes,
-            ha="center", va="top", fontsize=8, style="italic", wrap=True)
+    # NO VERDICT CAPTION.
+    #
+    # It used to sit under the axis, on the reasoning that a reader who never
+    # opened the table might take a falling line for a monotone one. Two things
+    # were wrong with that. The chart already shows the direction and, now that
+    # the intervals are drawn, roughly how firm each step is - so the caption
+    # restated what was in front of the reader. And its wording is directional:
+    # "consistently RISING - the opposite of falling" reads as a disappointment,
+    # which is right for misalignment and wrong for awareness, where a rise with
+    # capability is the expected result rather than a failure to improve. A
+    # caption that means different things by metric is worse than none.
+    #
+    # The verdict is unchanged in the console table and in the JSON, where it
+    # sits beside the counts it is derived from.
     if family["ordering_ambiguous"]:
         ax.text(0.5, 1.012,
                 f"version order depends on --version-style "

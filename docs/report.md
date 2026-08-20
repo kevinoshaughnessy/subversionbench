@@ -618,8 +618,8 @@ with Holm and Benjamini-Hochberg, exactly as the per-model tests are above.
 With the `charts` extra installed (`pip install 'subversionbench[charts]'`) it also writes PNGs
 into `charts/` under `--output-dir`, or wherever `--chart-dir` says:
 
-- **one per family** — rate against version order, with Wilson intervals as error bars and the
-  verdict as a caption. The intervals are drawn rather than left to the table because the whole
+- **one per family** — rate against version order, with Wilson intervals as error bars. The
+  intervals are drawn rather than left to the table because the whole
   question is whether a sequence is falling, and four points with overlapping intervals is a
   different answer from four without. Bare point estimates would make every family look
   decisive. Each point is labelled with its rate and interval — `68.3% [59.6, 76.0]` — because a
@@ -647,6 +647,13 @@ stagger at all.
 Both charts label their whiskers as 95% Wilson intervals, and both name what `n` counts —
 "episodes" for misalignment and scheming, "graded episodes" for awareness, whose denominator is
 the episodes whose verdict resolved rather than every episode run.
+
+Neither chart carries the verdict. The direction is visible, the intervals show roughly how
+firm each step is, and the verdict's wording is directional — "consistently RISING, the opposite
+of falling" reads as a disappointment, which is right for misalignment and wrong for awareness,
+where a rise with capability is the expected result rather than a failure to improve. A caption
+that means different things by metric is worse than none. The verdict stays in the console table
+and the JSON, beside the counts it comes from.
 
 **Two per-family charts on different scales cannot be compared by eye**: a family topping out
 at 15% and one topping out at 85% draw the same shape. That is the price of making a small
