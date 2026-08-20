@@ -424,3 +424,54 @@ class TestTheCharts:
         between the lines. 3.6 and 2.6 collided that way."""
         assert len(set(ft._LABEL_OFFSETS)) == len(ft._LABEL_OFFSETS)
         assert len(ft._LABEL_OFFSETS) >= 4
+
+
+class TestTheYAxisFitsTheData:
+    """A fixed 0-100 axis puts a family that never exceeds 15% into the bottom
+    sixth of the panel, where three steps of a few points each look like one flat
+    line. The kimi family is exactly that shape."""
+
+    def test_the_top_rounds_up_to_a_round_number(self):
+        """Ticks should read 0/5/10/15, not 0/3.7/7.4."""
+        assert ft.axis_top([16.0]) == 20
+        assert ft.axis_top([15.0]) == 20
+        assert ft.axis_top([52.1]) == 60
+        assert ft.axis_top([1.7]) == 5
+
+    def test_the_tallest_point_always_fits(self):
+        for value in (0.4, 1.7, 4.9, 5.0, 12.3, 20.0, 47.5, 68.3, 86.6, 99.9):
+            assert ft.axis_top([value]) > value, value
+
+    def test_a_full_scale_rate_still_gets_a_full_axis(self):
+        assert ft.axis_top([100.0]) == 100
+        assert ft.axis_top([97.0]) == 100
+
+    def test_it_reads_the_whole_series_not_the_last_point(self):
+        assert ft.axis_top([2.0, 68.3, 5.8]) == ft.axis_top([68.3])
+
+    def test_an_all_zero_family_still_gets_an_axis(self):
+        """A zero-tall panel is not a chart."""
+        assert ft.axis_top([0.0, 0.0]) == ft._MIN_AXIS_TOP
+        assert ft.axis_top([]) == ft._MIN_AXIS_TOP
+
+    def test_none_values_are_ignored_not_zeroed(self):
+        assert ft.axis_top([None, 16.0, None]) == ft.axis_top([16.0])
+
+    def test_a_max_landing_on_a_step_still_gets_clearance(self):
+        """Otherwise the tallest point's own label sits outside the axis."""
+        assert ft.axis_top([20.0]) > 20
+        assert ft.axis_top([50.0]) > 50
+
+    def test_the_combined_chart_shares_one_axis(self):
+        """Its whole job is to put families on a common scale; per-family axes
+        are what the per-family charts are for."""
+        import inspect
+        source = inspect.getsource(ft._plot_all_families)
+        assert "for f in families for m in f[\"members\"]" in source, (
+            "the combined y limit must be computed across every family")
+
+    def test_a_per_family_chart_scales_to_its_own_whiskers(self):
+        """Including the error bars, or the whisker escapes the axis."""
+        import inspect
+        source = inspect.getsource(ft._plot_family)
+        assert "axis_top([rate + up" in source

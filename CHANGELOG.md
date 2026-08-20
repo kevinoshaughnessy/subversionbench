@@ -43,6 +43,16 @@ bump, no new figures.
   default wants a window and a report run over ssh would block or fail on a
   display it cannot open.
 
+- **The y axis fits the data.** A fixed 0-100 axis put a family that never
+  exceeds 15% into the bottom sixth of the panel, where three steps of a few
+  points each look like one flat line - the kimi family is exactly that shape.
+  Each per-family chart now scales to its own whiskers and rounds up to a round
+  number, so a 16% maximum draws on 0-20 rather than 0-100. The COMBINED chart
+  keeps one axis across every family, because putting families on a common scale
+  is its entire job. Two per-family charts on different scales cannot be compared
+  by eye; that cost is documented beside the function and in docs/report.md, and
+  the combined chart is the one to read for comparison.
+
 - **Three chart-legibility fixes, each from looking at the output.** Percentage
   labels sat on the error-bar caps, so they now clear the upper whisker. Two
   families crossing put their point labels on top of each other - 3.7 and 4.20

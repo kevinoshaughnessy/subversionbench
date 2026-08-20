@@ -50,6 +50,7 @@ loader, so a family's rate here and its per-model rate there cannot disagree.
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -473,6 +474,46 @@ _PALETTE = "tab10"
 # together than the offset that is meant to separate them.
 _LABEL_OFFSETS = ((0, 14), (-17, 24), (17, 24), (0, 34), (-17, 44), (17, 44))
 
+# Rounding ladder for the y axis: (data max at or below, step to round up to).
+# A fixed 0-100 axis puts a family that never exceeds 15% into the bottom sixth
+# of the chart, where three steps of a few points each look like one flat line.
+# Scaled instead, the same three steps are legible.
+_AXIS_STEPS = ((5, 1), (20, 5), (50, 10), (100, 10))
+
+# Never scale below this, so an all-zero family gets an axis with height rather
+# than a flat line on a zero-tall panel.
+_MIN_AXIS_TOP = 5
+
+# Room above the tallest point for its own label. Applied before rounding, so a
+# max that lands exactly on a step still gets a step of clearance.
+_AXIS_HEADROOM = 1.08
+
+
+def axis_top(values) -> float:
+    """
+    Where the y axis should stop, given everything being plotted.
+
+    Rounds up to a round number so the ticks read 0/5/10/15 rather than
+    0/3.7/7.4. `values` should already include the error bars where they are
+    drawn, or the whisker escapes the axis.
+
+    WHAT SCALING COSTS
+    ------------------
+    Two per-family charts on different scales cannot be compared by eye: a
+    family topping out at 15% and one topping out at 85% draw the same shape.
+    That is the price of making a small family legible at all, and it is paid
+    deliberately - the COMBINED chart shares one axis across families and is the
+    one to read for comparison. The tick labels are the disclosure.
+    """
+    usable = [v for v in values if v is not None]
+    top = max(usable) if usable else 0.0
+    top *= _AXIS_HEADROOM
+    for ceiling, step in _AXIS_STEPS:
+        if top <= ceiling:
+            return min(100.0, max(_MIN_AXIS_TOP,
+                                  math.ceil(top / step) * step))
+    return 100.0
+
 
 def _import_pyplot():
     """
@@ -536,16 +577,20 @@ def _plot_family(plt, family: dict, metric_label: str, path: str) -> str:
     ax.errorbar(xs, rates, yerr=[lower, upper], marker="o", capsize=4,
                 linewidth=2, markersize=7, color="#1f77b4",
                 ecolor="#8c9fb5", elinewidth=1.4)
+    # Scaled to this family's own whiskers, so three steps of a few points each
+    # fill the panel instead of hugging the floor of a 0-100 axis. See axis_top
+    # for what that costs.
+    top = axis_top([rate + up for rate, up in zip(rates, upper)])
     # Above the upper WHISKER rather than above the point, or the label sits on
     # the error-bar cap and both become hard to read.
     for x, rate, up in zip(xs, rates, upper):
-        ax.annotate(f"{rate:.1f}%", (x, min(97.0, rate + up)),
+        ax.annotate(f"{rate:.1f}%", (x, min(top * 0.97, rate + up)),
                     textcoords="offset points", xytext=(0, 7), ha="center",
                     fontsize=9)
     ax.set_xticks(xs)
     ax.set_xticklabels(_member_labels(family), fontsize=9)
     ax.set_xlim(-0.4, len(members) - 0.6)
-    ax.set_ylim(0, 100)
+    ax.set_ylim(0, top)
     ax.set_ylabel(f"{metric_label} (%)")
     ax.set_xlabel("version, oldest to newest")
     # Padded when the warning below is going to sit above the axes, or the two
@@ -621,7 +666,12 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
     longest = max(f["n_members"] for f in families)
     ax.set_xticks(list(range(longest)))
     ax.set_xticklabels([f"v{i + 1}" for i in range(longest)])
-    ax.set_ylim(0, 100)
+    # ONE axis across every family, from the tallest point anywhere. Scaling
+    # each family separately here would defeat the chart: its whole job is to
+    # put families on a common scale, and per-family axes are what the
+    # per-family charts are for.
+    ax.set_ylim(0, axis_top([(m["rate"] or 0) * 100
+                             for f in families for m in f["members"]]))
     ax.set_xlabel("position in family, oldest to newest "
                   "(point labels give the version)")
     ax.set_ylabel(f"{report['metric_label']} (%)")

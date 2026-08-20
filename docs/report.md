@@ -614,13 +614,21 @@ into `charts/` under `--output-dir`, or wherever `--chart-dir` says:
   verdict as a caption. The intervals are drawn rather than left to the table because the whole
   question is whether a sequence is falling, and four points with overlapping intervals is a
   different answer from four without. Bare point estimates would make every family look
-  decisive.
+  decisive. The y axis is **scaled to that family's own whiskers** and rounded up to a round
+  number — a family topping out at 15% draws on 0–20, not 0–100, where three steps of a few
+  points each would look like one flat line.
 - **one combined** — every family on one axis, colour-coded with a legend. The x axis is
   **position** in the family, not the version number: families run on their own numbering
   (`k2.5` against `3.7-flash` against `v4`), so there is no shared version axis to put them on.
   Position is what they share, and it is the axis the question is about. Point labels give the
   version. Intervals are left off here — four families of overlapping error bars is unreadable,
-  and this chart is for comparing *shapes*.
+  and this chart is for comparing *shapes*. Its y axis is shared across every family, from the
+  tallest point anywhere.
+
+**Two per-family charts on different scales cannot be compared by eye**: a family topping out
+at 15% and one topping out at 85% draw the same shape. That is the price of making a small
+family legible at all, and the tick labels are the disclosure. Read the combined chart for
+comparison — it is the one with a common axis.
 
 A family whose ordering depends on `--version-style` is drawn **dashed** on the combined chart
 and carries a warning above the per-family one, so the line whose direction is a judgement call
