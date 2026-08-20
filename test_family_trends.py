@@ -155,6 +155,41 @@ class TestVersionOrdering:
         assert component[-1] == "x-ai/grok-4.20"
         assert decimal[0] == "x-ai/grok-4.20"
 
+    def test_the_default_reads_a_version_as_a_decimal(self):
+        """grok-4.20 is an OLDER release than grok-4.3, so 4.20 means 4.2 and
+        not major-4-minor-20. The package-manager reading was the original
+        default; it put 4.20 at the end of its family and reversed the sign of
+        the family's trend, from falling to rising."""
+        models = ["x-ai/grok-4.5", "x-ai/grok-4.20", "x-ai/grok-4.6",
+                  "x-ai/grok-4.3"]
+        expected = ["x-ai/grok-4.20", "x-ai/grok-4.3", "x-ai/grok-4.5",
+                    "x-ai/grok-4.6"]
+        assert [m.raw for m in ft.group_families(
+            models, "decimal")["x-ai/grok"]] == expected
+        # And by the default, reached without naming a style at all.
+        assert [m.raw for m in sorted(
+            [ft.parse_model_id(m) for m in models],
+            key=ft.version_sort_key)] == expected
+
+    def test_the_default_still_puts_a_future_minor_last(self):
+        """The reason `component` was the original default: 3.8 must land after
+        3.7, not between 3.1 and 3.5. Reading as a decimal does that too."""
+        models = ["google/gemini-3.1-flash", "google/gemini-3.7-flash",
+                  "google/gemini-3.8-flash", "google/gemini-3.5-flash"]
+        assert [m.raw for m in sorted(
+            [ft.parse_model_id(m) for m in models],
+            key=ft.version_sort_key)] == [
+                "google/gemini-3.1-flash", "google/gemini-3.5-flash",
+                "google/gemini-3.7-flash", "google/gemini-3.8-flash"]
+
+    def test_the_build_and_the_cli_agree_on_the_default(self):
+        """A default that differs between the library call and the flag would
+        make the JSON disagree with the chart beside it."""
+        import inspect
+        assert inspect.signature(
+            ft.build_report).parameters["style"].default == "decimal"
+        assert 'default="decimal"' in inspect.getsource(ft.main)
+
     def test_the_disagreement_is_detected(self):
         grok = [ft.parse_model_id(m) for m in
                 ("x-ai/grok-4.20", "x-ai/grok-4.3", "x-ai/grok-4.6")]

@@ -10,6 +10,35 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v71
+
+Package version `71.0.0`. Analysis only - no scenario change, no rollout bump.
+
+- **A version is read as a decimal by default: 4.20 means 4.2, not 4-minor-20.**
+  `grok-4.20` is an OLDER release than `grok-4.3`, and the package-manager
+  reading put it at the END of its family. That is not a cosmetic ordering
+  detail: it reversed the sign of the family's fitted trend. Under `component`,
+  `x-ai/grok` read as FALLING (z=-3.29, p=0.001); read correctly it is RISING
+  (z=+11.19, p=4.5e-29), and its first-to-last change is +34.2pp rather than
+  +6.7pp.
+
+  This supersedes the r9 grok figure reported in v68, which was computed under
+  the wrong ordering. The gemini-flash, kimi-k and deepseek-pro findings are
+  unaffected - no other family contains a version the two styles read
+  differently.
+
+  Reading a model ID as a semantic version was a guess about someone else's
+  naming convention, and the guess was wrong. Every version in this corpus sorts
+  correctly as a decimal: 3.1 < 3.5 < 3.6 < 3.7, 2.5 < 2.6, and a future 3.8
+  still lands after 3.7 - which was the case `component` had been chosen to
+  survive, and which `decimal` handles too.
+
+  `--version-style component` stays available, because `decimal` has its own
+  failure mode: a family that genuinely reaches minor 10 or beyond, where 4.10
+  follows 4.9 rather than preceding it. Nothing in this corpus does. The
+  ambiguity report still names every family whose order depends on the choice,
+  so a future one will say so rather than pick silently.
+
 ## v70
 
 Package version `70.0.0`. Presentation only - no scenario change, no rollout
@@ -149,6 +178,8 @@ no API calls.
   test p=1. `google/gemini-flash` and `x-ai/grok` fit separated falling trends
   without being monotone; `moonshotai/kimi-k` (+14.1pp first to last,
   p=4.2e-05) and `deepseek/deepseek-pro` (+8.8pp) rise at every step.
+  **Superseded in v71**: grok's trend was read under the wrong version ordering
+  and is RISING, not falling. See that entry.
 
 - **`--version-style` makes the one real judgement call explicit.** `component`
   reads 4.20 as major 4 minor 20, so after 4.6; `decimal` reads it as 4.2, so

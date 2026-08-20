@@ -171,24 +171,32 @@ def family_key(parsed: ModelId) -> str:
     return f"{parsed.provider}/{parsed.stem}" if parsed.provider else parsed.stem
 
 
-def version_sort_key(parsed: ModelId, style: str = "component"):
+def version_sort_key(parsed: ModelId, style: str = "decimal"):
     """
     Where this model sits in its family's order.
 
     THE ONE JUDGEMENT CALL IN THIS FILE
     -----------------------------------
-    `component` reads 4.20 as major 4, minor 20 - so it sorts AFTER 4.6, the
-    way every package manager reads it. `decimal` reads 4.20 as 4.2, so it
-    sorts BEFORE 4.3.
+    `decimal` reads 4.20 as 4.2, so it sorts BEFORE 4.3. `component` reads it as
+    major 4, minor 20 - so it sorts AFTER 4.6, the way a package manager reads a
+    semantic version.
 
-    Both are defensible and they disagree, so the style is a flag and the
-    disagreement is reported per family instead of being resolved quietly. Only
-    a trailing-zero minor can differ between them, which on this corpus is
-    exactly one model: grok-4.20.
+    `decimal` is the default because it is what the model vendors mean. It was
+    NOT the original default, and the correction is worth recording: grok-4.20
+    is an older release than grok-4.3, so the package-manager reading put it at
+    the END of its family and reversed the sign of the family's trend - from
+    falling to rising. Reading it as a semantic version was a guess about
+    someone else's naming, and the guess was wrong.
 
-    `component` is the default because it is the convention and because it does
-    the right thing for the case this file was written to survive - a future
-    3.8 landing after 3.7 rather than between 3.1 and 3.5.
+    Every version in this corpus sorts correctly under `decimal`: 3.1 < 3.5 <
+    3.6 < 3.7, 2.5 < 2.6, and a future 3.8 still lands after 3.7. `component`
+    stays available because `decimal` has its own failure mode - a family that
+    genuinely reaches minor 10 or beyond, where 4.10 follows 4.9 rather than
+    preceding it. Nothing in this corpus does; if something ever does, the
+    ambiguity report below is what will say so.
+
+    Only a minor that reads differently as a decimal can differ between the two,
+    which on this corpus is exactly one model: grok-4.20.
 
     The date stamp breaks ties within one version: an undated member sorts
     before a dated snapshot of the same version, which is what
@@ -391,7 +399,7 @@ def data_quality(families: dict, rates: dict, metric: str) -> dict:
 
 
 def build_report(output_dir: str, metric: str = "misaligned",
-                 style: str = "component") -> dict:
+                 style: str = "decimal") -> dict:
     summaries = load_summaries(output_dir)
     rates = model_rates(summaries, metric)
     families = group_families(sorted(rates), style)
@@ -842,12 +850,13 @@ def main() -> int:
                              "(default: %(default)s)")
     parser.add_argument("--metric", default="misaligned", choices=sorted(METRICS),
                         help="which rate to trend (default: %(default)s)")
-    parser.add_argument("--version-style", default="component",
+    parser.add_argument("--version-style", default="decimal",
                         choices=VERSION_STYLES,
-                        help="how to order a version: 'component' reads 4.20 "
-                             "as 4 major 20 minor, so after 4.6; 'decimal' "
-                             "reads it as 4.2, so before 4.3 "
-                             "(default: %(default)s)")
+                        help="how to order a version: 'decimal' reads 4.20 as "
+                             "4.2, so before 4.3 - which is what the vendors "
+                             "mean; 'component' reads it as 4 major 20 minor, "
+                             "so after 4.6, the way a package manager reads a "
+                             "semantic version (default: %(default)s)")
     parser.add_argument("--json-out", default=None,
                         help="where to write the JSON report (default: "
                              "family_trends_<timestamp>.json inside "

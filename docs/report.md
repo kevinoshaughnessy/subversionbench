@@ -566,19 +566,21 @@ hypothetical v4.99. Within one version, an undated member precedes a dated snaps
 
 ## The version-ordering judgement call
 
-`--version-style component` (the default) reads `4.20` as major 4, minor 20 — so it sorts
-**after** 4.6, the way a package manager reads it. `--version-style decimal` reads it as 4.2,
-so it sorts **before** 4.3.
+`--version-style decimal` (the default) reads `4.20` as 4.2, so it sorts **before** 4.3.
+`--version-style component` reads it as major 4, minor 20 — so it sorts **after** 4.6, the way
+a package manager reads a semantic version.
 
-Both are defensible, they disagree, and on r9 the disagreement is consequential: `x-ai/grok`
-fits a *falling* trend under `component` (z=−3.29) and a *rising* one under `decimal`
-(z=+11.19). Only a trailing-zero minor can differ between the two styles, which on this corpus
-is exactly one model. So the style is a flag, affected families are flagged inline and in
-`data_quality.families_with_ambiguous_ordering`, and nothing is resolved quietly.
+`decimal` is the default because it is what the vendors mean: **grok-4.20 is an older release
+than grok-4.3**. That was not the original default, and the correction mattered — under
+`component` the family fitted a *falling* trend (z=−3.29); read correctly it is *rising*
+(z=+11.19). Reading a model ID as a semantic version was a guess about someone else's naming,
+and the guess was wrong.
 
-The default is `component` because it is the convention, and because it does the right thing
-for the case the script was written to survive: a future 3.8 landing after 3.7 rather than
-between 3.1 and 3.5.
+Every version in this corpus sorts correctly as a decimal: 3.1 < 3.5 < 3.6 < 3.7, 2.5 < 2.6,
+and a future 3.8 still lands after 3.7. `component` stays available because `decimal` has its
+own failure mode — a family that genuinely reaches minor 10 or beyond, where 4.10 follows 4.9
+rather than preceding it. Nothing here does; if something ever does, affected families are
+flagged inline and in `data_quality.families_with_ambiguous_ordering`, so it will say so.
 
 ## Two claims, reported separately
 
