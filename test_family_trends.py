@@ -453,12 +453,43 @@ class TestTheCharts:
             {"members": [{"version": None, "date": None, "tags": []}]})
         assert labels == ["?"]
 
-    def test_every_family_gets_its_own_label_corner(self):
-        """A vertical-only stagger cannot separate two families a couple of
-        points apart, because the offset moves the label about as far as the gap
-        between the lines. 3.6 and 2.6 collided that way."""
-        assert len(set(ft._LABEL_OFFSETS)) == len(ft._LABEL_OFFSETS)
-        assert len(ft._LABEL_OFFSETS) >= 4
+    def test_well_separated_families_get_no_stagger(self):
+        """A chart whose lines are far apart should not be nudged about."""
+        families = [{"n_members": 2, "members": [{"rate": 0.05}, {"rate": 0.10}]},
+                    {"n_members": 2, "members": [{"rate": 0.60}, {"rate": 0.80}]}]
+        layout = ft._label_layout(families, 2, 100.0)
+        assert {dy for _dx, dy in layout.values()} == {0}
+
+    def test_coincident_families_are_pushed_apart(self):
+        """Two families at the same point put their labels in the same place.
+        grok sits at 0.0% where kimi sits at 13.3%, and the fixed offset that
+        used to lift grok's label landed it on kimi's marker."""
+        families = [{"n_members": 1, "members": [{"rate": 0.13}]},
+                    {"n_members": 1, "members": [{"rate": 0.132}]}]
+        layout = ft._label_layout(families, 1, 100.0)
+        assert layout[(0, 0)][1] != layout[(1, 0)][1]
+
+    def test_the_higher_of_two_is_the_one_that_moves(self):
+        """Pushing the lower one down would walk it into whatever is beneath."""
+        families = [{"n_members": 1, "members": [{"rate": 0.10}]},
+                    {"n_members": 1, "members": [{"rate": 0.11}]}]
+        layout = ft._label_layout(families, 1, 100.0)
+        assert layout[(0, 0)][1] == 0
+        assert layout[(1, 0)][1] > 0
+
+    def test_labels_lean_inward_on_the_last_column(self):
+        """Or a label on the rightmost point runs off the axis."""
+        families = [{"n_members": 3, "members": [{"rate": 0.1}] * 3}]
+        layout = ft._label_layout(families, 3, 100.0)
+        assert layout[(0, 0)][0] > 0
+        assert layout[(0, 2)][0] < 0
+
+    def test_a_family_shorter_than_the_longest_is_not_laid_out_past_its_end(self):
+        families = [{"n_members": 1, "members": [{"rate": 0.1}]},
+                    {"n_members": 3, "members": [{"rate": 0.5}] * 3}]
+        layout = ft._label_layout(families, 3, 100.0)
+        assert (0, 1) not in layout and (0, 2) not in layout
+        assert (1, 2) in layout
 
 
 class TestTheYAxisFitsTheData:
@@ -504,6 +535,36 @@ class TestTheYAxisFitsTheData:
         source = inspect.getsource(ft._plot_all_families)
         assert "for f in families for m in f[\"members\"]" in source, (
             "the combined y limit must be computed across every family")
+
+    def test_both_charts_draw_wilson_intervals(self):
+        import inspect
+        for plot in (ft._plot_family, ft._plot_all_families):
+            source = inspect.getsource(plot)
+            assert "yerr=" in source, plot.__name__
+
+    def test_both_charts_say_the_bars_are_wilson_intervals(self):
+        """A whisker with no legend is a whisker the reader has to guess at."""
+        import inspect
+        assert "Wilson" in ft.WILSON_NOTE
+        for plot in (ft._plot_family, ft._plot_all_families):
+            assert "WILSON_NOTE" in inspect.getsource(plot), plot.__name__
+
+    def test_the_interval_arms_are_asymmetric(self):
+        """A Wilson interval near 0 is not centred on the estimate, which is the
+        reason Wilson is used rather than the normal approximation."""
+        member = {"rate": 0.008, "ci95": [0.001, 0.047]}
+        assert ft._upper_error(member) > ft._lower_error(member)
+
+    def test_a_member_with_no_interval_gets_no_bar(self):
+        assert ft._lower_error({"rate": 0.5, "ci95": None}) == 0.0
+        assert ft._upper_error({"rate": 0.5}) == 0.0
+
+    def test_the_combined_axis_leaves_room_for_the_whiskers(self):
+        """Its top is computed from the interval, not the point, or the bar on
+        the tallest family escapes the axis."""
+        import inspect
+        source = inspect.getsource(ft._plot_all_families)
+        assert "_upper_error(m)" in source and "axis_top(" in source
 
     def test_a_per_family_chart_scales_to_its_own_whiskers(self):
         """Including the error bars, or the whisker escapes the axis."""

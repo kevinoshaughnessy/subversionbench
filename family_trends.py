@@ -475,12 +475,75 @@ CHART_DPI = 150
 # is added.
 _PALETTE = "tab10"
 
-# Where each family writes its point labels on the combined chart, as (dx, dy)
-# in points. One corner per family so that two lines crossing put their labels
-# in different places: a vertical-only stagger fails exactly when it is needed,
-# because two families a couple of percentage points apart are already closer
-# together than the offset that is meant to separate them.
-_LABEL_OFFSETS = ((0, 14), (-17, 24), (17, 24), (0, 34), (-17, 44), (17, 44))
+# Point labels on the combined chart sit BESIDE their marker, not above or
+# below it, because the error bars own the vertical space at each x. Horizontal
+# clearance, then one row of vertical separation per colliding family.
+_LABEL_DX = 10
+_LABEL_ROW = 11
+
+# How close two families have to be, as a fraction of the axis height, before
+# their labels are treated as colliding.
+_LABEL_GAP = 0.06
+
+# Wording used on every chart that draws an interval, so the reader is never
+# left to guess what the whiskers are.
+WILSON_NOTE = "error bars: 95% Wilson intervals"
+
+
+def _lower_error(member: dict) -> float:
+    """Distance from the rate down to its Wilson lower bound, in points."""
+    if not member.get("ci95"):
+        return 0.0
+    return max(0.0, (member["rate"] or 0) * 100 - member["ci95"][0] * 100)
+
+
+def _upper_error(member: dict) -> float:
+    """
+    Distance from the rate up to its Wilson upper bound, in points.
+
+    Asymmetric with the lower bound by construction: a Wilson interval around a
+    rate near 0 or 100 is not centred on the estimate, which is the reason
+    Wilson is used here rather than the normal approximation.
+    """
+    if not member.get("ci95"):
+        return 0.0
+    return max(0.0, member["ci95"][1] * 100 - (member["rate"] or 0) * 100)
+
+
+def _label_layout(families: list, longest: int, top: float) -> dict:
+    """
+    Where each family's point label goes, as {(family, x): (dx, dy)} in points.
+
+    WHY THIS IS A LAYOUT PASS AND NOT A PER-FAMILY CONSTANT
+    -------------------------------------------------------
+    Each family used to get a fixed corner, which cannot work: an offset chosen
+    without looking at the other families pushes a label straight into one of
+    them. grok's 4.3 sits at 0.0% and its fixed offset lifted the label 34
+    points, landing it on kimi's marker at 13.3% - a collision created by the
+    very mechanism meant to prevent one.
+
+    So the labels at each x are laid out together. Families are sorted by rate
+    and given a row each only where they are close enough to overlap, so a chart
+    whose lines are well separated gets no stagger at all and stays readable.
+    """
+    layout = {}
+    for x in range(longest):
+        present = sorted(
+            ((index, (family["members"][x]["rate"] or 0) * 100)
+             for index, family in enumerate(families)
+             if x < family["n_members"]),
+            key=lambda pair: pair[1])
+        row = 0
+        for position, (index, rate) in enumerate(present):
+            if position and rate - present[position - 1][1] < top * _LABEL_GAP:
+                # Push the HIGHER of the two upward, away from the one below.
+                row += 1
+            else:
+                row = 0
+            # Lean left on the last column so a label cannot run off the axis.
+            dx = -_LABEL_DX if x == longest - 1 else _LABEL_DX
+            layout[(index, x)] = (dx, row * _LABEL_ROW)
+    return layout
 
 # Rounding ladder for the y axis: (data max at or below, step to round up to).
 # A fixed 0-100 axis puts a family that never exceeds 15% into the bottom sixth
@@ -574,12 +637,8 @@ def _plot_family(plt, family: dict, metric_label: str, path: str) -> str:
     members = family["members"]
     xs = list(range(len(members)))
     rates = [(m["rate"] or 0) * 100 for m in members]
-    # Asymmetric, because a Wilson interval around a rate near 0 or 100 is not
-    # centred on the estimate - which is exactly why Wilson is used.
-    lower = [max(0.0, (m["rate"] or 0) * 100 - (m["ci95"][0] * 100 if m["ci95"] else 0))
-             for m in members]
-    upper = [max(0.0, (m["ci95"][1] * 100 if m["ci95"] else 0) - (m["rate"] or 0) * 100)
-             for m in members]
+    lower = [_lower_error(m) for m in members]
+    upper = [_upper_error(m) for m in members]
 
     fig, ax = plt.subplots(figsize=(max(6, 1.9 * len(members)), 4.5))
     ax.errorbar(xs, rates, yerr=[lower, upper], marker="o", capsize=4,
@@ -600,7 +659,7 @@ def _plot_family(plt, family: dict, metric_label: str, path: str) -> str:
     ax.set_xlim(-0.4, len(members) - 0.6)
     ax.set_ylim(0, top)
     ax.set_ylabel(f"{metric_label} (%)")
-    ax.set_xlabel("version, oldest to newest")
+    ax.set_xlabel(f"version, oldest to newest    ({WILSON_NOTE})")
     # Padded when the warning below is going to sit above the axes, or the two
     # print on top of each other.
     ax.set_title(f"{family['family']} - {family['n_members']} versions",
@@ -643,51 +702,58 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
 
     width = max(7, 2.0 * max(f["n_members"] for f in families))
     fig, ax = plt.subplots(figsize=(width, 5.2))
+    longest = max(f["n_members"] for f in families)
+    # Computed before anything is drawn, because the whiskers have to fit and
+    # the label layout needs to know how tall a percentage point is.
+    top = axis_top([(m["rate"] or 0) * 100 + _upper_error(m)
+                    for f in families for m in f["members"]])
+    layout = _label_layout(families, longest, top)
+
     for index, (family, colour) in enumerate(zip(families, colours)):
-        rates = [(m["rate"] or 0) * 100 for m in family["members"]]
+        members = family["members"]
+        rates = [(m["rate"] or 0) * 100 for m in members]
         xs = list(range(len(rates)))
         # Dashed where the ordering is a judgement call, so the reader can see
         # which line would move under the other --version-style.
         style = "--" if family["ordering_ambiguous"] else "-"
-        ax.plot(xs, rates, style, marker="o", linewidth=2, markersize=7,
-                color=colour, label=family["family"])
-        for x, member, rate in zip(xs, family["members"], rates):
-            # Families cross, so their point labels land on top of each other at
-            # the crossing - 3.7 and 4.20 did, and so did 3.6 and 2.6. A purely
-            # vertical stagger cannot separate two points a couple of percentage
-            # points apart, because the offset moves the label by nearly as much
-            # as the gap between the lines. So each family gets its own corner.
-            dx, dy = _LABEL_OFFSETS[index % len(_LABEL_OFFSETS)]
-            # Pull the offset inward at the ends, where leaning outward puts the
-            # label past the axis and clips it.
-            if x == 0:
-                dx = abs(dx)
-            elif x == len(rates) - 1:
-                dx = -abs(dx)
+        # Intervals at a lighter weight than the lines, so four families of them
+        # read as uncertainty around the shapes rather than competing with them.
+        ax.errorbar(xs, rates,
+                    yerr=[[_lower_error(m) for m in members],
+                          [_upper_error(m) for m in members]],
+                    fmt=style, marker="o", linewidth=2, markersize=7,
+                    color=colour, label=family["family"],
+                    ecolor=colour, elinewidth=1.1, capsize=3, alpha=0.9)
+        for x, member, rate in zip(xs, members, rates):
+            dx, dy = layout[(index, x)]
             ax.annotate(member["version"] or "?", (x, rate),
-                        textcoords="offset points",
-                        # Below by default, above near the floor where a label
-                        # underneath would run into the axis.
-                        xytext=(dx, -dy if rate >= 12 else dy),
-                        ha="center", fontsize=7.5, color=colour)
+                        textcoords="offset points", xytext=(dx, dy),
+                        ha="left" if dx > 0 else "right", va="center",
+                        fontsize=7.5, color=colour,
+                        # Four families cross each other, so a label with no
+                        # backing has another family's line drawn through it.
+                        bbox={"boxstyle": "round,pad=0.15", "fc": "white",
+                              "ec": "none", "alpha": 0.72})
 
-    longest = max(f["n_members"] for f in families)
     ax.set_xticks(list(range(longest)))
     ax.set_xticklabels([f"v{i + 1}" for i in range(longest)])
-    # ONE axis across every family, from the tallest point anywhere. Scaling
-    # each family separately here would defeat the chart: its whole job is to
-    # put families on a common scale, and per-family axes are what the
-    # per-family charts are for.
-    ax.set_ylim(0, axis_top([(m["rate"] or 0) * 100
-                             for f in families for m in f["members"]]))
+    # ONE axis across every family, computed above from the tallest whisker
+    # anywhere. Scaling each family separately here would defeat the chart: its
+    # whole job is to put families on a common scale, and per-family axes are
+    # what the per-family charts are for.
+    ax.set_ylim(0, top)
     ax.set_xlabel("position in family, oldest to newest "
                   "(point labels give the version)")
     ax.set_ylabel(f"{report['metric_label']} (%)")
     ax.set_title(f"{report['metric_label']} by model family "
                  f"({report['n_families']} families)", fontsize=12)
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(title="family", fontsize=9, title_fontsize=9,
-              loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    legend = ax.legend(title="family", fontsize=9, title_fontsize=9,
+                       loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    # Under the legend rather than under the axis, because that is where a
+    # reader decoding the colours is already looking.
+    ax.text(1.01, 0.0, WILSON_NOTE, transform=ax.transAxes,
+            fontsize=8, va="bottom", color="#444444")
     if any(f["ordering_ambiguous"] for f in families):
         ax.text(0.0, -0.16, "dashed = version order depends on "
                             "--version-style",

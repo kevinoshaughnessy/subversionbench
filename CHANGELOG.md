@@ -10,6 +10,33 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v72
+
+Package version `72.0.0`. Presentation only.
+
+- **The combined chart carries Wilson intervals too.** They were left off on the
+  grounds that four families of overlapping error bars would be unreadable;
+  drawn at a lighter weight than the lines they are not, and a chart of bare
+  point estimates was making every family look decisive - the same argument that
+  put intervals on the per-family charts in the first place. The shared y axis is
+  now computed from the tallest whisker rather than the tallest point, or the bar
+  on the top family escapes the axis.
+
+- **Point labels are laid out across all families at once.** Each family had a
+  fixed corner, which cannot work: an offset chosen without looking at the other
+  families pushes a label straight into one of them. grok's `4.3` sits at 0.0%
+  and its fixed upward offset landed the label on kimi's marker at 13.3% - a
+  collision created by the mechanism meant to prevent one. Families are now
+  sorted by rate at each position and given a row each only where they are close
+  enough to overlap, so a chart whose lines are well separated gets no stagger.
+  Labels sit beside their marker rather than above or below it, because the error
+  bars now own the vertical space, and carry a translucent backing so a crossing
+  line is not drawn through the text.
+
+- **Every chart says what its whiskers are.** A whisker with no legend is one the
+  reader has to guess at: both charts now carry "error bars: 95% Wilson
+  intervals".
+
 ## v71
 
 Package version `71.0.0`. Analysis only - no scenario change, no rollout bump.

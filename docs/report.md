@@ -623,9 +623,18 @@ into `charts/` under `--output-dir`, or wherever `--chart-dir` says:
   **position** in the family, not the version number: families run on their own numbering
   (`k2.5` against `3.7-flash` against `v4`), so there is no shared version axis to put them on.
   Position is what they share, and it is the axis the question is about. Point labels give the
-  version. Intervals are left off here — four families of overlapping error bars is unreadable,
-  and this chart is for comparing *shapes*. Its y axis is shared across every family, from the
-  tallest point anywhere.
+  version. It carries the same Wilson intervals, drawn at a lighter weight than the lines so
+  four families of them read as uncertainty around the shapes rather than competing with them.
+  Its y axis is shared across every family, from the tallest whisker anywhere.
+
+Point labels on the combined chart are laid out in a pass over all families at once, not from a
+per-family constant. An offset chosen without looking at the other families pushes a label
+straight into one of them — grok's `4.3` sits at 0.0% and a fixed upward offset landed it on
+kimi's marker at 13.3%. Families are sorted by rate at each position and given a row each only
+where they are close enough to overlap, so a chart whose lines are well separated gets no
+stagger at all.
+
+Both charts label their whiskers as 95% Wilson intervals.
 
 **Two per-family charts on different scales cannot be compared by eye**: a family topping out
 at 15% and one topping out at 85% draw the same shape. That is the price of making a small
