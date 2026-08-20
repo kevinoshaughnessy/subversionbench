@@ -624,7 +624,8 @@ into `charts/` under `--output-dir`, or wherever `--chart-dir` says:
   different answer from four without. Bare point estimates would make every family look
   decisive. Each point is labelled with its rate and interval — `68.3% [59.6, 76.0]` — because a
   whisker can be read off the axis only approximately and the numbers are what gets copied into
-  a write-up. The y axis is **scaled to that family's own whiskers** and rounded up to a round
+  a write-up, and each tick carries its `n` with the family total in the title. The denominator
+  is not constant within a family: `gemini-3.5-flash` carries 205 against its siblings' 120. The y axis is **scaled to that family's own whiskers** and rounded up to a round
   number — a family topping out at 15% draws on 0–20, not 0–100, where three steps of a few
   points each would look like one flat line.
 - **one combined** — every family on one axis, colour-coded with a legend. The x axis is
@@ -633,7 +634,8 @@ into `charts/` under `--output-dir`, or wherever `--chart-dir` says:
   Position is what they share, and it is the axis the question is about. Point labels give the
   version. It carries the same Wilson intervals, drawn at a lighter weight than the lines so
   four families of them read as uncertainty around the shapes rather than competing with them.
-  Its y axis is shared across every family, from the tallest whisker anywhere.
+  Its y axis is shared across every family, from the tallest whisker anywhere, and each legend
+  entry carries that family's total.
 
 Point labels on the combined chart are laid out in a pass over all families at once, not from a
 per-family constant. An offset chosen without looking at the other families pushes a label
@@ -642,7 +644,9 @@ kimi's marker at 13.3%. Families are sorted by rate at each position and given a
 where they are close enough to overlap, so a chart whose lines are well separated gets no
 stagger at all.
 
-Both charts label their whiskers as 95% Wilson intervals.
+Both charts label their whiskers as 95% Wilson intervals, and both name what `n` counts —
+"episodes" for misalignment and scheming, "graded episodes" for awareness, whose denominator is
+the episodes whose verdict resolved rather than every episode run.
 
 **Two per-family charts on different scales cannot be compared by eye**: a family topping out
 at 15% and one topping out at 85% draw the same shape. That is the price of making a small

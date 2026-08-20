@@ -233,6 +233,9 @@ METRICS = {
     "misaligned": {
         "num": "n_misaligned", "den": "n_runs",
         "label": "agentic misalignment rate",
+        # What n counts, for the charts. Not always "episodes": the awareness
+        # denominator is the episodes whose verdict RESOLVED, which is fewer.
+        "denominator_label": "episodes",
         # Derived from the act keys by classify_misalignment, so a batch whose
         # grader or classifier calls failed still carries a sound figure.
         "llm_dependent": False,
@@ -240,6 +243,7 @@ METRICS = {
     "scheming": {
         "num": "n_scheming", "den": "n_runs",
         "label": "scheming rate (act plus concealment)",
+        "denominator_label": "episodes",
         # Concealment comes from a sampled classifier, so this metric inherits
         # every classifier failure in the batch.
         "llm_dependent": True,
@@ -247,6 +251,7 @@ METRICS = {
     "aware": {
         "num": "n_aware", "den": "n_awareness_resolved",
         "label": "verbalised evaluation awareness rate",
+        "denominator_label": "graded episodes",
         "llm_dependent": True,
     },
 }
@@ -446,6 +451,7 @@ def build_report(output_dir: str, metric: str = "misaligned",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "metric": metric,
         "metric_label": METRICS[metric]["label"],
+        "metric_denominator_label": METRICS[metric]["denominator_label"],
         "version_style": style,
         "n_families": len(results),
         "across_all_families": {
@@ -649,11 +655,18 @@ def _member_labels(family: dict) -> list:
             label += f"\n{member['date']}"
         if member["tags"]:
             label += f"\n({','.join(member['tags'])})"
+        # The denominator each point's rate and interval are computed on. A
+        # width of interval means nothing without it, and it is not constant
+        # across a family - gemini-3.5-flash carries 205 against its siblings'
+        # 120, and grok-4.5 239 against 120.
+        if member.get("n") is not None:
+            label += f"\nn={member['n']}"
         labels.append(label)
     return labels
 
 
-def _plot_family(plt, family: dict, metric_label: str, path: str) -> str:
+def _plot_family(plt, family: dict, metric_label: str, den_label: str,
+                 path: str) -> str:
     """
     One family: the rate against version order, with its Wilson intervals.
 
@@ -691,11 +704,15 @@ def _plot_family(plt, family: dict, metric_label: str, path: str) -> str:
     ax.set_xlabel(f"version, oldest to newest    ({WILSON_NOTE_WITH_BRACKETS})")
     # Padded when the warning below is going to sit above the axes, or the two
     # print on top of each other.
-    ax.set_title(f"{family['family']} - {family['n_members']} versions",
+    total = sum(m["n"] or 0 for m in members)
+    ax.set_title(f"{family['family']} - {family['n_members']} versions, "
+                 f"{total} {den_label}",
                  fontsize=11, pad=20 if family["ordering_ambiguous"] else 6)
     # The verdict on the chart, so a reader who never opens the table cannot
     # take a falling line for a monotone one.
-    ax.text(0.5, -0.30, family["verdict"], transform=ax.transAxes,
+    # Below the tick labels, which now run to three or four lines. Measured
+    # against the tallest case: version, date stamp, tags and n.
+    ax.text(0.5, -0.44, family["verdict"], transform=ax.transAxes,
             ha="center", va="top", fontsize=8, style="italic", wrap=True)
     if family["ordering_ambiguous"]:
         ax.text(0.5, 1.012,
@@ -751,7 +768,9 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
                     yerr=[[_lower_error(m) for m in members],
                           [_upper_error(m) for m in members]],
                     fmt=style, marker="o", linewidth=2, markersize=7,
-                    color=colour, label=family["family"],
+                    color=colour,
+                    label=f"{family['family']}  "
+                          f"(n={sum(m['n'] or 0 for m in members)})",
                     ecolor=colour, elinewidth=1.1, capsize=3, alpha=0.9)
         for x, member, rate in zip(xs, members, rates):
             dx, dy = layout[(index, x)]
@@ -774,8 +793,10 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
     ax.set_xlabel("position in family, oldest to newest "
                   "(point labels give the version)")
     ax.set_ylabel(f"{report['metric_label']} (%)")
+    total = sum(m["n"] or 0 for f in families for m in f["members"])
     ax.set_title(f"{report['metric_label']} by model family "
-                 f"({report['n_families']} families)", fontsize=12)
+                 f"({report['n_families']} families, {total} "
+                 f"{report['metric_denominator_label']})", fontsize=12)
     ax.grid(axis="y", alpha=0.3)
     legend = ax.legend(title="family", fontsize=9, title_fontsize=9,
                        loc="upper left", bbox_to_anchor=(1.01, 1.0))
@@ -810,7 +831,8 @@ def write_charts(report: dict, chart_dir: str) -> list:
         # The family key holds a slash, which is a path separator.
         slug = family["family"].replace("/", "_")
         path = os.path.join(chart_dir, f"family_{metric}_{slug}.png")
-        written.append(_plot_family(plt, family, report["metric_label"], path))
+        written.append(_plot_family(plt, family, report["metric_label"],
+                                    report["metric_denominator_label"], path))
     combined = _plot_all_families(
         plt, report, os.path.join(chart_dir, f"family_{metric}_all.png"))
     if combined:

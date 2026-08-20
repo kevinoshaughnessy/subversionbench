@@ -10,6 +10,24 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v76
+
+Package version `76.0.0`. Presentation only.
+
+- **Every chart says how many episodes it rests on.** An interval width means
+  nothing without the denominator it came from, and that denominator is not
+  constant within a family - `gemini-3.5-flash` carries 205 against its siblings'
+  120, and `grok-4.5` 239 against 120, because both were topped up and the others
+  were not. Per-family charts carry `n` under each version tick and the family
+  total in the title; the combined chart carries each family's total in its
+  legend entry and the grand total in its title.
+
+  Each metric names what its `n` counts, because they are not all the same
+  thing: "episodes" for misalignment and scheming, "graded episodes" for
+  awareness, whose denominator is the episodes whose verdict RESOLVED rather than
+  every episode run. A member with no denominator gets no `n` at all rather than
+  `n=0` - absent is not zero.
+
 ## v75
 
 Package version `75.0.0`. Presentation only.

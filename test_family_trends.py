@@ -782,3 +782,55 @@ class TestRunningEveryMetric:
                 sys.argv = argv
             # Two families plus one combined, for each metric.
             assert len(os.listdir(charts)) == 3 * len(ft.METRICS)
+
+
+class TestTheChartsSayHowManyEpisodes:
+    """An interval width means nothing without the denominator it came from, and
+    the denominator is not constant within a family: gemini-3.5-flash carries 205
+    against its siblings' 120, and grok-4.5 239 against 120."""
+
+    def test_the_tick_label_carries_n(self):
+        labels = ft._member_labels({"members": [
+            {"version": "3.5", "date": None, "tags": [], "n": 205}]})
+        assert labels == ["3.5\nn=205"]
+
+    def test_n_comes_after_the_date_and_the_tags(self):
+        labels = ft._member_labels({"members": [
+            {"version": "4", "date": "0813", "tags": ["preview"], "n": 119}]})
+        assert labels[0] == "4\n0813\n(preview)\nn=119"
+
+    def test_a_member_with_no_denominator_gets_no_n(self):
+        """Absent is not zero: a model with nothing collected should not read
+        as one measured at n=0."""
+        labels = ft._member_labels({"members": [
+            {"version": "3.5", "date": None, "tags": [], "n": None}]})
+        assert labels == ["3.5"]
+
+    def test_the_per_family_title_totals_the_denominator(self):
+        import inspect
+        source = inspect.getsource(ft._plot_family)
+        assert 'sum(m["n"] or 0 for m in members)' in source
+        assert "den_label" in source
+
+    def test_the_combined_legend_totals_each_family(self):
+        import inspect
+        source = inspect.getsource(ft._plot_all_families)
+        assert "n={sum(m['n'] or 0 for m in members)}" in source
+
+    def test_each_metric_names_what_its_n_counts(self):
+        """Not always "episodes": the awareness denominator is the episodes
+        whose verdict RESOLVED, which is fewer."""
+        for metric, spec in ft.METRICS.items():
+            assert spec["denominator_label"], metric
+        assert ft.METRICS["aware"]["denominator_label"] != (
+            ft.METRICS["misaligned"]["denominator_label"])
+
+    def test_the_report_carries_the_denominator_label(self):
+        with tempfile.TemporaryDirectory() as out:
+            for model, n in (("p/a-1", 8), ("p/a-2", 5)):
+                _write_summary(out, model, "strong", n_runs=10,
+                               n_misaligned=n, n_aware=2, n_unaware=8)
+            assert ft.build_report(out, "aware")[
+                "metric_denominator_label"] == "graded episodes"
+            assert ft.build_report(out, "misaligned")[
+                "metric_denominator_label"] == "episodes"
