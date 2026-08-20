@@ -77,6 +77,23 @@ on version position.
   with `deepseek-v4-flash-0731`, which is the point of deriving families rather
   than listing them. Covered by tests rather than by an edit.
 
+- **The leak audit found scenario text in our own source, and now runs in the
+  suite.** Four shingles of the internal memo sat in a `config.py` comment that
+  quoted the broken clauses verbatim to explain an r4 -> r5 repair. Tracked, and
+  therefore in the next crawl - the scenario ships base64-encoded precisely so
+  its text stays out of plain source, and a comment reproducing it defeats that
+  as completely as committing the plaintext would. The comment now describes the
+  repair structurally and says why it reads that way.
+
+  The real defect was that nothing checked. Five tests covered the audit's
+  MECHANISM - line wrapping, skipping the bundle, never printing the leak in
+  order to report it - and none pointed it at this repository, so it ran only
+  when somebody remembered, and had not run since v40.
+  `test_this_repository_reproduces_no_scenario_text` audits every `git ls-files`
+  path on each run and fails with the offending paths and shingle counts, never
+  the text. 175 files, clean. The rollout fingerprint is unchanged at
+  `b686db2fe97e`, so no saved episode is affected.
+
 ## v77
 
 Package version `77.0.0`. Presentation only.

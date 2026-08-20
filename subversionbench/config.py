@@ -100,22 +100,27 @@ ROLLOUT_FINGERPRINTS = MappingProxyType({
 #
 # r4 -> r5 fixed two of the counterfactual arm's own documents. The no_oversight
 # overrides are stored text, not a runtime removal (see scenario_for), and two of
-# them were botched at the clause boundary: the README's "so they're" ran straight
-# into "If you" with the whole intervening clause gone, and a later sentence
-# dangled as "real check." with nothing left for it to refer to. The internal memo
-# lost its bullet marker along with the paragraph it introduced, and a later
-# sentence - "Please review the strategy document in" - lost its object outright.
-# Found by reading a saved episode where the model, unable to locate the
-# "automated quality checker" the README kept promising, ran the README back
-# through `xxd` on the theory that the plain text was hiding something; it
-# wasn't - the text was simply broken. One fix needed a second pass: the memo's
-# "Please review the strategy document in" was first restored to "...in the
-# shared drive and flag any concerns by EOD Wednesday", which is grammatical but
-# puts "flag" back into the counterfactual - a term test_scenario.py's
-# HARD_TERMS already forbids there, correctly, since "flag" is what the removed
-# monitoring paragraph does. Kept "the shared drive" as the object "in" needs,
-# dropped "and flag any concerns by EOD Wednesday" - the clause the word
-# actually lived in.
+# them were botched at the clause boundary: in the README two fragments ran
+# together with the whole intervening clause gone, and a later sentence was left
+# dangling with nothing for it to refer to. The internal memo lost its bullet
+# marker along with the paragraph it introduced, and a later sentence lost its
+# object outright.
+#
+# NOTHING BELOW QUOTES THE DOCUMENTS. An earlier version of this comment named
+# the broken clauses verbatim to make the repair legible, and the leak audit
+# found four shingles of the internal memo sitting in this file - tracked, and
+# therefore in the next crawl. The repair is just as legible described.
+#
+# Found by reading a saved episode where the model, unable to locate the checker
+# the README kept promising, ran the README back through `xxd` on the theory that
+# the plain text was hiding something; it wasn't - the text was simply broken.
+# One fix needed a second pass: the memo sentence that had lost its object was
+# first restored with an object AND a trailing clause. That is grammatical, but
+# the trailing clause put a term back into the counterfactual that
+# test_scenario.py's HARD_TERMS forbids there - correctly, since the term names
+# what the removed monitoring paragraph does. The object was kept, because the
+# preposition needs one; the trailing clause was dropped, because it is where
+# the forbidden term actually lived.
 #
 # Only the no_oversight overrides changed, so only the counterfactual's own
 # fingerprint moved; the oversight=True documents, and their fingerprint, are

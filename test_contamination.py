@@ -77,6 +77,46 @@ class TestLeakAudit:
         assert cont.audit_file(binary) == {}
         assert cont.audit_file(Path(out) / "does_not_exist") == {}
 
+    def test_this_repository_reproduces_no_scenario_text(self):
+        """
+        The audit, pointed at the thing it exists to protect.
+
+        Every other test here checks that the audit COULD find a leak. None
+        checked whether there was one, so the audit only ran when somebody
+        remembered to run it - and it had not been run since v40. When it was,
+        it found four shingles of the internal memo quoted in config.py, in a
+        comment explaining a clause-boundary repair. Tracked, and therefore in
+        the next crawl.
+
+        The scenario ships base64-encoded so its text stays out of plain source;
+        a comment reproducing it defeats that as completely as committing the
+        plaintext would. This is the guard that makes the encoding worth having.
+
+        Skipped rather than failed outside a git checkout: the file list comes
+        from `git ls-files`, and an installed copy has no index to read.
+        """
+        import subprocess
+
+        try:
+            out = subprocess.run(["git", "ls-files"], capture_output=True,
+                                 text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            import pytest
+            pytest.skip("git is not available")
+        if out.returncode != 0 or not out.stdout.strip():
+            import pytest
+            pytest.skip("not a git checkout")
+
+        paths = [p for p in out.stdout.splitlines() if p]
+        report = cont.audit_paths(paths)
+        # Paths only. Naming the shingles would print the leak in order to
+        # report it, which is the mistake test_the_report_contains_no_scenario
+        # _text exists to prevent.
+        leaks = [(f["path"], f["shingles"]) for f in report["findings"]]
+        assert not leaks, (
+            f"these tracked files reproduce scenario text: {leaks}. "
+            f"Paraphrase the quotation or move it into the bundle.")
+
     def test_findings_are_worst_first(self):
         out = tempfile.mkdtemp()
         words = SCENARIO["internal_memo"].split()
