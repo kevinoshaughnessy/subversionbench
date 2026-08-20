@@ -616,7 +616,9 @@ into `charts/` under `--output-dir`, or wherever `--chart-dir` says:
   verdict as a caption. The intervals are drawn rather than left to the table because the whole
   question is whether a sequence is falling, and four points with overlapping intervals is a
   different answer from four without. Bare point estimates would make every family look
-  decisive. The y axis is **scaled to that family's own whiskers** and rounded up to a round
+  decisive. Each point is labelled with its rate and interval — `68.3% [59.6, 76.0]` — because a
+  whisker can be read off the axis only approximately and the numbers are what gets copied into
+  a write-up. The y axis is **scaled to that family's own whiskers** and rounded up to a round
   number — a family topping out at 15% draws on 0–20, not 0–100, where three steps of a few
   points each would look like one flat line.
 - **one combined** — every family on one axis, colour-coded with a legend. The x axis is

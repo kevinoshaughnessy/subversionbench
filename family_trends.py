@@ -488,6 +488,28 @@ _LABEL_GAP = 0.06
 # Wording used on every chart that draws an interval, so the reader is never
 # left to guess what the whiskers are.
 WILSON_NOTE = "error bars: 95% Wilson intervals"
+WILSON_NOTE_WITH_BRACKETS = (
+    "error bars and [brackets]: 95% Wilson intervals")
+
+
+def _point_label(member: dict, rate: float) -> str:
+    """
+    The rate and its interval, for the label above a point.
+
+    The interval is written out beside the estimate rather than left to the
+    error bar alone, because a whisker can be read off the axis only
+    approximately and the numbers are what a reader copies into a write-up. A
+    member with no interval - nothing collected - gets the rate alone rather
+    than an empty pair of brackets.
+
+    Percent signs are not repeated inside the brackets: the axis is already in
+    percent and `86.6% [81.7, 90.3]` reads more cleanly than the alternative.
+    """
+    label = f"{rate:.1f}%"
+    if member.get("ci95"):
+        low, high = member["ci95"]
+        label += f" [{low * 100:.1f}, {high * 100:.1f}]"
+    return label
 
 
 def _lower_error(member: dict) -> float:
@@ -650,16 +672,17 @@ def _plot_family(plt, family: dict, metric_label: str, path: str) -> str:
     top = axis_top([rate + up for rate, up in zip(rates, upper)])
     # Above the upper WHISKER rather than above the point, or the label sits on
     # the error-bar cap and both become hard to read.
-    for x, rate, up in zip(xs, rates, upper):
-        ax.annotate(f"{rate:.1f}%", (x, min(top * 0.97, rate + up)),
+    for x, member, rate, up in zip(xs, members, rates, upper):
+        ax.annotate(_point_label(member, rate),
+                    (x, min(top * 0.97, rate + up)),
                     textcoords="offset points", xytext=(0, 7), ha="center",
-                    fontsize=9)
+                    fontsize=8)
     ax.set_xticks(xs)
     ax.set_xticklabels(_member_labels(family), fontsize=9)
     ax.set_xlim(-0.4, len(members) - 0.6)
     ax.set_ylim(0, top)
     ax.set_ylabel(f"{metric_label} (%)")
-    ax.set_xlabel(f"version, oldest to newest    ({WILSON_NOTE})")
+    ax.set_xlabel(f"version, oldest to newest    ({WILSON_NOTE_WITH_BRACKETS})")
     # Padded when the warning below is going to sit above the axes, or the two
     # print on top of each other.
     ax.set_title(f"{family['family']} - {family['n_members']} versions",

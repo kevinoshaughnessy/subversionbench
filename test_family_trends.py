@@ -549,6 +549,33 @@ class TestTheYAxisFitsTheData:
         for plot in (ft._plot_family, ft._plot_all_families):
             assert "WILSON_NOTE" in inspect.getsource(plot), plot.__name__
 
+    def test_the_point_label_carries_the_interval(self):
+        """A whisker can be read off the axis only approximately, and the
+        numbers are what a reader copies into a write-up."""
+        label = ft._point_label({"rate": 0.683, "ci95": [0.596, 0.760]}, 68.3)
+        assert label == "68.3% [59.6, 76.0]"
+
+    def test_the_percent_sign_is_not_repeated_inside_the_brackets(self):
+        """The axis is already in percent."""
+        label = ft._point_label({"rate": 0.058, "ci95": [0.029, 0.116]}, 5.8)
+        assert label.count("%") == 1
+
+    def test_a_member_with_no_interval_gets_no_empty_brackets(self):
+        assert ft._point_label({"rate": 0.5, "ci95": None}, 50.0) == "50.0%"
+        assert ft._point_label({"rate": 0.0}, 0.0) == "0.0%"
+
+    def test_a_zero_rate_still_shows_its_upper_bound(self):
+        """0/120 is not the same claim as a rate that cannot be wrong."""
+        label = ft._point_label({"rate": 0.0, "ci95": [0.0, 0.031]}, 0.0)
+        assert label == "0.0% [0.0, 3.1]"
+
+    def test_the_per_family_note_mentions_the_brackets(self):
+        """They are the same interval as the whiskers, so one note covers both."""
+        assert "[brackets]" in ft.WILSON_NOTE_WITH_BRACKETS
+        assert "Wilson" in ft.WILSON_NOTE_WITH_BRACKETS
+        import inspect
+        assert "WILSON_NOTE_WITH_BRACKETS" in inspect.getsource(ft._plot_family)
+
     def test_the_interval_arms_are_asymmetric(self):
         """A Wilson interval near 0 is not centred on the estimate, which is the
         reason Wilson is used rather than the normal approximation."""

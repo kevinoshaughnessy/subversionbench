@@ -10,6 +10,19 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v74
+
+Package version `74.0.0`. Presentation only.
+
+- **Per-family charts label each point with its interval**, not just its rate:
+  `68.3% [59.6, 76.0]`. A whisker can be read off the axis only approximately,
+  and the numbers are what a reader copies into a write-up. The percent sign is
+  not repeated inside the brackets - the axis is already in percent - and a
+  member with no interval gets the rate alone rather than an empty pair. A zero
+  rate still shows its upper bound, because 0/120 is not the same claim as a rate
+  that cannot be wrong. The axis note now reads "error bars and [brackets]: 95%
+  Wilson intervals", since one note covers both.
+
 ## v73
 
 Package version `73.0.0`. Presentation only.
