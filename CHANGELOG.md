@@ -10,6 +10,17 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v73
+
+Package version `73.0.0`. Presentation only.
+
+- **The family-trends JSON names its metric**, matching the charts beside it:
+  `family_trends_aware_20260820T095427.json`. Two metrics of one corpus are two
+  different reports, and a directory of timestamped files gave no way to tell
+  which was which without opening them - the charts had carried their metric in
+  the filename since they existed, so the JSON was the odd one out. An explicit
+  `--json-out` still wins.
+
 ## v72
 
 Package version `72.0.0`. Presentation only.

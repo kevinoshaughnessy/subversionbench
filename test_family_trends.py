@@ -571,3 +571,64 @@ class TestTheYAxisFitsTheData:
         import inspect
         source = inspect.getsource(ft._plot_family)
         assert "axis_top([rate + up" in source
+
+
+class TestWhereTheJsonGoes:
+    """Two metrics of one corpus are two different reports. A directory of
+    timestamped files gives no way to tell which is which without opening
+    them - and the charts already name their metric, so the JSON beside them
+    reading only `family_trends_<timestamp>` was the odd one out."""
+
+    def _corpus(self, out):
+        for model, misaligned in (("p/fall-1", 8), ("p/fall-2", 5),
+                                  ("p/rise-1", 1), ("p/rise-2", 6)):
+            _write_summary(out, model, "strong", n_runs=10,
+                           n_misaligned=misaligned, n_scheming=1,
+                           n_aware=2, n_unaware=8)
+        return out
+
+    def _run(self, out, *extra):
+        import contextlib
+        import io
+        import sys
+        argv = sys.argv
+        sys.argv = ["family_trends.py", "--output-dir", out, "--no-charts",
+                    *extra]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                assert ft.main() == 0
+        finally:
+            sys.argv = argv
+        return sorted(f for f in os.listdir(out)
+                      if f.startswith("family_trends_"))
+
+    def test_the_metric_is_in_the_default_filename(self):
+        with tempfile.TemporaryDirectory() as out:
+            written = self._run(self._corpus(out), "--metric", "aware")
+            assert len(written) == 1
+            assert written[0].startswith("family_trends_aware_")
+            assert written[0].endswith(".json")
+
+    def test_two_metrics_do_not_overwrite_each_other(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            self._run(out, "--metric", "misaligned")
+            written = self._run(out, "--metric", "scheming")
+            assert len(written) == 2
+            assert any("_misaligned_" in f for f in written)
+            assert any("_scheming_" in f for f in written)
+
+    def test_an_explicit_json_out_still_wins(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            target = os.path.join(out, "named.json")
+            self._run(out, "--json-out", target)
+            assert os.path.exists(target)
+            with open(target) as f:
+                assert json.load(f)["metric"] == "misaligned"
+
+    def test_the_default_matches_what_the_help_promises(self):
+        import inspect
+        source = inspect.getsource(ft.main)
+        assert "family_trends_<metric>_<timestamp>.json" in source
+        assert 'f"family_trends_{args.metric}_' in source

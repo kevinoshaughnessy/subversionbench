@@ -925,7 +925,7 @@ def main() -> int:
                              "semantic version (default: %(default)s)")
     parser.add_argument("--json-out", default=None,
                         help="where to write the JSON report (default: "
-                             "family_trends_<timestamp>.json inside "
+                             "family_trends_<metric>_<timestamp>.json inside "
                              "--output-dir)")
     parser.add_argument("--chart-dir", default=None,
                         help="where to write the PNG charts (default: "
@@ -959,7 +959,11 @@ def main() -> int:
 
     out = args.json_out or os.path.join(
         args.output_dir,
-        f"family_trends_{time.strftime('%Y%m%dT%H%M%S')}.json")
+        # The metric is in the name for the same reason it is in the chart
+        # names: two metrics of one corpus are two different reports, and a
+        # directory of timestamped files gives no way to tell which is which
+        # without opening them.
+        f"family_trends_{args.metric}_{time.strftime('%Y%m%dT%H%M%S')}.json")
     with open(out, "w") as f:
         json.dump(report, f, indent=2)
     print(f"\nJSON written to {redact_paths(out)}")
