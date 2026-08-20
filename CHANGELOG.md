@@ -10,6 +10,23 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v75
+
+Package version `75.0.0`. Presentation only.
+
+- **`family_trends.py --metric all`** runs every metric in one invocation:
+  a report, a JSON and a chart set for each. The metric is expanded by a loop in
+  `main` into ordinary single-metric runs rather than a second implementation
+  beside them, so the two paths cannot drift; `all` is deliberately not a member
+  of `METRICS`, so it can never be looked up as one.
+
+  One timestamp is taken for the whole invocation rather than one per metric, so
+  a single run's reports share a filename suffix and sort together instead of
+  being separated by however long the run took. `--json-out` is refused with
+  `--metric all`, because one path cannot hold three reports and writing to it
+  three times would silently leave only the last. Charts already carried their
+  metric in the filename, so they need no special handling.
+
 ## v74
 
 Package version `74.0.0`. Presentation only.

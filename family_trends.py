@@ -252,6 +252,12 @@ METRICS = {
 }
 
 
+# Runs every metric in one invocation. Not a metric itself, so it never reaches
+# METRICS - the loop in main expands it and each pass is an ordinary single-metric
+# run, which is what keeps the two paths from drifting apart.
+METRIC_ALL = "all"
+
+
 def model_rates(summaries: list, metric: str) -> dict:
     """Pooled numerator and denominator per model, over every arm."""
     spec = METRICS[metric]
@@ -937,8 +943,10 @@ def main() -> int:
                         default=f"./eval_results_{ROLLOUT_VERSION}",
                         help="results directory to analyse "
                              "(default: %(default)s)")
-    parser.add_argument("--metric", default="misaligned", choices=sorted(METRICS),
-                        help="which rate to trend (default: %(default)s)")
+    parser.add_argument("--metric", default="misaligned",
+                        choices=sorted(METRICS) + [METRIC_ALL],
+                        help="which rate to trend, or 'all' for one report per "
+                             "metric (default: %(default)s)")
     parser.add_argument("--version-style", default="decimal",
                         choices=VERSION_STYLES,
                         help="how to order a version: 'decimal' reads 4.20 as "
@@ -963,7 +971,33 @@ def main() -> int:
         print(f"No such directory: {redact_paths(args.output_dir)}")
         return 1
 
-    report = build_report(args.output_dir, args.metric, args.version_style)
+    metrics = sorted(METRICS) if args.metric == METRIC_ALL else [args.metric]
+    if args.json_out and len(metrics) > 1:
+        parser.error("--json-out names one file, and --metric all writes one "
+                     "report per metric. Drop --json-out to get "
+                     "family_trends_<metric>_<timestamp>.json for each, or "
+                     "name a single --metric.")
+
+    # One stamp for the whole invocation rather than one per metric, so the
+    # reports from a single run share a filename suffix and sort together
+    # instead of being separated by however long the run took.
+    stamp = time.strftime("%Y%m%dT%H%M%S")
+    failed = 0
+    for metric in metrics:
+        if len(metrics) > 1:
+            print(f"\n\n{'#' * 78}\n# metric: {metric}\n{'#' * 78}")
+        failed += _report_one_metric(args, metric, stamp)
+    return 1 if failed else 0
+
+
+def _report_one_metric(args, metric: str, stamp: str) -> int:
+    """
+    One metric, end to end. Returns 0 on success and 1 on failure.
+
+    Split out of main so `--metric all` runs the same path three times rather
+    than a second implementation of it.
+    """
+    report = build_report(args.output_dir, metric, args.version_style)
     if not report["families"]:
         print(f"No family with two or more members in "
               f"{redact_paths(args.output_dir)}")
@@ -986,7 +1020,7 @@ def main() -> int:
         # names: two metrics of one corpus are two different reports, and a
         # directory of timestamped files gives no way to tell which is which
         # without opening them.
-        f"family_trends_{args.metric}_{time.strftime('%Y%m%dT%H%M%S')}.json")
+        f"family_trends_{metric}_{stamp}.json")
     with open(out, "w") as f:
         json.dump(report, f, indent=2)
     print(f"\nJSON written to {redact_paths(out)}")

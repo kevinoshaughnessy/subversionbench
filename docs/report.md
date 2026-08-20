@@ -532,9 +532,15 @@ the rate" but "does the rate move as the version number climbs".
 ```bash
 python3 family_trends.py --output-dir eval_results_r9
 python3 family_trends.py --output-dir eval_results_r9 --metric scheming
+python3 family_trends.py --output-dir eval_results_r9 --metric all
 python3 family_trends.py --output-dir eval_results_r9 --version-style decimal
 python3 family_trends.py --output-dir eval_results_r9 --no-charts
 ```
+
+`--metric all` runs every metric in one invocation, writing a separate report and chart set for
+each and sharing one timestamp across them so a single run's files sort together. It is
+expanded into ordinary single-metric runs rather than a second code path, and it refuses
+`--json-out`, since one path cannot hold three reports.
 
 It reads its rates through `run_report.load_summaries`, so a family's figure here and a
 model's figure there cannot disagree.

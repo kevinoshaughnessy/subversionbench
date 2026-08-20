@@ -655,7 +655,130 @@ class TestWhereTheJsonGoes:
                 assert json.load(f)["metric"] == "misaligned"
 
     def test_the_default_matches_what_the_help_promises(self):
+        """The help lives in main; the filename is built one call down, where
+        `--metric all` loops over it."""
         import inspect
-        source = inspect.getsource(ft.main)
-        assert "family_trends_<metric>_<timestamp>.json" in source
-        assert 'f"family_trends_{args.metric}_' in source
+        assert "family_trends_<metric>_<timestamp>.json" in inspect.getsource(
+            ft.main)
+        assert 'f"family_trends_{metric}_' in inspect.getsource(
+            ft._report_one_metric)
+
+
+class TestRunningEveryMetric:
+    """`--metric all` expands into ordinary single-metric runs rather than
+    growing a second implementation beside them."""
+
+    def _corpus(self, out):
+        for model, misaligned in (("p/fall-1", 8), ("p/fall-2", 5),
+                                  ("p/rise-1", 1), ("p/rise-2", 6)):
+            _write_summary(out, model, "strong", n_runs=10,
+                           n_misaligned=misaligned, n_scheming=1,
+                           n_aware=2, n_unaware=8)
+        return out
+
+    def _run(self, out, *extra):
+        import contextlib
+        import io
+        import sys
+        argv = sys.argv
+        sys.argv = ["family_trends.py", "--output-dir", out, "--no-charts",
+                    *extra]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as buf:
+                code = ft.main()
+        finally:
+            sys.argv = argv
+        return code, buf.getvalue(), sorted(
+            f for f in os.listdir(out) if f.startswith("family_trends_"))
+
+    def test_all_is_not_itself_a_metric(self):
+        """It is expanded by the loop, never looked up as one."""
+        assert ft.METRIC_ALL not in ft.METRICS
+
+    def test_it_writes_one_report_per_metric(self):
+        with tempfile.TemporaryDirectory() as out:
+            code, _printed, written = self._run(self._corpus(out),
+                                                "--metric", "all")
+            assert code == 0
+            assert len(written) == len(ft.METRICS)
+            for metric in ft.METRICS:
+                assert any(f"_{metric}_" in name for name in written), metric
+
+    def test_the_reports_share_one_timestamp(self):
+        """A single run should sort together, not be split by however long it
+        took to produce."""
+        with tempfile.TemporaryDirectory() as out:
+            _code, _printed, written = self._run(self._corpus(out),
+                                                 "--metric", "all")
+            stamps = {name.rsplit("_", 1)[1] for name in written}
+            assert len(stamps) == 1
+
+    def test_each_metric_is_announced(self):
+        with tempfile.TemporaryDirectory() as out:
+            _code, printed, _written = self._run(self._corpus(out),
+                                                 "--metric", "all")
+            for metric in ft.METRICS:
+                assert f"# metric: {metric}" in printed, metric
+
+    def test_each_report_carries_its_own_metric(self):
+        with tempfile.TemporaryDirectory() as out:
+            _code, _printed, written = self._run(self._corpus(out),
+                                                 "--metric", "all")
+            for name in written:
+                with open(os.path.join(out, name)) as f:
+                    report = json.load(f)
+                assert f"_{report['metric']}_" in name
+
+    def test_a_single_metric_still_announces_nothing(self):
+        """The banner is noise when there is only one report."""
+        with tempfile.TemporaryDirectory() as out:
+            _code, printed, _written = self._run(self._corpus(out),
+                                                 "--metric", "aware")
+            assert "# metric:" not in printed
+
+    def test_json_out_with_all_is_refused(self):
+        """One path cannot hold three reports, and silently overwriting twice
+        would leave only the last."""
+        import contextlib
+        import io
+        import sys
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            argv = sys.argv
+            sys.argv = ["family_trends.py", "--output-dir", out, "--no-charts",
+                        "--metric", "all", "--json-out",
+                        os.path.join(out, "one.json")]
+            try:
+                with contextlib.redirect_stderr(io.StringIO()) as err:
+                    try:
+                        ft.main()
+                        raised = False
+                    except SystemExit:
+                        raised = True
+            finally:
+                sys.argv = argv
+            assert raised, "--json-out with --metric all must not proceed"
+            assert "--json-out" in err.getvalue()
+
+    def test_the_charts_of_each_metric_do_not_collide(self):
+        try:
+            import matplotlib  # noqa: F401 - presence check only
+        except ImportError:
+            import pytest
+            pytest.skip("matplotlib not installed")
+        import contextlib
+        import io
+        import sys
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            charts = os.path.join(out, "charts")
+            argv = sys.argv
+            sys.argv = ["family_trends.py", "--output-dir", out,
+                        "--metric", "all", "--chart-dir", charts]
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    assert ft.main() == 0
+            finally:
+                sys.argv = argv
+            # Two families plus one combined, for each metric.
+            assert len(os.listdir(charts)) == 3 * len(ft.METRICS)
