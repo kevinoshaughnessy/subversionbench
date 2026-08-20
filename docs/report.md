@@ -598,9 +598,12 @@ flagged inline and in `data_quality.families_with_ambiguous_ordering`, so it wil
 A family can satisfy the first without the second, and on r9 two of four do exactly that. The
 verdict line says which.
 
-Position is the trend score, not a release date, because release dates are not recorded. The
-statistic is invariant to rescaling the scores but **not** to respacing them, so equal spacing
-is a real assumption: it says only that the versions came in this order.
+Position is the trend score, not the release date, even though release dates are now recorded
+in `model_releases.py`. The statistic is invariant to rescaling the scores but **not** to
+respacing them, so equal spacing is a real assumption: it says only that the versions came in
+this order. Scoring by date would be a different test with a different assumption — that the
+rate moves at a constant amount per month — and no more defensible on 15 models. The dates are
+used for the release charts, and for nothing that carries a p-value.
 
 Beside those, each family reports its consecutive-step contrasts and a first-versus-last
 contrast — which can disagree with the steps. Under `component`, grok falls at two of three
@@ -668,11 +671,82 @@ matplotlib is an optional extra rather than a dependency because every number pl
 already in the table and the JSON. Without it the script prints an install hint and carries on:
 an install that skips the extra loses presentation and no analysis.
 
+## Release-date charts
+
+Each of the two charts above is drawn a second time with the **calendar** on the x axis, from
+`model_releases.py`: `release_<metric>_<family>.png` per family and `release_<metric>_all.png`
+combined. Version position spaces every release equally, which is the right axis for the trend
+tests and hides something the reader needs — four grok releases spanning four months and four
+gemini releases spanning eight draw the same shape on it.
+
+These charts **do not join the points up**. A segment between two releases claims a path between
+them, and on a calendar axis that claim is stronger than the data supports: nothing was measured
+in the months between two release dates, and the gaps are unequal, so a connecting line invites
+reading a slope off empty space. Points and labels — one colour per family, the same colour that
+family has on the combined version chart.
+
+The one line each family gets is a **single straight dotted fit**: least squares of rate on
+release date, weighted by episode count, drawn between that family's own first and last release
+and under the markers. It is labelled on every chart that carries it, because an unlabelled
+dotted line through four points reads as a trend *test*, and it is not one:
+
+- **Weighted by n, not by inverse variance.** A rate from 239 episodes is a better estimate than
+  one from 120, so an unweighted fit is wrong; but inverse-variance weighting needs `p(1-p)/n`,
+  and this corpus has several rates of exactly 0/120, whose variance is zero and whose weight
+  would therefore be infinite. One model with no misaligned episodes would drag the whole line
+  onto itself. `n` is monotone in precision without that failure.
+- **No p-value, no interval, and deliberately so.** The trend test is Cochran-Armitage on version
+  position. Refitting the same rates on the calendar and testing *that* slope would be a second
+  test of one hypothesis on one dataset, and it would assume something the position test does
+  not — that the rate moves by a constant amount per month.
+- **Points per month, with the span stated.** Per year extrapolates past the data: grok's four
+  releases span 134 days and its fit reads +197.9 points/year, a rise no rate can make. A month
+  is the largest unit no family in this corpus outruns.
+- **Never extended past the family's own releases**, which would draw a claim about models that
+  do not exist.
+- **A two-point family is fitted and flagged.** Two points determine a line exactly, so the fit
+  repeats them and adds nothing; the chart and the JSON both say so rather than leaving the
+  reader to notice.
+
+The slope appears in the console report, in `families[].release_fit`, in the per-family chart's
+caption and in each combined-chart legend entry — so, as everywhere else here, the line on the
+chart is a second reading of a number the report already holds rather than the only place it
+exists. A family with one dated release, or several released on the same day, gets no line and
+says why.
+
+The x axis runs from **1 July 2025 to the newest model plotted**, shared across every release
+chart in a run rather than scaled per family, so the tighter spacing of one family's releases
+against another's is visible rather than normalised away. The floor is a default and not a clip:
+a model older than it extends the axis leftward, because a point drawn outside the axis is worse
+than an axis that starts earlier than intended.
+
+There are no error bars here — a whisker is a line — so the per-family release chart carries its
+Wilson intervals in the point label's brackets, and the combined one carries none and refers the
+reader to the version charts. Point labels give the version with its date stamp or release-stage
+tag attached (`4-0813`, `2 (thinking)`), because two members of a family can share a version
+number and two points both labelled `4` read as a mistake.
+
+Labels are placed by the same collision pass as the combined version chart, generalised to a
+continuous axis: a label moves to a new row only when another label is close on **both** axes,
+is written leftward near the right edge, and hangs below its point when the point sits near the
+ceiling — 100% is a real answer in this corpus, and a label above one prints over the title.
+
+**A missing release date is an error, not a stop.** A date cannot be derived from a model ID, so
+it has to be recorded by hand, and a model that has not been recorded is named loudly in the
+data-quality block with the file to add it to, listed in
+`data_quality.models_without_release_date`, and dropped from the release charts alone. The
+charts themselves say how many members they are missing, and each combined legend entry reads
+`(3 of 4 dated)`. Every table, trend, interval and p-value is unaffected, and the exit code does
+not change: losing a chart is not worth losing the analysis over.
+
 ## What it does not do
 
 - **No causal claim.** Version order is not randomised assignment, families differ in how many
   versions were collected, and nothing here knows what changed between two releases.
-- **No release dates.** Order is position in the version sequence; spacing is assumed equal.
+- **No statistic on the release dates.** They are recorded, charted, and fitted with a
+  descriptive least-squares line, but every trend, interval and p-value is computed on version
+  position with spacing assumed equal. The fitted slope has no p-value on purpose. A model with
+  no recorded date loses its place on the release charts and nothing else.
 - **No cross-family pooling of rates.** Only step *directions* are pooled, never the rates,
   which sit on incomparable baselines.
 - **No metric that outruns its data.** `--metric misaligned` is derived from the act keys and

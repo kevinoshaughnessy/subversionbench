@@ -143,6 +143,27 @@ class TestVersionOrdering:
         assert order == ["deepseek/deepseek-v4-pro",
                          "deepseek/deepseek-v4-pro-0813"]
 
+    def test_an_incoming_dated_pair_needs_no_change(self):
+        """deepseek-v4-flash is being collected as the earlier version of
+        deepseek-v4-flash-0731. It joins its family and orders correctly with no
+        edit, which is the whole point of deriving families rather than listing
+        them - the same shape deepseek-pro already has."""
+        models = ["deepseek/deepseek-v4-flash-0731", "deepseek/deepseek-v4-flash"]
+        families = ft.group_families(models, "decimal")
+        assert list(families) == ["deepseek/deepseek-flash"]
+        assert [m.raw for m in families["deepseek/deepseek-flash"]] == [
+            "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash-0731"]
+
+    def test_the_flash_and_pro_lines_stay_separate(self):
+        """Both are v4 with a dated snapshot. Pooling them would compare two
+        product lines and report the difference as a version trend."""
+        models = ["deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash-0731",
+                  "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro-0813"]
+        families = ft.group_families(models, "decimal")
+        assert sorted(families) == ["deepseek/deepseek-flash",
+                                    "deepseek/deepseek-pro"]
+        assert all(len(m) == 2 for m in families.values())
+
     def test_the_two_styles_disagree_only_on_a_trailing_zero(self):
         """4.20 is major 4 minor 20 under `component`, so after 4.6; and 4.2
         under `decimal`, so before 4.3. Both are defensible."""
@@ -361,6 +382,9 @@ class TestTheCharts:
         return out
 
     def test_one_chart_per_family_plus_one_combined(self):
+        """These are invented model IDs with no recorded release date, so the
+        release-date charts are correctly absent - that path has its own class
+        below. What this pins is the version-order set."""
         self._skip_without_matplotlib()
         with tempfile.TemporaryDirectory() as out:
             report = ft.build_report(self._corpus(out))
@@ -490,6 +514,499 @@ class TestTheCharts:
         layout = ft._label_layout(families, 3, 100.0)
         assert (0, 1) not in layout and (0, 2) not in layout
         assert (1, 2) in layout
+
+
+class TestTheReleaseCharts:
+    """
+    The same rates against the calendar instead of against version position.
+
+    Position spaces every release equally, which hides that grok's four
+    releases came four months apart and gemini's four came eight. A release
+    date cannot be derived from an ID, so an unrecorded one is an error - and
+    an error that must cost the release charts alone.
+    """
+
+    def _skip_without_matplotlib(self):
+        try:
+            import matplotlib  # noqa: F401 - presence check only
+        except ImportError:
+            import pytest
+            pytest.skip("matplotlib not installed")
+
+    def _dated_corpus(self, out):
+        """Real IDs, because the dates come from the real table."""
+        for model, misaligned in (("x-ai/grok-4.20", 8), ("x-ai/grok-4.3", 5),
+                                  ("x-ai/grok-4.5", 1),
+                                  ("moonshotai/kimi-k2.5", 2),
+                                  ("moonshotai/kimi-k2.6", 6)):
+            _write_summary(out, model, "strong", n_runs=10,
+                           n_misaligned=misaligned, n_scheming=1,
+                           n_aware=2, n_unaware=8)
+        return out
+
+    def test_a_release_chart_per_family_plus_one_combined(self):
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._dated_corpus(out))
+            written = ft.write_charts(report, os.path.join(out, "charts"))
+            names = sorted(os.path.basename(p) for p in written
+                           if os.path.basename(p).startswith("release_"))
+            assert names == ["release_misaligned_all.png",
+                             "release_misaligned_moonshotai_kimi-k.png",
+                             "release_misaligned_x-ai_grok.png"]
+            for name in names:
+                assert os.path.getsize(os.path.join(out, "charts", name)) > 0
+
+    def test_the_release_charts_do_not_overwrite_the_version_charts(self):
+        """Two views of one family, so two files."""
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._dated_corpus(out))
+            written = ft.write_charts(report, os.path.join(out, "charts"))
+            names = [os.path.basename(p) for p in written]
+            assert len(names) == len(set(names)) == 6
+
+    def test_no_line_joins_two_releases(self):
+        """Nothing was measured between two release dates, so a connecting
+        segment invites reading a slope off months of empty axis. The one line
+        these charts draw is a straight fit, and it comes from
+        _draw_release_fit rather than from joining the points up."""
+        import inspect
+        for plot in (ft._plot_family_dates, ft._plot_all_family_dates):
+            source = inspect.getsource(plot)
+            assert "scatter(" in source, plot.__name__
+            assert "ax.plot(" not in source, plot.__name__
+            assert "errorbar(" not in source, plot.__name__
+            assert "_draw_release_fit(" in source, plot.__name__
+
+    def test_the_fitted_line_is_dotted_and_sits_under_the_markers(self):
+        """Dotted and behind, because it summarises the points rather than
+        joining them."""
+        import inspect
+        source = inspect.getsource(ft._draw_release_fit)
+        assert 'linestyle=":"' in source
+        assert "zorder=2" in source
+
+    def test_the_interval_survives_as_brackets_on_the_per_family_chart(self):
+        """No error bars means the brackets are the only interval left, so the
+        note has to say brackets alone rather than 'error bars and'."""
+        import inspect
+        source = inspect.getsource(ft._plot_family_dates)
+        assert "WILSON_NOTE_BRACKETS_ONLY" in source
+        assert "_point_label" in source
+        assert "error bars" not in ft.WILSON_NOTE_BRACKETS_ONLY
+        assert "Wilson" in ft.WILSON_NOTE_BRACKETS_ONLY
+
+    def test_every_chart_that_fits_a_line_says_what_the_line_is(self):
+        """Unlabelled, a dotted line through four points reads as a trend
+        TEST. It is not one - the test runs on version position."""
+        import inspect
+        assert "no p-value" in ft.FIT_NOTE
+        assert "weighted by episodes" in ft.FIT_NOTE
+        for plot in (ft._plot_family_dates, ft._plot_all_family_dates):
+            assert "FIT_NOTE" in inspect.getsource(plot), plot.__name__
+
+    def test_the_combined_legend_carries_each_slope(self):
+        """Five gradients cannot be read off one shared axis."""
+        assert ft._slope_label({"slope_per_month": 0.165}) == ", +16.5 pts/month"
+        assert ft._slope_label({"slope_per_month": -0.078}) == ", -7.8 pts/month"
+
+    def test_a_family_with_no_fit_gets_no_slope_in_the_legend(self):
+        """Empty rather than 'n/a': the same legend entry already says how many
+        of its members are dated, which is why there is no line."""
+        assert ft._slope_label(None) == ""
+        assert ft._slope_label({"slope_per_month": None}) == ""
+
+
+class TestTheReleaseFit:
+    """
+    The straight dotted line, one per family. Descriptive: it says how fast in
+    time, which the position axis cannot, and it carries no p-value because the
+    trend test in this file already runs on version position.
+    """
+
+    def _member(self, released, rate, n=120):
+        return {"released": released, "rate": rate, "n": n}
+
+    def test_a_rising_family_gets_a_positive_slope(self):
+        fit = ft.release_fit([self._member("2026-01-01", 0.10),
+                              self._member("2026-04-01", 0.20),
+                              self._member("2026-07-01", 0.40)])
+        assert fit["slope_per_month"] > 0
+
+    def test_a_falling_family_gets_a_negative_slope(self):
+        fit = ft.release_fit([self._member("2025-12-17", 0.683),
+                              self._member("2026-05-19", 0.824),
+                              self._member("2026-07-21", 0.127),
+                              self._member("2026-08-13", 0.058)])
+        assert fit["slope_per_month"] < 0
+
+    def test_the_line_spans_the_family_not_the_axis(self):
+        """Extending it across months in which the family shipped nothing would
+        draw a claim about models that do not exist."""
+        fit = ft.release_fit([self._member("2026-03-31", 0.067),
+                              self._member("2026-08-12", 0.408)])
+        assert fit["from"]["released"] == "2026-03-31"
+        assert fit["to"]["released"] == "2026-08-12"
+        assert fit["span_days"] == 134
+
+    def test_the_slope_is_reported_per_month_not_per_year(self):
+        """grok's four releases span 134 days, and per year its fit reads +197.9
+        points - a rise no rate can make. A month is the largest unit no family
+        in this corpus outruns."""
+        fit = ft.release_fit([self._member("2026-03-31", 0.0),
+                              self._member("2026-04-30", 0.10)])
+        assert "slope_per_year" not in fit
+        assert abs(fit["slope_per_month"] - 0.10) < 0.01
+
+    def test_a_heavier_denominator_pulls_the_line(self):
+        """gemini-3.5-flash carries 205 episodes against its siblings' 120, and
+        an unweighted fit would treat them as equals."""
+        # Exactly 60 days apart each: calendar months are not equal, and
+        # Jan-Apr-Jul is 90 days then 91, which is enough to tilt the "even"
+        # fit off zero and make this test look like it had caught something.
+        even = ft.release_fit([self._member("2026-01-01", 0.0, 120),
+                               self._member("2026-03-02", 0.6, 120),
+                               self._member("2026-05-01", 0.0, 120)])
+        pulled = ft.release_fit([self._member("2026-01-01", 0.0, 120),
+                                 self._member("2026-03-02", 0.6, 120),
+                                 self._member("2026-05-01", 0.0, 2000)])
+        assert abs(even["slope_per_month"]) < 1e-9
+        assert pulled["slope_per_month"] < 0
+        assert even["weighted_by"] == "episodes"
+
+    def test_two_points_are_fitted_but_flagged(self):
+        """Two points determine a line exactly, so the fit repeats them and adds
+        nothing. Said rather than left for the reader to notice."""
+        fit = ft.release_fit([self._member("2026-04-24", 0.22),
+                              self._member("2026-07-31", 0.35)])
+        assert fit["n_points"] == 2
+        assert "exact" in fit["note"]
+
+    def test_three_points_carry_no_such_note(self):
+        fit = ft.release_fit([self._member("2026-01-27", 0.01),
+                              self._member("2026-04-20", 0.13),
+                              self._member("2026-07-16", 0.15)])
+        assert fit["note"] is None
+
+    def test_one_dated_member_is_no_fit_at_all(self):
+        assert ft.release_fit([self._member("2026-01-01", 0.1),
+                               {"released": None, "rate": 0.2, "n": 120}]) is None
+
+    def test_a_family_released_on_one_day_has_no_slope_in_time(self):
+        """The three gpt-5.6 variants shipped together. They are separate
+        families here, but the shape is one a future family could take."""
+        fit = ft.release_fit([self._member("2026-07-09", 0.1),
+                              self._member("2026-07-09", 0.5)])
+        assert fit["slope_per_month"] is None
+        assert "same x" in fit["note"]
+
+    def test_a_member_with_no_rate_is_not_fitted_as_zero(self):
+        """No episodes is not a rate of zero."""
+        fit = ft.release_fit([self._member("2026-01-01", 0.2),
+                              self._member("2026-04-01", 0.4),
+                              {"released": "2026-07-01", "rate": None, "n": 0}])
+        assert fit["n_points"] == 2
+
+    def test_the_report_carries_the_fit_so_the_chart_cannot_disagree(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "x-ai/grok-4.5", "strong", n_runs=10,
+                           n_misaligned=2)
+            _write_summary(out, "x-ai/grok-4.6", "strong", n_runs=10,
+                           n_misaligned=6)
+            loaded = json.loads(json.dumps(ft.build_report(out)))
+            fit = loaded["families"][0]["release_fit"]
+            assert fit["slope_per_month"] > 0
+            assert fit["from"]["released"] == "2026-07-08"
+
+    def test_an_undated_family_carries_no_fit_and_still_reports(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "p/fall-1", "strong", n_runs=10, n_misaligned=8)
+            _write_summary(out, "p/fall-2", "strong", n_runs=10, n_misaligned=2)
+            family = ft.build_report(out)["families"][0]
+            assert family["release_fit"] is None
+            assert family["trend"]["z"] is not None
+
+    def test_the_printed_report_states_the_slope_and_calls_it_descriptive(self):
+        """The chart is a second reading of a number the report already holds,
+        which is the rule the rest of this file follows."""
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "x-ai/grok-4.5", "strong", n_runs=10,
+                           n_misaligned=2)
+            _write_summary(out, "x-ai/grok-4.6", "strong", n_runs=10,
+                           n_misaligned=6)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ft._print_report(ft.build_report(out))
+            printed = buf.getvalue()
+            assert "release-date fit" in printed
+            assert "no p-value" in printed
+            assert "points/month" in printed
+
+
+class TestTheReleaseSpan:
+    def _report(self, *dates):
+        return {"families": [{"members": [{"released": d} for d in dates]}]}
+
+    def test_it_runs_from_mid_2025_to_the_newest_model(self):
+        span = ft.release_span(self._report("2026-01-27", "2026-04-20"))
+        assert span == (ft.RELEASE_AXIS_START, ft.date(2026, 4, 20))
+
+    def test_the_start_is_fixed_rather_than_the_earliest_model(self):
+        """Otherwise adding an older model silently rescales every chart in the
+        corpus and changes what the spacing looks like."""
+        span = ft.release_span(self._report("2026-06-01"))
+        assert span[0] == ft.RELEASE_AXIS_START
+
+    def test_a_model_older_than_the_floor_still_fits_on_the_axis(self):
+        """The floor is a default, not a clip: a point drawn outside the axis is
+        worse than an axis that starts earlier than asked for."""
+        span = ft.release_span(self._report("2024-03-01", "2026-06-01"))
+        assert span[0] == ft.date(2024, 3, 1)
+
+    def test_no_recorded_date_anywhere_is_none_rather_than_an_empty_axis(self):
+        assert ft.release_span(self._report(None, None)) is None
+        assert ft.release_span({"families": []}) is None
+
+    def test_a_corpus_entirely_older_than_the_floor_gets_a_usable_width(self):
+        """matplotlib cannot draw a zero-width or inverted axis."""
+        span = ft.release_span(self._report("2024-03-01"))
+        assert span[1] > span[0]
+
+    def test_a_malformed_stamp_is_dropped_rather_than_raised(self):
+        """A chart must never be the thing that stops the analysis."""
+        assert ft._member_release_date({"released": "not-a-date"}) is None
+        assert ft._member_release_date({}) is None
+
+
+class TestTheReleaseLabelLayout:
+    def _span(self):
+        return (ft.date(2025, 7, 1), ft.date(2026, 7, 1))
+
+    def test_two_points_close_on_both_axes_get_separate_rows(self):
+        points = [("a", ft.date(2026, 1, 1), 20.0),
+                  ("b", ft.date(2026, 1, 3), 21.0)]
+        layout = ft._date_label_layout(points, self._span(), 100.0)
+        assert layout["a"][1] != layout["b"][1]
+
+    def test_points_close_in_time_but_far_apart_in_rate_are_not_staggered(self):
+        """deepseek's flash and pro shipped the same day at very different
+        rates. Staggering them would spend vertical space on a collision that
+        is not happening."""
+        points = [("a", ft.date(2026, 4, 24), 22.0),
+                  ("b", ft.date(2026, 4, 24), 43.0)]
+        layout = ft._date_label_layout(points, self._span(), 100.0)
+        assert layout["a"][1] == layout["b"][1]
+
+    def test_a_label_near_the_right_edge_is_written_leftward(self):
+        points = [("early", ft.date(2025, 8, 1), 10.0),
+                  ("late", ft.date(2026, 7, 1), 10.0)]
+        layout = ft._date_label_layout(points, self._span(), 100.0)
+        assert layout["early"][0] > 0 and layout["early"][2] == "left"
+        assert layout["late"][0] < 0 and layout["late"][2] == "right"
+
+    def test_a_label_at_the_ceiling_hangs_below_its_point(self):
+        """100% is a real answer in this corpus, and a label above one prints
+        over the title."""
+        points = [("top", ft.date(2026, 1, 1), 100.0),
+                  ("mid", ft.date(2025, 9, 1), 40.0)]
+        layout = ft._date_label_layout(points, self._span(), 100.0)
+        assert layout["top"][1] < 0 and layout["top"][3] == "top"
+        assert layout["mid"][1] > 0 and layout["mid"][3] == "bottom"
+
+    def test_a_label_at_zero_is_lifted_clear_of_the_axis(self):
+        """Centred on the point, half of it prints over the spine."""
+        points = [("floor", ft.date(2026, 1, 1), 0.0)]
+        layout = ft._date_label_layout(points, self._span(), 100.0)
+        assert layout["floor"][1] > 0
+
+    def test_two_labels_leaning_toward_each_other_are_separated(self):
+        """Found by looking at the gemini-flash chart, not by reasoning about
+        it. Comparing the distance between two POINTS misses this: gemini's 3.5
+        and 3.6 sat 63 days apart with 3.6 near the right edge, so 3.6's label
+        was written leftward into 3.5's, which was written rightward. The test
+        has to be on the label boxes and the side each is written on."""
+        span = (ft.date(2025, 7, 1), ft.date(2026, 8, 13))
+        labels = {"a": "3.5\n0.5% [0.1, 2.7]", "b": "3.6\n0.0% [0.0, 3.1]"}
+        points = [("a", ft.date(2026, 5, 19), 0.5),
+                  ("b", ft.date(2026, 7, 21), 0.0)]
+        layout = ft._date_label_layout(points, span, 30.0, labels,
+                                       axis_width_pt=ft._PER_FAMILY_AXIS_PT)
+        # b is near the right edge, so it leans left - into a.
+        assert layout["b"][2] == "right"
+        assert layout["a"][1] != layout["b"][1]
+
+    def test_a_row_clears_the_whole_label_not_one_line_of_it(self):
+        """The other half of the same chart's collision. A row height fixed at
+        one line stacked two two-line labels on each other, which is a
+        collision produced by the mechanism meant to prevent one."""
+        span = (ft.date(2025, 7, 1), ft.date(2026, 8, 13))
+        one = {"a": "3.6", "b": "3.7"}
+        two = {"a": "3.6\n0.0% [0.0, 3.1]", "b": "3.7\n0.0% [0.0, 3.1]"}
+        points = [("a", ft.date(2026, 7, 21), 0.0),
+                  ("b", ft.date(2026, 8, 13), 0.0)]
+        gap_one = abs(ft._date_label_layout(points, span, 30.0, one)["b"][1]
+                      - ft._date_label_layout(points, span, 30.0, one)["a"][1])
+        gap_two = abs(ft._date_label_layout(points, span, 30.0, two)["b"][1]
+                      - ft._date_label_layout(points, span, 30.0, two)["a"][1])
+        assert gap_two > gap_one
+
+    def test_a_wide_label_reserves_more_room_than_a_narrow_one(self):
+        """The layout runs before anything is drawn, so the width is estimated
+        from the text. An estimate is enough - the question is only whether two
+        labels are far enough apart."""
+        narrow = ft._label_extent("4.5", 8.0, 520.0, 365)
+        wide = ft._label_extent("4.5\n86.6% [81.7, 90.3]", 8.0, 520.0, 365)
+        assert wide > narrow > 0
+
+
+class TestTheReleasePointName:
+    def test_a_dated_snapshot_keeps_its_stamp(self):
+        """deepseek-v4-pro and deepseek-v4-pro-0813 are both version 4, and two
+        points both labelled '4' read as a mistake."""
+        assert ft._release_point_name(
+            {"version": "4", "date": "0813", "tags": []}) == "4-0813"
+
+    def test_a_qualifier_tag_is_kept_for_the_same_reason(self):
+        """kimi-k2 and kimi-k2-thinking are both version 2."""
+        assert ft._release_point_name(
+            {"version": "2", "date": None, "tags": ["thinking"]}) == (
+                "2 (thinking)")
+
+    def test_a_plain_version_stays_plain(self):
+        assert ft._release_point_name(
+            {"version": "4.5", "date": None, "tags": []}) == "4.5"
+
+    def test_an_unversioned_model_is_marked_rather_than_blank(self):
+        assert ft._release_point_name(
+            {"version": None, "date": None, "tags": []}) == "?"
+
+
+class TestAMissingReleaseDateIsAnErrorNotAStop:
+    """
+    Every rate, interval, trend and p-value here is computed from version
+    order. A missing release date costs the release charts and nothing else, so
+    it is reported loudly and then worked around.
+    """
+
+    def _undated_corpus(self, out):
+        for model, misaligned in (("p/fall-1", 8), ("p/fall-2", 5)):
+            _write_summary(out, model, "strong", n_runs=10,
+                           n_misaligned=misaligned, n_scheming=1,
+                           n_aware=2, n_unaware=8)
+        return out
+
+    def test_the_report_names_every_model_it_has_no_date_for(self):
+        with tempfile.TemporaryDirectory() as out:
+            dq = ft.build_report(self._undated_corpus(out))["data_quality"]
+            assert dq["models_without_release_date"] == ["p/fall-1", "p/fall-2"]
+
+    def test_a_recorded_date_does_not_appear_in_that_list(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "x-ai/grok-4.5", "strong", n_runs=10)
+            _write_summary(out, "x-ai/grok-4.6", "strong", n_runs=10)
+            dq = ft.build_report(out)["data_quality"]
+            assert dq["models_without_release_date"] == []
+            assert dq["plotted_models_without_release_date"] == []
+
+    def test_an_undated_singleton_is_separated_from_an_undated_family_member(self):
+        """A singleton is in no family and therefore on no chart, so its
+        missing date costs nothing. The distinction is what stops the error
+        line from overstating the damage."""
+        with tempfile.TemporaryDirectory() as out:
+            self._undated_corpus(out)
+            _write_summary(out, "p/lonely-1", "strong", n_runs=10)
+            dq = ft.build_report(out)["data_quality"]
+            assert "p/lonely-1" in dq["models_without_release_date"]
+            assert "p/lonely-1" not in dq["plotted_models_without_release_date"]
+
+    def test_the_error_is_printed_and_names_the_fix(self):
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._undated_corpus(out))
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ft._print_report(report)
+            printed = buf.getvalue()
+            assert "ERROR" in printed
+            assert "model_releases.py" in printed
+            assert "p/fall-1" in printed
+
+    def test_the_analysis_still_runs_and_still_succeeds(self):
+        """The whole point: an unrecorded date must not cost a single figure."""
+        import contextlib
+        import io
+        import sys
+        with tempfile.TemporaryDirectory() as out:
+            argv = sys.argv
+            sys.argv = ["family_trends.py", "--output-dir",
+                        self._undated_corpus(out)]
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    assert ft.main() == 0
+            finally:
+                sys.argv = argv
+            report = ft.build_report(out)
+            assert report["families"][0]["trend"]["p"] is not None
+
+    def test_a_family_with_one_undated_member_still_gets_a_chart(self):
+        """Three of four versions is still worth drawing, as long as the chart
+        says it is three of four."""
+        try:
+            import matplotlib  # noqa: F401 - presence check only
+        except ImportError:
+            import pytest
+            pytest.skip("matplotlib not installed")
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "x-ai/grok-4.5", "strong", n_runs=10)
+            _write_summary(out, "x-ai/grok-4.6", "strong", n_runs=10)
+            _write_summary(out, "x-ai/grok-9.9", "strong", n_runs=10)
+            report = ft.build_report(out)
+            family = report["families"][0]
+            assert family["n_members"] == 3
+            assert len(ft._dated_members(family)) == 2
+            written = ft.write_charts(report, os.path.join(out, "charts"))
+            assert any("release_misaligned_x-ai_grok.png" in p for p in written)
+
+
+class TestTheReportCarriesTheReleaseDate:
+    def test_every_member_holds_its_release_date(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "x-ai/grok-4.5", "strong", n_runs=10)
+            _write_summary(out, "x-ai/grok-4.6", "strong", n_runs=10)
+            members = ft.build_report(out)["families"][0]["members"]
+            assert [m["released"] for m in members] == ["2026-07-08",
+                                                        "2026-08-12"]
+
+    def test_an_unrecorded_model_carries_none_rather_than_a_guess(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "p/fall-1", "strong", n_runs=10)
+            _write_summary(out, "p/fall-2", "strong", n_runs=10)
+            members = ft.build_report(out)["families"][0]["members"]
+            assert [m["released"] for m in members] == [None, None]
+
+    def test_the_stamp_in_the_id_is_not_confused_with_the_release_date(self):
+        """`date` is parsed out of the ID and says nothing about when the model
+        shipped; `released` is the recorded date. deepseek-v4-pro-0813 was
+        listed on the 12th, not the 13th."""
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "deepseek/deepseek-v4-pro", "strong", n_runs=10)
+            _write_summary(out, "deepseek/deepseek-v4-pro-0813", "strong",
+                           n_runs=10)
+            members = ft.build_report(out)["families"][0]["members"]
+            assert members[1]["date"] == "0813"
+            assert members[1]["released"] == "2026-08-12"
+
+    def test_the_release_date_survives_the_json_round_trip(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "x-ai/grok-4.5", "strong", n_runs=10)
+            _write_summary(out, "x-ai/grok-4.6", "strong", n_runs=10)
+            loaded = json.loads(json.dumps(ft.build_report(out)))
+            assert loaded["families"][0]["members"][0]["released"] == (
+                "2026-07-08")
 
 
 class TestTheYAxisFitsTheData:

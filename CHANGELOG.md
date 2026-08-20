@@ -10,6 +10,73 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v78
+
+Package version `78.0.0`. Adds a second x axis to the family charts. **No
+existing rate, trend, interval or p-value changes**: every statistic still runs
+on version position.
+
+- **`model_releases.py`: when each evaluated model was released.** 32 OpenRouter
+  IDs with their listing dates, hand-recorded, because a release date cannot be
+  derived from a model ID - the only options are to record it or to not have it.
+  This is deliberately the opposite of `family_trends.py`'s no-list rule, and
+  `missing_dates()` is the guard that makes a hand-maintained table safe: it
+  names what a corpus holds that the table does not.
+
+  The dates are an independent check on the version parse, and they found one
+  disagreement: `kimi-k2-thinking` carries no date stamp, so it sorts with the
+  undated k2 members - ahead of `kimi-k2-0905`, which shipped two months
+  earlier. The parse is what is wrong there, not the dates. Left uncorrected
+  rather than silently reordered, because reordering a family on a release date
+  would change what every `--metric` trend reports for kimi. They also confirm
+  the v71 grok correction: `x-ai/grok` has zero inversions under `decimal`,
+  which the package-manager reading could not manage.
+
+- **Release-date charts.** Each family chart is drawn a second time with the
+  calendar on the x axis - `release_<metric>_<family>.png` and
+  `release_<metric>_all.png`. Version position spaces every release equally,
+  which is right for the trend test and hides what the reader needs: gemini's
+  four releases span 239 days and grok's four span 134, and on a positional axis
+  they draw the same shape. The axis runs from 1 July 2025 to the newest model
+  and is shared across every release chart in a run, so that difference in
+  spacing is visible rather than normalised away.
+
+  The points are not joined up. Nothing was measured in the months between two
+  release dates, and the gaps are unequal, so a connecting segment invites
+  reading a slope off empty axis.
+
+- **One straight dotted least-squares fit per family**, weighted by episode
+  count, drawn between that family's own first and last release. Weighted by
+  `n` rather than by inverse variance: `p(1-p)/n` is zero for a rate of 0/120,
+  of which this corpus has several, and an infinite weight would drag the line
+  onto one model. Reported in points per MONTH with the span stated, because per
+  year extrapolates past the data - grok's fit reads +197.9 points/year over 134
+  days, a rise no rate can make.
+
+  It carries no p-value and no interval, on purpose: the trend test is
+  Cochran-Armitage on version position, and refitting the same rates on the
+  calendar and testing that slope would be a second test of one hypothesis on
+  one dataset. Labelled as descriptive on the chart, in the console and in the
+  JSON, since an unlabelled dotted line through four points reads as a test.
+  Two-point families are fitted and flagged - the line is exact and carries
+  nothing the two points do not.
+
+  On r9 misalignment: gemini-flash -7.8, kimi-k +2.6, deepseek-pro +2.4,
+  deepseek-flash +4.0, grok +16.5 points/month. Gemini is the only family whose
+  calendar fit falls.
+
+- **A missing release date is an error, not a stop.** Named in the data-quality
+  block with the file to fix, listed in
+  `data_quality.models_without_release_date`, and dropped from the release
+  charts alone - every table, trend, interval and p-value is unaffected and the
+  exit code does not change. On r9 it fires for 9 models, all of them singletons
+  in no family and therefore on no chart either way, which the error line says
+  by separating `plotted_models_without_release_date`.
+
+- **`deepseek-v4-flash` needed no code change** to join `deepseek/deepseek-flash`
+  with `deepseek-v4-flash-0731`, which is the point of deriving families rather
+  than listing them. Covered by tests rather than by an edit.
+
 ## v77
 
 Package version `77.0.0`. Presentation only.

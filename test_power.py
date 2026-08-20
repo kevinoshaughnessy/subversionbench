@@ -760,7 +760,9 @@ class TestTrendAcrossOrderedGroups:
 
     def test_but_respacing_them_does(self):
         """Equal spacing is therefore a real assumption, not a formality - which
-        is why position is used and a release date is not invented."""
+        is why the TEST runs on position even though release dates are recorded.
+        Scoring by date would assume the rate moves a constant amount per month.
+        The dates get a descriptive fit instead; see weighted_least_squares."""
         from subversionbench.power import cochran_armitage
         even = cochran_armitage([(80, 100), (50, 100), (5, 100)],
                                 scores=[0, 1, 2])
@@ -827,3 +829,81 @@ class TestTheSignTestOnStepDirection:
         from subversionbench.power import sign_test
         out = sign_test(0, 0)
         assert out["p"] is None and out["note"]
+
+
+class TestWeightedLeastSquares:
+    """
+    The descriptive line family_trends.py draws against release date. It carries
+    no p-value on purpose: the trend test in that file is Cochran-Armitage on
+    version position, and refitting on the calendar with an interval would be a
+    second test of one hypothesis on one dataset.
+    """
+
+    def test_it_recovers_a_line_it_was_given(self):
+        from subversionbench.power import weighted_least_squares
+        out = weighted_least_squares([0, 1, 2, 3], [1.0, 3.0, 5.0, 7.0])
+        assert abs(out["slope"] - 2.0) < 1e-9
+        assert abs(out["intercept"] - 1.0) < 1e-9
+
+    def test_a_falling_series_gets_a_negative_slope(self):
+        from subversionbench.power import weighted_least_squares
+        out = weighted_least_squares([0, 100, 200], [0.68, 0.13, 0.06])
+        assert out["slope"] < 0
+
+    def test_weights_move_the_line_toward_the_heavier_point(self):
+        """A rate measured on 239 episodes is a better estimate than one
+        measured on 120, and an unweighted fit treats them as equals."""
+        from subversionbench.power import weighted_least_squares
+        xs, ys = [0, 1, 2], [0.0, 1.0, 0.0]
+        flat = weighted_least_squares(xs, ys)
+        pulled = weighted_least_squares(xs, ys, [1, 1, 100])
+        assert abs(flat["slope"]) < 1e-9
+        assert pulled["slope"] < 0
+
+    def test_equal_weights_match_an_unweighted_fit(self):
+        from subversionbench.power import weighted_least_squares
+        xs, ys = [0, 3, 7, 11], [0.2, 0.4, 0.35, 0.9]
+        plain = weighted_least_squares(xs, ys)
+        weighted = weighted_least_squares(xs, ys, [5, 5, 5, 5])
+        assert abs(plain["slope"] - weighted["slope"]) < 1e-12
+
+    def test_one_point_is_no_line_rather_than_a_flat_one(self):
+        """The same distinction cochran_armitage draws: returning 0.0 would put
+        "flat" and "unfittable" in one bucket."""
+        from subversionbench.power import weighted_least_squares
+        out = weighted_least_squares([5], [0.5])
+        assert out["slope"] is None and out["note"]
+
+    def test_every_point_at_one_x_is_no_line(self):
+        """Three models released on the same day have no slope in time."""
+        from subversionbench.power import weighted_least_squares
+        out = weighted_least_squares([4, 4, 4], [0.1, 0.5, 0.9])
+        assert out["slope"] is None
+        assert "same x" in out["note"]
+
+    def test_a_zero_weight_point_does_not_count_toward_a_fit(self):
+        """A model with no episodes must not be fitted as though it had some."""
+        from subversionbench.power import weighted_least_squares
+        out = weighted_least_squares([0, 1, 2], [0.0, 0.5, 1.0], [0, 3, 4])
+        assert out["n_points"] == 3 and out["n_points_used"] == 2
+        assert abs(out["slope"] - 0.5) < 1e-9
+
+    def test_only_one_point_carries_weight_is_no_line(self):
+        from subversionbench.power import weighted_least_squares
+        out = weighted_least_squares([0, 1], [0.0, 1.0], [0, 5])
+        assert out["slope"] is None and "positive weight" in out["note"]
+
+    def test_mismatched_inputs_raise_rather_than_truncate(self):
+        """zip would silently drop the extra point and fit the rest."""
+        import pytest
+        from subversionbench.power import weighted_least_squares
+        with pytest.raises(ValueError):
+            weighted_least_squares([0, 1, 2], [0.0, 1.0])
+
+    def test_it_reports_no_p_value_and_no_interval(self):
+        """Descriptive by construction. A caller that found a p here would be
+        entitled to treat it as a second trend test, which it is not."""
+        from subversionbench.power import weighted_least_squares
+        out = weighted_least_squares([0, 1, 2], [0.1, 0.2, 0.3])
+        assert "p" not in out and "separated" not in out
+        assert not any(k.startswith("ci") for k in out)

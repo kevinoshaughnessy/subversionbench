@@ -44,6 +44,24 @@ act plus concealment, and concealment comes from a sampled classifier - so
 `--metric scheming` is only as good as the classifier calls that batch made.
 The data-quality block says when that matters rather than leaving it implied.
 
+TWO X AXES, TWO DIFFERENT QUESTIONS
+-----------------------------------
+Version POSITION spaces every release equally, which is the axis the trend tests
+run on and the one the question is about. It also hides the calendar: four grok
+releases over four months and four gemini releases over eight draw the same
+shape on it. So each chart is drawn a second time against the release dates in
+model_releases.py, with no connecting lines - a segment between two releases
+would invite reading a slope off months in which nothing was measured. Each
+family gets one straight dotted least-squares fit there instead, which says how
+fast in time and carries no p-value: the test stays on version position, and
+refitting on the calendar with an interval would be a second test of one
+hypothesis on one dataset.
+
+A release date cannot be derived from a model ID, so it has to be recorded, and
+a model that has not been recorded is reported as an error and then dropped from
+the release charts alone. Nothing else here depends on a date: every rate,
+interval, trend and p-value is computed from version order.
+
 Reads the same `summary_*.json` fields as run_report.py, through the same
 loader, so a family's rate here and its per-model rate there cannot disagree.
 """
@@ -56,13 +74,16 @@ import re
 import sys
 import time
 from collections import namedtuple
+from datetime import date, timedelta
 
+from model_releases import release_date
 from run_report import load_summaries
 from subversionbench.config import ROLLOUT_VERSION, VERSION
 from subversionbench.power import (MIN_INFORMATIVE_DENOMINATOR,
                                   benjamini_hochberg, cochran_armitage,
                                   compare_rates, holm_bonferroni, sign_test,
-                                  step_directions, wilson_ci)
+                                  step_directions, weighted_least_squares,
+                                  wilson_ci)
 from subversionbench.redaction import redact_paths
 
 # Trailing words that mark a RELEASE STAGE or a decoding mode rather than a
@@ -122,14 +143,16 @@ def parse_model_id(model: str) -> ModelId:
     provider, _, rest = raw.rpartition("/")
     tokens = [t for t in re.split(r"[-_]", rest.lower()) if t]
 
-    stem_parts, version, date, tags, unparsed = [], [], None, [], []
+    # `stamp` rather than `date`: this module now imports datetime.date for the
+    # release-date charts, and a local of that name would shadow it here.
+    stem_parts, version, stamp, tags, unparsed = [], [], None, [], []
     for token in tokens:
         # Dates BEFORE versions, because a stamp is a run of digits and the
         # version pattern matches it: without this, deepseek-v4-pro-0813 parsed
         # as version (4, 813) - sorting it after a hypothetical v4.99 - and
         # claude-haiku-4-5-20251001 as version (4, 5, 20251001).
         if _DATE_RE.match(token):
-            date = token
+            stamp = token
             continue
         match = _VERSION_RE.match(token)
         if match:
@@ -155,7 +178,7 @@ def parse_model_id(model: str) -> ModelId:
             stem_parts.append(token)
             unparsed.append(token)
     return ModelId(raw=raw, provider=provider, stem="-".join(stem_parts),
-                   version=tuple(version), date=date, tags=tuple(sorted(tags)),
+                   version=tuple(version), date=stamp, tags=tuple(sorted(tags)),
                    unparsed=tuple(unparsed))
 
 
@@ -305,10 +328,16 @@ def family_trend(members: list, rates: dict, metric: str, style: str) -> dict:
     ordered = []
     for entry in members:
         rate = rates.get(entry.raw) or {}
+        # `date` is the snapshot stamp parsed out of the ID and says nothing
+        # about when the model shipped; `released` is the recorded release date
+        # and is None for anything model_releases.py has not been told about.
+        # Two different things, kept as two fields rather than merged.
+        released = release_date(entry.raw)
         ordered.append({
             "model": entry.raw,
             "version": ".".join(str(p) for p in entry.version) or None,
             "date": entry.date,
+            "released": released.isoformat() if released else None,
             "tags": list(entry.tags),
             "successes": rate.get("x"), "n": rate.get("n"),
             "rate": rate.get("rate"), "ci95": rate.get("ci95"),
@@ -352,6 +381,70 @@ def family_trend(members: list, rates: dict, metric: str, style: str) -> dict:
         "steps": steps,
         "first_vs_last": first_last,
         "verdict": _verdict(trend, steps_summary, first_last),
+        # In the report rather than computed at draw time, so the dotted line on
+        # the chart and the slope in the JSON cannot disagree - the same rule the
+        # rest of this file follows, that a chart is a second reading of numbers
+        # the report already holds rather than a place where new ones appear.
+        "release_fit": release_fit(ordered),
+    }
+
+
+# The unit a slope is reported in. Points per DAY is always -0.00 or +0.00 at
+# this precision, and points per YEAR extrapolates wildly past the data: grok's
+# four releases span 134 days, and its fit reads +197.9 points/year - a rise no
+# rate can make. A month is the largest unit no family in this corpus outruns, so
+# the reported number stays inside the window it was fitted on.
+_DAYS_PER_MONTH = 30.44
+
+
+def release_fit(members: list) -> dict:
+    """
+    The straight line through a family's rates against their release dates.
+
+    DESCRIPTIVE, and deliberately not a second trend test. The statistic in this
+    file is Cochran-Armitage on version POSITION; refitting on the calendar and
+    reporting a p-value would be a second test of one hypothesis on one dataset,
+    and it would assume something the position test does not - that the rate
+    moves by a constant amount per month.
+
+    So this returns a slope and two endpoints and no inference. What it adds is
+    the thing the position axis cannot show: how fast, in time.
+
+    The endpoints are the family's OWN first and last release, never the full
+    axis. Extending the line across months in which the family shipped nothing
+    would draw a claim about models that do not exist.
+
+    None where no line is defined - fewer than two dated members, or every
+    member released on one day.
+    """
+    dated = [(m, _member_release_date(m)) for m in members
+             if _member_release_date(m) and m.get("rate") is not None]
+    if len(dated) < 2:
+        return None
+    first = min(when for _m, when in dated)
+    xs = [(when - first).days for _m, when in dated]
+    ys = [m["rate"] for m, _when in dated]
+    fit = weighted_least_squares(xs, ys, [m.get("n") or 0 for m, _w in dated])
+    if fit["slope"] is None:
+        return {"n_points": fit["n_points"], "slope_per_month": None,
+                "span_days": (max(when for _m, when in dated) - first).days,
+                "note": fit["note"]}
+    last_x = max(xs)
+    return {
+        "n_points": len(dated),
+        "weighted_by": "episodes",
+        "slope_per_month": fit["slope"] * _DAYS_PER_MONTH,
+        # How much calendar the fit actually covers. A slope with no span is the
+        # number that invites extrapolating it past the last release.
+        "span_days": last_x,
+        "from": {"released": first.isoformat(), "rate": fit["intercept"]},
+        "to": {"released": (first + timedelta(days=last_x)).isoformat(),
+               "rate": fit["intercept"] + fit["slope"] * last_x},
+        # Two points determine a line exactly, so the fit repeats them and adds
+        # nothing. Said here rather than left for the reader to notice, and the
+        # chart repeats it.
+        "note": ("two points: the line is exact and carries nothing the two "
+                 "points do not" if len(dated) == 2 else None),
     }
 
 
@@ -398,6 +491,17 @@ def data_quality(families: dict, rates: dict, metric: str) -> dict:
         "n_models_total": len(all_models),
         "n_models_in_a_family": len(in_family),
         "models_without_a_family": sorted(all_models - in_family),
+        # An ERROR rather than a note, because unlike everything else in this
+        # block it is fixable in one edit and it silently shrinks a chart: an
+        # undated model cannot be placed on a calendar axis, so it vanishes from
+        # the release charts while still appearing in every table. Reported for
+        # the whole corpus, with the plotted ones separated out, since a
+        # singleton's missing date costs nothing - it is in no family and so on
+        # no chart either way.
+        "models_without_release_date": sorted(
+            m for m in all_models if release_date(m) is None),
+        "plotted_models_without_release_date": sorted(
+            m for m in in_family if release_date(m) is None),
         "models_below_informative_denominator": thin,
         "min_informative_denominator": MIN_INFORMATIVE_DENOMINATOR,
         "unparsed_tokens": sorted({
@@ -502,6 +606,61 @@ _LABEL_GAP = 0.06
 WILSON_NOTE = "error bars: 95% Wilson intervals"
 WILSON_NOTE_WITH_BRACKETS = (
     "error bars and [brackets]: 95% Wilson intervals")
+# The release charts draw no error bars, so the brackets are the only interval
+# on them and the note has to say so alone.
+WILSON_NOTE_BRACKETS_ONLY = "[brackets]: 95% Wilson intervals"
+
+# Every chart that draws a fitted line says what the line is. Without this a
+# dotted line through four points reads as a trend TEST, which it is not: the
+# test in this file runs on version position, and this is a description of the
+# same rates against the calendar.
+FIT_NOTE = ("dotted: least-squares fit on release date, weighted by episodes "
+            "(descriptive, no p-value)")
+
+# Where the release-date axis starts. Fixed rather than taken from the earliest
+# model, so that adding an older model does not silently rescale every chart in
+# the corpus and change what a reader remembers the spacing to look like.
+#
+# It is a FLOOR, not a hard left edge: release_span extends it leftward if a
+# model predates it, because a point drawn outside the axis is worse than an
+# axis that begins earlier than asked for.
+RELEASE_AXIS_START = date(2025, 7, 1)
+
+# Horizontal clearance and one row of vertical separation per colliding label,
+# the same mechanism the combined version chart uses. Two labels collide when
+# they are close on BOTH axes - a calendar axis puts three deepseek and gemini
+# releases within days of each other, at rates far enough apart to need no
+# stagger at all.
+_DATE_LABEL_DX = 8
+_DATE_LABEL_ROW = 11
+
+# Labels sit just ABOVE their point rather than centred on it. Centred is what
+# the combined version chart does, and it cannot work here: the newest model in
+# a family often sits at 0.0%, where a centred label straddles the x axis and
+# half of it prints over the spine.
+_DATE_LABEL_DY = 5
+
+# How high a point has to sit, as a fraction of the axis, before its label is
+# written below it instead of above. A 100% rate is a real answer in this corpus,
+# and a label above one prints over the title.
+_DATE_LABEL_CEILING = 0.88
+
+# How close two points have to be on the x axis, as a fraction of the plotted
+# span, before their labels are treated as sharing a column. Also how close to
+# the right edge a point has to be before its label is written leftward.
+_DATE_LABEL_XGAP = 0.09
+
+# Mean glyph advance as a fraction of the font size, used to estimate how wide a
+# label is before anything is drawn. Generous on purpose: over-estimating costs a
+# row of stagger that was not needed, under-estimating costs a collision.
+_LABEL_CHAR_PT = 0.6
+
+# Roughly how many points of the figure width the axes get, once the margins and
+# (on the combined chart) the legend are taken out. Only ever used to convert a
+# label's width into days, so an estimate is enough - and the figure widths it
+# divides are fixed a few lines below in the plotting calls.
+_PER_FAMILY_AXIS_PT = 540.0
+_COMBINED_AXIS_PT = 500.0
 
 
 def _point_label(member: dict, rate: float) -> str:
@@ -751,8 +910,7 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
     families = [f for f in report["families"] if f["members"]]
     if not families:
         return None
-    colours = plt.get_cmap(_PALETTE)(
-        [i % 10 for i in range(len(families))])
+    colours = _family_colours(plt, families)
 
     width = max(7, 2.0 * max(f["n_members"] for f in families))
     fig, ax = plt.subplots(figsize=(width, 5.2))
@@ -806,8 +964,8 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
                  f"({report['n_families']} families, {total} "
                  f"{report['metric_denominator_label']})", fontsize=12)
     ax.grid(axis="y", alpha=0.3)
-    legend = ax.legend(title="family", fontsize=9, title_fontsize=9,
-                       loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    ax.legend(title="family", fontsize=9, title_fontsize=9,
+              loc="upper left", bbox_to_anchor=(1.01, 1.0))
     # Under the legend rather than under the axis, because that is where a
     # reader decoding the colours is already looking.
     ax.text(1.01, 0.0, WILSON_NOTE, transform=ax.transAxes,
@@ -822,12 +980,419 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
     return path
 
 
+# ---------------------------------------------------------------------------
+# Release-date charts
+# ---------------------------------------------------------------------------
+#
+# The charts above put version POSITION on the x axis, which spaces every
+# release equally. That is the right axis for the question they answer - does a
+# rate fall as a family advances - but it hides something the answer depends on:
+# four grok releases spanning four months and four gemini releases spanning
+# eight draw the same shape on a positional axis.
+#
+# These charts put the calendar there instead, so the reader can see how much
+# time each step actually had. They draw NO LINES. A line between two releases
+# claims a path between them, and on a calendar axis that claim is stronger than
+# the data supports - nothing was measured between two release dates, and the
+# gaps are unequal, so a connecting segment invites reading a slope off empty
+# space. Points and labels only.
+
+def _member_release_date(member: dict):
+    """
+    The release date on a report member, as a date, or None when unrecorded.
+
+    Parses back from the ISO string the report stores rather than calling
+    release_date() again, so the charts plot exactly what the JSON says. A
+    malformed stamp returns None instead of raising: a chart must never be the
+    thing that stops the analysis.
+    """
+    stamp = member.get("released")
+    if not stamp:
+        return None
+    try:
+        return date.fromisoformat(stamp)
+    except (TypeError, ValueError):
+        return None
+
+
+def release_span(report: dict):
+    """
+    The (start, end) the release charts share, or None if no date is known.
+
+    ONE span across every chart in the run, computed from every plotted family
+    rather than per chart. Per-family calendars would each be scaled to their own
+    family's dates, and then the whole point - that grok's four releases are
+    tighter together than gemini's four - would be scaled away.
+
+    The end is the latest release plotted, with no padding: the axis stops where
+    the newest model is, and labels near that edge are written leftward instead.
+    """
+    dates = [d for family in report["families"] for member in family["members"]
+             if (d := _member_release_date(member))]
+    if not dates:
+        return None
+    start = min(RELEASE_AXIS_START, min(dates))
+    end = max(dates)
+    # A corpus whose models all predate the floor would otherwise ask matplotlib
+    # for a zero-width or inverted axis.
+    return (start, end if end > start else start + timedelta(days=30))
+
+
+def _label_extent(text: str, fontsize: float, axis_width_pt: float,
+                  width_days: int) -> float:
+    """
+    How wide a label is, in days of the calendar axis.
+
+    Estimated from the character count rather than measured, because the layout
+    has to run before anything is drawn and a real measurement needs a renderer.
+    An estimate is enough: the question is only whether two labels are far
+    enough apart, and _LABEL_CHAR_PT is deliberately generous.
+    """
+    widest = max((len(line) for line in text.split("\n")), default=1)
+    return width_days * (widest * fontsize * _LABEL_CHAR_PT) / max(
+        1.0, axis_width_pt)
+
+
+def _date_label_layout(points: list, span: tuple, top: float,
+                       labels: dict = None, fontsize: float = 8.0,
+                       axis_width_pt: float = 520.0) -> dict:
+    """
+    Where each point's label goes, as {key: (dx, dy, ha, va)} in points.
+
+    Same reasoning as _label_layout, and a different geometry. There the x values
+    are integer columns, so collisions can only happen within a column; here x is
+    continuous, so two labels collide when they are close on BOTH axes.
+
+    WHY THIS COMPARES BOXES AND NOT DISTANCES
+    -----------------------------------------
+    It first compared the distance between the two POINTS against a fixed gap,
+    which misses two things and produced a collision on the gemini-flash chart
+    that this replaces. A label is much wider than its point - `0.5% [0.1, 2.7]`
+    covers about 70 points, some 75 days on a 14-month axis - and a label near
+    the right edge is written LEFTWARD, so two labels 63 days apart can still
+    overlap when the left one reaches right and the right one reaches left.
+
+    So each label is given an estimated box in calendar days, on the side it is
+    actually written, and two labels share a row only when their boxes miss each
+    other or their rates are far enough apart to be on different lines anyway.
+
+    Three edges to keep a label off: the right one, where it is written leftward;
+    the top, where it is written below its point instead of above; and the x axis
+    itself, which is why the base offset is upward rather than centred.
+    """
+    start, end = span
+    width = max(1, (end - start).days)
+    ygap = top * _LABEL_GAP
+    # The offset that pushes a label clear of its own marker, in days.
+    nudge = _label_extent("x", 1.0, axis_width_pt, width) * _DATE_LABEL_DX
+    # A row has to clear the whole label, not one line of it. The per-family
+    # chart writes two lines - the version and its interval - and a row height
+    # fixed at one line stacked them ON each other, which is a collision
+    # produced by the mechanism meant to prevent one.
+    tallest = max((text.count("\n") + 1
+                   for text in (labels or {}).values()), default=1)
+    row_pt = _DATE_LABEL_ROW * tallest
+    placed, layout = [], {}
+    ordered = sorted(points, key=lambda p: ((p[1] - start).days, p[2]))
+    for key, when, rate in ordered:
+        x = (when - start).days
+        # Lean left for anything near the right edge, where a label written
+        # rightward would run past the end of the axis.
+        leans_left = x > width * (1 - _DATE_LABEL_XGAP)
+        text = (labels or {}).get(key, "xxxxxx")
+        extent = _label_extent(text, fontsize, axis_width_pt, width)
+        box = ((x - nudge - extent, x - nudge) if leans_left
+               else (x + nudge, x + nudge + extent))
+        row = 0
+        while any(prow == row and box[0] < pbox[1] and pbox[0] < box[1]
+                  and abs(rate - pr) < ygap for pbox, pr, prow in placed):
+            row += 1
+        placed.append((box, rate, row))
+        # A rate at the ceiling - 100% is a real answer here, not an artefact -
+        # has no room above it, and a label written upward from one lands on the
+        # title. Written downward it lands on empty axis.
+        offset = _DATE_LABEL_DY + row * row_pt
+        hangs_below = rate > top * _DATE_LABEL_CEILING
+        layout[key] = (-_DATE_LABEL_DX if leans_left else _DATE_LABEL_DX,
+                       -offset if hangs_below else offset,
+                       "right" if leans_left else "left",
+                       "top" if hangs_below else "bottom")
+    return layout
+
+
+def _date_axis(plt, ax, span: tuple) -> None:
+    """
+    A calendar x axis over `span`, with ticks matplotlib chooses for the width.
+
+    ConciseDateFormatter rather than a fixed month interval, because the span
+    grows by months every time a model is collected and a hand-picked interval
+    that reads well over one year crowds over three.
+    """
+    from matplotlib import dates as mdates
+    locator = mdates.AutoDateLocator(minticks=4, maxticks=9)
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+    ax.set_xlim(*span)
+
+
+def _slope_label(fit: dict) -> str:
+    """
+    The fitted slope for a legend entry, or nothing when there is no line.
+
+    Empty rather than "n/a" for a family that could not be fitted: a legend is
+    read at a glance, and the family's marker count in the same entry already
+    says why - one dated release cannot have a slope.
+    """
+    if not fit or fit.get("slope_per_month") is None:
+        return ""
+    return f", {fit['slope_per_month'] * 100:+.1f} pts/month"
+
+
+def _draw_release_fit(ax, fit: dict, colour) -> bool:
+    """
+    One family's fitted line, dotted, between its own first and last release.
+
+    Dotted rather than solid, and drawn UNDER the markers, because it is a
+    summary of the points and not a path between them: nothing was measured
+    along it. Silently draws nothing when there is no line to draw - a family
+    with one dated release, or several released on one day - since the caption
+    and the JSON both already say why.
+    """
+    if not fit or fit.get("slope_per_month") is None:
+        return False
+    start = date.fromisoformat(fit["from"]["released"])
+    end = date.fromisoformat(fit["to"]["released"])
+    ax.plot([start, end],
+            [fit["from"]["rate"] * 100, fit["to"]["rate"] * 100],
+            linestyle=":", linewidth=1.8, color=colour, alpha=0.9, zorder=2)
+    return True
+
+
+def _release_point_name(member: dict) -> str:
+    """
+    What identifies one point on a calendar axis, in one line.
+
+    The version alone is not enough and the model ID is too much. Two members of
+    a family can share a version - deepseek-v4-pro and deepseek-v4-pro-0813 are
+    both `4`, kimi-k2 and kimi-k2-thinking are both `2` - and a chart that labels
+    both points `4` reads as a mistake even though the x positions differ. So the
+    stamp and the tags come along, written the way the ID writes them.
+
+    One line rather than the three _member_labels uses: those are tick labels
+    with a column to themselves, these sit beside a point among other points.
+    """
+    name = member["version"] or "?"
+    if member["date"]:
+        name += f"-{member['date']}"
+    if member["tags"]:
+        name += f" ({','.join(member['tags'])})"
+    return name
+
+
+def _dated_members(family: dict) -> list:
+    """The members of one family that can be placed on a calendar."""
+    return [(m, _member_release_date(m)) for m in family["members"]
+            if _member_release_date(m)]
+
+
+def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
+                       colour, span: tuple, path: str):
+    """
+    One family against the calendar. Points and labels, no line.
+
+    The interval is in the label's brackets rather than as a whisker, because a
+    whisker is a line and this chart draws none; the per-family version chart is
+    where the bars are. Returns None when nothing in the family has a recorded
+    release date, so a caller writes no empty chart.
+    """
+    dated = _dated_members(family)
+    if not dated:
+        return None
+    rates = [(m["rate"] or 0) * 100 for m, _ in dated]
+    top = axis_top(rates)
+    # The labels go to the layout, not just the points: these carry the interval
+    # as well as the version, so they are several times wider than a marker and
+    # the layout cannot tell whether two of them overlap without seeing them.
+    labels = {index: f"{_release_point_name(m)}\n{_point_label(m, rate)}"
+              for index, ((m, _when), rate) in enumerate(zip(dated, rates))}
+    layout = _date_label_layout(
+        [(index, when, rate)
+         for index, ((_m, when), rate) in enumerate(zip(dated, rates))],
+        span, top, labels, fontsize=8.0,
+        axis_width_pt=_PER_FAMILY_AXIS_PT)
+
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    _draw_release_fit(ax, family.get("release_fit"), colour)
+    # clip_on=False so the newest model, which sits exactly ON the right edge
+    # by construction, draws as a whole marker rather than a half one.
+    ax.scatter([when for _m, when in dated], rates, s=90, color=colour,
+               zorder=3, edgecolors="white", linewidths=0.8, clip_on=False)
+    for index, ((member, when), rate) in enumerate(zip(dated, rates)):
+        dx, dy, ha, va = layout[index]
+        ax.annotate(labels[index], (when, rate), textcoords="offset points",
+                    xytext=(dx, dy), ha=ha, ma=ha, va=va, fontsize=8,
+                    color="#333333",
+                    # The fitted line crosses the middle of the panel, and
+                    # without a backing it draws straight through whichever
+                    # label sits there.
+                    bbox={"boxstyle": "round,pad=0.15", "fc": "white",
+                          "ec": "none", "alpha": 0.85})
+    _date_axis(plt, ax, span)
+    ax.set_ylim(0, top)
+    ax.set_ylabel(f"{metric_label} (%)")
+    ax.set_xlabel(f"release date    ({WILSON_NOTE_BRACKETS_ONLY})")
+    total = sum(m["n"] or 0 for m, _ in dated)
+    title = (f"{family['family']} by release date - {len(dated)} version(s), "
+             f"{total} {den_label}")
+    ax.set_title(title, fontsize=11)
+    fit = family.get("release_fit")
+    if fit and fit.get("slope_per_month") is not None:
+        # The slope in words as well as in ink, because a dotted line's gradient
+        # cannot be read off an axis and this is the number a write-up quotes.
+        caption = (f"{FIT_NOTE}: {fit['slope_per_month'] * 100:+.1f} "
+                   f"points/month over {fit['span_days']} days")
+        # A second LINE rather than a longer one: bbox_inches="tight" grows the
+        # canvas to fit whatever is widest, so appending the two-point note
+        # inline stretched the figure to half again its width and squeezed the
+        # axes into the left of it.
+        if fit.get("note"):
+            caption += f"\n{fit['note']}"
+        # BELOW the axis, not above it. Above, this ran straight through the
+        # title - it is a long line, and the title is centred in the same band.
+        ax.text(0.0, -0.20, caption, transform=ax.transAxes, fontsize=8,
+                color="#555555", va="top")
+    # Said on the chart rather than only in the console, because a chart that
+    # quietly holds three of a family's four versions misleads on its own.
+    omitted = family["n_members"] - len(dated)
+    if omitted:
+        # Below the fit caption, which now occupies the first line under the
+        # axis, so the two do not print on each other.
+        ax.text(0.0, -0.27,
+                f"! {omitted} version(s) omitted: no release date recorded in "
+                f"model_releases.py",
+                transform=ax.transAxes, fontsize=8, color="#b00020")
+    ax.grid(axis="y", alpha=0.3)
+    ax.grid(axis="x", alpha=0.15)
+    fig.tight_layout()
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
+    """
+    Every family on one calendar, coloured by family. Points and labels only.
+
+    This is the chart the release dates were recorded for: it puts every model in
+    the corpus on a single time axis, so a rate that looks like a family trend
+    can be checked against the possibility that it is a date trend running
+    through all of them at once.
+
+    The only line is one dotted least-squares fit per family, drawn between that
+    family's own first and last release. No connecting lines, for a second reason
+    on top of the one above: the families interleave on a calendar in a way they
+    cannot on a position axis, so five joined-up families would cross into an
+    unreadable mesh, while five straight fits stay legible.
+    """
+    families = [f for f in report["families"] if _dated_members(f)]
+    if not families:
+        return None
+    top = axis_top([(m["rate"] or 0) * 100
+                    for f in families for m, _ in _dated_members(f)])
+    points, labels = [], {}
+    for index, family in enumerate(families):
+        for position, (member, when) in enumerate(_dated_members(family)):
+            key = (index, position)
+            points.append((key, when, (member["rate"] or 0) * 100))
+            labels[key] = _release_point_name(member)
+    layout = _date_label_layout(points, span, top, labels, fontsize=7.5,
+                                axis_width_pt=_COMBINED_AXIS_PT)
+
+    fig, ax = plt.subplots(figsize=(11, 5.6))
+    fitted = 0
+    for index, (family, colour) in enumerate(zip(families, colours)):
+        dated = _dated_members(family)
+        fitted += _draw_release_fit(ax, family.get("release_fit"), colour)
+        # Semi-transparent because two families can land on the same point and
+        # a calendar axis gives no honest way to separate them: grok-4.6 and
+        # deepseek-v4-pro-0813 shipped on the same day at 3.33% and 3.36%, and
+        # an opaque marker would hide one entirely. Blended, the overlap is at
+        # least visible, and both labels are drawn either way.
+        ax.scatter([when for _m, when in dated],
+                   [(m["rate"] or 0) * 100 for m, _ in dated],
+                   s=90, color=colour, zorder=3, edgecolors="white",
+                   linewidths=0.8, clip_on=False, alpha=0.85,
+                   # The slope goes in the legend, not on the line: five
+                   # gradients cannot be read off a shared axis, and a caption
+                   # per line would land in the middle of the data.
+                   label=f"{family['family']}  "
+                         f"({len(dated)} of {family['n_members']} dated"
+                         f"{_slope_label(family.get('release_fit'))})")
+    for key, when, rate in points:
+        dx, dy, ha, va = layout[key]
+        colour = colours[key[0] % len(colours)]
+        ax.annotate(labels[key], (when, rate),
+                    textcoords="offset points", xytext=(dx, dy), ha=ha,
+                    va=va, fontsize=7.5, color=colour,
+                    # Families interleave on a calendar, so a label with no
+                    # backing lands on another family's point - and now on
+                    # another family's fitted line, which is why this is more
+                    # opaque than the version chart's equivalent.
+                    bbox={"boxstyle": "round,pad=0.15", "fc": "white",
+                          "ec": "none", "alpha": 0.85})
+    _date_axis(plt, ax, span)
+    ax.set_ylim(0, top)
+    ax.set_xlabel("release date (point labels give the version)")
+    ax.set_ylabel(f"{report['metric_label']} (%)")
+    total = sum(m["n"] or 0 for f in families for m, _ in _dated_members(f))
+    plotted = sum(len(_dated_members(f)) for f in families)
+    ax.set_title(f"{report['metric_label']} by release date "
+                 f"({len(families)} families, {plotted} models, {total} "
+                 f"{report['metric_denominator_label']})", fontsize=12)
+    ax.grid(axis="y", alpha=0.3)
+    ax.grid(axis="x", alpha=0.15)
+    ax.legend(title="family", fontsize=9, title_fontsize=9,
+              loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    if fitted:
+        # Under the legend, where a reader decoding the lines is already looking,
+        # and wrapped because the note is longer than the legend is wide.
+        ax.text(1.01, 0.0, FIT_NOTE.replace(", weighted", ",\nweighted"),
+                transform=ax.transAxes, fontsize=8, va="bottom",
+                color="#444444")
+    missing = report["data_quality"]["plotted_models_without_release_date"]
+    if missing:
+        ax.text(0.0, -0.16,
+                f"! {len(missing)} model(s) omitted: no release date recorded "
+                f"in model_releases.py",
+                transform=ax.transAxes, fontsize=8, color="#b00020")
+    fig.tight_layout()
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def _family_colours(plt, families: list):
+    """
+    One colour per family, by position in the family list.
+
+    Shared by every chart that colours by family so a family keeps its colour
+    across them. By position rather than hashed, because a hash reorders the
+    whole palette whenever a family is added.
+    """
+    return plt.get_cmap(_PALETTE)([i % 10 for i in range(len(families))])
+
+
 def write_charts(report: dict, chart_dir: str) -> list:
     """
-    One chart per family plus one combined chart. Returns the paths written.
+    One chart per family plus one combined, against version order and again
+    against release date. Returns the paths written.
 
     Empty when matplotlib is absent, which is not an error: the same numbers are
     in the table and the JSON.
+
+    A missing release date is reported and then worked around: the release charts
+    drop that model, every other chart is unaffected, and nothing here returns a
+    failure. The report has already printed by the time this runs.
     """
     plt = _import_pyplot()
     if plt is None:
@@ -845,6 +1410,31 @@ def write_charts(report: dict, chart_dir: str) -> list:
         plt, report, os.path.join(chart_dir, f"family_{metric}_all.png"))
     if combined:
         written.append(combined)
+
+    span = release_span(report)
+    if span is None:
+        print("\n!! ERROR: no release date is recorded for any model in a "
+              "family, so the release-date charts were skipped. Add them to "
+              "RELEASE_DATES in model_releases.py. Every other chart, the "
+              "table above and the JSON are unaffected.")
+        return written
+    # Colours are taken from the same list _plot_all_families enumerates, so a
+    # family is the same colour on the combined version chart, the combined
+    # release chart and its own release chart.
+    drawn = [f for f in report["families"] if f["members"]]
+    colours = _family_colours(plt, drawn)
+    for family, colour in zip(drawn, colours):
+        slug = family["family"].replace("/", "_")
+        path = os.path.join(chart_dir, f"release_{metric}_{slug}.png")
+        if _plot_family_dates(plt, family, report["metric_label"],
+                              report["metric_denominator_label"], colour,
+                              span, path):
+            written.append(path)
+    combined_dates = _plot_all_family_dates(
+        plt, report, colours, span,
+        os.path.join(chart_dir, f"release_{metric}_all.png"))
+    if combined_dates:
+        written.append(combined_dates)
     return written
 
 
@@ -905,7 +1495,29 @@ def _print_family(family: dict) -> None:
         print(f"  first vs last: {fl['difference']:+.1%}  "
               f"95% CI [{fl['difference_ci95'][0]:+.1%}, "
               f"{fl['difference_ci95'][1]:+.1%}]  p={fl['p']:.4g}")
+    _print_release_fit(family.get("release_fit"))
     print(f"\n  => {family['verdict']}")
+
+
+def _print_release_fit(fit: dict) -> None:
+    """
+    The slope the release charts draw as a dotted line.
+
+    Printed so that the line on the chart is a second reading of a number in the
+    report rather than the only place it exists. Labelled descriptive on every
+    line it appears on: it has no p-value, and the trend test two lines above it
+    does, so a reader skimming could easily take one for the other.
+    """
+    if not fit:
+        return
+    if fit.get("slope_per_month") is None:
+        print(f"  release-date fit: none ({fit.get('note')})")
+        return
+    note = f"  - {fit['note']}" if fit.get("note") else ""
+    print(f"  release-date fit (descriptive, no p-value): "
+          f"{fit['slope_per_month'] * 100:+.1f} points/month across "
+          f"{fit['span_days']} days and {fit['n_points']} "
+          f"dated release(s){note}")
 
 
 def _print_report(report: dict) -> None:
@@ -961,6 +1573,31 @@ def _print_report(report: dict) -> None:
     if dq["unparsed_tokens"]:
         print(f"  ! tokens the parser did not recognise: "
               f"{', '.join(dq['unparsed_tokens'])}")
+    _print_release_date_errors(dq)
+
+
+def _print_release_date_errors(dq: dict) -> None:
+    """
+    Name every model with no recorded release date, loudly, and carry on.
+
+    Louder than the warnings above it because it is the only line in the block
+    that names a fix, and quieter than a failure because nothing above it
+    depends on a release date: an undated model is missing from the release
+    charts and present in every table, trend, interval and p-value. Stopping the
+    analysis over a chart would be the wrong trade, so this returns nothing and
+    changes no exit code.
+    """
+    missing = dq["models_without_release_date"]
+    if not missing:
+        return
+    plotted = dq["plotted_models_without_release_date"]
+    print(f"\n  !! ERROR: no release date recorded for {len(missing)} "
+          f"model(s): {', '.join(missing)}")
+    print(f"     Add them to RELEASE_DATES in model_releases.py. "
+          f"{len(plotted)} of them sit in a family and are therefore MISSING "
+          f"from the release-date charts;")
+    print("     every figure above is unaffected, and so is every "
+          "version-order chart.")
 
 
 def main() -> int:
@@ -991,7 +1628,8 @@ def main() -> int:
     parser.add_argument("--chart-dir", default=None,
                         help="where to write the PNG charts (default: "
                              "charts/ inside --output-dir). One per family plus "
-                             "one combined; needs the 'charts' extra")
+                             "one combined, against version order and again "
+                             "against release date; needs the 'charts' extra")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the charts. Every figure they plot is in the "
                              "table and the JSON either way")

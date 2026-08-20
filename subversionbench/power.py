@@ -798,6 +798,60 @@ def step_directions(rates: list) -> dict:
     }
 
 
+def weighted_least_squares(xs: list, ys: list, weights: list = None) -> dict:
+    """
+    The straight line through (x, y), each point weighted by `weights`.
+
+    Returns {"slope", "intercept", "n_points", "note"}, with slope and intercept
+    None where no line is defined: fewer than two points, or every point at the
+    same x. Those are not slopes of zero - there is nothing to fit - and
+    returning 0.0 would put "flat" and "unfittable" in the same bucket, the same
+    distinction cochran_armitage draws above.
+
+    WHY WEIGHTS, AND WHY THESE ONES
+    -------------------------------
+    The caller passes episode counts. A rate measured on 239 episodes is a
+    better estimate than one measured on 120, and an unweighted fit treats them
+    as equals.
+
+    n-weighting rather than inverse-variance weighting, which is the textbook
+    choice for exactly this: inverse variance needs p(1-p)/n, and a rate of 0/120
+    - which this corpus has several of - gives a variance of zero and therefore
+    infinite weight, so one model with no misaligned episodes would drag the
+    whole line onto itself. n is monotone in precision without that failure.
+
+    This is a DESCRIPTIVE fit. It carries no p-value and no interval, and
+    nothing here tests whether the slope differs from zero: the trend test in
+    this corpus is cochran_armitage on version position, and a second test on a
+    second x axis would be a second bite at the same data.
+    """
+    out = {"n_points": len(xs), "slope": None, "intercept": None, "note": None}
+    if len(xs) != len(ys):
+        raise ValueError("xs and ys must be the same length")
+    if len(xs) < 2:
+        out["note"] = "fewer than two points"
+        return out
+    weights = [1.0] * len(xs) if weights is None else list(weights)
+    # A zero-weight point would otherwise silently vanish from a fit that still
+    # reports it in n_points.
+    usable = [(x, y, w) for x, y, w in zip(xs, ys, weights) if w and w > 0]
+    if len(usable) < 2:
+        out["note"] = "fewer than two points with a positive weight"
+        return out
+    total_w = sum(w for _x, _y, w in usable)
+    x_bar = sum(w * x for x, _y, w in usable) / total_w
+    y_bar = sum(w * y for _x, y, w in usable) / total_w
+    denominator = sum(w * (x - x_bar) ** 2 for x, _y, w in usable)
+    if denominator <= 0:
+        out["note"] = "every point sits at the same x; no line to fit"
+        return out
+    slope = sum(w * (x - x_bar) * (y - y_bar) for x, y, w in usable) / denominator
+    out["slope"] = slope
+    out["intercept"] = y_bar - slope * x_bar
+    out["n_points_used"] = len(usable)
+    return out
+
+
 def sign_test(n_down: int, n_up: int) -> dict:
     """
     Whether steps fall more often than they rise, over every family pooled.
