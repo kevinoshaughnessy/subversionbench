@@ -313,7 +313,15 @@ def load_episodes(output_dir: str) -> list:
             if not by_variant:
                 continue
             levels, provenance = {}, {}
-            for variant, answers in by_variant.items():
+            # The default arm is synthesised from the HEADLINE field rather than
+            # read out of the map, so it survives the map not holding a copy of
+            # it. reinterrogate._drop_copied_default deletes that copy on
+            # purpose - it is stale by construction - and iterating the map
+            # alone therefore lost the default side of every phrasing
+            # comparison on any episode that had been through --reinterrogate.
+            for variant in list(by_variant) + [
+                    v for v in (DEFAULT_INTERROGATION,) if v not in by_variant]:
+                answers = by_variant.get(variant)
                 if variant == DEFAULT_INTERROGATION:
                     level = concealment_level(analysis, act)
                     source = analysis.get(act["followup_key"]) or []

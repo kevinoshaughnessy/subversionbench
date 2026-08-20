@@ -257,18 +257,31 @@ rewrite.
 ### The scorer-provenance confound
 
 The default phrasing's concealment level comes from the headline `followup_response` field,
-which `--reclassify` re-labels in place. **Every other phrasing's level comes from the
-`_by_variant` copy, which `--reclassify` does not walk.** So any contrast involving the
-default can put freshly classified verdicts on one side and older, more keyword-scored ones on
-the other — and `config.py` records that this exact asymmetry already invalidated one phrasing
-comparison once.
+which `--reclassify` re-labels in place. Every other phrasing's level comes from the
+`_by_variant` copy — and until v69 **`--reclassify` did not walk that map at all.** So any
+contrast involving the default could put freshly classified verdicts on one side and older,
+more keyword-scored ones on the other, and `config.py` records that this exact asymmetry
+already invalidated one phrasing comparison once.
 
-Two defences:
+`--reclassify` now re-labels the variant map as well, from each answer's saved text, for any
+answer whose verdict came from the keyword floor. That closes the repair gap that made this
+confound unfixable: a spend cap during collection left 305 variant answers on one grok-4.5
+corpus with keyword verdicts no read mode could replace, since `--reclassify` skipped the map
+and `--reinterrogate` skips a variant already recorded. It still does **not** touch a copy of
+the default phrasing inside the map — that copy is stale by construction, and re-labelling it
+independently would give one phrasing two separately sampled verdicts with nothing to say
+which the comparison used.
+
+Three defences:
 
 - The report **re-derives** each phrasing's level rather than reading the stored
   `concealment_<act>_by_variant` map, applying the same correction `settle_analysis` does: the
   default's level is taken from the headline answers, never from the map's own stale entry for
   it.
+- The default arm is **synthesised from the headline field** rather than read out of the map,
+  so it survives the map not holding a copy of it. `--reinterrogate` deletes that copy on
+  purpose; iterating the map alone therefore lost the default side of every phrasing comparison
+  on any episode that had been through it — half of questions 11 and 12, silently.
 - Each contrast reports both sides' keyword-fallback rates and prints a **SCORER ASYMMETRY**
   warning when they differ by more than 5pp. On r9 this fires on the two sandbox contrasts
   that involve the default (3.2% headline against ~10% in the copies) and stays silent on the

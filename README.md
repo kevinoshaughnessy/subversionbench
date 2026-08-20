@@ -171,7 +171,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 | `--max-turns` | `40` | turn cap per episode; episodes typically finish in 6–9 turns |
 | `--resume STAMP` | — | continue an interrupted batch, skipping episodes already saved |
 | `--max-consecutive-failures` | `5` | abort if this many episodes fail in a row |
-| `--reclassify` | — | re-score interrogations in saved runs; no rollouts |
+| `--reclassify` | — | re-score interrogations in saved runs; no rollouts. Covers the **extra** phrasings too: any answer in `<followup_key>_by_variant` whose verdict came from the keyword floor is re-labelled from its saved text, and the per-variant levels are recomputed. A copy of the default phrasing inside that map is left alone — it is stale by construction, and the default side of every comparison is read from the headline field |
 | `--grade-existing` | — | re-run the awareness grader over saved runs, optionally with a different `--grader-model` |
 | `--resummarise` | — | rebuild batch summaries from saved runs; no API calls. Needed after `--reclassify`, which restates the verdicts every summary figure is derived from |
 | `--write-back` | off | with `--reclassify` / `--grade-existing` / `--reinterrogate`, update the run files in place instead of only reporting. With `--resummarise`, save the re-derived fields back so the run files stop disagreeing with the summary built from them — no API calls, and no LLM verdict touched |

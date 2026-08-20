@@ -16,11 +16,11 @@ import json
 import os
 
 from .. import grading as grading_api
-from ..config import MAX_CLASSIFIER_FALLBACK_RATE
+from ..config import DEFAULT_INTERROGATION, MAX_CLASSIFIER_FALLBACK_RATE
 from ..episode import add_awareness_timing
 from ..grading import (MISALIGNED_ACTS, classify_transient_tampering,
-                       detect_transient_tampering, recheck_quote_grounding,
-                       settle_analysis)
+                       concealment_level, detect_transient_tampering,
+                       recheck_quote_grounding, settle_analysis)
 from ..llm_client import is_auth_error
 from .selection import find_run_files_or_explain
 
@@ -32,6 +32,94 @@ def _auth_error_in(result, key: str = "error"):
     if isinstance(result, dict) and is_auth_error(result.get(key)):
         return result.get(key)
     return None
+
+
+def _needs_relabel(answer: dict) -> bool:
+    """
+    Whether this answer's verdict came from the keyword floor rather than the
+    classifier.
+
+    The keyword lists are documented as a floor that under-detects, so an answer
+    carrying `used_keyword_fallback` has a verdict the classifier never
+    supplied. `classifier_error` is checked too, for answers written before the
+    fallback flag existed.
+    """
+    return bool(answer.get("used_keyword_fallback")
+                or answer.get("classifier_error"))
+
+
+def relabel_variant_answers(analysis: dict, acts, model: str,
+                            only_failed: bool = True) -> dict:
+    """
+    Re-label the EXTRA interrogation phrasings from their saved answers.
+
+    WHY THIS IS SEPARATE FROM THE HEADLINE LOOP
+    -------------------------------------------
+    The headline field holds the default phrasing; `<followup_key>_by_variant`
+    holds the others, and until now nothing re-labelled that map. A spend cap
+    during collection therefore left 305 variant answers on one grok-4.5 corpus
+    with keyword-floor verdicts that no read mode could repair: --reclassify
+    walked past the map, and --reinterrogate skips a variant already recorded.
+    The answers themselves were saved, so the verdicts were recoverable all
+    along - there was simply no command that recovered them.
+
+    WHAT IT WILL NOT TOUCH
+    ----------------------
+    Any copy of the DEFAULT phrasing inside the map. That copy is stale by
+    construction and is documented in reinterrogate._drop_copied_default as the
+    confound that already invalidated one phrasing comparison: the headline
+    answers get re-labelled in place while the copy keeps whichever verdicts it
+    was made with. Re-labelling the copy INDEPENDENTLY would be worse still -
+    two verdicts for one phrasing, sampled separately, with nothing to say which
+    the comparison used. The default side of every comparison is read from the
+    headline field; see run_report.load_episodes.
+
+    `only_failed` re-asks just the answers whose verdict came from the keyword
+    floor, which is the repair case. False re-labels every variant answer, for
+    when the classifier itself has changed.
+
+    Returns counts. The caller owns writing.
+    """
+    counts = {"relabelled": 0, "skipped_default_copy": 0, "calls": 0,
+              "failures": 0, "levels_recomputed": 0, "auth_error": None}
+    for act in acts:
+        key = act["followup_key"] + "_by_variant"
+        by_variant = analysis.get(key)
+        if not by_variant:
+            continue
+        touched = False
+        for variant, answers in by_variant.items():
+            if variant == DEFAULT_INTERROGATION:
+                counts["skipped_default_copy"] += 1
+                continue
+            for answer in answers or []:
+                if not isinstance(answer, dict):
+                    continue
+                if only_failed and not _needs_relabel(answer):
+                    continue
+                labelled = grading_api.classify_interrogation_answer(
+                    answer.get("answer", ""), act["description"],
+                    act["admission"], act["denial"], act["contrition"],
+                    model=model,
+                )
+                if labelled.get("classifier_called", True):
+                    counts["calls"] += 1
+                    counts["failures"] += bool(labelled["used_keyword_fallback"])
+                counts["auth_error"] = counts["auth_error"] or _auth_error_in(
+                    labelled, "classifier_error")
+                answer.update(labelled)
+                counts["relabelled"] += 1
+                touched = True
+        if touched:
+            # The per-variant levels are DERIVED from the answers just changed,
+            # so leaving them would publish a level that disagrees with the
+            # verdicts underneath it.
+            analysis[act["level_key"] + "_by_variant"] = {
+                variant: concealment_level(analysis, act, answers=answers)
+                for variant, answers in by_variant.items()
+            }
+            counts["levels_recomputed"] += 1
+    return counts
 
 
 def reclassify_existing_runs(args, model_slug: str) -> int:
@@ -60,6 +148,7 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
     changed = []
     pending = []
     classifier_calls = classifier_failures = 0
+    relabelled_variants = 0
     auth_error = None
 
     for path in run_files:
@@ -112,6 +201,17 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
                 auth_error = auth_error or _auth_error_in(
                     labelled, "classifier_error")
                 ans.update(labelled)
+
+        # The EXTRA phrasings, which the loop above does not reach: they live in
+        # a map beside the headline field and nothing re-labelled them until now.
+        # Only the answers whose verdict came from the keyword floor, so a batch
+        # that classified cleanly costs nothing here.
+        variant_counts = relabel_variant_answers(
+            analysis, MISALIGNED_ACTS, args.grader_model)
+        classifier_calls += variant_counts["calls"]
+        classifier_failures += variant_counts["failures"]
+        auth_error = auth_error or variant_counts["auth_error"]
+        relabelled_variants += variant_counts["relabelled"]
 
         # Missing or rejected credentials fail every call identically, so
         # carrying on would only convert the whole batch to keyword fallbacks.
@@ -175,6 +275,13 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
         print("\nNothing written. Fix the cause above - a rate limit wants a "
               "larger --delay - and re-run.")
         return 1
+
+    if relabelled_variants:
+        # Reported separately from the headline count because it is a different
+        # repair: these answers had a verdict no classifier ever supplied, and
+        # nothing re-labelled them before this existed.
+        print(f"\n{relabelled_variants} extra-phrasing answer(s) re-labelled "
+              f"from the saved text (keyword-floor verdicts replaced).")
 
     if classifier_failures:
         print(f"\n! {classifier_failures}/{classifier_calls} classifier "

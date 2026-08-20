@@ -10,6 +10,55 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v69
+
+Package version `69.0.0`. Analysis only - no scenario change, no rollout bump.
+
+- **`--reclassify` now re-labels the EXTRA interrogation phrasings.** The
+  headline field holds the default phrasing and `<followup_key>_by_variant`
+  holds the others, and nothing walked that map. So a spend cap during
+  collection left 305 variant answers on the grok-4.5 corpus carrying
+  keyword-floor verdicts that NO read mode could repair: `--reclassify` skipped
+  the map, and `--reinterrogate` skips any variant already recorded. The answers
+  themselves were saved, so the verdicts were recoverable the whole time - there
+  was simply no command that recovered them.
+
+  `relabel_variant_answers` re-asks the classifier for any variant answer whose
+  verdict came from the keyword floor (`used_keyword_fallback`, or a
+  `classifier_error` on answers predating that flag), then recomputes
+  `<level_key>_by_variant` from the answers it changed. A batch that classified
+  cleanly costs nothing, and an auth failure surfaces so the whole pass still
+  fails closed.
+
+  It does NOT touch a copy of the default phrasing inside the map. That copy is
+  stale by construction - `reinterrogate._drop_copied_default` documents it as
+  the confound that already invalidated one phrasing comparison - and
+  re-labelling it independently would be worse than leaving it: one phrasing
+  would carry two separately sampled verdicts with nothing to say which the
+  comparison used.
+
+  Worth being clear about what was and was not damaged on r9: the headline
+  `followup_response` had ZERO spend-cap failures and `sandbox_followup_response`
+  had nine (none of them the cap), so grok-4.5's headline concealment and
+  scheming rates were essentially intact. The damage was concentrated in the
+  variant maps, i.e. in questions 11 and 12.
+
+- **The default arm of questions 11-12 no longer depends on a stale copy.**
+  `run_report.load_episodes` iterated the variant map to find its arms, so the
+  default arm existed only because a copy of it happened to be in there.
+  `--reinterrogate` deletes that copy on purpose, which meant any episode that
+  had been through it silently lost the default side of every phrasing
+  comparison - half of both questions. The default arm is now synthesised from
+  the headline field regardless of what the map holds.
+
+- **No content refusal has ever occurred in this corpus.** Classifying every
+  stored grader and classifier failure across 3,451 episodes: 305 spend-cap
+  (HTTP 400, rejected at the gateway before inference), 54 empty-reply, 3
+  overloaded (529), 2 non-JSON, and zero refusals of any kind. Recorded here
+  because "the classifier refused" was a natural reading of the truncated
+  message v67 fixed, and it points at the transcripts when the cause was
+  billing.
+
 ## v68
 
 Package version `68.0.0`. Analysis only - no scenario change, no rollout bump,
