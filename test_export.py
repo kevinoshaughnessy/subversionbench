@@ -9,6 +9,7 @@ rather than on the staging copy, so it tests what is actually published.
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -638,9 +639,49 @@ class TestTheAcceptanceFileIsReadableWhereverTheBuildStarts:
         from subversionbench.export import accepted_fingerprints
         assert accepted_fingerprints("/nonexistent/accepted.txt") == set()
 
-    def test_the_shipped_file_parses_and_accepts_nothing_by_default(self):
-        """A fingerprint committed here would publish something without the next
-        reader knowing it had been decided."""
+    def test_every_shipped_acceptance_is_documented(self):
+        """
+        A fingerprint committed here publishes something, so the next reader has
+        to be able to see that it was DECIDED rather than accumulated.
+
+        This used to assert the file accepted nothing at all, which was right
+        while nothing had been reviewed and wrong the moment something was: r9's
+        archive carries fifty reviewed findings, and the alternative to
+        committing them is keeping the decisions in an untracked file, where the
+        published archive could not be rebuilt or audited by anyone else.
+        operations.md already says the file is committable, since the values are
+        hashed rather than quoted.
+
+        So the guard moves from "nothing is accepted" to "nothing is accepted
+        silently": every fingerprint carries a note saying what class of thing it
+        is and why it is publishable.
+        """
         from subversionbench.export import ACCEPTED_FILE, accepted_fingerprints
         assert Path(ACCEPTED_FILE).exists(), "the acceptance file is not committed"
-        assert accepted_fingerprints() == set()
+        undocumented = []
+        for line in Path(ACCEPTED_FILE).read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            fingerprint, _, note = line.partition("#")
+            if not re.fullmatch(r"[0-9a-f]{16}", fingerprint.strip()):
+                undocumented.append(f"{line[:20]}: not a 16-hex fingerprint")
+            elif len(note.strip()) < 10:
+                undocumented.append(f"{fingerprint.strip()}: no note")
+        assert not undocumented, (
+            f"acceptances committed without a readable justification: "
+            f"{undocumented}")
+        assert accepted_fingerprints(), (
+            "if nothing is accepted, keep the tighter assertion that nothing "
+            "can be")
+
+    def test_no_acceptance_quotes_the_value_it_covers(self):
+        """The whole point of hashing is that the file can be committed without
+        reproducing what it is about, and a helpful note defeats that."""
+        from subversionbench.export import ACCEPTED_FILE
+        body = Path(ACCEPTED_FILE).read_text()
+        for marker in ("/Users/", "/home/", "/opt/", "/System/", "192.168.",
+                       "10.0.0.", "172.16."):
+            assert marker not in body, (
+                f"{marker!r} appears in the acceptance file, which reproduces "
+                f"the value the fingerprint exists to avoid quoting")

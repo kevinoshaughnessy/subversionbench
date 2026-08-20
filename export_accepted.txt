@@ -17,6 +17,69 @@
 # Format:
 #     <16 hex chars>  # short note on what it is and why it is publishable
 #
-# Nothing is accepted yet. The four archives currently hold findings in a handful of
-# episodes; read them before deciding, since dropping those episodes is cleaner than
-# accepting them.
+# r9, reviewed 2026-08-20. Fifty findings across 3,577 episodes, none of them a
+# credential. Four kinds, and every one was judged on what it would actually reveal:
+#
+#   - home directory names models COMPOSED while writing example paths. This host is
+#     macOS and has no such directory, so these identify nothing.
+#   - install, package-manager and OS framework prefixes. They say "macOS with a
+#     package manager", which is true of millions of machines.
+#   - RFC 1918 ranges a model named while reasoning about networks, not host addresses.
+#   - invisible characters in model output. The one concentration is a partial
+#     transcript from an episode that read 5.9M characters of binary and overran its
+#     context; the characters are decoding damage, not an encoded message.
+#
+# Dropping the episodes was the alternative and was rejected: the findings cluster in
+# episodes where models explored the filesystem, which is the behaviour this benchmark
+# measures, so removing them would bias the corpus in the direction of the result.
+
+06a0e2d87036ce72  # home directory name a model composed; no such path on this host
+0ed376c63169bceb  # invisible character in model output; emoji or decoding artefact
+12fc25e0f305738a  # command reading a system binary; content is OS-generic
+14b563411cb19d59  # OS framework path, generic to the OS release
+1fd9e3ecc5a78887  # standard install prefix, generic to the OS
+2dff52cb2d1ac442  # invisible character in model output; emoji or decoding artefact
+3242914152b355d5  # home directory name a model composed; no such path on this host
+370c1a3662ef0b6b  # invisible character in model output; emoji or decoding artefact
+38606adb67d0655c  # standard install prefix, generic to the OS
+3baea1b5f7b2e28f  # command reading a system binary; content is OS-generic
+3c158de667e75804  # command reading a system binary; content is OS-generic
+3f9ff5aa5c7a742b  # invisible character in model output; emoji or decoding artefact
+43e86bf0e21423ed  # invisible character in model output; emoji or decoding artefact
+44d44ae891e5d0f4  # command reading a system binary; content is OS-generic
+4c73afd5d4894a6c  # standard install prefix, generic to the OS
+4d1b404a2ba65bb3  # home directory name a model composed; no such path on this host
+4ecda1cb96266690  # invisible character in model output; emoji or decoding artefact
+4fb0798e0eb02d53  # RFC 1918 range named by a model, not a host address
+4fb08ca1a1401416  # invisible character in model output; emoji or decoding artefact
+50bdc3ebbbf4b3c3  # RFC 1918 range named by a model, not a host address
+5da4236dba69f926  # RFC 1918 range named by a model, not a host address
+616913ec128e67a5  # home directory name a model composed; no such path on this host
+67958a52010ace22  # command reading a system binary; content is OS-generic
+67e0142bdc18c8dd  # RFC 1918 range named by a model, not a host address
+7373bfb4874be9c8  # home directory name a model composed; no such path on this host
+7744c256a6ea5d3a  # OS framework path, generic to the OS release
+7a10f97af2757d30  # home directory name a model composed; no such path on this host
+7c1941b6c9cd831f  # command reading a system binary; content is OS-generic
+7d6b3105e645c210  # command reading a system binary; content is OS-generic
+81c658a323610041  # invisible character in model output; emoji or decoding artefact
+83f162a385c7b0e9  # command reading a system binary; content is OS-generic
+90471848c8117c3c  # invisible character in model output; emoji or decoding artefact
+9892519729940d64  # home directory name a model composed; no such path on this host
+9fb7cc9bce26b745  # invisible character in model output; emoji or decoding artefact
+a0a553ce89f8eef5  # command reading a system binary; content is OS-generic
+a636435b2a3adb39  # invisible character in model output; emoji or decoding artefact
+a880e1f3b52bff13  # home directory name a model composed; no such path on this host
+b0d56c1d28390f7e  # RFC 1918 range named by a model, not a host address
+b1d8c89ca53dd154  # home directory name a model composed; no such path on this host
+b34b7a15cf631544  # invisible character in model output; emoji or decoding artefact
+b7c77f7fccd4831d  # command reading a system binary; content is OS-generic
+c2d97f636d918995  # home directory name a model composed; no such path on this host
+c5eb5a4cc76a5cdb  # RFC 1918 range named by a model, not a host address
+d76af373b470dde8  # home directory name a model composed; no such path on this host
+d7f6a203f8d44226  # command reading a system binary; content is OS-generic
+d7fc65be60a6ad43  # package manager prefix, generic to the OS
+ef4cd7ef21cd7522  # command reading a system binary; content is OS-generic
+f4e48e664a603543  # invisible character in model output; emoji or decoding artefact
+f7a7c4f39549eda5  # OS framework path, generic to the OS release
+fbb66b585c1e7575  # home directory name a model composed; no such path on this host
