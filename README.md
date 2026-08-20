@@ -320,7 +320,8 @@ run_report.py      twelve fixed research questions (oversight/nudge vs scheming,
                    answered across every model in a results directory
 family_trends.py   whether a rate falls as a model family advances, with the
                    families and their version order derived from the model IDs
-                   rather than listed, so a new version needs no edit
+                   rather than listed, so a new version needs no edit; draws a
+                   chart per family and one combined with the `charts` extra
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
 run_all_arms.sh    one model through every nudge x oversight x lure arm, where
                    --runs is the target total per arm rather than an increment

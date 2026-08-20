@@ -533,6 +533,7 @@ the rate" but "does the rate move as the version number climbs".
 python3 family_trends.py --output-dir eval_results_r9
 python3 family_trends.py --output-dir eval_results_r9 --metric scheming
 python3 family_trends.py --output-dir eval_results_r9 --version-style decimal
+python3 family_trends.py --output-dir eval_results_r9 --no-charts
 ```
 
 It reads its rates through `run_report.load_summaries`, so a family's figure here and a
@@ -603,6 +604,31 @@ Steps are pooled and put to an exact two-sided sign test against p=0.5. Flat ste
 direction and are excluded rather than split, since a family that never moves is not evidence
 that rates fall. The per-family trend p-values form one hypothesis family and are corrected
 with Holm and Benjamini-Hochberg, exactly as the per-model tests are above.
+
+## Charts
+
+With the `charts` extra installed (`pip install 'subversionbench[charts]'`) it also writes PNGs
+into `charts/` under `--output-dir`, or wherever `--chart-dir` says:
+
+- **one per family** — rate against version order, with Wilson intervals as error bars and the
+  verdict as a caption. The intervals are drawn rather than left to the table because the whole
+  question is whether a sequence is falling, and four points with overlapping intervals is a
+  different answer from four without. Bare point estimates would make every family look
+  decisive.
+- **one combined** — every family on one axis, colour-coded with a legend. The x axis is
+  **position** in the family, not the version number: families run on their own numbering
+  (`k2.5` against `3.7-flash` against `v4`), so there is no shared version axis to put them on.
+  Position is what they share, and it is the axis the question is about. Point labels give the
+  version. Intervals are left off here — four families of overlapping error bars is unreadable,
+  and this chart is for comparing *shapes*.
+
+A family whose ordering depends on `--version-style` is drawn **dashed** on the combined chart
+and carries a warning above the per-family one, so the line whose direction is a judgement call
+is visible as such.
+
+matplotlib is an optional extra rather than a dependency because every number plotted is
+already in the table and the JSON. Without it the script prints an install hint and carries on:
+an install that skips the extra loses presentation and no analysis.
 
 ## What it does not do
 

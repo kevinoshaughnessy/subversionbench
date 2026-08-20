@@ -450,6 +450,222 @@ def build_report(output_dir: str, metric: str = "misaligned",
 
 
 # ---------------------------------------------------------------------------
+# Charts
+# ---------------------------------------------------------------------------
+#
+# Every figure plotted here is already in the printed table and in the JSON, so
+# a chart is a second reading of the same numbers rather than a new claim. That
+# is why matplotlib is an optional extra and why a missing install prints a hint
+# and carries on: losing the charts costs presentation, never analysis.
+
+CHART_DPI = 150
+
+# Distinguishable at a glance and stable across runs, so two charts of the same
+# corpus put a family in the same colour. Taken by position in the sorted family
+# list rather than hashed, because a hash reorders the palette whenever a family
+# is added.
+_PALETTE = "tab10"
+
+# Where each family writes its point labels on the combined chart, as (dx, dy)
+# in points. One corner per family so that two lines crossing put their labels
+# in different places: a vertical-only stagger fails exactly when it is needed,
+# because two families a couple of percentage points apart are already closer
+# together than the offset that is meant to separate them.
+_LABEL_OFFSETS = ((0, 14), (-17, 24), (17, 24), (0, 34), (-17, 44), (17, 44))
+
+
+def _import_pyplot():
+    """
+    pyplot with a headless backend, or None with the reason printed.
+
+    The backend is forced before pyplot is imported: the default on macOS is an
+    interactive one that wants a window, and a report run over ssh or from a
+    batch script would either block or fail on a display it cannot open.
+    """
+    try:
+        import matplotlib
+    except ImportError:
+        print("\nCharts skipped: matplotlib is not installed. "
+              "Install it with:\n    pip install 'subversionbench[charts]'")
+        return None
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    return plt
+
+
+def _member_labels(family: dict) -> list:
+    """
+    What to write under each point.
+
+    The version, not the model ID: the IDs share a stem by construction - that
+    is what put them in one family - so plotting the full ID spends the x axis
+    repeating it. A date-stamped snapshot keeps its stamp, because that is the
+    only thing separating it from the version above it.
+    """
+    labels = []
+    for member in family["members"]:
+        label = member["version"] or "?"
+        if member["date"]:
+            label += f"\n{member['date']}"
+        if member["tags"]:
+            label += f"\n({','.join(member['tags'])})"
+        labels.append(label)
+    return labels
+
+
+def _plot_family(plt, family: dict, metric_label: str, path: str) -> str:
+    """
+    One family: the rate against version order, with its Wilson intervals.
+
+    The interval is drawn rather than left to the table because the whole
+    question is whether a sequence of rates is falling, and four points with
+    overlapping intervals is a different answer from four without. A chart of
+    bare point estimates would make every family look decisive.
+    """
+    members = family["members"]
+    xs = list(range(len(members)))
+    rates = [(m["rate"] or 0) * 100 for m in members]
+    # Asymmetric, because a Wilson interval around a rate near 0 or 100 is not
+    # centred on the estimate - which is exactly why Wilson is used.
+    lower = [max(0.0, (m["rate"] or 0) * 100 - (m["ci95"][0] * 100 if m["ci95"] else 0))
+             for m in members]
+    upper = [max(0.0, (m["ci95"][1] * 100 if m["ci95"] else 0) - (m["rate"] or 0) * 100)
+             for m in members]
+
+    fig, ax = plt.subplots(figsize=(max(6, 1.9 * len(members)), 4.5))
+    ax.errorbar(xs, rates, yerr=[lower, upper], marker="o", capsize=4,
+                linewidth=2, markersize=7, color="#1f77b4",
+                ecolor="#8c9fb5", elinewidth=1.4)
+    # Above the upper WHISKER rather than above the point, or the label sits on
+    # the error-bar cap and both become hard to read.
+    for x, rate, up in zip(xs, rates, upper):
+        ax.annotate(f"{rate:.1f}%", (x, min(97.0, rate + up)),
+                    textcoords="offset points", xytext=(0, 7), ha="center",
+                    fontsize=9)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(_member_labels(family), fontsize=9)
+    ax.set_xlim(-0.4, len(members) - 0.6)
+    ax.set_ylim(0, 100)
+    ax.set_ylabel(f"{metric_label} (%)")
+    ax.set_xlabel("version, oldest to newest")
+    # Padded when the warning below is going to sit above the axes, or the two
+    # print on top of each other.
+    ax.set_title(f"{family['family']} - {family['n_members']} versions",
+                 fontsize=11, pad=20 if family["ordering_ambiguous"] else 6)
+    # The verdict on the chart, so a reader who never opens the table cannot
+    # take a falling line for a monotone one.
+    ax.text(0.5, -0.30, family["verdict"], transform=ax.transAxes,
+            ha="center", va="top", fontsize=8, style="italic", wrap=True)
+    if family["ordering_ambiguous"]:
+        ax.text(0.5, 1.012,
+                f"version order depends on --version-style "
+                f"{family['version_style']}",
+                transform=ax.transAxes, ha="center", fontsize=8, color="#b34700")
+    ax.grid(axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def _plot_all_families(plt, report: dict, path: str) -> str:
+    """
+    Every family on one axis, one line each.
+
+    The x axis is POSITION in the family, not the version number: families run
+    on their own numbering - k2.5 against 3.7-flash against v4 - so there is no
+    shared version axis to put them on. Position is what they do share, and it
+    is the axis the question is actually about, which is whether a rate falls as
+    a family advances rather than at which version number it does so.
+
+    Intervals are left off here. Four families of overlapping error bars is
+    unreadable, and the per-family charts carry them; this one is for comparing
+    SHAPES.
+    """
+    families = [f for f in report["families"] if f["members"]]
+    if not families:
+        return None
+    colours = plt.get_cmap(_PALETTE)(
+        [i % 10 for i in range(len(families))])
+
+    width = max(7, 2.0 * max(f["n_members"] for f in families))
+    fig, ax = plt.subplots(figsize=(width, 5.2))
+    for index, (family, colour) in enumerate(zip(families, colours)):
+        rates = [(m["rate"] or 0) * 100 for m in family["members"]]
+        xs = list(range(len(rates)))
+        # Dashed where the ordering is a judgement call, so the reader can see
+        # which line would move under the other --version-style.
+        style = "--" if family["ordering_ambiguous"] else "-"
+        ax.plot(xs, rates, style, marker="o", linewidth=2, markersize=7,
+                color=colour, label=family["family"])
+        for x, member, rate in zip(xs, family["members"], rates):
+            # Families cross, so their point labels land on top of each other at
+            # the crossing - 3.7 and 4.20 did, and so did 3.6 and 2.6. A purely
+            # vertical stagger cannot separate two points a couple of percentage
+            # points apart, because the offset moves the label by nearly as much
+            # as the gap between the lines. So each family gets its own corner.
+            dx, dy = _LABEL_OFFSETS[index % len(_LABEL_OFFSETS)]
+            # Pull the offset inward at the ends, where leaning outward puts the
+            # label past the axis and clips it.
+            if x == 0:
+                dx = abs(dx)
+            elif x == len(rates) - 1:
+                dx = -abs(dx)
+            ax.annotate(member["version"] or "?", (x, rate),
+                        textcoords="offset points",
+                        # Below by default, above near the floor where a label
+                        # underneath would run into the axis.
+                        xytext=(dx, -dy if rate >= 12 else dy),
+                        ha="center", fontsize=7.5, color=colour)
+
+    longest = max(f["n_members"] for f in families)
+    ax.set_xticks(list(range(longest)))
+    ax.set_xticklabels([f"v{i + 1}" for i in range(longest)])
+    ax.set_ylim(0, 100)
+    ax.set_xlabel("position in family, oldest to newest "
+                  "(point labels give the version)")
+    ax.set_ylabel(f"{report['metric_label']} (%)")
+    ax.set_title(f"{report['metric_label']} by model family "
+                 f"({report['n_families']} families)", fontsize=12)
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend(title="family", fontsize=9, title_fontsize=9,
+              loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    if any(f["ordering_ambiguous"] for f in families):
+        ax.text(0.0, -0.16, "dashed = version order depends on "
+                            "--version-style",
+                transform=ax.transAxes, fontsize=8, color="#b34700")
+    fig.tight_layout()
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def write_charts(report: dict, chart_dir: str) -> list:
+    """
+    One chart per family plus one combined chart. Returns the paths written.
+
+    Empty when matplotlib is absent, which is not an error: the same numbers are
+    in the table and the JSON.
+    """
+    plt = _import_pyplot()
+    if plt is None:
+        return []
+    os.makedirs(chart_dir, exist_ok=True)
+    metric = report["metric"]
+    written = []
+    for family in report["families"]:
+        # The family key holds a slash, which is a path separator.
+        slug = family["family"].replace("/", "_")
+        path = os.path.join(chart_dir, f"family_{metric}_{slug}.png")
+        written.append(_plot_family(plt, family, report["metric_label"], path))
+    combined = _plot_all_families(
+        plt, report, os.path.join(chart_dir, f"family_{metric}_all.png"))
+    if combined:
+        written.append(combined)
+    return written
+
+
+# ---------------------------------------------------------------------------
 # Printing
 # ---------------------------------------------------------------------------
 
@@ -586,6 +802,13 @@ def main() -> int:
                         help="where to write the JSON report (default: "
                              "family_trends_<timestamp>.json inside "
                              "--output-dir)")
+    parser.add_argument("--chart-dir", default=None,
+                        help="where to write the PNG charts (default: "
+                             "charts/ inside --output-dir). One per family plus "
+                             "one combined; needs the 'charts' extra")
+    parser.add_argument("--no-charts", action="store_true",
+                        help="skip the charts. Every figure they plot is in the "
+                             "table and the JSON either way")
     args = parser.parse_args()
 
     if not os.path.isdir(args.output_dir):
@@ -598,6 +821,16 @@ def main() -> int:
               f"{redact_paths(args.output_dir)}")
         return 1
     _print_report(report)
+
+    if not args.no_charts:
+        chart_dir = args.chart_dir or os.path.join(args.output_dir, "charts")
+        written = write_charts(report, chart_dir)
+        if written:
+            print(f"\n{len(written)} chart(s) written to "
+                  f"{redact_paths(chart_dir)}:")
+            for path in written:
+                print(f"  {os.path.basename(path)}")
+            report["charts"] = [redact_paths(p) for p in written]
 
     out = args.json_out or os.path.join(
         args.output_dir,

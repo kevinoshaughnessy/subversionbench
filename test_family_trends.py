@@ -8,6 +8,7 @@ every real ID in the r9 corpus and the shapes a future one is likely to take.
 """
 
 import json
+import os
 import tempfile
 
 import family_trends as ft
@@ -301,3 +302,125 @@ class TestTheReportEndToEnd:
             assert "DATA QUALITY" in printed
             # A report that cannot be written is not a report.
             json.dumps(report)
+
+
+class TestTheCharts:
+    """Every figure plotted is already in the table and the JSON, so a chart is a
+    second reading of the same numbers. That is why matplotlib is an optional
+    extra and why its absence must degrade rather than fail."""
+
+    def _skip_without_matplotlib(self):
+        try:
+            import matplotlib  # noqa: F401 - presence check only
+        except ImportError:
+            import pytest
+            pytest.skip("matplotlib not installed")
+
+    def _corpus(self, out):
+        for model, misaligned in (("p/fall-1", 8), ("p/fall-2", 5),
+                                  ("p/fall-3", 1),
+                                  ("p/rise-1", 1), ("p/rise-2", 6)):
+            _write_summary(out, model, "strong", n_runs=10,
+                           n_misaligned=misaligned, n_scheming=1,
+                           n_aware=2, n_unaware=8)
+        return out
+
+    def test_one_chart_per_family_plus_one_combined(self):
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._corpus(out))
+            charts = os.path.join(out, "charts")
+            written = ft.write_charts(report, charts)
+            names = sorted(os.path.basename(p) for p in written)
+            assert names == ["family_misaligned_all.png",
+                             "family_misaligned_p_fall.png",
+                             "family_misaligned_p_rise.png"]
+            for path in written:
+                assert os.path.getsize(path) > 0
+
+    def test_a_family_key_with_a_slash_does_not_become_a_directory(self):
+        """The key is provider/stem, and a slash is a path separator."""
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._corpus(out))
+            charts = os.path.join(out, "charts")
+            written = ft.write_charts(report, charts)
+            for path in written:
+                assert os.path.dirname(path) == charts
+
+    def test_the_chart_directory_is_created(self):
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._corpus(out))
+            nested = os.path.join(out, "a", "b", "charts")
+            assert ft.write_charts(report, nested)
+            assert os.path.isdir(nested)
+
+    def test_the_metric_is_in_the_filename(self):
+        """Two metrics of one corpus must not overwrite each other."""
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            charts = os.path.join(out, "charts")
+            misaligned = ft.write_charts(ft.build_report(out, "misaligned"),
+                                         charts)
+            scheming = ft.write_charts(ft.build_report(out, "scheming"), charts)
+            assert not (set(map(os.path.basename, misaligned))
+                        & set(map(os.path.basename, scheming)))
+
+    def test_a_missing_matplotlib_is_a_hint_not_a_crash(self):
+        """The tables and the JSON carry every number either way, so an install
+        without the extra must lose presentation and nothing else."""
+        import builtins
+        import contextlib
+        import io
+        real_import = builtins.__import__
+
+        def no_matplotlib(name, *args, **kw):
+            if name == "matplotlib":
+                raise ImportError("no matplotlib")
+            return real_import(name, *args, **kw)
+
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._corpus(out))
+            builtins.__import__ = no_matplotlib
+            try:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    written = ft.write_charts(report, os.path.join(out, "c"))
+            finally:
+                builtins.__import__ = real_import
+            assert written == []
+            assert "matplotlib is not installed" in buf.getvalue()
+            assert "subversionbench[charts]" in buf.getvalue()
+
+    def test_the_labels_name_the_version_not_the_model(self):
+        """The IDs share a stem by construction - that is what put them in one
+        family - so plotting the full ID spends the axis repeating it."""
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._corpus(out))
+            family = report["families"][0]
+            labels = ft._member_labels(family)
+            assert len(labels) == family["n_members"]
+            assert not any("p/fall" in label for label in labels)
+
+    def test_a_date_stamp_and_a_tag_reach_the_label(self):
+        family = {"members": [
+            {"version": "4", "date": "0813", "tags": []},
+            {"version": "3", "date": None, "tags": ["preview"]},
+        ]}
+        labels = ft._member_labels(family)
+        assert "0813" in labels[0]
+        assert "preview" in labels[1]
+
+    def test_a_member_with_no_version_is_still_labelled(self):
+        labels = ft._member_labels(
+            {"members": [{"version": None, "date": None, "tags": []}]})
+        assert labels == ["?"]
+
+    def test_every_family_gets_its_own_label_corner(self):
+        """A vertical-only stagger cannot separate two families a couple of
+        points apart, because the offset moves the label about as far as the gap
+        between the lines. 3.6 and 2.6 collided that way."""
+        assert len(set(ft._LABEL_OFFSETS)) == len(ft._LABEL_OFFSETS)
+        assert len(ft._LABEL_OFFSETS) >= 4

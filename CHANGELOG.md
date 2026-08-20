@@ -10,6 +10,48 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v70
+
+Package version `70.0.0`. Presentation only - no scenario change, no rollout
+bump, no new figures.
+
+- **`family_trends.py` draws charts.** One per family - rate against version
+  order, with Wilson intervals as error bars and the verdict as a caption - plus
+  one combined chart carrying every family, colour-coded with a legend. Written
+  to `charts/` under `--output-dir`, or `--chart-dir`; `--no-charts` skips.
+
+  The intervals are drawn rather than left to the table because the whole
+  question is whether a sequence of rates is falling, and four points with
+  overlapping intervals is a different answer from four without. A chart of bare
+  point estimates would make every family look decisive.
+
+  The combined chart's x axis is POSITION in the family, not the version number.
+  Families run on their own numbering - k2.5 against 3.7-flash against v4 - so
+  there is no shared version axis to put them on; position is what they share,
+  and it is the axis the question is about. Point labels give the version.
+  Intervals are left off there because four families of overlapping error bars
+  is unreadable, and that chart is for comparing shapes.
+
+  A family whose ordering depends on `--version-style` is drawn dashed and
+  carries a warning, so the one line whose direction is a judgement call is
+  visible as such rather than reading like the other three.
+
+- **matplotlib is an EXTRA, not a dependency.** Every number plotted is already
+  in the printed table and the JSON, so an install without `[charts]` loses
+  presentation and no analysis - the script prints an install hint and carries
+  on. The backend is forced to Agg before pyplot is imported, because the macOS
+  default wants a window and a report run over ssh would block or fail on a
+  display it cannot open.
+
+- **Three chart-legibility fixes, each from looking at the output.** Percentage
+  labels sat on the error-bar caps, so they now clear the upper whisker. Two
+  families crossing put their point labels on top of each other - 3.7 and 4.20
+  did, and so did 3.6 and 2.6 - and a vertical-only stagger cannot fix that,
+  because the offset moves a label about as far as the gap between two lines a
+  couple of points apart; each family now gets its own corner, pulled inward at
+  the axis ends where leaning outward clipped it. The ambiguity warning printed
+  on top of the title.
+
 ## v69
 
 Package version `69.0.0`. Analysis only - no scenario change, no rollout bump.
