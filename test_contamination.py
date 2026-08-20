@@ -385,3 +385,96 @@ class TestVerdict:
         s = _clean_summary(fc=self._fc(80, 100, 25, 100),
                            canary=self._canary(True))
         assert cont.audit_text(json.dumps(s)) == {}
+
+
+class TestTheProbeRunnerSurvivesOneBadReply:
+    """
+    A probe that aborts on the first awkward answer measures the model's
+    formatting, not its memory.
+
+    The first real run against three models lost two of them outright: both
+    replied to a forced-choice item in prose rather than JSON, the parse raised,
+    and the exception left probe_model entirely - taking that model's remaining
+    forced-choice items AND its continuation probe with it. The one model that
+    finished was the one that never phrased an answer badly.
+    """
+
+    def _module(self):
+        import importlib.util
+        import pathlib
+        path = pathlib.Path(__file__).parent / "contamination_check.py"
+        spec = importlib.util.spec_from_file_location("contamination_check",
+                                                      path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_an_unparseable_reply_is_one_failed_item(self):
+        """It scores as unscored and shows in n_errors, so a reader checking
+        whether a clean verdict was earned sees the gap."""
+        mod = self._module()
+        items = cont.build_forced_choice(k=4, seed=0, limit=3)
+        # The canary probes run first and take the first two calls, so the
+        # counter starts there rather than at the forced-choice items.
+        calls = {"n": 0}
+
+        def reply(_client, _model, _prompt, max_tokens=400):
+            calls["n"] += 1
+            if calls["n"] <= 2:
+                return "UNKNOWN", None          # canary, declined
+            if calls["n"] == 3:
+                return "An analysis of the options", None   # the bad one
+            return '{"choice": 0}', None
+
+        mod.get_client = lambda model: object()
+        mod.ask = reply
+        canary, fc, continuations = mod.probe_model(
+            "p/m", items, [], delay=0, keep_prompts=False)
+
+        assert len(fc) == len(items), "every item must be attempted"
+        failed = [r for r in fc if r["error"]]
+        assert len(failed) == 1
+        assert "unparseable" in failed[0]["error"]
+        assert failed[0]["correct"] is None, "an unparsed item is unscored"
+
+    def test_a_bad_reply_does_not_cost_the_continuation_probe(self):
+        """The two probes are independent evidence; one must not take the other
+        down. This is what cost two models their entire result."""
+        mod = self._module()
+        items = cont.build_forced_choice(k=4, seed=0, limit=2)
+        continuations = cont.build_continuations()[:1]
+        mod.get_client = lambda model: object()
+        mod.ask = lambda c, m, p, max_tokens=400: ("not json at all", None)
+        _canary, fc, cont_results = mod.probe_model(
+            "p/m", items, continuations, delay=0, keep_prompts=False)
+        assert len(fc) == len(items)
+        assert len(cont_results) == 1, "the continuation probe must still run"
+
+    def test_the_forced_choice_ceiling_leaves_room_to_reason(self):
+        """`anthropic/claude-opus-5` over OpenRouter spent a 200-token ceiling
+        reasoning and returned no visible text. That route accepts no reasoning
+        parameter by design, so room to answer is the only lever left."""
+        mod = self._module()
+        assert mod.FORCED_CHOICE_TOKENS >= 1000
+
+
+class TestTheItemFloorIsAnnouncedBeforeSpending:
+    def test_a_limit_below_the_floor_cannot_reach_a_verdict(self):
+        """Not a style point: a run scored 8 of 8 in both arms with zero errors
+        and still returned `inconclusive`, having paid for every call first."""
+        items = cont.build_forced_choice(k=4, seed=0, limit=8)
+        per_arm = min(sum(1 for i in items if i["source"] == s)
+                      for s in ("scenario", "control"))
+        assert per_arm < cont.MIN_ITEMS_FOR_VERDICT
+        fc = ([{"source": "scenario", "correct": True}] * per_arm
+              + [{"source": "control", "correct": True}] * per_arm)
+        summary = cont.summarise_contamination(
+            fc, [{"source": "real", "hit": False, "error": None}], [], k=4)
+        assert summary["verdict"] == "inconclusive"
+
+    def test_the_documented_limit_can(self):
+        """The module's own usage text recommended 8, below its own floor."""
+        items = cont.build_forced_choice(k=4, seed=0, limit=12)
+        per_arm = min(sum(1 for i in items if i["source"] == s)
+                      for s in ("scenario", "control"))
+        assert per_arm >= cont.MIN_ITEMS_FOR_VERDICT

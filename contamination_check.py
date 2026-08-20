@@ -25,7 +25,9 @@ Two modes
     python contamination_check.py --models claude-opus-5 x-ai/grok-4.5
         The model probes: canary completion, forced choice against a control,
         and verbatim continuation. Roughly 2 + 2 x (items) + 10 calls per
-        model; --limit 8 keeps a first pass under 30 calls.
+        model; --limit 12 keeps a first pass near 40 calls and still leaves
+        headroom above the 10-per-arm floor a verdict needs. A smaller limit
+        buys nothing: it returns `inconclusive` however well the run goes.
 
 Reading the result
 ------------------
@@ -61,6 +63,7 @@ from subversionbench.contamination import (
     continuation_overlap,
     continuation_prompt,
     forced_choice_prompt,
+    MIN_ITEMS_FOR_VERDICT,
     score_canary,
     score_forced_choice,
     summarise_contamination,
@@ -78,6 +81,24 @@ def tracked_files():
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
     return [p for p in out.splitlines() if p]
+
+
+# Room for a model that reasons before it answers.
+#
+# The forced-choice reply is a few tokens of JSON, and 200 was ample for that.
+# It is not ample for a model that thinks first: `anthropic/claude-opus-5`
+# reached over OpenRouter spent the whole ceiling reasoning and returned no
+# visible text at all, which arrived here as an unparseable reply.
+#
+# The route is why, and it is not a bug to fix here. `thinking_surface` returns
+# None for an OpenRouter model DELIBERATELY - that route accepts no reasoning
+# parameter, so thinking cannot be turned off for the call the way it can be on
+# the native Anthropic one. The only lever left is room to answer after the
+# thinking is done.
+#
+# A ceiling is not a spend: a model that does not reason emits its JSON and
+# stops, so raising this costs nothing except where it is needed.
+FORCED_CHOICE_TOKENS = 2000
 
 
 def ask(client, model, prompt, max_tokens=400):
@@ -121,8 +142,26 @@ def probe_model(model, items, continuations, delay, keep_prompts):
     fc_results = []
     for i, item in enumerate(items):
         text, error = ask(client, model, forced_choice_prompt(item),
-                          max_tokens=200)
-        parsed = _parse_first_json(text or "") if text else {}
+                          max_tokens=FORCED_CHOICE_TOKENS)
+        # A reply that is not JSON is ONE FAILED ITEM, not a failed model.
+        #
+        # This used to be an unguarded call, so the first model that answered
+        # in prose took its own forced-choice AND continuation probes down with
+        # it - the exception left probe_model entirely and the caller recorded
+        # the model as a single error. Two of three models in the first real
+        # run produced no data at all that way, and the one that survived was
+        # the only one that never phrased an answer badly.
+        #
+        # An unparsed choice scores None, which score_forced_choice already
+        # treats as unscored, so the item leaves both the numerator and the
+        # denominator and shows up in n_errors instead - exactly where a reader
+        # checking whether a clean verdict was earned will look.
+        parsed = {}
+        if text:
+            try:
+                parsed = _parse_first_json(text)
+            except ValueError as parse_error:
+                error = error or f"unparseable reply: {parse_error}"
         correct = score_forced_choice(item, parsed.get("choice"))
         record = {"id": item["id"], "source": item["source"],
                   "document": item["document"], "correct": correct,
@@ -205,8 +244,11 @@ def main():
                         help="options per forced-choice item (default 4, so "
                              "chance is 25%%)")
     parser.add_argument("--limit", type=int, default=None,
-                        help="forced-choice items per arm; a pilot before "
-                             "paying for all of them")
+                        help=f"forced-choice items per arm; a pilot before "
+                             f"paying for all of them. Below "
+                             f"{MIN_ITEMS_FOR_VERDICT} no verdict is "
+                             f"reachable, and the run says so before spending "
+                             f"anything")
     parser.add_argument("--seed", type=int, default=0,
                         help="item selection and decoy generation seed")
     parser.add_argument("--delay", type=float, default=0,
@@ -257,10 +299,22 @@ def main():
     if args.models:
         items = build_forced_choice(k=args.k, seed=args.seed, limit=args.limit)
         continuations = build_continuations()
+        n_scenario = sum(1 for i in items if i["source"] == "scenario")
+        n_control = sum(1 for i in items if i["source"] == "control")
         print(f"\n{len(items)} forced-choice items "
-              f"({sum(1 for i in items if i['source'] == 'scenario')} scenario, "
-              f"{sum(1 for i in items if i['source'] == 'control')} control), "
+              f"({n_scenario} scenario, {n_control} control), "
               f"{len(continuations)} continuations, k={args.k}")
+        # Said BEFORE the calls are paid for, not discovered in the verdict.
+        # `no evidence` needs MIN_ITEMS_FOR_VERDICT scored items in each arm, so
+        # a --limit below it cannot produce one however well the run goes: the
+        # first real run scored 8/8 in both arms with zero errors and still
+        # returned `inconclusive`, having spent the calls to get there.
+        if min(n_scenario, n_control) < MIN_ITEMS_FOR_VERDICT:
+            print(f"  ! only {min(n_scenario, n_control)} item(s) per arm. A "
+                  f"verdict needs {MIN_ITEMS_FOR_VERDICT}, so this run can "
+                  f"reach 'inconclusive' at best.")
+            print(f"  ! raise --limit to {MIN_ITEMS_FOR_VERDICT} or more "
+                  f"(leave headroom for failed items), or drop it entirely.")
 
         report["models"] = {}
         for model in args.models:
