@@ -750,9 +750,16 @@ class TestTheReleaseSpan:
     def _report(self, *dates):
         return {"families": [{"members": [{"released": d} for d in dates]}]}
 
-    def test_it_runs_from_mid_2025_to_the_newest_model(self):
+    def test_it_runs_from_the_floor_to_the_newest_model(self):
         span = ft.release_span(self._report("2026-01-27", "2026-04-20"))
         assert span == (ft.RELEASE_AXIS_START, ft.date(2026, 4, 20))
+
+    def test_the_floor_does_not_clip_the_earliest_model_in_this_corpus(self):
+        """The floor is only useful while it stays behind every plotted point.
+        r9's earliest family member is kimi-k2-thinking on 2025-11-06, so a
+        floor later than that would push a real point off the axis - and
+        release_span would silently drag it back, undoing the setting."""
+        assert ft.RELEASE_AXIS_START <= ft.date(2025, 11, 6)
 
     def test_the_start_is_fixed_rather_than_the_earliest_model(self):
         """Otherwise adding an older model silently rescales every chart in the

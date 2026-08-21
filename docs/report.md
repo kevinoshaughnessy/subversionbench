@@ -714,7 +714,7 @@ chart is a second reading of a number the report already holds rather than the o
 exists. A family with one dated release, or several released on the same day, gets no line and
 says why.
 
-The x axis runs from **1 July 2025 to the newest model plotted**, shared across every release
+The x axis runs from **1 November 2025 to the newest model plotted**, shared across every release
 chart in a run rather than scaled per family, so the tighter spacing of one family's releases
 against another's is visible rather than normalised away. The floor is a default and not a clip:
 a model older than it extends the axis leftward, because a point drawn outside the axis is worse

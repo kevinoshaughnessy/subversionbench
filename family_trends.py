@@ -624,7 +624,13 @@ FIT_NOTE = ("dotted: least-squares fit on release date, weighted by episodes "
 # It is a FLOOR, not a hard left edge: release_span extends it leftward if a
 # model predates it, because a point drawn outside the axis is worse than an
 # axis that begins earlier than asked for.
-RELEASE_AXIS_START = date(2025, 7, 1)
+#
+# Was 2025-07-01, which put four empty months at the left of every chart: the
+# earliest model in a family in r9 is kimi-k2-thinking on 2025-11-06, and
+# kimi-k2 and kimi-k2-0905 are older but sit in no family here. Moving the floor
+# spends the width on the range that carries points. It is still a floor, so an
+# older model collected later reclaims the space automatically.
+RELEASE_AXIS_START = date(2025, 11, 1)
 
 # Horizontal clearance and one row of vertical separation per colliding label,
 # the same mechanism the combined version chart uses. Two labels collide when
