@@ -10,6 +10,70 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v79
+
+Package version `79.0.0`. Reads evaluation awareness on a second channel,
+charts the twelve research questions, and compares the awareness rates against
+an external benchmark. **No existing rate, interval, fit or verdict changes**:
+`aware`, `misaligned` and `scheming` are computed exactly as in v78, and
+`ROLLOUT_VERSION` stays `r9` throughout, so every r9 episode still pools.
+
+- **`--metric text_reachable` in `family_trends.py`: awareness read from
+  visible text alone.** The headline awareness rate is read from the model's
+  reasoning as well as its visible output, and how much reasoning comes back is
+  a property of the provider route rather than of the model: across r9, 13 of
+  the 15 models sitting in a family returned a separate reasoning trace in
+  36%-100% of episodes and two returned none at all. Every family mixes those
+  regimes, so a family trend on `aware` is partly a trend in what the route
+  sent back.
+
+  The new metric is the same construct read from the one channel every model
+  has. It is a floor where a trace came back and exact where none did, so
+  unlike `aware` it is comparable across all of them. Both are reported: the
+  pair is the finding, not either number.
+
+- **Every awareness chart names each model's reasoning exposure**, and says what
+  a zero means on that particular chart - which inverts between the two
+  metrics. On `aware`, a route that returned no trace was read on one channel
+  where the rest had two, so its zeroes are the suspect points. On
+  `text_reachable`, which reads one channel by construction, those same zeroes
+  are the *exact* rates and every other point is a floor.
+
+- **`report_charts.py`: a forest plot per research question.** Every model's
+  effect with its interval, then the crude pooled and model-stratified
+  estimates, so the divergence `crude_vs_stratified` warns about is visible
+  rather than inferable - question 9 draws as 19 intervals on the zero line
+  under a summary diamond that separates. Models with no data on one side keep
+  their row, so the printed "N/M had data on both sides" stays checkable
+  against the figure. Written by `run_report.py` unless `--no-charts`.
+
+- **`sad_oversight.py`: an external situational-awareness leaderboard, and its
+  rank correlation with the rates measured here.** Held encrypted at rest with
+  the passphrase `zip.sh` already publishes, for the reason the scenario is
+  encoded at all: publishing a third-party benchmark's results as plain text
+  feeds the next training crawl and destroys that benchmark's own validity. The
+  model mapping lives inside the bundle too, since a mapping in plain source
+  would put the rows back into the crawl without the scores.
+
+  Seven models overlap. Spearman rho runs -0.11 to -0.32 across the three
+  prompt variants and both awareness measures, nothing separated, and the
+  leave-one-out range crosses zero on most cells - so the reported finding is
+  that seven models cannot answer the question. Three near-misses are matched
+  deliberately *not*: a dated snapshot whose awareness rate is 100% against 31%
+  for the model the row names, a different member of one family, and a small
+  variant of a family whose row names no size. All three are substring
+  relationships, so no stem rule would have caught them.
+
+- **`power.spearman` and `power.spearman_leave_one_out`.** Rank correlation with
+  an exact permutation p-value: at n=7 the tie-corrected t approximation is not
+  close, and 5,040 orderings enumerate instantly. Leave-one-out travels beside
+  every rho because at this n it is the headline rather than a refinement.
+
+- **The release-date axis starts in November 2025**, where the earliest plotted
+  model sits, rather than July - the first quarter of every release chart was
+  empty. Presentational: the fits span each family's own first-to-last release,
+  not the axis.
+
 ## v78
 
 Package version `78.0.0`. Adds a second x axis to the family charts. **No

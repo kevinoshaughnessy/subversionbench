@@ -20,6 +20,11 @@ dist/
 # same reason the scenario is encoded at all - see subversionbench/scenario.py.
 scenario.json
 
+# Decoded working copy of the external leaderboard, for the same reason again:
+# publishing a third-party benchmark's results as plain text feeds the next
+# training crawl - see sad_oversight.py.
+sad_oversight.json
+
 # Local editor/agent config. Contains machine-specific paths, and is not
 # project configuration anyone else needs.
 .claude/

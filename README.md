@@ -318,6 +318,14 @@ run_report.py      twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,
                    override and escape; interrogation phrasing vs concealment)
                    answered across every model in a results directory
+report_charts.py   a forest plot per research question with the `charts` extra:
+                   every model's effect and interval, then the crude pooled and
+                   model-stratified estimates, so a crude result resting on one
+                   model is visible rather than inferable; plus one overview
+sad_oversight.py   an external situational-awareness leaderboard, encrypted at
+                   rest with the published passphrase for the same reason the
+                   scenario is, and its rank correlation with the awareness
+                   rates measured here (7 overlapping models: descriptive only)
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree

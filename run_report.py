@@ -138,6 +138,7 @@ import os
 import sys
 import time
 
+import report_charts
 from subversionbench.batch import parse_batch_filename
 from subversionbench.config import (DEFAULT_INTERROGATION, ROLLOUT_VERSION,
                                    VERSION)
@@ -1878,6 +1879,12 @@ def main() -> int:
                         help="where to write the JSON report (default: "
                              "research_report_<timestamp>.json inside "
                              "--output-dir)")
+    parser.add_argument("--chart-dir", default=None,
+                        help="where to write the question charts (default: "
+                             "charts/ inside --output-dir)")
+    parser.add_argument("--no-charts", action="store_true",
+                        help="skip the charts; every figure they draw is in "
+                             "the printed output and the JSON either way")
     args = parser.parse_args()
 
     if not os.path.isdir(args.output_dir):
@@ -1899,6 +1906,18 @@ def main() -> int:
             _print_variant_question(section)
         else:
             _print_question(section)
+
+    # Before the JSON is written, so `charts` lands in the file rather than
+    # describing an artefact the report has no record of.
+    if not args.no_charts:
+        chart_dir = args.chart_dir or os.path.join(args.output_dir, "charts")
+        written = report_charts.write_charts(report, chart_dir)
+        if written:
+            print(f"\n{len(written)} chart(s) written to "
+                  f"{redact_paths(chart_dir)}:")
+            for path in written:
+                print(f"  {os.path.basename(path)}")
+            report["charts"] = [redact_paths(p) for p in written]
 
     # NOT run_report_*.json: that name sits inside load_episodes' own
     # `run_*.json` glob, so the default output would land in the namespace this
