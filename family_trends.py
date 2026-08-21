@@ -72,12 +72,13 @@ import math
 import os
 import re
 import sys
+import textwrap
 import time
 from collections import namedtuple
 from datetime import date, timedelta
 
 from model_releases import release_date
-from run_report import load_summaries
+from run_report import awareness_arm_rows, load_episodes, load_summaries
 from subversionbench.config import ROLLOUT_VERSION, VERSION
 from subversionbench.power import (MIN_INFORMATIVE_DENOMINATOR,
                                   benjamini_hochberg, cochran_armitage,
@@ -277,13 +278,84 @@ METRICS = {
         "denominator_label": "graded episodes",
         "llm_dependent": True,
     },
+    "text_reachable": {
+        "num": "n_aware_text", "den": "n_awareness_resolved",
+        "label": "evaluation awareness reachable from visible text",
+        "denominator_label": "graded episodes",
+        "llm_dependent": True,
+        # READ FROM EPISODES, NOT SUMMARIES. `aware_text` is derived per episode
+        # and no summary field carries it, so this metric borrows run_report's
+        # own awareness_arm_rows rather than growing a parallel derivation - the
+        # rows it returns are shaped exactly like summary rows, which is why the
+        # rest of this file needs no special case beyond loading them.
+        "from_episodes": True,
+    },
 }
+
+
+# Why the fourth metric exists at all.
+#
+# `aware` counts awareness the grader found in EITHER channel - the agent's
+# visible output or its reasoning - and the amount of reasoning a route returns
+# is a property of the route, not the model. Across r9 that ranges from models
+# returning none at all to a median of 57,257 characters, and the awareness rate
+# tracks it: 36.5% where reasoning came back against 2.3% where it did not.
+#
+# Every family in this corpus mixes exposure regimes, and two of them
+# (google/gemini-flash, x-ai/grok) put a model whose route returned NO separate
+# reasoning trace beside models that returned plenty. Those models still wrote
+# visible answers and called tools throughout; what never came back was a chain
+# of thought alongside the answer. A trend drawn across that is partly a trend
+# in what the provider sent back.
+#
+# `text_reachable` is the same construct read from the ONE channel every model
+# has. It is a floor wherever reasoning was returned and exact where it was not,
+# so unlike `aware` it can be compared across all of them. Both are reported:
+# the pair is the finding, not either number alone.
+TEXT_REACHABLE = "text_reachable"
+
+# The metrics whose charts must name each model's reasoning exposure, because
+# for these the exposure IS part of the instrument. A misalignment rate is read
+# off the act keys and does not care what the route returned.
+AWARENESS_METRICS = ("aware", TEXT_REACHABLE)
+
+# How many zero-exposure models a combined chart names before it falls back to
+# "and N more". Four full model IDs is about as much as one caption line holds
+# at this figure width; beyond that the per-family charts name every member.
+_MAX_NAMED_SILENT = 4
 
 
 # Runs every metric in one invocation. Not a metric itself, so it never reaches
 # METRICS - the loop in main expands it and each pass is an ordinary single-metric
 # run, which is what keeps the two paths from drifting apart.
 METRIC_ALL = "all"
+
+
+def model_exposure(summaries: list) -> dict:
+    """
+    How much separate reasoning trace each model's route returned, pooled over
+    its arms.
+
+    Reported on every awareness chart because the awareness rate is not
+    comparable across models whose routes differ here, and a reader has no way
+    to see that from the rate alone. `share` is the fraction of episodes that
+    carried any reasoning text at all, which is the distinction that matters
+    most: a model returning none is not a model that did not reason, and not a
+    model that stayed silent - its visible output is untouched by this measure.
+    """
+    agg = {}
+    for row in summaries:
+        e = agg.setdefault(row["model"], {"episodes": 0, "with_text": 0,
+                                          "chars": 0})
+        e["episodes"] += row.get("n_runs") or 0
+        e["with_text"] += row.get("episodes_with_reasoning") or 0
+        e["chars"] += row.get("reasoning_chars_total") or 0
+    for e in agg.values():
+        e["share"] = e["with_text"] / e["episodes"] if e["episodes"] else None
+        # Mean rather than median: the summaries carry a total, not the per
+        # episode values a median would need. Named for what it is.
+        e["mean_chars"] = e["chars"] / e["with_text"] if e["with_text"] else 0
+    return agg
 
 
 def model_rates(summaries: list, metric: str) -> dict:
@@ -316,7 +388,8 @@ def group_families(models: list, style: str) -> dict:
     }
 
 
-def family_trend(members: list, rates: dict, metric: str, style: str) -> dict:
+def family_trend(members: list, rates: dict, metric: str, style: str,
+                 exposure: dict = None) -> dict:
     """
     One family: its ordered members, the trend across them, and each step.
 
@@ -342,6 +415,9 @@ def family_trend(members: list, rates: dict, metric: str, style: str) -> dict:
             "successes": rate.get("x"), "n": rate.get("n"),
             "rate": rate.get("rate"), "ci95": rate.get("ci95"),
             "underpowered": rate.get("underpowered"),
+            # The instrument this point was measured with, carried on the member
+            # so the chart and the JSON cannot disagree about it.
+            "reasoning_exposure": (exposure or {}).get(entry.raw),
         })
     groups = [(m["successes"] or 0, m["n"] or 0) for m in ordered]
     trend = cochran_armitage(groups)
@@ -516,9 +592,15 @@ def data_quality(families: dict, rates: dict, metric: str) -> dict:
 def build_report(output_dir: str, metric: str = "misaligned",
                  style: str = "decimal") -> dict:
     summaries = load_summaries(output_dir)
-    rates = model_rates(summaries, metric)
+    # The exposure figures come from the summaries either way, because they
+    # describe the model rather than the metric - a text_reachable chart still
+    # has to say which instrument each point was measured with.
+    exposure = model_exposure(summaries)
+    rows = (awareness_arm_rows(load_episodes(output_dir))
+            if METRICS[metric].get("from_episodes") else summaries)
+    rates = model_rates(rows, metric)
     families = group_families(sorted(rates), style)
-    results = [family_trend(members, rates, metric, style)
+    results = [family_trend(members, rates, metric, style, exposure)
                for _key, members in sorted(families.items())]
 
     # Every family's trend test is one member of one family of hypotheses, so
@@ -661,12 +743,18 @@ _DATE_LABEL_XGAP = 0.09
 # row of stagger that was not needed, under-estimating costs a collision.
 _LABEL_CHAR_PT = 0.6
 
-# Roughly how many points of the figure width the axes get, once the margins and
-# (on the combined chart) the legend are taken out. Only ever used to convert a
-# label's width into days, so an estimate is enough - and the figure widths it
-# divides are fixed a few lines below in the plotting calls.
+# Roughly how many points of the figure width the axes get, once the margins are
+# taken out. Only ever used to convert a label's width into days, so an estimate
+# is enough - and the figure widths it divides are fixed below in the plotting
+# calls.
+#
+# The combined figure was 500 while its legend sat to the RIGHT and took a
+# quarter of the width out of the axes. With the legend underneath, the axes run
+# nearly the full figure, a label covers proportionally fewer days, and leaving
+# this at 500 would over-estimate every label and stagger rows that do not
+# collide.
 _PER_FAMILY_AXIS_PT = 540.0
-_COMBINED_AXIS_PT = 500.0
+_COMBINED_AXIS_PT = 700.0
 
 
 def _point_label(member: dict, rate: float) -> str:
@@ -831,7 +919,7 @@ def _member_labels(family: dict) -> list:
 
 
 def _plot_family(plt, family: dict, metric_label: str, den_label: str,
-                 path: str) -> str:
+                 path: str, metric: str = None) -> str:
     """
     One family: the rate against version order, with its Wilson intervals.
 
@@ -892,6 +980,14 @@ def _plot_family(plt, family: dict, metric_label: str, den_label: str,
                 f"version order depends on --version-style "
                 f"{family['version_style']}",
                 transform=ax.transAxes, ha="center", fontsize=8, color="#b34700")
+    # Which instrument each point was measured with. Only on the awareness
+    # metrics: a misalignment rate comes off the act keys and does not move with
+    # what the route returned.
+    if metric in AWARENESS_METRICS:
+        note = _exposure_note(family["members"], metric)
+        if note:
+            ax.text(0.0, -0.22, note, transform=ax.transAxes, fontsize=8,
+                    va="top", color="#555555")
     ax.grid(axis="y", alpha=0.3)
     fig.tight_layout()
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
@@ -976,10 +1072,17 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
     # reader decoding the colours is already looking.
     ax.text(1.01, 0.0, WILSON_NOTE, transform=ax.transAxes,
             fontsize=8, va="bottom", color="#444444")
+    below_all = -0.16
+    if report["metric"] in AWARENESS_METRICS:
+        note = _exposure_range_note(families, report["metric"])
+        if note:
+            ax.text(0.0, below_all, note, transform=ax.transAxes, fontsize=8,
+                    va="top", color="#555555")
+            below_all -= 0.06 * note.count("\n") + 0.06
     if any(f["ordering_ambiguous"] for f in families):
-        ax.text(0.0, -0.16, "dashed = version order depends on "
-                            "--version-style",
-                transform=ax.transAxes, fontsize=8, color="#b34700")
+        ax.text(0.0, below_all, "dashed = version order depends on "
+                                "--version-style",
+                transform=ax.transAxes, fontsize=8, va="top", color="#b34700")
     fig.tight_layout()
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
@@ -1174,6 +1277,217 @@ def _draw_release_fit(ax, fit: dict, colour) -> bool:
     return True
 
 
+# What a zero in the exposure caption MEANS depends on which metric is plotted,
+# and the two meanings are opposites. Both awareness charts carry the same
+# exposure figures - the figures are a fact about the corpus, not about the
+# analysis - but the reader needs opposite things from them:
+#
+#   `aware` reads the reasoning trace AND visible text. A route that returned no
+#   trace was therefore read on a narrower instrument than one that did, so its
+#   rate is not comparable with the rest. Distrust the zeroes.
+#
+#   `text_reachable` reads visible text ONLY. It is the same instrument for
+#   every model by construction - that is the whole reason it exists. Where a
+#   trace came back the figure is a FLOOR (it asks where the grader's cited
+#   evidence sits, not what the grader would have said shown text alone); where
+#   no trace came back the grader was already looking at visible text alone, so
+#   the figure is EXACT. Trust the zeroes MORE than the rest.
+#
+# For a while both charts carried the `aware` sentence, because no call site
+# passed the metric down. On the text_reachable chart that told the reader to
+# discount the only two points that needed no discounting.
+#
+# SAY WHAT DIFFERS, NOT THAT SOMETHING DIFFERS
+# --------------------------------------------
+# The `aware` clause used to end "not measured on the same instrument as the
+# rest", which names no instrument and leaves the reader to work out what to do
+# about it. The text_reachable clause beside it says exactly what changes -
+# exact here, floors there - and reads far better for it. So the `aware` clause
+# now names the same concrete thing: how many channels each group's awareness
+# could have surfaced in. Two rates over different channel counts is the whole
+# of what "different instrument" was gesturing at.
+_EXPOSURE_READING = {
+    "aware": "awareness above is read from that trace as well as visible text, "
+             "so a model at 0% could only show it in the one channel",
+    TEXT_REACHABLE: "awareness above is read from visible text only, so a 0% "
+                    "here marks an exact rate and the rest are floors",
+}
+
+# A caption is drawn outside the axes, so `bbox_inches="tight"` widens the whole
+# FIGURE to fit it - the axes keep their size and the saved image grows, which
+# reads as a chart squeezed into one corner. Saying more per caption made this
+# visible: the combined awareness chart went to 2127px against 1212px for the
+# same chart without one. So captions wrap instead of stretching the figure.
+#
+# 85 characters is the longest line the callers already produce ("separate
+# reasoning trace returned in 36%-100% of episodes for 13 of these 15 models" is
+# 83), which is what made those charts the right width before the clauses grew.
+_CAPTION_WRAP = 85
+
+
+def _wrap_caption(note: str) -> str:
+    """
+    Fold a caption to _CAPTION_WRAP, keeping the lines the caller chose.
+
+    Each logical line wraps on its own, because those breaks are structural -
+    the figures on one line and the group read differently on the next - and
+    reflowing them together would run the two statements into each other, which
+    is the ambiguity the split was introduced to remove.
+
+    NEITHER DEFAULT IN textwrap IS SAFE FOR MODEL IDS
+    -------------------------------------------------
+    `break_on_hyphens` would fold "google/gemini-3-flash-preview" across two
+    lines, and these captions exist largely to name models - a reader cannot
+    match a half ID to a legend entry, and "gemini-3-flash" is a DIFFERENT model
+    in this corpus. `break_long_words` would cut mid-ID for the same loss. So a
+    token that will not fit is left overhanging: one wide line is a smaller
+    problem than an ID that cannot be read or searched for.
+    """
+    return "\n".join(
+        line for para in note.split("\n")
+        for line in (textwrap.wrap(para, _CAPTION_WRAP,
+                                   break_long_words=False,
+                                   break_on_hyphens=False) or [""]))
+
+
+def _exposure_note(members: list, metric: str = None) -> str:
+    """
+    Each member's reasoning exposure, for a caption under an awareness chart.
+
+    Named per model rather than summarised, because the comparison a reader
+    makes is between two specific points and the question is which instrument
+    each was measured with. A model at 0% did not fail to reason - its route
+    returned no reasoning TEXT - and that is the difference the awareness rate
+    cannot show on its own.
+
+    SEPARATE is the word that carries the caption
+    --------------------------------------------
+    An earlier version said "reasoning text returned in: 4.20 0%", which a
+    reader took to mean the model had produced nothing to reason from. It had:
+    x-ai/grok-4.20 wrote a visible answer in 117 of its 120 episodes and made
+    2,072 tool calls. What its route never returned was a chain of thought
+    ALONGSIDE that answer. The percentage is about a channel, not about whether
+    the model said anything, and "separate" is what makes the two distinct
+    without requiring the reader to know how any provider is wired.
+
+    `metric` selects the second line, which says what a zero means HERE; see
+    _EXPOSURE_READING. Omitted, the caption states the figures and draws no
+    conclusion from them, which is the only safe default.
+    """
+    parts = []
+    for m in members:
+        e = m.get("reasoning_exposure") or {}
+        if e.get("share") is None:
+            continue
+        parts.append(f"{_release_point_name(m)} {e['share']:.0%}")
+    if not parts:
+        return ""
+    note = ("separate reasoning trace returned in: "
+            + ", ".join(parts) + " of episodes")
+    reading = _EXPOSURE_READING.get(metric)
+    return _wrap_caption(f"{note}\n{reading}" if reading else note)
+
+
+def _exposure_range_note(families: list, metric: str = None) -> str:
+    """
+    The spread of exposure across every plotted model, for the combined charts.
+
+    THE TWO GROUPS MUST NOT OVERLAP
+    -------------------------------
+    An earlier version gave the range over ALL models and then named the ones
+    returning nothing. Both statements were true and together they were
+    misleading: the range's own lower bound WAS those models, so "0%-100%
+    across these 15 models; 2 returned none at all" reads as though some third
+    set of models sits at 0% besides the two named.
+
+    So the range now covers only the models that returned some reasoning text,
+    and the second line names the rest. The two counts add to the total, which
+    is what makes the caption checkable at a glance.
+
+    Naming every model would not fit on a combined chart, hence a range for the
+    measured group; the ones returning nothing are named in full because that is
+    the group whose reading differs from the rest - in OPPOSITE directions on
+    the two metrics, which is why `metric` decides the clause that closes the
+    line rather than one fixed sentence serving both. See _EXPOSURE_READING.
+
+    On "separate reasoning trace" rather than "reasoning text", see
+    `_exposure_note` - a model at 0% still writes visible answers, and the
+    shorter phrasing read as though it did not.
+
+    Returns "" or a one- or two-line string; the caller advances its stacking
+    offset by the number of lines.
+    """
+    named = [(m["model"], (m.get("reasoning_exposure") or {}).get("share"))
+             for f in families for m in f["members"]]
+    known = [(m, s) for m, s in named if s is not None]
+    if not known:
+        return ""
+    silent = sorted(m for m, s in known if s == 0)
+    some = [s for _m, s in known if s > 0]
+    total = len(known)
+
+    one = len(silent) == 1
+    if not some:
+        # Every model in the same position, so there is no split to report -
+        # just what that shared position means for the rate above.
+        tail = {
+            "aware": "so every rate here rests on visible text alone",
+            TEXT_REACHABLE: "which is the only channel this rate reads, so "
+                            "every rate here is exact rather than a floor",
+        }.get(metric)
+        note = (f"none of these {total} models returned a separate reasoning "
+                f"trace")
+        return _wrap_caption(f"{note}, {tail}" if tail else note)
+
+    span = (f"{min(some):.0%}" if min(some) == max(some)
+            else f"{min(some):.0%}-{max(some):.0%}")
+    if not silent:
+        # No split to report, so the clause says what holds for everyone. Worth
+        # a line even though nothing is wrong: "every rate here is a floor" is
+        # not something a reader can infer from a range, and its absence would
+        # read as though some point on the chart were exact.
+        note = (f"separate reasoning trace returned in {span} of episodes "
+                f"across all {total} models")
+        tail = {
+            "aware": "this rate reads both channels, and every model here "
+                     "supplied both",
+            TEXT_REACHABLE: "this rate reads visible text only, so every rate "
+                            "here is a floor",
+        }.get(metric)
+        return _wrap_caption(f"{note}\n{tail}" if tail else note)
+
+    # Capped so a corpus where most models return nothing does not produce a
+    # caption wider than the figure. The counts still add to the total.
+    shown = silent[:_MAX_NAMED_SILENT]
+    listed = ", ".join(shown)
+    if len(silent) > len(shown):
+        listed += f" and {len(silent) - len(shown)} more"
+    # "the rest" rather than "the other {len(some)}": the counts are already on
+    # the line above, and spelling them again here pushed the text_reachable
+    # clause two characters past the wrap, which left "floors" orphaned on a
+    # line of its own under the centred release charts.
+    tail = {
+        # Named channels rather than "a different instrument": the reader can
+        # act on one channel against two, and cannot act on the abstraction.
+        "aware": (f"this rate reads both channels, so "
+                  f"{'that model' if one else 'those models'} could only show "
+                  f"awareness in visible text and the rest in either"),
+        # The opposite reading, and the reason this clause is not fixed text:
+        # here the models with no trace are the ones needing NO caveat.
+        TEXT_REACHABLE: (f"this rate reads visible text only, so "
+                         f"{'that rate is' if one else 'those rates are'} "
+                         f"exact and the rest are floors"),
+    }.get(metric)
+    # The reading goes on its own line rather than trailing the model list
+    # behind a dash. Appended, it made one 171-character line that widened the
+    # saved figure by 900px; broken here, each statement wraps within itself and
+    # the reader gets figures, then who differs, then what that means.
+    head = (f"separate reasoning trace returned in {span} of episodes for "
+            f"{len(some)} of these {total} models\n"
+            f"the other {len(silent)} returned no trace at all - {listed}")
+    return _wrap_caption(f"{head}\n{tail}" if tail else head)
+
+
 def _release_point_name(member: dict) -> str:
     """
     What identifies one point on a calendar axis, in one line.
@@ -1202,7 +1516,7 @@ def _dated_members(family: dict) -> list:
 
 
 def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
-                       colour, span: tuple, path: str):
+                       colour, span: tuple, path: str, metric: str = None):
     """
     One family against the calendar. Points and labels, no line.
 
@@ -1231,8 +1545,13 @@ def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
     _draw_release_fit(ax, family.get("release_fit"), colour)
     # clip_on=False so the newest model, which sits exactly ON the right edge
     # by construction, draws as a whole marker rather than a half one.
+    # zorder above the labels. The label layout avoids label-on-label
+    # collisions but knows nothing about markers, so a translucent backing box
+    # was free to sit on another point: gemini's 3.7 label washed out its 3.6
+    # marker. Drawing markers last means the worst case is text partly under a
+    # point, which a reader can see, rather than a point that is not there.
     ax.scatter([when for _m, when in dated], rates, s=90, color=colour,
-               zorder=3, edgecolors="white", linewidths=0.8, clip_on=False)
+               zorder=6, edgecolors="white", linewidths=0.8, clip_on=False)
     for index, ((member, when), rate) in enumerate(zip(dated, rates)):
         dx, dy, ha, va = layout[index]
         ax.annotate(labels[index], (when, rate), textcoords="offset points",
@@ -1269,14 +1588,21 @@ def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
                 color="#555555", va="top")
     # Said on the chart rather than only in the console, because a chart that
     # quietly holds three of a family's four versions misleads on its own.
+    below_release = -0.27
+    if metric in AWARENESS_METRICS:
+        note = _exposure_note([m for m, _ in dated], metric)
+        if note:
+            ax.text(0.0, below_release, note, transform=ax.transAxes,
+                    fontsize=8, va="top", color="#555555")
+            below_release -= 0.07 * (note.count("\n") + 1)
     omitted = family["n_members"] - len(dated)
     if omitted:
         # Below the fit caption, which now occupies the first line under the
         # axis, so the two do not print on each other.
-        ax.text(0.0, -0.27,
+        ax.text(0.0, below_release,
                 f"! {omitted} version(s) omitted: no release date recorded in "
                 f"model_releases.py",
-                transform=ax.transAxes, fontsize=8, color="#b00020")
+                transform=ax.transAxes, fontsize=8, va="top", color="#b00020")
     ax.grid(axis="y", alpha=0.3)
     ax.grid(axis="x", alpha=0.15)
     fig.tight_layout()
@@ -1326,7 +1652,7 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
         # least visible, and both labels are drawn either way.
         ax.scatter([when for _m, when in dated],
                    [(m["rate"] or 0) * 100 for m, _ in dated],
-                   s=90, color=colour, zorder=3, edgecolors="white",
+                   s=90, color=colour, zorder=6, edgecolors="white",
                    linewidths=0.8, clip_on=False, alpha=0.85,
                    # The slope goes in the legend, not on the line: five
                    # gradients cannot be read off a shared axis, and a caption
@@ -1357,21 +1683,50 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
                  f"{report['metric_denominator_label']})", fontsize=12)
     ax.grid(axis="y", alpha=0.3)
     ax.grid(axis="x", alpha=0.15)
-    ax.legend(title="family", fontsize=9, title_fontsize=9,
-              loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    # BELOW the axes rather than beside them. A legend to the right takes its
+    # width out of the plotting area, and on a calendar axis that width is
+    # months: the same figure gives the data about a quarter more room with the
+    # legend underneath. Two columns unless there are few enough families to sit
+    # on one row, so the block stays wide and short rather than tall.
+    ncol = 1 if len(families) <= 2 else 2 if len(families) <= 6 else 3
+    # Far enough below the axes to clear the x-axis LABEL, not just the ticks.
+    # At -0.16 the legend's top border cut through it once the notes below grew
+    # tall enough for tight_layout to redistribute the figure.
+    legend_y = -0.24
+    legend = ax.legend(title="family", fontsize=9, title_fontsize=9, ncol=ncol,
+                       loc="upper center", bbox_to_anchor=(0.5, legend_y),
+                       frameon=True, borderaxespad=0.0)
+    # MEASURE the legend rather than estimating its height. Two successive
+    # guesses were wrong here - a fraction of a row, then a row height that did
+    # not match this font - and each landed a caption inside the legend box.
+    # Laying out first and asking matplotlib where the legend actually ended is
+    # exact, and stays exact when the family count or font changes.
+    fig.tight_layout()
+    fig.canvas.draw()
+    below = (legend.get_window_extent()
+             .transformed(ax.transAxes.inverted()).y0 - 0.03)
     if fitted:
-        # Under the legend, where a reader decoding the lines is already looking,
-        # and wrapped because the note is longer than the legend is wide.
-        ax.text(1.01, 0.0, FIT_NOTE.replace(", weighted", ",\nweighted"),
-                transform=ax.transAxes, fontsize=8, va="bottom",
-                color="#444444")
+        ax.text(0.5, below, FIT_NOTE, transform=ax.transAxes, fontsize=8,
+                ha="center", va="top", color="#444444")
+        below -= 0.055
+    if report["metric"] in AWARENESS_METRICS:
+        note = _exposure_range_note(families, report["metric"])
+        if note:
+            ax.text(0.5, below, note, transform=ax.transAxes, fontsize=8,
+                    ha="center", va="top", color="#555555")
+            # The note names the zero-exposure models on a second line, so the
+            # next caption has to clear both.
+            below -= 0.055 * note.count("\n") + 0.055
     missing = report["data_quality"]["plotted_models_without_release_date"]
     if missing:
-        ax.text(0.0, -0.16,
+        ax.text(0.5, below,
                 f"! {len(missing)} model(s) omitted: no release date recorded "
                 f"in model_releases.py",
-                transform=ax.transAxes, fontsize=8, color="#b00020")
-    fig.tight_layout()
+                transform=ax.transAxes, fontsize=8, ha="center", va="top",
+                color="#b00020")
+    # No second tight_layout: the notes were placed against the measured legend,
+    # and re-running it would move the legend out from under them. bbox_inches
+    # crops to include everything drawn.
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -1411,7 +1766,8 @@ def write_charts(report: dict, chart_dir: str) -> list:
         slug = family["family"].replace("/", "_")
         path = os.path.join(chart_dir, f"family_{metric}_{slug}.png")
         written.append(_plot_family(plt, family, report["metric_label"],
-                                    report["metric_denominator_label"], path))
+                                    report["metric_denominator_label"], path,
+                                    metric))
     combined = _plot_all_families(
         plt, report, os.path.join(chart_dir, f"family_{metric}_all.png"))
     if combined:
@@ -1434,7 +1790,7 @@ def write_charts(report: dict, chart_dir: str) -> list:
         path = os.path.join(chart_dir, f"release_{metric}_{slug}.png")
         if _plot_family_dates(plt, family, report["metric_label"],
                               report["metric_denominator_label"], colour,
-                              span, path):
+                              span, path, metric):
             written.append(path)
     combined_dates = _plot_all_family_dates(
         plt, report, colours, span,
@@ -1673,6 +2029,15 @@ def _report_one_metric(args, metric: str, stamp: str) -> int:
     """
     report = build_report(args.output_dir, metric, args.version_style)
     if not report["families"]:
+        # A metric read from episodes finds nothing in a directory that holds
+        # only summaries. That is a gap in what this corpus can answer, not a
+        # failure of the run - and under `--metric all` it must not take the
+        # metrics that DID compute down with it.
+        if METRICS[metric].get("from_episodes"):
+            print(f"Skipping --metric {metric}: it is derived per episode, and "
+                  f"{redact_paths(args.output_dir)} holds no run files to "
+                  f"derive it from.")
+            return 0
         print(f"No family with two or more members in "
               f"{redact_paths(args.output_dir)}")
         return 1

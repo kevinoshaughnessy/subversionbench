@@ -200,6 +200,13 @@ def load_summaries(output_dir: str) -> list:
             "n_aware": n_aware, "n_unaware": n_unaware,
             "n_awareness_resolved": n_aware + n_unaware,
             "cross_analysis_awareness": d.get("cross_analysis_awareness"),
+            # How much reasoning this arm's provider route actually returned.
+            # Carried because the awareness rate is not comparable across models
+            # whose routes differ on it - see awareness_channels - and a reader
+            # comparing two models needs to be told which instrument each was
+            # measured with. Counts rather than a rate, so arms pool by addition.
+            "episodes_with_reasoning": d.get("episodes_with_reasoning") or 0,
+            "reasoning_chars_total": d.get("reasoning_chars_total") or 0,
             "file": base,
         })
     return rows

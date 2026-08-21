@@ -1220,13 +1220,28 @@ class TestRunningEveryMetric:
         assert ft.METRIC_ALL not in ft.METRICS
 
     def test_it_writes_one_report_per_metric(self):
+        """One per metric this corpus can answer. The fixture writes summaries
+        and no run files, so the episode-derived metric is skipped - and the
+        skip must not cost the others their reports or the run its exit code."""
         with tempfile.TemporaryDirectory() as out:
             code, _printed, written = self._run(self._corpus(out),
                                                 "--metric", "all")
             assert code == 0
-            assert len(written) == len(ft.METRICS)
-            for metric in ft.METRICS:
+            from_summaries = [m for m, spec in ft.METRICS.items()
+                              if not spec.get("from_episodes")]
+            assert len(written) == len(from_summaries)
+            for metric in from_summaries:
                 assert any(f"_{metric}_" in name for name in written), metric
+
+    def test_an_episode_derived_metric_skips_rather_than_fails(self):
+        """`--metric all` over a summaries-only directory must still succeed.
+        Returning a failure would make one unanswerable metric look like a
+        broken run and hide the three that computed."""
+        with tempfile.TemporaryDirectory() as out:
+            code, printed, _written = self._run(self._corpus(out),
+                                                "--metric", ft.TEXT_REACHABLE)
+            assert code == 0
+            assert "derived per episode" in printed
 
     def test_the_reports_share_one_timestamp(self):
         """A single run should sort together, not be split by however long it
@@ -1304,8 +1319,13 @@ class TestRunningEveryMetric:
                     assert ft.main() == 0
             finally:
                 sys.argv = argv
-            # Two families plus one combined, for each metric.
-            assert len(os.listdir(charts)) == 3 * len(ft.METRICS)
+            # Two families plus one combined, per metric that this corpus
+            # can answer. text_reachable is derived per episode and the fixture
+            # writes summaries only, so it contributes no charts and must not
+            # stop the others being drawn.
+            from_summaries = [m for m, spec in ft.METRICS.items()
+                              if not spec.get("from_episodes")]
+            assert len(os.listdir(charts)) == 3 * len(from_summaries)
 
 
 class TestTheChartsSayHowManyEpisodes:
@@ -1390,3 +1410,338 @@ class TestTheChartsDoNotEditorialise:
             with contextlib.redirect_stdout(buf):
                 ft._print_report(report)
             assert "=>" in buf.getvalue()
+
+
+def _flat(note: str) -> str:
+    """
+    A caption's wording with its line wrapping undone.
+
+    Captions fold to a fixed width so a long clause cannot widen the saved
+    figure, which puts newlines inside phrases. Assertions about what a caption
+    SAYS go through here; the few about its line STRUCTURE use the note itself.
+    """
+    return " ".join(note.split())
+
+
+class TestTheExposureCaptionNamesWhatItMeans:
+    """
+    An awareness rate is only comparable between two models whose routes
+    returned comparable amounts of reasoning. The caption is what tells a reader
+    that, so it has to name the models it is about.
+    """
+
+    def _families(self, *pairs):
+        return [{"family": "p/f", "members": [
+            {"model": m, "reasoning_exposure": {"share": s}} for m, s in pairs]}]
+
+    def test_zero_exposure_models_are_named_not_counted(self):
+        """"2 returned none at all" leaves the reader unable to tell WHICH two
+        points to distrust, which is the only thing the note is for."""
+        note = ft._exposure_range_note(self._families(
+            ("google/gemini-3-flash-preview", 0.0), ("google/gemini-3.5-flash", 0.99),
+            ("x-ai/grok-4.20", 0.0)), "aware")
+        assert "google/gemini-3-flash-preview" in note
+        assert "x-ai/grok-4.20" in note
+        assert "google/gemini-3.5-flash" not in note, "only the silent ones"
+
+    def test_one_silent_model_reads_as_singular(self):
+        """Each metric's clause has its own subject - a rate on one, a model on
+        the other - so the check is that no plural survives, not that one
+        particular singular appears."""
+        for metric in ft.AWARENESS_METRICS:
+            note = ft._exposure_range_note(self._families(
+                ("a/quiet", 0.0), ("a/loud", 1.0)), metric)
+            assert "the other 1 returned no trace" in note, metric
+            assert "those rates are" not in note, metric
+            assert "those models" not in note, metric
+
+    def test_a_long_list_is_capped_but_still_counted(self):
+        """A corpus where most models return nothing must not produce a caption
+        wider than the figure."""
+        pairs = [(f"p/m{i}", 0.0) for i in range(9)] + [("p/loud", 1.0)]
+        note = ft._exposure_range_note(self._families(*pairs), "aware")
+        assert "and 5 more" in note
+        assert note.count("p/m") == ft._MAX_NAMED_SILENT
+
+    def test_no_model_is_named_when_every_model_returned_something(self):
+        """The naming exists to mark the group read differently. With no such
+        group there is nobody to name - the second line is the reading that
+        holds for everyone, and it carries no model IDs."""
+        note = ft._exposure_range_note(self._families(
+            ("a/one", 0.5), ("a/two", 1.0)), "aware")
+        assert "separate reasoning trace returned in 50%-100%" in note
+        assert "a/one" not in note and "a/two" not in note
+        assert "returned no trace" not in note
+
+    def test_the_two_groups_partition_the_models(self):
+        """The counts must add to the total. An earlier version gave the range
+        over ALL models and then named the silent ones, so the range's own 0%
+        lower bound WAS those models - which reads as though a third set sits at
+        0% besides the ones named."""
+        note = ft._exposure_range_note(self._families(
+            ("a/one", 0.0), ("a/two", 1.0), ("a/three", 0.5)), "aware")
+        assert "for 2 of these 3 models" in note
+        assert "the other 1 returned no trace at all" in note
+
+    def test_the_range_excludes_the_models_that_returned_nothing(self):
+        """A 0% lower bound would double-count them into both statements."""
+        note = ft._exposure_range_note(self._families(
+            ("a/silent", 0.0), ("a/low", 0.36), ("a/high", 1.0)), "aware")
+        assert "36%-100%" in note
+        assert "0%-" not in note
+
+    def test_a_corpus_where_nothing_reasoned_says_so_plainly(self):
+        """One group means one statement - no range, and nobody singled out."""
+        note = ft._exposure_range_note(self._families(
+            ("a/one", 0.0), ("a/two", 0.0)), "aware")
+        assert "none of these 2 models returned a separate reasoning trace" \
+            in _flat(note)
+        assert "%" not in note, "no range when there is nothing to range over"
+        assert "a/one" not in note and "a/two" not in note
+
+    def test_a_single_measured_model_reads_as_one_value_not_a_range(self):
+        note = ft._exposure_range_note(self._families(
+            ("a/silent", 0.0), ("a/only", 0.42)), "aware")
+        assert "in 42% of episodes" in note and "42%-42%" not in note
+
+    def test_nothing_is_claimed_when_exposure_was_never_recorded(self):
+        assert ft._exposure_range_note([{"family": "p/f", "members": [
+            {"model": "a/x", "reasoning_exposure": None}]}], "aware") == ""
+
+
+class TestTheExposureCaptionIsAboutAChannelNotAboutSilence:
+    """
+    A model at 0% still writes visible answers and calls tools - x-ai/grok-4.20
+    wrote text in 117 of its 120 r9 episodes. What its route never returned was
+    a chain of thought ALONGSIDE that answer. Both captions must say WHICH of
+    those two things the percentage counts, or 0% reads as "produced nothing".
+    """
+
+    def _members(self, *pairs):
+        return [{"model": m, "version": v, "position": i + 1,
+                 "date": None, "tags": [],
+                 "reasoning_exposure": {"share": s}}
+                for i, (m, v, s) in enumerate(pairs)]
+
+    def test_the_per_family_caption_says_separate(self):
+        note = ft._exposure_note(self._members(
+            ("x-ai/grok-4.20", "4.20", 0.0), ("x-ai/grok-4.6", "4.6", 1.0)))
+        assert note.startswith("separate reasoning trace returned in:")
+        assert "4.20 0%" in note and "4.6 100%" in note
+
+    def test_the_combined_caption_says_separate_in_every_branch(self):
+        """Four branches - all measured, some silent, all silent, one measured -
+        and the distinction has to hold in all of them or it holds in none."""
+        cases = [
+            (("a/one", 0.5), ("a/two", 1.0)),
+            (("a/quiet", 0.0), ("a/loud", 1.0)),
+            (("a/quiet", 0.0), ("a/hush", 0.0)),
+            (("a/quiet", 0.0), ("a/only", 0.42)),
+        ]
+        for pairs in cases:
+            for metric in ft.AWARENESS_METRICS:
+                note = ft._exposure_range_note([{"family": "p/f", "members": [
+                    {"model": m, "reasoning_exposure": {"share": s}}
+                    for m, s in pairs]}], metric)
+                assert "separate reasoning trace" in note, (pairs, metric)
+                assert "reasoning text returned" not in note, (pairs, metric)
+
+    def test_no_caption_claims_a_model_returned_nothing_at_all(self):
+        """"returned none at all" is the phrasing that misled - unqualified, it
+        reads as no output rather than no trace."""
+        for metric in ft.AWARENESS_METRICS:
+            note = ft._exposure_range_note([{"family": "p/f", "members": [
+                {"model": m, "reasoning_exposure": {"share": s}}
+                for m, s in (("a/quiet", 0.0), ("a/loud", 1.0))]}], metric)
+            assert "returned none at all" not in note, metric
+            assert "returned no trace at all" in note, metric
+
+    def test_a_member_without_exposure_is_skipped_not_shown_as_zero(self):
+        """No recording is not the same claim as a route that returned nothing,
+        and 0% would assert the second."""
+        note = ft._exposure_note(self._members(
+            ("a/known", "1", 1.0), ("a/unknown", "2", None)))
+        assert "a/unknown" not in note and "2 0%" not in note
+
+    def test_nothing_is_claimed_when_no_member_has_exposure(self):
+        assert ft._exposure_note([
+            {"model": "a/x", "version": "1", "position": 1, "date": None,
+             "tags": [], "reasoning_exposure": None}]) == ""
+
+
+class TestAZeroMeansTheOppositeOnTheTwoAwarenessCharts:
+    """
+    Both awareness charts carry the SAME exposure figures, because exposure is a
+    fact about the corpus rather than about the analysis. What a zero means
+    there is a fact about the analysis, and it inverts between them:
+
+      `aware` reads the reasoning trace AND visible text, so a route that
+      returned no trace was read on a narrower instrument - distrust the zeroes.
+
+      `text_reachable` reads visible text ONLY, the same channel for everyone.
+      Where a trace came back its figure is a FLOOR; where none came back the
+      grader saw visible text alone, so the figure is EXACT - trust the zeroes
+      more than the rest.
+
+    For a while both charts printed the `aware` sentence, because no call site
+    passed the metric down. On the text_reachable chart that told the reader to
+    discount the only two points that needed no discounting.
+    """
+
+    def _families(self, *pairs):
+        return [{"family": "p/f", "members": [
+            {"model": m, "reasoning_exposure": {"share": s}} for m, s in pairs]}]
+
+    def _members(self, *pairs):
+        return [{"model": m, "version": m[-1], "position": i + 1,
+                 "date": None, "tags": [],
+                 "reasoning_exposure": {"share": s}}
+                for i, (m, s) in enumerate(pairs)]
+
+    SPLIT = (("a/quiet", 0.0), ("a/loud", 1.0))
+
+    def test_the_two_metrics_do_not_get_the_same_caption(self):
+        """The regression itself: identical text under charts that need
+        opposite readings. Everything BEFORE the reading has to stay identical -
+        the figures are a fact about the corpus, so only their reading moves."""
+        aware, text = (_flat(ft._exposure_range_note(
+            self._families(*self.SPLIT), m)) for m in ft.AWARENESS_METRICS)
+        assert aware != text
+        assert (aware.split("this rate reads")[0]
+                == text.split("this rate reads")[0])
+
+    def test_the_mixed_metric_counts_the_channels_each_group_had(self):
+        """"not measured on the same instrument as the rest" names no
+        instrument, so the reader is told something differs and not what. One
+        channel against two is the concrete fact underneath it, and unlike the
+        abstraction it says which direction the gap should be read in."""
+        note = _flat(ft._exposure_range_note(
+            self._families(*self.SPLIT), "aware"))
+        assert "could only show awareness in visible text" in note
+        assert "the rest in either" in note
+
+    def test_no_caption_hides_behind_the_word_instrument(self):
+        """Every branch of both metrics has to name what actually changes."""
+        for pairs in (self.SPLIT, (("a/one", 0.5), ("a/two", 1.0)),
+                      (("a/quiet", 0.0), ("a/hush", 0.0))):
+            for metric in ft.AWARENESS_METRICS:
+                note = ft._exposure_range_note(self._families(*pairs), metric)
+                assert "instrument" not in note, (pairs, metric)
+        for metric in ft.AWARENESS_METRICS:
+            assert "instrument" not in ft._exposure_note(
+                self._members(*self.SPLIT), metric), metric
+
+    def test_the_text_metric_calls_the_silent_rates_exact_not_suspect(self):
+        """text_reachable IS the same channel for every model - casting doubt
+        on the zeroes here inverts the metric's entire purpose."""
+        note = _flat(ft._exposure_range_note(
+            self._families(*self.SPLIT), ft.TEXT_REACHABLE))
+        assert "that rate is exact" in note
+        assert "the rest are floors" in note
+
+    def test_all_silent_says_one_channel_on_aware_and_exact_on_text(self):
+        both = (("a/one", 0.0), ("a/two", 0.0))
+        aware, text = (_flat(ft._exposure_range_note(self._families(*both), m))
+                       for m in ft.AWARENESS_METRICS)
+        assert "every rate here rests on visible text alone" in aware
+        assert "every rate here is exact rather than a floor" in text
+
+    def test_all_measured_states_what_holds_for_everyone(self):
+        """Nothing is wrong in this branch, but silence would read as though
+        some point on the chart were exact - which a range cannot tell you."""
+        pairs = (("a/one", 0.5), ("a/two", 1.0))
+        aware, text = (_flat(ft._exposure_range_note(self._families(*pairs), m))
+                       for m in ft.AWARENESS_METRICS)
+        assert "every rate here is a floor" in text
+        assert "every model here supplied both" in aware
+        assert "floor" not in aware
+
+    def test_the_per_family_caption_splits_the_same_way(self):
+        aware, text = (_flat(ft._exposure_note(self._members(*self.SPLIT), m))
+                       for m in ft.AWARENESS_METRICS)
+        assert aware != text
+        assert (aware.split("awareness above")[0]
+                == text.split("awareness above")[0])
+        assert "could only show it in the one channel" in aware
+        assert "marks an exact rate and the rest are floors" in text
+
+    def test_an_unknown_metric_states_figures_and_concludes_nothing(self):
+        """A wrong reading is worse than no reading, so the default draws no
+        conclusion rather than guessing which chart it is under."""
+        for note in (ft._exposure_note(self._members(*self.SPLIT)),
+                     ft._exposure_range_note(self._families(*self.SPLIT))):
+            assert "separate reasoning trace" in _flat(note)
+            assert "floor" not in note
+            assert "channel" not in note
+
+    def test_every_call_site_passes_its_metric(self):
+        """The bug was four call sites that did not. A caption builder that CAN
+        be called without a metric will be, unless something checks."""
+        import inspect
+        import re
+        for plot in (ft._plot_family, ft._plot_all_families,
+                     ft._plot_family_dates, ft._plot_all_family_dates):
+            source = inspect.getsource(plot)
+            for call in re.findall(r"_exposure(?:_range)?_note\((.*?)\)\n",
+                                   source, re.S):
+                assert "metric" in call, (plot.__name__, call)
+
+
+class TestACaptionNeverWidensTheFigure:
+    """
+    Captions are drawn outside the axes, so `bbox_inches="tight"` grows the
+    saved FIGURE to fit them - the axes keep their size and the chart ends up in
+    one corner of a too-wide image. Saying more per caption made this visible:
+    the combined awareness chart reached 2127px against 1212px for the same
+    chart with no caption at all.
+    """
+
+    def test_no_caption_line_exceeds_the_wrap_width(self):
+        cases = [
+            [("google/gemini-3-flash-preview", 0.0), ("x-ai/grok-4.20", 0.0)]
+            + [(f"a/model-with-a-long-name-{i}", 0.4 + i * 0.04)
+               for i in range(13)],
+            [("a/one", 0.5), ("a/two", 1.0)],
+            [("a/quiet", 0.0), ("a/hush", 0.0)],
+            [("a/quiet", 0.0), ("a/loud", 1.0)],
+        ]
+        for pairs in cases:
+            for metric in ft.AWARENESS_METRICS:
+                note = ft._exposure_range_note([{"family": "p/f", "members": [
+                    {"model": m, "reasoning_exposure": {"share": s}}
+                    for m, s in pairs]}], metric)
+                for line in note.split("\n"):
+                    assert len(line) <= ft._CAPTION_WRAP, (metric, line)
+
+    def test_the_structural_breaks_survive_wrapping(self):
+        """Wrapping must fold within each statement, not reflow them together -
+        running the figures into the group read differently is the ambiguity the
+        split was introduced to remove."""
+        note = ft._wrap_caption("short first line\n" + "word " * 40)
+        assert note.split("\n")[0] == "short first line"
+
+    def test_an_unsplittable_token_is_left_long_rather_than_broken(self):
+        """A model ID is useless cut in half, and one over-wide line is a
+        smaller problem than an unsearchable one."""
+        long_id = "provider/" + "x" * 120
+        note = ft._wrap_caption(long_id)
+        assert note == long_id
+
+    def test_a_model_id_is_never_folded_at_a_hyphen(self):
+        """textwrap breaks on hyphens by default, and these captions exist
+        largely to name models. "gemini-3-flash" is a DIFFERENT model in this
+        corpus from "gemini-3-flash-preview", so half an ID is worse than a
+        long line - it names the wrong thing."""
+        ids = ["google/gemini-3-flash-preview", "x-ai/grok-4.20",
+               "deepseek/deepseek-v4-pro-0813"]
+        note = ft._wrap_caption("the other 3 returned no trace at all - "
+                                + ", ".join(ids))
+        for model in ids:
+            assert model in note, model
+        assert "-\n" not in note
+
+    def test_wrapping_preserves_every_word(self):
+        text = ("separate reasoning trace returned in 36%-100% of episodes\n"
+                "this rate reads both channels, so those models could only "
+                "show awareness in visible text and the other 13 in either")
+        assert ft._wrap_caption(text).split() == text.split()
