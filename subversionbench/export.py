@@ -262,11 +262,58 @@ _PLACEHOLDER_HOMES = frozenset({
 })
 
 
-def content_patterns():
-    """(name, compiled regex, severity) for everything refused on content."""
-    return tuple(
+# The prefix every invisible-character finding's name carries, built by the
+# comprehension above. Used to tell that class apart from the rest without a
+# second list that could fall out of step with it.
+_INVISIBLE_PREFIX = "invisible characters ("
+
+
+def content_patterns(skip_invisible: bool = False):
+    """
+    (name, compiled regex, severity) for everything refused on content.
+
+    `skip_invisible` drops the invisible-character classes and keeps every other
+    pattern. See `_looks_binary` for the one caller that passes it.
+    """
+    patterns = (
         [(name, re.compile(rx), "secret") for name, rx in _SECRET_PATTERNS]
         + [(name, re.compile(rx), "host") for name, rx in _HOST_PATTERNS])
+    if skip_invisible:
+        patterns = [p for p in patterns
+                    if not p[0].startswith(_INVISIBLE_PREFIX)]
+    return tuple(patterns)
+
+
+def _looks_binary(raw_bytes: bytes) -> bool:
+    """
+    Whether a file is binary, by the NUL-byte test git uses.
+
+    WHY THE INVISIBLE-CHARACTER CHECK SKIPS THESE
+    ---------------------------------------------
+    That check exists to protect the operator's review: every other finding is
+    printed for a human to judge, and a payload that renders as nothing would be
+    approved by a reviewer who read it carefully and saw nothing wrong. Text is
+    the whole premise.
+
+    Compressed pixel data is not text. Decoding a PNG's IDAT chunk as UTF-8
+    produces byte sequences that occasionally land in the variation-selector
+    block, and the archive was refused twice over exactly that - once for a
+    chart of gemini release dates, once for a question-12 forest plot, both in
+    IDAT rather than in any metadata chunk. Nobody can review those; there is
+    nothing there to read.
+
+    Worse, the fingerprint is of the exact value, so every chart regeneration
+    mints new ones. The acceptance file would fill with entries that mean
+    nothing, and a list of noise is where a real finding goes unnoticed.
+
+    EVERY OTHER PATTERN STILL RUNS ON BINARY FILES
+    ----------------------------------------------
+    A hostname, a home directory, an IP or a MAC address inside a compiled
+    artefact is a genuine leak and is still refused: those are ASCII, they decode
+    out of binary intact, and a human can read what was found. Only the class
+    whose premise is "a human will read this" is skipped where no human can.
+    """
+    return b"\x00" in raw_bytes[:8192]
 
 
 def _is_placeholder_home(matched: str) -> bool:
@@ -407,14 +454,21 @@ def find_content_risks(root: str) -> list:
         if not path.is_file():
             continue
         try:
-            raw = path.read_text(errors="replace")
+            raw_bytes = path.read_bytes()
+            raw = raw_bytes.decode(errors="replace")
         except Exception:
             continue
+        # The binary test runs on the bytes on disk, not on a decode of them.
+        # NUL survives a UTF-8 decode, so testing the string would work today -
+        # but it would then depend on the decoder's behaviour for a question
+        # that is purely about file content, and that is the kind of coupling
+        # that breaks quietly when the read changes.
+        patterns = content_patterns(skip_invisible=_looks_binary(raw_bytes))
         per_file = {}
         for form, text in (("raw", raw), ("decoded", _decoded_text(raw))):
             if not text:
                 continue
-            for name, regex, severity in content_patterns():
+            for name, regex, severity in patterns:
                 for match in regex.finditer(text):
                     value = match.group(0)
                     if name == "another account's home" \

@@ -510,6 +510,84 @@ class TestBothTheStoredAndTheDecodedFormAreScanned:
         assert risks[0]["files"] == {"run_1.json", "run_2.json"}
 
 
+class TestBinaryFilesAreNotScannedForInvisibleCharacters:
+    """
+    The invisible-character check exists to protect the operator's REVIEW: every
+    other finding is printed for a human to judge, and a payload rendering as
+    nothing would be approved by a reviewer who read it carefully and saw
+    nothing wrong. Text is the premise of the whole check.
+
+    Compressed pixel data is not text. A PNG's IDAT chunk decoded as UTF-8 lands
+    in the variation-selector block often enough that it refused this archive
+    twice, and since the fingerprint is of the exact value, every chart
+    regeneration would mint new ones - filling the acceptance file with entries
+    nobody can review, which is where a real finding goes unnoticed.
+
+    The narrowness is the point, and the tests below are what hold it: every
+    other pattern still runs on binary files.
+    """
+
+    def _archive(self, name, payload):
+        d = tempfile.mkdtemp(prefix="eval_results_binary_")
+        Path(d, name).write_bytes(payload)
+        return d
+
+    def _png(self, hidden=b""):
+        """A PNG header, a NUL-bearing chunk, and whatever else is asked for."""
+        return (b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR"
+                + b"\x00" * 13 + hidden)
+
+    def test_a_selector_inside_pixel_data_is_not_a_finding(self):
+        from subversionbench.export import find_content_risks
+        d = self._archive("chart.png", self._png("\ufe05".encode()))
+        assert find_content_risks(d) == []
+
+    def test_the_same_bytes_in_a_json_file_are_still_a_finding(self):
+        """The check is not switched off - it is scoped. A transcript is text,
+        a human can be shown it, and it is still refused."""
+        from subversionbench.export import find_content_risks
+        d = tempfile.mkdtemp(prefix="eval_results_text_")
+        Path(d, "run_1.json").write_text(json.dumps(
+            {"transcript": [{"turn": 1, "type": "text", "content": "a\ufe05b"}]}))
+        names = [r["name"] for r in find_content_risks(d)]
+        assert any(n.startswith("invisible characters (") for n in names)
+
+    def test_a_host_path_inside_a_binary_is_still_refused(self):
+        """A hostname or home directory compiled into an artefact is a genuine
+        leak, decodes out of binary intact, and a human can read what was found.
+        Only the class whose premise is "a human will read this" is skipped."""
+        from subversionbench.export import find_content_risks
+        d = self._archive("blob.bin", self._png(b"/System/Library/Frameworks/x"))
+        names = [r["name"] for r in find_content_risks(d)]
+        assert names and not any(n.startswith("invisible characters (")
+                                 for n in names)
+
+    def test_a_secret_inside_a_binary_is_still_refused(self):
+        """The never-acceptable class is untouched by any of this."""
+        from subversionbench.export import find_content_risks
+        d = self._archive("blob.bin",
+                          self._png(b"sk-ant-api03-" + b"A" * 40))
+        assert any(r["severity"] == "secret" for r in find_content_risks(d))
+
+    def test_the_filter_removes_only_the_invisible_classes(self):
+        from subversionbench.export import content_patterns
+        full = content_patterns()
+        trimmed = content_patterns(skip_invisible=True)
+        dropped = {p[0] for p in full} - {p[0] for p in trimmed}
+        assert dropped
+        assert all(n.startswith("invisible characters (") for n in dropped)
+        assert len(trimmed) == len(full) - len(dropped)
+
+    def test_a_text_file_is_not_mistaken_for_a_binary(self):
+        """The NUL test is what separates them, and a JSON transcript holding a
+        \\u0000 ESCAPE carries no NUL byte - so it stays text and stays scanned."""
+        from subversionbench.export import _looks_binary
+        escaped = json.dumps({"content": "a\u0000b"}).encode()
+        assert b"\\u0000" in escaped and b"\x00" not in escaped
+        assert not _looks_binary(escaped)
+        assert _looks_binary(b"\x89PNG\r\n\x1a\n\x00\x00")
+
+
 class TestTheFingerprintIsSafeToCommitAndCannotWiden:
     def test_it_does_not_contain_the_value(self):
         """The acceptance file is committed. A quoted value there would publish the

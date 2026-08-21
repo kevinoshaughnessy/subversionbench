@@ -83,6 +83,13 @@ RELEASE_DATES = {
     "openai/gpt-5.6-terra": date(2026, 7, 9),
     "openai/gpt-5.6-sol": date(2026, 7, 9),
 
+    # meta
+    "meta-llama/llama-4-maverick": date(2025, 4, 5),
+    "meta-llama/llama-4-scout": date(2025, 4, 5),
+    "meta/muse-spark-1.1": date(2026, 7, 16),
+    "meta/muse-spark-1.2": date(2026, 8, 6),
+    "meta/muse-glimmer-30b": date(2026, 8, 9),
+
     # qwen
     "qwen/qwen3.7-flash": date(2026, 7, 27),
     "qwen/qwen3.8-27b": date(2026, 8, 14),
