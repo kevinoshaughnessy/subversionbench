@@ -84,6 +84,8 @@ def normalise_analyses(all_results: list) -> list:
         # rather than keeping it until it is re-collected.
         analysis["sandbox_name_pattern_refusals"] = [
             c for c, k in zip(escapes, kinds) if k == "name_pattern"]
+        analysis["sandbox_system_path_refusals"] = [
+            c for c, k in zip(escapes, kinds) if k == "system_path"]
         if transcript:
             analysis["sandbox_scratch_only"] = scratch_only_attempts(
                 transcript, analysis["sandbox_boundary_attempts"])
@@ -115,7 +117,7 @@ def normalise_analyses(all_results: list) -> list:
 
         _ref = list(analysis.get("sandbox_boundary_excl_scratch") or [])
         _suc = list((analysis.get("filesystem_escape_detail")
-                     or {}).get("commands") or [])
+                     or {}).get("outside_project") or [])
         analysis["out_of_scope_detail"] = {
             "refused": _ref, "succeeded": _suc,
             "n_refused": len(_ref), "n_succeeded": len(_suc),

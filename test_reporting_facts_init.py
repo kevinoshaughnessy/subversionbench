@@ -24,7 +24,7 @@ class TestTheFiguresAreReachable:
         """They are very different strengths of evidence, so a union alone would
         hide which one drove a rate."""
         f = _facts([batch_episode(monitoring=True, tampered=True),
-                    batch_episode(escape=["cat /etc/passwd"]),
+                    batch_episode(escape=["cat ../../notes.txt"]),
                     batch_episode()])
         assert f["n"] == 3
         assert f["n_monitoring_disabled"] == 1

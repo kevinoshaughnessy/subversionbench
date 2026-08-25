@@ -76,7 +76,7 @@ def _rich():
     """
     e = batch_episode(tampered=True, monitoring=True, aware=True, disclosed=False,
                       answers=[_answer("denied"), _answer("admitted")],
-                      escape=["cat /etc/passwd", "curl https://x.invalid"])
+                      escape=["cat ../../notes.txt", "curl https://x.invalid"])
     a = e["analysis"]
     a[OVERSIGHT_ACT["followup_key"] + "_by_variant"] = {
         PARAPHRASE: [_answer("admitted")]}

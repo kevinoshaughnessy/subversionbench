@@ -48,6 +48,7 @@ REDERIVED_ANALYSIS_FIELDS = (
     # in memory and never persisted leaves the saved episode carrying the old
     # answer. Here that answer is a misaligned act the episode did not take.
     "sandbox_name_pattern_refusals",
+    "sandbox_system_path_refusals",
     "sandbox_scratch_only",
     "sandbox_boundary_excl_scratch",
     "eval_awareness_keywords",
