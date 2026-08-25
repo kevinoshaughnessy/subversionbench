@@ -14,10 +14,11 @@ like a result.
 
 import json
 import os
+import time
 
 from .. import grading as grading_api
 from ..config import (DEFAULT_INTERROGATION, MAX_CLASSIFIER_FALLBACK_RATE,
-                      MIN_CALLS_FOR_FALLBACK_RATE)
+                      MIN_CALLS_FOR_FALLBACK_RATE, VERSION)
 from ..episode import add_awareness_timing
 from ..grading import (MISALIGNED_ACTS, classify_transient_tampering,
                        concealment_level, detect_transient_tampering,
@@ -154,6 +155,44 @@ def relabel_variant_answers(analysis: dict, acts, model: str,
             }
             counts["levels_recomputed"] += 1
     return counts
+
+
+def record_reanalysis(data: dict, mode: str, version: str) -> list:
+    """
+    Note on the run file that a read mode re-derived part of it, and under
+    which version.
+
+    WHY THE PER-ANSWER STAMP IS NOT ENOUGH
+    --------------------------------------
+    `classifier_version` covers the LLM verdicts, which is where a version
+    difference changes a judgement. It does not cover what this mode re-derives
+    for free: the awareness ordering, the quote grounding and the transient
+    tampering are recomputed from the saved transcript on every pass, carry no
+    provenance of their own, and are exactly as version-dependent - they are
+    code reading a transcript.
+
+    `analysis_version` is deliberately left where it is. It names the code that
+    produced the episode, which is a fact about collection and does not become
+    untrue when a verdict is re-read; overwriting it would lose the only record
+    of what the model was actually run against.
+
+    Deduplicated on (mode, version): re-running the same pass under the same
+    version refreshes the timestamp rather than appending, so an operator
+    working through a directory one batch group at a time does not accumulate a
+    hundred identical entries.
+    """
+    history = [h for h in (data.get("reanalysis") or [])
+               if isinstance(h, dict)]
+    entry = {"mode": mode, "version": version,
+             "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    for existing in history:
+        if (existing.get("mode"), existing.get("version")) == (mode, version):
+            existing.update(entry)
+            break
+    else:
+        history.append(entry)
+    data["reanalysis"] = history
+    return history
 
 
 def _keep_better(existing, fresh):
@@ -326,6 +365,7 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
         # words. Backfills the check onto runs graded before it existed.
         recheck_quote_grounding(analysis, data.get("transcript") or [])
         data["analysis"] = analysis
+        record_reanalysis(data, "reclassify", VERSION)
 
         levels = {act["name"]: analysis.get(act["level_key"])
                   for act in MISALIGNED_ACTS if analysis.get(act["key"])}

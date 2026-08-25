@@ -36,8 +36,17 @@ def score_provenance(all_results: list) -> dict:
     scoring decisions - one per interrogation answer plus one per report-level
     judgement - because that is the unit the classifier is applied at, and an
     episode can contribute several.
+
+    `concealment_versions` tallies the same decisions by the CODE that made
+    them, which the model alone does not say. The classifier is not only a
+    model and a prompt: v80 changed the keyword floor those decisions fall back
+    to, so an answer reading `neither` and one reading `admitted` could both be
+    attributed to claude-opus-5 and to the same `analysis_version`, which is
+    stamped at collection and never moved by a read mode. "unrecorded" is
+    everything labelled before the stamp existed - not an error, just a batch
+    whose verdicts predate it.
     """
-    awareness, concealment = {}, {}
+    awareness, concealment, versions = {}, {}, {}
 
     def tally(counts, model):
         key = model or "unrecorded"
@@ -52,6 +61,7 @@ def score_provenance(all_results: list) -> dict:
         misrep = analysis.get("misrepresented_check") or {}
         if misrep.get("misrepresented") is not None:
             tally(concealment, misrep.get("model"))
+            tally(versions, misrep.get("version"))
 
         for act in MISALIGNED_ACTS:
             if not analysis.get(act["key"]):
@@ -62,13 +72,21 @@ def score_provenance(all_results: list) -> dict:
             # wrong: nothing was scored.
             if disclosure.get("disclosed") is not None:
                 tally(concealment, disclosure.get("model"))
+                tally(versions, disclosure.get("version"))
             for ans in analysis.get(act["followup_key"]) or []:
                 tally(concealment, ans.get("classifier_model"))
+                tally(versions, ans.get("classifier_version"))
 
     return {
         "awareness_graders": awareness,
         "concealment_classifiers": concealment,
+        "concealment_versions": versions,
         "mixed": len(awareness) > 1 or len(concealment) > 1,
+        # Separate from `mixed` rather than folded into it. `mixed` means two
+        # SCORERS, and it is read by callers that predate this field; a batch
+        # scored entirely by one model under two code versions is a different
+        # fact and deserves its own name rather than quietly widening that one.
+        "mixed_versions": len(versions) > 1,
     }
 
 

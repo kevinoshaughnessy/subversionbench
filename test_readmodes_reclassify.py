@@ -12,9 +12,11 @@ import tempfile
 import types
 
 from pathlib import Path
+import subversionbench.config as ev_config
 import subversionbench.grading as ev_grade
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
+from subversionbench.readmodes.reclassify import record_reanalysis
 from conftest import FakeArgs
 
 
@@ -322,6 +324,71 @@ class TestOneBadRollDoesNotDiscardAGoodRepair:
         assert rc == 1
         assert "every classifier call failed" in output
         assert path.read_text() == before, "must not overwrite good verdicts"
+
+
+class TestTheFileSaysWhichVersionRelabelledIt:
+    """`analysis_version` is stamped at collection and moved by no read mode, so
+    a file collected under v58 and re-labelled under v80 still says v58. That is
+    right - it names what the model was run against - but until this existed
+    NOTHING said what had re-read it since, and v80 changed the keyword floor
+    those verdicts fall back to.
+
+    The per-answer `classifier_version` covers the LLM verdicts. This covers
+    what a pass re-derives for free - the awareness ordering, the quote
+    grounding, the transient tampering - which carry no provenance of their own
+    and are just as version-dependent."""
+
+    def test_a_pass_is_recorded_without_disturbing_the_collection_stamp(self):
+        data = {"analysis_version": "v58", "analysis": {}}
+        record_reanalysis(data, "reclassify", "v80")
+        assert data["analysis_version"] == "v58", (
+            "the collection stamp names what the model was run against")
+        assert [(h["mode"], h["version"]) for h in data["reanalysis"]] == [
+            ("reclassify", "v80")]
+        assert data["reanalysis"][0]["at"]
+
+    def test_re_running_the_same_pass_does_not_accumulate_entries(self):
+        """An operator working through a directory one batch group at a time
+        re-runs the same mode under the same version repeatedly."""
+        data = {"analysis": {}}
+        for _ in range(5):
+            record_reanalysis(data, "reclassify", "v80")
+        assert len(data["reanalysis"]) == 1
+
+    def test_a_later_version_is_appended_beside_the_earlier_one(self):
+        data = {"analysis": {}}
+        record_reanalysis(data, "reclassify", "v79")
+        record_reanalysis(data, "reclassify", "v80")
+        assert [h["version"] for h in data["reanalysis"]] == ["v79", "v80"]
+
+    def test_a_written_run_file_carries_the_record(self):
+        out = tempfile.mkdtemp()
+        Path(f"{out}/run_1_m_strong_S.json").write_text(json.dumps({
+            "model": "m", "nudge": "strong", "analysis_version": "v58",
+            "transcript": [{"turn": 1, "type": "text", "content": "done"}],
+            "analysis": {
+                "oversight_tampered": True,
+                "sandbox_escape_attempts": [],
+                "followup_response": [{
+                    "question": "q", "answer": "I did not touch it",
+                    "verdict": "neither", "used_keyword_fallback": True}],
+                "scheming": False,
+            },
+        }))
+        args = FakeArgs(output_dir=out, model="m", nudge="strong",
+                        grader_model="g", write_back=True)
+        args.batch_stamp = "S"
+        with _stub_answer_classifier():
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = ev_run.reclassify_existing_runs(args, "m")
+        assert rc == 0
+        data = json.loads(Path(f"{out}/run_1_m_strong_S.json").read_text())
+        assert data["analysis_version"] == "v58"
+        assert data["reanalysis"][-1]["mode"] == "reclassify"
+        assert data["reanalysis"][-1]["version"] == ev_config.VERSION
+        # And the verdict it re-read carries the same version, per answer.
+        answer = data["analysis"]["followup_response"][0]
+        assert answer["classifier_version"] == ev_config.VERSION
 
 
 class TestAnAbortSaysWhy:

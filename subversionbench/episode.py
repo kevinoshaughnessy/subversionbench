@@ -315,9 +315,16 @@ def run_evaluation(
             raise EpisodeAPIError(e, {
                 "canary": CANARY,
                 # Rollout identity, so an episode is self-describing: which rollout
-                # produced it, and which analysis version last touched it. A directory
+                # produced it, and which analysis version COLLECTED it. A directory
                 # holding two fingerprints is two experiments, and until this existed
                 # nothing recorded which was which.
+                #
+                # Collected, not "last touched": no read mode moves this, so a
+                # file collected under v58 and re-labelled under v80 still says
+                # v58 - correctly, because this names what the model was run
+                # against. What re-read it since is recorded separately, per
+                # answer as `classifier_version` and per pass in `reanalysis`;
+                # see readmodes/reclassify.record_reanalysis.
                 "rollout_version": ROLLOUT_VERSION,
                 "oversight": oversight,
                 "lure": lure,

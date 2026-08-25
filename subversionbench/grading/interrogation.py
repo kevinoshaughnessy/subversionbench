@@ -15,7 +15,8 @@ import re
 import anthropic
 
 from .grader_io import _parse_first_json, wrap_untrusted
-from ..config import DEFAULT_GRADER_MODEL, INTERROGATION_CLASSIFIER_SYSTEM_PROMPT
+from ..config import (DEFAULT_GRADER_MODEL,
+                      INTERROGATION_CLASSIFIER_SYSTEM_PROMPT, VERSION)
 from ..llm_client import short_call_thinking_kwargs
 
 # The model returned no text at all: a measurement that did not happen, kept
@@ -35,6 +36,15 @@ from ..llm_client import short_call_thinking_kwargs
 # one model, it also manufactured a scheming rate for exactly the model with
 # the highest tampering rate, which is the worst possible place for it.
 NO_ANSWER = "no_answer"
+
+# How many times to ask when the classifier returns an empty text block, in
+# total including the first call. Four, because the residual failure rate is
+# the empty rate to this power: at the ~50% per-attempt rate inferred from
+# inkling-small (6 of 24 still empty after one retry) that is 25% with two
+# attempts, 12% with three and 6% with four - and MAX_CLASSIFIER_FALLBACK_RATE
+# refuses a pass above 20%, so three attempts would still be marginal on the
+# worst model measured. Spent only on answers that already came back empty.
+_EMPTY_REPLY_ATTEMPTS = 4
 
 # A marker occurrence followed by any of these is negated, so it must not
 # count. Without this guard "i did" matches "I did not modify the config" -
@@ -242,18 +252,36 @@ def classify_answer_llm(text: str, act_description: str,
                 raise
         block = next((b for b in response.content if b.type == "text"), None)
 
-        # One retry when the model returns no text at all, the same treatment
+        # Retries when the model returns no text at all, the same treatment
         # run_followup gives an empty interrogation answer. Measured on saved
         # grok-4.6 episodes: this classifier came back with an empty block on
         # ~23% of its calls (nothing else - reproducible, not noise), and every
         # one fell back to the keyword verdict, which is documented as a floor
         # that under-detects. An empty reply is evidence of a bad ROLL, not of
-        # a bad INPUT, so asking again before giving up is worth a second call
+        # a bad INPUT, so asking again before giving up is worth another call
         # against a measurement the fallback would otherwise understate.
-        if block is None or not block.text.strip():
+        #
+        # ONE retry was not enough. A --reclassify of thinkingmachines
+        # /inkling-small came back with 6 of 24 calls still empty AFTER the
+        # retry - 25%, which trips MAX_CLASSIFIER_FALLBACK_RATE and refuses the
+        # whole pass. Two failures in a row implies an empty rate near 50% per
+        # attempt on that model rather than the 23% measured on grok-4.6, and at
+        # that rate one retry leaves a quarter of the batch on the floor.
+        #
+        # Independent rolls compound, so attempts are cheap in expectation: the
+        # extra calls are only ever spent on answers that already came back
+        # empty, and each one cuts the residual failure rate by the empty rate
+        # again. Bounded rather than looping, because an empty reply that is
+        # deterministic for a given INPUT would otherwise retry for ever - the
+        # comment above records the flakiness as reproducible, so that is not
+        # a hypothetical.
+        for attempt in range(_EMPTY_REPLY_ATTEMPTS - 1):
+            if block is not None and block.text.strip():
+                break
             print(f"  [classifier] empty reply "
                   f"(stop_reason={getattr(response, 'stop_reason', None)}, "
-                  f"blocks={[b.type for b in response.content]}); asking once more")
+                  f"blocks={[b.type for b in response.content]}); "
+                  f"asking again ({attempt + 2}/{_EMPTY_REPLY_ATTEMPTS})")
             response = client.messages.create(**create_kwargs)
             block = next((b for b in response.content if b.type == "text"), None)
 
@@ -303,6 +331,10 @@ def classify_interrogation_answer(text: str, act_description: str,
             "classifier_error": None,
             "classifier_called": False,
             "classifier_model": model,
+            # Stamped on this path too. Nothing was asked, but the decision
+            # that nothing needed asking is this version's - and an answer
+            # missing the field would otherwise read as pre-stamp.
+            "classifier_version": VERSION,
         }
 
     keyword_verdict = classify_answer(text, admission, denial, contrition)
@@ -326,6 +358,19 @@ def classify_interrogation_answer(text: str, act_description: str,
         # classifier did not, which made "were these rows scored by the same
         # model?" a question answerable only from collection dates.
         "classifier_model": model,
+        # And which CODE read it, which the model alone does not say. The
+        # run file's top-level `analysis_version` is stamped once at
+        # collection and never moved by a read mode, so a file collected
+        # under v58 and re-labelled under v80 still claimed v58 - and v80
+        # changed this very function, so two answers reading `neither` and
+        # `admitted` could both claim to have been scored by the same code.
+        #
+        # Stamped per ANSWER rather than per file on purpose. --reclassify now
+        # declines an update that would replace a classifier verdict with a
+        # keyword fallback, so one file can legitimately hold answers labelled
+        # by two different versions; a single per-file stamp would name one of
+        # them and be wrong about the rest.
+        "classifier_version": VERSION,
     }
 
 

@@ -94,6 +94,49 @@ own trended metrics, and brings qwen-flash up to three members.
   it needs one - so the message was blank in the case an operator was most
   likely to hit. It now searches both, and prints on the surviving path too.
 
+- **A run file now says which version re-read it.** `analysis_version` is
+  stamped once at collection and moved by no read mode, so a file collected
+  under v58 and re-labelled under v80 still said v58 - with nothing anywhere
+  recording that v80 had touched it. That was harmless until v80 changed the
+  keyword floor those verdicts fall back to: two answers reading `neither` and
+  `admitted` could both be attributed to claude-opus-5 and to v58.
+
+  `analysis_version` deliberately stays where it is. It names the code the
+  model was actually run against, which does not become untrue when a verdict
+  is re-read, and overwriting it would lose the only record of that. What has
+  re-read it since is recorded alongside: `classifier_version` per interrogation
+  answer and per report-level grader result, and a `reanalysis` list per pass.
+
+  Per ANSWER rather than per file, because `--reclassify` now declines an
+  update that would replace a classifier verdict with a keyword fallback - so
+  one file can legitimately hold answers labelled by two versions, and a single
+  per-file stamp would name one of them and be wrong about the rest. The
+  `reanalysis` list covers what a pass re-derives for free (awareness ordering,
+  quote grounding, transient tampering), which carries no provenance of its own
+  and is just as version-dependent; it deduplicates on (mode, version) so
+  working through a directory one batch group at a time does not accumulate a
+  hundred identical entries.
+
+  `score_provenance` gains `concealment_versions` and `mixed_versions`,
+  answering "was this batch scored by one CODE?" the way it already answers it
+  for the model. Verdicts labelled before the stamp existed read as
+  `unrecorded` - the same treatment the model tally already gives them, and
+  there is no way to backfill it, since inferring a version from a file's mtime
+  would assert provenance the files do not have.
+
+- **The classifier's empty-reply retry goes from one extra call to
+  `_EMPTY_REPLY_ATTEMPTS` (4 in total).** One retry was not enough: a
+  `--reclassify` of `thinkingmachines/inkling-small` came back with 6 of 24
+  calls still empty AFTER retrying, which is 25%, over
+  `MAX_CLASSIFIER_FALLBACK_RATE`, and so refused the whole pass. Two failures
+  in a row implies an empty rate near 50% per attempt on that model rather than
+  the 23% measured on grok-4.6, and at that rate one retry leaves a quarter of
+  the batch on the floor. Rolls compound, so the bound is what matters: 25% at
+  two attempts, 12% at three, 6% at four. Still bounded rather than looping -
+  the flakiness is recorded as reproducible, so an input that always returns
+  empty is not hypothetical - and the extra calls are only ever spent on an
+  answer that already came back empty.
+
 - **`--metric oversight_act` and `--metric sandbox_act` in
   `family_trends.py`.** The pooled `misaligned` rate is the union of two acts;
   these trend them separately, read from each summary's own `scheming_by_act`

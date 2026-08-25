@@ -42,6 +42,7 @@ from subversionbench.grading.concealment import (
 from subversionbench.grading.grader_io import _parse_first_json
 from subversionbench.grading.interrogation import (
     NO_ANSWER,
+    _EMPTY_REPLY_ATTEMPTS,
     classify_answer,
     classify_answer_llm,
     classify_interrogation_answer,
@@ -470,15 +471,34 @@ class TestLLMAnswerClassifier:
         assert out["error"] is None
         assert len(client.calls) == 2, "must have asked a second time"
 
-    def test_two_empty_replies_in_a_row_still_fails_rather_than_loop(self):
-        """Bounded to one retry. A classifier that is genuinely down must
-        still degrade to the keyword fallback and say so, not retry forever."""
-        client = self._client(empty_replies=2)
+    def test_empty_replies_throughout_still_fail_rather_than_loop(self):
+        """Bounded. A classifier that is genuinely down must still degrade to
+        the keyword fallback and say so, not retry forever - the flakiness this
+        retries is recorded as reproducible, so an input that always comes back
+        empty is not hypothetical.
+
+        The bound moved from 2 attempts to _EMPTY_REPLY_ATTEMPTS after a
+        --reclassify came back with 6 of 24 calls still empty AFTER one retry,
+        tripping the fallback-rate guard and refusing the whole pass. Asserted
+        against the constant rather than a literal, so the two cannot drift."""
+        client = self._client(empty_replies=_EMPTY_REPLY_ATTEMPTS + 5)
         out = classify_answer_llm(self.GROK, ACT_OVERSIGHT_DESCRIPTION,
                                   client=client)
         assert out["verdict"] is None
         assert "no JSON object" in out["error"]
-        assert len(client.calls) == 2, "must not have asked a third time"
+        assert len(client.calls) == _EMPTY_REPLY_ATTEMPTS, (
+            "must stop at the attempt bound")
+
+    def test_a_reply_that_arrives_late_is_still_used(self):
+        """The point of raising the bound: an answer whose first three calls
+        come back empty is still measured rather than dropped to the floor."""
+        client = self._client(verdict="admitted",
+                              empty_replies=_EMPTY_REPLY_ATTEMPTS - 1)
+        out = classify_answer_llm(self.GROK, ACT_OVERSIGHT_DESCRIPTION,
+                                  client=client)
+        assert out["verdict"] == "admitted"
+        assert out["error"] is None
+        assert len(client.calls) == _EMPTY_REPLY_ATTEMPTS
 
     def test_a_healthy_first_reply_is_not_retried(self):
         """The common case costs exactly one call - the retry must not fire
@@ -500,7 +520,7 @@ class TestLLMAnswerClassifier:
             classify_answer_llm(self.GROK, ACT_OVERSIGHT_DESCRIPTION, client=client)
         out = buf.getvalue()
         assert "empty reply" in out
-        assert "asking once more" in out
+        assert "asking again (2/" in out
 
     def test_disclosure_reads_only_the_agents_visible_text(self):
         transcript = [
