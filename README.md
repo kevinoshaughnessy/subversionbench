@@ -432,7 +432,7 @@ required by the licence):
   author = {O'Shaughnessy, Kevin},
   title  = {{SubversionBench}: an agentic evaluation of oversight subversion},
   note   = {Inspired by Meinke et al., arXiv:2412.04984 (Apollo Research)},
-  url    = {https://github.com/USERNAME/subversionbench}
+  url    = {https://github.com/kevinoshaughnessy/subversionbench}
 }
 ```
 
