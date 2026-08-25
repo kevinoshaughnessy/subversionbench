@@ -240,10 +240,19 @@ class TestTheMappingIsExplicitAndGuarded:
         assert pairs and pairs[0]["confidence"] == "stem"
         assert [p for p in pairs if p["confidence"] == "exact"] == []
 
-    def test_a_family_variant_is_not_matched_to_a_row_naming_no_size(self):
-        """The specific mistake above, pinned so it cannot come back."""
+    def test_a_family_variant_is_matched_only_once_its_own_row_exists(self):
+        """
+        thinkingmachines/inkling-small was excluded above because the
+        leaderboard's 'inkling' row named no size, so pairing it there was a
+        guess dressed as a match. It is matched now because a SEPARATE row
+        named 'inkling-small' was added - a different fact, not a reversal of
+        the one above: the guess is still wrong, and is still excluded.
+        """
         index = so.local_index(_bundle())
-        assert "thinkingmachines/inkling-small" not in index
+        assert index["thinkingmachines/inkling-small"]["row"]["model"] \
+            == "inkling-small"
+        unmatched = so.unmatched_rows(_bundle())
+        assert any(r.startswith("inkling (") for r in unmatched), unmatched
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +403,120 @@ class TestSpearmanItself:
         out = spearman_leave_one_out(xs, ys)
         assert out["most_influential_index"] == 5
         assert out["max_rho"] == 1.0
+
+
+class TestChartLabelsDoNotOverlap:
+    """
+    At seven or eight well-spread points a fixed offset above-right of each
+    marker never collided. At eleven - once kimi-k3 joined the comparison at
+    the same score range as three other models - four labels in the
+    low-awareness cluster started overlapping each other on exactly the panels
+    a reader most needs to tell grok-4.6 apart from gemini-3.5-flash apart from
+    llama 4 maverick.
+    """
+
+    def _plt(self):
+        if so._import_matplotlib() is None:
+            pytest.skip("matplotlib not installed")
+        return so._import_matplotlib()
+
+    def test_a_lone_label_keeps_the_natural_offset(self):
+        """No collision, no reason to move it."""
+        plt = self._plt()
+        fig, ax = plt.subplots()
+        so._place_labels(fig, ax, [(50.0, 50.0, "only-model")])
+        assert ax.texts[0].xyann == so._LABEL_OFFSETS[0]
+        plt.close(fig)
+
+    def test_four_points_at_nearly_the_same_spot_all_get_readable_labels(self):
+        """The exact shape of the defect: several models within a couple of
+        points of each other on both axes. Every label must end up somewhere,
+        and no two may occupy the same pixels."""
+        plt = self._plt()
+        fig, ax = plt.subplots()
+        points = [(65.0, 10.0 + i, f"model-{i}") for i in range(4)]
+        for x, y, _t in points:
+            ax.plot([x], [y], "o")
+        so._place_labels(fig, ax, points)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        boxes = [t.get_window_extent(renderer=renderer) for t in ax.texts]
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1:]:
+                assert not a.overlaps(b)
+        plt.close(fig)
+
+    def test_widely_spaced_points_are_untouched(self):
+        """The mechanism must not go looking for a collision that is not
+        there - every point here is far enough apart to keep offset zero."""
+        plt = self._plt()
+        fig, ax = plt.subplots()
+        points = [(x, x, f"model-{x}") for x in (10.0, 40.0, 70.0)]
+        # Markers plotted first, same as write_chart: with none, the axes sit
+        # at their default 0-1 view and every point maps off it, which put
+        # spurious overlaps into an earlier version of this test.
+        for x, y, _t in points:
+            ax.plot([x], [y], "o")
+        so._place_labels(fig, ax, points)
+        assert all(t.xyann == so._LABEL_OFFSETS[0] for t in ax.texts)
+        plt.close(fig)
+
+    def test_every_point_gets_exactly_one_label(self):
+        plt = self._plt()
+        fig, ax = plt.subplots()
+        points = [(65.0, 10.0 + i * 0.1, f"model-{i}") for i in range(6)]
+        so._place_labels(fig, ax, points)
+        assert len(ax.texts) == 6
+        assert {t.get_text() for t in ax.texts} == {p[2] for p in points}
+        plt.close(fig)
+
+
+class TestTheChartIsLaidOutInThreeStackedPanels:
+    """The three prompt variants read top to bottom - plain, then SP, then SP
+    (large) - which is VARIANTS' own order, so a reader compares one model
+    down a column rather than across a row."""
+
+    def _report(self):
+        return {
+            "n_pairs": 3, "effort_agreement": {"note": "note"},
+            "pairs": [
+                {"sad_model": "a", "confidence": "exact",
+                 "scores": {v: {"score": 50.0, "se": 2.0} for v in so.VARIANTS},
+                 "aware_rate": 0.3, "aware_ci95": [0.2, 0.4]},
+                {"sad_model": "b", "confidence": "exact",
+                 "scores": {v: {"score": 60.0, "se": 2.0} for v in so.VARIANTS},
+                 "aware_rate": 0.5, "aware_ci95": [0.4, 0.6]},
+                {"sad_model": "c", "confidence": "exact",
+                 "scores": {v: {"score": 70.0, "se": 2.0} for v in so.VARIANTS},
+                 "aware_rate": 0.7, "aware_ci95": [0.6, 0.8]},
+            ],
+            "correlations": [
+                {"measure": m, "variant": v, "spearman_rho": 0.5, "p": 0.5,
+                 "note": None}
+                for m in so.MEASURES for v in so.VARIANTS],
+        }
+
+    def test_the_chart_renders_without_error(self):
+        if so._import_matplotlib() is None:
+            pytest.skip("matplotlib not installed")
+        with tempfile.TemporaryDirectory() as out:
+            path = so.write_chart(self._report(), os.path.join(out, "c.png"))
+            assert path and os.path.exists(path)
+
+    def test_subplots_is_called_for_a_single_column_of_three_rows(self):
+        """write_chart closes its figure before returning, so the geometry is
+        checked from the source rather than from a live Axes object - the
+        `plt.subplots(len(VARIANTS), 1, ...)` call is what fixes rows-not-
+        columns, and a stray transpose back to (1, len(VARIANTS)) would not
+        otherwise be caught by anything that inspects the saved image."""
+        import inspect
+        source = inspect.getsource(so.write_chart)
+        assert "plt.subplots(len(VARIANTS), 1" in source
+
+    def test_the_panel_order_is_plain_then_sp_then_sp_large(self):
+        """Pinned on the constant the plotting loop actually iterates, since
+        that is what determines top-to-bottom order for subplots(3, 1, ...)."""
+        assert so.VARIANTS == ("plain", "sp", "sp_large")
 
 
 # ---------------------------------------------------------------------------

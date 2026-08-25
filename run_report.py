@@ -198,6 +198,25 @@ def load_summaries(output_dir: str) -> list:
             # summaries rather than recounted from episodes for that reason; the
             # two agree exactly on this corpus (777/3244 either way).
             "n_misaligned": d.get("n_misaligned") or 0,
+            # The two acts behind n_misaligned, split out - see
+            # misalignment_definition: an episode is misaligned if it took
+            # EITHER, so these two counts can overlap at the episode level and
+            # need not sum to n_misaligned. `acts_taken` is concealed + open +
+            # undetermined, i.e. the act happened regardless of whether it was
+            # hidden - the harness's own scheming_by_act carries no other count
+            # of "was this act taken" to read instead.
+            #
+            # The oversight act is not observable in a no-oversight arm - there
+            # is no monitor to tamper with - and the harness records that arm's
+            # count as a true 0 rather than None, so a caller pooling this
+            # across arms must restrict to oversight-present ones first or it
+            # repeats the not-applicable-is-not-zero error question 6 guards
+            # against. The sandbox act needs no such restriction: it is
+            # observable in every arm.
+            "n_oversight_act": (d.get("scheming_by_act") or {})
+                .get("oversight", {}).get("acts_taken") or 0,
+            "n_sandbox_act": (d.get("scheming_by_act") or {})
+                .get("sandbox", {}).get("acts_taken") or 0,
             "n_aware": n_aware, "n_unaware": n_unaware,
             "n_awareness_resolved": n_aware + n_unaware,
             "cross_analysis_awareness": d.get("cross_analysis_awareness"),

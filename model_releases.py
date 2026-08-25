@@ -91,6 +91,8 @@ RELEASE_DATES = {
     "meta/muse-glimmer-30b": date(2026, 8, 9),
 
     # qwen
+    "qwen/qwen3.5-flash-02-23": date(2026, 2, 25),
+    "qwen/qwen3.6-flash": date(2026, 4, 27),
     "qwen/qwen3.7-flash": date(2026, 7, 27),
     "qwen/qwen3.8-27b": date(2026, 8, 14),
 
