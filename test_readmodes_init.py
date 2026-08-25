@@ -88,6 +88,37 @@ class TestTheRederivedAllowlistIsPartOfTheSurface:
         fields = readmodes.REDERIVED_ANALYSIS_FIELDS
         assert len(fields) == len(set(fields))
 
+    def test_it_names_every_field_normalise_derives(self):
+        """The omission class this tuple's own comments record three times:
+        `first_awareness_index`, `strategy_recommended` and the disguised-text
+        pair were each derived freshly on every rebuild and then thrown away,
+        because nothing persisted them. Checked rather than remembered - the
+        allowlist is what --write-back may save, so a field normalise computes
+        and this omits is a field the saved episode keeps the OLD answer for.
+
+        Derived here by running normalise on a synthetic analysis and diffing
+        the keys it adds, so a new derivation cannot be added without either
+        listing it or amending the exemptions below with a reason."""
+        from subversionbench.reporting.facts import normalise_analyses
+
+        # Written by normalise but deliberately NOT persisted by a rebuild.
+        exempt = {
+            # Sampled or transcript-bound reads that the rebuild reports on
+            # rather than owns; each is covered by its own read mode.
+            "eval_awareness_keywords",
+        }
+        analysis = {"sandbox_escape_attempts": ["cat ../../etc/passwd"],
+                    "oversight_tampered": True}
+        before = set(analysis)
+        normalise_analyses([{"analysis": analysis, "transcript": []}])
+        derived = set(analysis) - before
+        missing = sorted(derived - set(readmodes.REDERIVED_ANALYSIS_FIELDS)
+                         - exempt)
+        assert not missing, (
+            f"normalise derives these, and a rebuild would not save them: "
+            f"{missing}. Add them to REDERIVED_ANALYSIS_FIELDS, or to this "
+            f"test's `exempt` set with a reason.")
+
     def test_it_names_no_sampled_field(self):
         """The split the whole read-mode design rests on: preserve what was
         sampled, re-derive what follows from it. An answer list or a grader reading

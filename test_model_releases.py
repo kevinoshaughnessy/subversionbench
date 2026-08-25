@@ -16,11 +16,28 @@ import model_releases as mr
 
 
 class TestTheTableIsWellFormed:
-    def test_every_key_is_a_provider_qualified_id(self):
-        """release_date() falls back to matching on the stem, and that fallback
-        is only safe if the keys themselves are unambiguous full IDs."""
-        bad = [k for k in mr.RELEASE_DATES if "/" not in k or k != k.strip()]
-        assert not bad, f"these keys are not clean provider/model IDs: {bad}"
+    def test_no_two_keys_share_a_stem(self):
+        """The invariant the stem fallback actually needs.
+
+        This replaced "every key carries a provider", which was a PROXY for it
+        and forbade something legitimate: `claude-haiku-4-5-20251001` is the
+        real ID for the Anthropic API, which is how this corpus reached that
+        model. The `anthropic/` prefix is an OpenRouter convention, and keying
+        it that way would have recorded a route that was never used.
+
+        A bare key is safe on its own. What is not safe is the same model under
+        two keys - a bare one and a prefixed one - because release_date() would
+        then find two dates for one stem and have no way to choose. That is the
+        case this holds, and it is the real content of the old rule."""
+        stems = [k.rpartition("/")[2].lower() for k in mr.RELEASE_DATES]
+        dupes = sorted({s for s in stems if stems.count(s) > 1})
+        assert not dupes, f"these stems appear under more than one key: {dupes}"
+
+    def test_every_key_is_stripped(self):
+        """Surrounding whitespace would break the exact-match path silently:
+        release_date() strips its ARGUMENT, not the table's keys."""
+        bad = [k for k in mr.RELEASE_DATES if k != k.strip()]
+        assert not bad, f"these keys carry surrounding whitespace: {bad}"
 
     def test_every_value_is_a_date_object(self):
         """Not an ISO string. Callers sort and compare these directly, and a

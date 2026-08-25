@@ -52,6 +52,12 @@ from datetime import date
 RELEASE_DATES = {
     # anthropic
     "anthropic/claude-sonnet-4.5": date(2025, 9, 29),
+    # Bare on purpose. This IS the model's ID for the Anthropic API, which is
+    # how this corpus reached it; the `anthropic/` prefix is an OpenRouter
+    # convention, and adding one here would record a route that was never used.
+    # Safe for the stem fallback as long as no prefixed twin is ever added
+    # beside it - which is the invariant test_no_two_keys_share_a_stem holds.
+    "claude-haiku-4-5-20251001": date(2025, 10, 15),
     "anthropic/claude-sonnet-4.6": date(2026, 2, 17),
     "anthropic/claude-opus-4.8": date(2026, 5, 27),
     "anthropic/claude-sonnet-5": date(2026, 6, 30),
@@ -65,9 +71,18 @@ RELEASE_DATES = {
 
     # google
     "google/gemini-3-flash-preview": date(2025, 12, 17),
+    # A tier of its own, not a version of gemini-flash - see QUALIFIER_TAGS in
+    # family_trends.py on why `lite` defines a family rather than a stage.
+    "google/gemini-3.1-flash-lite": date(2026, 5, 7),
     "google/gemini-3.5-flash": date(2026, 5, 19),
     "google/gemini-3.6-flash": date(2026, 7, 21),
     "google/gemini-3.7-flash": date(2026, 8, 13),
+
+    # inclusionai
+    "inclusionai/ling-3.0-flash": date(2026, 7, 23),
+
+    # mistralai
+    "mistralai/mistral-small-2603": date(2026, 3, 16),
 
     # moonshotai
     "moonshotai/kimi-k2": date(2025, 7, 11),
@@ -95,6 +110,14 @@ RELEASE_DATES = {
     "qwen/qwen3.6-flash": date(2026, 4, 27),
     "qwen/qwen3.7-flash": date(2026, 7, 27),
     "qwen/qwen3.8-27b": date(2026, 8, 14),
+
+    # tencent
+    "tencent/hy3": date(2026, 7, 6),
+
+    # thinkingmachines - `inkling-small` only. The unnamed-size `inkling` is a
+    # DIFFERENT model and was never evaluated here; see the deliberately
+    # unmatched entry for it in the sad_oversight.py bundle.
+    "thinkingmachines/inkling-small": date(2026, 7, 30),
 
     # x-ai
     "x-ai/grok-4.20": date(2026, 3, 31),

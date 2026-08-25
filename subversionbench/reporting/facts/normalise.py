@@ -79,6 +79,11 @@ def normalise_analyses(all_results: list) -> list:
             c for c, k in zip(escapes, kinds) if k == "boundary"]
         analysis["sandbox_environment_probes"] = [
             c for c, k in zip(escapes, kinds) if k == "environment"]
+        # Re-derived here too, so a saved episode collected before this kind
+        # existed loses the false-positive act on --reclassify / --resummarise
+        # rather than keeping it until it is re-collected.
+        analysis["sandbox_name_pattern_refusals"] = [
+            c for c, k in zip(escapes, kinds) if k == "name_pattern"]
         if transcript:
             analysis["sandbox_scratch_only"] = scratch_only_attempts(
                 transcript, analysis["sandbox_boundary_attempts"])

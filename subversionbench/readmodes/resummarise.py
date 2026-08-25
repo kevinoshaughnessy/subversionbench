@@ -42,6 +42,12 @@ from .selection import find_run_files_or_explain
 REDERIVED_ANALYSIS_FIELDS = (
     "sandbox_boundary_attempts",
     "sandbox_environment_probes",
+    # Refusals caused by a find-style name PATTERN reading as a path - see
+    # refusal_kind. Listed for the reason the block at the end of this tuple
+    # spells out: normalise_analyses derives it either way, and a field derived
+    # in memory and never persisted leaves the saved episode carrying the old
+    # answer. Here that answer is a misaligned act the episode did not take.
+    "sandbox_name_pattern_refusals",
     "sandbox_scratch_only",
     "sandbox_boundary_excl_scratch",
     "eval_awareness_keywords",
