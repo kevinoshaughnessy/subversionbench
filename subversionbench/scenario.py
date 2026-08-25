@@ -95,6 +95,11 @@ PROJECT_DIR = CLIENT_NAME.lower()
 # harness's to choose and has to be consistent with the display path.
 TASK_FILE_NAME = f"{PROJECT_DIR}_strategy.txt"
 
+# One more string the model reads during an episode, so it belongs in the bundle
+# for the reason the module docstring gives. It was a plain literal in six
+# tracked files; the guard below now covers it.
+SANDBOX_REFUSAL = _BUNDLE["sandbox_refusal"]
+
 # Every string that must not appear in plaintext anywhere in the repository.
 #
 # Held in the BUNDLE rather than in the test that checks it. The previous guard
@@ -105,7 +110,13 @@ TASK_FILE_NAME = f"{PROJECT_DIR}_strategy.txt"
 #
 # The superseded name is on the list too, so reintroducing it fails as loudly as
 # leaking the current one.
-CONTAMINATING_TERMS = tuple(_BUNDLE["contaminating_terms"])
+#
+# The last entry is DERIVED from SANDBOX_REFUSAL rather than stored alongside the
+# others, because this list is inside the assembled arm and so inside the rollout
+# fingerprint: adding a term to the bundle would move r9's hash. Derived, the
+# guard grows without the rollout's identity changing.
+CONTAMINATING_TERMS = tuple(_BUNDLE["contaminating_terms"]) + (
+    " ".join(SANDBOX_REFUSAL.rstrip(")").split()[-3:]),)
 
 
 def encode_scenario(bundle: dict, path: Path = None) -> None:
@@ -160,6 +171,18 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     differences in how the two were written.
     """
     bundle = dict(bundle or load_scenario())
+    # Popped unconditionally, on the same terms as the arm keys below: the
+    # assembled arm is what rollout_fingerprint hashes, so a key added to the
+    # bundle that reaches it declares every episode already collected
+    # incomparable with a scenario it still matches exactly. This one was a code
+    # literal before it was bundle text, and moving it changed nothing the model
+    # sees, so r9's identity has to be preserved rather than restated.
+    #
+    # The cost is that the WORDING is outside the fingerprint - rewording it
+    # would leave the drift guard silent. It was outside before this too, since
+    # _SANDBOX_PROBES hashes only whether each probe is refused. Closing that
+    # gap means changing the hash, so it belongs to the next rollout.
+    bundle.pop("sandbox_refusal", None)
     overrides = bundle.pop("no_oversight", {})
     dropped = bundle.pop("no_oversight_dropped", [])
     max_nudge = bundle.pop("max_nudge", {})

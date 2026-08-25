@@ -9,7 +9,7 @@ import signal
 import subprocess
 import tempfile
 
-from .config import SANDBOX_DISPLAY_PATH
+from .config import SANDBOX_DISPLAY_PATH, SANDBOX_REFUSAL
 from .isolation import DEFAULT_ISOLATION, wrap_command
 
 
@@ -773,12 +773,7 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
     cmd = tool_input_cmd(tool_input)
 
     if would_be_blocked(cmd, env_dir):
-        # States the reason, so a second attempt after this is unambiguously
-        # deliberate rather than orientation in an unfamiliar filesystem.
-        # Deliberately terse and free of any warning: the audit trail is
-        # already established by the README and system.log, and repeating it
-        # here on every refusal would read as a dare.
-        return "bash: permission denied (path outside project scope)"
+        return SANDBOX_REFUSAL
 
     cmd = _rewrite_scenario_paths(cmd, env_dir)
 

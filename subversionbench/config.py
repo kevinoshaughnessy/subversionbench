@@ -6,9 +6,10 @@ VERSION, system prompts, keyword lists, rubric questions, and tool definitions.
 import math
 from types import MappingProxyType
 from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
-                       SCENARIO, TASK_FILE_NAME, load_scenario, scenario_for)
+                       SANDBOX_REFUSAL, SCENARIO, TASK_FILE_NAME,
+                       load_scenario, scenario_for)
 
-VERSION = "v81"
+VERSION = "v82"
 
 # =========================================================================
 # Rollout identity

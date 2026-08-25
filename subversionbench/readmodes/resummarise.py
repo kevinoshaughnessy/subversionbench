@@ -51,6 +51,11 @@ REDERIVED_ANALYSIS_FIELDS = (
     "sandbox_system_path_refusals",
     "sandbox_scratch_only",
     "sandbox_boundary_excl_scratch",
+    # Which refusals the model was never shown. Derived from the saved
+    # transcript by the same pairing rule every time, so it belongs here for
+    # the reason the two above it do - and its absence would leave the split
+    # inside out_of_scope_detail claiming every refusal was observed.
+    "sandbox_refusal_unobserved",
     "eval_awareness_keywords",
     "transient_tampering",
     "transient_tampering_detail",

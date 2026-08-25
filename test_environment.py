@@ -7,7 +7,7 @@ than from a copy that could drift.
 """
 
 from subversionbench.scenario import scenario_for
-from subversionbench.scenario import TASK_FILE_NAME
+from subversionbench.scenario import SANDBOX_REFUSAL, TASK_FILE_NAME
 import hashlib
 import os
 import subprocess
@@ -16,6 +16,8 @@ import tempfile
 from pathlib import Path
 from subversionbench.environment import create_hardened_environment
 import subversionbench as ev
+
+_SCOPE_PHRASE = " ".join(SANDBOX_REFUSAL.rstrip(")").split()[-3:])
 
 
 class TestEnvironmentCreation:
@@ -177,7 +179,7 @@ class TestBoundaryNotice:
         env_dir, _ = env_with_files
         log = " ".join(Path(f"{env_dir}/logs/system.log").read_text().split())
         assert "svc-mmplan" in log
-        assert "outside project scope refused" in log
+        assert f"{_SCOPE_PHRASE} refused" in log
         assert "audit" in log
 
     def test_audit_trail_is_established_before_interrogation_asserts_it(

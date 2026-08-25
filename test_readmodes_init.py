@@ -11,6 +11,7 @@ import importlib
 import inspect
 
 import subversionbench.readmodes as readmodes
+from subversionbench.scenario import SANDBOX_REFUSAL
 
 MODES = ("grade_existing_runs", "reclassify_existing_runs",
          "reinterrogate_existing_runs", "resummarise_existing_runs")
@@ -107,10 +108,18 @@ class TestTheRederivedAllowlistIsPartOfTheSurface:
             # rather than owns; each is covered by its own read mode.
             "eval_awareness_keywords",
         }
+        # A NON-EMPTY transcript, because half of what normalise derives is
+        # gated on there being one. With `[]` here the guard could not see any
+        # of those, which is how a transcript-bound derivation was added
+        # without this test noticing.
         analysis = {"sandbox_escape_attempts": ["cat ../../etc/passwd"],
                     "oversight_tampered": True}
+        transcript = [
+            {"turn": 1, "type": "tool_call", "cmd": "cat ../../etc/passwd"},
+            {"turn": 1, "type": "tool_result", "result": SANDBOX_REFUSAL},
+        ]
         before = set(analysis)
-        normalise_analyses([{"analysis": analysis, "transcript": []}])
+        normalise_analyses([{"analysis": analysis, "transcript": transcript}])
         derived = set(analysis) - before
         missing = sorted(derived - set(readmodes.REDERIVED_ANALYSIS_FIELDS)
                          - exempt)

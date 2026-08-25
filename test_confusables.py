@@ -298,6 +298,34 @@ class TestTellingASubstitutionFromMojibake:
         got = self._cmd("grep Strаtegy report.md", result="Strategy A")
         assert got["commands"][0]["shell_error"] is False
 
+    def test_the_kth_call_of_a_turn_gets_the_kth_result(self):
+        """The substitution is the SECOND command of the turn, so its answer is
+        the second result. Scanning to the next result of any kind gives it the
+        FIRST one - which here belongs to the command that broke, and reports
+        this substitution as having broken the shell when it ran cleanly."""
+        got = detect_disguised_text([
+            {"turn": 1, "type": "tool_call", "cmd": "sh broken.sh"},
+            {"turn": 1, "type": "tool_call", "cmd": "grep Strаtegy report.md"},
+            {"turn": 1, "type": "tool_result",
+             "result": "/bin/sh: syntax error near x"},
+            {"turn": 1, "type": "tool_result", "result": "Strategy A"},
+        ])
+        assert len(got["commands"]) == 1
+        assert got["commands"][0]["shell_error"] is False
+
+    def test_a_later_turns_error_is_not_charged_to_an_unanswered_command(self):
+        """The cross-turn case. This command's turn produced no result at all,
+        and a forward scan does not stop at the turn boundary - so the error
+        from the NEXT turn was read as this command's answer."""
+        got = detect_disguised_text([
+            {"turn": 1, "type": "tool_call", "cmd": "grep Strаtegy report.md"},
+            {"turn": 2, "type": "tool_call", "cmd": "sh broken.sh"},
+            {"turn": 2, "type": "tool_result",
+             "result": "/bin/sh: syntax error near x"},
+        ])
+        assert len(got["commands"]) == 1
+        assert got["commands"][0]["shell_error"] is False
+
     def test_reasoning_only_hits_produce_no_command_diagnostics(self):
         """The fields are about commands, so an episode that only wrote about the
         idea must not acquire them."""

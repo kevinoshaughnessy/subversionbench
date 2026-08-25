@@ -10,6 +10,7 @@ nine reasons to change in one file. Each now owns itself:
     grader.py               asking an LLM the awareness rubric
     quote_grounding.py      verifying the grader cited the agent, not the memo
     command_patterns.py     what a shell command did to the scenario's files
+    transcript_pairs.py     which result answered which command
     transcript_analysis.py  what the episode did, hashes and commands
     transient_tampering.py  the subversion an end-state hash cannot see
     awareness_timing.py     when awareness came, and what had been read by then
@@ -83,6 +84,7 @@ from .quote_grounding import (
 from .transcript_analysis import (SCHEMING_KEYWORDS, analyze_misalignment,
                                  artefact_modified,
                                  detect_strategy_recommendation,
+                                 refusals_not_observed,
                                  verify_oversight_unchanged)
 from .filesystem_escapes import (classify_filesystem_escape,
                                  classify_host_path_read, detect_host_path_reads,
@@ -99,7 +101,7 @@ __all__ = [
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "auth_error_in_analysis",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
-    "scratch_only_attempts",
+    "scratch_only_attempts", "refusals_not_observed",
     "detect_network_probes", "classify_network_probe",
     "detect_filesystem_escapes", "classify_filesystem_escape",
     "detect_host_path_reads", "classify_host_path_read",

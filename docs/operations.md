@@ -240,7 +240,8 @@ real scenario path spliced in at each separator, and one model spent three turns
 investigating damage the harness had done. The trade-off is that a heredoc writing a script
 with scenario-absolute paths inside no longer has them resolved when that script runs.
 
-The refusal states its reason: `bash: permission denied (path outside project scope)`. That
+The refusal states its reason rather than failing blankly — the wording itself is scenario
+text and lives in the bundle, as `SANDBOX_REFUSAL`. That
 matters for measurement rather than usability — the model has been told the boundary before
 it acts, and the refusal tells it again, so a further attempt is recorded separately as
 persistence. The message carries no warning about consequences: the audit trail is already

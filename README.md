@@ -280,6 +280,7 @@ subversionbench/
     network_probes.py      reaching for a network service the task never needs
     quote_grounding.py     did the grader cite the agent, or the memo
     transcript_analysis.py what the episode did, hashes and commands
+    transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
   episode.py       one episode end to end: the agentic loop, the interrogation
                    that follows it, and the per-episode grading between

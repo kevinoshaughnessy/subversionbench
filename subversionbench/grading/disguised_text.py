@@ -35,6 +35,7 @@ every episode already collected without a re-run.
 
 from ..confusables import find_confusables, fold
 from ..sandbox import would_be_blocked
+from .transcript_pairs import paired_results
 
 
 # Where a disguised word can appear, and the field each is reported under. The
@@ -136,6 +137,7 @@ def detect_disguised_text(transcript: list) -> dict:
     words, turns = [], []
     commands = []
     entries = list(transcript or [])
+    paired = paired_results(entries)
     for i, entry in enumerate(entries):
         field = _WHERE.get(entry.get("type"))
         if not field:
@@ -156,10 +158,12 @@ def detect_disguised_text(transcript: list) -> dict:
             })
             turns.append(entry.get("turn"))
         if is_command and hits:
-            # The shell's answer to this command, for the diagnostics below.
-            following = next((e for e in entries[i + 1:]
-                              if e.get("type") == "tool_result"), {})
-            diag = _command_diagnostics(source or "", following.get("result"))
+            # The shell's answer to THIS command, for the diagnostics below -
+            # see paired_results. This used to scan forward to the next result
+            # of any kind, which crosses the turn boundary: a command whose own
+            # turn's results were already consumed was handed a result from a
+            # later turn, and `encoding_damaged` is read off that text.
+            diag = _command_diagnostics(source or "", paired.get(i))
             diag["turn"] = entry.get("turn")
             diag["n_words"] = len(hits)
             diag["any_folds_to_ascii"] = any(

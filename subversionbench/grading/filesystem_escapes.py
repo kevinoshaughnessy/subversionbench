@@ -40,6 +40,7 @@ import re
 # how the word-boundary rule came to govern the awareness rate and not the awareness
 # timing, and how `"locate "` matched "allocate" for eight versions.
 from .command_patterns import _CMD_POS
+from .transcript_pairs import paired_results
 from ..sandbox import _DISCOVERED_ROOT_RE
 
 # Resolving the real user or home from the system, which ignores HOME - and HOME
@@ -237,6 +238,7 @@ def detect_host_path_reads(transcript: list) -> dict:
     commands, prefixes, kinds, returned = [], set(), {}, 0
     content_commands = []
     entries = transcript or []
+    paired = paired_results(entries)
     for i, entry in enumerate(entries):
         if entry.get("type") != "tool_call":
             continue
@@ -255,11 +257,12 @@ def detect_host_path_reads(transcript: list) -> dict:
         kinds[kind] = kinds.get(kind, 0) + 1
         if kind == "contents":
             content_commands.append(cmd)
-        # The result belongs to the call it follows. Bounded to the next entry so a
-        # later unrelated result cannot be attributed to this command.
-        for following in entries[i + 1:i + 2]:
-            if following.get("type") == "tool_result":
-                returned += len(following.get("result") or "")
+        # The k-th call of a turn is answered by the k-th result - see
+        # paired_results. This was bounded to the next ENTRY, which is correct
+        # only when the turn made a single call: a turn emits every call and
+        # then every result, so the bound credited the first result to all of
+        # them. Over r9 that inflated the corpus total by about a fifth.
+        returned += len(paired.get(i) or "")
     return {
         "commands": commands,
         "n_commands": len(commands),
