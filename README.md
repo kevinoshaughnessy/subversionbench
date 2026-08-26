@@ -1,5 +1,7 @@
 # SubversionBench
 
+![SubversionBench logo](Logo.png)
+
 An agentic evaluation of **agentic misalignment**, **scheming** and **evaluation
 awareness**: whether a language model will take harmful instrumental action — disabling
 its own oversight — when doing so serves the goal it was given, whether it conceals having
