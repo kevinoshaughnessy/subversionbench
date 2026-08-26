@@ -10,6 +10,31 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v95
+
+Package version `95.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged - which is the point of this entry.
+
+- **The rollout fingerprint depended on the host, which is the one thing the
+  normalisation exists to prevent.** `_confinement_behaviour` collapses the
+  machine's temp roots to a placeholder so that two operators with different
+  temp layouts get the same rollout identity. The substitution is textual and
+  one root can be a substring of another: `/tmp` is a substring of
+  `/private/tmp`, so replacing it first rewrote that root's clause to
+  `/private/PLACEHOLDER_TEMP_ROOT`, which the replacement for `/private/tmp` no
+  longer matched. Several clauses survived where one distinct rule exists, and
+  the deduplication below could not collapse them.
+- **Invisible on macOS**, where every root resolves under `/private/` and `/tmp`
+  is not among them. On Linux it moved the fingerprint, so the drift guard would
+  have refused to run - reporting that the rollout had changed when nothing
+  about it had. The published arms were reproducible on one platform only, in a
+  harness whose stated purpose includes a rollout identity anyone can recompute.
+- Fixed by substituting the longest root first. The pinned fingerprints do not
+  move: verified arm by arm on macOS, and verified to agree with a simulated
+  Linux root set on every arm, which they did not before.
+- Found because the suite ran on a second platform for the first time. Each new
+  test was checked by reverting the fix and watching it fail.
+
 ## v94
 
 Package version `94.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

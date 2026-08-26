@@ -335,6 +335,78 @@ class TestTheRolloutRecordsIt:
                     rollout_fingerprint(oversight, lure=lure)[:12], (oversight, lure)
 
 
+class TestTheFingerprintDoesNotDependOnTheHost:
+    """The same code must fingerprint the same on any machine.
+
+    `_confinement_behaviour` normalises the temp roots away precisely so that two
+    operators with different temp layouts get the same rollout identity. It did
+    not, because the substitution is textual and one root can be a substring of
+    another: `/tmp` is a substring of `/private/tmp`, so replacing it first left
+    `/private/PLACEHOLDER_TEMP_ROOT` behind, which the replacement for that root
+    no longer matched. Four clauses survived where one distinct rule exists.
+
+    Invisible on macOS, where every root resolves under `/private/` and `/tmp` is
+    not among them. On Linux it moved the fingerprint, which is the one thing the
+    normalisation exists to prevent - a batch collected there could never pool
+    with one collected here.
+    """
+
+    # A Linux host: /tmp and /var/tmp are real, the /private/* paths are not, and
+    # realpath leaves a path that does not exist unchanged. Note /tmp is a
+    # substring of three of the others.
+    LINUX_ROOTS = ("/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp",
+                   "/var/folders", "/private/var/folders")
+
+    def _behaviour_with(self, roots):
+        from unittest import mock
+        import subversionbench.isolation as iso
+        from subversionbench.rollout import _confinement_behaviour
+        with mock.patch.object(iso, "_temp_roots", return_value=roots):
+            return _confinement_behaviour()
+
+    def test_a_root_set_with_substring_collisions_normalises_the_same(self):
+        from subversionbench.isolation import _temp_roots
+        from subversionbench.rollout import _confinement_behaviour
+        assert self._behaviour_with(self.LINUX_ROOTS) == _confinement_behaviour()
+        assert self._behaviour_with(_temp_roots()) == _confinement_behaviour()
+
+    def test_no_partially_substituted_path_survives(self):
+        """The symptom, named directly.
+
+        Every placeholder must begin the quoted path it stands for. A fragment of
+        a real path in front of it - `"/private/PLACEHOLDER_TEMP_ROOT"` - means
+        one root was rewritten by another root's substitution.
+        """
+        import re
+        for roots in (self.LINUX_ROOTS, ("/tmp",), ("/tmp", "/private/tmp")):
+            text = self._behaviour_with(roots)
+            mangled = [m.group(0) for m in
+                       re.finditer(r'"[^"]*?/PLACEHOLDER_TEMP_ROOT', text)
+                       if not m.group(0).startswith('"/PLACEHOLDER_TEMP_ROOT')]
+            assert not mangled, (roots, mangled)
+
+    def test_one_clause_per_distinct_rule(self):
+        """What the docstring promises. Six roots denote the same three rules."""
+        lines = self._behaviour_with(self.LINUX_ROOTS).strip().splitlines()
+        assert len(lines) == len(set(lines))
+        temp_clauses = [l for l in lines if "PLACEHOLDER_TEMP_ROOT" in l]
+        assert len(temp_clauses) == 3, temp_clauses
+
+    def test_the_pinned_fingerprints_hold_on_a_linux_root_set(self):
+        """The consequence that matters, on the published arms."""
+        from unittest import mock
+        import subversionbench.isolation as iso
+        from subversionbench.config import fingerprint_for
+        from subversionbench.rollout import rollout_fingerprint
+        with mock.patch.object(iso, "_temp_roots",
+                               return_value=self.LINUX_ROOTS):
+            for oversight in (True, False):
+                for lure in (False, True):
+                    assert fingerprint_for(oversight, lure) == \
+                        rollout_fingerprint(oversight, lure=lure)[:12], \
+                        (oversight, lure)
+
+
 class TestTheHostMustBeAbleToEnforceIt:
     def test_an_unshare_only_linux_host_can_isolate_but_not_confine(self):
         """`unshare --net` can enforce the network policy and cannot enforce this

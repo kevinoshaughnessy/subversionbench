@@ -137,7 +137,20 @@ def _confinement_behaviour() -> str:
     from .isolation import _temp_roots, confinement_clauses
 
     clauses = confinement_clauses("/PLACEHOLDER_EPISODE_ROOT")
-    for root in _temp_roots():
+    # LONGEST ROOT FIRST, because one root can be a substring of another and the
+    # substitution is textual. `/tmp` is a substring of `/private/tmp`, so
+    # replacing it first rewrote that root's clause to
+    # `/private/PLACEHOLDER_TEMP_ROOT`, which the replacement for `/private/tmp`
+    # then no longer matched - leaving four surviving clauses where one distinct
+    # rule exists, and defeating the deduplication below.
+    #
+    # It bit on Linux and not here: on macOS every root resolves under
+    # `/private/`, so `/tmp` is not among them and nothing collides. The effect
+    # was exactly what this function exists to prevent and what the paragraph
+    # above promises does not happen - the same code fingerprinted differently on
+    # the two platforms, so a batch collected on Linux could never pool with one
+    # collected on macOS.
+    for root in sorted(_temp_roots(), key=len, reverse=True):
         clauses = clauses.replace(root, "/PLACEHOLDER_TEMP_ROOT")
     seen, lines = set(), []
     for line in clauses.strip().splitlines():
