@@ -6,6 +6,7 @@ run_tests.py can build the same scenarios without pytest installed; the
 pytest fixtures below are thin wrappers over them.
 """
 
+import functools
 import os
 import tempfile
 from pathlib import Path
@@ -69,11 +70,33 @@ _NOT_PROJECT = {
 }
 
 
+@functools.lru_cache(maxsize=1)
+def _virtualenv_roots() -> tuple:
+    """Every virtualenv under the project, found by its `pyvenv.cfg` marker.
+
+    By marker, not by name. `_NOT_PROJECT` listed `.venv` and `venv`, which is
+    the same path-shaped rule this whole discovery exists to replace: a venv
+    called anything else was walked as project source. Measured, not supposed -
+    a Linux venv created as `.venv-linux` beside the package put 5,310
+    site-packages modules into the file list every static guard reads, so
+    pyflakes was asked to check PIL and the layout guard to find it in the
+    README.
+
+    `pyvenv.cfg` sits at the root of every venv PEP 405 describes, so this
+    covers one whatever it is called and whoever made it.
+    """
+    return tuple(p.parent for p in PROJECT_ROOT.rglob("pyvenv.cfg"))
+
+
 def _is_project_path(relative: Path) -> bool:
     for part in relative.parts:
         if part in _NOT_PROJECT:
             return False
         if part.endswith(".egg-info") or part.startswith("eval_results"):
+            return False
+    absolute = PROJECT_ROOT / relative
+    for venv in _virtualenv_roots():
+        if venv == absolute or venv in absolute.parents:
             return False
     return True
 
