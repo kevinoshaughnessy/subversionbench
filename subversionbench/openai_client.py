@@ -11,7 +11,6 @@ import json
 import os
 
 from .blocks import _Block, _Response, _block_attr, _block_type, _reasoning_usage
-from .routing import is_openai_model, is_openrouter_model
 
 #
 # WHY A SECOND OPENAI-SHAPED CLIENT

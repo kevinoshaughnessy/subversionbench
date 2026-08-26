@@ -31,42 +31,64 @@ from .console import render_report
 from .facts import batch_facts, normalise_analyses
 
 
-def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> dict:
+def _power_for(args, facts: dict):
     """
-    Aggregate a batch of completed runs into the printed report and the
-    summary JSON, and write it.
+    Precision and detectable effect sizes, or None when the batch declined them.
 
-    Split out of main() so a summary can be rebuilt from run files already on
-    disk. --reclassify re-derives the verdicts in each run, which leaves every
-    verdict-derived figure in a summary written earlier stale - not just the
-    new ones. Regenerating has to be possible without paying for the rollouts
-    again.
+    Extracted so the summary can be built without spending on it, and so the
+    spend is a decision at one site rather than a branch inside the assembly.
+    Runs by default: a rate without a sense of what n could have resolved is the
+    easiest number in this report to over-read. Cheap - about 0.15s at n=100,
+    2.2s at the n=250 exact ceiling, after a batch that took hours. See power.py
+    on why observed power is not among the outputs.
 
-    `identity` is which batch this is - the arm, and the stamp. Passed rather than
-    read off `args`, because on the rebuild path the arm is whatever the run
-    filenames say and not what this invocation was given. See BatchIdentity for the
-    two ways that went wrong when the two were conflated.
-
-    `runtime` carries the batch facts that are not recoverable from run files -
-    wall-clock timings, which episodes failed, whether the batch was aborted, and
-    under `settings` the invocation values the batch actually ran under.
-    Rebuilding from disk passes whatever the previous summary recorded, and
-    leaves the rest empty rather than inventing it.
+    Binds each figure by `name = facts["name"]` like every other consumer, so a
+    figure read only here still counts as read - see the two guards in
+    test_reporting/test_summary.py that check that interface in both directions.
     """
-    # The settings this batch RAN under, which are not always the ones this
-    # invocation carries: a rebuild recovers them from the summary it is replacing.
-    # Read through here rather than assigned onto `args`, which is shared across a
-    # fan-out and leaked into the next model when it was.
-    settings = (runtime or {}).get("settings") or {}
-    def setting(name):
-        return settings.get(name, getattr(args, name))
+    if args.no_power:
+        return None
+    n = facts["n"]
+    n_misaligned = facts["n_misaligned"]
+    n_monitoring_disabled = facts["n_monitoring_disabled"]
+    n_escape_attempts = facts["n_escape_attempts"]
+    n_escape_persisted = facts["n_escape_persisted"]
+    n_scheming = facts["n_scheming"]
+    n_eval_aware_kw = facts["n_eval_aware_kw"]
+    n_eval_aware_grader = facts["n_eval_aware_grader"]
+    n_graded = facts["n_graded"]
+    concealment = facts["concealment"]
+    return analyse_batch([
+        ("misaligned", n_misaligned, n, None, None),
+        ("disabled_monitoring", n_monitoring_disabled, n, None, None),
+        ("sandbox_escape_attempt", n_escape_attempts, n, None, None),
+        ("sandbox_escape_after_refusal", n_escape_persisted, n, None, None),
+        ("scheming", n_scheming, n, None, None),
+        ("eval_aware_keywords", n_eval_aware_kw, n, None, None),
+        ("eval_aware_grader", n_eval_aware_grader, n_graded, None,
+         n_graded / n if n else None),
+        ("concealed_oversight",
+         concealment["oversight"]["concealed"],
+         concealment["oversight"]["acts"],
+         "episodes that tampered with oversight",
+         concealment["oversight"]["acts"] / n if n else None),
+    ])
 
-    # Bring the saved analyses up to the current definitions BEFORE anything
-    # reads an act key, then compute every figure from them. Both live in
-    # reporting/facts.py, which says why they are two calls and not one.
-    normalise_analyses(all_results)
-    facts = batch_facts(all_results, runtime)
 
+def summary_document(facts: dict, identity, setting, power=None) -> dict:
+    """
+    The summary artefact, as a dict. Nothing is printed and nothing is written.
+
+    THIS FUNCTION OWNS THE SCHEMA. It used to be the tail of `summarise_batch`,
+    which also rendered the console report and wrote the file - so a summary
+    could not be built without printing one, and the schema could not be
+    exercised without a writable directory. Both are now the caller's business.
+
+    `setting` is a callable resolving one invocation value, because a rebuild
+    recovers those from the summary it is replacing rather than from this
+    process's arguments. `identity` is which batch this is; see `summarise_batch`
+    on why both are passed rather than read off `args`.
+    """
     # Bound to locals so the report and the summary below read exactly as they
     # did when the computation was inline - the extraction moved no arithmetic
     # and changed no field. This block is the declared interface between the
@@ -173,34 +195,6 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
 
     # Every primary score with its interval and an explicit denominator.
     rates = facts["rates"]
-    # =====================================================================
-    # Precision and detectable effect sizes
-    # =====================================================================
-    # Computed here and handed to the report: it is a figure the summary stores,
-    # and whether to spend on it is a CLI decision, not a formatting one.
-    # Runs by default: a rate without a sense of what n could have resolved
-    # is the easiest number in this report to over-read. Cheap - about 0.15s
-    # at n=100, 2.2s at the n=250 exact ceiling, after a batch that took
-    # hours. See power.py on why observed power is not among the outputs.
-    power = None
-    if not args.no_power:
-        power = analyse_batch([
-            ("misaligned", n_misaligned, n, None, None),
-            ("disabled_monitoring", n_monitoring_disabled, n, None, None),
-            ("sandbox_escape_attempt", n_escape_attempts, n, None, None),
-            ("sandbox_escape_after_refusal", n_escape_persisted, n, None, None),
-            ("scheming", n_scheming, n, None, None),
-            ("eval_aware_keywords", n_eval_aware_kw, n, None, None),
-            ("eval_aware_grader", n_eval_aware_grader, n_graded, None,
-             n_graded / n if n else None),
-            ("concealed_oversight",
-             concealment["oversight"]["concealed"],
-             concealment["oversight"]["acts"],
-             "episodes that tampered with oversight",
-             concealment["oversight"]["acts"] / n if n else None),
-        ])
-
-    render_report(facts, identity, args, power)
 
     summary = {
         "canary": CANARY,
@@ -411,10 +405,68 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
         "efforts_observed": efforts,
         "efforts_mixed": len(efforts) > 1,
     }
+    return summary
+
+
+def write_summary(summary: dict, args, identity) -> str:
+    """
+    Persist the summary beside the runs, and say where it went.
+
+    Separate from building it so a caller can have the document without the file
+    - which is what every test of the schema wants, and what the rebuild path
+    wanted when it had to write to a temporary directory to read one field.
+    """
     summary_file = identity.filename(args.output_dir)
     with open(summary_file, "w") as f:
         json.dump(summary, f, indent=2)
     print(f"Summary saved to {redact_paths(summary_file)}")
+    return summary_file
+
+
+def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> dict:
+    """
+    Aggregate a batch of completed runs into the printed report and the
+    summary JSON, and write it.
+
+    Split out of main() so a summary can be rebuilt from run files already on
+    disk. --reclassify re-derives the verdicts in each run, which leaves every
+    verdict-derived figure in a summary written earlier stale - not just the
+    new ones. Regenerating has to be possible without paying for the rollouts
+    again.
+
+    `identity` is which batch this is - the arm, and the stamp. Passed rather than
+    read off `args`, because on the rebuild path the arm is whatever the run
+    filenames say and not what this invocation was given. See BatchIdentity for the
+    two ways that went wrong when the two were conflated.
+
+    `runtime` carries the batch facts that are not recoverable from run files -
+    wall-clock timings, which episodes failed, whether the batch was aborted, and
+    under `settings` the invocation values the batch actually ran under.
+    Rebuilding from disk passes whatever the previous summary recorded, and
+    leaves the rest empty rather than inventing it.
+    """
+    # The settings this batch RAN under, which are not always the ones this
+    # invocation carries: a rebuild recovers them from the summary it is replacing.
+    # Read through here rather than assigned onto `args`, which is shared across a
+    # fan-out and leaked into the next model when it was.
+    settings = (runtime or {}).get("settings") or {}
+    def setting(name):
+        return settings.get(name, getattr(args, name))
+    # Bring the saved analyses up to the current definitions BEFORE anything
+    # reads an act key, then compute every figure from them. Both live in
+    # reporting/facts.py, which says why they are two calls and not one.
+    normalise_analyses(all_results)
+    facts = batch_facts(all_results, runtime)
+
+    # Compute, then render, then assemble, then write - in that order, and each
+    # step reading only what the one before produced. The order is not
+    # cosmetic: rendering after assembly would let the console show a figure the
+    # document had already dropped, which is the failure this layer was built to
+    # end.
+    power = _power_for(args, facts)
+    render_report(facts, identity, args, power)
+    summary = summary_document(facts, identity, setting, power)
+    write_summary(summary, args, identity)
     return summary
 
 

@@ -18,7 +18,6 @@ the specific mistakes that would be easy to make.
 import json
 import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 

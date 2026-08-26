@@ -10,6 +10,39 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v88
+
+Package version `88.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **Assembling the summary is separate from rendering and writing it.**
+  `summarise_batch` was one 385-line function that computed the figures, printed
+  the console report, built the document and wrote it to disk - so a summary
+  could not be built without printing one, and the schema could not be exercised
+  without a writable directory. Four functions now: `_power_for`,
+  `summary_document`, `write_summary`, and an orchestrator that only orders
+  them. Verified byte-identical: same document, same console output, with and
+  without power.
+- **The `name = facts["name"]` block stays.** It looks like boilerplate and is
+  not: two guards read it as the declared interface between the figures and
+  their consumers, in both directions. What moved is where it sits.
+- **Four tests were reading the source of `summarise_batch`** for the schema,
+  the definition string, or the bindings. Each now scans the MODULE, because a
+  test that names a function stops guarding the moment the thing it looks for
+  moves - and passes while finding nothing.
+- **267 unused imports removed, out of 322 pyflakes messages.** 177 came from a
+  single 26-line import block copied into eight files when `test_grading.py` was
+  split, each file using a slice of it; the rest were leftovers from earlier
+  splits, one of them in `config.py` from this version's own work. The two
+  façades that re-export declare it in `__all__` now, which turns a stray import
+  back into something visible.
+- **A guard for it**, beside the undefined-name check that already ran pyflakes:
+  no package module may carry an unused import unless it re-exports and says so.
+  Verified to bite by planting one.
+- 38 `f` prefixes dropped from strings with no placeholder. The 10 that remain
+  are segments of multi-line concatenations whose siblings do have them, where
+  the consistent prefix is what stops the next edit printing braces.
+
 ## v87
 
 Package version `87.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

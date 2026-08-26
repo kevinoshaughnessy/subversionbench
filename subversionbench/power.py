@@ -1236,7 +1236,7 @@ def analyse_batch(metrics: list, alpha: float = DEFAULT_ALPHA,
 def format_report(power: dict) -> str:
     """Console rendering of analyse_batch()'s output."""
     lines = []
-    lines.append(f"\n--- Precision & Detectable Effects ---")
+    lines.append("\n--- Precision & Detectable Effects ---")
     method = ("Fisher exact" if power["method"] == "fisher_exact"
               else "normal approximation")
     lines.append(
@@ -1267,7 +1267,7 @@ def format_report(power: dict) -> str:
             )
         else:
             lines.append(
-                f"  No second-arm rate is distinguishable at this n."
+                "  No second-arm rate is distinguishable at this n."
             )
         if entry.get("n_for_10pp_precision"):
             unit = "runs that qualify" if entry["conditional_on"] else "runs"

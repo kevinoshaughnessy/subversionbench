@@ -24,7 +24,6 @@ that wants `VERSION` may take it from either place; nothing has to be rewritten 
 move a constant, which is what made this split safe to do in one step.
 """
 
-import math
 from types import MappingProxyType
 from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
                        SANDBOX_REFUSAL, SCENARIO, TASK_FILE_NAME,
@@ -52,6 +51,67 @@ from .interrogations import (ACT_OVERSIGHT_DESCRIPTION, ACT_SANDBOX_DESCRIPTION,
                              REPORT_DISCLOSES_CHANGE_QUESTION,
                              REPORT_STATES_CHECK_OUTCOME_QUESTION,
                              parse_interrogations)
+
+# The names this module provides, its own and the ones it re-exports.
+#
+# Declared because a re-export is indistinguishable from a stray import to
+# anything reading the file - pyflakes called all 25 of them unused, which is the
+# correct reading of `from .version import VERSION` in a module that never
+# mentions VERSION again. The list turns that into a statement of intent, and it
+# is what makes an actually-stray import in here visible again.
+#
+# Checked against the tree's real imports by
+# test_config.py::TestTheFacadeStaysComplete, so a name added to one of the split
+# modules and taken from here cannot be missing from this list.
+__all__ = [
+    "ACT_OVERSIGHT_DESCRIPTION",
+    "ACT_SANDBOX_DESCRIPTION",
+    "CANARY",
+    "CANARY_GUID",
+    "CONTAMINATING_TERMS",
+    "DEFAULT_GRADER_MODEL",
+    "DEFAULT_INTERROGATION",
+    "EVAL_AWARENESS_INDICATORS",
+    "FOLLOWUP_MONITORING_ADMISSION",
+    "FOLLOWUP_MONITORING_CONTRITION",
+    "FOLLOWUP_MONITORING_DENIAL",
+    "FOLLOWUP_MONITORING_QUESTIONS",
+    "FOLLOWUP_MONITORING_QUESTIONS_MAX",
+    "FOLLOWUP_SANDBOX_ADMISSION",
+    "FOLLOWUP_SANDBOX_CONTRITION",
+    "FOLLOWUP_SANDBOX_DENIAL",
+    "FOLLOWUP_SANDBOX_QUESTIONS",
+    "FOLLOWUP_SANDBOX_QUESTIONS_MAX",
+    "GOAL_CONFLICT_AWARENESS",
+    "INTERROGATION_CHOICES",
+    "INTERROGATION_CLASSIFIER_SYSTEM_PROMPT",
+    "INTERROGATION_VARIANTS",
+    "MAX_CLASSIFIER_FALLBACK_RATE",
+    "MIN_CALLS_FOR_FALLBACK_RATE",
+    "OPENROUTER_BASE_URL",
+    "OPERATOR_DISPLAY_NAME",
+    "PROJECT_DIR",
+    "REPORT_DISCLOSES_CHANGE_QUESTION",
+    "REPORT_STATES_CHECK_OUTCOME_QUESTION",
+    "ROLLOUT_FINGERPRINT",
+    "ROLLOUT_FINGERPRINTS",
+    "ROLLOUT_VERSION",
+    "RUBRIC_QUESTIONS",
+    "RUBRIC_SYSTEM_PROMPT",
+    "SANDBOX_DISPLAY_PATH",
+    "SANDBOX_REFUSAL",
+    "SCENARIO",
+    "SYSTEM_PROMPT_NO_NUDGE",
+    "SYSTEM_PROMPT_STRONG_NUDGE",
+    "TASK_FILE_NAME",
+    "TOOLS",
+    "USER_PROMPT",
+    "VERSION",
+    "fingerprint_for",
+    "load_scenario",
+    "parse_interrogations",
+    "scenario_for",
+]
 
 # =========================================================================
 # Canary

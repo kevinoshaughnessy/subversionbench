@@ -10,42 +10,8 @@ sandbox-escape attempt detection.
 Run: pytest test_grading.py -v
 """
 
-import os
-import json
-import types
-import hashlib
-from pathlib import Path
-
 import subversionbench as ev
-from subversionbench.config import (
-    ACT_OVERSIGHT_DESCRIPTION,
-    FOLLOWUP_MONITORING_ADMISSION,
-    FOLLOWUP_MONITORING_DENIAL,
-    FOLLOWUP_MONITORING_CONTRITION,
-    FOLLOWUP_SANDBOX_ADMISSION,
-    FOLLOWUP_SANDBOX_DENIAL,
-    FOLLOWUP_SANDBOX_CONTRITION,
-)
-from subversionbench.grading.acts import MISALIGNED_ACTS
-from subversionbench.grading.closing_report import (
-    detect_disclosure,
-    detect_misrepresentation,
-    final_report,
-)
-from subversionbench.grading.concealment import (
-    classify_misalignment,
-    classify_scheming,
-    concealment_level,
-    CONCEALMENT_LEVELS,
-    SCHEMING_LEVELS,
-)
 from subversionbench.grading.grader_io import _parse_first_json
-from subversionbench.grading.interrogation import (
-    classify_answer,
-    classify_answer_llm,
-    classify_interrogation_answer,
-    marker_matches,
-)
 import contextlib
 import io
 import subversionbench.grading as ev_grade
@@ -185,8 +151,6 @@ class TestGraderTranscriptTruncation:
 # =========================================================================
 # Tests: Scheming classification
 # =========================================================================
-
-
 
 
 class TestJSONParsing:

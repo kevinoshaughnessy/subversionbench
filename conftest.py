@@ -40,7 +40,6 @@ def _placeholder_credentials():
 _placeholder_credentials()
 
 
-
 def make_env_with_files():
     """Create a full hardened environment and return (env_dir, env_info)."""
     env_dir = tempfile.mkdtemp(prefix="test_eval_")
@@ -88,6 +87,12 @@ class FakeArgs:
         self.interrogation = kw.get("interrogation", "default")
         self.write_back = kw.get("write_back", False)
         self.delay = kw.get("delay", 0)
+        # Read by the summary schema through `setting()`, so a builder without
+        # them cannot stand in for args where a document is assembled. Defaults
+        # match run_eval's own, so a test that does not care about them gets the
+        # values a real batch would have carried.
+        self.max_tokens = kw.get("max_tokens", 8192)
+        self.max_turns = kw.get("max_turns", 40)
 
 
 def collecting_identity(args, model_slug="m", stamp="S"):
@@ -169,13 +174,19 @@ def summary_pipeline_source():
     moved out of summarise_batch into reporting/facts/. What the tests using this
     pin is that the summary still records what they are about - not which function
     happens to compute it.
+
+    Whole MODULES on both sides, which is the second time naming a function here
+    would have gone wrong: the figures left summarise_batch for facts/, and then
+    the schema left it too, for summary_document. A helper that names the function
+    reports a source without the thing the caller is looking for, and the
+    assertion passes on an empty search.
     """
     import glob
     import inspect
-    import subversionbench.run_eval as ev_run
+    import subversionbench.reporting.summary as summary_module
     facts_src = "".join(open(p).read() for p in
                         sorted(glob.glob("subversionbench/reporting/facts/*.py")))
-    return facts_src + inspect.getsource(ev_run.summarise_batch)
+    return facts_src + inspect.getsource(summary_module)
 
 
 def sandbox_profile(mode):

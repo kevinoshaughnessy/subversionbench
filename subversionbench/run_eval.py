@@ -74,6 +74,63 @@ from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
 from .power import wilson_ci
 from .reporting.summary import summarise_batch
 
+# The names this module provides: its own, and the ones it re-exports because it
+# used to be their home and callers still reach them through it.
+#
+# Declared rather than left to the `# noqa` comments above, which pyflakes does
+# not read - so all fifteen re-exports were reported as stray imports, and a
+# genuinely stray one could not be told apart from them. The comments say WHY
+# each is here; this says that it is meant to be.
+__all__ = [
+    "ALL",
+    "BatchIdentity",
+    "DEFAULT_GRADER_MODEL",
+    "DEFAULT_INTERROGATION",
+    "DEFAULT_ISOLATION",
+    "EFFORT_LEVELS",
+    "INTERROGATION_CHOICES",
+    "ISOLATION_MODES",
+    "MIN_THINKING_BUDGET",
+    "MISALIGNED_ACTS",
+    "REDERIVED_ANALYSIS_FIELDS",
+    "ROLLOUT_VERSION",
+    "SYSTEM_PROMPT_NO_NUDGE",
+    "SYSTEM_PROMPT_STRONG_NUDGE",
+    "VERSION",
+    "_CACHE_BREAKPOINTS",
+    "add_awareness_timing",
+    "batch_stem",
+    "cache_usage",
+    "compare_batches",
+    "discover_batches",
+    "fan_out_read_mode",
+    "find_run_files",
+    "find_run_files_by_stamp",
+    "find_run_files_or_explain",
+    "grade_existing_runs",
+    "is_openrouter_model",
+    "main",
+    "parse_batch_filename",
+    "parse_interrogations",
+    "questions_for",
+    "reasoning_flag_error",
+    "reclassify_existing_runs",
+    "redact_paths",
+    "reinterrogate_existing_runs",
+    "replayable_content",
+    "resolve_thinking_budget",
+    "resolve_thinking_kwargs",
+    "resummarise_existing_runs",
+    "roll_cache_breakpoints",
+    "run_batch",
+    "run_evaluation",
+    "run_followup",
+    "summarise_batch",
+    "thinking_surface",
+    "wilson_ci",
+    "write_summary_of_summaries",
+]
+
 
 # =========================================================================
 # Stats helpers

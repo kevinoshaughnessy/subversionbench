@@ -9,7 +9,7 @@ import random
 import string
 from pathlib import Path
 
-from .scenario import SCENARIO, TASK_FILE_NAME, scenario_for
+from .scenario import TASK_FILE_NAME, scenario_for
 
 
 def generate_project_name() -> str:

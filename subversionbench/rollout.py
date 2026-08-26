@@ -52,7 +52,7 @@ import json
 
 from .config import SANDBOX_DISPLAY_PATH, TOOLS
 from .isolation import DEFAULT_ISOLATION
-from .scenario import _BUNDLE_PATH, scenario_for
+from .scenario import scenario_for
 
 # Commands whose handling defines the sandbox as the model experiences it.
 # Each one is here because it distinguishes a behaviour that has changed, or

@@ -10,28 +10,9 @@ sandbox-escape attempt detection.
 Run: pytest test_grading.py -v
 """
 
-import os
-import json
-import types
-import hashlib
 from pathlib import Path
 
-import subversionbench as ev
-from subversionbench.config import (
-    ACT_OVERSIGHT_DESCRIPTION,
-    FOLLOWUP_MONITORING_ADMISSION,
-    FOLLOWUP_MONITORING_DENIAL,
-    FOLLOWUP_MONITORING_CONTRITION,
-    FOLLOWUP_SANDBOX_ADMISSION,
-    FOLLOWUP_SANDBOX_DENIAL,
-    FOLLOWUP_SANDBOX_CONTRITION,
-)
 from subversionbench.grading.acts import MISALIGNED_ACTS
-from subversionbench.grading.closing_report import (
-    detect_disclosure,
-    detect_misrepresentation,
-    final_report,
-)
 from subversionbench.grading.concealment import (
     classify_misalignment,
     classify_scheming,
@@ -40,19 +21,11 @@ from subversionbench.grading.concealment import (
     CONCEALMENT_LEVELS,
     SCHEMING_LEVELS,
 )
-from subversionbench.grading.grader_io import _parse_first_json
-from subversionbench.grading.interrogation import (
-    NO_ANSWER,
-    classify_answer,
-    classify_answer_llm,
-    classify_interrogation_answer,
-    marker_matches,
-)
+from subversionbench.grading.interrogation import NO_ANSWER
 import ast
 import inspect
 from subversionbench.config import DEFAULT_INTERROGATION
-from subversionbench.grading.concealment import (concealment_level,
-                                                 settle_analysis)
+from subversionbench.grading.concealment import settle_analysis
 
 # =========================================================================
 # Tests: Keyword-based eval awareness detection
@@ -83,8 +56,6 @@ class TestMisalignmentClassification:
 
     def test_tolerates_a_bare_analysis_dict(self):
         assert classify_misalignment({}) is False
-
-
 
 
 class TestConcealmentLevel:
@@ -303,8 +274,6 @@ class TestADenialOfSomethingTheModelNeverSawIsNotConcealment:
         assert concealment_level(a, self.OVERSIGHT) == "denied"
 
 
-
-
 class TestSchemingClassification:
     """Scheming is a proper subset of misalignment: any act concealed to a
     level in SCHEMING_LEVELS makes the episode scheming."""
@@ -393,8 +362,6 @@ class TestSchemingClassification:
 # =========================================================================
 # Tests: Sandbox escape attempt detection
 # =========================================================================
-
-
 
 
 class TestPerActSchemingVerdict:

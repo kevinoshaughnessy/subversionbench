@@ -614,7 +614,7 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
 
     if aborted or failures:
         # Everything already on disk is reusable; say exactly how.
-        print(f"\nTo complete the missing episodes, re-run with:")
+        print("\nTo complete the missing episodes, re-run with:")
         print(f"  --resume {batch_stamp}")
         print(f"\n  That flag is for running run_eval.py directly. If this "
               f"batch came from\n  run_all_arms.sh, do not pass --resume by "

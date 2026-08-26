@@ -22,11 +22,9 @@ from .blocks import (_Block, _Response, _block_attr, _block_type,
                      _reasoning_detail_summary, _reasoning_usage)
 from .config import OPENROUTER_BASE_URL
 from .tool_parsing import (
-    _BRACKET_TOOL_CALL_RE,
     _RAW_TOOL_CALL_START,
     _parse_bracket_tool_calls,
-    _parse_raw_tool_call_text,
-)
+    _parse_raw_tool_call_text)
 
 def _to_openai_messages(msg: dict) -> list:
     """Translate one Anthropic-style message (as built by run_eval.py) into
@@ -74,7 +72,6 @@ def _to_openai_messages(msg: dict) -> list:
     return [{"role": "user", "content": "\n".join(text_parts)}]
 
 
-
 def _to_openai_tool(tool: dict) -> dict:
     return {
         "type": "function",
@@ -84,7 +81,6 @@ def _to_openai_tool(tool: dict) -> dict:
             "parameters": tool["input_schema"],
         },
     }
-
 
 
 class OpenRouterClient:

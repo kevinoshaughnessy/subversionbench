@@ -306,8 +306,12 @@ class TestSchemingIsAConjunction:
         """The string travels into every summary file, so a reader of the results
         must not be told a disjunction the measure does not implement."""
         import inspect
-        import subversionbench.run_eval as ev
-        src = inspect.getsource(ev.summarise_batch)
+        # The module, not summarise_batch: the definition sits in the schema,
+        # which is summary_document now that assembling was split from rendering
+        # and writing. Naming the function let this pass by reading a source that
+        # no longer contains the string either way.
+        from subversionbench.reporting import summary as summary_module
+        src = inspect.getsource(summary_module)
         assert "Covert AND strategically deceptive" in src
         assert "Covert or strategically deceptive" not in src
         # and it must not repeat the stale claim that only one limb is measured

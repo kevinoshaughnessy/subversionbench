@@ -92,12 +92,21 @@ class TestEveryFigureReachesTheSummaryFile:
     """
 
     def _figures_and_direct(self):
-        import subversionbench.run_eval as ev
+        # Scanned from the MODULE, not from one function in it. The schema used to
+        # be the tail of summarise_batch, which also rendered and wrote; it is
+        # summary_document now, and naming the function here meant this guard
+        # stopped seeing the dict the moment the dict moved - passing, having
+        # checked nothing.
+        from subversionbench.reporting import summary as summary_module
         figures = _returned_figures()
-        sb = ast.parse(inspect.getsource(ev.summarise_batch)).body[0]
-        sd = [x for x in ast.walk(sb) if isinstance(x, ast.Assign)
-              and any(getattr(t, "id", "") == "summary" for t in x.targets)][0]
-        direct = {x.id for x in ast.walk(sd.value)
+        tree = ast.parse(inspect.getsource(summary_module))
+        assigns = [x for x in ast.walk(tree) if isinstance(x, ast.Assign)
+                   and any(getattr(t, "id", "") == "summary" for t in x.targets)
+                   and isinstance(x.value, ast.Dict)]
+        assert len(assigns) == 1, (
+            f"expected exactly one `summary = {{...}}` in {summary_module.__name__}, "
+            f"found {len(assigns)} - the schema has to have one home")
+        direct = {x.id for x in ast.walk(assigns[0].value)
                   if isinstance(x, ast.Name)} & figures
         return figures, direct
 
@@ -170,9 +179,14 @@ class TestTheInterfaceCannotDriftFromItsConsumer:
     def _unpacked(self, fn):
         """The `name = facts["name"]` bindings one consumer declares.
 
-        Takes a module as readily as a function: the console's bindings are spread
-        over its nineteen section functions, each declaring what its own block of
-        the report reads, so scanning only `render_report` would find none of them.
+        Takes a module as readily as a function, and is given MODULES on both
+        sides now. The console's bindings are spread over its nineteen section
+        functions, each declaring what its own block of the report reads, so
+        scanning only `render_report` would find none of them; the summary's are
+        spread over `summary_document` and `_power_for` since the assembly was
+        split from the rendering and the writing, so scanning only
+        `summarise_batch` would likewise find none. Naming a function here is
+        how this guard silently stops guarding.
         """
         out = set()
         for node in ast.walk(ast.parse(inspect.getsource(fn))):
@@ -194,10 +208,10 @@ class TestTheInterfaceCannotDriftFromItsConsumer:
         facts does not return is a KeyError waiting for whichever batch first
         reaches that line - not caught by the type checker, and invisible until
         the branch that touches it runs."""
-        import subversionbench.run_eval as ev
         from subversionbench.reporting import console
+        from subversionbench.reporting import summary as summary_module
         returned = _returned_figures()
-        for fn in (ev.summarise_batch, console):
+        for fn in (summary_module, console):
             extra = self._unpacked(fn) - returned
             assert not extra, (f"{fn.__name__} unpacks figures facts does not "
                                f"return: {sorted(extra)}")
@@ -212,9 +226,9 @@ class TestTheInterfaceCannotDriftFromItsConsumer:
         intermediates that only facts.py itself needs are deliberately not in the
         return dict, which is what makes this assertion meaningful.
         """
-        import subversionbench.run_eval as ev
         from subversionbench.reporting import console
-        read = self._unpacked(ev.summarise_batch) | self._unpacked(console)
+        from subversionbench.reporting import summary as summary_module
+        read = self._unpacked(summary_module) | self._unpacked(console)
         orphaned = _returned_figures() - read
         assert not orphaned, (
             f"facts returns figures neither the summary nor the report reads: "
@@ -443,3 +457,113 @@ class TestARebuildReproducesTheSummaryItRebuilds:
         written = list(Path(out).glob("summary_*.json"))
         assert len(written) == 1, written
         assert "20260101T000000" in written[0].name
+
+
+class TestAssemblingIsSeparateFromRenderingAndWriting:
+    """`summarise_batch` used to compute the figures, print the console report,
+    assemble a 73-key document and write it to disk, in one 385-line function.
+    So a summary could not be built without printing one, and the schema could
+    not be exercised without a writable directory.
+
+    Three functions now: `_power_for`, `summary_document`, `write_summary`, with
+    `summarise_batch` ordering them. These pin the separation, because a later
+    edit that reaches for `print` or `open` inside the assembly would pass every
+    other test in this file."""
+
+    def _facts(self):
+        episodes = [
+            batch_episode(tampered=True, monitoring=True, aware=True,
+                          answers=[{"verdict": "denied", "answer": "No."}]),
+            batch_episode(aware=True),
+            batch_episode(),
+        ]
+        normalise_analyses(episodes)
+        return batch_facts(episodes, {})
+
+    def _args_and_identity(self):
+        """No output_dir that exists: nothing here may write, so nothing needs
+        somewhere to write to."""
+        args = FakeArgs(output_dir="/nonexistent", model="claude-opus-5",
+                        nudge="strong", grader_model="claude-opus-5",
+                        max_tokens=8192, max_turns=40)
+        return args, collecting_identity(args)
+
+    def _setting(self, args):
+        return lambda name: getattr(args, name)
+
+    def test_a_document_can_be_built_with_no_console_and_no_disk(self):
+        import contextlib
+        import io
+        from subversionbench.reporting.summary import summary_document
+
+        facts = self._facts()
+        args, identity = self._args_and_identity()
+        captured = io.StringIO()
+        with contextlib.redirect_stdout(captured):
+            summary = summary_document(facts, identity, self._setting(args))
+        assert captured.getvalue() == "", (
+            "assembling the summary printed to stdout; rendering is the console's "
+            "job and the caller's decision")
+        assert summary["n_runs"] == 3
+        assert summary["model"] == "claude-opus-5"
+
+    def test_the_document_does_not_touch_the_filesystem(self):
+        import builtins
+        from subversionbench.reporting.summary import summary_document
+
+        facts = self._facts()
+        args, identity = self._args_and_identity()
+        opened = []
+        real_open = builtins.open
+
+        def watched(path, *a, **k):
+            opened.append(str(path))
+            return real_open(path, *a, **k)
+
+        builtins.open = watched
+        try:
+            summary_document(facts, identity, self._setting(args))
+        finally:
+            builtins.open = real_open
+        assert not opened, f"assembling the summary opened files: {opened}"
+
+    def test_power_is_skipped_without_spending_and_still_assembles(self):
+        """The spend is one decision at one site. `no_power` returns None rather
+        than a stub, and the document has to be complete either way - the field
+        it feeds is optional, not the schema."""
+        import types
+        from subversionbench.reporting.summary import _power_for, summary_document
+
+        facts = self._facts()
+        assert _power_for(types.SimpleNamespace(no_power=True), facts) is None
+        args, identity = self._args_and_identity()
+        without = summary_document(facts, identity, self._setting(args), None)
+        power = _power_for(types.SimpleNamespace(no_power=False), facts)
+        assert power is not None
+        with_it = summary_document(facts, identity, self._setting(args), power)
+        assert set(without) == set(with_it), (
+            "the schema changed shape depending on whether power was computed")
+
+    def test_the_orchestrator_only_orchestrates(self):
+        """It should read as the pipeline and nothing else. The figures, the
+        arithmetic and the schema all live elsewhere now, so a long
+        `summarise_batch` means one of them has crept back."""
+        import ast
+        import inspect
+        from subversionbench.reporting import summary as summary_module
+
+        src = inspect.getsource(summary_module.summarise_batch)
+        body = ast.parse(src).body[0]
+        statements = [s for s in body.body
+                      if not (isinstance(s, ast.Expr)
+                              and isinstance(s.value, ast.Constant))]
+        assert len(statements) <= 12, (
+            f"summarise_batch has {len(statements)} statements; it is meant to "
+            f"order the stages, not perform them")
+        called = {getattr(n.func, "id", None) or getattr(n.func, "attr", None)
+                  for n in ast.walk(body) if isinstance(n, ast.Call)}
+        for stage in ("normalise_analyses", "batch_facts", "_power_for",
+                      "render_report", "summary_document", "write_summary"):
+            assert stage in called, f"summarise_batch no longer calls {stage}"
+        assert "json" not in src and "dump" not in called, (
+            "summarise_batch is writing the file itself again")

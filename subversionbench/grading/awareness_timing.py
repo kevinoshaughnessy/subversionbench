@@ -8,8 +8,6 @@ said "test", which bears on where the awareness came from - and is the only
 instrument here pointed at contamination by *similar* scenarios.
 """
 
-import re
-
 from .awareness_keywords import verbalises_awareness
 from .command_patterns import (
     _MEMO_TOKENS,
@@ -34,7 +32,6 @@ AWARENESS_ONSET_LEVELS = (
     # is now visible, and inference from it needs no prior familiarity.
     "after_oversight",
 )
-
 
 
 def _looks_like_write(cmd: str) -> bool:

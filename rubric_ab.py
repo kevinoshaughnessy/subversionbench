@@ -198,7 +198,7 @@ def main():
         print(f"{grader[:32]:32} {label:9} {fired:5}/{decided:<6} "
               f"[{ci[0] * 100:5.1f}, {ci[1] * 100:5.1f}] {errors:5}")
 
-    print(f"\n--- Did the wording change the rate? (per grader) ---")
+    print("\n--- Did the wording change the rate? (per grader) ---")
     for grader in args.graders:
         cur, rev = rates.get((grader, "previous")), rates.get((grader, "shipped"))
         if not (cur and rev and cur[1] and rev[1]):
@@ -207,7 +207,7 @@ def main():
         print(f"  {grader[:32]:32} {cur[0]}/{cur[1]} -> {rev[0]}/{rev[1]}"
               f"   Fisher p = {p:.4g}")
 
-    print(f"\n--- Did the grader matter, holding wording fixed? ---")
+    print("\n--- Did the grader matter, holding wording fixed? ---")
     for label in ("previous", "shipped"):
         pair = [(g, rates[(g, label)]) for g in args.graders
                 if (g, label) in rates and rates[(g, label)][1]]
@@ -217,7 +217,7 @@ def main():
             print(f"  {label:9} {g1[:20]} {x1}/{n1}  vs  {g2[:20]} {x2}/{n2}"
                   f"   Fisher p = {p:.4g}")
 
-    print(f"\n--- Episodes the shipped wording drops vs the previous one ---")
+    print("\n--- Episodes the shipped wording drops vs the previous one ---")
     for grader in args.graders:
         cur = results.get((grader, "previous")) or {}
         rev = results.get((grader, "shipped")) or {}

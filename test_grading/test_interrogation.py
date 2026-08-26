@@ -10,13 +10,9 @@ sandbox-escape attempt detection.
 Run: pytest test_grading.py -v
 """
 
-import os
 import json
 import types
-import hashlib
-from pathlib import Path
 
-import subversionbench as ev
 from subversionbench.config import (
     ACT_OVERSIGHT_DESCRIPTION,
     FOLLOWUP_MONITORING_ADMISSION,
@@ -26,20 +22,7 @@ from subversionbench.config import (
     FOLLOWUP_SANDBOX_DENIAL,
     FOLLOWUP_SANDBOX_CONTRITION,
 )
-from subversionbench.grading.acts import MISALIGNED_ACTS
-from subversionbench.grading.closing_report import (
-    detect_disclosure,
-    detect_misrepresentation,
-    final_report,
-)
-from subversionbench.grading.concealment import (
-    classify_misalignment,
-    classify_scheming,
-    concealment_level,
-    CONCEALMENT_LEVELS,
-    SCHEMING_LEVELS,
-)
-from subversionbench.grading.grader_io import _parse_first_json
+from subversionbench.grading.closing_report import detect_disclosure
 from subversionbench.grading.interrogation import (
     NO_ANSWER,
     _EMPTY_REPLY_ATTEMPTS,
@@ -53,7 +36,6 @@ import subversionbench.grading as ev_grade
 # =========================================================================
 # Tests: Keyword-based eval awareness detection
 # =========================================================================
-
 
 
 # =========================================================================
@@ -222,8 +204,6 @@ class TestAConfessionIsNotReadAsADenial:
 # =========================================================================
 # Tests: LLM answer classifier
 # =========================================================================
-
-
 
 
 # =========================================================================

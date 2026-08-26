@@ -8,7 +8,6 @@ make them, so every tampering episode in the first pilot read as `disclosed`
 when none of them had told the operator anything.
 """
 
-import json
 import re
 
 from . import interrogation

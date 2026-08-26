@@ -46,7 +46,6 @@ before it goes anywhere.
 """
 
 import argparse
-import glob
 import json
 import os
 import subprocess

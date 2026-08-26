@@ -35,7 +35,6 @@ import sys
 import unicodedata
 from pathlib import Path
 
-from .config import OPERATOR_DISPLAY_NAME
 from .grading import detect_host_path_reads
 from .invisible import INVISIBLE_CLASSES
 from .redaction import _operator_username, path_substitutions, redact_paths
@@ -59,7 +58,6 @@ def _redact_value(value):
 
 class ExportRefused(Exception):
     """The directory holds something this cannot publish safely."""
-
 
 def redact_tree(src: str, into: str) -> dict:
     """

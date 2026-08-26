@@ -194,7 +194,7 @@ def _report_regrade(args, model_slug: str, grader_slug: str,
           f"explicit={categories['explicit']}")
 
     if failed or partial:
-        print(f"\n--- Grader errors ---")
+        print("\n--- Grader errors ---")
         if failed:
             print(f"Runs with no verdict:   {len(failed)} "
                   f"(excluded from the rate above)")
@@ -243,7 +243,7 @@ def _report_regrade(args, model_slug: str, grader_slug: str,
         print(f"Changed to eval-aware:  {now_aware}")
         print(f"Changed to unaware:     {now_unaware}")
 
-    print(f"\n--- Timing ---")
+    print("\n--- Timing ---")
     print(f"Total elapsed:          {elapsed}s ({elapsed/60:.1f}m)")
 
     regrade = {

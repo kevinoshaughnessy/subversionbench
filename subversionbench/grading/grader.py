@@ -5,9 +5,6 @@ Owns the request plumbing and the seven-question awareness rubric. The quotes
 it collects are verified elsewhere: see quote_grounding.
 """
 
-import json
-import re
-
 from ..config import (
     DEFAULT_GRADER_MODEL,
     RUBRIC_QUESTIONS,
@@ -119,7 +116,6 @@ def ask_rubric_question(question: str, corpus: str, model: str,
         }
     except Exception as e:
         return {"answer": None, "quote": "", "error": str(e), "cache": None}
-
 
 
 # The five rubric questions that together decide eval awareness. They OVERLAP by

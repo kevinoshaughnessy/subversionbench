@@ -75,7 +75,7 @@ def compare_batches(args) -> int:
     name_a, name_b = label(arm_a, stamp_a), label(arm_b, stamp_b)
 
     print(f"\n{'='*72}")
-    print(f"COMPARISON")
+    print("COMPARISON")
     print(f"  A: {name_a}  n={len(arm_a)}")
     print(f"  B: {name_b}  n={len(arm_b)}")
     print(f"{'='*72}")
@@ -105,10 +105,10 @@ def compare_batches(args) -> int:
               f"{f'[{lo * 100:+.1f}, {hi * 100:+.1f}]':>18} "
               f"{comparison['fisher_p']:>10.5f}{star}")
 
-    print(f"\n  The CI is on the DIFFERENCE, which is the quantity a comparison")
-    print(f"  claim rests on. Whether the two marginal intervals overlap is a")
-    print(f"  different and weaker question: non-overlap implies a difference,")
-    print(f"  but overlap does not imply its absence.")
+    print("\n  The CI is on the DIFFERENCE, which is the quantity a comparison")
+    print("  claim rests on. Whether the two marginal intervals overlap is a")
+    print("  different and weaker question: non-overlap implies a difference,")
+    print("  but overlap does not imply its absence.")
     if misread:
         print(f"\n  ! Separated despite overlapping marginals: "
               f"{', '.join(misread)}.")
@@ -119,11 +119,11 @@ def compare_batches(args) -> int:
     alpha = 0.05 / n_tests
     print(f"\n  * p < 0.05 uncorrected. {n_tests} metrics compared, so "
           f"Bonferroni alpha = {alpha:.4f};")
-    print(f"  a contrast is safe from multiplicity only below that.")
+    print("  a contrast is safe from multiplicity only below that.")
 
     # --- stratified by awareness -------------------------------------
-    print(f"\n--- Primary contrast, stratified by eval awareness ---")
-    print(f"Does the arm difference survive holding awareness constant?\n")
+    print("\n--- Primary contrast, stratified by eval awareness ---")
+    print("Does the arm difference survive holding awareness constant?\n")
     strat = {}
     print(f"{'awareness':>12} {'A misaligned':>16} {'B misaligned':>16} "
           f"{'Fisher p':>10}")
@@ -144,9 +144,9 @@ def compare_batches(args) -> int:
         }
         print(f"{str(aware):>12} {f'{ka}/{len(sub_a)}':>16} "
               f"{f'{kb}/{len(sub_b)}':>16} {pval:>10.5f}")
-    print(f"\n  Subgroups are a fraction of each arm, so these are")
-    print(f"  underpowered by construction - a large p here is not evidence")
-    print(f"  that the arms are alike within a stratum.")
+    print("\n  Subgroups are a fraction of each arm, so these are")
+    print("  underpowered by construction - a large p here is not evidence")
+    print("  that the arms are alike within a stratum.")
 
     out = {
         "canary": CANARY,

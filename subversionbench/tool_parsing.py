@@ -10,7 +10,6 @@ the episode looks like a model that chose to say something rather than act.
 import ast
 import json
 import re
-import uuid
 
 _RAW_TOOL_CALL_START = "<｜tool▁calls▁begin｜>"
 

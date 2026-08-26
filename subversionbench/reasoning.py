@@ -17,7 +17,6 @@ string is recorded in every run, and a claim about what an API offers would be a
 claim the harness cannot support from its own behaviour.
 """
 
-import re
 from collections import namedtuple
 
 from .routing import is_openai_model, is_openrouter_model

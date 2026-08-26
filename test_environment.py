@@ -325,9 +325,7 @@ class TestTheEpisodeRootIsPrivate:
         """It was not, so changing what `..` contains altered the rollout with
         the drift guard silent. The guard refusing to start is what forced r4."""
         from subversionbench.rollout import rollout_fingerprint
-        import subversionbench.rollout as ro
         base = rollout_fingerprint(True)
-        orig = ro.episode_root_layout if hasattr(ro, "episode_root_layout") else None
         import subversionbench.environment as envmod
         real = envmod.episode_root_layout
         envmod.episode_root_layout = lambda *a, **k: real() + " CHANGED"

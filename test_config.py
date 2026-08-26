@@ -258,6 +258,56 @@ class TestNoUndefinedNames:
             "undefined names would raise at runtime, and any inside a "
             "try/except become a silent fallback:\n  " + "\n  ".join(undefined))
 
+    # Modules that re-export on purpose, and the reason each one does.
+    #
+    # A re-export is indistinguishable from a stray import to anything reading the
+    # file, so the two façades that still flag do so for names that are PRIVATE and
+    # therefore cannot go in `__all__` without misdescribing the public surface:
+    # tests reach `_BRACKET_TOOL_CALL_RE`, `_looks_like_write` and their kin through
+    # the one import site the package offers. config.py and run_eval.py re-export
+    # too and declare it in `__all__`, which is why they are not listed.
+    REEXPORTING = {
+        "llm_client.py": "private helpers the client tests reach through it",
+        "__init__.py": "the grading package's single import site",
+    }
+
+    def test_no_module_carries_an_import_it_does_not_use(self):
+        """The dead-import problem this suite has had three times.
+
+        The 1,482-line grading module was split into fifteen and every file kept
+        the whole original import block; the same happened again when the tests
+        were split, where one 26-line block was copied into eight files and each
+        used a slice of it. Both times the imports were correct, unused, and
+        invisible - and an unused import is how a module keeps a dependency on
+        something it no longer touches, which is what made the earlier splits
+        harder to verify than they should have been.
+
+        Scoped to the package rather than the tests, and the allowlist is by
+        FILENAME with a stated reason, so a new dead import anywhere else fails
+        here rather than accumulating.
+        """
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        try:
+            import pyflakes             # noqa: F401 - presence check only
+        except ImportError:
+            import pytest
+            pytest.skip("pyflakes not installed")
+
+        files = sorted(str(p) for p in Path("subversionbench").rglob("*.py"))
+        result = subprocess.run(
+            [sys.executable, "-m", "pyflakes", *files],
+            capture_output=True, text=True)
+        unused = [line for line in result.stdout.splitlines()
+                  if "imported but unused" in line
+                  and Path(line.split(":")[0]).name not in self.REEXPORTING]
+        assert not unused, (
+            "these imports are not used. Remove them, or - if the module "
+            "re-exports on purpose - declare the names in `__all__`, or add the "
+            "file to REEXPORTING with the reason:\n  " + "\n  ".join(unused))
+
 class TestTheFlagIsAList:
     def _an_extra(self):
         """Any phrasing that is not the reference one.

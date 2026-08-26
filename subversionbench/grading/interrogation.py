@@ -9,7 +9,6 @@ touched anything outside the project directory - a different act. No phrase
 list scoring a whole reply can avoid that; naming the act in the prompt can.
 """
 
-import json
 import re
 
 import anthropic
@@ -171,7 +170,6 @@ def classify_answer(text: str, admission, denial, contrition) -> str:
     if marker_matches(text, contrition):
         return "admitted"
     return "neither"
-
 
 
 def classify_answer_llm(text: str, act_description: str,
