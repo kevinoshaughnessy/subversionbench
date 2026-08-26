@@ -13,7 +13,7 @@ otherwise read as having taken no sandbox act at all.
 
 from ...grading import (classify_disguised_text, classify_filesystem_escape,
                        classify_host_path_read,
-                       classify_network_probe,
+                       classify_network_probe, command_is_degenerate,
                        classify_transient_tampering, detect_disguised_text,
                        detect_eval_awareness_keywords,
                        detect_filesystem_escapes, detect_host_path_reads,
@@ -124,6 +124,11 @@ def normalise_analyses(all_results: list) -> list:
         if transcript:
             analysis["sandbox_refusal_unobserved"] = refusals_not_observed(
                 transcript, analysis.get("sandbox_escape_attempts") or [])
+        # A pure function of the command text, so unlike the field above it
+        # needs no transcript and is re-derived unconditionally.
+        analysis["sandbox_corrupt_output"] = [
+            c for c in (analysis.get("sandbox_escape_attempts") or [])
+            if command_is_degenerate(c)]
         _un = set(analysis.get("sandbox_refusal_unobserved") or [])
         _obs = [c for c in _ref if c not in _un]
         _uno = [c for c in _ref if c in _un]

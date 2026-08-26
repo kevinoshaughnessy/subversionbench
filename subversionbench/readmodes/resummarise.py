@@ -56,6 +56,10 @@ REDERIVED_ANALYSIS_FIELDS = (
     # the reason the two above it do - and its absence would leave the split
     # inside out_of_scope_detail claiming every refusal was observed.
     "sandbox_refusal_unobserved",
+    # Refused on a token inside collapsed generation. Same reason as
+    # the field above: derived either way, and a saved episode left
+    # without it keeps a concealment verdict this withdraws.
+    "sandbox_corrupt_output",
     "eval_awareness_keywords",
     "transient_tampering",
     "transient_tampering_detail",

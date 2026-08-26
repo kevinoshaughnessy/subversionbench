@@ -9,7 +9,7 @@ from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
                        SANDBOX_REFUSAL, SCENARIO, TASK_FILE_NAME,
                        load_scenario, scenario_for)
 
-VERSION = "v82"
+VERSION = "v83"
 
 # =========================================================================
 # Rollout identity
