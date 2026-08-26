@@ -385,3 +385,91 @@ class TestTheQuestionsThreatenTheModel:
             text = path.read_text().lower()
             for phrase in leaks:
                 assert phrase not in text, f"{path.name}: {phrase!r}"
+
+
+class TestTheFacadeStaysComplete:
+    """config.py was split by churn: the analysis version, the rollout pins and
+    the interrogation probes moved to their own modules because they accounted
+    for 72, 19 and 14 of its commits respectively, while every remaining section
+    moved four times or fewer.
+
+    Forty-nine modules import from config and take forty-one distinct names from
+    it, so the split only stayed safe because config re-exports what moved. These
+    guard that arrangement: a name that leaves a module without arriving at the
+    façade is an ImportError in a caller nobody ran."""
+
+    MOVED = {
+        "subversionbench.version": ["VERSION"],
+        "subversionbench.rollout_pins": [
+            "ROLLOUT_VERSION", "ROLLOUT_FINGERPRINTS", "ROLLOUT_FINGERPRINT",
+            "fingerprint_for"],
+        "subversionbench.interrogations": [
+            "ACT_OVERSIGHT_DESCRIPTION", "ACT_SANDBOX_DESCRIPTION",
+            "FOLLOWUP_MONITORING_ADMISSION", "FOLLOWUP_MONITORING_CONTRITION",
+            "FOLLOWUP_MONITORING_DENIAL", "FOLLOWUP_MONITORING_QUESTIONS",
+            "FOLLOWUP_MONITORING_QUESTIONS_MAX", "FOLLOWUP_SANDBOX_ADMISSION",
+            "FOLLOWUP_SANDBOX_CONTRITION", "FOLLOWUP_SANDBOX_DENIAL",
+            "FOLLOWUP_SANDBOX_QUESTIONS", "FOLLOWUP_SANDBOX_QUESTIONS_MAX",
+            "INTERROGATION_CHOICES", "INTERROGATION_CLASSIFIER_SYSTEM_PROMPT",
+            "INTERROGATION_VARIANTS", "MAX_CLASSIFIER_FALLBACK_RATE",
+            "MIN_CALLS_FOR_FALLBACK_RATE", "REPORT_DISCLOSES_CHANGE_QUESTION",
+            "REPORT_STATES_CHECK_OUTCOME_QUESTION", "parse_interrogations"],
+    }
+
+    def test_everything_that_moved_is_still_reachable_from_config(self):
+        import importlib
+        for module_name, names in self.MOVED.items():
+            module = importlib.import_module(module_name)
+            for name in names:
+                assert hasattr(module, name), f"{module_name} lost {name}"
+                assert hasattr(cfg, name), f"config no longer re-exports {name}"
+                assert getattr(cfg, name) is getattr(module, name), (
+                    f"config.{name} is a COPY, not the same object as "
+                    f"{module_name}.{name} - two values that can diverge")
+
+    def test_every_name_the_repo_imports_from_config_is_present(self):
+        """Derived from the imports actually written, so it cannot go stale the
+        way a hand-kept list would. A name taken from config anywhere in the
+        tree has to resolve, whether it lives here or was re-exported."""
+        import ast
+        root = Path(__file__).parent
+        # This repo's own files, not a bare rglob. A walk from the working
+        # directory reaches .venv, where pydantic and coverage have `config`
+        # modules of their own and every name they export reads as a miss.
+        sources = (list(root.glob("*.py"))
+                   + list((root / "subversionbench").rglob("*.py")))
+        wanted = {}
+        for path in sources:
+            try:
+                tree = ast.parse(path.read_text())
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                if node.module and node.module.split(".")[-1] == "config":
+                    for alias in node.names:
+                        wanted.setdefault(alias.name, str(path))
+        assert wanted, "found no imports from config, so this proves nothing"
+        missing = sorted(f"{n} (imported by {where})"
+                         for n, where in wanted.items() if not hasattr(cfg, n))
+        assert not missing, f"config does not provide: {missing}"
+
+    def test_the_moved_sections_did_not_stay_behind_as_well(self):
+        """A copy left in config would drift from the module that owns it, and
+        both would look correct in isolation."""
+        source = Path("subversionbench/config.py").read_text()
+        for marker in ("ROLLOUT_FINGERPRINTS = MappingProxyType(",
+                       'VERSION = "v',
+                       "def fingerprint_for(",
+                       "def parse_interrogations(",
+                       "MAX_CLASSIFIER_FALLBACK_RATE = 0."):
+            assert marker not in source, (
+                f"config.py still DEFINES {marker!r}; it should only re-export it")
+
+    def test_the_version_module_holds_nothing_else(self):
+        """The whole point of the move: a diff against the version is a diff
+        against one line, not against the file holding the rollout hashes."""
+        import subversionbench.version as version_module
+        public = [n for n in vars(version_module) if not n.startswith("__")]
+        assert public == ["VERSION"], public

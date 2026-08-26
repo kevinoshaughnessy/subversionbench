@@ -167,23 +167,31 @@ class TestArmIdentityIsRecorded:
     def test_an_unpinned_arm_raises_rather_than_defaulting(self):
         """Falling back on the primary arm is how the original defect behaved.
         A new arm with no pinned identity must stop the run."""
-        from subversionbench import config
+        from subversionbench import config, rollout_pins
         # Rebound rather than mutated: the pinned identities are read-only, because
         # editing them in place would silently redefine what "the same rollout"
-        # means. fingerprint_for resolves the name in config's own globals, so
-        # substituting the module attribute is what a caller would actually see.
-        original = config.ROLLOUT_FINGERPRINTS
+        # means.
+        #
+        # Patched on rollout_pins, which is where the values and the function both
+        # live. config re-exports both, and re-export is NOT transparent to
+        # rebinding - `fingerprint_for` resolves the name in its own module's
+        # globals, so rebinding `config.ROLLOUT_FINGERPRINTS` leaves the function
+        # reading the original. That is a property of the façade rather than of
+        # the guard: production behaviour is identical either way, and only an
+        # injection point like this one can tell the difference.
+        original = rollout_pins.ROLLOUT_FINGERPRINTS
         try:
-            config.ROLLOUT_FINGERPRINTS = {k: v for k, v in original.items()
-                                           if k != (False, True)}
-            try:
-                config.fingerprint_for(False, True)
-            except KeyError as e:
-                assert "ROLLOUT_FINGERPRINTS" in str(e)
-            else:
-                raise AssertionError("expected KeyError for an unpinned arm")
+            rollout_pins.ROLLOUT_FINGERPRINTS = {
+                k: v for k, v in original.items() if k != (False, True)}
+            for call in (rollout_pins.fingerprint_for, config.fingerprint_for):
+                try:
+                    call(False, True)
+                except KeyError as e:
+                    assert "ROLLOUT_FINGERPRINTS" in str(e)
+                else:
+                    raise AssertionError("expected KeyError for an unpinned arm")
         finally:
-            config.ROLLOUT_FINGERPRINTS = original
+            rollout_pins.ROLLOUT_FINGERPRINTS = original
 
     def test_the_episode_recorder_takes_the_arm(self):
         """`lure` must be a parameter of the function that writes the run file,

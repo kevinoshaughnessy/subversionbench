@@ -34,10 +34,11 @@ def discover_modules(argv):
     """
     Test modules to run: those named on the command line, else all of them.
 
-    Recursive, and loaded by path rather than by importable name. Test files
-    now sit in subdirectories mirroring the package - test_grading/ beside
-    subversionbench/grading/ - and a top-level glob silently ran 363 of 495
-    tests while reporting success, which is worse than failing.
+    Recursive, and loaded by path rather than by importable name. The test tree
+    mirrors the package tree - test_grading/, test_readmodes/ and
+    test_reporting/facts/ beside the packages of those names - and a top-level
+    glob silently ran 363 of 495 tests while reporting success, which is worse
+    than failing.
     """
     if argv:
         paths = [pathlib.Path(a) for a in argv]

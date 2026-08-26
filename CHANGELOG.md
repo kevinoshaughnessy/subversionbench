@@ -10,6 +10,40 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v87
+
+Package version `87.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **`config.py` splits, by churn rather than by taste.** It was touched by 78 of
+  152 commits, and the commits were not spread evenly: the version line
+  accounted for 72, the rollout pins 19, the interrogation probes 14, and every
+  other section four or fewer. So three modules came out - `version.py`,
+  `rollout_pins.py`, `interrogations.py` - and the low-churn sections stayed.
+  Splitting those too would have bought a module per constant.
+- **The version line was the whole problem.** It moved in 48 commits where
+  nothing else moved, each one a diff against the file holding the rollout
+  fingerprints, which must not move without a decision. It now lives alone.
+- **`config.py` re-exports what left,** because 49 modules import from it and
+  take 41 distinct names. Nothing outside had to be rewritten. Re-export is not
+  transparent to REBINDING, though - `fingerprint_for` resolves its own module's
+  globals - so one test that substituted `config.ROLLOUT_FINGERPRINTS` to check
+  an unpinned arm now patches `rollout_pins` and asserts through both names.
+- New guards: everything that moved is still reachable from the façade and is
+  the same object rather than a copy; every name the tree imports from config
+  resolves, derived from the imports actually written; and nothing that moved was
+  left behind as a second definition that could drift.
+- **The test tree mirrors the package tree.** `test_grading/` existed and the
+  flat `test_grading_*.py` files existed alongside it, so tests for one module
+  sat in two files at once and coverage of a behaviour could not be settled by
+  opening one file. `test_readmodes/` and `test_reporting/facts/` follow -
+  `test_reporting_facts_*` was a double prefix encoding a package path into a
+  filename. Each mirror is a package, which is what lets `test_init.py` exist at
+  three levels. Verified by diffing the collected node inventory: every
+  `Class::test` name unchanged.
+- README's stale test count is gone rather than corrected; it goes out of date
+  on most commits.
+
 ## v86
 
 Package version `86.0.0`. `ROLLOUT_VERSION` stays `r9`.

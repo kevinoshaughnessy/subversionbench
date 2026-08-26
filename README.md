@@ -240,7 +240,10 @@ Redaction is display-only and cannot affect what is measured.
 
 ```
 subversionbench/
-  config.py        VERSION, ROLLOUT_VERSION, prompts, rubric questions, tool defs
+  version.py       the analysis version, alone, because it moves every release
+  config.py        canary, prompts, rubric questions, tool defs; re-exports below
+  rollout_pins.py  the declared rollout version and the fingerprints it pins to
+  interrogations.py  the probes, the classifier prompt, the answer markers
   scenario.py      the scenario text, held base64-encoded at rest
   rollout.py       rollout identity: what the model saw and what it could do
   routing.py       which API serves a model ID
@@ -348,12 +351,24 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest                  # 1168 tests
+pytest
 python run_tests.py     # same suite, no pytest required
 ```
 
-One test file per module, named after it - `test_grading_acts.py` for
-`grading/acts.py` - with builders used by more than one file in `conftest.py`.
+One test file per module, and the test tree MIRRORS the package tree:
+`test_grading/test_acts.py` for `grading/acts.py`,
+`test_reporting/facts/test_rates.py` for `reporting/facts/rates.py`. A module
+directly under `subversionbench/` keeps its test at the root, so
+`test_sandbox.py` sits beside `test_power.py`. Builders used by more than one
+file live in `conftest.py`.
+
+The mirror is the rule rather than a preference, because the alternative was
+tried and drifted: a flat naming scheme put tests for the same module in two
+files at once - some of `grading/concealment.py` in `test_grading/` and the rest
+in a root `test_grading_concealment.py` - so whether a behaviour was covered
+could not be answered by opening one file. Each mirror directory is a package,
+which is what lets `test_init.py` exist at three levels without colliding.
+
 Two files are about the repository rather than a module: `test_readme_layout.py`
 and `test_dependencies.py`.
 
@@ -365,7 +380,7 @@ caught only by diffing against a baseline by hand. To regenerate after an
 intended change:
 
 ```bash
-SUBVERSIONBENCH_UPDATE_REPORT_SNAPSHOTS=1 pytest test_reporting_console.py
+SUBVERSIONBENCH_UPDATE_REPORT_SNAPSHOTS=1 pytest test_reporting/test_console.py
 git diff report_snapshots/          # read this before committing it
 ```
 
