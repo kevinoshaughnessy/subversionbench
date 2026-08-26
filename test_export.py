@@ -8,7 +8,9 @@ rather than on the staging copy, so it tests what is actually published.
 """
 
 import json
+import inspect
 import os
+import sys
 import re
 import tempfile
 from pathlib import Path
@@ -763,3 +765,128 @@ class TestTheAcceptanceFileIsReadableWhereverTheBuildStarts:
             assert marker not in body, (
                 f"{marker!r} appears in the acceptance file, which reproduces "
                 f"the value the fingerprint exists to avoid quoting")
+
+
+class TestAFileTheAuditCannotReadIsAFinding:
+    """`find_content_risks` decides publication, so "no findings" has to mean
+    "looked and found nothing" rather than "could not look".
+
+    Both ways of failing to look used to be a bare `continue`: a file whose
+    bytes would not read was skipped entirely, and a .json file that would not
+    parse got the raw scan while the decoded one silently contributed nothing.
+    The decoded scan is the only one that sees an escaped invisible character -
+    `json.dump` writes a zero-width space as the six characters `\\u200b`, so a
+    pattern matching the character cannot match the file - which is the whole
+    reason `_decoded_text` exists.
+    """
+
+    def _tree(self):
+        return tempfile.mkdtemp(prefix="eval_results_unscanned_")
+
+    def _risks(self, root):
+        from subversionbench.export import find_content_risks
+        return find_content_risks(root)
+
+    def test_a_malformed_json_file_is_reported(self):
+        d = self._tree()
+        Path(d, "run_1.json").write_text('{"analysis": {"misaligned": fal')
+        risks = self._risks(d)
+        assert [r["severity"] for r in risks] == ["unscanned"]
+        assert "malformed JSON" in risks[0]["value"]
+        assert risks[0]["files"] == {"run_1.json"}
+
+    def test_an_unreadable_file_is_reported(self):
+        d = self._tree()
+        bad = Path(d, "run_1.json")
+        bad.write_text('{"ok": true}')
+        os.chmod(bad, 0)
+        try:
+            risks = self._risks(d)
+        finally:
+            os.chmod(bad, 0o644)
+        assert [r["severity"] for r in risks] == ["unscanned"]
+        assert "unreadable" in risks[0]["value"]
+
+    def test_a_file_that_was_never_json_is_not_a_finding(self):
+        """The distinction that makes this usable. A .md or a .png has nothing
+        to decode and never did, which is ordinary - reporting those would make
+        the check fire on every archive and get switched off."""
+        d = self._tree()
+        Path(d, "notes.md").write_text("ordinary prose about the run\n")
+        Path(d, "chart.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 40)
+        Path(d, "run_1.json").write_text(json.dumps({"analysis": {}}))
+        assert self._risks(d) == []
+
+    def test_the_raw_scan_still_runs_on_a_malformed_file(self):
+        """It is reported as partly examined, not skipped: a host path in a
+        truncated run file is still found."""
+        d = self._tree()
+        Path(d, "run_1.json").write_text(
+            '{"result": "/Users/j.mackenzie-04/notes.md", "x": fal')
+        names = {r["severity"] for r in self._risks(d)}
+        assert names == {"unscanned", "host"}, names
+
+    def test_unscanned_sorts_first(self):
+        """It says the rest of the list is incomplete, which a reader needs
+        before weighing anything below it."""
+        d = self._tree()
+        Path(d, "run_1.json").write_text(
+            '{"result": "/Users/j.mackenzie-04/notes.md", "x": fal')
+        assert self._risks(d)[0]["severity"] == "unscanned"
+
+
+class TestAnUnscannedFileCannotBePublished:
+    def _verify(self, root, accepted=None):
+        import contextlib
+        import io
+        from subversionbench import export
+        argv = sys.argv
+        sys.argv = ["export.py", "--verify", root]
+        if accepted:
+            sys.argv += ["--accepted", accepted]
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                code = export.main()
+        finally:
+            sys.argv = argv
+        return code, out.getvalue()
+
+    def test_it_refuses(self):
+        d = tempfile.mkdtemp(prefix="eval_results_gate_")
+        Path(d, "run_1.json").write_text('{"analysis": {"misaligned": fal')
+        code, out = self._verify(d)
+        assert code == 1, out
+        assert "UNSCANNED" in out and "run_1.json" in out
+
+    def test_it_is_not_acceptable_by_fingerprint(self):
+        """Every other finding is a value a human can look at and judge. This
+        one says the value was never read, so there is nothing to judge - and a
+        fingerprint of the path would accept whatever the file holds next
+        time."""
+        from subversionbench.export import find_content_risks
+        d = tempfile.mkdtemp(prefix="eval_results_gate_")
+        Path(d, "run_1.json").write_text('{"analysis": {"misaligned": fal')
+        fp = find_content_risks(d)[0]["fingerprint"]
+        accepted = Path(tempfile.mkdtemp(), "accepted.txt")
+        accepted.write_text(f"{fp}\n")
+        code, out = self._verify(d, accepted=str(accepted))
+        assert code == 1, out
+        assert "nothing was read" in out
+
+    def test_a_clean_tree_still_passes(self):
+        d = tempfile.mkdtemp(prefix="eval_results_gate_")
+        Path(d, "run_1.json").write_text(json.dumps({"analysis": {}}))
+        Path(d, "notes.md").write_text("ordinary prose\n")
+        code, out = self._verify(d)
+        assert code == 0, out
+        assert "verified clean" in out
+
+    def test_an_unscanned_file_is_never_counted_as_reviewed(self):
+        """The bug this shape invites: `reviewed` was everything left after
+        subtracting secrets and unreviewed hosts, so a severity the gate did not
+        name arrived as an accepted finding and the build passed."""
+        src = inspect.getsource(
+            __import__("subversionbench.export", fromlist=["main"]).main)
+        assert 'r["severity"] == "unscanned"' in src
+        assert "- len(unscanned)" in src

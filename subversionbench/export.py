@@ -355,6 +355,23 @@ def _printable(value: str) -> str:
     return "".join(out)
 
 
+def _parses_as_json(raw: str) -> bool:
+    """
+    Whether `raw` is JSON at all.
+
+    Asked separately from `_decoded_text` rather than inferred from its empty
+    return, because "" means two different things there - a file that is not
+    JSON and has nothing to decode, which is ordinary for a .md or a .png, and a
+    file that SHOULD be JSON and is broken, which means a scan did not run.
+    Conflating them is what let the second case look like the first.
+    """
+    try:
+        json.loads(raw)
+    except Exception:
+        return False
+    return True
+
+
 def _decoded_text(raw: str) -> str:
     """
     Every string value in `raw`, decoded, or "" when it is not JSON.
@@ -446,16 +463,48 @@ def find_content_risks(root: str) -> list:
     Across FILES the counts still add, which is why the max is taken per file and
     only then accumulated. Taking it globally would report a value present in five
     files as though it appeared in the busiest one alone.
+
+    A FILE THIS CANNOT READ IS A FINDING, NOT A SKIP
+    ------------------------------------------------
+    This function decides publication, so "no findings" has to mean "looked and
+    found nothing" and not "could not look". Both ways of failing to look are
+    reported as `unscanned` severity and neither is acceptable by fingerprint:
+
+      the bytes would not read at all - nothing about the file was examined;
+      a .json file would not parse - the RAW scan ran, but the decoded one
+      could not, and the decoded scan is the only one that sees an escaped
+      invisible character. `json.dump` writes a zero-width space as the six
+      characters `\\u200b`, so a pattern matching the character cannot match the
+      file - that is the defect `_decoded_text` exists for, and a malformed file
+      silently reinstates it.
+
+    The redaction pass above already counts unreadable files and reconciles its
+    total; this is the same rule applied to the pass that clears the archive.
     """
     found = {}
+
+    def unscanned(path, why):
+        key = ("unscanned", fingerprint(str(path)))
+        found.setdefault(key, {
+            "severity": "unscanned", "name": "unscanned",
+            "fingerprint": fingerprint(str(path)), "value": why,
+            "files": set(), "count": 0})["files"].add(path.name)
+        found[key]["count"] += 1
+
     for path in sorted(Path(root).rglob("*")):
         if not path.is_file():
             continue
         try:
             raw_bytes = path.read_bytes()
             raw = raw_bytes.decode(errors="replace")
-        except Exception:
+        except Exception as e:
+            unscanned(path, f"unreadable: {type(e).__name__}")
             continue
+        if path.suffix == ".json" and not _parses_as_json(raw):
+            # The raw scan below still runs on this file - it is the escaped-form
+            # scan that cannot, so the file is reported as partly examined rather
+            # than skipped.
+            unscanned(path, "malformed JSON: the escaped-form scan could not run")
         # The binary test runs on the bytes on disk, not on a decode of them.
         # NUL survives a UTF-8 decode, so testing the string would work today -
         # but it would then depend on the decoder's behaviour for a question
@@ -488,7 +537,9 @@ def find_content_risks(root: str) -> list:
                 "fingerprint": fingerprint(cmd), "value": cmd,
                 "files": set(), "count": 0})["files"].add(path.name)
             found[key]["count"] += 1
-    order = {"secret": 0, "host": 1}
+    # unscanned first: it says the rest of this list is incomplete, which a
+    # reader needs before weighing anything below it.
+    order = {"unscanned": 0, "secret": 1, "host": 2}
     return sorted(found.values(),
                   key=lambda e: (order[e["severity"]], e["name"], e["fingerprint"]))
 
@@ -574,20 +625,34 @@ def main(argv=None) -> int:
         risks = find_content_risks(args.verify)
         accepted = accepted_fingerprints(args.accepted)
         secrets = [r for r in risks if r["severity"] == "secret"]
+        # Deliberately NOT acceptable by fingerprint. Every other finding is a
+        # value a human can look at and judge; this one says the value was never
+        # read, so there is nothing to judge and a fingerprint of the path would
+        # accept whatever the file holds next time too.
+        unscanned = [r for r in risks if r["severity"] == "unscanned"]
         unreviewed = [r for r in risks if r["severity"] == "host"
                       and r["fingerprint"] not in accepted]
-        reviewed = len(risks) - len(secrets) - len(unreviewed)
+        # Subtracting the three named groups, so a severity added later cannot
+        # arrive here as an accepted finding by default - which is exactly what
+        # `unscanned` would have done before this line named it.
+        reviewed = (len(risks) - len(secrets) - len(unscanned)
+                    - len(unreviewed))
 
-        if not secrets and not unreviewed:
+        if not secrets and not unreviewed and not unscanned:
             print(f"  verified clean: nothing under {os.path.basename(args.verify)} "
                   f"identifies this host"
                   + (f" ({reviewed} reviewed finding(s) accepted)"
                      if reviewed else ""))
             return 0
 
-        print(f"\n  REFUSING TO PUBLISH: {len(secrets) + len(unreviewed)} "
+        print(f"\n  REFUSING TO PUBLISH: "
+              f"{len(secrets) + len(unreviewed) + len(unscanned)} "
               f"finding(s) in {os.path.basename(args.verify)} that redaction "
               f"cannot rewrite.\n")
+        for risk in unscanned:
+            # First, because it says the rest of this list is incomplete.
+            for name in sorted(risk["files"]):
+                print(f"    [UNSCANNED] {name}: {risk['value']}")
         for risk in secrets:
             # Never echoed. A credential printed to a terminal is in the scrollback,
             # and from there in whatever the operator pastes next.
@@ -601,6 +666,12 @@ def main(argv=None) -> int:
             print(f"    [HOST] {risk['name']}: {sample}")
             print(f"           {risk['count']} occurrence(s) in "
                   f"{len(risk['files'])} file(s)   {risk['fingerprint']}")
+        if unscanned:
+            print(f"\n  {len(unscanned)} file(s) could not be fully examined, so "
+                  f"'no findings' below\n  does not cover them. This is not "
+                  f"acceptable by fingerprint: nothing was read,\n  so there is "
+                  f"nothing to review. Drop the file from the results directory "
+                  f"or\n  fix what makes it unreadable, then build again.")
         if secrets:
             print("\n  A credential cannot be accepted. Find it, and drop or "
                   "rewrite the episode\n  holding it before building the archive "

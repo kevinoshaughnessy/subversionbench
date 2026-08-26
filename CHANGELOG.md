@@ -10,6 +10,37 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v93
+
+Package version `93.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **The publication gate could not tell "clean" from "unscanned".**
+  `find_content_risks` decides whether an archive may be published, and it
+  skipped a file whose bytes would not read with a bare `continue`, contributing
+  zero findings and reading exactly like a safe file. A `.json` file that would
+  not parse was worse than it looked: the raw scan still ran, but the DECODED
+  scan silently did not, and the decoded scan is the only one that sees an
+  escaped invisible character - `json.dump` writes a zero-width space as the six
+  characters `\u200b`, which is the whole reason `_decoded_text` exists.
+- **Both are now reported as `unscanned` severity, and neither is acceptable by
+  fingerprint.** Every other finding is a value a human can look at and judge;
+  this one says the value was never read, so there is nothing to judge, and a
+  fingerprint of the path would accept whatever the file held next time.
+  `unscanned` sorts first, because it says the rest of the list is incomplete.
+- **A file that was never JSON is not a finding.** A `.md` or a `.png` has
+  nothing to decode and never did. Asked with `_parses_as_json` rather than
+  inferred from `_decoded_text` returning "", which meant both things at once -
+  conflating them is what let the broken case look like the ordinary one.
+- **The gate no longer folds an unnamed severity into "reviewed".** `reviewed`
+  was everything left after subtracting secrets and unreviewed hosts, so a
+  severity the gate did not name would have arrived as an accepted finding and
+  the build would have passed.
+- Checked against the real corpus before making it a refusal: every file in it
+  reads and every JSON file in it parses, so this refuses nothing that
+  previously passed. Each new test was verified by planting the violation it
+  catches.
+
 ## v92
 
 Package version `92.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
