@@ -94,3 +94,29 @@ class TestTheReadmeLinksResolve:
                   if not target.startswith(("http", "mailto", "#"))
                   and not os.path.exists(target.split("#")[0])]
         assert not broken, f"broken relative links in the README: {broken}"
+
+    def test_every_anchor_names_a_heading_that_exists(self):
+        """The other half of a `file.md#section` link, and the half that rots
+        silently: the path check above passes on any anchor at all, and a stale
+        one just drops the reader at the top of a long document with no sign
+        that it went wrong. Six README links carry an anchor.
+        """
+        def slugs(path):
+            out = set()
+            for line in open(path):
+                if line.startswith("#"):
+                    title = line.lstrip("#").strip()
+                    out.add(re.sub(r"[^\w\- ]", "", title).lower().replace(" ", "-"))
+            return out
+
+        body = open("README.md").read()
+        stale = []
+        for _, target in re.findall(r'\[([^\]]+)\]\(([^)]+)\)', body):
+            if target.startswith(("http", "mailto", "#")) or "#" not in target:
+                continue
+            path, anchor = target.split("#", 1)
+            if os.path.exists(path) and anchor not in slugs(path):
+                stale.append(target)
+        assert not stale, (
+            f"these README links name a heading that does not exist, so they "
+            f"land at the top of the file instead: {stale}")
