@@ -115,12 +115,42 @@ class TestEveryPlaceAHostIdentifierHides:
 class TestTheVerifierAgreesWithTheRedactorByConstruction:
     def test_the_patterns_are_derived_not_restated(self):
         """A substitution added to path_substitutions is checked for automatically.
-        Two hand-maintained lists would drift, and the drift would ship."""
+        Two hand-maintained lists would drift, and the drift would ship.
+
+        Every real path except one the redactor would produce anyway; see
+        test_a_placeholder_is_never_itself_a_needle for why that exception is not
+        a hole.
+        """
         derived = {needle for needle, _ in leak_patterns()}
+        produced = {placeholder for _, placeholder in path_substitutions()}
         for real, _ in path_substitutions():
+            if real in produced:
+                continue
             assert real in derived
         if USERNAME:
             assert USERNAME in derived
+
+    def test_a_placeholder_is_never_itself_a_needle(self, monkeypatch):
+        """The placeholders are what successful redaction writes, so a needle
+        equal to one fires on correct output and can never indicate a leak.
+
+        The collision is forced rather than waited for. tempfile.gettempdir() is
+        "/tmp" on Linux and the temp placeholder is "/tmp" too, so the real pair
+        substitutes a string for itself and every correctly redacted export was
+        reported as leaking there. On macOS gettempdir() sits under /var/folders
+        and the collision cannot arise at all, so the substitutions are supplied
+        here instead of taken from the host, and the rule is checked on both.
+        """
+        import subversionbench.export as export
+        monkeypatch.setattr(export, "path_substitutions",
+                            lambda *a, **k: [("/host/private", "~"),
+                                             ("/tmp", "/tmp")])
+        needles = {needle for needle, _ in export.leak_patterns()}
+        assert "/host/private" in needles, (
+            "a real host path must still be checked for")
+        assert "/tmp" not in needles, (
+            "the redactor's own placeholder was treated as a host path, so "
+            "correctly redacted output reads as a leak")
 
     def test_it_finds_a_leak_in_any_file_type(self):
         d = tempfile.mkdtemp()

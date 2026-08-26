@@ -10,6 +10,38 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v98
+
+Package version `98.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **The publication gate reported the redactor's own placeholder as a leak.**
+  `leak_patterns()` derives its needles from the substitutions the redactor
+  applies, which is what keeps the two from drifting. But it took every real
+  path as a needle, and on Linux one of those pairs substitutes a string for
+  itself: `tempfile.gettempdir()` is `/tmp` and the temp placeholder is also
+  `/tmp`. So the gate looked for the exact string it was asking the redactor to
+  produce, and every correctly redacted export read as leaking.
+- The rule is now the one that was always meant: a needle that successful
+  redaction can *produce* is not evidence of failure, so a real path equal to a
+  placeholder is dropped. Nothing is lost by it - `/tmp` is the temp root of
+  every Linux machine and identifies no host.
+- The pair itself stays in `path_substitutions`, and must. Substituting a string
+  for itself is a no-op only in the literal pass; in the dump-spread pass it
+  collapses `od -c` output - `/   t   m   p` back to `/tmp` - which is real
+  work. That is why this is fixed in the verifier rather than the substitution
+  table.
+- **Invisible on macOS**, where `gettempdir()` sits under `/var/folders` and can
+  never equal `/tmp`, so the collision cannot arise. The published archive was
+  built there under a gate that was behaving correctly, so nothing already
+  published is affected.
+- Surfaced as twelve committed report snapshots failing the host-path guard on
+  Linux. Regenerating them was the wrong fix and would have edited the evidence:
+  the snapshots were correct and the guard was over-broad. The new test forces
+  the collision with supplied substitutions instead of waiting for a host that
+  has it, so the rule is checked on both platforms; reverting the fix fails it on
+  macOS.
+
 ## v97
 
 Package version `97.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

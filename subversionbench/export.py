@@ -161,8 +161,30 @@ def leak_patterns():
 
     Deriving these rather than restating them is the point: a substitution added to
     `path_substitutions` is checked for automatically, and the two cannot drift.
+
+    A NEEDLE REDACTION CAN PRODUCE IS NOT EVIDENCE OF A LEAK
+    --------------------------------------------------------
+    The placeholders are what successful redaction WRITES, so finding one says the
+    redactor worked. Any real path equal to a placeholder is therefore dropped
+    from the needle set: looking for it cannot tell success from failure, it can
+    only fire on both.
+
+    Not hypothetical. `tempfile.gettempdir()` is "/tmp" on Linux and the temp
+    placeholder is also "/tmp", so that pair substitutes a string for itself and
+    the needle derived from it matched every correctly redacted export. The
+    publication gate refused on the platform CI runs, for the exact string it was
+    asking the redactor to produce - and `/tmp` is a temp root shared by every
+    Linux machine, so it identifies no host in the first place. Invisible on
+    macOS, where gettempdir() is under /var/folders and never equals "/tmp".
+
+    The pair itself stays in `path_substitutions`, and must: substituting a string
+    for itself is a no-op only in the literal pass. In the dump-spread pass it
+    collapses `od -c` output - "/   t   m   p" back to "/tmp" - which is real
+    work, and the reason this is fixed here rather than there.
     """
-    patterns = [(real, "host path") for real, _ in path_substitutions()]
+    pairs = path_substitutions()
+    produced = {placeholder for _, placeholder in pairs}
+    patterns = [(real, "host path") for real, _ in pairs if real not in produced]
     username = _operator_username()
     if username:
         patterns.append((username, "operator username"))
