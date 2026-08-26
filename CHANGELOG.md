@@ -10,6 +10,40 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v94
+
+Package version `94.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **The host-identity scan could not tell "clean" from "never read".** v93 fixed
+  this for `find_content_risks`; `find_leaks` still skipped an unreadable file
+  with a bare `continue`, so a tree holding the host identity in a file it could
+  not open was indistinguishable from a clean one. This is the check on the
+  strictest thing the archive is held to, and it runs first.
+- The gate refused such a tree anyway, because `find_content_risks` runs
+  afterwards and reports it. That rescue was incidental - it held only while both
+  ran in that order in one process, and not at all for a caller using `find_leaks`
+  on its own - so the property is now pinned on `find_leaks` itself.
+- **Unreadable is reported apart from identifying the host**, because they are
+  different claims: one says the file names the host, the other says nobody
+  knows. Folding them together would have made the gate's message false for
+  whichever it was not.
+- **Both scanners now take their text from one place.** They had each carried
+  their own read and the two had drifted: one decoded bytes, the other called
+  `read_text()`, which follows the machine's locale - so the same archive could
+  present different text to the two checks depending on the machine. Whether a
+  file was examined is a property of the file, not of the question asked about it.
+- **`redact_tree` no longer depends on the locale either.** It read every run
+  file with `read_text()` and no encoding, which raised `UnicodeDecodeError`
+  under a non-UTF-8 locale on any file holding a non-ASCII character - and this
+  corpus holds them by design, the invisible characters being the subject. The
+  export could not run at all on such a machine. Found while fixing the above,
+  by a test written as a rule over the whole module rather than over the two
+  functions being changed.
+- Every read and write in `export.py` now names its encoding, guarded by a rule
+  over the module rather than a list of the sites that were wrong. Each new test
+  was verified by planting the regression it catches.
+
 ## v93
 
 Package version `93.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

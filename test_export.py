@@ -890,3 +890,203 @@ class TestAnUnscannedFileCannotBePublished:
             __import__("subversionbench.export", fromlist=["main"]).main)
         assert 'r["severity"] == "unscanned"' in src
         assert "- len(unscanned)" in src
+
+
+class TestTheIdentifierScanCannotReturnCleanForAFileItDidNotRead:
+    """`find_leaks` is the check on the host identity, the strictest thing the
+    archive is held to, and it used to skip an unreadable file with a bare
+    `continue` - so a tree holding the host name in a file it could not open was
+    indistinguishable from a clean one.
+
+    The gate happened to refuse such a tree anyway, because `find_content_risks`
+    runs afterwards and reports it as `unscanned`. These tests pin the property
+    on `find_leaks` itself, because that rescue is incidental: it holds only while
+    both run in that order in one process, and not at all for a caller using this
+    function on its own.
+    """
+
+    def _tree(self):
+        return tempfile.mkdtemp(prefix="eval_results_leakscan_")
+
+    def _needle(self):
+        from subversionbench.export import leak_patterns
+        return leak_patterns()[0][0]
+
+    def test_an_unreadable_file_is_reported_rather_than_skipped(self):
+        from subversionbench.export import find_leaks
+        d = self._tree()
+        bad = Path(d, "run_1.json")
+        bad.write_text('{"ok": true}')
+        os.chmod(bad, 0)
+        try:
+            found = find_leaks(d)
+        finally:
+            os.chmod(bad, 0o644)
+        assert len(found) == 1, found
+        assert found[0][1] == "unreadable"
+        assert "PermissionError" in found[0][2]
+
+    def test_a_leak_inside_an_unreadable_file_does_not_read_as_clean(self):
+        """The failure that matters: the same content in a readable file is
+        caught, so the only difference is whether the scan could look."""
+        from subversionbench.export import find_leaks
+        d = self._tree()
+        readable = Path(d, "a.txt")
+        readable.write_text(f"prefix {self._needle()} suffix", encoding="utf-8")
+        assert len(find_leaks(d)) == 1
+        os.chmod(readable, 0)
+        try:
+            found = find_leaks(d)
+        finally:
+            os.chmod(readable, 0o644)
+        assert found != [], "a tree it could not read reported clean"
+
+    def test_unreadable_is_not_conflated_with_identifying_the_host(self):
+        """Different claims: one says the file names the host, the other says
+        nobody knows. Reporting them under one label would make the gate's
+        message false for whichever it was not."""
+        from subversionbench.export import find_leaks
+        d = self._tree()
+        Path(d, "leaky.txt").write_text(f"x {self._needle()} y", encoding="utf-8")
+        bad = Path(d, "locked.txt")
+        bad.write_text("anything")
+        os.chmod(bad, 0)
+        try:
+            kinds = {name: what for name, what, _ in
+                     ((os.path.basename(p), w, s) for p, w, s in find_leaks(d))}
+        finally:
+            os.chmod(bad, 0o644)
+        assert kinds["locked.txt"] == "unreadable"
+        assert kinds["leaky.txt"] != "unreadable"
+
+    def test_a_clean_tree_is_still_empty(self):
+        from subversionbench.export import find_leaks
+        d = self._tree()
+        Path(d, "notes.md").write_text("ordinary prose\n", encoding="utf-8")
+        assert find_leaks(d) == []
+
+    def test_the_gate_refuses_and_says_which_claim_it_is_making(self):
+        import contextlib
+        import io
+        d = self._tree()
+        bad = Path(d, "run_1.json")
+        bad.write_text('{"analysis": {}}')
+        os.chmod(bad, 0)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                code = main(["--verify", d, "--accepted", "/nonexistent"])
+        finally:
+            os.chmod(bad, 0o644)
+        out = buf.getvalue()
+        assert code == 1, out
+        assert "could not be read" in out
+        # It must NOT claim the file identifies the host - it does not know that.
+        assert "still identify the host" not in out
+
+    def test_every_content_scanner_delegates_the_read_to_one_place(self):
+        """A rule, not a list of function names.
+
+        A content scanner is identified by what it uses - the pattern tables -
+        rather than by being named here, so a scanner added later inherits the
+        rule instead of rediscovering it. Both existing scanners had their own
+        read and the two had already drifted: one decoded bytes, the other
+        called `read_text()`, which follows the machine's locale.
+        """
+        import ast
+        from subversionbench import export
+
+        tree = ast.parse(Path(export.__file__).read_text(encoding="utf-8"))
+        scanners, offenders = [], []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            body = ast.unparse(node)
+            uses_patterns = ("leak_patterns()" in body
+                             or "content_patterns(" in body)
+            if not uses_patterns or "rglob" not in body:
+                continue
+            scanners.append(node.name)
+            reads = sorted({call for call in
+                            (ast.unparse(n.func) for n in ast.walk(node)
+                             if isinstance(n, ast.Call))
+                            if call.endswith((".read_text", ".read_bytes"))
+                            or call == "open"})
+            if reads:
+                offenders.append(f"{node.name}() reads directly with {reads}")
+            elif "_read_for_scan" not in body:
+                offenders.append(f"{node.name}() gets its text from somewhere "
+                                 f"other than _read_for_scan")
+        assert len(scanners) >= 2, (
+            f"expected to find the content scanners by their pattern tables; "
+            f"found {scanners}. If a scanner was renamed or its patterns moved, "
+            f"this rule stopped guarding anything.")
+        assert not offenders, (
+            "a content scanner must take its text from _read_for_scan, so that "
+            "an unreadable file is a finding and both scanners see the same "
+            "bytes:\n  " + "\n  ".join(offenders))
+
+    def test_no_file_in_export_is_read_or_written_at_the_locale_s_mercy(self):
+        """`read_text()`/`write_text()` without `encoding=` follow the machine's
+        locale. Under a non-UTF-8 one, `redact_tree` raised UnicodeDecodeError on
+        any run file holding a non-ASCII character - and this corpus holds them by
+        design, the invisible characters being the subject. The archive's content
+        must be a property of the archive, not of the machine building it."""
+        import ast
+        from subversionbench import export
+
+        tree = ast.parse(Path(export.__file__).read_text(encoding="utf-8"))
+        offenders = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = ast.unparse(node.func)
+            if not (name.endswith((".read_text", ".write_text")) or name == "open"):
+                continue
+            mode = ""
+            if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
+                mode = str(node.args[1].value)
+            if "b" in mode:
+                continue          # bytes carry no encoding question
+            if "encoding" not in {kw.arg for kw in node.keywords}:
+                offenders.append(f"export.py:{node.lineno}  {name}(...)")
+        assert not offenders, (
+            "name the encoding, or read bytes and decode them - `bytes.decode()` "
+            "is always UTF-8 whatever the locale:\n  " + "\n  ".join(offenders))
+
+    def test_a_non_ascii_run_file_survives_redaction_under_any_locale(self):
+        """The behaviour the rule above exists for, exercised rather than
+        inspected: redact_tree used to die here under an ASCII locale."""
+        import subprocess
+        import sys
+        src = tempfile.mkdtemp(prefix="eval_results_locale_")
+        into = tempfile.mkdtemp()
+        Path(src, "run_1.json").write_text(
+            json.dumps({"analysis": {}, "text": "em dash — zero width ​"},
+                       ensure_ascii=False), encoding="utf-8")
+        env = {**os.environ, "LC_ALL": "C", "LANG": "C",
+               "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "import sys, json;"
+             "from subversionbench.export import redact_tree;"
+             f"print(json.dumps(redact_tree({src!r}, {into!r})))"],
+            capture_output=True, text=True, env=env,
+            cwd=os.path.dirname(os.path.abspath(__file__)))
+        assert result.returncode == 0, result.stderr[-800:]
+        counts = json.loads(result.stdout.strip().splitlines()[-1])
+        assert counts["json"] == 1 and counts["written"] == 1, counts
+        out = json.loads(Path(into, os.path.basename(src), "run_1.json")
+                         .read_text(encoding="utf-8"))
+        assert "—" in out["text"] and "​" in out["text"], \
+            "the characters this benchmark is about were lost in the copy"
+
+    def test_the_shared_read_does_not_depend_on_the_locale(self):
+        """`read_text()` follows the machine's locale; `bytes.decode()` is always
+        UTF-8. The archive must present the same text on any machine."""
+        from subversionbench.export import _read_for_scan
+        d = self._tree()
+        p = Path(d, "a.txt")
+        p.write_bytes("café — ".encode("utf-8") + b"tail")
+        assert _read_for_scan(p)[1] == "café — tail"
+        assert _read_for_scan(p)[2] is None

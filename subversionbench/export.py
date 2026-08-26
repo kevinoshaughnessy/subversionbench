@@ -111,18 +111,25 @@ def redact_tree(src: str, into: str) -> dict:
                 counts["written"] += 1
                 continue
             counts["json"] += 1
-            raw = Path(s).read_text()
+            # UTF-8 named rather than left to the machine's locale. Under a
+            # non-UTF-8 locale this raised UnicodeDecodeError on any run file
+            # holding a non-ASCII character - and the corpus holds them by
+            # design, since the invisible characters are the subject. Strict
+            # still, so a genuinely undecodable file stops the build rather
+            # than being written to the archive mangled.
+            raw = Path(s).read_text(encoding="utf-8")
             try:
                 data = json.loads(raw)
             except Exception:
                 # A truncated run file is data too: copy it rather than dropping it,
                 # but redact it as text since it cannot be parsed.
-                Path(d).write_text(redact_paths(raw))
+                Path(d).write_text(redact_paths(raw), encoding="utf-8")
                 counts["unreadable"] += 1
                 counts["written"] += 1
                 continue
             clean = _redact_value(data)
-            Path(d).write_text(json.dumps(clean, indent=2, default=str))
+            Path(d).write_text(json.dumps(clean, indent=2, default=str),
+                               encoding="utf-8")
             counts["written"] += 1
             if clean != data:
                 counts["changed"] += 1
@@ -445,6 +452,32 @@ def _passthrough_content_read_commands(raw: str) -> list:
     return detect_host_path_reads(data["transcript"])["content_commands"]
 
 
+def _read_for_scan(path: Path) -> tuple:
+    """
+    One file as `(bytes, text, why_unscanned)` for either scanner to examine.
+
+    Both scanners ask this rather than each carrying its own read. Whether a file
+    was examined at all is a property of the file, not of the question being asked
+    about it, and the two had already drifted: one read bytes and decoded them,
+    the other called `read_text()`, which follows the machine's locale - so the
+    same archive could present different text to the two checks on a machine
+    configured differently. A second copy of a rule this file's own comments warn
+    about is how that happens.
+
+    `bytes.decode()` is always UTF-8 whatever the locale, so the text both
+    scanners see is now a property of the archive alone.
+
+    `why_unscanned` is None when the file was read. Otherwise it names the failure
+    and the caller must report it: `text` is not trustworthy and "found nothing"
+    would mean "could not look".
+    """
+    try:
+        raw_bytes = path.read_bytes()
+    except Exception as e:
+        return b"", "", f"unreadable: {type(e).__name__}"
+    return raw_bytes, raw_bytes.decode(errors="replace"), None
+
+
 def find_content_risks(root: str) -> list:
     """
     Every distinct finding under `root`, grouped by what was matched.
@@ -494,11 +527,9 @@ def find_content_risks(root: str) -> list:
     for path in sorted(Path(root).rglob("*")):
         if not path.is_file():
             continue
-        try:
-            raw_bytes = path.read_bytes()
-            raw = raw_bytes.decode(errors="replace")
-        except Exception as e:
-            unscanned(path, f"unreadable: {type(e).__name__}")
+        raw_bytes, raw, why = _read_for_scan(path)
+        if why:
+            unscanned(path, why)
             continue
         if path.suffix == ".json" and not _parses_as_json(raw):
             # The raw scan below still runs on this file - it is the escaped-form
@@ -562,7 +593,7 @@ def accepted_fingerprints(path: str = ACCEPTED_FILE) -> set:
         candidates.append(Path(__file__).resolve().parent.parent / path)
     for candidate in candidates:
         try:
-            text = candidate.read_text()
+            text = candidate.read_text(encoding="utf-8")
         except OSError:
             continue
         out = set()
@@ -575,14 +606,36 @@ def accepted_fingerprints(path: str = ACCEPTED_FILE) -> set:
 
 
 def find_leaks(root: str) -> list:
-    """Every (file, what, sample) still identifying the host, under `root`."""
+    """
+    Every (file, what, sample) under `root` that identifies the host, plus every
+    file that could not be read to find out.
+
+    A FILE THIS CANNOT READ IS A FINDING, NOT A SKIP
+    ------------------------------------------------
+    Same rule as `find_content_risks`, and for the same reason: this decides
+    publication, so an empty return has to mean "looked and found nothing". It
+    previously skipped an unreadable file silently, which made a tree containing
+    the host identity in a file it could not open indistinguishable from a clean
+    one - and this is the check on the host identity, the strictest thing the
+    archive is held to.
+
+    The gate happened to refuse such a tree anyway, because `find_content_risks`
+    runs afterwards and reports it as `unscanned`. That is incidental: it holds
+    only while the two run in that order in one process, and not at all for the
+    callers that use this function on its own. A safety property that depends on
+    another check running later is not one this function provides.
+
+    Unreadable files are returned as `what="unreadable"` so the existing shape and
+    the existing truthiness both still hold; the caller distinguishes them, since
+    "cannot be read" is not the same claim as "identifies the host".
+    """
     found = []
     for path in sorted(Path(root).rglob("*")):
         if not path.is_file():
             continue
-        try:
-            text = path.read_text(errors="replace")
-        except Exception:
+        text, why = _read_for_scan(path)[1:]
+        if why:
+            found.append((str(path), "unreadable", why))
             continue
         for needle, what in leak_patterns():
             index = text.find(needle)
@@ -609,17 +662,33 @@ def main(argv=None) -> int:
 
     if args.verify:
         leaks = find_leaks(args.verify)
-        if leaks:
-            print(f"\n  REFUSING TO PUBLISH: {len(leaks)} file(s) still identify the "
-                  f"host.\n")
-            for path, what, sample in leaks[:10]:
+        # Reported apart because they are different claims: one says a file names
+        # the host, the other says the file could not be read, so whether it names
+        # the host is unknown. Both refuse.
+        unreadable = [f for f in leaks if f[1] == "unreadable"]
+        identifying = [f for f in leaks if f[1] != "unreadable"]
+        if identifying:
+            print(f"\n  REFUSING TO PUBLISH: {len(identifying)} file(s) still "
+                  f"identify the host.\n")
+            for path, what, sample in identifying[:10]:
                 print(f"    {os.path.basename(path)}  [{what}]")
                 print(f"      ...{sample.strip()[:88]}...")
-            if len(leaks) > 10:
-                print(f"    ... and {len(leaks) - 10} more")
+            if len(identifying) > 10:
+                print(f"    ... and {len(identifying) - 10} more")
             print("\n  redaction.path_substitutions() decides what is rewritten; "
                   "a field\n  reaching the archive unredacted means export.py did "
                   "not walk it.")
+        if unreadable:
+            print(f"\n  REFUSING TO PUBLISH: {len(unreadable)} file(s) could not be "
+                  f"read, so\n  whether they identify the host is unknown.\n")
+            for path, _, why in unreadable[:10]:
+                print(f"    {os.path.basename(path)}  [{why}]")
+            if len(unreadable) > 10:
+                print(f"    ... and {len(unreadable) - 10} more")
+            print("\n  Nothing was read, so there is nothing to review. Drop the "
+                  "file from the\n  results directory or fix what makes it "
+                  "unreadable, then build again.")
+        if leaks:
             return 1
 
         risks = find_content_risks(args.verify)
