@@ -10,6 +10,39 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v91
+
+Package version `91.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **`run_evaluation` was 564 lines, 21 parameters, cyclomatic complexity 50 and
+  six levels of nesting** - the worst function in the repository on every one of
+  those measures. It is now 284 lines at complexity 19 and three levels, with
+  the agentic loop, the per-turn block dispatch, the interrogation phase and the
+  episode identity each in their own function.
+- **The two episode records had already drifted.** A completed episode and a
+  failed one are both saved and both read by the same analyses, and each built
+  its own copy of the same thirteen identity fields. `isolation` is on the
+  completed record and missing from the failed one; and the same field,
+  `analysis_version`, was documented as "which analysis version COLLECTED it" in
+  one and "last touched it" in the other - wordings that contradict, with the
+  first explicitly correcting the second. Both now come from `arm_identity`,
+  which keeps the corrected wording and the original key order, since these
+  dicts are written to disk.
+- **The guard on the arm was weaker than it read.** It asserted `lure` was a
+  *parameter* of `run_evaluation`, which a signature satisfies while the record
+  omits the field entirely - verified by removing `"lure": lure` and watching it
+  still pass. The value reaching the saved record is now asserted on both
+  records, and the old guard says it is necessary rather than sufficient.
+- **The loop guards the request and nothing else.** Only
+  `client.messages.create` sits inside the `try`; a fault out of the sandbox
+  propagates as itself rather than being filed as a provider outage, which the
+  batch runner treats differently. Now pinned by a test.
+- Verified against a 15-scenario behavioural baseline covering every exit path -
+  model stopped, turn cap, no content, raw tool-call text, API error, and the
+  full grading, interrogation and settle path - captured before the first edit
+  and re-checked after each step. Identical throughout.
+
 ## v90
 
 Package version `90.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

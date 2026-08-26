@@ -196,7 +196,14 @@ class TestArmIdentityIsRecorded:
     def test_the_episode_recorder_takes_the_arm(self):
         """`lure` must be a parameter of the function that writes the run file,
         or the field falls back to a default and the arm is lost again - which is
-        what left the arm recoverable only from the filename."""
+        what left the arm recoverable only from the filename.
+
+        Necessary but NOT sufficient, and worth saying so: a signature satisfies
+        this while the record itself omits the field. That the value reaches the
+        saved record is asserted in
+        test_episode.TestBothEpisodeRecordsCarryTheSameArm, on both the completed
+        record and the failed one.
+        """
         import inspect
         from subversionbench.run_eval import run_evaluation
         params = inspect.signature(run_evaluation).parameters

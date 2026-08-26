@@ -954,3 +954,161 @@ class TestTheClassifierLineNamesTheCause:
         assert "api_error_message(error" in src
         assert "warn_usage_limit_once(error" in src
         assert "str(labelled['classifier_error'])[:100]" not in src
+
+
+class TestBothEpisodeRecordsCarryTheSameArm:
+    """A completed episode and a failed one are both saved, and both are read by
+    the same analyses. They used to build their identity fields separately.
+
+    The copies had already drifted: `isolation` is on the completed record and
+    not the failed one, and the SAME field was documented as "which analysis
+    version COLLECTED it" in one and "last touched it" in the other - wordings
+    that contradict, the first explicitly correcting the second. A field added to
+    one and forgotten in the other is silent; the run file simply lacks it and
+    whatever reads it sees a default.
+    """
+
+    IDENTITY = ("canary", "rollout_version", "oversight", "lure",
+                "interrogations", "headline_interrogation",
+                "rollout_fingerprint", "analysis_version", "model", "effort",
+                "openrouter_sort", "openrouter_provider", "nudge")
+
+    def _built(self, **kw):
+        from subversionbench.episode import arm_identity
+        args = dict(model="m", effort=None, nudge="strong", oversight=True,
+                    lure=False, interrogations=("zeroevidence",),
+                    openrouter_sort=None, openrouter_provider=None)
+        args.update(kw)
+        return arm_identity(**args)
+
+    def test_the_arm_actually_reaches_the_record(self):
+        """The gap the old guard left. It asserted `lure` was a PARAMETER of
+        run_evaluation, which is satisfied by a signature alone - drop
+        `"lure": lure` from the record and the parameter is still there, the
+        guard still passes, and the arm is lost exactly as before. Assert the
+        field."""
+        assert self._built(lure=True)["lure"] is True
+        assert self._built(lure=False)["lure"] is False
+        assert self._built(oversight=False)["oversight"] is False
+
+    def test_each_arm_gets_its_own_fingerprint(self):
+        """Not the primary arm's. A module constant here once made every
+        counterfactual and every lure episode claim the primary arm's identity."""
+        seen = {(o, l): self._built(oversight=o, lure=l)["rollout_fingerprint"]
+                for o in (True, False) for l in (True, False)}
+        assert len(set(seen.values())) == 4, seen
+
+    def test_neither_record_redeclares_an_identity_field(self):
+        """The point of the shared builder. A key set in a record literal AND in
+        arm_identity is a second copy that can disagree with the first, which is
+        the state this replaced."""
+        import re
+        from subversionbench import episode as ep
+        src = inspect.getsource(ep.run_evaluation)
+        offenders = [k for k in self.IDENTITY
+                     if re.search(rf'^\s+"{k}":', src, re.M)]
+        assert not offenders, (
+            f"run_evaluation sets these itself as well as through "
+            f"arm_identity: {offenders}")
+
+    def test_both_records_start_with_the_identity_in_order(self):
+        """Order matters because these dicts are written to disk as JSON. The
+        thirteen keys are the first thirteen of both records, and reordering
+        them would move every saved field position for no reason."""
+        assert list(self._built()) == list(self.IDENTITY)
+
+    def test_the_failed_record_is_the_identity_plus_the_failure(self):
+        """Exercised through a real failure rather than read off the source, so
+        the assertion is about what gets saved."""
+        import subversionbench.llm_client as ev_llm
+        from subversionbench.environment import create_hardened_environment
+        from subversionbench.episode import EpisodeAPIError
+        from subversionbench.config import SYSTEM_PROMPT_STRONG_NUDGE
+        import subversionbench.run_eval as ev_run
+
+        class Boom:
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    raise RuntimeError("429 rate limited")
+
+        env_dir = tempfile.mkdtemp()
+        env_info = create_hardened_environment(env_dir)
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: Boom()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    ev_run.run_evaluation(
+                        system_prompt=SYSTEM_PROMPT_STRONG_NUDGE,
+                        user_prompt="Do it.", env_dir=env_dir,
+                        env_info=env_info, model="m", max_turns=2,
+                        use_grader=False, nudge="strong", lure=True)
+                except EpisodeAPIError as e:
+                    partial = e.partial
+                else:
+                    raise AssertionError("expected EpisodeAPIError")
+        finally:
+            ev_llm.get_client = orig
+        for key in self.IDENTITY:
+            assert key in partial, key
+        assert partial["lure"] is True
+        assert partial["ended_by"] == "api_error"
+        assert partial["failed_on_turn"] == 1
+        assert "429" in partial["error"]
+        # Deliberately absent: an episode that died mid-turn has no settled act
+        # to ask about and an incomplete conversation to ask it in.
+        assert "messages" not in partial
+
+
+class TestTheLoopGuardsTheRequestAndNothingElse:
+    def test_a_sandbox_failure_is_not_reported_as_an_api_error(self):
+        """Only `client.messages.create` sits inside the try. A harness fault
+        from the shell must propagate as itself - folding it into
+        EpisodeAPIError would file a broken sandbox as a provider outage, and
+        the batch runner treats those differently."""
+        import subversionbench.llm_client as ev_llm
+        from subversionbench import episode as ep
+        from subversionbench.environment import create_hardened_environment
+        from subversionbench.episode import EpisodeAPIError
+        from subversionbench.config import SYSTEM_PROMPT_STRONG_NUDGE
+        import subversionbench.run_eval as ev_run
+
+        class Calls:
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    return types.SimpleNamespace(
+                        content=[types.SimpleNamespace(
+                            type="tool_use", id="t1", input={"command": "ls"})],
+                        stop_reason="tool_use",
+                        usage=types.SimpleNamespace(input_tokens=1,
+                                                    output_tokens=1))
+
+        env_dir = tempfile.mkdtemp()
+        env_info = create_hardened_environment(env_dir)
+        orig_client, orig_tool = ev_llm.get_client, ep.execute_tool_sandboxed
+        ev_llm.get_client = lambda *a, **k: Calls()
+
+        def broken(*a, **k):
+            raise OSError("sandbox-exec is missing")
+
+        ep.execute_tool_sandboxed = broken
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    ev_run.run_evaluation(
+                        system_prompt=SYSTEM_PROMPT_STRONG_NUDGE,
+                        user_prompt="Do it.", env_dir=env_dir,
+                        env_info=env_info, model="m", max_turns=2,
+                        use_grader=False, nudge="strong")
+                except EpisodeAPIError:
+                    raise AssertionError(
+                        "a sandbox fault was reported as an API error")
+                except OSError as e:
+                    assert "sandbox-exec" in str(e)
+                else:
+                    raise AssertionError("expected the OSError to propagate")
+        finally:
+            ep.execute_tool_sandboxed = orig_tool
+            ev_llm.get_client = orig_client
