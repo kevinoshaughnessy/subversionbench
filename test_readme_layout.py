@@ -1,5 +1,6 @@
 """
-The README's Layout section against the files that actually exist.
+The layout document against the files that actually exist, and the README's
+links against the things they point at.
 
 Nothing kept the two in step, and they drifted by eight entries: isolation.py,
 rollout.py, scenario.py, two grading detectors and four repo-root scripts were all
@@ -9,11 +10,22 @@ scenario_tool.py, is the command the scenario docs tell a reader to run.
 A layout that is merely mostly right is worse than none, because a reader who finds
 one module missing cannot tell whether the next absence means "not listed" or "does
 not exist". So this is checked rather than maintained by hand.
+
+WHERE THE LISTING LIVES
+-----------------------
+`docs/Layout.md`. It was a 136-line block in the README, which put a reference
+table in the middle of the page someone reads to get started; the README now
+carries a condensed version and links onward. The checks follow the listing
+rather than the file it used to be in - and one of them asserts the README still
+links to it, because a condensed overview whose pointer has rotted is worse than
+the long section it replaced.
 """
 
 import glob
 import os
 import re
+
+LAYOUT_DOC = "docs/Layout.md"
 
 # Deliberately not listed, with the reason. Anything else must appear.
 NOT_LISTED = {
@@ -22,9 +34,9 @@ NOT_LISTED = {
 
 
 def _layout_block() -> str:
-    body = open("README.md").read()
-    assert "## Layout" in body, "the README has no Layout section"
-    return body.split("## Layout")[1].split("```")[1]
+    body = open(LAYOUT_DOC, encoding="utf-8").read()
+    assert "```" in body, f"{LAYOUT_DOC} has no fenced listing"
+    return body.split("```")[1]
 
 
 def _listed_files() -> set:
@@ -63,7 +75,7 @@ class TestEveryModuleIsListed:
             if os.path.basename(p) != "__init__.py"
             and os.path.basename(p) not in listed)
         assert not missing, (
-            f"these modules are not in the README Layout: {missing}")
+            f"these modules are not in {LAYOUT_DOC}: {missing}")
 
     def test_no_root_script_is_missing(self):
         """The scripts an operator invokes directly. scenario_tool.py went unlisted
@@ -75,8 +87,59 @@ class TestEveryModuleIsListed:
             and os.path.basename(p) not in listed
             and os.path.basename(p) not in NOT_LISTED)
         assert not missing, (
-            f"these root scripts are not in the README Layout: {missing}. "
+            f"these root scripts are not in {LAYOUT_DOC}: {missing}. "
             f"Add them, or add them to NOT_LISTED with a reason.")
+
+
+class TestTheReadmeStillPointsAtTheFullListing:
+    """The condensed overview is only an improvement while the link works.
+
+    A reader who cannot find the full listing is worse off than one who had to
+    scroll past it, so the pointer is checked as strictly as the listing.
+    """
+
+    def test_the_layout_document_exists(self):
+        assert os.path.exists(LAYOUT_DOC)
+
+    def test_the_readme_links_to_it(self):
+        body = open("README.md", encoding="utf-8").read()
+        targets = [t for _, t in re.findall(r'\[([^\]]+)\]\(([^)]+)\)', body)]
+        assert LAYOUT_DOC in targets, (
+            f"the README no longer links to {LAYOUT_DOC}, so the full listing "
+            f"is unreachable from the page a reader starts on")
+
+    def test_the_readme_link_sits_in_the_layout_section(self):
+        """Not merely somewhere on the page: in the section whose job it is."""
+        body = open("README.md", encoding="utf-8").read()
+        assert "## Layout" in body, "the README has no Layout section"
+        section = body.split("## Layout")[1].split("\n## ")[0]
+        assert LAYOUT_DOC in section, (
+            f"the README's Layout section does not link to {LAYOUT_DOC}")
+
+    def test_the_readme_no_longer_carries_the_whole_listing(self):
+        """The point of the move. If the full block comes back, this file is
+        checking one copy while readers read another."""
+        body = open("README.md", encoding="utf-8").read()
+        section = body.split("## Layout")[1].split("\n## ")[0]
+        listed_in_readme = set(re.findall(r'([\w./-]+\.(?:py|sh))', section))
+        assert len(listed_in_readme) <= 12, (
+            f"the README's Layout section names {len(listed_in_readme)} files "
+            f"again; the full listing belongs in {LAYOUT_DOC}")
+
+    def test_the_documentation_index_counts_its_companions_correctly(self):
+        """The index says how many companion documents there are, in words. It
+        said "five" while listing five; adding one makes that sentence wrong,
+        and a wrong count is the kind of thing nobody notices for months."""
+        body = open("README.md", encoding="utf-8").read()
+        index = body.split("## Documentation")[1].split("\n## ")[0]
+        linked = {t for _, t in re.findall(r'\[([^\]]+)\]\(([^)]+)\)', index)
+                  if t.startswith("docs/")}
+        words = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+                 7: "seven", 8: "eight", 9: "nine"}
+        expected = words.get(len(linked))
+        assert expected and f"{expected} companion" in index, (
+            f"the Documentation index links {len(linked)} docs/ files but does "
+            f"not say \"{expected} companions\"")
 
 
 class TestEveryEntryExists:
