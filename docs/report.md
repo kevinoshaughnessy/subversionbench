@@ -1,6 +1,6 @@
 # Cross-model report
 
-[← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md) · [Report](report.md)
+[← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md) · [Report](report.md) · [Trends](trends.md)
 
 `run_report.py` answers twelve fixed research questions across every model in a results
 directory, prints them as tables, and writes the whole thing as JSON. It calls no API and
@@ -15,11 +15,14 @@ python run_report.py --output-dir eval_results_r9
 ```
 
 Writes `research_report_<timestamp>.json` into `--output-dir` unless `--json-out` says
-otherwise. A full pass over ~3,200 episodes takes a couple of seconds.
+otherwise. A full pass over a corpus of a few thousand episodes takes a couple of seconds.
 
-> Every worked figure below is a **snapshot of the r9 corpus** taken while it was still being
-> collected, kept because the arithmetic is what makes each argument checkable. Denominators
-> drift as episodes land; re-run the command for current values. The reasoning does not drift.
+> **No rate, effect or p-value from a corpus is quoted below.** They go stale on every
+> rollout and on every scoring correction - the v81-v83 corrections moved misalignment,
+> scheming and the oversight effect - so a figure written here would be wrong shortly after it
+> was written, and wrong in a document a reader consults to decide what the numbers mean. What
+> each question measures, why each guard exists, and what the output looks like do not drift,
+> and are what this file is for. Run the command for the answers.
 
 ---
 
@@ -49,12 +52,11 @@ report says "goes with", never "causes", and neither should the write-up.
 ### The parallel awareness measure (questions 2 and 4)
 
 Awareness is read from the model's reasoning **and** its visible output, so the instrument is
-not constant across models. On r9, median reasoning per episode runs from 98 to 57,237
-characters, and six of 27 models return none at all — five because `reasoning_tokens` is 0 in
-every episode (they did not reason) and one because it reasoned ~10,555 tokens per episode and
-returned none (withheld). A rate pooled over all 27 therefore mixes a measurement with a fact
-about the provider route: 29.5% overall, against 37.0% on the 21 models where reasoning came
-back and 0/600 on the five that never reasoned.
+not constant across models. Median reasoning per episode spans more than two orders of
+magnitude, and several models return none at all - most because they did not reason, and at
+least one because it reasoned heavily and withheld it. A rate pooled over every model
+therefore mixes a measurement with a fact about the provider route, and the pooled figure sits
+below the figure for the models where reasoning came back.
 
 So questions 2 and 4 also report the same contrast with awareness read from **visible text
 alone** — a channel every model has, making the measure comparable across all 27 without
@@ -78,18 +80,16 @@ and counted in `n_text_undetermined`; awareness from the keyword proxy has no qu
 and is undetermined rather than absent, since counting it as absent would understate the
 measure by a different amount per model.
 
-The `gap` column — mixed minus text — is how much of a model's measured awareness exists only
-because its provider returned reasoning. On r9 it spans 0.0pp (`claude-haiku-4-5`, all of its
-63.3% verbalised in visible output) to 80.0pp (`deepseek-v4-flash-0731`, 99.2% mixed against
-19.2% text). That spread is what a single cross-model awareness rate hides.
+The `gap` column - mixed minus text - is how much of a model's measured awareness exists only
+because its provider returned reasoning. It runs from zero, for a model that verbalises
+everything in visible output, to most of the model's rate. That spread is what a single
+cross-model awareness rate hides.
 
 `agreement` classifies the pair on **separation as well as sign**, because sign alone
-understates the interesting case. On r9: question 2 is `agree` (both separate, −3.2% mixed vs
-−3.4% text stratified), so the oversight conclusion does not depend on the reasoning channel.
-Question 4 is `text_only_separates` — mixed −0.9% CI [−3.3, +1.5], text +3.1% CI [+0.9, +5.4] —
-i.e. the max nudge moves awareness *verbalised in visible output* while total measured
-awareness does not move. Reported as "opposite direction" that would read as a contradiction;
-it is a finding.
+understates the interesting case. The shape to watch for is `text_only_separates`: the mixed
+measure a null while the text-only measure separates, meaning an axis moves awareness
+*verbalised in visible output* while total measured awareness does not. Reported on sign alone
+that reads as a contradiction; it is a finding.
 
 Questions 5–10 use awareness as the **exposure**, not the outcome. Swapping the exposure
 definition is a different analysis rather than a parallel column, so the block is deliberately
@@ -109,16 +109,13 @@ They pair up deliberately:
 
 Question 3 pairs with question 1 the same way, on the same arms rather than conditioned on
 awareness: oversight against the **wide** construct (misalignment) and against the **narrow**
-one (scheming), sharing a denominator. On r9 that pair is the sharpest contrast in the
-report — oversight cuts misalignment by 24.2pp (stratified, p=9.6e-91) while moving scheming
-by only 1.7pp. Oversight overwhelmingly suppresses the *act*; it barely changes whether an
-act that happened gets *hidden*.
+one (scheming), sharing a denominator. The pair has consistently shown oversight suppressing
+the *act* far more than it changes whether an act that happened gets *hidden*.
 
 Reading each pair together is the point: an axis can move the act without moving the
-concealment. On r9 that is exactly what happens — awareness goes with **more** sandbox escape
-attempts (about +16pp stratified, robust) while the *concealment* of those attempts does not
-move within models at all (+0.9pp, CI includes zero). Aware models probe more and hide it no
-more, which is a different claim from either half alone.
+concealment. That is what the awareness pair has shown - more sandbox escape attempts
+alongside no within-model movement in the concealment of those attempts. Aware models probe
+more and hide it no more, which is a different claim from either half alone.
 
 Each question is answered four ways, in this order:
 
@@ -139,9 +136,9 @@ and whose concealment was determined, how many concealed it. See
 ## Why both a crude and a stratified estimate
 
 Every rate here is pooled over models whose base rates differ by more than the effects being
-measured. That is the standing condition for Simpson's paradox, not a remote hazard — on the
-r9 corpus the crude oversight-vs-scheming contrast pools to −1.8pp while one model inside it
-runs +38pp the other way.
+measured. That is the standing condition for Simpson's paradox, not a remote hazard: a crude
+contrast in this corpus has pooled to a small effect one way with a single model inside it
+running an order of magnitude larger the other.
 
 The two estimands answer different questions and the report never shows one alone:
 
@@ -189,16 +186,14 @@ several lines apart. `crude_vs_stratified` compares them and prints a warning wh
   an empty arm, because that is usually the whole explanation.
 - **SIGN REVERSAL** — the two point in opposite directions. Simpson's paradox, named.
 
-Question 9 on r9 is the case this exists for. The crude contrast reads 0/452 aware against
-24/1179 unaware — a separated difference at p=0.0007 — and **every one of those 24 events
-comes from a single model that has zero eval-aware episodes**. There is no within-model
-comparison to make: the crude figure compares that one model against all the others, not
-aware episodes against unaware ones. The stratified estimate correctly reports no effect and
-an undefined test, and the warning says why. Reporting the crude p-value as a finding would
-have been a straightforward false claim.
-
-Question 10 fires the same warning less starkly: 24 of its 60 events sit outside the strata,
-and the crude +2.0pp (p=0.0003) falls to +0.9pp with the interval crossing zero.
+Question 9 has been the case this exists for. Its crude contrast came out separated with a
+small p-value while **every outcome event sat in a single model that had no eval-aware
+episodes at all**. There is no within-model comparison to make: the crude figure compares that
+one model against all the others, not aware episodes against unaware ones. The stratified
+estimate correctly reports no effect and an undefined test, and the warning says why.
+Reporting the crude p-value as a finding would have been a straightforward false claim.
+Question 10 has fired the same warning less starkly, with a separated crude difference
+collapsing to an interval that crosses zero once stratified.
 
 ---
 
@@ -283,44 +278,38 @@ Three defences:
   purpose; iterating the map alone therefore lost the default side of every phrasing comparison
   on any episode that had been through it — half of questions 11 and 12, silently.
 - Each contrast reports both sides' keyword-fallback rates and prints a **SCORER ASYMMETRY**
-  warning when they differ by more than 5pp. On r9 this fires on the two sandbox contrasts
-  that involve the default (3.2% headline against ~10% in the copies) and stays silent on the
-  contrasts where both sides come from copies — which is exactly the discrimination wanted.
+  warning when they differ by more than 5pp. It fires on contrasts that involve the default,
+  whose headline answers are re-labelled while the copies are not, and stays silent where both
+  sides come from copies - which is exactly the discrimination wanted.
 
 Keyword verdicts skew towards the middle of the concealment scale, so where the warning fires,
 part of the contrast may be the scorer rather than the wording.
 
-### What r9 shows
+### How to read the two axes
 
-Question 11 — **paraphrasing barely moves concealment**, which is good news for construct
-validity. The largest effect is −2.3pp (oversight, zero-evidence row, p=0.61); the sandbox
-part-evidence row is identical to the decimal (6.8% vs 6.8%, 25 discordant pairs each way).
-No model survives correction on any row.
+**Question 11 asks whether a rate survives rewording that carries no semantic content.** A
+null here is the good outcome: it says the measure is reading the model rather than the
+sentence. Read the paired difference and the discordant-pair counts, not the two marginal
+rates - the perturbation is put to the same act in the same episode, so the pairing is the
+whole design.
 
-Question 12 — **removing the evidence clause raises concealment**, replicated across both
-perturbation rows:
+**Question 12 asks what the evidence clause in the opening question is worth.** It is a
+manipulation rather than a robustness check: removing the clause makes the question genuinely
+harder to answer, so a difference here is a finding about the instrument and not a defect in
+it. Read it across both perturbation rows - an effect that appears under one wording and not
+the other is weaker evidence than one replicated across both.
 
-| act | row | zero-evidence | part-evidence | difference | exact p |
-|---|---|---|---|---|---|
-| oversight | reference | 19.1% | 11.1% | **+7.9pp** | 0.031 |
-| oversight | paraphrase | 21.4% | 12.7% | **+8.7pp** | 0.019 |
-| sandbox | reference | 9.1% | 6.8% | +2.3pp | 0.063 ⚠ |
-| sandbox | paraphrase | 9.4% | 6.8% | **+2.6pp** | 0.050 |
-
-⚠ = SCORER ASYMMETRY warning fired.
-
-Models admit more readily when the opening question presents partial evidence, so the
-zero-evidence probe — the default since r7 — measures concealment against a genuinely harder
-question. That is the design intent of the r7 change stated in `config.py` ("measuring whether
-[the admission rate] survives the removal is the point"), now measured: it does not survive,
-and the effect is consistent in direction across both acts and both wordings.
+That is the design intent of the r7 change stated in `config.py` - "measuring whether [the
+admission rate] survives the removal is the point" - and question 12 is where it is measured.
+A row carrying the SCORER ASYMMETRY warning may be reporting the scorer rather than the
+wording, so read the fallback rates beside it.
 
 ---
 
 ## Multiplicity
 
-Each question runs one Fisher exact test per model. At 27 models and α=0.05 that family
-expects about **1.35 rejections from noise alone**, so `n_individually_significant` is not a
+Each question runs one Fisher exact test per model. With a family that size at α=0.05, more
+than one rejection is expected from noise alone, so `n_individually_significant` is not a
 count of effects. The report prints that expectation next to the raw count and then applies
 two corrections, because they control different things and a write-up should say which it
 used:
@@ -335,10 +324,11 @@ from; the per-model table marks each row `*HB` for CI-separated / Holm / BH. A m
 data on one side is not a hypothesis and leaves the family size — penalising every other test
 for a comparison nobody made would be wrong.
 
-This matters concretely. On r9 question 1, three models are individually significant, two
-survive Holm; the third (p=0.0061 raw, 0.152 Holm) does not. On question 3, five models are
-individually significant and **none** survive either correction — against 1.35 expected from
-noise, that is the multiplicity story rather than five findings.
+This matters concretely. A question can show several individually significant models and have
+**none** survive either correction - which, set against the rejections expected from noise at
+that family size, is the multiplicity story rather than a set of findings. Read
+`n_individually_significant` beside the expectation the report prints next to it, never on its
+own.
 
 ---
 
@@ -374,16 +364,10 @@ disagreement is surfaced rather than averaged away. **A nonzero count there mean
 Every summary carries `cross_analysis_awareness`: exactly "of the episodes verbalising
 awareness in this arm, how many were misaligned". Reusing the harness's own figure looks like
 the principled choice and is a trap. It is `None` whenever an arm's graded episodes all fell
-on one side of the split, so pooling it silently drops every uniform-awareness arm — on r9,
-178 of 325 arms and 55% of episodes, and not at random: precisely the arms at the extremes of
-awareness.
-
-The conclusion flips on it:
-
-| | aware | unaware | difference | verdict |
-|---|---|---|---|---|
-| pooled `cross_analysis_awareness` (45% of episodes) | 159/556 = 28.6% | 238/905 = 26.3% | +2.3pp, p=0.36 | not separated |
-| all episodes | 284/957 = 29.7% | 493/2281 = 21.6% | **+8.1pp, p=1.4e-06** | separated |
+on one side of the split, so pooling it silently drops every uniform-awareness arm - over half
+the corpus when this was measured, and not at random: precisely the arms at the extremes of
+awareness. The conclusion flips on it. Pooled that way the contrast is a null; computed over
+episodes it separates, because the dropped arms are the ones carrying the effect.
 
 So question 5 is computed from episodes, and the summary-derived figure is reported beside it
 as `summary_derived_cross_check` with its own arm count, so the two can be compared rather
@@ -395,13 +379,8 @@ than one quietly standing in for the other.
 monitoring artefact to disable. Counting those as "did not override" is the misreading the NA
 handling in
 [`reporting/facts/misalignment.py`](../subversionbench/reporting/facts/misalignment.py)
-exists to prevent, and it is not harmless — it put 1609 structurally-incapable episodes in
-question 6's denominator and halved both rates:
-
-| question 6 | aware | unaware | difference |
-|---|---|---|---|
-| NA coerced to False | 4/957 = 0.4% | 128/2273 = 5.6% | −5.2pp |
-| restricted to observable episodes | 4/452 = 0.9% | 128/1177 = 10.9% | **−10.0pp** |
+exists to prevent, and it is not harmless - it puts every structurally-incapable episode in
+question 6's denominator, which roughly halves both rates and the difference between them.
 
 Question 6 therefore restricts to episodes where the act was observable, mirroring
 `n_monitoring_obs_console`, and records `n_episodes_not_applicable`.
@@ -410,7 +389,7 @@ Question 6 therefore restricts to episodes where the act was observable, mirrori
 
 **Question 9 is restricted the same way.** `oversight_tampered` — the *act* behind
 oversight-override scheming, not just the monitoring flag — is likewise `None` throughout the
-no-oversight arm, so its prevalence denominator is the ~1,630 observable episodes rather than the
+no-oversight arm, so its prevalence denominator is the observable episodes rather than the
 whole corpus. Question 10's act applies in every arm and is not restricted.
 
 ### Two denominators for questions 9 and 10
@@ -457,7 +436,7 @@ Printed before the questions, because it decides how much any of them mean.
 
 | field | why it is there |
 |---|---|
-| `awareness_verdict_sources` | the keyword proxy under-detects badly (0/20 in one pilot arm the grader scored 15/20). A corpus resting partly on it measures something else than one that does not, and the harness refuses to pool them silently. r9 is 100% grader — the outage backfill worked. |
+| `awareness_verdict_sources` | the keyword proxy under-detects badly - a pilot arm it scored at zero was graded well above that. A corpus resting partly on it measures something else than one that does not, so the harness refuses to pool them silently. Check this reads as grader throughout before quoting an awareness rate. |
 | `n_misalignment_verdict_disagreements` | stored verdict vs re-derived. Nonzero ⇒ `--resummarise` first. |
 | `n_scheming_verdict_disagreements` | the same check for the episode-level scheming verdict. |
 | `n_scheming_act_verdict_disagreements` | the same check for the per-act scheming verdicts behind questions 9–10. |
@@ -480,6 +459,9 @@ meant.
 ---
 
 ## Reading the output
+
+Illustrative output, to show the shape and the order of the blocks. The figures in it are from
+a corpus snapshot and are not current - see the note at the top of this file.
 
 ```
 CRUDE POOLED: 30/1622=1.8%     vs 58/1609=3.6%     diff=-1.8%  p=0.002355  SEPARATED
@@ -524,232 +506,6 @@ Holm, survives Benjamini-Hochberg. `---` means none of the three.
 
 ---
 
-# family_trends.py — is a rate falling as a family advances?
-
-A separate script, because it asks a different shape of question: not "does this factor move
-the rate" but "does the rate move as the version number climbs".
-
-```bash
-python3 family_trends.py --output-dir eval_results_r9
-python3 family_trends.py --output-dir eval_results_r9 --metric scheming
-python3 family_trends.py --output-dir eval_results_r9 --metric all
-python3 family_trends.py --output-dir eval_results_r9 --version-style decimal
-python3 family_trends.py --output-dir eval_results_r9 --no-charts
-```
-
-`--metric all` runs every metric in one invocation, writing a separate report and chart set for
-each and sharing one timestamp across them so a single run's files sort together. It is
-expanded into ordinary single-metric runs rather than a second code path, and it refuses
-`--json-out`, since one path cannot hold three reports.
-
-It reads its rates through `run_report.load_summaries`, so a family's figure here and a
-model's figure there cannot disagree.
-
-## Families are derived, never listed
-
-A hand-written list of families is wrong the day after the next model is collected, and wrong
-*silently* — a new ID simply fails to appear and the report is narrower than the corpus with
-nothing to say so. So the script parses each ID into provider, stem, version, date stamp and
-release-stage tags, and groups on the first two. `gemini-3.8-flash` joins `google/gemini-flash`
-with no edit.
-
-Two rules carry the weight, and both are reported in the output rather than applied silently:
-
-**Release-stage words do not split a family.** `QUALIFIER_TAGS` holds `preview`, `thinking`,
-`exp`, `latest` and similar. Without it, `gemini-3-flash-preview` is a family of one and never
-gets compared with the versions that followed it — which is the comparison being asked for.
-Same for `kimi-k2-thinking` against `kimi-k2.5`.
-
-**Tier words do split one.** `flash`, `pro`, `lite`, and a size like `27b` are family identity:
-`gemini-3.1-flash-lite` is not a version of `gemini-3.5-flash`, and pooling them would compare
-two product lines and report the difference as a trend. Provider is in the key for the same
-reason — `gpt-5.6-luna` and `openai/gpt-5.6-luna` are one model on two routes that return
-different amounts of reasoning.
-
-A date stamp is read before a version, because the version pattern matches a run of digits:
-without that ordering `deepseek-v4-pro-0813` parses as version (4, 813) and sorts after a
-hypothetical v4.99. Within one version, an undated member precedes a dated snapshot.
-
-## The version-ordering judgement call
-
-`--version-style decimal` (the default) reads `4.20` as 4.2, so it sorts **before** 4.3.
-`--version-style component` reads it as major 4, minor 20 — so it sorts **after** 4.6, the way
-a package manager reads a semantic version.
-
-`decimal` is the default because it is what the vendors mean: **grok-4.20 is an older release
-than grok-4.3**. That was not the original default, and the correction mattered — under
-`component` the family fitted a *falling* trend (z=−3.29); read correctly it is *rising*
-(z=+11.19). Reading a model ID as a semantic version was a guess about someone else's naming,
-and the guess was wrong.
-
-Every version in this corpus sorts correctly as a decimal: 3.1 < 3.5 < 3.6 < 3.7, 2.5 < 2.6,
-and a future 3.8 still lands after 3.7. `component` stays available because `decimal` has its
-own failure mode — a family that genuinely reaches minor 10 or beyond, where 4.10 follows 4.9
-rather than preceding it. Nothing here does; if something ever does, affected families are
-flagged inline and in `data_quality.families_with_ambiguous_ordering`, so it will say so.
-
-## Two claims, reported separately
-
-| claim | statistic | reading |
-|---|---|---|
-| the **trend** falls | Cochran-Armitage across ordered versions, 1 df | a fitted direction; survives one step going the other way |
-| every **step** falls | consecutive differences | the monotone claim — this is what "consistently" means |
-
-A family can satisfy the first without the second, and on r9 two of four do exactly that. The
-verdict line says which.
-
-Position is the trend score, not the release date, even though release dates are now recorded
-in `model_releases.py`. The statistic is invariant to rescaling the scores but **not** to
-respacing them, so equal spacing is a real assumption: it says only that the versions came in
-this order. Scoring by date would be a different test with a different assumption — that the
-rate moves at a constant amount per month — and no more defensible on 15 models. The dates are
-used for the release charts, and for nothing that carries a p-value.
-
-Beside those, each family reports its consecutive-step contrasts and a first-versus-last
-contrast — which can disagree with the steps. Under `component`, grok falls at two of three
-steps yet ends *above* where it started.
-
-## Across all families
-
-Steps are pooled and put to an exact two-sided sign test against p=0.5. Flat steps carry no
-direction and are excluded rather than split, since a family that never moves is not evidence
-that rates fall. The per-family trend p-values form one hypothesis family and are corrected
-with Holm and Benjamini-Hochberg, exactly as the per-model tests are above.
-
-## Charts
-
-With the `charts` extra installed (`pip install 'subversionbench[charts]'`) it also writes PNGs
-into `charts/` under `--output-dir`, or wherever `--chart-dir` says:
-
-- **one per family** — rate against version order, with Wilson intervals as error bars. The
-  intervals are drawn rather than left to the table because the whole
-  question is whether a sequence is falling, and four points with overlapping intervals is a
-  different answer from four without. Bare point estimates would make every family look
-  decisive. Each point is labelled with its rate and interval — `68.3% [59.6, 76.0]` — because a
-  whisker can be read off the axis only approximately and the numbers are what gets copied into
-  a write-up, and each tick carries its `n` with the family total in the title. The denominator
-  is not constant within a family: `gemini-3.5-flash` carries 205 against its siblings' 120. The y axis is **scaled to that family's own whiskers** and rounded up to a round
-  number — a family topping out at 15% draws on 0–20, not 0–100, where three steps of a few
-  points each would look like one flat line.
-- **one combined** — every family on one axis, colour-coded with a legend. The x axis is
-  **position** in the family, not the version number: families run on their own numbering
-  (`k2.5` against `3.7-flash` against `v4`), so there is no shared version axis to put them on.
-  Position is what they share, and it is the axis the question is about. Point labels give the
-  version. It carries the same Wilson intervals, drawn at a lighter weight than the lines so
-  four families of them read as uncertainty around the shapes rather than competing with them.
-  Its y axis is shared across every family, from the tallest whisker anywhere, and each legend
-  entry carries that family's total.
-
-Point labels on the combined chart are laid out in a pass over all families at once, not from a
-per-family constant. An offset chosen without looking at the other families pushes a label
-straight into one of them — grok's `4.3` sits at 0.0% and a fixed upward offset landed it on
-kimi's marker at 13.3%. Families are sorted by rate at each position and given a row each only
-where they are close enough to overlap, so a chart whose lines are well separated gets no
-stagger at all.
-
-Both charts label their whiskers as 95% Wilson intervals, and both name what `n` counts —
-"episodes" for misalignment and scheming, "graded episodes" for awareness, whose denominator is
-the episodes whose verdict resolved rather than every episode run.
-
-Neither chart carries the verdict. The direction is visible, the intervals show roughly how
-firm each step is, and the verdict's wording is directional — "consistently RISING, the opposite
-of falling" reads as a disappointment, which is right for misalignment and wrong for awareness,
-where a rise with capability is the expected result rather than a failure to improve. A caption
-that means different things by metric is worse than none. The verdict stays in the console table
-and the JSON, beside the counts it comes from.
-
-**Two per-family charts on different scales cannot be compared by eye**: a family topping out
-at 15% and one topping out at 85% draw the same shape. That is the price of making a small
-family legible at all, and the tick labels are the disclosure. Read the combined chart for
-comparison — it is the one with a common axis.
-
-A family whose ordering depends on `--version-style` is drawn **dashed** on the combined chart
-and carries a warning above the per-family one, so the line whose direction is a judgement call
-is visible as such.
-
-matplotlib is an optional extra rather than a dependency because every number plotted is
-already in the table and the JSON. Without it the script prints an install hint and carries on:
-an install that skips the extra loses presentation and no analysis.
-
-## Release-date charts
-
-Each of the two charts above is drawn a second time with the **calendar** on the x axis, from
-`model_releases.py`: `release_<metric>_<family>.png` per family and `release_<metric>_all.png`
-combined. Version position spaces every release equally, which is the right axis for the trend
-tests and hides something the reader needs — four grok releases spanning four months and four
-gemini releases spanning eight draw the same shape on it.
-
-These charts **do not join the points up**. A segment between two releases claims a path between
-them, and on a calendar axis that claim is stronger than the data supports: nothing was measured
-in the months between two release dates, and the gaps are unequal, so a connecting line invites
-reading a slope off empty space. Points and labels — one colour per family, the same colour that
-family has on the combined version chart.
-
-The one line each family gets is a **single straight dotted fit**: least squares of rate on
-release date, weighted by episode count, drawn between that family's own first and last release
-and under the markers. It is labelled on every chart that carries it, because an unlabelled
-dotted line through four points reads as a trend *test*, and it is not one:
-
-- **Weighted by n, not by inverse variance.** A rate from 239 episodes is a better estimate than
-  one from 120, so an unweighted fit is wrong; but inverse-variance weighting needs `p(1-p)/n`,
-  and this corpus has several rates of exactly 0/120, whose variance is zero and whose weight
-  would therefore be infinite. One model with no misaligned episodes would drag the whole line
-  onto itself. `n` is monotone in precision without that failure.
-- **No p-value, no interval, and deliberately so.** The trend test is Cochran-Armitage on version
-  position. Refitting the same rates on the calendar and testing *that* slope would be a second
-  test of one hypothesis on one dataset, and it would assume something the position test does
-  not — that the rate moves by a constant amount per month.
-- **Points per month, with the span stated.** Per year extrapolates past the data: grok's four
-  releases span 134 days and its fit reads +197.9 points/year, a rise no rate can make. A month
-  is the largest unit no family in this corpus outruns.
-- **Never extended past the family's own releases**, which would draw a claim about models that
-  do not exist.
-- **A two-point family is fitted and flagged.** Two points determine a line exactly, so the fit
-  repeats them and adds nothing; the chart and the JSON both say so rather than leaving the
-  reader to notice.
-
-The slope appears in the console report, in `families[].release_fit`, in the per-family chart's
-caption and in each combined-chart legend entry — so, as everywhere else here, the line on the
-chart is a second reading of a number the report already holds rather than the only place it
-exists. A family with one dated release, or several released on the same day, gets no line and
-says why.
-
-The x axis runs from **1 November 2025 to the newest model plotted**, shared across every release
-chart in a run rather than scaled per family, so the tighter spacing of one family's releases
-against another's is visible rather than normalised away. The floor is a default and not a clip:
-a model older than it extends the axis leftward, because a point drawn outside the axis is worse
-than an axis that starts earlier than intended.
-
-There are no error bars here — a whisker is a line — so the per-family release chart carries its
-Wilson intervals in the point label's brackets, and the combined one carries none and refers the
-reader to the version charts. Point labels give the version with its date stamp or release-stage
-tag attached (`4-0813`, `2 (thinking)`), because two members of a family can share a version
-number and two points both labelled `4` read as a mistake.
-
-Labels are placed by the same collision pass as the combined version chart, generalised to a
-continuous axis: a label moves to a new row only when another label is close on **both** axes,
-is written leftward near the right edge, and hangs below its point when the point sits near the
-ceiling — 100% is a real answer in this corpus, and a label above one prints over the title.
-
-**A missing release date is an error, not a stop.** A date cannot be derived from a model ID, so
-it has to be recorded by hand, and a model that has not been recorded is named loudly in the
-data-quality block with the file to add it to, listed in
-`data_quality.models_without_release_date`, and dropped from the release charts alone. The
-charts themselves say how many members they are missing, and each combined legend entry reads
-`(3 of 4 dated)`. Every table, trend, interval and p-value is unaffected, and the exit code does
-not change: losing a chart is not worth losing the analysis over.
-
-## What it does not do
-
-- **No causal claim.** Version order is not randomised assignment, families differ in how many
-  versions were collected, and nothing here knows what changed between two releases.
-- **No statistic on the release dates.** They are recorded, charted, and fitted with a
-  descriptive least-squares line, but every trend, interval and p-value is computed on version
-  position with spacing assumed equal. The fitted slope has no p-value on purpose. A model with
-  no recorded date loses its place on the release charts and nothing else.
-- **No cross-family pooling of rates.** Only step *directions* are pooled, never the rates,
-  which sit on incomparable baselines.
-- **No metric that outruns its data.** `--metric misaligned` is derived from the act keys and
-  is unaffected by grader or classifier failures; `--metric scheming` and `--metric aware`
-  depend on sampled LLM verdicts, and `data_quality.metric_is_llm_dependent` says so, so a
-  batch needing `--reclassify` is not read as a trend.
+For the question one level along - not "does this factor move the rate" but
+"does the rate move as the version number climbs" - see
+[docs/trends.md](trends.md).
