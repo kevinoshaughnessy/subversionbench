@@ -40,6 +40,83 @@ def _placeholder_credentials():
 _placeholder_credentials()
 
 
+# ---------------------------------------------------------------------------
+# What "the project's Python files" means - defined once
+# ---------------------------------------------------------------------------
+#
+# Three separate guards each carried their own hand-written list of roots, and
+# they disagreed. The undefined-name guard globbed three named directories
+# NON-recursively, so it never looked at `subversionbench/grading/`,
+# `readmodes/`, `reporting/` or `reporting/facts/` - the graders and the module
+# where every published figure is computed. A planted `undefined_name` there
+# passed the guard while pyflakes reported it directly.
+#
+# The deeper fault is the shape rather than the missing `r`: a list of directory
+# names has to be edited whenever a package is added, silently keeps working when
+# nobody does, and `trends/` and `report/` were both carved out of root scripts
+# and added to each list by hand. Deriving the set from a rule is what stops the
+# next package from being missed - see test_project_files.py, which checks this
+# discovery against `git ls-files` so the two cannot drift apart quietly.
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+# Directories that are not the project: tooling, caches, build output, the
+# results corpora, and this session's scratch space.
+_NOT_PROJECT = {
+    ".git", ".venv", "venv", ".tox", "build", "dist", "__pycache__",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules",
+    "scratchpad", "report_snapshots",
+}
+
+
+def _is_project_path(relative: Path) -> bool:
+    for part in relative.parts:
+        if part in _NOT_PROJECT:
+            return False
+        if part.endswith(".egg-info") or part.startswith("eval_results"):
+            return False
+    return True
+
+
+def is_test_file(relative: Path) -> bool:
+    """Whether a project file is part of the suite rather than the package.
+
+    By position, not by a list: anything named `test_*.py`, anything under a
+    `test_*/` directory, and this file.
+    """
+    return (relative.name.startswith("test_")
+            or relative.parts[0].startswith("test_")
+            or relative.name == "conftest.py")
+
+
+def project_python_files() -> list:
+    """Every Python file in the project, tests included, as repo-relative paths."""
+    return sorted(p.relative_to(PROJECT_ROOT)
+                  for p in PROJECT_ROOT.rglob("*.py")
+                  if _is_project_path(p.relative_to(PROJECT_ROOT)))
+
+
+def source_python_files() -> list:
+    """Every Python file that ships, i.e. the project minus its suite."""
+    return [p for p in project_python_files() if not is_test_file(p)]
+
+
+def suite_python_files() -> list:
+    """Every Python file of the suite."""
+    return [p for p in project_python_files() if is_test_file(p)]
+
+
+def project_packages() -> list:
+    """Every importable package directory, found by its `__init__.py`.
+
+    Discovered rather than listed, for the same reason as the file set: a new
+    package is covered the day it is created, not the day someone remembers.
+    """
+    return sorted({str(p.parent.relative_to(PROJECT_ROOT))
+                   for p in PROJECT_ROOT.rglob("__init__.py")
+                   if _is_project_path(p.relative_to(PROJECT_ROOT))})
+
+
 def make_env_with_files():
     """Create a full hardened environment and return (env_dir, env_info)."""
     env_dir = tempfile.mkdtemp(prefix="test_eval_")

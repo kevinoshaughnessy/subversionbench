@@ -36,12 +36,21 @@ def _listed_files() -> set:
 # and `report/` were both split out of root scripts and would otherwise have gone
 # unlisted module by module - silently, which is the exact drift this file exists
 # to catch.
-PACKAGES = ("subversionbench", "trends", "report")
+#
+# Which is what the tuple this used to hold could not do: it named the three that
+# existed the day it was written, and a fourth package would have been unlisted
+# and unnoticed. `conftest.project_packages()` finds them by their `__init__.py`.
+def _packages() -> tuple:
+    from conftest import project_packages
+    return tuple(p for p in project_packages()
+                 if "/" not in p and not p.startswith("test_"))
 
 
 def _package_modules() -> list:
-    return sorted(p for root in PACKAGES
-                  for p in glob.glob(f"{root}/**/*.py", recursive=True))
+    from conftest import source_python_files
+    packages = _packages()
+    return sorted(str(p) for p in source_python_files()
+                  if p.parts[0] in packages)
 
 
 class TestEveryModuleIsListed:

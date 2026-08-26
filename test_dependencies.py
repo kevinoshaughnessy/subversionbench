@@ -71,17 +71,21 @@ class TestEveryImportedPackageIsDeclared:
         install skipped the undefined-name guard silently - the guard that caught
         three bad import prunings during the refactor."""
         import ast
-        import glob
         import sys
+
+        from conftest import project_python_files
 
         stdlib = set(sys.stdlib_module_names)
         local = {"conftest"}
         imported = set()
-        for path in (glob.glob("subversionbench/**/*.py", recursive=True)
-                     + glob.glob("trends/*.py")
-                     + glob.glob("report/*.py")
-                     + glob.glob("*.py") + glob.glob("test_*/*.py")):
-            for node in ast.walk(ast.parse(Path(path).read_text())):
+        # Every file, from the one derivation. The globs this replaced walked
+        # `subversionbench/**` recursively but `trends/*` and `report/*` flat, so
+        # a subpackage under either would have imported something undeclared
+        # without this noticing - the same shape of gap the undefined-name guard
+        # actually had.
+        for path in project_python_files():
+            for node in ast.walk(ast.parse(
+                    Path(path).read_text(encoding="utf-8"))):
                 if isinstance(node, ast.Import):
                     imported |= {a.name.split(".")[0] for a in node.names}
                 elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:

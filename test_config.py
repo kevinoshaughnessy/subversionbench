@@ -227,24 +227,36 @@ class TestTheSharedVocabulariesCannotBeEditedInPlace:
             ROLLOUT_FINGERPRINTS[(True, False)] = "overwritten"
 
 class TestNoUndefinedNames:
-    """A static check across both packages, because the split hid three of these
-    and the tests could not see them.
-
-    Both, rather than `subversionbench` alone: `trends/` was carved out of a
-    2,132-line root script by moving line ranges between files, which is the
-    same operation that produced the three below.
+    """A static check over every Python file in the project, because the splits
+    hid three of these and the tests could not see them.
 
     `classify_answer_llm` called `_parse_first_json`, which had moved to another
     module. The call sits inside a try/except that converts any failure into a
     keyword fallback, so instead of an error the classifier quietly stopped
     using the LLM at all - a silent downgrade of the measure. Two more of the
     same kind (`uuid` in the OpenRouter tool-call recovery, `re` in a duplicated
-    routing function) sat on paths no test exercises."""
+    routing function) sat on paths no test exercises.
+
+    THE FILE SET IS DERIVED, NOT LISTED
+    -----------------------------------
+    This globbed three named directories non-recursively, which left 41 of 95
+    source files unexamined - all of `grading/`, all of `reporting/facts/`, all
+    of `readmodes/`, and every top-level script. An undefined name planted in
+    `reporting/facts/quality.py` passed while pyflakes reported it directly.
+
+    The missing `r` was the smaller half. A list of directory names has to be
+    edited whenever a package is added and silently keeps passing when nobody
+    does it: `trends/` and `report/` were each added by hand after being carved
+    out of a root script. `conftest.project_python_files()` derives the set
+    instead, and test_project_files.py checks that derivation against
+    `git ls-files`.
+    """
 
     def test_no_module_references_a_name_it_does_not_have(self):
         import subprocess
         import sys
-        from pathlib import Path
+
+        from conftest import project_python_files
 
         try:
             import pyflakes             # noqa: F401 - presence check only
@@ -252,8 +264,7 @@ class TestNoUndefinedNames:
             import pytest
             pytest.skip("pyflakes not installed")
 
-        files = [str(p) for root in ("subversionbench", "trends", "report")
-                 for p in sorted(Path(root).glob("*.py"))]
+        files = [str(p) for p in project_python_files()]
         result = subprocess.run(
             [sys.executable, "-m", "pyflakes", *files],
             capture_output=True, text=True)
@@ -271,9 +282,17 @@ class TestNoUndefinedNames:
     # tests reach `_BRACKET_TOOL_CALL_RE`, `_looks_like_write` and their kin through
     # the one import site the package offers. config.py and run_eval.py re-export
     # too and declare it in `__all__`, which is why they are not listed.
+    #
+    # KEYED BY PATH, not by basename. `"__init__.py"` as a key exempted every
+    # __init__ in the repo - six of them - rather than the one intended, so a dead
+    # import in any package's import site would have passed unnoticed. It also made
+    # this class's own docstring false where it said `trends/__init__.py` is not on
+    # the allowlist: it was, by name.
     REEXPORTING = {
-        "llm_client.py": "private helpers the client tests reach through it",
-        "__init__.py": "the grading package's single import site",
+        "subversionbench/llm_client.py":
+            "private helpers the client tests reach through it",
+        "subversionbench/grading/__init__.py":
+            "the grading package's single import site",
     }
 
     def test_no_module_carries_an_import_it_does_not_use(self):
@@ -287,9 +306,9 @@ class TestNoUndefinedNames:
         something it no longer touches, which is what made the earlier splits
         harder to verify than they should have been.
 
-        Scoped to the packages rather than the tests, and the allowlist is by
-        FILENAME with a stated reason, so a new dead import anywhere else fails
-        here rather than accumulating.
+        Scoped to what ships rather than to the suite, and the allowlist is by
+        PATH with a stated reason, so a new dead import anywhere else fails here
+        rather than accumulating.
 
         `trends/__init__.py` re-exports 70 names and is not on the allowlist,
         because it declares every one of them in `__all__` - which is the point
@@ -297,7 +316,8 @@ class TestNoUndefinedNames:
         """
         import subprocess
         import sys
-        from pathlib import Path
+
+        from conftest import source_python_files
 
         try:
             import pyflakes             # noqa: F401 - presence check only
@@ -305,14 +325,13 @@ class TestNoUndefinedNames:
             import pytest
             pytest.skip("pyflakes not installed")
 
-        files = [str(p) for root in ("subversionbench", "trends", "report")
-                 for p in sorted(Path(root).rglob("*.py"))]
+        files = [str(p) for p in source_python_files()]
         result = subprocess.run(
             [sys.executable, "-m", "pyflakes", *files],
             capture_output=True, text=True)
         unused = [line for line in result.stdout.splitlines()
                   if "imported but unused" in line
-                  and Path(line.split(":")[0]).name not in self.REEXPORTING]
+                  and line.split(":")[0] not in self.REEXPORTING]
         assert not unused, (
             "these imports are not used. Remove them, or - if the module "
             "re-exports on purpose - declare the names in `__all__`, or add the "
