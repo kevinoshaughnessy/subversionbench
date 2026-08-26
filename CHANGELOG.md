@@ -10,6 +10,43 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v96
+
+Package version `96.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+Linux isolation, and CI that proves it is actually enforced. Found by running
+the suite on a second platform - a VM matching the runner image, since a Docker
+container cannot reproduce it: namespace creation is denied inside one, so the
+container would have reported a failure the runner does not have.
+
+- **The mechanism was chosen on presence rather than capability.** Ubuntu 23.10
+  and later set `apparmor_restrict_unprivileged_userns=1`, so `unshare` is on
+  PATH and unprivileged use of it is refused. Selecting it with `shutil.which`
+  sent every command through a wrapper that failed, and never reached the
+  `bwrap` below it that works. `_mechanism_works()` now probes by running the
+  mechanism, which is the only question that was ever being asked.
+- **`confinement_available()` reported a boundary it could not enforce.**
+  `unshare --net` cannot mount, so it cannot hide the temp roots; claiming
+  confinement on the strength of it is the "policy that silently failed to
+  apply" this module exists to rule out. It is refused rather than downgraded -
+  there is deliberately no unconfined path.
+- **The bwrap tmpfs was world-readable, so the two platforms showed the model
+  different worlds under one rollout identity.** A bare tmpfs makes `ls ../..`
+  succeed and return an empty listing; the seatbelt policy makes it fail with
+  "Operation not permitted". The fingerprint deliberately does not hash the
+  mechanism, on the stated grounds that what the model can and cannot do is the
+  same on both - which that made untrue, and the feedback a model gets is what
+  its next move depends on. Fixed with `--chmod 0111` on the mount: traversal
+  without enumeration. Mode `0` was measured too and is wrong - it also removes
+  traversal, so the shell cannot `cd` into the episode tree at all.
+- **CI installs bubblewrap AND clears the userns sysctl.** The apt package does
+  not ship an AppArmor profile permitting bwrap; measured, not assumed. Without
+  the sysctl the runner looks equipped and can isolate nothing, so the workflow
+  now asserts `confinement_available()` before running the suite: a green run
+  under no enforcement would report that the sandbox holds when it was never
+  applied.
+
 ## v95
 
 Package version `95.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

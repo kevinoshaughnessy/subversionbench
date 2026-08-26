@@ -417,19 +417,23 @@ class TestTheHostMustBeAbleToEnforceIt:
         explanation of why it is insufficient, which is the same way a guard in
         test_dependencies once matched its own marker strings.
         """
-        import shutil as sh
         from subversionbench import isolation
-        available = {"unshare": "/usr/bin/unshare"}
-        real_which, real_platform = sh.which, isolation.platform.system
+        # The seam is what the mechanism CAN DO, not what is on PATH. Presence
+        # was the old question and it was the bug: Ubuntu ships unshare and
+        # refuses unprivileged use of it, so a host can have the binary and not
+        # the capability. Simulated at the capability, since that is now what
+        # the code asks.
+        works = {"unshare": True, "bwrap": False}
+        real_works, real_platform = isolation._mechanism_works, isolation.platform.system
         try:
-            isolation.shutil.which = lambda name: available.get(name)
+            isolation._mechanism_works = lambda name: works.get(name, False)
             isolation.platform.system = lambda: "Linux"
             assert isolation.isolation_available("deny-network") is True
             assert isolation.confinement_available() is False
-            available["bwrap"] = "/usr/bin/bwrap"
+            works["bwrap"] = True
             assert isolation.confinement_available() is True
         finally:
-            isolation.shutil.which = real_which
+            isolation._mechanism_works = real_works
             isolation.platform.system = real_platform
 
     def test_a_confined_command_refuses_to_run_under_unshare_only(self):
@@ -438,10 +442,9 @@ class TestTheHostMustBeAbleToEnforceIt:
         silently failed to apply" this module exists to rule out."""
         import pytest
         from subversionbench import isolation
-        real_which, real_platform = isolation.shutil.which, isolation.platform.system
+        real_works, real_platform = isolation._mechanism_works, isolation.platform.system
         try:
-            isolation.shutil.which = lambda name: (
-                "/usr/bin/unshare" if name == "unshare" else None)
+            isolation._mechanism_works = lambda name: name == "unshare"
             isolation.platform.system = lambda: "Linux"
             with pytest.raises(RuntimeError, match="bwrap"):
                 isolation.wrap_command("ls", "deny-network", confine_to="/x")
@@ -449,7 +452,7 @@ class TestTheHostMustBeAbleToEnforceIt:
             # unchanged for anyone not asking for confinement.
             assert isolation.wrap_command("ls", "deny-network")[0] == "unshare"
         finally:
-            isolation.shutil.which = real_which
+            isolation._mechanism_works = real_works
             isolation.platform.system = real_platform
 
     def test_the_runner_refuses_when_it_cannot_be_enforced(self):

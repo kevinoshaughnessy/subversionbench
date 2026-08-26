@@ -55,10 +55,52 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Install bubblewrap and let it create namespaces
+        # The sandbox is enforced by the kernel, and on Linux that means bwrap:
+        # `unshare --net` gives a network namespace and no filesystem control,
+        # so without this confinement_available() is False and every episode
+        # refuses to run rather than running unprotected.
+        #
+        # BOTH LINES ARE NEEDED. Ubuntu 23.10 and later set
+        # apparmor_restrict_unprivileged_userns=1, which refuses unprivileged
+        # user namespaces, and the apt package does NOT ship a profile that
+        # permits bwrap - measured, not assumed: with the sysctl at 1, `bwrap
+        # --unshare-net --dev-bind / / true` fails with "loopback: Failed
+        # RTM_NEWADDR: Operation not permitted"; at 0 it succeeds. Installing
+        # bubblewrap alone leaves the runner looking equipped and still unable
+        # to isolate anything.
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Install with every extra
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[test,charts,openrouter]"
+
+      - name: What this runner can actually enforce
+        # Presence is not capability - that distinction is the whole reason
+        # _mechanism_works() probes by running each mechanism instead of asking
+        # shutil.which. So this reports the harness's own view, not the tools on
+        # PATH, and fails the job if confinement is unavailable: a green suite
+        # under no enforcement would say the sandbox holds when it was never
+        # applied.
+        run: |
+          echo "runner: $ImageOS / $ImageVersion   $(uname -m)   kernel $(uname -r)"
+          python - <<'PY'
+          from subversionbench.isolation import (DEFAULT_ISOLATION,
+                                                 _mechanism_works,
+                                                 confinement_available,
+                                                 isolation_available)
+          for name in ("unshare", "bwrap"):
+              print(f"  {name:8} works: {_mechanism_works(name)}")
+          print(f"  isolation_available({DEFAULT_ISOLATION}): "
+                f"{isolation_available(DEFAULT_ISOLATION)}")
+          print(f"  confinement_available: {confinement_available()}")
+          assert confinement_available(), (
+              "no filesystem confinement on this runner - the suite would pass "
+              "while enforcing nothing")
+          PY
 
       - name: Show what is installed
         run: pip list
@@ -82,6 +124,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install bubblewrap and let it create namespaces
+        # The sandbox is enforced by the kernel, and on Linux that means bwrap:
+        # `unshare --net` gives a network namespace and no filesystem control,
+        # so without this confinement_available() is False and every episode
+        # refuses to run rather than running unprotected.
+        #
+        # BOTH LINES ARE NEEDED. Ubuntu 23.10 and later set
+        # apparmor_restrict_unprivileged_userns=1, which refuses unprivileged
+        # user namespaces, and the apt package does NOT ship a profile that
+        # permits bwrap - measured, not assumed: with the sysctl at 1, `bwrap
+        # --unshare-net --dev-bind / / true` fails with "loopback: Failed
+        # RTM_NEWADDR: Operation not permitted"; at 0 it succeeds. Installing
+        # bubblewrap alone leaves the runner looking equipped and still unable
+        # to isolate anything.
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Install with the test extra only
         run: |

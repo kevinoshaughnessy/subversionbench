@@ -42,6 +42,7 @@ fingerprint while the network mode is not. A model demonstrably used the filesys
 route; none has ever used off-host reach.
 """
 
+import functools
 import os
 import platform
 import shutil
@@ -266,11 +267,45 @@ def profile_for(mode: str, confine_to=None):
     return _PROFILE_CACHE[key]
 
 
+@functools.lru_cache(maxsize=None)
+def _mechanism_works(name: str) -> bool:
+    """
+    Whether `name` can actually create the namespace it needs, on this host.
+
+    PRESENCE ON PATH IS NOT THE QUESTION, and asking it that way was a defect.
+    Ubuntu restricts unprivileged user namespaces through AppArmor from 23.10
+    onwards, so `unshare` is installed, on PATH, and fails at run time with
+    "Operation not permitted". Choosing it because `shutil.which` found it
+    committed the harness to a mechanism that could not work, and skipped the
+    bwrap fallback below that would have.
+
+    What that cost, measured on Ubuntu 24.04: every command ran unprotected,
+    `verify_confinement` caught it and the rollout refused - correctly, and the
+    whole batch was impossible on a host that could in fact have confined it.
+    The refusal was right; the choice that led to it was not.
+
+    Probed once per mechanism and cached. The probe runs the real thing rather
+    than reading a sysctl, because what matters is whether the kernel permits
+    THIS process to do it, and the reasons it might not are not enumerable.
+    """
+    probes = {
+        "unshare": ["unshare", "--net", "--", "true"],
+        "bwrap": ["bwrap", "--unshare-net", "--dev-bind", "/", "/", "true"],
+    }
+    if name not in probes or not shutil.which(name):
+        return False
+    try:
+        result = subprocess.run(probes[name], capture_output=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def isolation_available(mode: str) -> bool:
     """Whether this host can enforce `mode` at all."""
     if platform.system() == "Darwin":
         return shutil.which("sandbox-exec") is not None
-    return shutil.which("unshare") is not None or shutil.which("bwrap") is not None
+    return _mechanism_works("unshare") or _mechanism_works("bwrap")
 
 
 def confinement_available() -> bool:
@@ -286,7 +321,11 @@ def confinement_available() -> bool:
     """
     if platform.system() == "Darwin":
         return shutil.which("sandbox-exec") is not None
-    return shutil.which("bwrap") is not None
+    # Whether bwrap WORKS, not whether it is installed. An installed bwrap that
+    # the kernel refuses to let create a namespace would have this report a
+    # boundary the host cannot enforce - the exact failure the paragraph above
+    # says the two questions are kept apart to prevent.
+    return _mechanism_works("bwrap")
 
 
 def darwin_profile(mode: str, confine_to=None) -> str:
@@ -335,7 +374,7 @@ def wrap_command(cmd: str, mode: str = DEFAULT_ISOLATION,
         # the temp roots, and running under it while reporting confinement would
         # be the "policy that silently failed to apply" this module exists to
         # rule out. Refused rather than downgraded.
-        if not shutil.which("bwrap"):
+        if not _mechanism_works("bwrap"):
             raise RuntimeError(
                 "filesystem confinement was requested but bwrap is not "
                 "available. `unshare --net` isolates the network only and "
@@ -348,20 +387,42 @@ def wrap_command(cmd: str, mode: str = DEFAULT_ISOLATION,
         # the model spawns. The episode tree is bound back afterwards, since it
         # lives under one of them - the same ordering the seatbelt policy needs,
         # for the same reason.
+        #
+        # `--chmod 0111` ON THE MOUNT, and the mode is load-bearing. A bare tmpfs
+        # is world-readable, so `ls ../..` SUCCEEDS and returns an empty listing.
+        # That hides the machine's temp contents, but it is not the same
+        # observation the seatbelt policy produces, which is "Operation not
+        # permitted" - and the difference reaches the model, whose next move
+        # depends on the feedback it got. The fingerprint deliberately does not
+        # hash the mechanism, on the stated grounds that "what the model can and
+        # cannot do is the same on both"; with a readable tmpfs that was untrue,
+        # so a Linux batch and a macOS batch would have pooled under one identity
+        # while presenting two different worlds.
+        #
+        # 0111 is execute-without-read: traversal through the directory still
+        # works, enumeration of it does not. That is precisely why the seatbelt
+        # policy uses `literal` rather than `subpath` - a mode of 0 removes
+        # traversal as well, and the shell then cannot cd into the episode tree
+        # at all, which is the same failure measured there.
         for root in _temp_roots():
             if os.path.isdir(root):
-                argv += ["--tmpfs", root]
+                argv += ["--tmpfs", root, "--chmod", "0111", root]
         argv += ["--bind", allow, allow]
         return argv + ["/bin/sh", "-c", cmd]
 
-    if shutil.which("unshare"):
+    if _mechanism_works("unshare"):
         # --net gives the process an empty network namespace with a loopback
         # interface of its own, so loopback "works" but reaches nothing the
         # operator is running. That is stricter than the Darwin policy for
         # deny-external and worth noting when comparing across platforms.
+        #
+        # `_mechanism_works` rather than `shutil.which`: on Ubuntu 23.10 and
+        # later unshare is present and unprivileged use of it is refused, so
+        # selecting it on presence sent every command through a wrapper that
+        # failed, and never reached the bwrap below that works there.
         return ["unshare", "--net", "--", "/bin/sh", "-c", cmd]
 
-    if shutil.which("bwrap"):
+    if _mechanism_works("bwrap"):
         return ["bwrap", "--unshare-net", "--dev-bind", "/", "/",
                 "/bin/sh", "-c", cmd]
 
