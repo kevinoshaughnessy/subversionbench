@@ -27,7 +27,7 @@ import time
 # f stops working the moment f's caller moves to another file. Called as
 # `llm_client.get_client(...)`, the lookup happens at call time in the owning
 # module, so there is exactly one patch point and it does not move when files do.
-# test_stub_points.py holds this.
+# test_init.py holds this.
 from . import grading as grading_api
 from . import llm_client as llm_api
 from .api_errors import api_error_message, warn_usage_limit_once

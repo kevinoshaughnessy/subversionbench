@@ -16,6 +16,10 @@ import inspect
 # name -> the module that owns it, and so the module to patch
 STUBBED = {
     "get_client": "subversionbench.llm_client",
+    # Not an LLM call, but the same problem: three scripts drew charts and each
+    # had its own copy of this, so a test patching one of them left the other
+    # two on the real matplotlib. One owner, one patch point.
+    "import_pyplot": "subversionbench.charting",
     "detect_eval_awareness_grader": "subversionbench.grading",
     "classify_interrogation_answer": "subversionbench.grading",
     "detect_disclosure": "subversionbench.grading",
@@ -28,6 +32,11 @@ CALLERS = (
     "subversionbench.readmodes.grade",
     "subversionbench.readmodes.reclassify",
     "subversionbench.readmodes.reinterrogate",
+    # The three that draw. Root scripts and a root package rather than package
+    # modules, which the checks below do not care about - they import by name.
+    "trends.charts",
+    "report_charts",
+    "sad_oversight",
 )
 
 # Modules a test might reasonably but wrongly patch. This is NOT the same list as
@@ -41,7 +50,9 @@ WRONG_PATCH_TARGETS = ("subversionbench.run_eval",) + CALLERS
 def _caller_aliases(tree):
     """Names in one test module bound to a module that is the wrong patch target."""
     aliases = set()
-    short = {m.rsplit(".", 1)[1] for m in WRONG_PATCH_TARGETS}
+    # [-1], not [1]: a caller can be a top-level module with no dot in its
+    # name, which every entry had until the chart scripts joined the list.
+    short = {m.rsplit(".", 1)[-1] for m in WRONG_PATCH_TARGETS}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for a in node.names:

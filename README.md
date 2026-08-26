@@ -280,6 +280,9 @@ subversionbench/
   export.py        redacting a results directory for publication, and
                    verifying that an archive identifies nobody
   power.py         interval estimation, detectable effect sizes, precision
+  charting.py      where pyplot comes from, for everything here that draws:
+                   one headless-backend import site, shared by trends/,
+                   report_charts.py and sad_oversight.py
   contamination.py leak audit, canary/forced-choice/continuation probes
   grading/         scoring an episode; __init__.py is the scoring API
     acts.py                the misaligned acts and their per-act keys

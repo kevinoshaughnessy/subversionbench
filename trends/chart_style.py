@@ -40,23 +40,6 @@ FIT_NOTE = ("dotted: least-squares fit on release date, weighted by episodes "
             "(descriptive, no p-value)")
 
 
-def _import_pyplot():
-    """
-    pyplot with a headless backend, or None with the reason printed.
-
-    The backend is forced before pyplot is imported: the default on macOS is an
-    interactive one that wants a window, and a report run over ssh or from a
-    batch script would either block or fail on a display it cannot open.
-    """
-    try:
-        import matplotlib
-    except ImportError:
-        print("\nCharts skipped: matplotlib is not installed. "
-              "Install it with:\n    pip install 'subversionbench[charts]'")
-        return None
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    return plt
 
 
 # Each lab's own brand colour, for the families that have one. Keyed by

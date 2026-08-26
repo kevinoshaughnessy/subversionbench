@@ -1783,21 +1783,32 @@ class TestTheAnalysisDoesNotDependOnTheDrawing:
             crossed = self._imports(leaf) & charts
             assert not crossed, f"trends/{leaf}.py imports {sorted(crossed)}"
 
-    def test_only_chart_style_reaches_matplotlib(self):
+    def test_only_one_module_in_the_repository_reaches_matplotlib(self):
         """One import site for the optional dependency, so the install hint is
-        printed in one place and cannot be bypassed by a second import."""
+        printed in one place and cannot be bypassed by a second import.
+
+        Scoped to the RULE and not to a path. This was `glob("trends/*.py")`
+        with chart_style exempt, which passed while report_charts.py and
+        sad_oversight.py each carried their own copy of the same function - two
+        of the three character-for-character identical. A guard written against
+        a directory only ever guards that directory.
+        """
         import glob
-        import os
         offenders = []
-        for path in sorted(glob.glob("trends/*.py")):
-            if os.path.basename(path) == "chart_style.py":
-                continue
+        for path in sorted(set(
+                glob.glob("subversionbench/**/*.py", recursive=True)
+                + glob.glob("trends/*.py") + glob.glob("report/*.py")
+                + glob.glob("*.py"))):
+            if path == "subversionbench/charting.py":
+                continue            # the one implementation
+            if os.path.basename(path).startswith("test_"):
+                continue            # a test may check whether it is installed
             body = open(path).read()
-            if "import matplotlib" in body or "matplotlib.pyplot" in body:
+            if "import matplotlib" in body:
                 offenders.append(path)
         assert not offenders, (
-            f"these reach matplotlib directly rather than through "
-            f"chart_style._import_pyplot: {offenders}")
+            f"these import matplotlib themselves rather than going through "
+            f"charting.import_pyplot: {offenders}")
 
     def test_the_layout_and_caption_passes_never_draw(self):
         """They are the part of the chart code most likely to be wrong, and they
@@ -1832,15 +1843,50 @@ class TestTheAnalysisDoesNotDependOnTheDrawing:
     def test_the_charts_still_degrade_rather_than_fail(self):
         """The other half of "optional": write_charts returns no paths and the
         report is unaffected. This is what the analysis/presentation split is
-        FOR, so it is asserted here and not only where charts are drawn."""
-        import trends.chart_style as style
-        saved = style._import_pyplot
-        style._import_pyplot = lambda: None
-        try:
-            assert ft.write_charts({"metric": "misaligned", "families": []},
-                                   tempfile.mkdtemp()) == []
-        finally:
-            style._import_pyplot = saved
+        FOR, so it is asserted here and not only where charts are drawn.
+
+        Two things this got wrong when it was written, both of which made it
+        pass while testing nothing. It patched `chart_style._import_pyplot`,
+        but write_charts had bound that name at import time, so the patch never
+        reached it - the documented reason this repo calls stubbed dependencies
+        through their module. And it passed a report with NO FAMILIES, which
+        returns no paths whether matplotlib is there or not. It now patches the
+        owning module and asserts against a report that does produce charts.
+        """
+        from subversionbench import charting
+        with tempfile.TemporaryDirectory() as out:
+            report = self._report_with_one_family(out)
+
+            # Not vacuous: the same report DOES write charts with pyplot present.
+            if charting.import_pyplot() is not None:
+                assert ft.write_charts(report, os.path.join(out, "on")), (
+                    "the fixture draws nothing even with matplotlib installed, "
+                    "so the degraded assertion below would pass for the wrong "
+                    "reason")
+
+            saved = charting.import_pyplot
+            charting.import_pyplot = lambda *a, **k: None
+            try:
+                assert ft.write_charts(report, os.path.join(out, "off")) == []
+            finally:
+                charting.import_pyplot = saved
+
+    def _report_with_one_family(self, out):
+        """A report that really produces charts, so the degraded case has
+        something to be the absence of.
+
+        Built by build_report from written summaries rather than hand-rolled: a
+        literal dict here needs every key the plotting code happens to read
+        today, and the first attempt at one was missing `ordering_ambiguous`.
+        A fixture that has to track a consumer's field list is a fixture that
+        goes stale silently.
+        """
+        for model, n in (("x-ai/grok-4", 12), ("x-ai/grok-4.5", 6)):
+            _write_summary(out, model, "strong", n_runs=60, n_misaligned=n,
+                           n_aware=2, n_unaware=8)
+        report = ft.build_report(out, "misaligned")
+        assert report["families"], "the fixture produced no family to chart"
+        return report
 
 
 class TestTheSingleImportSite:

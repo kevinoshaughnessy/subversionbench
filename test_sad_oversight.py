@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 
 import sad_oversight as so
+from subversionbench import charting
 from subversionbench.power import spearman, spearman_leave_one_out
 
 
@@ -415,9 +416,9 @@ class TestChartLabelsDoNotOverlap:
     """
 
     def _plt(self):
-        if so._import_matplotlib() is None:
+        if charting.import_pyplot() is None:
             pytest.skip("matplotlib not installed")
-        return so._import_matplotlib()
+        return charting.import_pyplot()
 
     def test_a_lone_label_keeps_the_natural_offset(self):
         """No collision, no reason to move it."""
@@ -496,7 +497,7 @@ class TestTheChartIsLaidOutInThreeStackedPanels:
         }
 
     def test_the_chart_renders_without_error(self):
-        if so._import_matplotlib() is None:
+        if charting.import_pyplot() is None:
             pytest.skip("matplotlib not installed")
         with tempfile.TemporaryDirectory() as out:
             path = so.write_chart(self._report(), os.path.join(out, "c.png"))
@@ -562,7 +563,7 @@ class TestTheRunWritesWhatItSays:
             assert so.main() == 1
 
     def test_the_chart_is_written_and_is_optional(self, monkeypatch):
-        if so._import_matplotlib() is None:
+        if charting.import_pyplot() is None:
             pytest.skip("matplotlib not installed")
         bundle = _bundle()
         locals_ = [m for a in bundle["aliases"] for m in a["local_models"]]

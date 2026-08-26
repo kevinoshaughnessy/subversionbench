@@ -11,7 +11,9 @@ never recorded: both are worked around and neither is an error.
 import os
 
 from .chart_geometry import release_span
-from .chart_style import _family_colours, _import_pyplot
+from subversionbench import charting
+
+from .chart_style import _family_colours
 from .date_charts import _plot_all_family_dates, _plot_family_dates
 from .version_charts import _plot_all_families, _plot_family
 
@@ -28,7 +30,7 @@ def write_charts(report: dict, chart_dir: str) -> list:
     drop that model, every other chart is unaffected, and nothing here returns a
     failure. The report has already printed by the time this runs.
     """
-    plt = _import_pyplot()
+    plt = charting.import_pyplot()
     if plt is None:
         return []
     os.makedirs(chart_dir, exist_ok=True)

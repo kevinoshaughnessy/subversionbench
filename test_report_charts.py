@@ -15,8 +15,9 @@ import tempfile
 
 import pytest
 
-import report_charts as rc
 import report as run_report
+import report_charts as rc
+from subversionbench import charting
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +102,7 @@ def _plt():
     runner this suite has to work under and it cannot interpret fixtures - see
     test_dependencies.TestBothTestRunnersCanRunEverything.
     """
-    plot = rc._import_matplotlib()
+    plot = charting.import_pyplot()
     if plot is None:
         pytest.skip("matplotlib not installed")
     return plot
@@ -369,13 +370,16 @@ class TestTheChartsRender:
             "Q2. sandbox: zeroevidence vs partevidence"]
 
     def test_missing_matplotlib_costs_the_charts_and_nothing_else(self):
-        original = rc._import_matplotlib
-        rc._import_matplotlib = lambda: None
+        """Patched on `charting`, the module that OWNS import_pyplot, not on the
+        script that calls it. One patch point covers all three drawing scripts,
+        and it does not move when a caller does - see test_init.py."""
+        original = charting.import_pyplot
+        charting.import_pyplot = lambda *a, **k: None
         try:
             assert rc.write_charts({"questions": [_section()]}, "/nonexistent") \
                 == []
         finally:
-            rc._import_matplotlib = original
+            charting.import_pyplot = original
 
 
 class TestTheReportRunsWithAndWithoutCharts:

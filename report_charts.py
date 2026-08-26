@@ -60,6 +60,8 @@ that 66 pairs carried the whole comparison will over-read the precision.
 import os
 import textwrap
 
+from subversionbench import charting
+
 # ---------------------------------------------------------------------------
 # Chart conventions
 # ---------------------------------------------------------------------------
@@ -117,23 +119,6 @@ MULTIPLICITY_NOTE = ("filled = individually significant after Holm correction "
                      "across models; open = not")
 
 
-def _import_matplotlib():
-    """
-    pyplot with a headless backend, or None with the reason printed.
-
-    The backend is forced before pyplot is imported: the default on macOS wants
-    a window, and a report run over ssh or from a batch script would either
-    block or fail on a display it cannot open.
-    """
-    try:
-        import matplotlib
-    except ImportError:
-        print("\nCharts skipped: matplotlib is not installed. "
-              "Install it with:\n    pip install 'subversionbench[charts]'")
-        return None
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    return plt
 
 
 # ---------------------------------------------------------------------------
@@ -658,7 +643,7 @@ def write_charts(report: dict, chart_dir: str) -> list:
     into the order the questions are asked and a reader can pair a chart with a
     section of the printed output without a lookup.
     """
-    plt = _import_matplotlib()
+    plt = charting.import_pyplot()
     if plt is None:
         return []
     os.makedirs(chart_dir, exist_ok=True)

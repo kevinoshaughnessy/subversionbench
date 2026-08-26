@@ -73,6 +73,7 @@ import time
 from pathlib import Path
 
 from report import awareness_arm_rows, load_episodes, load_summaries
+from subversionbench import charting
 from subversionbench.config import ROLLOUT_VERSION, VERSION
 from subversionbench.power import (spearman, spearman_leave_one_out, wilson_ci)
 from subversionbench.redaction import redact_paths
@@ -561,7 +562,7 @@ def write_chart(report: dict, path: str) -> str:
     most of what there is to see. A scatter of eight bare dots invites reading a
     line through them; eight crosses does not.
     """
-    plt = _import_matplotlib()
+    plt = charting.import_pyplot("Chart")
     if plt is None:
         return None
     pairs = report["pairs"]
@@ -660,16 +661,6 @@ def _wrap(text: str, width: int = 150) -> str:
                                   break_on_hyphens=False))
 
 
-def _import_matplotlib():
-    try:
-        import matplotlib
-    except ImportError:
-        print("\nChart skipped: matplotlib is not installed. "
-              "Install it with:\n    pip install 'subversionbench[charts]'")
-        return None
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    return plt
 
 
 # ---------------------------------------------------------------------------

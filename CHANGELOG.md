@@ -10,6 +10,39 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v92
+
+Package version `92.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **One matplotlib import site for the whole repository.** `trends/`,
+  `report_charts.py` and `sad_oversight.py` each had their own copy of the
+  headless-backend import guard; two were character-for-character identical and
+  the third differed only in saying "Chart" rather than "Charts". Now
+  `subversionbench/charting.py`, with the noun as a parameter - the only thing
+  that had ever varied. It lives in the package because `report_charts.py` is
+  imported by `report/` and `trends/` imports `report/`, so a chart script
+  reaching into `trends/` for it would close a cycle.
+- **The guard that was supposed to catch this was scoped to a path.** It globbed
+  `trends/*.py` with `chart_style.py` exempt, so it passed while two more copies
+  sat outside the glob. It now checks the rule across every production module.
+- **A test was passing for the wrong reason.** The one asserting charts degrade
+  rather than fail patched `chart_style._import_pyplot`, but `write_charts` had
+  bound that name at import time, so the patch never reached it - the documented
+  reason this repo calls stubbed dependencies through their module. It also
+  asserted on a report with no families, which returns no paths whether
+  matplotlib is present or not. It now patches the owning module and asserts
+  against a report that does draw, with a check that the fixture is not vacuous.
+- **`import_pyplot` is registered in the stub-point guard**, so the one patch
+  point is enforced the same way `get_client` and the grading calls are. Adding
+  the chart scripts as callers exposed an assumption there that every caller had
+  a dotted name.
+- `episode.py` pointed readers at `test_stub_points.py`, which does not exist;
+  the convention lives in `test_init.py`.
+- Verified by rendering every chart before and after: 14 trends charts, 13
+  report charts and the leaderboard chart, all byte-identical, and both skip
+  messages unchanged when matplotlib is made unimportable.
+
 ## v91
 
 Package version `91.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

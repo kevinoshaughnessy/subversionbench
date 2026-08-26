@@ -22,7 +22,7 @@ So the modules run analysis first, then presentation, and nothing points back:
   report          families, trends, release fits, data quality. THE analysis.
                   Imports no drawing code and needs no matplotlib.
   ---------------- everything above is a number; everything below shows it -----
-  chart_style     where pyplot comes from, and what every chart looks like.
+  chart_style     what every chart looks like: palette, notes, resolution.
   chart_geometry  axis tops and label layouts, as arithmetic. No pyplot at all.
   captions        the words on a chart. Text only.
   version_charts  rate against version position - the axis the tests run on.
@@ -49,7 +49,7 @@ from .chart_geometry import (_COMBINED_AXIS_PT, _DATE_LABEL_CEILING,
                              axis_top, release_span)
 from .chart_style import (CHART_DPI, FIT_NOTE, WILSON_NOTE,
                           WILSON_NOTE_BRACKETS_ONLY, WILSON_NOTE_WITH_BRACKETS,
-                          _BRAND_COLOURS, _family_colours, _import_pyplot)
+                          _BRAND_COLOURS, _family_colours)
 from .charts import write_charts
 from .console import (_fmt_rate, _print_family, _print_release_date_errors,
                       _print_release_fit, _print_report)
@@ -86,7 +86,7 @@ __all__ = [
     "_MAX_NAMED_SILENT", "_MIN_AXIS_TOP", "_PER_FAMILY_AXIS_PT",
     "_date_axis", "_date_label_layout", "_dated_members", "_draw_release_fit",
     "_exposure_note", "_exposure_range_note", "_family_colours", "_fmt_rate",
-    "_import_pyplot", "_label_extent", "_label_layout", "_lower_error",
+    "_label_extent", "_label_layout", "_lower_error",
     "_member_labels", "_member_release_date", "_plot_all_families",
     "_plot_all_family_dates", "_plot_family", "_plot_family_dates",
     "_point_label", "_print_family", "_print_release_date_errors",
