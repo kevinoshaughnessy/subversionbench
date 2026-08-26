@@ -47,9 +47,14 @@ class TestThereIsNoWayToRunUnprotected:
         assert "off" in HISTORICAL_ISOLATION
         assert "unrecorded" in HISTORICAL_ISOLATION
 
+    @darwin_only
     def test_the_policy_file_is_managed_here_not_by_callers(self):
         """Sixty-odd call sites reach the sandbox. One that forgot to pass a
-        profile would have run unprotected, so the module supplies its own."""
+        profile would have run unprotected, so the module supplies its own.
+
+        Seatbelt-shaped, so macOS only: a policy FILE is how sandbox-exec is
+        configured, and `profile_for` returns None elsewhere. The Linux
+        mechanisms carry their policy in argv and have nothing to point at."""
         from subversionbench.isolation import profile_for
         argv = wrap_command("cat a.txt", "deny-network")
         assert str(profile_for("deny-network")) in argv
@@ -113,9 +118,12 @@ class TestTheWrapperCannotBeSteppedOutOf:
         assert argv[0] != "/bin/sh"
         assert argv.index("/bin/sh") > 0
 
+    @darwin_only
     def test_the_profile_is_passed_by_file_not_inline(self):
         """-p would share argv with the model's own command text, so a command
-        containing a quote could terminate the profile early."""
+        containing a quote could terminate the profile early.
+
+        `-f` and `-p` are sandbox-exec's own flags, so this is macOS only."""
         argv = wrap_command("echo \"'\"", "deny-external", "/tmp/p.sb")
         assert "-f" in argv and "-p" not in argv
 

@@ -42,6 +42,22 @@ def _declared_floor() -> tuple:
     return int(m.group(1)), int(m.group(2))
 
 
+def _declared_extras() -> set:
+    """The names under `[project.optional-dependencies]`.
+
+    By regex, like `test_dependencies._declared_requirements`, rather than with
+    `tomllib`: that is stdlib only from 3.11, and 3.10 is the floor this project
+    promises and the version CI runs first. Importing it failed the 3.10 job
+    outright, and made the declared-dependency guard report `tomllib` as an
+    undeclared third-party package, since it builds its stdlib set from the
+    running interpreter.
+    """
+    body = Path(__file__).parent.joinpath("pyproject.toml").read_text(
+        encoding="utf-8")
+    section = body.split("[project.optional-dependencies]")[1].split("\n[")[0]
+    return set(re.findall(r"^([A-Za-z0-9_-]+)\s*=\s*\[", section, re.M))
+
+
 def _steps_text(job: dict) -> str:
     return "\n".join(str(step.get("run", "")) for step in job["steps"])
 
@@ -83,10 +99,8 @@ class TestTheMatrixMatchesWhatThePackagePromises:
 
 class TestTheTwoJobsTestOppositeThings:
     def test_the_suite_job_installs_every_extra(self):
-        import tomllib
-        extras = tomllib.loads(
-            Path("pyproject.toml").read_text(encoding="utf-8")
-        )["project"]["optional-dependencies"]
+        extras = _declared_extras()
+        assert extras, "pyproject declares no optional-dependencies"
         run = _steps_text(_workflow()["jobs"]["suite"])
         install = re.search(r"pip install -e \"\.\[([^\]]+)\]\"", run)
         assert install, f"no editable install with extras found in:\n{run}"
