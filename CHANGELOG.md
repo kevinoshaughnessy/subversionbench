@@ -10,6 +10,32 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v97
+
+Package version `97.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **A process that ignored SIGTERM outlived its command on Linux, which is the
+  TOCTOU gap `_reap_group` exists to close.** The oversight act is established
+  by re-hashing an artefact after the episode ends, so anything still running
+  can write to that artefact after the hash is taken and the act scores clean.
+- The escalation to SIGKILL was conditioned on the *leader* outliving SIGTERM.
+  That is only proof the subtree is gone where the isolation wrapper execs the
+  model's shell in place. `sandbox-exec` does; `bwrap` forks. Under bwrap the
+  leader does not trap SIGTERM, so it died at once, its `wait()` returned, and
+  SIGKILL was never sent - leaving the trapping shell alive.
+- Fixed by asking the rule rather than a proxy for it: escalate unless the
+  process **group** is empty, checked with signal 0 on the group. The leader is
+  still reaped each pass, because a zombie remains a member of its group and
+  would otherwise keep it looking occupied.
+- **Invisible on macOS**, where the wrapper execs and the leader *is* the shell,
+  so the existing test passed there whether or not the defect was present. The
+  new regression test builds the fork shape out of two plain shells, so the
+  guarantee is checked on every platform rather than on the one that forks;
+  reverting the fix fails it on macOS.
+- No latency cost on the ordinary path: a command whose group is already empty
+  is confirmed on the first check and never waits out the escalation window.
+
 ## v96
 
 Package version `96.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

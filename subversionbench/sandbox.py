@@ -8,6 +8,7 @@ import re
 import signal
 import subprocess
 import tempfile
+import time
 
 from .config import SANDBOX_DISPLAY_PATH, SANDBOX_REFUSAL
 from .isolation import DEFAULT_ISOLATION, wrap_command
@@ -53,6 +54,38 @@ def _group_of(proc) -> int:
     return 0 if pgid == os.getpgrp() else pgid
 
 
+def _group_is_empty(pgid: int) -> bool:
+    """Whether any process is left in `pgid`. Signal 0 asks without sending."""
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        # Something is in there; we merely may not signal it. Not empty.
+        return False
+    return False
+
+
+def _group_emptied(proc, pgid: int, timeout: float) -> bool:
+    """
+    Wait up to `timeout` for the group to actually empty, polling the group
+    itself rather than the leader.
+
+    proc.poll() on every pass because an exited-but-unwaited leader is a zombie,
+    and a zombie is still a member of its process group - so without reaping it
+    here the group never reads as empty and every command would pay the full
+    escalation timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        proc.poll()
+        if _group_is_empty(pgid):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.05)
+
+
 def _reap_group(proc, pgid: int) -> int:
     """
     Kill everything the command started, and confirm it is gone.
@@ -76,6 +109,22 @@ def _reap_group(proc, pgid: int) -> int:
     `pgid` comes from _group_of() at spawn time; 0 means there is nothing safe
     to signal.
 
+    ESCALATION IS DECIDED ON THE GROUP, NOT ON THE LEADER
+    -----------------------------------------------------
+    The earlier version escalated only when the LEADER outlived SIGTERM, taking
+    the leader's exit as proof the subtree was gone. That holds only where the
+    wrapper execs the shell in place, which is a property of the wrapper and not
+    something this function may assume:
+
+        sandbox-exec (macOS)  execs  -> leader IS the model's shell
+        bwrap        (Linux)  forks  -> leader is a parent of it
+
+    Under bwrap a shell running `trap '' TERM` therefore survived every reap:
+    bwrap itself does not trap, so it died on SIGTERM, wait() returned at once,
+    and SIGKILL was never sent - leaving exactly the process this function exists
+    to remove, on the platform CI runs. So the condition is now the actual rule,
+    "is the group empty", asked of the group.
+
     Returns the number of signals sent, so the caller can record that the model
     left something behind rather than only that it was cleaned up.
     """
@@ -88,11 +137,8 @@ def _reap_group(proc, pgid: int) -> int:
             sent += 1
         except (ProcessLookupError, OSError):
             break                   # group is empty; nothing left to kill
-        try:
-            proc.wait(timeout=2)
-            break                   # leader exited on SIGTERM; no SIGKILL needed
-        except subprocess.TimeoutExpired:
-            continue                # escalate
+        if _group_emptied(proc, pgid, timeout=2):
+            break                   # everything is gone; no SIGKILL needed
     return sent
 
 

@@ -7,6 +7,7 @@ reaping has to leave nothing behind that outlives the command that started it.
 """
 
 import os
+import signal
 import subprocess
 import tempfile
 import time
@@ -865,6 +866,52 @@ class TestProcessGroupReaping:
         else:
             raise AssertionError(
                 f"pid {pid} survived - it traps SIGTERM and nothing escalated")
+
+    def test_escalation_does_not_depend_on_the_leader_trapping_it(self, tmp_path):
+        """The leader exiting is not proof the subtree did.
+
+        This is bwrap's shape. On Linux the wrapper FORKS the model's shell, so
+        the shell running `trap '' TERM` sits below the leader; bwrap itself does
+        not trap, so it died on SIGTERM, the leader's wait() returned at once and
+        SIGKILL was never sent - the trapping shell survived every reap.
+        sandbox-exec execs in place, so macOS cannot exhibit it and the platform
+        test above passes there whether or not the bug is present. Hence the
+        shape is built by hand here, out of two plain shells, and the guarantee
+        is checked on every platform rather than on the one that happens to fork.
+        """
+        marker = tmp_path / "pid.txt"
+        # trap "" rather than trap '' - the inner script is itself single-quoted.
+        inner = ('trap "" TERM; echo $$ > %s; while true; do sleep 1; done'
+                 % marker)
+        proc = subprocess.Popen(["/bin/sh", "-c", f"/bin/sh -c '{inner}' & wait"],
+                                start_new_session=True)
+        pgid = _group_of(proc)
+        time.sleep(0.5)
+        try:
+            assert marker.exists(), "the inner shell never reported its pid"
+            trapping = int(marker.read_text().strip())
+            assert trapping != proc.pid, (
+                "test precondition: the trapping shell must be BELOW the leader, "
+                "otherwise this is the same shape as the macOS wrapper")
+
+            assert _reap_group(proc, pgid) == 2, (
+                "the leader died on SIGTERM and nothing escalated - a wrapper's "
+                "exit was read as proof its children were gone")
+            time.sleep(0.2)
+            try:
+                os.kill(trapping, 0)
+            except ProcessLookupError:
+                pass                 # gone, which is the point
+            else:
+                raise AssertionError(
+                    f"pid {trapping} survived - it traps SIGTERM and sits under "
+                    "a leader that does not")
+        finally:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass
+            proc.poll()
 
     def test_signals_sent_reports_the_escalation(self):
         """_reap_group's return value is what lets a caller record that the
