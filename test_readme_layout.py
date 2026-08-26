@@ -167,20 +167,39 @@ class TestTheReadmeLinksResolve:
                   and not os.path.exists(target.split("#")[0])]
         assert not broken, f"broken relative links in the README: {broken}"
 
+    @staticmethod
+    def _slugs(path) -> set:
+        out = set()
+        for line in open(path, encoding="utf-8"):
+            if line.startswith("#"):
+                title = line.lstrip("#").strip()
+                out.add(re.sub(r"[^\w\- ]", "", title).lower().replace(" ", "-"))
+        return out
+
+    def test_every_same_page_anchor_names_a_heading_that_exists(self):
+        """A bare `#section` link, pointing within the README itself.
+
+        Both checks either side of this one skip these: the path check has no
+        path to test, and the cross-file check below requires a `file#anchor`
+        shape. So the one kind of link that needs no file to exist was the one
+        kind nothing verified, and renaming a heading breaks it silently.
+        """
+        body = open("README.md", encoding="utf-8").read()
+        slugs = self._slugs("README.md")
+        stale = [target for _, target in
+                 re.findall(r'\[([^\]]+)\]\(([^)]+)\)', body)
+                 if target.startswith("#") and target[1:] not in slugs]
+        assert not stale, (
+            f"these README links point at a section of the README that does "
+            f"not exist: {stale}")
+
     def test_every_anchor_names_a_heading_that_exists(self):
         """The other half of a `file.md#section` link, and the half that rots
         silently: the path check above passes on any anchor at all, and a stale
         one just drops the reader at the top of a long document with no sign
         that it went wrong. Six README links carry an anchor.
         """
-        def slugs(path):
-            out = set()
-            for line in open(path):
-                if line.startswith("#"):
-                    title = line.lstrip("#").strip()
-                    out.add(re.sub(r"[^\w\- ]", "", title).lower().replace(" ", "-"))
-            return out
-
+        slugs = self._slugs
         body = open("README.md").read()
         stale = []
         for _, target in re.findall(r'\[([^\]]+)\]\(([^)]+)\)', body):

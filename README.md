@@ -278,19 +278,8 @@ pytest
 python run_tests.py     # same suite, no pytest required
 ```
 
-Also run on every push and pull request by
-[.github/workflows/tests.yml](.github/workflows/tests.yml), on Python 3.10, 3.12
-and 3.13 — 3.10 being the floor `requires-python` promises. Two jobs, testing
-opposite things: one installs every optional extra and treats a skip for a
-missing dependency as a failure, so nothing can quietly opt out where everything
-is available; the other installs only `.[test]` and asserts that `matplotlib` and
-`openai` really are absent, which is what keeps the optional extras optional. No
-API key is needed or accepted — `conftest.py` supplies placeholders and every
-test that would reach a model stubs the client, so a CI run cannot make a paid
-call.
-
-`run_tests.py` is not one of those jobs: three tests take pytest's `monkeypatch`
-fixture, which it cannot supply, so it cannot run the whole suite green.
+`run_tests.py` runs nearly all of it: three tests take pytest's `monkeypatch`
+fixture, which it cannot supply, so it is not one of the [CI](#ci) jobs either.
 
 One test file per module, and the test tree MIRRORS the package tree:
 `test_grading/test_acts.py` for `grading/acts.py`,
@@ -322,6 +311,42 @@ intended change:
 SUBVERSIONBENCH_UPDATE_REPORT_SNAPSHOTS=1 pytest test_reporting/test_console.py
 git diff report_snapshots/          # read this before committing it
 ```
+
+## CI
+
+[.github/workflows/tests.yml](.github/workflows/tests.yml) runs the suite on
+every push and every pull request, on Python 3.10, 3.12 and 3.13 — 3.10 being
+the floor `requires-python` promises. Nothing to invoke: `git push` starts it.
+
+```bash
+gh run list --limit 5      # recent runs and their verdicts
+gh run watch               # follow the newest run
+gh run view --log-failed   # only the steps that failed
+gh workflow run tests      # start one by hand
+```
+
+CI runs *after* a push, so it cannot block a bad commit. To check before you
+push, run what the workflow runs:
+
+```bash
+SUBVERSIONBENCH_NO_SKIPS=1 pytest
+```
+
+That flag turns a skip for a missing optional dependency into a failure, which
+is how the workflow's first job proves nothing quietly opted out. Its second job
+does the opposite — installs only `.[test]` and asserts `matplotlib` and
+`openai` are absent — so the extras stay genuinely optional. No API key is
+needed or accepted: `conftest.py` supplies placeholders and every test that
+would reach a model stubs the client, so a CI run cannot make a paid call.
+
+To make the check binding rather than advisory, either add a `pre-push` hook
+running the command above, or require the `tests` check under Settings →
+Branches, which needs work to arrive through pull requests.
+
+The suite is developed on macOS and the Linux runners currently fail the
+sandbox, isolation and runner tests, which assume macOS confinement; one pinned
+rollout fingerprint also differs by platform. Read a red run against that before
+assuming a regression.
 
 ## Caveats
 
