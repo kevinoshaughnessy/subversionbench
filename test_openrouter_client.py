@@ -18,6 +18,14 @@ class TestOpenRouterEmptyCompletion:
     That must surface as a diagnostic message, not silently end the
     episode with no explanation."""
 
+    def setup_method(self, method):
+        """`openai` is an optional extra, imported lazily by the client. Without
+        this these tests raised ModuleNotFoundError instead of skipping, so a
+        clean `pip install -e .[test]` could not produce a green suite."""
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+
     def _make_client(self):
         from unittest.mock import MagicMock
         import os
@@ -214,6 +222,14 @@ class TestOpenRouterNonJsonResponse:
     deep inside the SDK/httpx gives no way to tell what happened. create()
     must surface the actual HTTP status and body instead."""
 
+    def setup_method(self, method):
+        """`openai` is an optional extra, imported lazily by the client. Without
+        this these tests raised ModuleNotFoundError instead of skipping, so a
+        clean `pip install -e .[test]` could not produce a green suite."""
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+
     def _make_client(self):
         from unittest.mock import MagicMock
         import os
@@ -261,6 +277,14 @@ class TestOpenRouterNoChoicesResponse:
     not subscriptable, three layers from anything that says what actually
     happened - moonshotai/kimi-k2-thinking hit this live, 30 clean turns
     into a real episode, with no other diagnostic in the failure."""
+
+    def setup_method(self, method):
+        """`openai` is an optional extra, imported lazily by the client. Without
+        this these tests raised ModuleNotFoundError instead of skipping, so a
+        clean `pip install -e .[test]` could not produce a green suite."""
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
 
     def _make_client(self):
         from unittest.mock import MagicMock
@@ -331,6 +355,14 @@ class TestProviderSortRouting:
     must reach OpenRouter as extra_body.provider.sort, independently of
     whether `tools` is also sending require_parameters - one must not imply
     or crowd out the other in the same provider dict."""
+
+    def setup_method(self, method):
+        """`openai` is an optional extra, imported lazily by the client. Without
+        this these tests raised ModuleNotFoundError instead of skipping, so a
+        clean `pip install -e .[test]` could not produce a green suite."""
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
 
     def _make_client(self, provider_sort=None, provider_name=None):
         from unittest.mock import MagicMock
@@ -403,6 +435,14 @@ class TestProviderPinning:
     """--openrouter-provider pins routing to one named backend, e.g. to route
     around a provider that is misbehaving for a given model even though it is
     the cheapest/fastest (what --openrouter-sort would otherwise pick)."""
+
+    def setup_method(self, method):
+        """`openai` is an optional extra, imported lazily by the client. Without
+        this these tests raised ModuleNotFoundError instead of skipping, so a
+        clean `pip install -e .[test]` could not produce a green suite."""
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
 
     def _make_client(self, provider_sort=None, provider_name=None):
         from unittest.mock import MagicMock

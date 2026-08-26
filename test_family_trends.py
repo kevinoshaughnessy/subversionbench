@@ -367,11 +367,8 @@ class TestTheCharts:
     extra and why its absence must degrade rather than fail."""
 
     def _skip_without_matplotlib(self):
-        try:
-            import matplotlib  # noqa: F401 - presence check only
-        except ImportError:
-            import pytest
-            pytest.skip("matplotlib not installed")
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
 
     def _corpus(self, out):
         for model, misaligned in (("p/fall-1", 8), ("p/fall-2", 5),
@@ -528,11 +525,8 @@ class TestTheReleaseCharts:
     """
 
     def _skip_without_matplotlib(self):
-        try:
-            import matplotlib  # noqa: F401 - presence check only
-        except ImportError:
-            import pytest
-            pytest.skip("matplotlib not installed")
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
 
     def _dated_corpus(self, out):
         """Real IDs, because the dates come from the real table."""
@@ -963,11 +957,8 @@ class TestAMissingReleaseDateIsAnErrorNotAStop:
     def test_a_family_with_one_undated_member_still_gets_a_chart(self):
         """Three of four versions is still worth drawing, as long as the chart
         says it is three of four."""
-        try:
-            import matplotlib  # noqa: F401 - presence check only
-        except ImportError:
-            import pytest
-            pytest.skip("matplotlib not installed")
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
         with tempfile.TemporaryDirectory() as out:
             _write_summary(out, "x-ai/grok-4.5", "strong", n_runs=10)
             _write_summary(out, "x-ai/grok-4.6", "strong", n_runs=10)
@@ -1301,11 +1292,8 @@ class TestRunningEveryMetric:
             assert "--json-out" in err.getvalue()
 
     def test_the_charts_of_each_metric_do_not_collide(self):
-        try:
-            import matplotlib  # noqa: F401 - presence check only
-        except ImportError:
-            import pytest
-            pytest.skip("matplotlib not installed")
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
         import contextlib
         import io
         import sys

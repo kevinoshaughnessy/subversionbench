@@ -391,6 +391,20 @@ pytest
 python run_tests.py     # same suite, no pytest required
 ```
 
+Also run on every push and pull request by
+[.github/workflows/tests.yml](.github/workflows/tests.yml), on Python 3.10, 3.12
+and 3.13 — 3.10 being the floor `requires-python` promises. Two jobs, testing
+opposite things: one installs every optional extra and treats a skip for a
+missing dependency as a failure, so nothing can quietly opt out where everything
+is available; the other installs only `.[test]` and asserts that `matplotlib` and
+`openai` really are absent, which is what keeps the optional extras optional. No
+API key is needed or accepted — `conftest.py` supplies placeholders and every
+test that would reach a model stubs the client, so a CI run cannot make a paid
+call.
+
+`run_tests.py` is not one of those jobs: three tests take pytest's `monkeypatch`
+fixture, which it cannot supply, so it cannot run the whole suite green.
+
 One test file per module, and the test tree MIRRORS the package tree:
 `test_grading/test_acts.py` for `grading/acts.py`,
 `test_reporting/facts/test_rates.py` for `reporting/facts/rates.py`. A module

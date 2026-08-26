@@ -232,6 +232,13 @@ class TestWhyTheApiStopped:
 
 
 class TestTheKeyIsCheckedBeforeAnythingIsSent:
+    def setup_method(self, method):
+        """`openai` is an optional extra, imported lazily by the client. Without
+        this these tests raised ModuleNotFoundError instead of skipping, so a
+        clean `pip install -e .[test]` could not produce a green suite."""
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
     def test_a_missing_key_raises_with_the_alternative_route(self):
         """The Anthropic SDK constructs with no key and defers the failure to the
         first call, which is how a whole rollout came to fail one classifier call

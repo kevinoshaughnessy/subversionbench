@@ -13,7 +13,6 @@ import json
 import os
 import tempfile
 
-import pytest
 
 import report as run_report
 import report_charts as rc
@@ -104,7 +103,8 @@ def _plt():
     """
     plot = charting.import_pyplot()
     if plot is None:
-        pytest.skip("matplotlib not installed")
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
     return plot
 
 

@@ -1,0 +1,101 @@
+# The suite, on every push and pull request.
+#
+# WHY THIS EXISTS
+# ---------------
+# 2,176 tests that ran only when someone remembered, on one machine, at one
+# Python version. Several of the defects this suite has caught were environment
+# dependent - a guard that skipped silently when its tool was absent, a read
+# that followed the machine's locale - and those are precisely the ones a single
+# developer machine cannot see.
+#
+# WHAT IT DOES NOT DO
+# -------------------
+# No API key is needed or accepted. conftest.py supplies placeholder credentials
+# and every test that would reach a model stubs the client, so a run here cannot
+# make a paid call. The results corpora are gitignored and never present.
+#
+# `run_tests.py`, the pytest-free runner, is deliberately not a job: three tests
+# take pytest's `monkeypatch` fixture, which it cannot supply, so it cannot run
+# the whole suite green.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Everything installed, so nothing is skipped: SUBVERSIONBENCH_NO_SKIPS turns
+  # a skip into a failure here. A guard that quietly skips is the shape this
+  # project keeps finding bugs in, so the one environment where every optional
+  # dependency is present is the one that must prove no test opted out.
+  suite:
+    name: suite (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the floor pyproject declares and nothing verified it; 3.12 is
+        # what development happens on; 3.13 is the newest release. Kept in step
+        # with requires-python by test_ci_workflow.py.
+        python: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install with every extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test,charts,openrouter]"
+
+      - name: Show what is installed
+        run: pip list
+
+      - name: Run the suite
+        env:
+          SUBVERSIONBENCH_NO_SKIPS: "1"
+        run: python -m pytest -q
+
+  # The other half of the contract: the package declares `anthropic` as its only
+  # requirement, and the optional extras must genuinely be optional. Twenty tests
+  # used to raise ModuleNotFoundError here rather than skipping, so a clean
+  # install of the artefact could not produce a green suite. Skips are expected
+  # in this job and are reported with -rs.
+  minimal-install:
+    name: minimal install (no charts, no openai)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install with the test extra only
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Confirm the optional extras really are absent
+        run: |
+          python - <<'PY'
+          import importlib.util as u
+          for mod in ("matplotlib", "openai"):
+              assert u.find_spec(mod) is None, f"{mod} should not be installed here"
+          print("matplotlib and openai are both absent, as intended")
+          PY
+
+      - name: Run the suite, reporting what skipped
+        run: python -m pytest -q -rs

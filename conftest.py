@@ -117,6 +117,73 @@ def project_packages() -> list:
                    if _is_project_path(p.relative_to(PROJECT_ROOT))})
 
 
+# ---------------------------------------------------------------------------
+# Optional dependencies
+# ---------------------------------------------------------------------------
+#
+# `openai` backs the OpenRouter and OpenAI routes and is an EXTRA, imported
+# lazily inside the client so the package installs without it. The tests did not
+# match: on `pip install -e .[test]` twenty of them raised ModuleNotFoundError
+# rather than skipping, so a clean install of the artefact could not produce a
+# green suite - and the failures pointed at the tests rather than at the missing
+# extra.
+#
+# `unittest.SkipTest` rather than `pytest.skip`: pytest honours it natively, it
+# is stdlib, and run_tests.py can recognise it without pytest installed. The
+# matplotlib helper used pytest.skip, which run_tests.py counted as a FAILURE -
+# so the pytest-free runner reported a red suite for an absent optional extra.
+
+# Marks the one kind of skip that CI can prevent, and must.
+#
+# Not every skip is alike. "matplotlib is not installed" is a fact about the
+# install and CI controls it; "no corpus in this checkout" is a fact about the
+# data, and the results corpora are gitignored so CI never has them. Failing all
+# skips in CI would make the run permanently red for the second kind, which is
+# why the two are told apart here rather than counted together.
+OPTIONAL_DEPENDENCY_ABSENT = "optional dependency absent:"
+
+
+def skip_without(module: str, why: str = ""):
+    """Skip the calling test when an optional dependency is absent.
+
+    Raises rather than returning a flag, so a caller cannot forget to check it.
+    """
+    import importlib
+    import unittest
+    try:
+        importlib.import_module(module)
+    except ImportError:
+        raise unittest.SkipTest(
+            f"{OPTIONAL_DEPENDENCY_ABSENT} {module}"
+            f"{' - ' + why if why else ''}")
+
+
+# In CI's fully-installed job, skipping for a MISSING DEPENDENCY is a failure.
+#
+# The job installs every extra, so nothing there should opt out for want of one.
+# A test that does is either mis-guarded or quietly not running, and a suite
+# reporting thousands passed while some of them never executed is the shape of
+# reassurance this project keeps finding bugs behind.
+#
+# Scoped to dependency skips on purpose. A skip for an absent corpus or for git
+# being unavailable is a fact about the environment that CI cannot change - the
+# corpora are gitignored and never present there - so failing those would make
+# the run permanently red and teach everyone to ignore it.
+if HAS_PYTEST and os.environ.get("SUBVERSIONBENCH_NO_SKIPS") == "1":
+
+    @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+    def pytest_runtest_makereport(item, call):
+        outcome = yield
+        report = outcome.get_result()
+        if report.skipped and OPTIONAL_DEPENDENCY_ABSENT in str(
+                getattr(report, "longrepr", "")):
+            report.outcome = "failed"
+            report.longrepr = (
+                f"SUBVERSIONBENCH_NO_SKIPS=1: every optional extra is installed "
+                f"in this job, so no test should skip for a missing one.\n"
+                f"Skipped anyway: {report.longrepr}")
+
+
 def make_env_with_files():
     """Create a full hardened environment and return (env_dir, env_info)."""
     env_dir = tempfile.mkdtemp(prefix="test_eval_")

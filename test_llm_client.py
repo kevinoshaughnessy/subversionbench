@@ -44,6 +44,14 @@ class TestProviderSortRouting:
     other two routes take no such concept, so get_client() must accept and
     silently drop it rather than erroring."""
 
+    def setup_method(self, method):
+        """`openai` is an optional extra, imported lazily by the client. Without
+        this these tests raised ModuleNotFoundError instead of skipping, so a
+        clean `pip install -e .[test]` could not produce a green suite."""
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+
     def test_reaches_the_openrouter_client_when_the_model_routes_there(self):
         os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
         client = get_client("x-ai/grok-4.5", provider_sort="throughput")
@@ -64,6 +72,14 @@ class TestProviderPinningRouting:
     """--openrouter-provider, same story as --openrouter-sort above: only the
     OpenRouter branch understands it, the other two routes must accept and
     drop it."""
+
+    def setup_method(self, method):
+        """`openai` is an optional extra, imported lazily by the client. Without
+        this these tests raised ModuleNotFoundError instead of skipping, so a
+        clean `pip install -e .[test]` could not produce a green suite."""
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
 
     def test_reaches_the_openrouter_client_when_the_model_routes_there(self):
         os.environ.setdefault("OPENROUTER_API_KEY", "dummy")

@@ -14,10 +14,37 @@ import pathlib
 import importlib
 import importlib.util
 import traceback
+import unittest
 
 from conftest import FIXTURE_FACTORIES
 
 HERE = pathlib.Path(__file__).parent
+
+
+def _skip_types() -> tuple:
+    """Every exception that means "skipped", whichever mechanism raised it.
+
+    `pytest.skip` raises `Skipped`, which derives from BaseException and NOT
+    from Exception - so the `except Exception` below never saw it. An absent
+    optional extra did not fail a test here, it terminated the whole run with a
+    traceback: every test after the first skip silently never ran, and no result
+    summary was printed at all. That is the failure this runner exists to avoid.
+
+    `pytest.skip.Exception` rather than `_pytest.outcomes.Skipped`: the same
+    class by a public name. Reaching into `_pytest` made the declared-dependency
+    guard flag `_pytest` as an undeclared third-party import, which is correct -
+    a private module is not part of the interface pytest promises.
+    """
+    types = [unittest.SkipTest]
+    try:
+        import pytest
+        types.append(pytest.skip.Exception)
+    except ImportError:
+        pass                    # no pytest here, which is the point of this file
+    return tuple(types)
+
+
+SKIPPED = _skip_types()
 
 
 def _load(path: pathlib.Path):
@@ -56,7 +83,7 @@ def run():
         print("No test modules found.")
         return 1
 
-    passed = failed = 0
+    passed = failed = skipped = 0
     errors = []
 
     for module in modules:
@@ -77,6 +104,11 @@ def run():
                 label = f"{cls.__name__}.{method_name}"
 
                 try:
+                    # Honoured because pytest honours it, and a class that guards
+                    # an optional dependency there would otherwise be skipped by
+                    # one runner and exploded by the other.
+                    if hasattr(instance, "setup_method"):
+                        instance.setup_method(method)
                     # Build whichever fixtures this test's signature asks for.
                     kwargs = {
                         name: factory()
@@ -86,13 +118,19 @@ def run():
                     method(**kwargs)
                     passed += 1
                     print(f"  PASS  {label}")
+                except SKIPPED as e:
+                    # A skip is not a failure, and `pytest.skip` is not an
+                    # Exception - see _skip_types(). Both mechanisms land here.
+                    skipped += 1
+                    print(f"  SKIP  {label}: {e}")
                 except Exception as e:
                     failed += 1
                     errors.append((label, e))
                     print(f"  FAIL  {label}: {e}")
 
     print(f"\n{'='*60}")
-    print(f"Results: {passed} passed, {failed} failed, {passed + failed} total")
+    print(f"Results: {passed} passed, {failed} failed, {skipped} skipped, "
+          f"{passed + failed + skipped} total")
     print(f"{'='*60}")
 
     if errors:

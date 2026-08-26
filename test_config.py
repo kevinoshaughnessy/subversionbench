@@ -258,11 +258,8 @@ class TestNoUndefinedNames:
 
         from conftest import project_python_files
 
-        try:
-            import pyflakes             # noqa: F401 - presence check only
-        except ImportError:
-            import pytest
-            pytest.skip("pyflakes not installed")
+        from conftest import skip_without
+        skip_without("pyflakes", "declared in the `test` extra")
 
         files = [str(p) for p in project_python_files()]
         result = subprocess.run(
@@ -319,11 +316,8 @@ class TestNoUndefinedNames:
 
         from conftest import source_python_files
 
-        try:
-            import pyflakes             # noqa: F401 - presence check only
-        except ImportError:
-            import pytest
-            pytest.skip("pyflakes not installed")
+        from conftest import skip_without
+        skip_without("pyflakes", "declared in the `test` extra")
 
         files = [str(p) for p in source_python_files()]
         result = subprocess.run(

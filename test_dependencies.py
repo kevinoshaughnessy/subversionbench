@@ -101,7 +101,27 @@ class TestEveryImportedPackageIsDeclared:
                        and not Path(m, "__init__.py").exists()}
         declared = {r.split(">=")[0].split("[")[0].strip().lower()
                     for r in _declared_requirements()}
-        missing = sorted(m for m in third_party if m.lower() not in declared)
+
+        # An import name is not a distribution name: `import yaml` comes from
+        # PyYAML, `import PIL` from Pillow. Comparing the two directly reported
+        # PyYAML as undeclared while it sat in the `test` extra. The mapping is
+        # asked of the installed metadata rather than kept as a table here, so it
+        # covers whatever is installed instead of whatever someone remembered.
+        def distributions_for(module: str) -> set:
+            import importlib.metadata as meta
+            try:
+                providers = meta.packages_distributions().get(module) or []
+            except Exception:
+                providers = []
+            return {p.lower().replace("_", "-") for p in providers}
+
+        def is_declared(module: str) -> bool:
+            if module.lower() in declared:
+                return True
+            return bool(distributions_for(module)
+                        & {d.replace("_", "-") for d in declared})
+
+        missing = sorted(m for m in third_party if not is_declared(m))
         assert not missing, (
             f"imported but not declared in pyproject: {missing}. An undeclared "
             f"dependency makes a clean install behave differently from yours.")

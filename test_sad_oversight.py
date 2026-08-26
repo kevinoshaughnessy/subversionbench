@@ -417,7 +417,8 @@ class TestChartLabelsDoNotOverlap:
 
     def _plt(self):
         if charting.import_pyplot() is None:
-            pytest.skip("matplotlib not installed")
+            from conftest import skip_without
+            skip_without("matplotlib", "charts are an optional extra")
         return charting.import_pyplot()
 
     def test_a_lone_label_keeps_the_natural_offset(self):
@@ -498,7 +499,8 @@ class TestTheChartIsLaidOutInThreeStackedPanels:
 
     def test_the_chart_renders_without_error(self):
         if charting.import_pyplot() is None:
-            pytest.skip("matplotlib not installed")
+            from conftest import skip_without
+            skip_without("matplotlib", "charts are an optional extra")
         with tempfile.TemporaryDirectory() as out:
             path = so.write_chart(self._report(), os.path.join(out, "c.png"))
             assert path and os.path.exists(path)
@@ -564,7 +566,8 @@ class TestTheRunWritesWhatItSays:
 
     def test_the_chart_is_written_and_is_optional(self, monkeypatch):
         if charting.import_pyplot() is None:
-            pytest.skip("matplotlib not installed")
+            from conftest import skip_without
+            skip_without("matplotlib", "charts are an optional extra")
         bundle = _bundle()
         locals_ = [m for a in bundle["aliases"] for m in a["local_models"]]
         with tempfile.TemporaryDirectory() as out:

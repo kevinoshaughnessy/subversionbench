@@ -41,7 +41,14 @@ dependencies = [
 # and written to JSON: a chart is a second reading of the same figures, so an
 # install that skips it loses presentation and no analysis. The trends CLI
 # degrades to tables with an install hint rather than failing.
-test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx"]
+#
+# PyYAML parses .github/workflows/tests.yml for test_ci_workflow.py, which checks
+# that CI still runs the Python floor pyproject promises, that the fully-installed
+# job forbids dependency skips, and that no job asks for a credential. Declared
+# rather than skipped-when-absent because those checks are worth running: a
+# skipped guard is the shape of silent pass this project keeps finding bugs
+# behind, and CI's own job treats a dependency skip as a failure.
+test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx", "PyYAML>=6.0"]
 charts = ["matplotlib>=3.8"]
 openrouter = ["openai>=1.0.0"]
 openai = ["openai>=1.0.0"]
