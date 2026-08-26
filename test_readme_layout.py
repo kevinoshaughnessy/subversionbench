@@ -31,13 +31,23 @@ def _listed_files() -> set:
     return set(re.findall(r'([\w./-]+\.(?:py|sh))', _layout_block()))
 
 
+# Every package in the repository, so the Layout is checked against all of them
+# rather than against whichever one existed when this file was written. `trends/`
+# was split out of a root script and would otherwise have gone unlisted module
+# by module - silently, which is the exact drift this file exists to catch.
+def _package_modules() -> list:
+    return sorted(
+        p for root in ("subversionbench", "trends")
+        for p in glob.glob(f"{root}/**/*.py", recursive=True))
+
+
 class TestEveryModuleIsListed:
     def test_no_package_module_is_missing(self):
         """__init__.py files are exempt: the Layout names the packages themselves,
         and both say in prose that their __init__ is the public API."""
         listed = _listed_files()
         missing = sorted(
-            p for p in glob.glob("subversionbench/**/*.py", recursive=True)
+            p for p in _package_modules()
             if os.path.basename(p) != "__init__.py"
             and os.path.basename(p) not in listed)
         assert not missing, (
@@ -62,9 +72,9 @@ class TestEveryEntryExists:
         """The other direction. A stale entry sends a reader looking for a file
         that was removed or renamed, which is the more confusing failure."""
         stale = []
+        existing = {os.path.basename(p) for p in _package_modules()}
         for f in sorted(_listed_files()):
-            if not (glob.glob(f"subversionbench/**/{f}", recursive=True)
-                    or glob.glob(f) or glob.glob(f"subversionbench/{f}")):
+            if f not in existing and not glob.glob(f):
                 stale.append(f)
         assert not stale, f"the Layout names files that do not exist: {stale}"
 

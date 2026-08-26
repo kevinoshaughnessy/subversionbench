@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md) · [Report](report.md) · [Trends](trends.md)
 
-`family_trends.py` asks a different shape of question from the cross-model
+The `trends/` package asks a different shape of question from the cross-model
 report: not "does this factor move the rate" but "does the rate move as the
 version number climbs". It groups every model in a results directory into
 families, orders each family by version, and tests whether the rate moves
@@ -14,11 +14,11 @@ stratified machinery both scripts share - the rates here come through
 there cannot disagree.
 
 ```bash
-python3 family_trends.py --output-dir eval_results_r9
-python3 family_trends.py --output-dir eval_results_r9 --metric scheming
-python3 family_trends.py --output-dir eval_results_r9 --metric all
-python3 family_trends.py --output-dir eval_results_r9 --version-style decimal
-python3 family_trends.py --output-dir eval_results_r9 --no-charts
+python3 -m trends --output-dir eval_results_r9
+python3 -m trends --output-dir eval_results_r9 --metric scheming
+python3 -m trends --output-dir eval_results_r9 --metric all
+python3 -m trends --output-dir eval_results_r9 --version-style decimal
+python3 -m trends --output-dir eval_results_r9 --no-charts
 ```
 
 `--metric all` runs every metric in one invocation, writing a separate report and chart set for

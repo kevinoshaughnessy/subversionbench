@@ -10,6 +10,43 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v89
+
+Package version `89.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **`family_trends.py` is now the `trends/` package.** It was one file holding
+  the ID parse, the trend tests, the release fits, four kinds of chart, the
+  captions, the console table and the CLI. The reason to split was not its
+  length: measured over its history, a third of the commits that touched it
+  changed only how a figure LOOKS - where a label sits, which caption a chart
+  carries, where the date axis starts - in a file that also computes
+  Cochran-Armitage p-values. The seam was already written into its own comments
+  ("losing the charts costs presentation, never analysis"); it had no file
+  boundary at it. Eleven modules now, analysis before presentation, with nothing
+  above the line importing anything below it.
+- **The optional dependency is now provable rather than asserted.** `report.py`
+  imports no drawing code, `chart_geometry.py` and `captions.py` touch no
+  pyplot, and `chart_style.py` is the one place matplotlib is reached. A test
+  loads the analysis modules with matplotlib made unimportable, so the claim is
+  run rather than inferred. Each of the new structural guards was verified by
+  planting the violation it exists to catch.
+- **`python3 -m trends`**, replacing `python3 family_trends.py`. The package
+  re-exports `main`, so `-m trends.family_trends` would execute that module a
+  second time and print a `RuntimeWarning` above every report; `__main__.py`
+  exists to stop that, and `prog` is named so argparse errors quote the command
+  the docs give rather than `__main__.py`.
+- **Two repository guards were scoped to one package and silently missed the
+  new one.** The README layout check and the undeclared-dependency check both
+  looked only at `subversionbench/`, so eleven new modules would have gone
+  unlisted and `trends` read as an undeclared third-party import. Both now cover
+  every local package, and the two pyflakes guards - undefined names, dead
+  imports - do too. This is the third time a split has escaped a guard that was
+  written against a path rather than against the rule.
+- Verified by re-running every metric before and after: identical console
+  output, identical JSON apart from its timestamp, and every chart
+  byte-identical.
+
 ## v88
 
 Package version `88.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

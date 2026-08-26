@@ -517,7 +517,7 @@ def _place_labels(fig, ax, points: list) -> None:
 
     MEASURED, NOT ESTIMATED
     ------------------------
-    Two prior collision checks in this codebase (family_trends.py, twice)
+    Two prior collision checks in this codebase (the trends charts, twice)
     guessed a label's extent from font size and character count and got it
     wrong both times. This asks matplotlib for the rendered bounding box of the
     label actually drawn, in pixels, which is exact regardless of font,

@@ -336,11 +336,23 @@ sad_oversight.py   an external situational-awareness leaderboard, encrypted at
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree
-family_trends.py   whether a rate falls as a model family advances, with the
+trends/            whether a rate falls as a model family advances, with the
                    families and their version order derived from the model IDs
                    rather than listed, so a new version needs no edit; draws a
                    chart per family and one combined with the `charts` extra,
                    each against version order and again against release date
+  model_ids.py     an ID into a provider, stem, version and release-stage tags
+  metrics.py       what can be trended, and each model's rate and exposure
+  report.py        families, trends, release fits, data quality: the analysis
+  chart_style.py   where pyplot comes from, and what every chart looks like
+  chart_geometry.py  axis tops and label layouts, as arithmetic. No pyplot
+  captions.py      the words on a chart, and how to read the exposure figures
+  version_charts.py  rate against version position - the axis the tests run on
+  date_charts.py   the same rates against the release calendar
+  charts.py        write_charts: the one entry point into the chart layer
+  console.py       the report as a table on a terminal
+  family_trends.py the CLI: arguments, and one report per metric
+  __main__.py      `python3 -m trends`, so the CLI is never run twice
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
 run_all_arms.sh    one model through every nudge x oversight x lure arm, where
                    --runs is the target total per arm rather than an increment

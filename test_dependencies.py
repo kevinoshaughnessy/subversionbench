@@ -75,19 +75,25 @@ class TestEveryImportedPackageIsDeclared:
         import sys
 
         stdlib = set(sys.stdlib_module_names)
-        local = {"subversionbench", "conftest"}
+        local = {"conftest"}
         imported = set()
         for path in (glob.glob("subversionbench/**/*.py", recursive=True)
+                     + glob.glob("trends/*.py")
                      + glob.glob("*.py") + glob.glob("test_*/*.py")):
             for node in ast.walk(ast.parse(Path(path).read_text())):
                 if isinstance(node, ast.Import):
                     imported |= {a.name.split(".")[0] for a in node.names}
                 elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                     imported.add(node.module.split(".")[0])
+        # A local package is local whether it is a directory or a single file.
+        # `subversionbench` and `conftest` used to be named here one at a time,
+        # which made splitting `trends/` out of a root script look like an
+        # undeclared third-party dependency.
         third_party = {m for m in imported
                        if m not in stdlib and m not in local
                        and not m.startswith("test_")
-                       and not Path(f"{m}.py").exists()}
+                       and not Path(f"{m}.py").exists()
+                       and not Path(m, "__init__.py").exists()}
         declared = {r.split(">=")[0].split("[")[0].strip().lower()
                     for r in _declared_requirements()}
         missing = sorted(m for m in third_party if m.lower() not in declared)

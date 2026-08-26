@@ -227,8 +227,12 @@ class TestTheSharedVocabulariesCannotBeEditedInPlace:
             ROLLOUT_FINGERPRINTS[(True, False)] = "overwritten"
 
 class TestNoUndefinedNames:
-    """A static check across the package, because the split hid three of these
+    """A static check across both packages, because the split hid three of these
     and the tests could not see them.
+
+    Both, rather than `subversionbench` alone: `trends/` was carved out of a
+    2,132-line root script by moving line ranges between files, which is the
+    same operation that produced the three below.
 
     `classify_answer_llm` called `_parse_first_json`, which had moved to another
     module. The call sits inside a try/except that converts any failure into a
@@ -248,7 +252,8 @@ class TestNoUndefinedNames:
             import pytest
             pytest.skip("pyflakes not installed")
 
-        files = sorted(str(p) for p in Path("subversionbench").glob("*.py"))
+        files = (sorted(str(p) for p in Path("subversionbench").glob("*.py"))
+                 + sorted(str(p) for p in Path("trends").glob("*.py")))
         result = subprocess.run(
             [sys.executable, "-m", "pyflakes", *files],
             capture_output=True, text=True)
@@ -282,9 +287,13 @@ class TestNoUndefinedNames:
         something it no longer touches, which is what made the earlier splits
         harder to verify than they should have been.
 
-        Scoped to the package rather than the tests, and the allowlist is by
+        Scoped to the packages rather than the tests, and the allowlist is by
         FILENAME with a stated reason, so a new dead import anywhere else fails
         here rather than accumulating.
+
+        `trends/__init__.py` re-exports 70 names and is not on the allowlist,
+        because it declares every one of them in `__all__` - which is the point
+        of asking for a declaration rather than an exemption.
         """
         import subprocess
         import sys
@@ -296,7 +305,8 @@ class TestNoUndefinedNames:
             import pytest
             pytest.skip("pyflakes not installed")
 
-        files = sorted(str(p) for p in Path("subversionbench").rglob("*.py"))
+        files = (sorted(str(p) for p in Path("subversionbench").rglob("*.py"))
+                 + sorted(str(p) for p in Path("trends").rglob("*.py")))
         result = subprocess.run(
             [sys.executable, "-m", "pyflakes", *files],
             capture_output=True, text=True)

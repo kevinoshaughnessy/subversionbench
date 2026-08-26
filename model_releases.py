@@ -2,9 +2,9 @@
 """
 When each evaluated model was released, keyed by its OpenRouter ID.
 
-WHY THIS IS A LIST AND family_trends.py IS NOT
+WHY THIS IS A LIST AND trends/model_ids.py IS NOT
 ----------------------------------------------
-family_trends.py refuses to enumerate its families, because a hand-written list
+trends/model_ids.py refuses to enumerate its families, because a hand-written list
 goes stale the day the next model is collected, and goes stale SILENTLY. The
 opposite reasoning applies here. A release date cannot be derived from an ID -
 nothing in the string `x-ai/grok-4.5` says July 8th - so the only options are to
@@ -72,7 +72,7 @@ RELEASE_DATES = {
     # google
     "google/gemini-3-flash-preview": date(2025, 12, 17),
     # A tier of its own, not a version of gemini-flash - see QUALIFIER_TAGS in
-    # family_trends.py on why `lite` defines a family rather than a stage.
+    # trends/model_ids.py on why `lite` defines a family rather than a stage.
     "google/gemini-3.1-flash-lite": date(2026, 5, 7),
     "google/gemini-3.5-flash": date(2026, 5, 19),
     "google/gemini-3.6-flash": date(2026, 7, 21),
@@ -183,7 +183,7 @@ def disagreements(ordered_families):
     """
     Where a family's version order contradicts its release dates.
 
-    Takes what family_trends.group_families() returns - a mapping of family key
+    Takes what trends.group_families() returns - a mapping of family key
     to the members in version order - and reports any family whose dates do not
     ascend along that order. The version order is a parse of a naming
     convention; the dates are a fact, so a disagreement means the parse is

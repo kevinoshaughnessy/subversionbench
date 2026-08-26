@@ -5,14 +5,14 @@ A table of hand-entered constants does not need testing for its own sake - the
 values are either transcribed right or they are not, and no assertion here can
 tell. What is worth pinning is the SHAPE the lookups assume (keys carry a
 provider, dates are date objects, the stem fallback is not ambiguous) and the
-cross-check against family_trends.py, because that is the only place the two
+cross-check against the trends package, because that is the only place the two
 files can contradict each other.
 """
 
 from datetime import date
 
-import family_trends as ft
 import model_releases as mr
+import trends as ft
 
 
 class TestTheTableIsWellFormed:

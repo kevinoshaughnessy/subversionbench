@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "88.0.0"
+version = "89.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -36,10 +36,10 @@ dependencies = [
 # httpx.Request/Response rather than a stand-in that would not exercise the
 # actual exception attributes (status_code) the retry logic reads.
 #
-# matplotlib draws the family_trends.py charts and nothing else. It is an EXTRA
-# rather than a dependency because every number it plots is already printed as a
-# table and written to JSON: a chart is a second reading of the same figures, so
-# an install that skips it loses presentation and no analysis. family_trends.py
+# matplotlib draws the trends/ charts and nothing else. It is an EXTRA rather
+# than a dependency because every number it plots is already printed as a table
+# and written to JSON: a chart is a second reading of the same figures, so an
+# install that skips it loses presentation and no analysis. The trends CLI
 # degrades to tables with an install hint rather than failing.
 test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx"]
 charts = ["matplotlib>=3.8"]
@@ -50,4 +50,9 @@ openai = ["openai>=1.0.0"]
 subversionbench = "subversionbench.run_eval:main"
 
 [tool.setuptools.packages.find]
+# `trends` is deliberately NOT included, even though it is a package rather than
+# a root script. It imports run_report and model_releases, which are root
+# scripts and are not installed either, so shipping it would install something
+# that cannot import. Like the other analysis entry points it is run from a
+# checkout: python3 -m trends.
 include = ["subversionbench*"]

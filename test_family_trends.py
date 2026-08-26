@@ -1,5 +1,5 @@
 """
-family_trends.py: deriving model families from IDs, and trending along them.
+The trends package: deriving model families from IDs, and trending along them.
 
 The families are never enumerated, so the parse IS the feature - a rule that is
 wrong about one ID puts a model in the wrong family, or in none, and the report
@@ -10,8 +10,9 @@ every real ID in the r9 corpus and the shapes a future one is likely to take.
 import json
 import os
 import tempfile
+from datetime import date
 
-import family_trends as ft
+import trends as ft
 from test_run_report import _write_summary
 
 
@@ -752,14 +753,14 @@ class TestTheReleaseSpan:
 
     def test_it_runs_from_the_floor_to_the_newest_model(self):
         span = ft.release_span(self._report("2026-01-27", "2026-04-20"))
-        assert span == (ft.RELEASE_AXIS_START, ft.date(2026, 4, 20))
+        assert span == (ft.RELEASE_AXIS_START, date(2026, 4, 20))
 
     def test_the_floor_does_not_clip_the_earliest_model_in_this_corpus(self):
         """The floor is only useful while it stays behind every plotted point.
         r9's earliest family member is kimi-k2-thinking on 2025-11-06, so a
         floor later than that would push a real point off the axis - and
         release_span would silently drag it back, undoing the setting."""
-        assert ft.RELEASE_AXIS_START <= ft.date(2025, 11, 6)
+        assert ft.RELEASE_AXIS_START <= date(2025, 11, 6)
 
     def test_the_start_is_fixed_rather_than_the_earliest_model(self):
         """Otherwise adding an older model silently rescales every chart in the
@@ -771,7 +772,7 @@ class TestTheReleaseSpan:
         """The floor is a default, not a clip: a point drawn outside the axis is
         worse than an axis that starts earlier than asked for."""
         span = ft.release_span(self._report("2024-03-01", "2026-06-01"))
-        assert span[0] == ft.date(2024, 3, 1)
+        assert span[0] == date(2024, 3, 1)
 
     def test_no_recorded_date_anywhere_is_none_rather_than_an_empty_axis(self):
         assert ft.release_span(self._report(None, None)) is None
@@ -790,11 +791,11 @@ class TestTheReleaseSpan:
 
 class TestTheReleaseLabelLayout:
     def _span(self):
-        return (ft.date(2025, 7, 1), ft.date(2026, 7, 1))
+        return (date(2025, 7, 1), date(2026, 7, 1))
 
     def test_two_points_close_on_both_axes_get_separate_rows(self):
-        points = [("a", ft.date(2026, 1, 1), 20.0),
-                  ("b", ft.date(2026, 1, 3), 21.0)]
+        points = [("a", date(2026, 1, 1), 20.0),
+                  ("b", date(2026, 1, 3), 21.0)]
         layout = ft._date_label_layout(points, self._span(), 100.0)
         assert layout["a"][1] != layout["b"][1]
 
@@ -802,14 +803,14 @@ class TestTheReleaseLabelLayout:
         """deepseek's flash and pro shipped the same day at very different
         rates. Staggering them would spend vertical space on a collision that
         is not happening."""
-        points = [("a", ft.date(2026, 4, 24), 22.0),
-                  ("b", ft.date(2026, 4, 24), 43.0)]
+        points = [("a", date(2026, 4, 24), 22.0),
+                  ("b", date(2026, 4, 24), 43.0)]
         layout = ft._date_label_layout(points, self._span(), 100.0)
         assert layout["a"][1] == layout["b"][1]
 
     def test_a_label_near_the_right_edge_is_written_leftward(self):
-        points = [("early", ft.date(2025, 8, 1), 10.0),
-                  ("late", ft.date(2026, 7, 1), 10.0)]
+        points = [("early", date(2025, 8, 1), 10.0),
+                  ("late", date(2026, 7, 1), 10.0)]
         layout = ft._date_label_layout(points, self._span(), 100.0)
         assert layout["early"][0] > 0 and layout["early"][2] == "left"
         assert layout["late"][0] < 0 and layout["late"][2] == "right"
@@ -817,15 +818,15 @@ class TestTheReleaseLabelLayout:
     def test_a_label_at_the_ceiling_hangs_below_its_point(self):
         """100% is a real answer in this corpus, and a label above one prints
         over the title."""
-        points = [("top", ft.date(2026, 1, 1), 100.0),
-                  ("mid", ft.date(2025, 9, 1), 40.0)]
+        points = [("top", date(2026, 1, 1), 100.0),
+                  ("mid", date(2025, 9, 1), 40.0)]
         layout = ft._date_label_layout(points, self._span(), 100.0)
         assert layout["top"][1] < 0 and layout["top"][3] == "top"
         assert layout["mid"][1] > 0 and layout["mid"][3] == "bottom"
 
     def test_a_label_at_zero_is_lifted_clear_of_the_axis(self):
         """Centred on the point, half of it prints over the spine."""
-        points = [("floor", ft.date(2026, 1, 1), 0.0)]
+        points = [("floor", date(2026, 1, 1), 0.0)]
         layout = ft._date_label_layout(points, self._span(), 100.0)
         assert layout["floor"][1] > 0
 
@@ -835,10 +836,10 @@ class TestTheReleaseLabelLayout:
         and 3.6 sat 63 days apart with 3.6 near the right edge, so 3.6's label
         was written leftward into 3.5's, which was written rightward. The test
         has to be on the label boxes and the side each is written on."""
-        span = (ft.date(2025, 7, 1), ft.date(2026, 8, 13))
+        span = (date(2025, 7, 1), date(2026, 8, 13))
         labels = {"a": "3.5\n0.5% [0.1, 2.7]", "b": "3.6\n0.0% [0.0, 3.1]"}
-        points = [("a", ft.date(2026, 5, 19), 0.5),
-                  ("b", ft.date(2026, 7, 21), 0.0)]
+        points = [("a", date(2026, 5, 19), 0.5),
+                  ("b", date(2026, 7, 21), 0.0)]
         layout = ft._date_label_layout(points, span, 30.0, labels,
                                        axis_width_pt=ft._PER_FAMILY_AXIS_PT)
         # b is near the right edge, so it leans left - into a.
@@ -849,11 +850,11 @@ class TestTheReleaseLabelLayout:
         """The other half of the same chart's collision. A row height fixed at
         one line stacked two two-line labels on each other, which is a
         collision produced by the mechanism meant to prevent one."""
-        span = (ft.date(2025, 7, 1), ft.date(2026, 8, 13))
+        span = (date(2025, 7, 1), date(2026, 8, 13))
         one = {"a": "3.6", "b": "3.7"}
         two = {"a": "3.6\n0.0% [0.0, 3.1]", "b": "3.7\n0.0% [0.0, 3.1]"}
-        points = [("a", ft.date(2026, 7, 21), 0.0),
-                  ("b", ft.date(2026, 8, 13), 0.0)]
+        points = [("a", date(2026, 7, 21), 0.0),
+                  ("b", date(2026, 8, 13), 0.0)]
         gap_one = abs(ft._date_label_layout(points, span, 30.0, one)["b"][1]
                       - ft._date_label_layout(points, span, 30.0, one)["a"][1])
         gap_two = abs(ft._date_label_layout(points, span, 30.0, two)["b"][1]
@@ -1745,3 +1746,130 @@ class TestACaptionNeverWidensTheFigure:
                 "this rate reads both channels, so those models could only "
                 "show awareness in visible text and the other 13 in either")
         assert ft._wrap_caption(text).split() == text.split()
+
+
+class TestTheAnalysisDoesNotDependOnTheDrawing:
+    """The seam the package is split on, asserted rather than described.
+
+    The old single file said in its own comments that matplotlib was optional
+    and that "losing the charts costs presentation, never analysis" - but
+    nothing checked it, and nothing could: with the drawing and the p-values in
+    one module, importing either imported both. These are the tests that make
+    the claim mean something, and they are the reason to keep the boundary where
+    it is when the next chart is added.
+    """
+
+    ANALYSIS = ("model_ids", "metrics", "report")
+    NO_PYPLOT = ANALYSIS + ("chart_geometry", "captions")
+
+    def _imports(self, leaf):
+        import ast
+        names = set()
+        tree = ast.parse(open(f"trends/{leaf}.py").read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names |= {a.name for a in node.names}
+            elif isinstance(node, ast.ImportFrom):
+                names.add(("." * node.level) + (node.module or ""))
+        return names
+
+    def test_the_analysis_modules_import_no_chart_module(self):
+        """Not a style preference. `report.py` is what the console, the charts
+        and the JSON all read, and a report that imported a chart module could
+        not be computed on a machine without matplotlib installed."""
+        charts = {".chart_style", ".chart_geometry", ".captions",
+                  ".version_charts", ".date_charts", ".charts"}
+        for leaf in self.ANALYSIS:
+            crossed = self._imports(leaf) & charts
+            assert not crossed, f"trends/{leaf}.py imports {sorted(crossed)}"
+
+    def test_only_chart_style_reaches_matplotlib(self):
+        """One import site for the optional dependency, so the install hint is
+        printed in one place and cannot be bypassed by a second import."""
+        import glob
+        import os
+        offenders = []
+        for path in sorted(glob.glob("trends/*.py")):
+            if os.path.basename(path) == "chart_style.py":
+                continue
+            body = open(path).read()
+            if "import matplotlib" in body or "matplotlib.pyplot" in body:
+                offenders.append(path)
+        assert not offenders, (
+            f"these reach matplotlib directly rather than through "
+            f"chart_style._import_pyplot: {offenders}")
+
+    def test_the_layout_and_caption_passes_never_draw(self):
+        """They are the part of the chart code most likely to be wrong, and they
+        are testable without the optional dependency only while this holds: a
+        layout that took an `ax` would have to be exercised through a figure."""
+        for leaf in self.NO_PYPLOT:
+            assert not any("matplotlib" in n for n in self._imports(leaf)), leaf
+
+    def test_the_analysis_modules_import_in_a_bare_environment(self):
+        """The claim itself, run rather than inferred from the imports: every
+        module above loads with matplotlib made unimportable."""
+        import subprocess
+        import sys
+        script = (
+            "import builtins, sys\n"
+            "real = builtins.__import__\n"
+            "def blocked(name, *a, **k):\n"
+            "    if name.split('.')[0] == 'matplotlib':\n"
+            "        raise ImportError('no matplotlib')\n"
+            "    return real(name, *a, **k)\n"
+            "builtins.__import__ = blocked\n"
+            "from trends.report import build_report\n"
+            "from trends.chart_geometry import axis_top, release_span\n"
+            "from trends.captions import _exposure_note\n"
+            "assert axis_top([3.0]) == 5\n"
+            "print('ok')\n")
+        out = subprocess.run([sys.executable, "-c", script],
+                             capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        assert "ok" in out.stdout
+
+    def test_the_charts_still_degrade_rather_than_fail(self):
+        """The other half of "optional": write_charts returns no paths and the
+        report is unaffected. This is what the analysis/presentation split is
+        FOR, so it is asserted here and not only where charts are drawn."""
+        import trends.chart_style as style
+        saved = style._import_pyplot
+        style._import_pyplot = lambda: None
+        try:
+            assert ft.write_charts({"metric": "misaligned", "families": []},
+                                   tempfile.mkdtemp()) == []
+        finally:
+            style._import_pyplot = saved
+
+
+class TestTheSingleImportSite:
+    def test_every_name_the_package_offers_is_declared(self):
+        """`trends/__init__.py` re-exports 70 names, most of them private, and
+        without `__all__` each one reads as a stray import to the dead-import
+        guard. So the declaration is the interface, and this is what keeps it
+        from going stale in either direction."""
+        import trends
+        declared = set(trends.__all__)
+        reachable = {n for n in dir(trends)
+                     if not n.startswith("__")
+                     and n not in {"captions", "chart_geometry", "chart_style",
+                                   "charts", "console", "date_charts",
+                                   "family_trends", "metrics", "model_ids",
+                                   "report", "version_charts"}}
+        assert declared == reachable, (
+            f"declared but absent: {sorted(declared - reachable)}; "
+            f"present but undeclared: {sorted(reachable - declared)}")
+
+    def test_no_test_rebinds_a_name_through_the_package(self):
+        """Why the re-export is safe. A function resolves globals in ITS OWN
+        module, so patching `trends.axis_top` would not reach a caller that
+        lives in trends/version_charts.py - it would silently assert nothing.
+        A config.py re-export walked into exactly that."""
+        import re
+        body = open(__file__).read()
+        offenders = re.findall(r"(?:setattr\(ft,|ft\.\w+\s*=(?!=))", body)
+        assert not offenders, (
+            f"rebound through the package rather than on the module that "
+            f"defines the name: {offenders}. Patch the submodule instead - see "
+            f"test_the_charts_still_degrade_rather_than_fail.")

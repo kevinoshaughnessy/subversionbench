@@ -64,7 +64,7 @@ import textwrap
 # Chart conventions
 # ---------------------------------------------------------------------------
 #
-# These repeat family_trends.py rather than importing from it. The two scripts
+# These repeat trends/chart_style.py rather than importing from it. The two
 # are separate entry points over the same corpus and neither imports the other
 # today; coupling them so that a chart tweak for one moves the other's output is
 # a worse trade than duplicating four constants and a ten-line import guard.
@@ -328,7 +328,7 @@ def _wrap(text: str, width: int = _CAPTION_WRAP) -> str:
     Captions sit outside the axes, so `bbox_inches="tight"` grows the whole
     image to fit an over-long line: the axes keep their size and the chart ends
     up in a corner. break_on_hyphens is off for the same reason it is off in
-    family_trends.py - these captions name models, and half of
+    the trends package - these captions name models, and half of
     `google/gemini-3-flash-preview` names a different model in this corpus.
     """
     return "\n".join(
@@ -528,7 +528,7 @@ class _BelowAxes:
             frameon=True, framealpha=0.9, borderaxespad=0.0)
         # Measured, not estimated: the box's height depends on the column count
         # and on how long the longest label is, and two earlier attempts at
-        # guessing it in family_trends.py each put a caption inside the box.
+        # guessing it in the trends charts each put a caption inside the box.
         self.fig.canvas.draw()
         extent = legend.get_window_extent()
         self.y = (self.fig.transFigure.inverted().transform(extent)[0][1]
