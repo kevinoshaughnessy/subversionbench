@@ -7,6 +7,7 @@ once and saved nowhere.
 
 import ast
 import inspect
+import math
 
 from subversionbench.reporting.facts import batch_facts, normalise_analyses
 import subversionbench.run_eval as ev_run
@@ -79,6 +80,34 @@ def _returned_figures():
                 and isinstance(node.value, ast.Dict)):
             out |= {k.value for k in node.value.keys if isinstance(k, ast.Constant)}
     return out - set(pkg.INTERNAL_FIGURES)
+
+def _carries(stored, fact) -> bool:
+    """Whether `stored` is `fact`, allowing for the rounding the summary applies.
+
+    Not exact equality, and the difference is not floating-point noise: the
+    summary stores `round(p_cross, 5)` deliberately, because a p-value beyond
+    five places is noise. So the stored figure and the computed one differ
+    whenever the value is not already round.
+
+    Exact equality therefore passed here for the wrong reason. On macOS the
+    fixture's p_cross is exactly 1.0, so the rounding is a no-op and the
+    assertion held; the same computation on Linux lands on 0.9999999999999996
+    and it failed. The route was carrying the figure correctly on both, and any
+    figure that did not happen to be round would have failed on either.
+
+    The tolerance is the rounding actually applied rather than an arbitrary
+    epsilon: 5e-6 is half of the last place `round(..., 5)` keeps, so a
+    genuinely different figure still fails. Non-floats - the counts, which are
+    every other route - keep exact equality.
+
+    BOTH floats, not either: a count of 1 and a p-value of 0.9999996 are close
+    numerically and are not the same quantity, so a route pointed at the wrong
+    field would pass. Types differing is itself a signal, and stays exact.
+    """
+    if isinstance(stored, float) and isinstance(fact, float):
+        return math.isclose(stored, fact, rel_tol=1e-9, abs_tol=5e-6)
+    return stored == fact
+
 
 class TestEveryFigureReachesTheSummaryFile:
     """What the report shows must be re-derivable from disk.
@@ -160,7 +189,7 @@ class TestEveryFigureReachesTheSummaryFile:
             for part in path.split("."):
                 assert node is not None, f"{path} runs through a None for {figure}"
                 node = node[part]
-            assert node == facts[figure], (
+            assert _carries(node, facts[figure]), (
                 f"summary.{path} is {node!r} but facts[{figure!r}] is "
                 f"{facts[figure]!r} - the route no longer carries the figure")
 
