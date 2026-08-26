@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [Methodology](methodology.md) · [Scenario](scenario.md) · [Operations](operations.md) · [Report](report.md) · [Trends](trends.md)
 
-`run_report.py` answers twelve fixed research questions across every model in a results
+The `report/` package answers twelve fixed research questions across every model in a results
 directory, prints them as tables, and writes the whole thing as JSON. It calls no API and
 costs nothing: everything it reports is derived from summary and run files already on disk.
 
@@ -11,7 +11,7 @@ Where [`--compare`](operations.md#comparing-two-arms) differences two arms of on
 question at a time, pooled across models, with the per-model breakdown underneath.
 
 ```bash
-python run_report.py --output-dir eval_results_r9
+python3 -m report --output-dir eval_results_r9
 ```
 
 Writes `research_report_<timestamp>.json` into `--output-dir` unless `--json-out` says

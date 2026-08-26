@@ -33,12 +33,15 @@ def _listed_files() -> set:
 
 # Every package in the repository, so the Layout is checked against all of them
 # rather than against whichever one existed when this file was written. `trends/`
-# was split out of a root script and would otherwise have gone unlisted module
-# by module - silently, which is the exact drift this file exists to catch.
+# and `report/` were both split out of root scripts and would otherwise have gone
+# unlisted module by module - silently, which is the exact drift this file exists
+# to catch.
+PACKAGES = ("subversionbench", "trends", "report")
+
+
 def _package_modules() -> list:
-    return sorted(
-        p for root in ("subversionbench", "trends")
-        for p in glob.glob(f"{root}/**/*.py", recursive=True))
+    return sorted(p for root in PACKAGES
+                  for p in glob.glob(f"{root}/**/*.py", recursive=True))
 
 
 class TestEveryModuleIsListed:

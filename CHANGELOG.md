@@ -10,6 +10,45 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v90
+
+Package version `90.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **`run_report.py` is now the `report/` package.** It was 1,956 lines under six
+  section banners - Loading, Pooling and contrasts, the questions, the
+  interrogation phrasing axes, Console printing, main. A banner is a file
+  boundary that someone declined to draw: it says these lines are a separate
+  concern while leaving them where a reader has to scroll past everything else
+  to reach them. Each banner is now a module.
+- **The twelve questions are grouped by what the EXPOSURE is**, which is the
+  distinction they actually turn on: `questions_arms` (1-4) where the exposure
+  is an arm the design assigned, `questions_awareness` (5-10) where it is
+  something the model did, `questions_paired` (11-12) where every phrasing is
+  put to the same act. That is the difference between an effect of a
+  manipulation, an association within the arms the design did set, and a
+  within-subject comparison needing McNemar rather than Fisher - so a reader who
+  knows which group a question is in knows which of the three it can support.
+- **The banner said "the six questions".** There have been twelve since v64.
+- **`_text_reachable_block` was filed under Loading and is not a loader.** It
+  pools, contrasts, stratifies and measures agreement - a question-shaped block,
+  used only by questions 2 and 4. It was also the one thing making the section
+  order circular: everything else in Loading depends on nothing, while that
+  function reached forward into pooling and data quality.
+- **Data quality is separated from loading.** The loaders say what the files
+  hold; `data_quality.py` says where they disagree with each other, where an arm
+  was collected twice, and where a rate rests on too few episodes to read.
+- **Six structural guards**, each verified by planting the violation it catches:
+  pooling knows no question, loading imports no sibling, the three question
+  groups do not import each other, the console reaches no statistic beyond the
+  informative-denominator threshold, every question is in exactly one group, and
+  the package's `__all__` matches what it actually offers.
+- **`python3 -m report`**, replacing `python3 run_report.py`, with `__main__.py`
+  and a named `prog` for the same two reasons `trends` has them.
+- Verified by re-running the full report before and after: identical console
+  output, identical JSON apart from its timestamp and the chart paths, and all
+  thirteen charts byte-identical.
+
 ## v89
 
 Package version `89.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

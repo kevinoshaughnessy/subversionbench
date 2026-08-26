@@ -101,7 +101,7 @@ def relabel_variant_answers(analysis: dict, acts, model: str,
     was made with. Re-labelling the copy INDEPENDENTLY would be worse still -
     two verdicts for one phrasing, sampled separately, with nothing to say which
     the comparison used. The default side of every comparison is read from the
-    headline field; see run_report.load_episodes.
+    headline field; see report.load_episodes.
 
     `only_failed` re-asks just the answers whose verdict came from the keyword
     floor, which is the repair case. False re-labels every variant answer, for

@@ -72,7 +72,7 @@ import sys
 import time
 from pathlib import Path
 
-import run_report
+from report import awareness_arm_rows, load_episodes, load_summaries
 from subversionbench.config import ROLLOUT_VERSION, VERSION
 from subversionbench.power import (spearman, spearman_leave_one_out, wilson_ci)
 from subversionbench.redaction import redact_paths
@@ -241,7 +241,7 @@ def awareness_by_model(output_dir: str) -> dict:
     only, so the arms are rebuilt from episodes for it.
     """
     pooled = {}
-    for row in run_report.load_summaries(output_dir):
+    for row in load_summaries(output_dir):
         entry = pooled.setdefault(row["model"], {
             "n_aware": 0, "n_aware_text": 0, "n": 0, "n_episodes": 0,
             "episodes_with_reasoning": 0})
@@ -249,8 +249,7 @@ def awareness_by_model(output_dir: str) -> dict:
         entry["n"] += row["n_awareness_resolved"]
         entry["n_episodes"] += row["n_runs"]
         entry["episodes_with_reasoning"] += row["episodes_with_reasoning"]
-    for row in run_report.awareness_arm_rows(
-            run_report.load_episodes(output_dir)):
+    for row in awareness_arm_rows(load_episodes(output_dir)):
         entry = pooled.get(row["model"])
         if entry is None:
             continue

@@ -321,10 +321,19 @@ zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
-run_report.py      twelve fixed research questions (oversight/nudge vs scheming,
+report/            twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,
                    override and escape; interrogation phrasing vs concealment)
                    answered across every model in a results directory
+  loading.py       the two loaders, and the arms rebuilt from episodes
+  data_quality.py  where the corpus disagrees with itself
+  pooling.py       pooling, contrasts, strata, consistency. No question attached
+  questions_arms.py       Q1-4: the exposure is an arm the design assigned
+  questions_awareness.py  Q5-10: the exposure is something the model did
+  questions_paired.py     Q11-12: every phrasing put to the same act, so paired
+  console.py       the report as a table on a terminal. Computes nothing
+  run_report.py    the CLI, and which questions the report holds
+  __main__.py      `python3 -m report`, so the CLI is never run twice
 report_charts.py   a forest plot per research question with the `charts` extra:
                    every model's effect and interval, then the crude pooled and
                    model-stratified estimates, so a crude result resting on one

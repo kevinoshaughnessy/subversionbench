@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "89.0.0"
+version = "90.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -50,9 +50,10 @@ openai = ["openai>=1.0.0"]
 subversionbench = "subversionbench.run_eval:main"
 
 [tool.setuptools.packages.find]
-# `trends` is deliberately NOT included, even though it is a package rather than
-# a root script. It imports run_report and model_releases, which are root
-# scripts and are not installed either, so shipping it would install something
-# that cannot import. Like the other analysis entry points it is run from a
-# checkout: python3 -m trends.
+# `trends` and `report` are deliberately NOT included, even though both are
+# packages rather than root scripts. `report` imports report_charts and `trends`
+# imports model_releases, which ARE root scripts and are not installed, so
+# shipping either would install something that cannot import. Like the other
+# analysis entry points they run from a checkout: `python3 -m report`,
+# `python3 -m trends`.
 include = ["subversionbench*"]

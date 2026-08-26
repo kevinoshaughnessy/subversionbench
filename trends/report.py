@@ -28,7 +28,7 @@ import time
 from datetime import date, timedelta
 
 from model_releases import release_date
-from run_report import awareness_arm_rows, load_episodes, load_summaries
+from report import awareness_arm_rows, load_episodes, load_summaries
 from subversionbench.config import ROLLOUT_VERSION, VERSION
 from subversionbench.power import (MIN_INFORMATIVE_DENOMINATOR,
                                    benjamini_hochberg, cochran_armitage,

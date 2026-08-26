@@ -10,7 +10,7 @@ along that order. It calls no API.
 
 Read [docs/report.md](report.md) first for the twelve questions and the
 stratified machinery both scripts share - the rates here come through
-`run_report.load_summaries`, so a family's figure here and a model's figure
+`report.load_summaries`, so a family's figure here and a model's figure
 there cannot disagree.
 
 ```bash
@@ -26,7 +26,7 @@ each and sharing one timestamp across them so a single run's files sort together
 expanded into ordinary single-metric runs rather than a second code path, and it refuses
 `--json-out`, since one path cannot hold three reports.
 
-It reads its rates through `run_report.load_summaries`, so a family's figure here and a
+It reads its rates through `report.load_summaries`, so a family's figure here and a
 model's figure there cannot disagree.
 
 ## Families are derived, never listed

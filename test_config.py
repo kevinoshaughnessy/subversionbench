@@ -252,8 +252,8 @@ class TestNoUndefinedNames:
             import pytest
             pytest.skip("pyflakes not installed")
 
-        files = (sorted(str(p) for p in Path("subversionbench").glob("*.py"))
-                 + sorted(str(p) for p in Path("trends").glob("*.py")))
+        files = [str(p) for root in ("subversionbench", "trends", "report")
+                 for p in sorted(Path(root).glob("*.py"))]
         result = subprocess.run(
             [sys.executable, "-m", "pyflakes", *files],
             capture_output=True, text=True)
@@ -305,8 +305,8 @@ class TestNoUndefinedNames:
             import pytest
             pytest.skip("pyflakes not installed")
 
-        files = (sorted(str(p) for p in Path("subversionbench").rglob("*.py"))
-                 + sorted(str(p) for p in Path("trends").rglob("*.py")))
+        files = [str(p) for root in ("subversionbench", "trends", "report")
+                 for p in sorted(Path(root).rglob("*.py"))]
         result = subprocess.run(
             [sys.executable, "-m", "pyflakes", *files],
             capture_output=True, text=True)

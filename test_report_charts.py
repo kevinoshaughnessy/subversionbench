@@ -16,7 +16,7 @@ import tempfile
 import pytest
 
 import report_charts as rc
-import run_report
+import report as run_report
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +237,14 @@ class TestTheArmsAreNamedInWords:
                   if n.startswith("question_") and f"{n}(" in source]
         assert len(called) == 12
         for name in called:
-            assert getattr(run_report, name).__module__ == "run_report"
+            # Defined in one of the three question modules, not merely reachable
+            # through the package. This was `== "run_report"` while the report
+            # was one file; the check it was making - that each name is a real
+            # question function rather than an alias to something else - now
+            # also pins the grouping, so a question cannot drift into loading.py
+            # or console.py and keep passing.
+            module = getattr(run_report, name).__module__
+            assert module.startswith("report.questions_"), (name, module)
 
     def test_an_unknown_exposure_falls_back_to_the_raw_level(self):
         """A chart with an ugly axis still carries its numbers; raising here

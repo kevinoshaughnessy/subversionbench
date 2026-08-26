@@ -79,6 +79,7 @@ class TestEveryImportedPackageIsDeclared:
         imported = set()
         for path in (glob.glob("subversionbench/**/*.py", recursive=True)
                      + glob.glob("trends/*.py")
+                     + glob.glob("report/*.py")
                      + glob.glob("*.py") + glob.glob("test_*/*.py")):
             for node in ast.walk(ast.parse(Path(path).read_text())):
                 if isinstance(node, ast.Import):

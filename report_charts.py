@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Charts for the twelve research questions answered by run_report.py.
+Charts for the twelve research questions answered by the report package.
 
 Every number drawn here is already in that script's printed output and in its
 JSON. A chart is a second reading of the same figures, never a new claim, which
@@ -142,7 +142,7 @@ def _import_matplotlib():
 #
 # A contrast stores its levels as the raw values it split on - True/False for
 # oversight and for awareness, "max"/"none" for nudge - and the words that make
-# those readable live at each question's call site in run_report.py, inside a
+# those readable live at each question's call site in report/, inside a
 # `finding` sentence that is already composed by the time it reaches here.
 #
 # So the words are rebuilt from the exposure named in the question id. Keyed by

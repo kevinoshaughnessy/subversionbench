@@ -1,5 +1,5 @@
 """
-run_report.py: pooling, contrasts, and the two loaders it builds them from.
+The report package: pooling, contrasts, and the two loaders it builds them from.
 
 Two data sources feed the twelve questions - summary_*.json (questions 1-4)
 and run_*.json episodes (questions 5-12, which need an outcome conditioned
@@ -16,7 +16,7 @@ import tempfile
 
 import pytest
 
-import run_report as rr
+import report as rr
 
 
 def _single(report):
@@ -1186,3 +1186,107 @@ class TestTheDefaultPhrasingArmSurvivesADroppedCopy:
             self._write(out, 1, {})
             episode = rr.load_episodes(out)[0]
             assert episode["variant_concealed"] == {}
+
+
+class TestTheLayersDoNotPointBackwards:
+    """The split is only worth having while these hold.
+
+    Six section banners in one 1,956-line file said these were separate
+    concerns; nothing checked it, and nothing could, because a banner is not a
+    boundary. These are the tests that make the claim mean something.
+    """
+
+    QUESTION_MODULES = ("questions_arms", "questions_awareness",
+                        "questions_paired")
+
+    def _imports(self, leaf):
+        import ast
+        names = set()
+        for node in ast.walk(ast.parse(open(f"report/{leaf}.py").read())):
+            if isinstance(node, ast.Import):
+                names |= {a.name for a in node.names}
+            elif isinstance(node, ast.ImportFrom):
+                names.add(("." * node.level) + (node.module or ""))
+        return names
+
+    def test_pooling_does_not_know_which_question_it_serves(self):
+        """The reason twelve questions share one pooling implementation rather
+        than growing twelve slightly different ones. A `_contrast` that imported
+        a question could be special-cased for it, which is how two questions
+        end up reporting the same contrast differently.
+
+        The question half of this is belt and braces: every question module
+        imports pooling, so a pooling->question import is a cycle and the
+        interpreter refuses it before this test runs. The half that only this
+        test catches is loading and console, which pooling could import today
+        without any error at all.
+        """
+        reached = self._imports("pooling")
+        assert not any(m.lstrip(".") in self.QUESTION_MODULES for m in reached)
+        assert ".loading" not in reached and ".console" not in reached
+
+    def test_loading_is_the_bottom_layer(self):
+        """It says what the files hold and nothing else. A loader that pooled
+        could not be used by the questions that need the raw rows."""
+        reached = self._imports("loading")
+        for sibling in ("pooling", "data_quality", "console", "run_report",
+                        *self.QUESTION_MODULES):
+            assert f".{sibling}" not in reached, sibling
+
+    def test_the_question_groups_do_not_import_each_other(self):
+        """Assigned, observed and paired are three different claims. A question
+        that borrowed another group's helper would be reporting one shape of
+        evidence through machinery built for another."""
+        for leaf in self.QUESTION_MODULES:
+            others = {f".{m}" for m in self.QUESTION_MODULES if m != leaf}
+            crossed = self._imports(leaf) & others
+            assert not crossed, f"report/{leaf}.py imports {sorted(crossed)}"
+
+    def test_the_console_computes_no_statistic(self):
+        """Everything printed is read off the document build_report returns, so
+        the table and the JSON cannot disagree. The one power import allowed is
+        the informative-denominator THRESHOLD, which decides what to print
+        rather than what the number is."""
+        import ast
+        printed = set()
+        for node in ast.walk(ast.parse(open("report/console.py").read())):
+            if isinstance(node, ast.ImportFrom) and node.module == \
+                    "subversionbench.power":
+                printed |= {a.name for a in node.names}
+        assert printed <= {"MIN_INFORMATIVE_DENOMINATOR"}, (
+            f"console.py reaches statistical machinery: "
+            f"{sorted(printed - {'MIN_INFORMATIVE_DENOMINATOR'})}")
+
+    def test_every_question_is_in_exactly_one_group(self):
+        """Twelve, once each. A question defined in two modules, or reachable
+        through the package but in neither group, is how the count in
+        test_report_charts drifts away from what build_report calls."""
+        import importlib
+        seen = {}
+        for leaf in self.QUESTION_MODULES:
+            module = importlib.import_module(f"report.{leaf}")
+            for name in dir(module):
+                if name.startswith("question_") and \
+                        getattr(module, name).__module__ == module.__name__:
+                    assert name not in seen, (name, seen[name], leaf)
+                    seen[name] = leaf
+        assert len(seen) == 12, sorted(seen)
+        assert sorted(seen.values()).count("questions_paired") == 2
+
+
+class TestTheSingleImportSiteForTheReport:
+    def test_every_name_the_package_offers_is_declared(self):
+        """`report/__init__.py` re-exports mostly PRIVATE names, which the tests
+        reach through this one site rather than through whichever module holds
+        them today. Without `__all__` each reads as a stray import to the
+        dead-import guard, and an exemption would have hidden a real one."""
+        import report
+        submodules = {"console", "data_quality", "loading", "pooling",
+                      "questions_arms", "questions_awareness",
+                      "questions_paired", "run_report"}
+        reachable = {n for n in dir(report)
+                     if not n.startswith("__") and n not in submodules}
+        declared = set(report.__all__)
+        assert declared == reachable, (
+            f"declared but absent: {sorted(declared - reachable)}; "
+            f"present but undeclared: {sorted(reachable - declared)}")
