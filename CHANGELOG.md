@@ -45,10 +45,25 @@ Interrupting a 12-arm batch now stops it.
   one form of the question both shells answer alike. Reproduced on both before
   and after: the empty-readback version passes on bash 3.2 and fails on bash
   5.2, which is the whole of why a green local run is half the evidence.
-- `INT` and `TERM` traps added for the cases they do cover, each naming what was
-  collected and how to resume. Four signal cases are pinned by test, including
-  the one that already worked, so a future trap cannot quietly take a working
-  path away.
+- **No signal handler is held while the arms run, and two attempts to hold one
+  were abandoned on evidence.** With any handler installed, a signal arriving
+  while bash parses an arm's existing-file lookup — a here-string wrapping a
+  command substitution wrapping a here-document — leaves bash unable to parse the
+  handler it then has to run: `trap: line 2: unexpected EOF while looking for
+  matching ')'`, and exit 2, a syntax error, in place of the stop it had just
+  promised. Signal sent at the same point 30 times per shell: bash 3.2 never did
+  it, bash 5.2 did it 12 times. Reducing the handler to a bare assignment did not
+  help, which ruled out the handler's own complexity — it is the parse that
+  breaks. A trap that turns a stop request into a syntax error two runs in five
+  on the platform CI uses is worse than no trap, since bash's default action
+  already stops the script reliably on both. After removal: 0 of 30, and no run
+  started a further arm.
+- What the signal tests assert is therefore that the batch **stops** — that no
+  further arm begins — rather than an exact exit status, which is now the
+  signal's rather than one this project picks. The first version of those tests
+  asserted 130 and 143 exactly and would have had to be rewritten the moment the
+  handler producing them was removed; the arm count is the claim that does not
+  move with the shell.
 - **Ctrl-Z does not stop a batch; it suspends one.** Nothing is spent while it
   sits there, so it looks stopped - and on `fg`, `bg` or SIGCONT every remaining
   arm runs to completion and the script exits 0. Documented rather than trapped:

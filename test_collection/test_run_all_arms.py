@@ -99,39 +99,47 @@ def _run_and_signal(how: str) -> tuple:
 
 
 class TestAnOperatorStopEndsTheBatch(unittest.TestCase):
-    """A stop request must not be absorbed by the one-bad-arm guard."""
+    """A stop request must not be absorbed by the one-bad-arm guard.
 
-    def test_a_signal_to_the_script_alone_stops_it(self):
-        """The case that was broken. The arm loop used to carry on to the next
-        arm, because the guard cannot tell a signal from a failed arm."""
-        rc, out = _run_and_signal("script-INT")
-        self.assertEqual(rc, 130, out)
-        self.assertIn("Stopped by SIGINT", out)
-        self.assertLess(out.count("would run:"), ARMS,
-                        f"every arm still started, so the stop was absorbed:\n{out}")
+    WHAT IS ASSERTED, AND WHAT DELIBERATELY IS NOT
+    ----------------------------------------------
+    That the batch STOPS - no further arm begins - and not the exact exit code.
+    The script holds no signal handler (run_all_arms.sh says why at length), so
+    stopping is bash's default action, and the status is then the signal's rather
+    than one this project chooses. An earlier version of these tests asserted
+    130 and 143 exactly, which passed here and turned into a CI failure the
+    moment the handler that produced those codes was removed for being unsafe.
+
+    The number of arms started is the durable claim. It is what the operator
+    actually cares about, it is what was broken, and it does not move with the
+    shell.
+    """
+
+    def _assert_stopped(self, how):
+        rc, out = _run_and_signal(how)
+        self.assertNotEqual(rc, 0, f"the script ran to completion:\n{out}")
+        self.assertLess(
+            out.count("would run:"), ARMS,
+            f"every arm still started, so the stop was absorbed:\n{out}")
+        self.assertNotIn(
+            "unexpected EOF", out,
+            "bash failed to parse while handling the signal - the failure mode "
+            "that removed the traps; something has reintroduced a handler")
+        self.assertNotEqual(
+            rc, 2, f"exit 2 is a bash syntax error, not a stop:\n{out}")
+        return rc, out
 
     def test_a_real_ctrl_c_stops_it(self):
-        """This case already worked, and is pinned so a future trap cannot take
-        a working path away."""
-        rc, out = _run_and_signal("group-INT")
-        self.assertIn(rc, (130, -signal.SIGINT), out)
-        self.assertLess(out.count("would run:"), ARMS, out)
+        """The way an operator actually stops a batch."""
+        self._assert_stopped("group-INT")
 
-    def test_sigterm_stops_it_and_says_how_to_resume(self):
-        """SIGTERM used to end the script mid-arm with no word on what had been
-        collected. The message matters: without it the next question is always
-        whether the half-collected arm has to be thrown away."""
-        rc, out = _run_and_signal("script-TERM")
-        self.assertEqual(rc, 143, out)
-        self.assertIn("Stopped by SIGTERM", out)
-        self.assertIn("re-run this script with no", out)
-        self.assertIn("--resume", out)
+    def test_a_signal_to_the_script_alone_stops_it(self):
+        self._assert_stopped("script-INT")
 
-    def test_the_stop_message_does_not_claim_the_arm_finished(self):
-        """A stop leaves one arm partly collected, and the resume path depends
-        on the reader knowing that."""
-        _, out = _run_and_signal("script-TERM")
-        self.assertIn("was not completed", out)
+    def test_sigterm_stops_it(self):
+        """`kill <pid>` with no signal named, which is what someone reaches for
+        when Ctrl-C has not worked."""
+        self._assert_stopped("script-TERM")
 
 
 class TestOneBadArmStillDoesNotEndTheBatch(unittest.TestCase):
