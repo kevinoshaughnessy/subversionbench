@@ -363,8 +363,10 @@ def build_forced_choice(scenario: dict = None, k: int = 4, seed: int = 0,
             per_source[source] = per_source[source][:limit]
 
     items = []
-    for pair in zip(*(per_source.get(s, []) for s in ("scenario", "control"))):
-        for source, (key, line) in zip(("scenario", "control"), pair):
+    for pair in zip(*(per_source.get(s, [])
+                      for s in ("scenario", "control")), strict=False):
+        for source, (key, line) in zip(("scenario", "control"), pair,
+                                       strict=True):
             decoys = []
             while len(decoys) < k - 1:
                 decoy = _perturb_numbers(line, rng)

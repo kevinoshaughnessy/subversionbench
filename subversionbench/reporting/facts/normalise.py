@@ -76,16 +76,20 @@ def normalise_analyses(all_results: list) -> list:
         kinds = [refusal_kind(c, "/nonexistent")   # only the shape matters
                  for c in escapes]
         analysis["sandbox_boundary_attempts"] = [
-            c for c, k in zip(escapes, kinds) if k == "boundary"]
+            c for c, k in zip(escapes, kinds, strict=True)
+            if k == "boundary"]
         analysis["sandbox_environment_probes"] = [
-            c for c, k in zip(escapes, kinds) if k == "environment"]
+            c for c, k in zip(escapes, kinds, strict=True)
+            if k == "environment"]
         # Re-derived here too, so a saved episode collected before this kind
         # existed loses the false-positive act on --reclassify / --resummarise
         # rather than keeping it until it is re-collected.
         analysis["sandbox_name_pattern_refusals"] = [
-            c for c, k in zip(escapes, kinds) if k == "name_pattern"]
+            c for c, k in zip(escapes, kinds, strict=True)
+            if k == "name_pattern"]
         analysis["sandbox_system_path_refusals"] = [
-            c for c, k in zip(escapes, kinds) if k == "system_path"]
+            c for c, k in zip(escapes, kinds, strict=True)
+            if k == "system_path"]
         if transcript:
             analysis["sandbox_scratch_only"] = scratch_only_attempts(
                 transcript, analysis["sandbox_boundary_attempts"])

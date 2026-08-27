@@ -38,10 +38,12 @@ def _plot_family(plt, family: dict, metric_label: str, den_label: str,
     # Scaled to this family's own whiskers, so three steps of a few points each
     # fill the panel instead of hugging the floor of a 0-100 axis. See axis_top
     # for what that costs.
-    top = axis_top([rate + up for rate, up in zip(rates, upper)])
+    top = axis_top([rate + up
+                    for rate, up in zip(rates, upper, strict=True)])
     # Above the upper WHISKER rather than above the point, or the label sits on
     # the error-bar cap and both become hard to read.
-    for x, member, rate, up in zip(xs, members, rates, upper):
+    for x, member, rate, up in zip(xs, members, rates, upper,
+                                   strict=True):
         ax.annotate(_point_label(member, rate),
                     (x, min(top * 0.97, rate + up)),
                     textcoords="offset points", xytext=(0, 7), ha="center",
@@ -120,7 +122,8 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
                     for f in families for m in f["members"]])
     layout = _label_layout(families, longest, top)
 
-    for index, (family, colour) in enumerate(zip(families, colours)):
+    for index, (family, colour) in enumerate(zip(families, colours,
+                                                 strict=True)):
         members = family["members"]
         rates = [(m["rate"] or 0) * 100 for m in members]
         xs = list(range(len(rates)))
@@ -137,7 +140,7 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
                     label=f"{family['family']}  "
                           f"(n={sum(m['n'] or 0 for m in members)})",
                     ecolor=colour, elinewidth=1.1, capsize=3, alpha=0.9)
-        for x, member, rate in zip(xs, members, rates):
+        for x, member, rate in zip(xs, members, rates, strict=True):
             dx, dy = layout[(index, x)]
             ax.annotate(member["version"] or "?", (x, rate),
                         textcoords="offset points", xytext=(dx, dy),

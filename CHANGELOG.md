@@ -10,6 +10,39 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v103
+
+Package version `103.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+Every `zip()` now says what it means about length, and the rule is enforced
+rather than reasoned about.
+
+- `zip()` truncates to the shorter sequence in silence. Where equal length is the
+  invariant - a comprehension paired with the list it was built from, corrected
+  p-values paired with the model rows they belong to, a keystream cut to the
+  length of its plaintext - a mismatch is a defect, and truncating hides it. All
+  33 sites now carry `strict=True`, so a mismatch raises.
+- **Five carry `strict=False` instead, deliberately.** Four pair a sequence with
+  its own tail to get adjacent pairs, where the lengths differ by one BY
+  DEFINITION and `strict=True` would raise on every call; the fifth pairs two
+  independently built and independently truncated lists, where going as far as
+  both go is the intent. A blanket edit would have broken all five, which is why
+  each site was read rather than swept.
+- **Verified not to move a single figure**, because `strict=True` only changes
+  behaviour where a mismatch actually occurs. The full report and all six trends
+  metrics were regenerated from the r9 corpus and compared leaf by leaf against
+  a baseline taken before the change: 14 differing leaves out of 19,803, all of
+  them the chart filename list and the generation timestamp. No rate,
+  denominator, interval bound or p-value differs.
+- The chart code was checked separately, because the first comparison ran with
+  `--no-charts` and so never executed the `strict=True` added to the plotting
+  paths - including the riskiest site, where matplotlib's tick labels are paired
+  with table rows. Re-run with charts on: 13 report charts and 42 trend charts
+  drawn, no mismatch.
+- `B905` is no longer in the ignore list. The choice now lives at each call site
+  instead of in someone's head.
+
 ## v102
 
 Package version `102.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

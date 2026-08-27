@@ -376,7 +376,7 @@ def _draw_forest(plt, rows: list, title: str, captions: list, path: str,
     # Top row at the top: matplotlib counts y upward, and a forest read from a
     # page runs downward, so the positions are assigned in reverse.
     ys = list(range(len(rows) - 1, -1, -1))
-    for y, row in zip(ys, rows):
+    for y, row in zip(ys, rows, strict=True):
         if row.diff is None:
             ax.text(0, y, f"  {row.missing}", va="center", fontsize=7,
                     color="#999999", style="italic")
@@ -408,7 +408,7 @@ def _draw_forest(plt, rows: list, title: str, captions: list, path: str,
     # Bold marks the POOLED rows against the per-model ones around them. On the
     # paired questions every row is a pooled contrast, so bolding by kind alone
     # would bold the whole axis and mark nothing.
-    for tick, row in zip(ax.get_yticklabels(), rows):
+    for tick, row in zip(ax.get_yticklabels(), rows, strict=True):
         if bold_pooled and row.kind in _POOLED_KINDS:
             tick.set_fontweight("bold")
     ax.set_ylim(-0.8, len(rows) - 0.2)

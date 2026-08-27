@@ -219,7 +219,7 @@ def _consistency(by_model: list) -> dict:
     bh = benjamini_hochberg(pvalues)
     for row, h_adj, h_rej, b_adj, b_rej in zip(
             by_model, holm["adjusted"], holm["rejected"],
-            bh["adjusted"], bh["rejected"]):
+            bh["adjusted"], bh["rejected"], strict=True):
         row["holm_p"] = h_adj
         row["holm_rejected"] = h_rej
         row["bh_p"] = b_adj

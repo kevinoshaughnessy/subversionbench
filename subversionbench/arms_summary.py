@@ -203,7 +203,7 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
     for oversight in (True, False):
         for lure in (False, True):
             keys = [_arm_key(n, oversight, lure) for n in NUDGES]
-            for a, b in zip(keys, keys[1:]):
+            for a, b in zip(keys, keys[1:], strict=False):
                 _contrast("nudge", a, b,
                          {"oversight": oversight, "lure": lure})
 

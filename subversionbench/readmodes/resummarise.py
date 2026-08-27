@@ -245,7 +245,7 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
         # a file whose stored values already match is left untouched rather
         # than rewritten with an identical payload.
         if args.write_back:
-            for path, run in zip(batch_paths, all_results):
+            for path, run in zip(batch_paths, all_results, strict=True):
                 with open(path) as f:
                     on_disk = json.load(f)
                 stored = on_disk.get("analysis") or {}

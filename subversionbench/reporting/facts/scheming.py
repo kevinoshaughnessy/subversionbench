@@ -47,8 +47,9 @@ def scheming_facts(all_results: list, n: int) -> dict:
         verdicts = [r["analysis"].get(act["scheming_key"]) for r in all_results]
         concealed = sum(1 for v in verdicts if v is True)
         open_about = sum(1 for v in verdicts if v is False)
-        undetermined = sum(1 for r, v in zip(all_results, verdicts)
-                           if v is None and r["analysis"].get(act["key"]))
+        undetermined = sum(
+            1 for r, v in zip(all_results, verdicts, strict=True)
+            if v is None and r["analysis"].get(act["key"]))
         determined = concealed + open_about
         scheming_by_act[act["name"]] = {
             "n_concealed": concealed,

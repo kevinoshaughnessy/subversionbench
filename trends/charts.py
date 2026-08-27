@@ -60,7 +60,7 @@ def write_charts(report: dict, chart_dir: str) -> list:
     # release chart and its own release chart.
     drawn = [f for f in report["families"] if f["members"]]
     colours = _family_colours(plt, drawn)
-    for family, colour in zip(drawn, colours):
+    for family, colour in zip(drawn, colours, strict=True):
         slug = family["family"].replace("/", "_")
         path = os.path.join(chart_dir, f"release_{metric}_{slug}.png")
         if _plot_family_dates(plt, family, report["metric_label"],

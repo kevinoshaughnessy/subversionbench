@@ -17,14 +17,16 @@ is reported rather than discovered.
 
 WHAT THE DATES ARE
 ------------------
-The date OpenRouter lists the model as available. The bulk of the table was
-transcribed on 2026-08-20; entries added later carry their own listing date and
-so postdate that, which is expected rather than a transcription error.
-That is a ROUTE availability date, not necessarily the lab's announcement date,
-and the two differ by days for some models. It is the right one for this
-corpus's purposes - every model here was reached through OpenRouter, so the
-listing date is when it could first have been evaluated - but it is the wrong
-one for any claim about when a lab shipped something.
+The date OpenRouter lists the model as available. That is a ROUTE availability
+date, not necessarily the lab's announcement date, and the two differ by days
+for some models. It is the right one for this corpus's purposes - every model
+here was reached through OpenRouter, so the listing date is when it could first
+have been evaluated - but it is the wrong one for any claim about when a lab
+shipped something.
+
+The bulk of the table was transcribed on 2026-08-20. Entries added since carry
+their own listing date and so postdate that, which is expected rather than a
+transcription error.
 
 WHAT THIS IS FOR
 ----------------
@@ -204,7 +206,8 @@ def disagreements(ordered_families):
         dated = [(m, release_date(m)) for m in ids]
         dated = [(m, d) for m, d in dated if d is not None]
         inversions = [(a, da, b, db)
-                      for (a, da), (b, db) in zip(dated, dated[1:]) if da > db]
+                      for (a, da), (b, db) in zip(dated, dated[1:], strict=False)
+            if da > db]
         if inversions:
             found[family] = inversions
     return found

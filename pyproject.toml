@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "102.0.0"
+version = "103.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -133,16 +133,17 @@ select = [
     "ISC001", "ISC002",  # a missing comma silently concatenating two strings
 ]
 
-ignore = [
-    # zip() without strict=. Adding it would turn silent truncation into an
-    # exception, which is a BEHAVIOUR change to a published analysis pipeline
-    # and deserves its own decision rather than arriving inside a lint pass.
-    # Every site was traced first: each pairs lists built from one source, and
-    # _stepwise_adjust returns [None] * len(pvalues) precisely so model rows
-    # stay aligned with their corrected p-values. Nothing is wrong today; the
-    # invariant is reasoned about rather than enforced.
-    "B905",
-]
+# B905, zip() without strict=, is deliberately NOT ignored any more. Every one of
+# the 33 sites now says which it means:
+#
+#   strict=True   equal length is the invariant, so a mismatch should raise
+#                 rather than silently drop the tail of the longer sequence
+#   strict=False  the lengths differ BY DESIGN - four sites pair a sequence with
+#                 its own tail, and one pairs two independently truncated lists
+#
+# Enforced rather than reasoned about, which is the point: the choice is now at
+# each call site instead of in someone's head. Verified not to move a single
+# figure - see the v103 entry in CHANGELOG.md for how.
 
 [tool.ruff.lint.per-file-ignores]
 # Two modules whose stated job is to be one import site for names that live

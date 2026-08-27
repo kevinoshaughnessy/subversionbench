@@ -86,10 +86,12 @@ def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
     # as well as the version, so they are several times wider than a marker and
     # the layout cannot tell whether two of them overlap without seeing them.
     labels = {index: f"{_release_point_name(m)}\n{_point_label(m, rate)}"
-              for index, ((m, _when), rate) in enumerate(zip(dated, rates))}
+              for index, ((m, _when), rate)
+              in enumerate(zip(dated, rates, strict=True))}
     layout = _date_label_layout(
         [(index, when, rate)
-         for index, ((_m, when), rate) in enumerate(zip(dated, rates))],
+         for index, ((_m, when), rate)
+         in enumerate(zip(dated, rates, strict=True))],
         span, top, labels, fontsize=8.0,
         axis_width_pt=_PER_FAMILY_AXIS_PT)
 
@@ -104,7 +106,8 @@ def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
     # point, which a reader can see, rather than a point that is not there.
     ax.scatter([when for _m, when in dated], rates, s=90, color=colour,
                zorder=6, edgecolors="white", linewidths=0.8, clip_on=False)
-    for index, ((_member, when), rate) in enumerate(zip(dated, rates)):
+    for index, ((_member, when), rate) in enumerate(zip(dated, rates,
+                                                        strict=True)):
         dx, dy, ha, va = layout[index]
         ax.annotate(labels[index], (when, rate), textcoords="offset points",
                     xytext=(dx, dy), ha=ha, ma=ha, va=va, fontsize=8,
@@ -194,7 +197,7 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
 
     fig, ax = plt.subplots(figsize=(11, 5.6))
     fitted = 0
-    for family, colour in zip(families, colours):
+    for family, colour in zip(families, colours, strict=True):
         dated = _dated_members(family)
         fitted += _draw_release_fit(ax, family.get("release_fit"), colour)
         # Semi-transparent because two families can land on the same point and

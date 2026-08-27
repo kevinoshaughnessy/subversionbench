@@ -126,7 +126,8 @@ def encrypt(payload: dict) -> str:
     salt = os.urandom(_SALT_BYTES)
     enc_key, mac_key = _derive(salt)
     stream = _keystream(enc_key, len(plaintext))
-    ciphertext = bytes(a ^ b for a, b in zip(plaintext, stream))
+    ciphertext = bytes(a ^ b for a, b in zip(plaintext, stream,
+                                             strict=True))
     tag = hmac.new(mac_key, salt + ciphertext, hashlib.sha256).digest()
     blob = base64.b64encode(salt + tag + ciphertext).decode()
     return "\n".join(blob[i:i + 76] for i in range(0, len(blob), 76)) + "\n"
@@ -152,7 +153,8 @@ def decrypt(text: str) -> dict:
         raise ValueError("bundle failed authentication: it has been truncated, "
                          "edited, or written with a different passphrase")
     stream = _keystream(enc_key, len(ciphertext))
-    return json.loads(bytes(a ^ b for a, b in zip(ciphertext, stream)))
+    return json.loads(bytes(a ^ b for a, b in zip(ciphertext, stream,
+                                                  strict=True)))
 
 
 def load_bundle(path: Path = None) -> dict:
@@ -576,7 +578,7 @@ def write_chart(report: dict, path: str) -> str:
     # panels for a shared scale to earn the loss of each panel's own ticks.
     fig, axes = plt.subplots(len(VARIANTS), 1, figsize=(7.5, 14.5))
     by_key = {(c["measure"], c["variant"]): c for c in report["correlations"]}
-    for ax, variant in zip(axes, VARIANTS):
+    for ax, variant in zip(axes, VARIANTS, strict=True):
         points = []
         for pair in pairs:
             score = pair["scores"][variant]

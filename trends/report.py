@@ -90,7 +90,7 @@ def family_trend(members: list, rates: dict, metric: str, style: str,
     steps_summary = step_directions([m["rate"] for m in ordered])
 
     steps = []
-    for before, after in zip(ordered, ordered[1:]):
+    for before, after in zip(ordered, ordered[1:], strict=False):
         if not (before["n"] and after["n"]):
             steps.append({"from": before["model"], "to": after["model"],
                           "difference": None, "note": "one side has no data"})
@@ -282,7 +282,7 @@ def build_report(output_dir: str, metric: str = "misaligned",
         bh = benjamini_hochberg(pvalues)
         for row, hp, bp, hr, br in zip(testable, holm["adjusted"],
                                        bh["adjusted"], holm["rejected"],
-                                       bh["rejected"]):
+                                       bh["rejected"], strict=True):
             row["trend"]["holm_p"] = hp
             row["trend"]["bh_p"] = bp
             row["trend"]["holm_rejected"] = hr

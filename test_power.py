@@ -561,7 +561,8 @@ class TestBenjaminiHochberg:
         ps = [0.001, 0.008, 0.039, 0.041, 0.042, 0.06, 0.5]
         bh = benjamini_hochberg(ps)
         holm = holm_bonferroni(ps)
-        assert all(b <= h for b, h in zip(bh["adjusted"], holm["adjusted"]))
+        assert all(b <= h for b, h in zip(bh["adjusted"],
+                                          holm["adjusted"], strict=True))
 
     def test_it_is_monotone_after_the_step_up(self):
         from subversionbench.power import benjamini_hochberg

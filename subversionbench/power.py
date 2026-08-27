@@ -748,7 +748,8 @@ def cochran_armitage(groups: list, scores: list = None) -> dict:
         scores = list(range(len(groups)))
     # Scores follow the groups that were usable, so dropping an empty group
     # does not silently shift the remaining positions.
-    paired = [(s, x, n) for s, (x, n) in zip(scores, groups) if n > 0]
+    paired = [(s, x, n)
+              for s, (x, n) in zip(scores, groups, strict=True) if n > 0]
 
     total_n = sum(n for _s, _x, n in paired)
     total_x = sum(x for _s, x, _n in paired)
@@ -786,7 +787,7 @@ def step_directions(rates: list) -> dict:
     skipped, not treated as zero.
     """
     known = [r for r in rates if r is not None]
-    steps = [b - a for a, b in zip(known, known[1:])]
+    steps = [b - a for a, b in zip(known, known[1:], strict=False)]
     down = sum(1 for s in steps if s < 0)
     up = sum(1 for s in steps if s > 0)
     return {
@@ -834,7 +835,8 @@ def weighted_least_squares(xs: list, ys: list, weights: list = None) -> dict:
     weights = [1.0] * len(xs) if weights is None else list(weights)
     # A zero-weight point would otherwise silently vanish from a fit that still
     # reports it in n_points.
-    usable = [(x, y, w) for x, y, w in zip(xs, ys, weights) if w and w > 0]
+    usable = [(x, y, w) for x, y, w in zip(xs, ys, weights, strict=True)
+              if w and w > 0]
     if len(usable) < 2:
         out["note"] = "fewer than two points with a positive weight"
         return out
@@ -930,7 +932,8 @@ def _pearson(xs: list, ys: list):
     sy = sum((y - y_bar) ** 2 for y in ys)
     if sx <= 0 or sy <= 0:
         return None
-    cov = sum((x - x_bar) * (y - y_bar) for x, y in zip(xs, ys))
+    cov = sum((x - x_bar) * (y - y_bar)
+              for x, y in zip(xs, ys, strict=True))
     return cov / math.sqrt(sx * sy)
 
 

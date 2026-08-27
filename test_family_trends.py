@@ -233,7 +233,7 @@ class TestTheVerdictSeparatesTwoClaims:
         parsed = [ft.parse_model_id(m) for m in models]
         rates = {m: {"x": x, "n": n, "rate": x / n if n else None,
                      "ci95": [0.0, 1.0], "underpowered": n < 20}
-                 for m, (x, n) in zip(models, pairs)}
+                 for m, (x, n) in zip(models, pairs, strict=True)}
         return ft.family_trend(parsed, rates, "misaligned", "component")
 
     def test_every_step_down_is_consistently_falling(self):
