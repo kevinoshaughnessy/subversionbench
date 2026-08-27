@@ -43,6 +43,8 @@ This file covers installing and running. The depth lives in five companions:
 | [docs/trends.md](docs/trends.md) | the per-family version trends — how families are derived, the version-ordering judgement, and the release-date charts |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
+Conventions for editing this repository, and what not to break:
+[AGENTS.md](AGENTS.md).
 
 ## Install
 
