@@ -1056,34 +1056,6 @@ class TestTheIdentifierScanCannotReturnCleanForAFileItDidNotRead:
             "an unreadable file is a finding and both scanners see the same "
             "bytes:\n  " + "\n  ".join(offenders))
 
-    def test_no_file_in_export_is_read_or_written_at_the_locale_s_mercy(self):
-        """`read_text()`/`write_text()` without `encoding=` follow the machine's
-        locale. Under a non-UTF-8 one, `redact_tree` raised UnicodeDecodeError on
-        any run file holding a non-ASCII character - and this corpus holds them by
-        design, the invisible characters being the subject. The archive's content
-        must be a property of the archive, not of the machine building it."""
-        import ast
-        from subversionbench import export
-
-        tree = ast.parse(Path(export.__file__).read_text(encoding="utf-8"))
-        offenders = []
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            name = ast.unparse(node.func)
-            if not (name.endswith((".read_text", ".write_text")) or name == "open"):
-                continue
-            mode = ""
-            if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
-                mode = str(node.args[1].value)
-            if "b" in mode:
-                continue          # bytes carry no encoding question
-            if "encoding" not in {kw.arg for kw in node.keywords}:
-                offenders.append(f"export.py:{node.lineno}  {name}(...)")
-        assert not offenders, (
-            "name the encoding, or read bytes and decode them - `bytes.decode()` "
-            "is always UTF-8 whatever the locale:\n  " + "\n  ".join(offenders))
-
     def test_a_non_ascii_run_file_survives_redaction_under_any_locale(self):
         """The behaviour the rule above exists for, exercised rather than
         inspected: redact_tree used to die here under an ASCII locale."""

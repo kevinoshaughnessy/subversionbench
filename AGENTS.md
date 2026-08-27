@@ -89,11 +89,29 @@ non-discriminating exactly this way — one asserted on files that a different p
 of the code writes, so it passed with the logic it was guarding removed.
 
 **Write guards against the rule, not against a path.** This is the repeat defect
-class in this codebase. A guard keyed to a filename stops guarding the moment code
-moves, and it fails silently. Seventeen AST-based guards currently read a
-hardcoded module; if you touch one, take its file list from `conftest`
-(`source_python_files()`, `suite_python_files()`, `project_python_files()`) so a
-new module inherits the rule instead of escaping it.
+class here, and it fails by passing.
+
+Ask what the guard is actually asserting. "This function must not print" is about
+that function, and naming it is correct. "Text IO names its encoding" is a rule
+about all code, and scoping it to one module means the other modules are
+unguarded — which is exactly how that particular rule came to be fixed twice and
+still left 49 sites uncovered. For the second kind, take the file list from
+`conftest` (`source_python_files()`, `suite_python_files()`,
+`project_python_files()`) so a module added later inherits the rule instead of
+escaping it.
+
+The same applies to a hand-written list of what to iterate over. The grading
+package's guards enumerated their own submodules in a tuple; it fell two behind
+the directory, and four guards silently stopped covering two modules. Derive the
+list, and assert it is non-empty — a glob that matches nothing empties the scope
+and every guard built on it passes.
+
+Where existing debt makes a rule impossible to satisfy today, record it as a
+baseline that is checked in **both** directions: nothing outside the list may
+offend, and everything inside it must still offend. A one-directional baseline
+becomes a permanent exemption; a two-directional one can only shrink, and tells
+you to delete the entry when you fix the file. See
+`TestNoFileIsReadOrWrittenAtTheLocalesMercy` in `test_project_files.py`.
 
 **Measure platform behaviour rather than reasoning about it.** Four defects in
 recent versions were invisible on macOS and real on Linux. `sandbox-exec` execs

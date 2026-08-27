@@ -11,13 +11,37 @@ import ast
 import glob
 import importlib
 import inspect
+from pathlib import Path
 
 import subversionbench.grading as grading
 
-SUBMODULES = ("acts", "awareness_keywords", "awareness_timing", "closing_report",
-              "command_patterns", "concealment", "filesystem_escapes", "grader",
-              "grader_io", "interrogation", "network_probes", "quote_grounding",
-              "transcript_analysis", "transient_tampering")
+def _submodules() -> tuple:
+    """Every module in the package, taken from disk.
+
+    DERIVED, NOT LISTED, and the difference was live. The hardcoded tuple this
+    replaces held 14 names against 16 modules on disk: `disguised_text` and
+    `transcript_pairs` were added afterwards and every guard in this file
+    silently stopped covering them - including the one that catches a caller
+    reaching past the single import site, which is the whole point of the file.
+
+    A guard that names its own scope stops guarding when code moves, and it
+    fails by passing. That is the failure this file exists to prevent for the
+    package's callers, so it should not be the way the file is written.
+    """
+    package = Path(grading.__file__).parent
+    return tuple(sorted(p.stem for p in package.glob("*.py")
+                        if p.stem != "__init__"))
+
+
+SUBMODULES = _submodules()
+
+# Modules that exist to be shared BETWEEN submodules rather than called from
+# outside, so their public names are not expected on the package surface.
+#
+# Named here but not TRUSTED here: test_every_shared_leaf_really_is_internal
+# checks that nothing outside the package imports either of them, so this cannot
+# become somewhere to park a module that merely forgot to export something.
+SHARED_LEAVES = ("grader_io", "transcript_pairs")
 
 
 class TestTheSurfaceIsWhatItSaysItIs:
@@ -45,13 +69,13 @@ class TestTheSurfaceIsWhatItSaysItIs:
         """A module whose public names never reach the surface is either dead or
         being reached into directly.
 
-        grader_io is exempt by construction: everything it exports is private, and
-        it exists to be shared BETWEEN submodules rather than to be called from
-        outside. It gets its own test below.
+        SHARED_LEAVES are exempt by construction: they exist to be shared BETWEEN
+        submodules rather than to be called from outside, and each is checked to
+        be genuinely internal below.
         """
         silent = []
         for leaf in SUBMODULES:
-            if leaf == "grader_io":
+            if leaf in SHARED_LEAVES:
                 continue
             module = importlib.import_module(f"subversionbench.grading.{leaf}")
             public = {n for n in vars(module)
@@ -63,6 +87,77 @@ class TestTheSurfaceIsWhatItSaysItIs:
         assert not silent, (
             f"nothing from these reaches the package surface, so callers must be "
             f"importing them directly: {silent}")
+
+
+class TestTheScopeOfTheseGuardsIsDerived:
+    """A guard is worth what its scope covers, and this file's scope used to be a
+    hand-written tuple that had fallen two modules behind."""
+
+    def test_the_derived_list_covers_every_importable_submodule(self):
+        """The sanity check on the glob. A pattern that matched nothing would
+        empty the scope of every guard here and each of them would pass."""
+        assert len(SUBMODULES) >= 14, SUBMODULES
+        for leaf in SUBMODULES:
+            importlib.import_module(f"subversionbench.grading.{leaf}")
+
+    def test_the_list_is_not_hand_written(self):
+        """The positive control for the fix. Restating the names here would pass
+        every other test in this file while reintroducing exactly the drift that
+        hid two modules, so the source is checked for a literal tuple of leaf
+        names assigned to SUBMODULES.
+        """
+        src = Path(__file__).read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            if "SUBMODULES" not in names:
+                continue
+            assert not isinstance(node.value, (ast.Tuple, ast.List, ast.Set)), (
+                "SUBMODULES is a literal again; derive it from the package so a "
+                "new module cannot escape these guards by being added later")
+
+    def test_every_shared_leaf_really_is_internal(self):
+        """What keeps SHARED_LEAVES from becoming a hiding place. A module is
+        exempt from the surface rule because callers outside the package do not
+        reach it - so that, and not the entry in the tuple, is what is checked.
+        """
+        # Resolved on both sides: the glob yields relative paths and
+        # grading.__file__ is absolute, so comparing them directly excludes
+        # nothing and every sibling reads as an outside caller.
+        package = Path(grading.__file__).parent.resolve()
+        reached_from_outside = []
+        for path in sorted(glob.glob("subversionbench/**/*.py", recursive=True)):
+            if Path(path).resolve().parent == package:
+                continue
+            for node in ast.walk(ast.parse(
+                    Path(path).read_text(encoding="utf-8"))):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    leaf = node.module.rsplit(".", 1)[-1]
+                    if leaf in SHARED_LEAVES:
+                        reached_from_outside.append(f"{path} imports {leaf}")
+        assert not reached_from_outside, (
+            "these are exempt from the surface rule on the grounds that only "
+            "siblings use them, which is no longer true:\n  "
+            + "\n  ".join(reached_from_outside))
+
+    def test_a_shared_leaf_is_named_only_when_it_needs_to_be(self):
+        """The other direction: a module listed as shared whose public names DO
+        reach the surface does not need the exemption, and leaving it there would
+        hide a later regression in that module."""
+        unnecessary = []
+        for leaf in SHARED_LEAVES:
+            module = importlib.import_module(f"subversionbench.grading.{leaf}")
+            public = {n for n in vars(module)
+                      if not n.startswith("_")
+                      and getattr(vars(module)[n], "__module__", "")
+                      .endswith(leaf)}
+            if public & set(grading.__all__):
+                unnecessary.append(leaf)
+        assert not unnecessary, (
+            f"these reach the surface already and do not need the exemption: "
+            f"{unnecessary}")
 
 
 class TestTheSubmodulesStayLeaves:

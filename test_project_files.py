@@ -186,3 +186,115 @@ class TestNoGuardBringsItsOwnFileList:
         assert not offenders, (
             "a guard that runs pyflakes must take its file list from conftest, "
             "so that it examines the whole project:\n  " + "\n  ".join(offenders))
+
+
+# Source files that still read or write text at the machine's locale's mercy.
+#
+# A BASELINE, NOT AN EXEMPTION. The rule below applies to every project source
+# file; these are the ones that predate it, and the guard checks in BOTH
+# directions - no file outside this set may offend, and every file inside it
+# must still offend. So the list can only shrink: fix a file and the guard tells
+# you to remove it from here, which is what stops a baseline from quietly
+# becoming a permanent carve-out.
+#
+# Left standing rather than fixed in one pass because the fix edits source, and
+# these were measured while a batch was collecting - see AGENTS.md on why source
+# edits are unsafe then.
+LOCALE_DEPENDENT_IO = frozenset({
+    "contamination_check.py",
+    "report/loading.py",
+    "report/run_report.py",
+    "rubric_ab.py",
+    "sad_oversight.py",
+    "subversionbench/arms_summary.py",
+    "subversionbench/batch.py",
+    "subversionbench/compare.py",
+    "subversionbench/environment.py",
+    "subversionbench/isolation.py",
+    "subversionbench/readmodes/grade.py",
+    "subversionbench/readmodes/reclassify.py",
+    "subversionbench/readmodes/reinterrogate.py",
+    "subversionbench/readmodes/resummarise.py",
+    "subversionbench/reporting/summary.py",
+    "subversionbench/runner.py",
+    "subversionbench/scenario.py",
+    "trends/family_trends.py",
+})
+
+
+def _locale_dependent_io(path: Path) -> list:
+    """Lines in `path` where text IO is left to the machine's locale."""
+    found = []
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if not isinstance(node, ast.Call):
+            continue
+        name = ast.unparse(node.func)
+        if not (name.endswith((".read_text", ".write_text")) or name == "open"):
+            continue
+        mode = ""
+        if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
+            mode = str(node.args[1].value)
+        if "b" in mode:
+            continue          # bytes carry no encoding question
+        if any(kw.arg == "encoding" for kw in node.keywords):
+            continue
+        found.append(node.lineno)
+    return found
+
+
+class TestNoFileIsReadOrWrittenAtTheLocalesMercy:
+    """`read_text()`/`write_text()`/`open()` without `encoding=` follow the
+    machine's locale rather than the file's actual encoding.
+
+    This corpus holds non-ASCII by design - the invisible and confusable
+    characters are the subject - so under a non-UTF-8 locale these raise
+    UnicodeDecodeError on real data. It has happened twice: `redact_tree` raised
+    on any run file holding a non-ASCII character, and `scenario_tool --encode`
+    raised on a working copy someone had edited.
+
+    ONE GUARD, DERIVING ITS OWN SCOPE. Both of those fixes came with a rule
+    checked over a single module, which is how the second one was able to happen
+    after the first was fixed: two guards for one rule, neither covering the
+    other's file, and 49 sites covered by neither. Scope comes from conftest so
+    a module added later inherits the rule instead of escaping it.
+    """
+
+    def test_no_file_outside_the_baseline_leaves_it_to_the_locale(self):
+        offenders = []
+        for relative in source_python_files():
+            # str(): conftest yields Path objects and the baseline is written as
+            # strings, and `Path("x.py") in {"x.py"}` is quietly False - which
+            # made every baselined file read as a new offender.
+            if str(relative) in LOCALE_DEPENDENT_IO:
+                continue
+            lines = _locale_dependent_io(PROJECT_ROOT / relative)
+            if lines:
+                offenders.append(f"{relative}:{','.join(map(str, lines))}")
+        assert not offenders, (
+            "these read or write text at the machine's locale's mercy. Name "
+            "encoding=\"utf-8\":\n  " + "\n  ".join(offenders))
+
+    def test_the_baseline_holds_nothing_already_fixed(self):
+        """The half that makes the list shrink. A file that has been fixed but
+        left in the baseline is a file the rule has stopped covering, and nothing
+        would say so."""
+        fixed = [relative for relative in sorted(LOCALE_DEPENDENT_IO)
+                 if not _locale_dependent_io(PROJECT_ROOT / relative)]
+        assert not fixed, (
+            "these no longer leave text IO to the locale, so remove them from "
+            "LOCALE_DEPENDENT_IO - a baseline that outlives the debt it records "
+            "is an exemption:\n  " + "\n  ".join(fixed))
+
+    def test_every_file_in_the_baseline_still_exists(self):
+        """A renamed or deleted file left in the list would silently stop being
+        checked by either direction above."""
+        missing = [relative for relative in sorted(LOCALE_DEPENDENT_IO)
+                   if not (PROJECT_ROOT / relative).exists()]
+        assert not missing, missing
+
+    def test_the_baseline_is_not_growing(self):
+        """The ratchet, stated as a number so that adding a file to the list is a
+        visible change to this line rather than one entry among eighteen."""
+        assert len(LOCALE_DEPENDENT_IO) <= 18, (
+            f"the baseline has grown to {len(LOCALE_DEPENDENT_IO)}. New code must "
+            f"name its encoding; only existing entries may be removed.")
