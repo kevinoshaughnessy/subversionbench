@@ -171,18 +171,30 @@ trap 'stop_batch SIGTERM 143' TERM
 # next arm - which is indistinguishable, from the terminal, from the interrupt
 # having been ignored.
 #
-# Detected by reading the trap back rather than by reading the disposition:
-# bash 3.2, which is what macOS ships and therefore what this most often runs
-# on, reports nothing for `trap -p INT` in either state, but does refuse to
-# install a trap it is not allowed to install.
-if [ -z "$(trap -p INT)" ]; then
-    echo "NOTE: SIGINT was already ignored when this script started, so Ctrl-C"
-    echo "      cannot stop it - bash may not trap a signal it inherited as"
-    echo "      ignored. Ctrl-C will kill the ARM in progress and this script"
-    echo "      will carry on to the next one."
-    echo "      To stop the whole batch:  kill $$"
-    echo
-fi
+# Detected by asking whether the trap READBACK NAMES OUR HANDLER, which is the
+# only form of the question both shells answer the same way. Measured on each,
+# because the two report an inherited-ignored SIGINT differently and a check
+# written against either one alone is wrong on the other:
+#
+#                              trap -p INT, after installing a handler
+#   bash 3.2 (macOS)   ignored: <empty>              installed: trap -- 'h' SIGINT
+#   bash 5.2 (Linux)   ignored: trap -- '' SIGINT    installed: trap -- 'h' SIGINT
+#
+# Neither shell FIRES the trap when the signal was ignored on entry, so the
+# behaviour is the same and only the spelling differs. Testing for an empty
+# readback - which is what this did first - reported the state correctly on
+# macOS and silently never warned on Linux.
+case "$(trap -p INT)" in
+    *stop_batch*) ;;                 # installed, and will actually fire
+    *)
+        echo "NOTE: SIGINT was already ignored when this script started, so Ctrl-C"
+        echo "      cannot stop it - bash may not trap a signal it inherited as"
+        echo "      ignored. Ctrl-C will kill the ARM in progress, and this"
+        echo "      script will carry on to the next one."
+        echo "      To stop the whole batch:  kill $$"
+        echo
+        ;;
+esac
 
 i=0
 for nudge in "${NUDGES[@]}"; do

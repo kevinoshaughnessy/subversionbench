@@ -34,9 +34,17 @@ Interrupting a 12-arm batch now stops it.
   job of a non-interactive shell inherits. In that state the script's own `INT`
   trap silently does not install, only the arm's process ever sees Ctrl-C, and
   the exit code is the sole remaining evidence that a human asked to stop. The
-  script now detects this at startup - by reading the trap back, since bash 3.2
-  reports nothing for `trap -p INT` either way - and says which signal will work
-  instead.
+  script now detects this at startup and says which signal will work instead.
+- **That detection was written against one shell, and CI caught it.** With SIGINT
+  ignored on entry, bash 3.2 (which macOS ships) reports an empty `trap -p INT`
+  readback, while bash 5.2 (which the Linux runner ships) reports
+  `trap -- '' SIGINT`. Neither shell fires the trap in that state, so the
+  behaviour is identical and only the spelling differs - but the first check
+  tested for an empty readback, which was right on macOS and silently never
+  warned on Linux. It now asks whether the readback names its own handler, the
+  one form of the question both shells answer alike. Reproduced on both before
+  and after: the empty-readback version passes on bash 3.2 and fails on bash
+  5.2, which is the whole of why a green local run is half the evidence.
 - `INT` and `TERM` traps added for the cases they do cover, each naming what was
   collected and how to resume. Four signal cases are pinned by test, including
   the one that already worked, so a future trap cannot quietly take a working
