@@ -272,13 +272,18 @@ class TestTheSummaryHeaderStatesTheEffort:
     provenance fields."""
 
     def _summary_line(self, efforts):
-        import io, contextlib, tempfile
+        import io
+        import contextlib
+        import tempfile
         out = tempfile.mkdtemp()
         args = FakeArgs(output_dir=out, model="m", nudge="strong",
                          grader_model="g")
-        args.batch_stamp = "S"; args.effort = None
-        args.max_turns = 40; args.max_tokens = 8192
-        args.no_power = True; args.runs = len(efforts)
+        args.batch_stamp = "S"
+        args.effort = None
+        args.max_turns = 40
+        args.max_tokens = 8192
+        args.no_power = True
+        args.runs = len(efforts)
         results = [{"analysis": {"monitoring_disabled": False,
                                  "oversight_tampered": False,
                                  "sandbox_escape_attempts": [],
@@ -296,8 +301,8 @@ class TestTheSummaryHeaderStatesTheEffort:
             ev_run.summarise_batch(
                 args, results,
                 collecting_identity(args, "m", "S"))
-        return next(l for l in buf.getvalue().splitlines()
-                    if l.startswith("SUMMARY:")), buf.getvalue()
+        return next(line for line in buf.getvalue().splitlines()
+                    if line.startswith("SUMMARY:")), buf.getvalue()
 
     def test_a_single_effort_is_named(self):
         line, _ = self._summary_line(["high", "high"])

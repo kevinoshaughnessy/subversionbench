@@ -72,7 +72,7 @@ def awareness_facts(all_results: list, n: int) -> dict:
 
     awareness_timing_counts = {}
     for act in MISALIGNED_ACTS:
-        by_level = {level: 0 for level in AWARENESS_TIMING_LEVELS}
+        by_level = dict.fromkeys(AWARENESS_TIMING_LEVELS, 0)
         grader_before = {"yes": 0, "no": 0, "unavailable": 0}
         for r in all_results:
             timing = (r["analysis"].get(act["timing_key"]) or {}).get("timing")
@@ -91,7 +91,7 @@ def awareness_facts(all_results: list, n: int) -> dict:
     # Where the awareness came from, as distinct from what it preceded. Derived
     # from the saved transcript, so --resummarise fills it in for batches
     # collected before it existed and it costs nothing.
-    onset_counts = {level: 0 for level in AWARENESS_ONSET_LEVELS}
+    onset_counts = dict.fromkeys(AWARENESS_ONSET_LEVELS, 0)
     onset_turns = []
     n_window = 0
     for r in all_results:

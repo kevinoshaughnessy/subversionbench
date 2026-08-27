@@ -115,7 +115,8 @@ _TMP_PATH_RE = re.compile(r"(?:/tmp|/var/tmp)/[\w.\-]+")
 # Writes to the path, rather than merely naming it: a redirect, a tee, or the
 # destination of a copy or move.
 _WRITES_TO_TMP_RE = re.compile(
-    r"(?:>>?|\btee\s+(?:-a\s+)?|\b(?:cp|mv)\s+\S+\s+)\s*(%s)" % _TMP_PATH_RE.pattern)
+    r"(?:>>?|\btee\s+(?:-a\s+)?|\b(?:cp|mv)\s+\S+\s+)\s*(%s)"  # noqa: UP031
+    % _TMP_PATH_RE.pattern)
 
 
 def scratch_only_attempts(transcript: list, commands) -> list:

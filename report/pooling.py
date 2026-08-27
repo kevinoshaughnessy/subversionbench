@@ -56,7 +56,7 @@ def _contrast(rows: list, group_key: str, level_a, level_b,
 
 
 def _models(rows: list) -> list:
-    return sorted(set(r["model"] for r in rows))
+    return sorted({r["model"] for r in rows})
 
 
 def _by_model(rows: list, group_key: str, level_a, level_b,

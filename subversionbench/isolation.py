@@ -267,7 +267,7 @@ def profile_for(mode: str, confine_to=None):
     return _PROFILE_CACHE[key]
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _mechanism_works(name: str) -> bool:
     """
     Whether `name` can actually create the namespace it needs, on this host.

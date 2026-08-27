@@ -533,7 +533,9 @@ class TestTheResponseMetadataExplainsAnEmptyAnswer:
     work."""
 
     def _ask(self, blocks, stop_reason):
-        import types, io, contextlib
+        import types
+        import io
+        import contextlib
         import subversionbench.run_eval as ev_run
         from subversionbench.grading.acts import MISALIGNED_ACTS
 

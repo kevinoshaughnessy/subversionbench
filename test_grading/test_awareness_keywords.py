@@ -313,7 +313,7 @@ class TestThereIsOnlyOneImplementation:
         import re
         offenders = []
         for path in sorted(glob.glob("subversionbench/**/*.py", recursive=True)):
-            if path.endswith("awareness_keywords.py") or path.endswith("config.py"):
+            if path.endswith(("awareness_keywords.py", "config.py")):
                 continue
             body = open(path).read()
             if re.search(r"for\s+\w+\s+in\s+EVAL_AWARENESS_INDICATORS", body):

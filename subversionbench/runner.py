@@ -172,13 +172,13 @@ def _print_auth_abort(auth_error, env_dir, n_saved, batch_stamp):
     print(f"\n  Fix the credential, then either re-run with --resume "
           f"{batch_stamp}\n  or score what is saved with --reclassify "
           f"--write-back.")
-    print(f"\n  That --resume flag is for running run_eval.py directly. If "
-          f"this batch came\n  from run_all_arms.sh, do not pass --resume "
-          f"by hand - it reuses ONE stamp for\n  every arm, and every other "
-          f"arm's episodes already sit under a DIFFERENT one,\n  so a "
-          f"hand-typed --resume silently re-collects them instead of "
-          f"resuming.\n  Fix the credential and re-run run_all_arms.sh with "
-          f"no --resume flag; it\n  looks up each arm's own stamp itself.")
+    print("\n  That --resume flag is for running run_eval.py directly. If "
+          "this batch came\n  from run_all_arms.sh, do not pass --resume "
+          "by hand - it reuses ONE stamp for\n  every arm, and every other "
+          "arm's episodes already sit under a DIFFERENT one,\n  so a "
+          "hand-typed --resume silently re-collects them instead of "
+          "resuming.\n  Fix the credential and re-run run_all_arms.sh with "
+          "no --resume flag; it\n  looks up each arm's own stamp itself.")
 
 
 def _run_episodes_concurrently(args, identity, system_prompt, user_prompt,
@@ -616,13 +616,13 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
         # Everything already on disk is reusable; say exactly how.
         print("\nTo complete the missing episodes, re-run with:")
         print(f"  --resume {batch_stamp}")
-        print(f"\n  That flag is for running run_eval.py directly. If this "
-              f"batch came from\n  run_all_arms.sh, do not pass --resume by "
-              f"hand - it reuses ONE stamp for\n  every arm, and every "
-              f"other arm's episodes already sit under a DIFFERENT\n  one, "
-              f"so a hand-typed --resume silently re-collects them instead "
-              f"of\n  resuming. Re-run run_all_arms.sh with no --resume "
-              f"flag instead; it looks\n  up each arm's own stamp itself.")
+        print("\n  That flag is for running run_eval.py directly. If this "
+              "batch came from\n  run_all_arms.sh, do not pass --resume by "
+              "hand - it reuses ONE stamp for\n  every arm, and every "
+              "other arm's episodes already sit under a DIFFERENT\n  one, "
+              "so a hand-typed --resume silently re-collects them instead "
+              "of\n  resuming. Re-run run_all_arms.sh with no --resume "
+              "flag instead; it looks\n  up each arm's own stamp itself.")
 
     if not all_results:
         print("\nNo episodes completed - nothing to summarise.")

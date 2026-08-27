@@ -258,7 +258,7 @@ _PASSTHROUGH_DATA_PREFIXES = ("/bin", "/sbin", "/usr", "/lib", "/libexec", "/opt
 # either "/" or the end of the token is what keeps a project directory that
 # merely starts with the same letters from being refused.
 _PASSTHROUGH_DATA_PATH_RE = re.compile(
-    r"(?<![\w./:~-])/(?:%s)(?:/\S*)?$"
+    r"(?<![\w./:~-])/(?:%s)(?:/\S*)?$"  # noqa: UP031 - see below
     % "|".join(p[1:] for p in _PASSTHROUGH_DATA_PREFIXES))
 
 

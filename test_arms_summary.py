@@ -154,7 +154,8 @@ class TestWriting:
     def test_it_writes_valid_json_and_returns_the_path(self):
         with tempfile.TemporaryDirectory() as out:
             _write_arm(out, "x/m", "none", True, False, "20260101T000001")
-            import contextlib, io
+            import contextlib
+            import io
             with contextlib.redirect_stdout(io.StringIO()):
                 path = write_summary_of_summaries(out, "x/m")
             assert Path(path).exists()
@@ -165,7 +166,8 @@ class TestWriting:
     def test_the_filename_is_keyed_on_the_model_slug(self):
         with tempfile.TemporaryDirectory() as out:
             _write_arm(out, "x/y-z", "none", True, False, "20260101T000001")
-            import contextlib, io
+            import contextlib
+            import io
             with contextlib.redirect_stdout(io.StringIO()):
                 path = write_summary_of_summaries(out, "x/y-z")
             assert "summary_of_summaries_x_y-z.json" in path

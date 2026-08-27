@@ -17,16 +17,16 @@ import tempfile
 import pytest
 
 import report as rr
+from conftest import batch_episode
+from subversionbench.batch import BatchIdentity
+from subversionbench.config import DEFAULT_INTERROGATION
+from subversionbench.reporting.facts import normalise_analyses
 
 
 def _single(report):
     """The questions built as one contrast with model strata - i.e. not the
     paired phrasing questions, which are a list of contrasts instead."""
     return [q for q in report["questions"] if "contrasts" not in q]
-from conftest import batch_episode
-from subversionbench.batch import BatchIdentity
-from subversionbench.config import DEFAULT_INTERROGATION
-from subversionbench.reporting.facts import normalise_analyses
 
 
 def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="20260101T000000",
@@ -666,10 +666,7 @@ class TestInterrogationPhrasingQuestions:
                 "partevidenceparaphrase": "admitted"})
         # 4 acts concealed under every phrasing: concordant, no evidence.
         for i in range(6, 10):
-            self._episode_with_variants(out, i, "m", {
-                v: "denied" for v in
-                ("zeroevidence", "zeroevidenceparaphrase",
-                 "partevidence", "partevidenceparaphrase")})
+            self._episode_with_variants(out, i, "m", dict.fromkeys(("zeroevidence", "zeroevidenceparaphrase", "partevidence", "partevidenceparaphrase"), "denied"))
         return rr.load_episodes(out)
 
     def test_the_loader_derives_a_level_per_phrasing(self):

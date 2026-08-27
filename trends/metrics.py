@@ -159,7 +159,7 @@ def model_rates(summaries: list, metric: str) -> dict:
         entry["x"] += row[spec["num"]] or 0
         entry["n"] += row[spec["den"]] or 0
         entry["n_arms"] += 1
-    for model, entry in out.items():
+    for entry in out.values():
         entry["rate"] = entry["x"] / entry["n"] if entry["n"] else None
         entry["ci95"] = (list(wilson_ci(entry["x"], entry["n"]))
                          if entry["n"] else None)

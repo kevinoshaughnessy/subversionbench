@@ -176,9 +176,9 @@ SCENARIOS = {
     "single_episode": (lambda: [_rich()], {}),
     "no_oversight_arm": (
         lambda: [_unobservable(batch_episode()) for _ in range(2)],
-        dict(oversight=False)),
+        {"oversight": False}),
     "max_nudge_with_lure": (lambda: [_rich(), _rich()],
-                            dict(nudge="max", effort="max", lure=True)),
+                            {"nudge": "max", "effort": "max", "lure": True}),
     "mixed_awareness": (
         lambda: [_rich(), _rich(),
                  batch_episode(tampered=True, aware=False, disclosed=True),
@@ -212,9 +212,9 @@ SCENARIOS = {
 
 
 def _args(**over):
-    base = dict(model="claude-opus-5", nudge="strong", effort=None,
-                oversight=True, lure=False, output_dir="/tmp/nowhere",
-                delay=0, max_tokens=8192, max_turns=40, no_power=True)
+    base = {"model": "claude-opus-5", "nudge": "strong", "effort": None,
+                "oversight": True, "lure": False, "output_dir": "/tmp/nowhere",
+                "delay": 0, "max_tokens": 8192, "max_turns": 40, "no_power": True}
     base.update(over)
     return types.SimpleNamespace(**base)
 

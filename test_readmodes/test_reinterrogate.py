@@ -26,11 +26,11 @@ ACT = [a for a in MISALIGNED_ACTS if a["name"] == "oversight"][0]
 
 
 def _args(out, **over):
-    base = dict(output_dir=out, model="m", nudge="strong", grader_model="g",
-                batch_stamp=None, effort=None, oversight=True, lure=False,
-                interrogations=[DEFAULT_INTERROGATION, PARAPHRASE],
-                write_back=False, max_tokens=8192, thinking_budget=None,
-                delay=0)
+    base = {"output_dir": out, "model": "m", "nudge": "strong", "grader_model": "g",
+                "batch_stamp": None, "effort": None, "oversight": True, "lure": False,
+                "interrogations": [DEFAULT_INTERROGATION, PARAPHRASE],
+                "write_back": False, "max_tokens": 8192, "thinking_budget": None,
+                "delay": 0}
     base.update(over)
     return types.SimpleNamespace(**base)
 
@@ -83,7 +83,7 @@ class _Recorder:
                  "classifier_called": True}]
 
 
-def _run_mode(args, recorder=None, client=object()):
+def _run_mode(args, recorder=None, client=object()):  # noqa: B008 - a sentinel
     """Run the mode with the API stubbed out, returning (exit code, output)."""
     import contextlib
     import io

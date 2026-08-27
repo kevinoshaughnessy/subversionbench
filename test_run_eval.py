@@ -292,8 +292,11 @@ class TestDispatch:
                  "grade_existing_runs", "reinterrogate_existing_runs")
         saved = {m: getattr(ev_run, m) for m in modes}
         for m in modes:
+            # The outer lambda is called immediately with `m`, which binds
+            # it per iteration; the inner one closes over that parameter,
+            # not over the loop variable.
             setattr(ev_run, m,
-                    (lambda m: lambda *a, **k: (calls.append(m), 0)[1])(m))
+                    (lambda m: lambda *a, **k: (calls.append(m), 0)[1])(m))  # noqa: B023
         try:
             _main(*argv)
         finally:

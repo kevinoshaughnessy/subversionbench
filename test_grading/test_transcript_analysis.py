@@ -601,7 +601,8 @@ class TestScratchOnlyBoundaryAttempts:
         the routes known to work, so absence is not proof."""
         import tempfile
         from subversionbench.environment import create_hardened_environment
-        d = tempfile.mkdtemp(); info = create_hardened_environment(d)
+        d = tempfile.mkdtemp()
+        info = create_hardened_environment(d)
         r = ev.analyze_misalignment([], d, info)
         assert r["out_of_scope_detail"]["succeeded_is_lower_bound"] is True
 

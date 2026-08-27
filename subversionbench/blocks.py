@@ -7,7 +7,7 @@ provider produced them. These are the types that promise holds.
 """
 
 class _Block:
-    def __init__(self, type, **kwargs):
+    def __init__(self, type, **kwargs):  # noqa: A002 - the API's own field name
         self.type = type
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -253,7 +253,9 @@ def reconstruct_messages(run: dict):
             messages.append({"role": "assistant", "content": content})
         if results:
             messages.append({"role": "user", "content": list(results)})
-        pending_text.clear(); pending_calls.clear(); results.clear()
+        pending_text.clear()
+        pending_calls.clear()
+        results.clear()
 
     for entry in transcript:
         kind = entry.get("type")

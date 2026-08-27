@@ -31,7 +31,7 @@ is used instead, flagged as such in the output.
 """
 
 import math
-from functools import lru_cache
+from functools import lru_cache, cache
 
 Z_95 = 1.96
 DEFAULT_ALPHA = 0.05
@@ -168,7 +168,7 @@ def n_for_precision(p: float, target_width_pp: float, cap: int = 100000):
 # Exact two-arm machinery
 # =========================================================================
 
-@lru_cache(maxsize=None)
+@cache
 def _logfact(n: int) -> float:
     return math.lgamma(n + 1)
 

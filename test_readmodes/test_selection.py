@@ -23,12 +23,12 @@ MODES = ("grade_existing_runs", "reclassify_existing_runs",
          "resummarise_existing_runs", "reinterrogate_existing_runs")
 
 def _args(out, **over):
-    base = dict(output_dir=out, model="m", nudge="strong", effort=None,
-                batch_stamp=None, grader_model="g", write_back=False,
-                max_turns=40, max_tokens=8192, no_power=True, runs=1,
-                oversight=True, lure=False, delay=0,
-                interrogations=["default", ev_run.INTERROGATION_CHOICES[-1]],
-                interrogation="default")
+    base = {"output_dir": out, "model": "m", "nudge": "strong", "effort": None,
+                "batch_stamp": None, "grader_model": "g", "write_back": False,
+                "max_turns": 40, "max_tokens": 8192, "no_power": True, "runs": 1,
+                "oversight": True, "lure": False, "delay": 0,
+                "interrogations": ["default", ev_run.INTERROGATION_CHOICES[-1]],
+                "interrogation": "default"}
     base.update(over)
     return types.SimpleNamespace(**base)
 
@@ -40,8 +40,8 @@ def _run_mode(name, args):
 
 class TestFanOut:
     def _args(self, d, **kw):
-        base = dict(output_dir=d, model=ALL, nudge=ALL, effort=None,
-                    oversight="true", lure="false", write_back=False)
+        base = {"output_dir": d, "model": ALL, "nudge": ALL, "effort": None,
+                    "oversight": "true", "lure": "false", "write_back": False}
         base.update(kw)
         return argparse.Namespace(**base)
 

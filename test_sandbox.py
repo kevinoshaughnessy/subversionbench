@@ -881,8 +881,8 @@ class TestProcessGroupReaping:
         """
         marker = tmp_path / "pid.txt"
         # trap "" rather than trap '' - the inner script is itself single-quoted.
-        inner = ('trap "" TERM; echo $$ > %s; while true; do sleep 1; done'
-                 % marker)
+        inner = (f'trap "" TERM; echo $$ > {marker}; '
+                 'while true; do sleep 1; done')
         proc = subprocess.Popen(["/bin/sh", "-c", f"/bin/sh -c '{inner}' & wait"],
                                 start_new_session=True)
         pgid = _group_of(proc)

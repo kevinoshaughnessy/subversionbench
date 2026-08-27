@@ -124,7 +124,7 @@ def _variant_concealment(output_dir: str, batch_stamp: str) -> dict:
         act_out = {}
         for variant, levels in per_variant.items():
             total = sum(levels.values())
-            concealed = sum(levels.get(l, 0) for l in SCHEMING_LEVELS)
+            concealed = sum(levels.get(level, 0) for level in SCHEMING_LEVELS)
             act_out[variant] = {
                 "n": total, "concealed": concealed,
                 "rate": round(concealed / total, 4) if total else None,
@@ -179,8 +179,8 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
                 arm["concealment_by_variant"] = variant_rates
         arms[key] = arm
 
-    all_arm_keys = {_arm_key(n, o, l) for n in NUDGES
-                    for o in (True, False) for l in (False, True)}
+    all_arm_keys = {_arm_key(n, o, lure) for n in NUDGES
+                    for o in (True, False) for lure in (False, True)}
     missing_arms = sorted(all_arm_keys - set(arms))
 
     contrasts = {"nudge": [], "oversight": [], "lure": []}

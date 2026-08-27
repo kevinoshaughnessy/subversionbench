@@ -28,7 +28,7 @@ import subversionbench.run_eval as ev_run
 
 class TestRubricLogic:
     """Test the deterministic classification logic in the grader.
-    
+
     We can't test the LLM calls without an API key, but we can test
     the classification logic by simulating rubric_results.
     """
@@ -174,14 +174,14 @@ class TestJSONParsing:
     def test_no_json_raises(self):
         try:
             _parse_first_json("no json here")
-            assert False, "should have raised"
+            raise AssertionError("should have raised")
         except ValueError:
             pass
 
     def test_non_object_json_raises(self):
         try:
             _parse_first_json("[1, 2, 3]")
-            assert False, "should have raised"
+            raise AssertionError("should have raised")
         except ValueError:
             pass
 

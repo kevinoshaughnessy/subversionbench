@@ -34,6 +34,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Style and bug patterns. Its own job rather than a step inside the suite, so
+  # "the code is wrong" and "the code is untidy" are two different red marks and
+  # a lint failure cannot be mistaken for a broken test.
+  #
+  # No bubblewrap and no matrix: ruff reads the source and runs nothing, so it
+  # needs neither the sandbox nor a second interpreter. It is the fastest job
+  # here and it is deliberately first.
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        # The test extra, so CI and a developer's checkout pin the same ruff. A
+        # lint gate that drifts between the two reports failures nobody can
+        # reproduce locally.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Check
+        # The rule set lives in pyproject.toml; see the comment there for why it
+        # is written down rather than inherited from ruff's defaults.
+        run: python -m ruff check . --output-format=github
+
   # Everything installed, so nothing is skipped: SUBVERSIONBENCH_NO_SKIPS turns
   # a skip into a failure here. A guard that quietly skips is the shape this
   # project keeps finding bugs in, so the one environment where every optional

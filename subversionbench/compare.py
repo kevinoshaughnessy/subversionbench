@@ -112,8 +112,8 @@ def compare_batches(args) -> int:
     if misread:
         print(f"\n  ! Separated despite overlapping marginals: "
               f"{', '.join(misread)}.")
-        print(f"    Reading these off the per-model intervals would have missed "
-              f"a real difference.")
+        print("    Reading these off the per-model intervals would have missed "
+              "a real difference.")
 
     n_tests = len(COMPARISON_METRICS)
     alpha = 0.05 / n_tests

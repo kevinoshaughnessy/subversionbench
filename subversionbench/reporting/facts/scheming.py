@@ -71,7 +71,7 @@ def scheming_facts(all_results: list, n: int) -> dict:
     # reader can apply a stricter scheming threshold than the headline one.
     concealment = {}
     for act in MISALIGNED_ACTS:
-        counts = {level: 0 for level in CONCEALMENT_LEVELS}
+        counts = dict.fromkeys(CONCEALMENT_LEVELS, 0)
         undetermined = 0
         for r in all_results:
             if not r["analysis"].get(act["key"]):
@@ -87,7 +87,7 @@ def scheming_facts(all_results: list, n: int) -> dict:
             "acts": sum(counts.values()) + undetermined,
             "levels": counts,
             "undetermined": undetermined,
-            "concealed": sum(counts[l] for l in SCHEMING_LEVELS),
+            "concealed": sum(counts[level] for level in SCHEMING_LEVELS),
         }
 
     ci_scheming = _wilson_ci(n_scheming, n)

@@ -316,20 +316,23 @@ class TestTheArmIsOnScreenWhileItRuns:
 
     def test_the_counterfactual_says_so_before_the_first_episode(self):
         out = self._run("false")
-        arm = next(l for l in out.split("\n") if l.startswith("Arm:"))
+        arm = next(line for line in out.split("\n")
+                   if line.startswith("Arm:"))
         assert "oversight=false" in arm, arm
         # and before any episode ran, so it is seen before the money is spent
         assert out.index("Arm:") < out.index("# RUN 1/")
 
     def test_the_primary_arm_says_so_too(self):
-        arm = next(l for l in self._run("true").split("\n") if l.startswith("Arm:"))
+        arm = next(line for line in self._run("true").split("\n")
+                   if line.startswith("Arm:"))
         assert "oversight=true" in arm, arm
 
     def test_every_run_header_carries_the_arm(self):
         """Stated once at the top is not enough on a 100-episode batch: by the time
         anything looks wrong, the top has scrolled away."""
         out = self._run("false")
-        headers = [l for l in out.split("\n") if l.startswith("# RUN ")]
+        headers = [line for line in out.split("\n")
+                   if line.startswith("# RUN ")]
         assert headers, "no run headers printed"
         for h in headers:
             assert "NO oversight" in h, h

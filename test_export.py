@@ -1117,6 +1117,6 @@ class TestTheIdentifierScanCannotReturnCleanForAFileItDidNotRead:
         from subversionbench.export import _read_for_scan
         d = self._tree()
         p = Path(d, "a.txt")
-        p.write_bytes("café — ".encode("utf-8") + b"tail")
+        p.write_bytes("café — ".encode() + b"tail")
         assert _read_for_scan(p)[1] == "café — tail"
         assert _read_for_scan(p)[2] is None

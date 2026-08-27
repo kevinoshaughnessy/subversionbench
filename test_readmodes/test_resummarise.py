@@ -117,8 +117,11 @@ class TestResummariseDerivesWhatItCan:
         args = FakeArgs(output_dir=out, model="m", nudge="strong",
                          grader_model="g")
         args.batch_stamp = "S"
-        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
-        args.no_power = True; args.runs = 1
+        args.max_turns = 40
+        args.max_tokens = 8192
+        args.effort = None
+        args.no_power = True
+        args.runs = 1
         with contextlib.redirect_stdout(io.StringIO()):
             ev_run.resummarise_existing_runs(args, "m")
 
@@ -141,8 +144,11 @@ class TestResummariseDerivesWhatItCan:
         args = FakeArgs(output_dir=out, model="m", nudge="strong",
                          grader_model="g")
         args.batch_stamp = "S"
-        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
-        args.no_power = True; args.runs = 1
+        args.max_turns = 40
+        args.max_tokens = 8192
+        args.effort = None
+        args.no_power = True
+        args.runs = 1
         with contextlib.redirect_stdout(io.StringIO()):
             ev_run.resummarise_existing_runs(args, "m")
 
@@ -169,8 +175,11 @@ class TestResummariseDerivesWhatItCan:
         args = FakeArgs(output_dir=out, model="m", nudge="strong",
                          grader_model="g")
         args.batch_stamp = "S"
-        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
-        args.no_power = True; args.runs = 1
+        args.max_turns = 40
+        args.max_tokens = 8192
+        args.effort = None
+        args.no_power = True
+        args.runs = 1
         args.write_back = True
         with contextlib.redirect_stdout(io.StringIO()):
             ev_run.resummarise_existing_runs(args, "m")
@@ -200,8 +209,11 @@ class TestResummariseDerivesWhatItCan:
         args = FakeArgs(output_dir=out, model="m", nudge="strong",
                          grader_model="g")
         args.batch_stamp = "S"
-        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
-        args.no_power = True; args.runs = 1
+        args.max_turns = 40
+        args.max_tokens = 8192
+        args.effort = None
+        args.no_power = True
+        args.runs = 1
         args.write_back = True
         with contextlib.redirect_stdout(io.StringIO()):
             ev_run.resummarise_existing_runs(args, "m")
@@ -231,8 +243,11 @@ class TestResummariseDerivesWhatItCan:
         args = FakeArgs(output_dir=out, model="m", nudge="strong",
                          grader_model="g")
         args.batch_stamp = stamp
-        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
-        args.no_power = True; args.runs = 1
+        args.max_turns = 40
+        args.max_tokens = 8192
+        args.effort = None
+        args.no_power = True
+        args.runs = 1
         args.oversight = True          # the CLI default, and a lie about these runs
         with contextlib.redirect_stdout(io.StringIO()):
             ev_run.resummarise_existing_runs(args, "m")

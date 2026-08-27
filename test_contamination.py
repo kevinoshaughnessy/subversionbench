@@ -183,7 +183,9 @@ class TestForcedChoice:
                 if i == item["answer_index"]:
                     continue
                 assert option != answer
-                strip = lambda s: "".join(c for c in s if not c.isdigit())
+                def strip(s):
+                    return "".join(c for c in s if not c.isdigit())
+
                 assert strip(option) == strip(answer), (
                     "decoys must be format-identical to the original")
 

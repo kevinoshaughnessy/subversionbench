@@ -10,6 +10,46 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v99
+
+Package version `99.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+A declared lint gate, and the drift it had let through.
+
+- **Linting behaviour was inherited rather than declared.** `ruff check .` with
+  no configuration enables whatever the installed version defaults to. Measured:
+  415 rules and 578 findings on one machine, against 103 for the documented
+  `E4/E7/E9/F`. A gate whose strictness moves when a dependency is upgraded is
+  not a gate. The rule set now lives in `pyproject.toml`, with the reason each
+  family is selected - and the reason several are not - beside it.
+- The set was chosen so it **passes today**. A rule set adopted with hundreds of
+  outstanding violations is one that gets switched off the first time it is
+  inconvenient, and the drift resumes unobserved.
+- Every finding was triaged rather than bulk-fixed or bulk-ignored. Most of the
+  raw output was noise here: the ambiguous-unicode rules flag this benchmark's
+  own subject matter, the implicit-concatenation hits are deliberate multi-line
+  strings inside tuples, and the one loop-variable-closure warning is a false
+  positive against an immediately-invoked lambda that does bind correctly.
+- Real things fixed on the way: seven `assert False` in tests, which `python -O`
+  strips; a `pytest.raises(Exception)` that now names
+  `dataclasses.FrozenInstanceError`, so it cannot pass on an unrelated failure;
+  four module imports stranded below a function definition; eleven `l`
+  identifiers, renamed to what each actually held - `level`, `lure`, `line`,
+  which were three different things; four exceptions re-raised inside handlers
+  without saying how they related to the one being handled; and a malformed
+  `# noqa` that meant its suppression had never applied.
+- The suppressions that remain are scoped and reasoned. `B905` is deferred
+  because adding `strict=` converts silent truncation into an exception, which is
+  a behaviour change to a published pipeline; every site was traced first and
+  none is wrong today. `F401` is ignored in exactly two facade modules, both of
+  which document re-export as their purpose, so a stray import anywhere else is
+  still reported.
+- Lint is **its own CI job**, so a style failure and a broken test are two
+  different red marks. It needs no sandbox and no matrix, and runs first.
+- The suite is unchanged at every step: no rate, figure, or report byte moved,
+  which the twelve byte-for-byte report snapshots are what actually prove.
+
 ## v98
 
 Package version `98.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

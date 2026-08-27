@@ -325,12 +325,21 @@ gh run view --log-failed   # only the steps that failed
 gh workflow run tests      # start one by hand
 ```
 
+There are three kinds of job: `lint`, the suite across three Python versions,
+and a minimal install. Lint is separate on purpose, so "the code is wrong" and
+"the code is untidy" are two different red marks.
+
 CI runs *after* a push, so it cannot block a bad commit. To check before you
 push, run what the workflow runs:
 
 ```bash
-SUBVERSIONBENCH_NO_SKIPS=1 pytest
+ruff check .                        # the lint job
+SUBVERSIONBENCH_NO_SKIPS=1 pytest   # the suite job
 ```
+
+The rule set is declared in `pyproject.toml` rather than left to ruff's
+defaults, which move between versions; the comments there say why each family
+is selected and why several are deliberately not.
 
 That flag turns a skip for a missing optional dependency into a failure, which
 is how the workflow's first job proves nothing quietly opted out. Its second job
@@ -343,10 +352,10 @@ To make the check binding rather than advisory, either add a `pre-push` hook
 running the command above, or require the `tests` check under Settings →
 Branches, which needs work to arrive through pull requests.
 
-The suite is developed on macOS and the Linux runners currently fail the
-sandbox, isolation and runner tests, which assume macOS confinement; one pinned
-rollout fingerprint also differs by platform. Read a red run against that before
-assuming a regression.
+The suite is developed on macOS and passes on the Linux runners too. The runner
+installs bubblewrap and clears the unprivileged-userns sysctl, then asserts
+`confinement_available()` before running anything, so a green suite cannot mean
+the sandbox went unenforced.
 
 ## Caveats
 

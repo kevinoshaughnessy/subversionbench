@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "98.0.0"
+version = "99.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -48,13 +48,90 @@ dependencies = [
 # rather than skipped-when-absent because those checks are worth running: a
 # skipped guard is the shape of silent pass this project keeps finding bugs
 # behind, and CI's own job treats a dependency skip as a failure.
-test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx", "PyYAML>=6.0"]
+#
+# ruff is the style and bug-pattern gate, run as its own CI job. It does NOT
+# replace the pyflakes guards in test_config.py: those take their file list from
+# conftest, so a newly added module is checked the moment it exists, and they run
+# in the suite where a developer sees them without pushing.
+test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx", "PyYAML>=6.0", "ruff>=0.16"]
 charts = ["matplotlib>=3.8"]
 openrouter = ["openai>=1.0.0"]
 openai = ["openai>=1.0.0"]
 
 [project.scripts]
 subversionbench = "subversionbench.run_eval:main"
+
+[tool.ruff]
+# WHY THE RULE SET IS WRITTEN DOWN
+# --------------------------------
+# Without this section ruff lints against whatever its installed version happens
+# to default to. Measured on one machine: `ruff check .` with no config enabled
+# 415 rules and reported 578 findings, while the documented default of
+# E4/E7/E9/F reports 103. A gate whose strictness moves when a dependency is
+# upgraded is not a gate, so the set is declared rather than inherited.
+#
+# Line length is not enforced. The codebase already writes to about 85 columns
+# on its own - p99.5 is 85 and only 42 lines of 56,427 exceed 90 - so a limit
+# here would buy nothing and would force rewrapping of prose comments that are
+# doing real explanatory work.
+target-version = "py310"
+
+[tool.ruff.lint]
+# Chosen so the gate PASSES today. A rule set adopted with hundreds of
+# violations left outstanding is one that gets switched off the first time it is
+# inconvenient, and then the drift it was meant to stop resumes unobserved.
+select = [
+    "E4", "E7", "E9",  # pycodestyle errors: imports, statements, syntax
+    "F",               # pyflakes: undefined names, unused imports
+    "W",               # pycodestyle warnings
+    "B",               # bugbear: mutable defaults, `assert False`, loop closures
+    "C4",              # comprehension and collection-call simplifications
+    "UP",              # constructs superseded by the Python floor
+    "PIE",             # small unnecessary-code patterns
+    "RSE", "LOG", "G", # raise/logging hygiene - all three are clean, kept clean
+    "A",               # shadowing a builtin
+    "ISC001", "ISC002",  # a missing comma silently concatenating two strings
+]
+
+ignore = [
+    # zip() without strict=. Adding it would turn silent truncation into an
+    # exception, which is a BEHAVIOUR change to a published analysis pipeline
+    # and deserves its own decision rather than arriving inside a lint pass.
+    # Every site was traced first: each pairs lists built from one source, and
+    # _stepwise_adjust returns [None] * len(pvalues) precisely so model rows
+    # stay aligned with their corrected p-values. Nothing is wrong today; the
+    # invariant is reasoned about rather than enforced.
+    "B905",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Two modules whose stated job is to be one import site for names that live
+# elsewhere - both say so in their docstrings, and both already maintain
+# __all__. Re-exported private names cannot go in __all__ without declaring
+# them public, which they are not.
+#
+# Scoped to these two files rather than ignored globally, so a genuinely stray
+# import anywhere else is still reported.
+"subversionbench/llm_client.py" = ["F401"]
+"subversionbench/grading/__init__.py" = ["F401"]
+
+# Deliberately NOT selected, with the reason, so the next person does not have
+# to rediscover it:
+#
+#   RUF001, PLE2515  ambiguous and zero-width unicode. This benchmark's SUBJECT
+#                    is invisible and confusable characters; the test corpus is
+#                    full of them on purpose. 155 findings, all intended.
+#   I001             import sorting. Would rewrite the import block of nearly
+#                    every file in one unreviewable diff.
+#   DTZ              naive datetime.now(). Adding tzinfo changes the timestamps
+#                    written into saved run files - a data change, not a lint.
+#   SIM115           open() without a context manager. All 39 are in tests, and
+#                    CPython closes them on refcount drop.
+#   PERF401, PERF203 rewriting loops as comprehensions, and try/except out of
+#                    loops. Both cost readability here for no measured gain.
+#   RET504           assign-then-return. summary_document builds a 200-line dict
+#                    literal; naming it before returning is clearer, not worse.
+#   EM, TRY, TID, PT style preferences that would fight the existing code.
 
 [tool.setuptools.packages.find]
 # `trends` and `report` are deliberately NOT included, even though both are

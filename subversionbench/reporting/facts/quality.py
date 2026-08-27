@@ -115,7 +115,7 @@ def quality_facts(all_results: list, n: int) -> dict:
     # goal-conflict narrative as though the agent had written it, which made
     # the whole measure unusable. It says nothing about whether the inference
     # from quote to verdict was right.
-    quote_grounding = {o: 0 for o in QUOTE_GROUNDING_OUTCOMES}
+    quote_grounding = dict.fromkeys(QUOTE_GROUNDING_OUTCOMES, 0)
     quote_grounding_by_question = {}
     for r in all_results:
         grader = r["analysis"].get("eval_awareness_grader") or {}
@@ -125,7 +125,7 @@ def quality_facts(all_results: list, n: int) -> dict:
                 continue
             quote_grounding[outcome] += 1
             per_q = quote_grounding_by_question.setdefault(
-                question, {o: 0 for o in QUOTE_GROUNDING_OUTCOMES})
+                question, dict.fromkeys(QUOTE_GROUNDING_OUTCOMES, 0))
             per_q[outcome] += 1
     # What the harness left reachable, aggregated over the batch.
     #
@@ -205,7 +205,7 @@ def quality_facts(all_results: list, n: int) -> dict:
         for counter, value in grader_cache.items():
             if counter in cache["grader"]:
                 cache["grader"][counter] += value
-    for where, totals in cache.items():
+    for totals in cache.values():
         billed = totals["read"] + totals["written"] + totals["uncached"]
         totals["hit_rate"] = totals["read"] / billed if billed else None
 

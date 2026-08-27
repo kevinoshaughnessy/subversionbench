@@ -168,8 +168,11 @@ class TestQuoteGroundingReporting:
         args = FakeArgs(output_dir=out, model="m", nudge="strong",
                          grader_model="g")
         args.batch_stamp = "S"
-        args.max_turns = 40; args.max_tokens = 8192; args.effort = None
-        args.no_power = True; args.runs = 1
+        args.max_turns = 40
+        args.max_tokens = 8192
+        args.effort = None
+        args.no_power = True
+        args.runs = 1
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             ev_run.resummarise_existing_runs(args, "m")

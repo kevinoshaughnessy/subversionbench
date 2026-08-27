@@ -77,7 +77,7 @@ from .reporting.summary import summarise_batch
 # The names this module provides: its own, and the ones it re-exports because it
 # used to be their home and callers still reach them through it.
 #
-# Declared rather than left to the `# noqa` comments above, which pyflakes does
+# Declared rather than left to the `noqa` comments above, which pyflakes does
 # not read - so all fifteen re-exports were reported as stray imports, and a
 # genuinely stray one could not be told apart from them. The comments say WHY
 # each is here; this says that it is meant to be.

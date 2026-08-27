@@ -176,9 +176,12 @@ def skip_without(module: str, why: str = ""):
     try:
         importlib.import_module(module)
     except ImportError:
+        # `from None`: the ImportError IS the condition being reported, not an
+        # error that happened while reporting it. Chaining it would print a
+        # traceback beside a skip that is entirely expected.
         raise unittest.SkipTest(
             f"{OPTIONAL_DEPENDENCY_ABSENT} {module}"
-            f"{' - ' + why if why else ''}")
+            f"{' - ' + why if why else ''}") from None
 
 
 # In CI's fully-installed job, skipping for a MISSING DEPENDENCY is a failure.

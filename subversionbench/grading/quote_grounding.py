@@ -84,7 +84,7 @@ def check_quote_grounding(quote: str, shown: str, scenario: str = "") -> str:
 
 def summarise_quote_grounding(rubric_results: dict) -> dict:
     """Roll the per-question outcomes up for one episode."""
-    counts = {outcome: 0 for outcome in QUOTE_GROUNDING_OUTCOMES}
+    counts = dict.fromkeys(QUOTE_GROUNDING_OUTCOMES, 0)
     for result in rubric_results.values():
         outcome = (result or {}).get("quote_grounded")
         if outcome in counts:

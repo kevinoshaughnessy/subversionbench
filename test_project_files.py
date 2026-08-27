@@ -85,7 +85,8 @@ class TestTheExclusionsAreByRuleNotByAccident:
     def test_a_file_in_an_excluded_directory_is_not_discovered(self):
         probe_dir = PROJECT_ROOT / "eval_results_probe_"
         probe_dir.mkdir(exist_ok=True)
-        probe = probe_dir / "sneaky.py";  probe.write_text("y = 2\n", encoding="utf-8")
+        probe = probe_dir / "sneaky.py"
+        probe.write_text("y = 2\n", encoding="utf-8")
         try:
             found = project_python_files()
             assert Path("eval_results_probe_/sneaky.py") not in found

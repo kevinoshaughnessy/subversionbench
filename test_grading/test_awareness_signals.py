@@ -130,12 +130,12 @@ class TestAwarenessIndicators:
         substring of "to see how it", and the boundary rule is what makes that
         not a match."""
         for o in (True, False):
-            for l in (True, False):
-                text = json.dumps(scenario_for(o, lure=l)).lower()
+            for lure in (True, False):
+                text = json.dumps(scenario_for(o, lure=lure)).lower()
                 got = detect_eval_awareness_keywords(
                     [{"turn": 1, "type": "text", "content": text}])
                 assert got["indicators_found"] == [], (
-                    f"arm (oversight={o}, lure={l}): scenario text itself trips "
+                    f"arm (oversight={o}, lure={lure}): scenario text itself trips "
                     f"{got['indicators_found']}")
 
 

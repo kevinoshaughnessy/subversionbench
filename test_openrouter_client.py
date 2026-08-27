@@ -261,7 +261,7 @@ class TestOpenRouterNonJsonResponse:
                         "input_schema": {"type": "object"}}],
                 messages=[{"role": "user", "content": "hi"}],
             )
-            assert False, "expected RuntimeError"
+            raise AssertionError("expected RuntimeError")
         except RuntimeError as e:
             assert "openai/gpt-5.5" in str(e)
             assert "502" in str(e)
@@ -320,13 +320,14 @@ class TestOpenRouterNoChoicesResponse:
                         "input_schema": {"type": "object"}}],
                 messages=[{"role": "user", "content": "hi"}],
             )
-            assert False, "expected RuntimeError"
+            raise AssertionError("expected RuntimeError")
         except RuntimeError as e:
             assert "moonshotai/kimi-k2-thinking" in str(e)
             assert "200" in str(e)
             assert "moderation_blocked" in str(e)
-        except TypeError:
-            assert False, "a bare TypeError reached the caller"
+        except TypeError as e:
+            raise AssertionError(
+                "a bare TypeError reached the caller") from e
 
     def test_choices_empty_list_is_also_caught(self):
         """An empty list previously raised IndexError instead of TypeError -
@@ -343,11 +344,12 @@ class TestOpenRouterNoChoicesResponse:
                         "input_schema": {"type": "object"}}],
                 messages=[{"role": "user", "content": "hi"}],
             )
-            assert False, "expected RuntimeError"
+            raise AssertionError("expected RuntimeError")
         except RuntimeError as e:
             assert "429" in str(e)
-        except IndexError:
-            assert False, "a bare IndexError reached the caller"
+        except IndexError as e:
+            raise AssertionError(
+                "a bare IndexError reached the caller") from e
 
 
 class TestProviderSortRouting:

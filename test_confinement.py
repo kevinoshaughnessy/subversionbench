@@ -389,7 +389,8 @@ class TestTheFingerprintDoesNotDependOnTheHost:
         """What the docstring promises. Six roots denote the same three rules."""
         lines = self._behaviour_with(self.LINUX_ROOTS).strip().splitlines()
         assert len(lines) == len(set(lines))
-        temp_clauses = [l for l in lines if "PLACEHOLDER_TEMP_ROOT" in l]
+        temp_clauses = [line for line in lines
+                        if "PLACEHOLDER_TEMP_ROOT" in line]
         assert len(temp_clauses) == 3, temp_clauses
 
     def test_the_pinned_fingerprints_hold_on_a_linux_root_set(self):

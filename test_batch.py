@@ -8,6 +8,7 @@ from whatever the rebuild was invoked with.
 
 import ast
 import contextlib
+import dataclasses
 import glob
 import inspect
 import io
@@ -33,7 +34,7 @@ class TestTheIdentityCannotBeReintroducedAsMutableState:
         """A callee that could assign to the identity could recreate the leak by
         another route."""
         identity = BatchIdentity(model="m", model_slug="m", nudge="strong")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             identity.effort = "high"
 
     def test_summarise_batch_reads_no_arm_field_off_args(self):

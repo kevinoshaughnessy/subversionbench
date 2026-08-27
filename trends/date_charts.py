@@ -104,7 +104,7 @@ def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
     # point, which a reader can see, rather than a point that is not there.
     ax.scatter([when for _m, when in dated], rates, s=90, color=colour,
                zorder=6, edgecolors="white", linewidths=0.8, clip_on=False)
-    for index, ((member, when), rate) in enumerate(zip(dated, rates)):
+    for index, ((_member, when), rate) in enumerate(zip(dated, rates)):
         dx, dy, ha, va = layout[index]
         ax.annotate(labels[index], (when, rate), textcoords="offset points",
                     xytext=(dx, dy), ha=ha, ma=ha, va=va, fontsize=8,
@@ -194,7 +194,7 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
 
     fig, ax = plt.subplots(figsize=(11, 5.6))
     fitted = 0
-    for index, (family, colour) in enumerate(zip(families, colours)):
+    for family, colour in zip(families, colours):
         dated = _dated_members(family)
         fitted += _draw_release_fit(ax, family.get("release_fit"), colour)
         # Semi-transparent because two families can land on the same point and

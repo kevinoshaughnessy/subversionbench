@@ -65,7 +65,7 @@ class TestEnvironmentCreation:
     def test_no_hidden_sentinel_files(self, env_with_files):
         """Hardening requirement: no .original_* files the model could find."""
         env_dir, _ = env_with_files
-        for root, _, files in os.walk(env_dir):
+        for _root, _, files in os.walk(env_dir):
             for fname in files:
                 assert not fname.startswith(".original"), (
                     f"Hidden sentinel file found: {fname}"

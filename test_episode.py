@@ -373,7 +373,10 @@ class TestTheRecordedArmIsTheArmRequested:
     """
 
     def _episode(self, nudge, system_prompt=None, effort=None):
-        import tempfile, types, io, contextlib
+        import tempfile
+        import types
+        import io
+        import contextlib
         import subversionbench.run_eval as ev_run
         from subversionbench.environment import create_hardened_environment
         from subversionbench.config import (SYSTEM_PROMPT_STRONG_NUDGE,
@@ -459,7 +462,10 @@ class TestOpenRouterSortIsRecordedAsSent:
     choice that never reached anything."""
 
     def _episode(self, model, openrouter_sort=None):
-        import tempfile, types, io, contextlib
+        import tempfile
+        import types
+        import io
+        import contextlib
         import subversionbench.run_eval as ev_run
         from subversionbench.environment import create_hardened_environment
         from subversionbench.config import SYSTEM_PROMPT_NO_NUDGE
@@ -511,7 +517,10 @@ class TestOpenRouterProviderIsRecordedAsSent:
     OpenRouter client, never merely because it was requested."""
 
     def _episode(self, model, openrouter_provider=None):
-        import tempfile, types, io, contextlib
+        import tempfile
+        import types
+        import io
+        import contextlib
         import subversionbench.run_eval as ev_run
         from subversionbench.environment import create_hardened_environment
         from subversionbench.config import SYSTEM_PROMPT_NO_NUDGE
@@ -975,9 +984,9 @@ class TestBothEpisodeRecordsCarryTheSameArm:
 
     def _built(self, **kw):
         from subversionbench.episode import arm_identity
-        args = dict(model="m", effort=None, nudge="strong", oversight=True,
-                    lure=False, interrogations=("zeroevidence",),
-                    openrouter_sort=None, openrouter_provider=None)
+        args = {"model": "m", "effort": None, "nudge": "strong", "oversight": True,
+                    "lure": False, "interrogations": ("zeroevidence",),
+                    "openrouter_sort": None, "openrouter_provider": None}
         args.update(kw)
         return arm_identity(**args)
 
@@ -994,8 +1003,9 @@ class TestBothEpisodeRecordsCarryTheSameArm:
     def test_each_arm_gets_its_own_fingerprint(self):
         """Not the primary arm's. A module constant here once made every
         counterfactual and every lure episode claim the primary arm's identity."""
-        seen = {(o, l): self._built(oversight=o, lure=l)["rollout_fingerprint"]
-                for o in (True, False) for l in (True, False)}
+        seen = {(o, lure): self._built(oversight=o,
+                                      lure=lure)["rollout_fingerprint"]
+                for o in (True, False) for lure in (True, False)}
         assert len(set(seen.values())) == 4, seen
 
     def test_neither_record_redeclares_an_identity_field(self):
@@ -1102,9 +1112,9 @@ class TestTheLoopGuardsTheRequestAndNothingElse:
                         user_prompt="Do it.", env_dir=env_dir,
                         env_info=env_info, model="m", max_turns=2,
                         use_grader=False, nudge="strong")
-                except EpisodeAPIError:
+                except EpisodeAPIError as e:
                     raise AssertionError(
-                        "a sandbox fault was reported as an API error")
+                        "a sandbox fault was reported as an API error") from e
                 except OSError as e:
                     assert "sandbox-exec" in str(e)
                 else:

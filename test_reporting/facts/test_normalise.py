@@ -189,8 +189,8 @@ class TestTheGuardCannotComeBack:
         """Checked on code lines only: the docstring above and the comments in
         normalise.py quote the pattern in order to explain why it is gone."""
         src = inspect.getsource(normalise_analyses)
-        code = "\n".join(l for l in src.split("\n")
-                         if not l.strip().startswith("#"))
+        code = "\n".join(line for line in src.split("\n")
+                         if not line.strip().startswith("#"))
         # strip the docstring, which names the pattern deliberately
         tree = ast.parse(src).body[0]
         doc = ast.get_docstring(tree, clean=False) or ""
