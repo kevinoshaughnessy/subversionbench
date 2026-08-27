@@ -10,6 +10,42 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v100
+
+Package version `100.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+The concurrent scheduler, which was the deepest-nested function in the codebase
+at seven levels against a next-deepest of five.
+
+- **The two branches that end a batch early had no tests at all.** The
+  KeyboardInterrupt drain and the auth-error abort under concurrency are the
+  deepest and most intricate paths in `_run_episodes_concurrently`, and nothing
+  in the suite reached either - so there was nothing holding them in place while
+  the function was reshaped. Written first, against the existing behaviour, and
+  each verified by planting the defect it claims to catch.
+- **One of those tests was passing for the wrong reason and was rewritten.** It
+  asserted on the run files on disk, but those are written by `_run_one_episode`
+  itself, so they exist whether or not the scheduler ever collected the record -
+  a drain that dropped every in-flight episode still leaves a full directory
+  behind. It now asserts on what reaches `summarise_batch`, which is the only
+  place the loss would show.
+- **A second test was non-discriminating at random.** Timing the interrupt meant
+  that when the pool had not yet picked up a submitted episode, `cancel()`
+  succeeded, nothing was in flight, and "the drain collected everything" was
+  trivially true. It is now synchronised with a barrier, so every episode is
+  provably inside `run_evaluation` when the interrupt lands.
+- The nesting itself came from deciding "does this record end the batch" inline,
+  three levels below the loop it belonged to. That decision reads the
+  consecutive count, the failure list and the abort flag together, so those five
+  loop-local variables became one `_BatchProgress` object with the decision as a
+  method returning whether to stop. The scheduling loop, the interrupt drain and
+  the stdout swap each moved out too.
+- Depth seven to four, with nothing in the module now above four, and the
+  deepest function 34 lines rather than 162. The initial pool fill and the
+  refill were two copies of the same three lines and are now one function.
+- Behaviour unchanged, including the order results reach the summary in.
+
 ## v99
 
 Package version `99.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

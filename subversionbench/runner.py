@@ -16,6 +16,7 @@ keeping whatever happens to the ones after it.
 """
 
 import concurrent.futures
+import contextlib
 import io
 import json
 import os
@@ -78,6 +79,148 @@ class _PerThreadStdout:
     def write_to_real(self, s):
         self._real.write(s)
         self._real.flush()
+
+
+@contextlib.contextmanager
+def _stdout_per_thread(out):
+    """Send worker prints through `out` for the duration, then put sys.stdout
+    back. A context manager so the restore cannot be skipped by an early
+    return added later."""
+    real = sys.stdout
+    sys.stdout = out
+    try:
+        yield
+    finally:
+        sys.stdout = real
+
+
+class _BatchProgress:
+    """
+    The bookkeeping the concurrent scheduler owns: what finished, what failed,
+    and whether the batch has to stop.
+
+    An object rather than five variables closed over by the loop. Deciding
+    whether one record ends the batch reads the consecutive count, the failure
+    list and the abort flag together, and having that decision inline is what
+    took the scheduler to seven levels of nesting - the abort test sat under
+    `while` under `for` under `if`, three levels below the loop it belonged to.
+
+    Results are keyed by episode index and ordered on the way out, because
+    episodes finish out of order under concurrency and the summary must not
+    depend on which one happened to be quickest.
+    """
+
+    def __init__(self, max_consecutive_failures, batch_stamp):
+        self.results = {}
+        self.failures = []
+        self.consecutive_failures = 0
+        self.aborted = False
+        self._max_consecutive_failures = max_consecutive_failures
+        self._batch_stamp = batch_stamp
+
+    def absorb(self, i, record) -> bool:
+        """Take in one finished episode. True means the batch must stop."""
+        if not record["ok"]:
+            return self._absorb_failure(record)
+
+        self.consecutive_failures = 0
+        self.results[i] = record["result"]
+        if record["auth_error"]:
+            # After the assignment above, so the count includes this episode -
+            # it was paid for and is on disk.
+            _print_auth_abort(record["auth_error"], record["env_dir"],
+                              len(self.results), self._batch_stamp)
+            self.aborted = True
+            return True
+        return False
+
+    def _absorb_failure(self, record) -> bool:
+        self.consecutive_failures += 1
+        self.failures.append(record["failure"])
+        print(f"  Episode skipped. {self.consecutive_failures} "
+              f"consecutive failure(s), {len(self.failures)} total.")
+        if self.consecutive_failures >= self._max_consecutive_failures:
+            print(f"\n*** ABORTING: {self.consecutive_failures} episodes "
+                  f"failed in a row. ***")
+            self.aborted = True
+            return True
+        return False
+
+    def keep(self, i, record):
+        """Take in an episode collected after the batch was already stopping.
+
+        No abort decision and no consecutive count: the batch is already ending,
+        and what matters is only that an episode which was paid for reaches the
+        summary rather than being dropped.
+        """
+        if record["ok"]:
+            self.results[i] = record["result"]
+        else:
+            self.failures.append(record["failure"])
+
+    def ordered_results(self) -> list:
+        return [self.results[i] for i in sorted(self.results)]
+
+
+def _drain_after_interrupt(futures, progress):
+    """
+    Collect whatever survived a Ctrl-C, rather than dropping it.
+
+    cancel() only succeeds on a future that has not started. Whatever is
+    already running keeps running whether or not anyone waits for it, so an
+    episode left uncollected here is one the operator paid for and then cannot
+    see in the summary.
+    """
+    still_running = [f for f in futures if not f.cancel()]
+    for fut in concurrent.futures.as_completed(still_running):
+        record = fut.result()
+        if record is not None:
+            progress.keep(futures[fut], record)
+
+
+def _launch_next(ex, worker, remaining, futures):
+    """Submit the next pending episode into `futures`, or do nothing if none
+    are left. Shared by the initial fill and every refill, which were two
+    copies of the same three lines."""
+    i = next(remaining, None)
+    if i is not None:
+        futures[ex.submit(worker, i)] = i
+
+
+def _keep_pool_full(ex, worker, pending, concurrency, progress, stop):
+    """
+    Keep up to `concurrency` episodes in flight until `pending` runs out or the
+    batch stops.
+
+    Split from _run_episodes_concurrently so the scheduling loop is readable on
+    its own: the setup around it - the pacing closure, the per-thread stdout,
+    the resume scan - has nothing to do with deciding what to launch next.
+    """
+    remaining = iter(pending)
+    futures = {}
+    for _ in range(concurrency):
+        _launch_next(ex, worker, remaining, futures)
+
+    try:
+        while futures:
+            done, _ = concurrent.futures.wait(
+                list(futures),
+                return_when=concurrent.futures.FIRST_COMPLETED)
+            for fut in done:
+                i = futures.pop(fut)
+                record = fut.result()
+                if record is None:
+                    continue
+                if progress.absorb(i, record):
+                    stop.set()
+                if not stop.is_set():
+                    _launch_next(ex, worker, remaining, futures)
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user. Episode(s) already in flight will "
+              "finish and save; nothing further will be launched.")
+        progress.aborted = True
+        stop.set()
+        _drain_after_interrupt(futures, progress)
 
 
 def _run_one_episode(i, args, identity, system_prompt, user_prompt,
@@ -222,9 +365,8 @@ def _run_episodes_concurrently(args, identity, system_prompt, user_prompt,
             continue
         pending.append(i)
 
-    failures = []
-    consecutive_failures = 0
-    aborted = False
+    progress = _BatchProgress(args.max_consecutive_failures, batch_stamp)
+    progress.results.update(all_results)
     stop = threading.Event()
     launch_lock = threading.Lock()
     print_lock = threading.Lock()
@@ -267,82 +409,12 @@ def _run_episodes_concurrently(args, identity, system_prompt, user_prompt,
             with print_lock:
                 out.write_to_real(text)
 
-    real_stdout = sys.stdout
-    sys.stdout = out
-    try:
-        with concurrent.futures.ThreadPoolExecutor(
-                max_workers=args.concurrency) as ex:
-            it = iter(pending)
-            futures = {}
-            for _ in range(args.concurrency):
-                i = next(it, None)
-                if i is None:
-                    break
-                futures[ex.submit(worker, i)] = i
+    with _stdout_per_thread(out), concurrent.futures.ThreadPoolExecutor(
+            max_workers=args.concurrency) as ex:
+        _keep_pool_full(ex, worker, pending, args.concurrency, progress, stop)
 
-            try:
-                while futures:
-                    done, _ = concurrent.futures.wait(
-                        list(futures),
-                        return_when=concurrent.futures.FIRST_COMPLETED)
-                    for fut in done:
-                        i = futures.pop(fut)
-                        record = fut.result()
-                        if record is None:
-                            continue
-
-                        if not record["ok"]:
-                            consecutive_failures += 1
-                            failures.append(record["failure"])
-                            print(f"  Episode skipped. {consecutive_failures} "
-                                  f"consecutive failure(s), {len(failures)} "
-                                  f"total.")
-                            if (consecutive_failures >=
-                                    args.max_consecutive_failures):
-                                print(f"\n*** ABORTING: "
-                                      f"{consecutive_failures} episodes "
-                                      f"failed in a row. ***")
-                                aborted = True
-                                stop.set()
-                        else:
-                            consecutive_failures = 0
-                            all_results[i] = record["result"]
-                            if record["auth_error"]:
-                                _print_auth_abort(
-                                    record["auth_error"], record["env_dir"],
-                                    len(all_results), batch_stamp)
-                                aborted = True
-                                stop.set()
-
-                        if not stop.is_set():
-                            j = next(it, None)
-                            if j is not None:
-                                futures[ex.submit(worker, j)] = j
-            except KeyboardInterrupt:
-                print("\n\nInterrupted by user. Episode(s) already in "
-                      "flight will finish and save; nothing further will "
-                      "be launched.")
-                aborted = True
-                stop.set()
-                # cancel() only succeeds on a future that has not started;
-                # whatever is already running keeps running and is collected
-                # below rather than left off the summary this function
-                # returns.
-                still_running = [f for f in futures if not f.cancel()]
-                for fut in concurrent.futures.as_completed(still_running):
-                    i = futures[fut]
-                    record = fut.result()
-                    if record is None:
-                        continue
-                    if record["ok"]:
-                        all_results[i] = record["result"]
-                    else:
-                        failures.append(record["failure"])
-    finally:
-        sys.stdout = real_stdout
-
-    ordered_results = [all_results[i] for i in sorted(all_results)]
-    return ordered_results, failures, consecutive_failures, aborted, total_wait[0]
+    return (progress.ordered_results(), progress.failures,
+            progress.consecutive_failures, progress.aborted, total_wait[0])
 
 
 def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
