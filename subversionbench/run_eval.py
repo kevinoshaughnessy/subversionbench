@@ -60,7 +60,7 @@ from .llm_client import (
 # batch_stem, parse_batch_filename, find_run_files and find_run_files_by_stamp are
 # re-exported: this module was their home and several test files still reach them
 # through it as attributes. The rest are imported because this module uses them.
-from .batch import (ALL, BatchIdentity, batch_stem,  # noqa: F401
+from .batch import (ALL, BatchIdentity, BatchSelection, batch_stem,  # noqa: F401
                     discover_batches, find_run_files, find_run_files_by_stamp,
                     parse_batch_filename)
 from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
@@ -84,6 +84,7 @@ from .reporting.summary import summarise_batch
 __all__ = [
     "ALL",
     "BatchIdentity",
+    "BatchSelection",
     "DEFAULT_GRADER_MODEL",
     "DEFAULT_INTERROGATION",
     "DEFAULT_ISOLATION",
@@ -509,6 +510,12 @@ def main():
     # "/" would otherwise be interpreted as a path separator in filenames.
     model_slug = args.model.replace("/", "_")
 
+    # The (model, nudge) the read modes below operate on. Built once here,
+    # rather than each mode reading it off `args`, because a fan out varies
+    # the pair per batch and there is only one `args` to vary - see
+    # BatchSelection in batch.py for what that used to cost.
+    selection = BatchSelection.typed(args)
+
     if args.compare:
         return compare_batches(args)
 
@@ -551,16 +558,16 @@ def main():
         return fan_out_read_mode(args, run_one)
 
     if args.resummarise:
-        return resummarise_existing_runs(args, model_slug)
+        return resummarise_existing_runs(args, selection)
 
     if args.reinterrogate:
-        return reinterrogate_existing_runs(args, model_slug)
+        return reinterrogate_existing_runs(args, selection)
 
     if args.reclassify:
-        return reclassify_existing_runs(args, model_slug)
+        return reclassify_existing_runs(args, selection)
 
     if args.grade_existing:
-        return grade_existing_runs(args, model_slug)
+        return grade_existing_runs(args, selection)
 
     # Past this point we are rolling out. Everything above decided whether to, and
     # with what; runner.py does it.

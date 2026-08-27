@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v105
+
+Package version `105.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+The batch a read mode operates on is passed to it, instead of being read off the
+namespace every caller shares.
+
+- **`BatchSelection`**, a frozen `(model, nudge)` in `batch.py` beside
+  `BatchIdentity`. The four read modes and `find_run_files_or_explain` take it in
+  place of the bare `model_slug` they took before, so arity is unchanged and each
+  signature now says what selects its work. `model_slug` is derived on the type
+  rather than passed: it was a second parameter beside the model on ten
+  functions, with four separate `replace("/", "_")` derivations in source.
+- **The two are deliberately different questions.** A selection is what a mode
+  was *asked* to operate on, before any file is read. An identity is what the
+  episodes *are*, recovered from run filenames — which for a rebuild is not what
+  the operator typed. Neither can stand in for the other.
+- **This closes the last write to the shared bag.** `fan_out_read_mode` set the
+  arm by assigning onto `args`, which every caller shares: the surviving half of
+  the defect `BatchIdentity` was introduced for, benign only because the loop
+  rewrote both fields every time round, and leaving `args` holding the last
+  batch's pair afterwards rather than what was typed.
+- A per-iteration `copy.copy(args)` was written first and worked. It was replaced
+  rather than kept: a copy is a way of making a shared mutable thing safe to
+  write to, and handing the callee its own selection means there is nothing to
+  write. Nothing in the readmode package reads `args.model` or `args.nudge` now
+  except the fan out's own `--model all` filter, which is the operator's and
+  belongs there.
+- **Verified output-identical against the corpus.** A scratch corpus spanning
+  four `(model, nudge)` groups, resummarised before and after and compared leaf
+  by leaf: identical filenames, identical group order, 8062 leaves, and the only
+  differences the `version`/`analysis_version` stamps this bump moves.
+- `MUTATES_THE_BAG_OUTSIDE_MAIN` in `test_project/test_args_bag.py` is now empty.
+  Its reverse direction is what closed it: after the fix it failed with "no
+  longer mutates the bag — remove it", which is the job a two-directional
+  baseline does and the one a one-directional baseline never does. Left in place,
+  empty, so the next entry inherits the same obligation to disappear.
+- The readmode signature guard asserts the new second parameter, and gains a
+  companion: no mode may read `args.model` or `args.nudge` at all. Without it a
+  mode could pass the signature check and still read the batch off the shared
+  namespace — working when a single batch is named, and silently processing the
+  wrong one under a fan out, where `args` holds the literal `all`.
+- The narrower source scan in `test_readmodes/test_selection.py` is replaced
+  rather than kept beside the general one in `test_project/test_args_bag.py` —
+  the same rule guarded twice is the defect class this repository keeps finding.
+  What replaces it is what a source scan cannot express: the caller's own object,
+  compared field by field across the call, plus the converse, that each batch
+  still receives its own model and nudge.
+
 ## v104
 
 Package version `104.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

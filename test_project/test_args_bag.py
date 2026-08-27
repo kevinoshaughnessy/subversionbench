@@ -64,19 +64,21 @@ import conftest
 
 ROOT = conftest.PROJECT_ROOT
 
-# Mutates the bag away from the CLI boundary. Recorded rather than fixed
-# because the fix edits source. Checked in BOTH directions below, so it can
-# only shrink: delete the entry when the file stops offending.
+# Files that mutate the bag away from the CLI boundary. EMPTY, which is the
+# goal state and not the starting one.
 #
-# fan_out_read_mode assigns args.model and args.nudge once per iteration. It is
-# the surviving half of the defect BatchIdentity was introduced for - the arm
-# fields no longer leak, model and nudge still do - and it is benign only
-# because both are written afresh at the top of every iteration rather than
-# being restored afterwards. That is a property of the current loop body, not
-# of the design, which is why it is pinned here.
-MUTATES_THE_BAG_OUTSIDE_MAIN = frozenset({
-    "subversionbench/readmodes/selection.py",
-})
+# It held subversionbench/readmodes/selection.py, whose fan_out_read_mode
+# assigned args.model and args.nudge once per iteration - the surviving half of
+# the defect BatchIdentity was introduced for. It was recorded rather than fixed
+# because a batch was collecting at the time and the fix edits source.
+#
+# The reverse direction is what closed it: after fan_out_read_mode was changed to
+# hand each batch its own copy, test_every_baselined_file_still_mutates_the_bag
+# failed with "no longer mutates the bag - remove it", which is precisely the job
+# a two-directional baseline does and precisely what a one-directional one would
+# never have done. Left in place, empty, so the next entry inherits the same
+# obligation to disappear.
+MUTATES_THE_BAG_OUTSIDE_MAIN = frozenset()
 
 
 # --------------------------------------------------------------------------

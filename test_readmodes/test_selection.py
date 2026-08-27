@@ -13,7 +13,7 @@ import tempfile
 import types
 
 from pathlib import Path
-from subversionbench.batch import ALL
+from subversionbench.batch import ALL, BatchSelection
 from subversionbench.run_eval import fan_out_read_mode
 import subversionbench.run_eval as ev_run
 from conftest import write_run_file
@@ -35,7 +35,7 @@ def _args(out, **over):
 def _run_mode(name, args):
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        code = getattr(ev_run, name)(args, "m")
+        code = getattr(ev_run, name)(args, BatchSelection.typed(args))
     return code, buf.getvalue()
 
 class TestFanOut:
@@ -51,8 +51,8 @@ class TestFanOut:
         write_run_file(d, 2, "c/d", "none")
         seen = []
 
-        def fake(args, slug):
-            seen.append((args.model, args.nudge, slug))
+        def fake(args, sel):
+            seen.append((sel.model, sel.nudge, sel.model_slug))
             return 0
 
         assert fan_out_read_mode(self._args(d), fake) == 0
@@ -78,7 +78,7 @@ class TestFanOut:
         write_run_file(d, 3, "e/f", "strong")
         seen = []
 
-        def fake(args, slug):
+        def fake(args, sel):
             seen.append((args.effort, args.oversight, args.lure))
             return 0
 
@@ -92,48 +92,69 @@ class TestFanOut:
         write_run_file(d, 2, "c/d", "strong", effort="high")
         efforts = []
 
-        def fake(args, slug):
+        def fake(args, sel):
             efforts.append(args.effort)
             return 0
 
         fan_out_read_mode(self._args(d, effort="high"), fake)
         assert efforts == ["high", "high"]
 
-    def test_no_read_mode_writes_to_the_operators_filters(self):
-        """The guard that replaces the snapshot fan_out used to keep.
+    def test_the_fan_out_does_not_touch_the_caller_s_args(self):
+        """BEHAVIOURAL, where this used to be a source scan.
 
-        `args` is shared across every batch in a fan out, so a read mode that
-        assigns to one of the filter fields poisons every batch after it. The arm a
-        batch was collected under now travels in a BatchIdentity, so no mode needs
-        to; this makes needing to a test failure rather than a silent half-done
-        backfill.
+        `args` is shared across every batch in a fan out, so writing the arm onto
+        it poisons every batch after. This asserted it by parsing run_eval.py for
+        assignments to five named filter fields - which caught the shape it knew
+        about, in one module, and could say nothing about whether the object the
+        caller handed in actually came back unchanged.
 
-        main is exempt for model/nudge-adjacent normalisation of its OWN freshly
-        parsed namespace, and fan_out itself sets model and nudge as its iteration
-        variables - written afresh every time round.
+        The equivalent source scan now lives in test_project/test_args_bag.py and
+        covers every source file rather than one, so repeating it here would be
+        the same rule guarded twice - the defect class this repository keeps
+        finding. What that scan cannot express is this: the caller's own object,
+        compared field by field, before and after.
         """
-        import ast
-        import inspect
-        import subversionbench.run_eval as ev
-        FILTERS = {"effort", "oversight", "lure", "model", "nudge"}
-        ALLOWED = {"main", "fan_out_read_mode"}
-        tree = ast.parse(inspect.getsource(ev))
-        offenders = []
-        for fn in tree.body:
-            if not isinstance(fn, ast.FunctionDef) or fn.name in ALLOWED:
-                continue
-            for node in ast.walk(fn):
-                if (isinstance(node, ast.Attribute)
-                        and isinstance(node.ctx, ast.Store)
-                        and getattr(node.value, "id", "") == "args"
-                        and node.attr in FILTERS):
-                    offenders.append(f"{fn.name} assigns args.{node.attr}")
-                if (isinstance(node, ast.Call)
-                        and getattr(node.func, "id", "") == "setattr"
-                        and node.args and getattr(node.args[0], "id", "") == "args"):
-                    offenders.append(f"{fn.name} setattrs onto args")
-        assert not offenders, (
-            f"these would leak across a fan out: {sorted(set(offenders))}")
+        d = tempfile.mkdtemp(prefix="fanout_")
+        for i, m in enumerate(("a/b", "c/d"), 1):
+            write_run_file(d, i, m, "none")
+        args = self._args(d)
+        before = dict(vars(args))
+
+        seen = []
+
+        def fake(a, sel):
+            seen.append((sel.model, sel.nudge))
+            return 0
+
+        assert fan_out_read_mode(args, fake) == 0
+        assert len(seen) == 2, seen
+
+        after = dict(vars(args))
+        changed = {k: (before[k], after[k]) for k in before
+                   if before[k] != after[k]}
+        assert not changed, (
+            f"fan_out_read_mode modified the caller's args: {changed}. It is "
+            f"shared, so every batch after this one would see it.")
+        assert set(after) == set(before), (
+            f"fields were added or removed: "
+            f"{set(after) ^ set(before)}")
+
+    def test_each_batch_still_sees_its_own_model_and_nudge(self):
+        """The other half. Not writing to the caller's args would be easy to
+        achieve by not passing the arm along at all, which would send every batch
+        to whatever the operator typed."""
+        d = tempfile.mkdtemp(prefix="fanout_")
+        for i, m in enumerate(("a/b", "c/d"), 1):
+            write_run_file(d, i, m, "none")
+        seen = []
+
+        def fake(a, sel):
+            seen.append((sel.model, sel.nudge, sel.model_slug))
+            return 0
+
+        fan_out_read_mode(self._args(d), fake)
+        assert sorted(seen) == [("a/b", "none", "a_b"),
+                                ("c/d", "none", "c_d")], seen
 
     def test_one_failing_batch_does_not_abandon_the_rest(self):
         d = tempfile.mkdtemp(prefix="fanout_")
@@ -141,9 +162,9 @@ class TestFanOut:
             write_run_file(d, i, m, "strong")
         seen = []
 
-        def fake(args, slug):
-            seen.append(args.model)
-            if args.model == "c/d":
+        def fake(args, sel):
+            seen.append(sel.model)
+            if sel.model == "c/d":
                 raise RuntimeError("unreadable")
             return 0
 
@@ -156,7 +177,7 @@ class TestFanOut:
         write_run_file(d, 1, "a/b", "strong")
         write_run_file(d, 2, "c/d", "strong")
         assert fan_out_read_mode(
-            self._args(d), lambda a, s: 0 if a.model == "a/b" else 1) == 1
+            self._args(d), lambda a, s: 0 if s.model == "a/b" else 1) == 1
 
     def test_no_match_is_an_error_not_a_silent_success(self):
         d = tempfile.mkdtemp(prefix="fanout_")
@@ -178,7 +199,7 @@ class TestTheHelperDelegatesRatherThanReimplements:
             Path(out, name).write_text("{}")
         args = _args(out)
         with contextlib.redirect_stdout(io.StringIO()):
-            got = ev_run.find_run_files_or_explain(args, "m")
+            got = ev_run.find_run_files_or_explain(args, BatchSelection.typed(args))
         expected = ev_run.find_run_files(out, "m", "strong", None, None)
         assert got == expected
         assert len(got) == 2, [Path(p).name for p in got]
@@ -189,7 +210,7 @@ class TestTheHelperDelegatesRatherThanReimplements:
         out = tempfile.mkdtemp()
         args = _args(out)
         with contextlib.redirect_stdout(io.StringIO()):
-            assert ev_run.find_run_files_or_explain(args, "m") is None
+            assert ev_run.find_run_files_or_explain(args, BatchSelection.typed(args)) is None
 
 class TestTheyAllExplainAnEmptySelectionTheSameWay:
     def test_every_mode_gives_the_same_diagnostic(self):

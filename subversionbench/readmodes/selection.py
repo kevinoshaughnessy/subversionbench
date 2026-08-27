@@ -12,11 +12,11 @@ asked once per batch in a directory instead of once.
 import glob
 import os
 
-from ..batch import discover_batches, find_run_files
+from ..batch import BatchSelection, discover_batches, find_run_files
 from ..redaction import redact_paths
 
 
-def find_run_files_or_explain(args, model_slug: str):
+def find_run_files_or_explain(args, selection):
     """
     The run files a read-only mode should work on, or None with the reason printed.
 
@@ -35,12 +35,13 @@ def find_run_files_or_explain(args, model_slug: str):
     Returns None rather than raising or exiting, because each mode owns its own exit
     code and two of them have work to report before returning it.
     """
-    run_files = find_run_files(args.output_dir, model_slug, args.nudge,
+    run_files = find_run_files(args.output_dir, selection.model_slug,
+                               selection.nudge,
                                args.batch_stamp, args.effort)
     if run_files:
         return run_files
 
-    print(f"No run files for model={args.model} nudge={args.nudge} in "
+    print(f"No run files for model={selection.model} nudge={selection.nudge} in "
           f"{redact_paths(args.output_dir)}/"
           + (f" (batch {args.batch_stamp})" if args.batch_stamp else "")
           + (f" (effort {args.effort})" if args.effort else ""))
@@ -76,22 +77,29 @@ def fan_out_read_mode(args, run_one) -> int:
         print(f"  {m} / {n}")
     print(f"{'='*60}")
 
-    # No snapshot of the filter fields here any more, and that is the point.
+    # NOTHING IS WRITTEN ONTO `args`, and there is nothing left that would want to.
     #
     # This loop used to restore args.effort, args.oversight and args.lure at the top
     # of every iteration, because resummarise_existing_runs assigned the batch's own
     # arm onto them - so the first batch processed at effort "medium" filtered every
     # later model to "medium", two of four groups silently reported "no run files",
     # and the backfill would have been half done while reporting success. The callee
-    # now carries the arm in a BatchIdentity, so there is nothing to leak and nothing
-    # to undo. Model and nudge are still set here, and both are written afresh on
-    # every iteration.
+    # carries the arm in a BatchIdentity now, so there is nothing to leak there.
+    #
+    # Model and nudge were the last of it, and were assigned here until the arm a
+    # read mode operates on became a BatchSelection it is handed. Benign while it
+    # lasted only because both were rewritten every time round - a property of this
+    # loop body rather than of the design - and it left `args` holding the LAST
+    # batch's pair afterwards rather than what the operator typed.
+    #
+    # A copy of `args` per iteration was tried first and worked, but a copy is a way
+    # of making a shared mutable thing safe to write to; handing the callee its own
+    # selection means there is nothing to write.
     worst = 0
     for i, (model, nudge) in enumerate(batches, 1):
-        args.model, args.nudge = model, nudge
         print(f"\n### [{i}/{len(batches)}] {model} / {nudge}")
         try:
-            rc = run_one(args, model.replace("/", "_"))
+            rc = run_one(args, BatchSelection(model=model, nudge=nudge))
         except Exception as e:
             # One unreadable batch must not abandon the other 45.
             print(f"  ERROR on {model} / {nudge}: {type(e).__name__}: {e}")

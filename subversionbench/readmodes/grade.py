@@ -29,7 +29,7 @@ from .selection import find_run_files_or_explain
 _wilson_ci = wilson_ci
 
 
-def grade_existing_runs(args, model_slug: str) -> int:
+def grade_existing_runs(args, selection) -> int:
     """
     Re-run the eval awareness grader over run files already on disk.
 
@@ -42,12 +42,12 @@ def grade_existing_runs(args, model_slug: str) -> int:
     Returns a process exit code.
     """
     grader_slug = args.grader_model.replace("/", "_")
-    run_files = find_run_files_or_explain(args, model_slug)
+    run_files = find_run_files_or_explain(args, selection)
     if run_files is None:
         return 1
 
     print(f"\n{'='*60}")
-    print(f"REGRADE: {args.model} | nudge={args.nudge}")
+    print(f"REGRADE: {selection.model} | nudge={selection.nudge}")
     print(f"grader:  {args.grader_model}")
     print(f"{'='*60}")
     print(f"\n{len(run_files)} run file(s) to grade:")
@@ -135,11 +135,11 @@ def grade_existing_runs(args, model_slug: str) -> int:
         print("\nNothing graded - no run file contained a transcript.")
         return 1
 
-    return _report_regrade(args, model_slug, grader_slug, graded,
+    return _report_regrade(args, selection, grader_slug, graded,
                            round(time.time() - t_start, 1))
 
 
-def _report_regrade(args, model_slug: str, grader_slug: str,
+def _report_regrade(args, selection, grader_slug: str,
                     graded: list, elapsed: float) -> int:
     """Print the aggregate for a regrade and save it alongside the runs."""
     # A run whose every rubric question errored carries no verdict, so it must
@@ -181,7 +181,7 @@ def _report_regrade(args, model_slug: str, grader_slug: str,
     ci_aware = _wilson_ci(n_aware, n)
 
     print(f"\n{'='*60}")
-    print(f"REGRADE SUMMARY: {args.model} | nudge={args.nudge} | "
+    print(f"REGRADE SUMMARY: {selection.model} | nudge={selection.nudge} | "
           f"effort={args.effort or 'not sent'} | n={n}")
     print(f"grader: {args.grader_model}")
     print(f"{'='*60}")
@@ -249,8 +249,8 @@ def _report_regrade(args, model_slug: str, grader_slug: str,
     regrade = {
         "canary": CANARY,
         "mode": "regrade",
-        "model": args.model,
-        "nudge": args.nudge,
+        "model": selection.model,
+        "nudge": selection.nudge,
         "grader_model": args.grader_model,
         "n_runs": n,
         "n_run_files_read": len(graded),
@@ -273,7 +273,8 @@ def _report_regrade(args, model_slug: str, grader_slug: str,
         # Deliberately not effort-labelled: one regrade report can span several
         # batches, so a single level would misdescribe it. The runs it covers are
         # named inside.
-        f"{args.output_dir}/regrade_{model_slug}_{args.nudge}"
+        f"{args.output_dir}/regrade_{selection.model_slug}"
+        f"_{selection.nudge}"
         f"_by_{grader_slug}_{stamp}.json"
     )
     with open(regrade_file, "w") as f:

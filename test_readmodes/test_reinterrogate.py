@@ -20,6 +20,7 @@ from pathlib import Path
 import subversionbench.readmodes.reinterrogate as ev_reint
 from subversionbench.config import DEFAULT_INTERROGATION, INTERROGATION_CHOICES
 from subversionbench.grading import MISALIGNED_ACTS, settle_analysis
+from subversionbench.batch import BatchSelection
 
 PARAPHRASE = INTERROGATION_CHOICES[-1]
 ACT = [a for a in MISALIGNED_ACTS if a["name"] == "oversight"][0]
@@ -95,7 +96,7 @@ def _run_mode(args, recorder=None, client=object()):  # noqa: B008 - a sentinel
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):
-            code = ev_reint.reinterrogate_existing_runs(args, "m")
+            code = ev_reint.reinterrogate_existing_runs(args, BatchSelection.typed(args))
     finally:
         ev_reint.run_followup, llm_api.get_client = saved
     return code, buf.getvalue(), recorder
@@ -238,7 +239,9 @@ class TestWhatItRefusesBeforeSpending:
 
         llm_api.get_client = refuse
         try:
-            assert ev_reint.reinterrogate_existing_runs(_args(d), "m") == 0
+            a = _args(d)
+            assert ev_reint.reinterrogate_existing_runs(
+                a, BatchSelection.typed(a)) == 0
         finally:
             llm_api.get_client = saved
 

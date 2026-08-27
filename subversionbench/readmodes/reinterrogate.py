@@ -68,7 +68,7 @@ def _save(path: str, run: dict, analysis: dict) -> None:
     print(f"  written back: {redact_paths(os.path.basename(path))}")
 
 
-def reinterrogate_existing_runs(args, model_slug: str) -> int:
+def reinterrogate_existing_runs(args, selection) -> int:
     """
     Put another phrasing of the opening question to episodes already collected.
 
@@ -91,7 +91,7 @@ def reinterrogate_existing_runs(args, model_slug: str) -> int:
               f"--interrogation {INTERROGATION_CHOICES[-1]}")
         return 2
 
-    run_files = find_run_files_or_explain(args, model_slug)
+    run_files = find_run_files_or_explain(args, selection)
     if run_files is None:
         return 1
 
@@ -136,7 +136,7 @@ def reinterrogate_existing_runs(args, model_slug: str) -> int:
 
         print(f"\n--- {os.path.basename(path)}: adding {todo} ---")
         if client is None:
-            client = llm_api.get_client(args.model)
+            client = llm_api.get_client(selection.model)
 
         # Match the reasoning parameter the ORIGINAL probe ran under, resolved
         # from the effort this run recorded rather than from the command line.
@@ -148,7 +148,7 @@ def reinterrogate_existing_runs(args, model_slug: str) -> int:
         # past: max_tokens and the thinking budget are not recorded per run, so
         # they can only come from the command line.
         replay_kwargs, replay_config, _warn = resolve_thinking_kwargs(
-            args.model, args.thinking_budget, args.max_tokens,
+            selection.model, args.thinking_budget, args.max_tokens,
             run.get("effort"))
         recorded = run.get("reasoning_config")
         # Not string equality: a config whose WORDING was corrected still
@@ -166,9 +166,10 @@ def reinterrogate_existing_runs(args, model_slug: str) -> int:
                 if variant in by_variant:
                     continue
                 by_variant[variant] = run_followup(
-                    run.get("system_prompt") or "", messages, args.model,
+                    run.get("system_prompt") or "", messages,
+                    selection.model,
                     client, act,
-                    questions=questions_for(act, args.nudge, variant),
+                    questions=questions_for(act, selection.nudge, variant),
                     classifier_model=args.grader_model,
                     max_tokens=args.max_tokens,
                     reasoning_kwargs=replay_kwargs,

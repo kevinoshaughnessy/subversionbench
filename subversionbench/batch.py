@@ -92,6 +92,65 @@ class BatchIdentity:
 
 
 
+@dataclass(frozen=True)
+class BatchSelection:
+    """
+    Which batch a read mode was pointed at, passed rather than read off `args`.
+
+    WHY THIS EXISTS SEPARATELY FROM BatchIdentity
+    ---------------------------------------------
+    BatchIdentity is what the EPISODES are - the full arm, recovered from run
+    filenames when a batch is rebuilt, and written back into the names of
+    everything derived from it. A selection is narrower and earlier: the (model,
+    nudge) pair a read mode was ASKED to operate on, before any file has been
+    read.
+
+    They are not the same question and one cannot stand in for the other. A read
+    mode needs the selection to find its run files at all; the identity of what
+    it then found is whatever those filenames say, which for a rebuild is not
+    what the operator typed.
+
+    WHY NOT `args`
+    --------------
+    Because `--model all` fans out, running the same mode once per (model, nudge)
+    in a directory. There is exactly one `args`, shared by every iteration, so
+    varying the arm meant assigning onto it - and that leaked. The arm fields
+    stopped leaking when BatchIdentity was introduced; model and nudge went on
+    doing so, harmless only because the loop rewrote both every time round, and
+    leaving `args` holding the last batch's pair afterwards rather than what was
+    typed.
+
+    Passing the selection makes the leak unexpressible rather than merely absent,
+    and makes each read mode's signature say what selects its work. Frozen, so a
+    callee cannot reintroduce the problem by assigning to it.
+
+    `model_slug` is derived rather than carried. It was a second parameter beside
+    the model on ten functions, each caller doing its own `replace("/", "_")` -
+    four such derivations in source - which is four chances to spell it
+    differently for a model whose name contains a slash.
+    """
+    model: str
+    nudge: str
+
+    @property
+    def model_slug(self) -> str:
+        """The model as it appears in a filename.
+
+        OpenRouter model ids are `provider/model`, and the slash would otherwise
+        be read as a path separator.
+        """
+        return self.model.replace("/", "_")
+
+    @classmethod
+    def typed(cls, args):
+        """What the operator asked for - correct for a single named batch.
+
+        Not for a fan out, where the typed value is the literal `all` and each
+        iteration's pair comes from the directory instead.
+        """
+        return cls(model=args.model, nudge=args.nudge)
+
+
 def batch_stem(model_slug: str, nudge: str, effort=None,
                oversight: bool = True, lure: bool = False) -> str:
     """

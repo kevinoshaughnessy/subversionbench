@@ -17,6 +17,7 @@ import subversionbench.grading as ev_grade
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
 from subversionbench.readmodes.reclassify import record_reanalysis
+from subversionbench.batch import BatchSelection
 from conftest import FakeArgs
 
 
@@ -102,8 +103,9 @@ class TestReclassifyFailsClosed:
         try:
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
+                a = self._args(out, stamp)
                 rc = ev_run.reclassify_existing_runs(
-                    self._args(out, stamp), "m")
+                    a, BatchSelection.typed(a))
             return rc, buf.getvalue()
         finally:
             ev_llm.get_client = original
@@ -177,7 +179,9 @@ class TestReclassifyFailsClosed:
         ev_llm.get_client = lambda m, **_kw: Client()
         try:
             with contextlib.redirect_stdout(io.StringIO()):
-                rc = ev_run.reclassify_existing_runs(self._args(out, "S"), "m")
+                a = self._args(out, "S")
+                rc = ev_run.reclassify_existing_runs(
+                    a, BatchSelection.typed(a))
         finally:
             ev_llm.get_client = original
 
@@ -272,8 +276,9 @@ class TestOneBadRollDoesNotDiscardAGoodRepair:
         try:
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
+                a = self._args(out, stamp)
                 rc = ev_run.reclassify_existing_runs(
-                    self._args(out, stamp), "m")
+                    a, BatchSelection.typed(a))
             return rc, buf.getvalue()
         finally:
             ev_llm.get_client = original
@@ -380,7 +385,7 @@ class TestTheFileSaysWhichVersionRelabelledIt:
         args.batch_stamp = "S"
         with _stub_answer_classifier():
             with contextlib.redirect_stdout(io.StringIO()):
-                rc = ev_run.reclassify_existing_runs(args, "m")
+                rc = ev_run.reclassify_existing_runs(args, BatchSelection.typed(args))
         assert rc == 0
         data = json.loads(Path(f"{out}/run_1_m_strong_S.json").read_text())
         assert data["analysis_version"] == "v58"
@@ -431,7 +436,7 @@ class TestAnAbortSaysWhy:
         try:
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
-                ev_run.reclassify_existing_runs(args, "m")
+                ev_run.reclassify_existing_runs(args, BatchSelection.typed(args))
         finally:
             ev_llm.get_client = original
 
@@ -479,7 +484,7 @@ class TestPerActSchemingIsReclassifiable:
 
         with _stub_answer_classifier():
             with contextlib.redirect_stdout(io.StringIO()):
-                ev_run.reclassify_existing_runs(args, "m")
+                ev_run.reclassify_existing_runs(args, BatchSelection.typed(args))
 
         data = json.loads(Path(f"{out}/run_1_m_strong_S.json").read_text())
         analysis = data["analysis"]
@@ -498,7 +503,7 @@ class TestPerActSchemingIsReclassifiable:
         args.batch_stamp = "S"
         with _stub_answer_classifier():
             with contextlib.redirect_stdout(io.StringIO()):
-                ev_run.reclassify_existing_runs(args, "m")
+                ev_run.reclassify_existing_runs(args, BatchSelection.typed(args))
 
         analysis = json.loads(
             Path(f"{out}/run_1_m_strong_S.json").read_text())["analysis"]
@@ -681,7 +686,7 @@ class TestTheExtraPhrasingsAreRelabelled:
             args.batch_stamp = "S"
             with _stub_answer_classifier():
                 with contextlib.redirect_stdout(io.StringIO()) as buf:
-                    rc.reclassify_existing_runs(args, "m")
+                    rc.reclassify_existing_runs(args, BatchSelection.typed(args))
             assert "extra-phrasing answer(s) re-labelled" in buf.getvalue()
             saved = json.loads(Path(f"{out}/run_1_m_strong_S.json").read_text())
             answer = saved["analysis"][

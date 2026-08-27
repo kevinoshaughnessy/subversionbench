@@ -115,7 +115,7 @@ REDERIVED_ANALYSIS_FIELDS = (
 )
 
 
-def resummarise_existing_runs(args, model_slug: str) -> int:
+def resummarise_existing_runs(args, selection) -> int:
     """
     Rebuild summary files from run files already on disk.
 
@@ -127,7 +127,7 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
     derived from the saved runs. One summary per batch stamp, so a model with
     several batches on disk gets each rebuilt separately rather than merged.
     """
-    run_files = find_run_files_or_explain(args, model_slug)
+    run_files = find_run_files_or_explain(args, selection)
     if run_files is None:
         return 1
 
@@ -138,7 +138,7 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
     by_batch = {}
     for path in run_files:
         effort, stamp, oversight, lure = parse_batch_filename(
-            path, args.nudge)
+            path, selection.nudge)
         if args.batch_stamp:
             # find_run_files has already filtered to this stamp, and it is what
             # the summary should be named after - reading it back out of the
@@ -227,8 +227,9 @@ def resummarise_existing_runs(args, model_slug: str) -> int:
         # summarise_batch, which is what makes the rebuild write to the file it
         # just named: this used to be done by assigning back onto `args`, and both
         # directions of that failed - see BatchIdentity.
-        identity = BatchIdentity(model=args.model, model_slug=model_slug,
-                                 nudge=args.nudge, effort=effort,
+        identity = BatchIdentity(model=selection.model,
+                                 model_slug=selection.model_slug,
+                                 nudge=selection.nudge, effort=effort,
                                  oversight=oversight, lure=lure, stamp=stamp)
         summary_path = identity.filename(args.output_dir)
         runtime = runtime_from_existing_summary(summary_path, all_results)

@@ -10,7 +10,7 @@ import tempfile
 import types
 
 from pathlib import Path
-from subversionbench.batch import find_run_files
+from subversionbench.batch import BatchSelection, find_run_files
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
 from conftest import FakeArgs
@@ -109,7 +109,7 @@ class TestGradeExistingRuns:
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
                          nudge="strong", grader_model="claude-opus-5")
         with _stub_grader(answer=True):
-            rc = ev_run.grade_existing_runs(args, "x-ai_grok-4.5")
+            rc = ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
         assert rc == 0
         written = glob.glob(f"{out}/regrade_*.json")
@@ -130,7 +130,7 @@ class TestGradeExistingRuns:
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
                          nudge="strong", grader_model="claude-opus-5")
         with _stub_grader(answer=True):
-            ev_run.grade_existing_runs(args, "x-ai_grok-4.5")
+            ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
         assert Path(f"{out}/{name}").read_text() == before
 
@@ -143,7 +143,7 @@ class TestGradeExistingRuns:
                          nudge="strong", grader_model="claude-opus-5",
                          write_back=True)
         with _stub_grader(answer=True):
-            ev_run.grade_existing_runs(args, "x-ai_grok-4.5")
+            ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
         data = json.loads(Path(f"{out}/{name}").read_text())
         grader = data["analysis"]["eval_awareness_grader"]
@@ -161,7 +161,7 @@ class TestGradeExistingRuns:
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
                          nudge="strong", grader_model="claude-opus-5")
         with _stub_grader(raises=True):
-            rc = ev_run.grade_existing_runs(args, "x-ai_grok-4.5")
+            rc = ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
         assert rc == 1, "a totally failed regrade must not report success"
         assert glob.glob(f"{out}/regrade_*.json") == [], (
@@ -178,7 +178,7 @@ class TestGradeExistingRuns:
                          nudge="strong", grader_model="claude-opus-5",
                          write_back=True)
         with _stub_grader(raises=True):
-            ev_run.grade_existing_runs(args, "x-ai_grok-4.5")
+            ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
         assert Path(f"{out}/{name}").read_text() == before
 
@@ -186,4 +186,4 @@ class TestGradeExistingRuns:
         out = tempfile.mkdtemp()
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
                          nudge="strong", grader_model="claude-opus-5")
-        assert ev_run.grade_existing_runs(args, "x-ai_grok-4.5") == 1
+        assert ev_run.grade_existing_runs(args, BatchSelection.typed(args)) == 1

@@ -17,6 +17,7 @@ import contextlib
 import io
 import tempfile
 import subversionbench.run_eval as ev_run
+from subversionbench.batch import BatchSelection
 from conftest import FakeArgs
 
 # =========================================================================
@@ -175,7 +176,7 @@ class TestQuoteGroundingReporting:
         args.runs = 1
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            ev_run.resummarise_existing_runs(args, "m")
+            ev_run.resummarise_existing_runs(args, BatchSelection.typed(args))
         summary = json.loads(
             Path(f"{out}/summary_m_strong_S.json").read_text())
         return buf.getvalue(), summary

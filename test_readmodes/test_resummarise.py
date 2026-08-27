@@ -12,6 +12,7 @@ import tempfile
 
 from pathlib import Path
 import subversionbench.run_eval as ev_run
+from subversionbench.batch import BatchSelection
 
 
 def _args(out, **over):
@@ -123,7 +124,7 @@ class TestResummariseDerivesWhatItCan:
         args.no_power = True
         args.runs = 1
         with contextlib.redirect_stdout(io.StringIO()):
-            ev_run.resummarise_existing_runs(args, "m")
+            ev_run.resummarise_existing_runs(args, BatchSelection.typed(args))
 
         summary = json.loads(Path(f"{out}/summary_m_strong_S.json").read_text())
         # Concealed the tampering, so the per-act rate must find it.
@@ -150,7 +151,7 @@ class TestResummariseDerivesWhatItCan:
         args.no_power = True
         args.runs = 1
         with contextlib.redirect_stdout(io.StringIO()):
-            ev_run.resummarise_existing_runs(args, "m")
+            ev_run.resummarise_existing_runs(args, BatchSelection.typed(args))
 
         assert path.read_text() == before, "run file was modified"
 
@@ -182,7 +183,7 @@ class TestResummariseDerivesWhatItCan:
         args.runs = 1
         args.write_back = True
         with contextlib.redirect_stdout(io.StringIO()):
-            ev_run.resummarise_existing_runs(args, "m")
+            ev_run.resummarise_existing_runs(args, BatchSelection.typed(args))
 
         after = json.loads(path.read_text())["analysis"]
         # ...is corrected: no sandbox act was taken, and the episode tampered.
@@ -216,7 +217,7 @@ class TestResummariseDerivesWhatItCan:
         args.runs = 1
         args.write_back = True
         with contextlib.redirect_stdout(io.StringIO()):
-            ev_run.resummarise_existing_runs(args, "m")
+            ev_run.resummarise_existing_runs(args, BatchSelection.typed(args))
 
         assert json.loads(path.read_text())["analysis"][
             "some_future_measure"] == {"kept": True}
@@ -250,7 +251,7 @@ class TestResummariseDerivesWhatItCan:
         args.runs = 1
         args.oversight = True          # the CLI default, and a lie about these runs
         with contextlib.redirect_stdout(io.StringIO()):
-            ev_run.resummarise_existing_runs(args, "m")
+            ev_run.resummarise_existing_runs(args, BatchSelection.typed(args))
 
         assert Path(f"{out}/summary_m_strong_nooversight_{stamp}.json").exists()
         assert not Path(f"{out}/summary_m_strong_{stamp}.json").exists(), (
@@ -267,7 +268,8 @@ class TestARebuildWritesToTheArmItRebuilt:
         out = tempfile.mkdtemp()
         _counterfactual_run(out)
         with contextlib.redirect_stdout(io.StringIO()):
-            ev_run.resummarise_existing_runs(_args(out, oversight=True), "m")
+            a = _args(out, oversight=True)
+            ev_run.resummarise_existing_runs(a, BatchSelection.typed(a))
 
         assert Path(f"{out}/summary_m_strong_nooversight_{STAMP}.json").exists(), (
             "the rebuilt counterfactual summary is not where its own name says")
@@ -280,7 +282,8 @@ class TestARebuildWritesToTheArmItRebuilt:
         out = tempfile.mkdtemp()
         _counterfactual_run(out)
         with contextlib.redirect_stdout(io.StringIO()):
-            ev_run.resummarise_existing_runs(_args(out, oversight=True), "m")
+            a = _args(out, oversight=True)
+            ev_run.resummarise_existing_runs(a, BatchSelection.typed(a))
         summary = json.loads(
             Path(f"{out}/summary_m_strong_nooversight_{STAMP}.json").read_text())
         # The act was unobservable in this arm, so its rate is not a zero.
@@ -294,5 +297,5 @@ class TestARebuildWritesToTheArmItRebuilt:
         _counterfactual_run(out)
         args = _args(out, oversight=True, effort=None, lure=False)
         with contextlib.redirect_stdout(io.StringIO()):
-            ev_run.resummarise_existing_runs(args, "m")
+            ev_run.resummarise_existing_runs(args, BatchSelection.typed(args))
         assert (args.oversight, args.effort, args.lure) == (True, None, False)

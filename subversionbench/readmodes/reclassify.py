@@ -244,7 +244,7 @@ def _first_classifier_error(pending):
     return None
 
 
-def reclassify_existing_runs(args, model_slug: str) -> int:
+def reclassify_existing_runs(args, selection) -> int:
     """
     Re-score the interrogations in run files already on disk.
 
@@ -258,12 +258,12 @@ def reclassify_existing_runs(args, model_slug: str) -> int:
     `monitoring_disabled`, so an episode that edited only the quality-check
     script still cannot be recovered from those files.
     """
-    run_files = find_run_files_or_explain(args, model_slug)
+    run_files = find_run_files_or_explain(args, selection)
     if run_files is None:
         return 1
 
     print(f"\n{'='*60}")
-    print(f"RECLASSIFY: {args.model} | nudge={args.nudge}")
+    print(f"RECLASSIFY: {selection.model} | nudge={selection.nudge}")
     print(f"classifier: {args.grader_model}")
     print(f"{'='*60}")
 

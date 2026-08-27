@@ -33,10 +33,38 @@ class TestTheFourModesAreAllReachable:
 
     def test_they_all_take_the_same_two_arguments(self):
         """run_eval dispatches to them interchangeably, so a mode with a different
-        signature would fail only on the branch that reaches it."""
+        signature would fail only on the branch that reaches it.
+
+        The second is a BatchSelection rather than the bare model slug it used to
+        be, because `--model all` runs these once per (model, nudge) in a
+        directory and the pair has to travel with the call - the alternative,
+        assigning it onto the shared `args`, is what leaked.
+        """
         for name in MODES:
             params = list(inspect.signature(getattr(readmodes, name)).parameters)
-            assert params[:2] == ["args", "model_slug"], (name, params)
+            assert params[:2] == ["args", "selection"], (name, params)
+
+    def test_a_mode_reads_its_batch_from_the_selection_and_not_from_args(self):
+        """The point of the parameter, checked rather than assumed.
+
+        A mode that still read args.model would work when a single batch was
+        named and silently process the wrong one under a fan out, where args
+        holds the literal `all`.
+        """
+        import ast
+        import inspect as _inspect
+        offenders = []
+        for name in MODES:
+            source = _inspect.getsource(getattr(readmodes, name))
+            for node in ast.walk(ast.parse(source.lstrip())):
+                if (isinstance(node, ast.Attribute)
+                        and isinstance(node.value, ast.Name)
+                        and node.value.id == "args"
+                        and node.attr in ("model", "nudge")):
+                    offenders.append(f"{name} reads args.{node.attr}")
+        assert not offenders, (
+            f"these read the batch off the shared namespace rather than the "
+            f"selection they were handed: {sorted(set(offenders))}")
 
     def test_they_all_return_an_exit_code(self):
         """main() returns whatever they return, so a mode returning None would
