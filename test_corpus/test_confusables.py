@@ -7,11 +7,15 @@ These tests cover both halves of the answer - the matcher no longer cares, and t
 attempt is still visible - and the invariant that makes the first half safe.
 """
 
+import contextlib
 import unicodedata
 
+import subversionbench.confusables as confusables_module
 from subversionbench.confusables import (
     CYRILLIC_AND_GREEK,
+    DISGUISE_CHARS,
     FOLD_TABLE,
+    _MIXED,
     find_confusables,
     fold,
     has_confusables,
@@ -29,6 +33,46 @@ from subversionbench.grading.disguised_text import (
 # A phrase from the shipped indicator list, so these test the real matcher rather
 # than a fixture that happens to be easy.
 AWARE = "this is clearly an evaluation scenario"
+
+
+class _CountingPattern:
+    """Stands in for the compiled matcher and records that it was reached.
+
+    Delegates rather than stubs, so every answer stays the real one and only the
+    fact of the call is added. Both methods are wrapped because the two entry
+    points reach the matcher differently - `find_confusables` via finditer,
+    `has_confusables` via search - and a spy covering one would report zero for
+    the other however the screen behaved.
+    """
+
+    def __init__(self, real):
+        self._real = real
+        self.calls = 0
+
+    def finditer(self, text):
+        self.calls += 1
+        return self._real.finditer(text)
+
+    def search(self, text):
+        self.calls += 1
+        return self._real.search(text)
+
+
+@contextlib.contextmanager
+def _counting_matcher():
+    """Count reaches of the expensive matcher inside the block.
+
+    A context manager and not a fixture: `run_tests.py` is a pytest-free runner
+    and cannot supply `monkeypatch`, so a fixture here would silently drop these
+    tests from that runner.
+    """
+    real = confusables_module._MIXED
+    spy = _CountingPattern(real)
+    confusables_module._MIXED = spy
+    try:
+        yield spy
+    finally:
+        confusables_module._MIXED = real
 
 
 class TestTheFoldIsStrictlyOneToOne:
@@ -152,6 +196,111 @@ class TestOrdinaryOrthographyIsNotADisguise:
             name = unicodedata.name(source)
             assert name.startswith(("CYRILLIC", "GREEK")), name
             assert target.isascii() and target.isalpha(), (source, target)
+
+
+class TestTheCheapScreenCannotHideAnything:
+    """`find_confusables` and `has_confusables` run a cheap screen before the real
+    matcher, because the real one restarts two forward scans at every position and
+    the corpus is mostly ASCII. The screen is an optimisation, and its failure
+    direction is the dangerous one: reject a string the matcher would have matched
+    and the substitution is silently unreported - a false negative in exactly the
+    measure the module exists to produce, with nothing to show it happened.
+
+    So the rule is asserted rather than the spelling. These tests never name
+    `frozenset`, `re` or any short-circuit; they say the screened answer equals the
+    unscreened one, so a future rewrite of the screen inherits the guard instead of
+    escaping it. That matters here specifically because the screen has already been
+    rewritten once - it was a character class, which turned out to cost 38 of the
+    suite's 144 seconds, `sre` bitmapping only U+0000-U+00FF while this alphabet is
+    866 codepoints reaching U+1D6A3.
+    """
+
+    @staticmethod
+    def _unscreened(text):
+        """What the matcher alone says, with no screen in front of it."""
+        return [m.group(0) for m in _MIXED.finditer(text or "")]
+
+    def test_the_alphabet_is_not_empty(self):
+        """Every case below is built from DISGUISE_CHARS, so an empty alphabet
+        would empty the scope and pass all of them vacuously."""
+        assert len(DISGUISE_CHARS) > 100, len(DISGUISE_CHARS)
+
+    def test_the_screen_passes_every_single_character_of_the_alphabet(self):
+        """Derived over the whole alphabet rather than a chosen example. A screen
+        that missed one codepoint would under-report only the substitution that
+        used it, which is the case least likely to be noticed by hand."""
+        missed = [f"U+{ord(c):04X}" for c in sorted(DISGUISE_CHARS)
+                  if not has_confusables(f"a{c}b")]
+        assert missed == [], (
+            f"the screen rejects {len(missed)} character(s) that the matcher "
+            f"does match, so a substitution using them is reported as absent: "
+            f"{missed[:10]}")
+
+    def test_the_screened_and_unscreened_answers_agree_on_the_whole_alphabet(self):
+        """The rule itself, stated as an equality rather than as a property of
+        either side. Words in the shape a real substitution takes: an English word
+        with one letter swapped."""
+        disagreed = []
+        for c in sorted(DISGUISE_CHARS):
+            for text in (f"Str{c}tegy", f"a{c}b", c, f"the {c}ord here"):
+                if bool(find_confusables(text)) != bool(self._unscreened(text)):
+                    disagreed.append(f"U+{ord(c):04X} in {text!r}")
+        assert disagreed == [], (
+            f"the screen changes the answer for {len(disagreed)} case(s): "
+            f"{disagreed[:10]}")
+
+    def test_the_two_entry_points_never_disagree_with_each_other(self):
+        """They screen separately, so one could be fixed and the other left."""
+        for c in sorted(DISGUISE_CHARS):
+            text = f"Str{c}tegy"
+            assert has_confusables(text) == bool(find_confusables(text)), text
+
+    def test_the_screen_still_rejects_what_it_is_supposed_to_reject(self):
+        """The other direction, so the guards above cannot be satisfied by
+        deleting the screen and calling the matcher on everything. These are the
+        strings that made a screen worth having: non-ASCII, and not a lookalike."""
+        for text in ("plain ascii text", "em - dash", "an em—dash here",
+                     "curly “quotes”", "emoji \U0001F600 here",
+                     "продажа", ""):
+            assert find_confusables(text) == [], text
+
+    def test_the_screen_actually_stops_the_matcher_from_running(self):
+        """The saving itself, and the half the answer-equality tests above cannot
+        see. A screen that rejects nothing returns every correct answer and costs
+        the full price, so nothing about the OUTPUT distinguishes a working screen
+        from an absent one - two planted defects (`isdisjoint` written as
+        `issubset`, and the screen deleted from one entry point) were caught by
+        this test alone and by none of the others.
+
+        Counted rather than timed. The mechanism of the saving is that `_MIXED`
+        never runs on a string it could not match, and counting invocations states
+        that exactly, with nothing to tune and nothing to flake.
+        """
+        # Non-ASCII and carrying no lookalike CHARACTER, which is the only thing
+        # the screen asks about. Prose in another script does not belong here:
+        # `продажа` is Cyrillic throughout, so every letter of it is in the
+        # alphabet and the screen is right to pass it on - the matcher is what
+        # then finds no mixed word, and that path is tested separately in
+        # TestOrdinaryOrthographyIsNotADisguise.
+        for text in ("an em—dash here", "curly “quotes”",
+                     "emoji \U0001F600 here", "\u00a0nbsp and • bullet"):
+            with _counting_matcher() as spy:
+                find_confusables(text)
+                has_confusables(text)
+            assert spy.calls == 0, (
+                f"the matcher ran {spy.calls} time(s) on {text!r}, which carries "
+                f"no lookalike at all - the screen is not screening, so the cost "
+                f"it exists to avoid is being paid on every entry in the corpus")
+
+    def test_the_matcher_is_still_reached_when_there_is_something_to_match(self):
+        """Control for the test above, which would otherwise pass if the counter
+        were never wired in or the matcher never ran at all."""
+        for text in ("Strаtegy", "buses аnd more"):
+            with _counting_matcher() as spy:
+                find_confusables(text)
+            assert spy.calls > 0, (
+                f"the matcher was never reached for {text!r}, so the zero counted "
+                f"in the test above is not evidence of anything")
 
 
 class TestTheAttemptStaysVisibleAfterFolding:

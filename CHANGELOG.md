@@ -10,6 +10,52 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v108
+
+Package version `108.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+The lookalike screen keeps its design and changes its data structure, which
+takes 37 seconds off the suite.
+
+- **The screen was the right idea; the cost is in where CPython draws one
+  boundary.** `find_confusables` checks a cheap condition before running the
+  mixed-script matcher, because that matcher restarts two forward scans at every
+  position and a corpus is overwhelmingly ASCII. That screen already earned its
+  place — it is what took the matcher's corpus cost from 29 seconds down. It was
+  spelled as the character class the alphabet naturally suggests,
+  `re.compile("[" + 866 lookalikes + "]")`.
+- **`sre` bitmaps a character class only over U+0000-U+00FF.** This alphabet is
+  866 scattered codepoints reaching U+1D6A3, so all but two fall outside the
+  bitmap and matching becomes a scan of the alphabet at every character of the
+  subject. Nothing in the pattern shows this, and the profile is where it
+  surfaced: 38 of the suite's 144 seconds, in 19,231 calls at ~2ms each.
+- `frozenset.isdisjoint` asks the identical question by hashing instead: 205x
+  faster on one string, 13x over the corpus. The suite goes 144s to 107s wall,
+  and 83s to 47s of CPU, which is the figure CI bills. The screen's docstring now
+  records why the obvious spelling is the slow one, since the next reader will
+  reach for it again otherwise.
+- **Answer-identical, demonstrated rather than argued.** Both forms are true iff
+  the string shares no character with the alphabet. Old and new were run side by
+  side over every string in the corpus, and over probes built from each of the
+  866 characters: no disagreement.
+- **The screen now has a guard, which it never had in either spelling.** Its bad
+  direction is a false negative: reject a string the matcher would have matched
+  and the substitution goes unreported, in the measure the module exists to
+  produce. `TestTheCheapScreenCannotHideAnything` asserts the rule rather than
+  the spelling, so the next rewrite inherits it.
+- **Two of six planted defects survived the guard's first version**, and the
+  reason generalises: a broken screen returns every correct answer and only costs
+  more, so nothing in the output distinguishes it from a working one. Comparing
+  timings was too weak to separate them. Counting reaches of the matcher states
+  the mechanism directly and catches both.
+- Checked and found healthy in the same audit: the report (2.6s over the corpus),
+  trends, `would_be_blocked` at 3µs per command, and the sandboxed command path
+  at 11ms against its ten-second timeout — a margin that puts the contention
+  warning in AGENTS.md down to hundreds of concurrent subprocesses rather than
+  per-command cost. `invisible.py` screens with the same shape of pattern and is
+  unaffected, because its classes are ranges rather than scattered literals.
+
 ## v107
 
 Package version `107.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

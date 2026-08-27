@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "107.0.0"
+version = "108.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"

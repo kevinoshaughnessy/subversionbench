@@ -147,14 +147,24 @@ _MIXED = re.compile(r"(?=[^\W\d_]*[A-Za-z])"
                     r"(?=[^\W\d_]*" + _DISGUISE_CLASS + r")"
                     r"[^\W\d_]+")
 
-# The same alphabet with no lookahead and no tokenising, used only to decide whether
-# `_MIXED` is worth running. `_MIXED` restarts two forward scans at every position in
-# the string, so running it over a whole corpus costs 29 seconds; almost every entry
-# that survives the ASCII check does so because of a dash, a curly quote or an emoji,
-# none of which is a letter and so none of which is in this class. Deciding that with
-# one character-class scan first cuts it to under a second, and cannot change an
-# answer: `_MIXED` requires a character from this class in order to match at all.
-_ANY_DISGUISE = re.compile(_DISGUISE_CLASS)
+# The same alphabet as a set, used only to decide whether `_MIXED` is worth running.
+# `_MIXED` restarts two forward scans at every position in the string, so running it
+# over a whole corpus costs 29 seconds; almost every entry that survives the ASCII
+# check does so because of a dash, a curly quote or an emoji, none of which is a
+# letter and so none of which is in this alphabet. Screening on that first cannot
+# change an answer: `_MIXED` requires a character from it in order to match at all.
+#
+# WHY A SET AND NOT THE CHARACTER CLASS THIS USED TO BE, which is worth reading
+# before spelling it the obvious way again. `re.compile(_DISGUISE_CLASS)` is what
+# the alphabet suggests, and it is what was here; the cost is not visible in the
+# pattern. `sre` bitmaps a character class only over U+0000-U+00FF, and this
+# alphabet is 866 scattered codepoints reaching U+1D6A3, so all but two fall
+# outside the bitmap and matching becomes a scan of the alphabet at every character
+# of the subject - measured at 38 of the test suite's 144 seconds, in 19,231 calls
+# at ~2ms each. `frozenset.isdisjoint` hashes instead, 205x faster on the same
+# strings, and asks the question exactly: both forms are true iff `text` shares no
+# character with DISGUISE_CHARS.
+_DISGUISE_SET = frozenset(DISGUISE_CHARS)
 
 
 def fold(text: str) -> str:
@@ -181,7 +191,7 @@ def find_confusables(text: str) -> list:
     which word was disguised - `Strategy` matters and a degenerate token of run-
     together scripts does not, and only the word itself separates the two.
     """
-    if not text or text.isascii() or not _ANY_DISGUISE.search(text):
+    if not text or text.isascii() or _DISGUISE_SET.isdisjoint(text):
         return []
     return [{"word": m.group(0), "folds_to": fold(m.group(0)),
              "codepoints": [f"U+{ord(c):04X}" for c in m.group(0)
@@ -191,6 +201,6 @@ def find_confusables(text: str) -> list:
 
 def has_confusables(text: str) -> bool:
     """Whether `text` contains a mixed-script word."""
-    if not text or text.isascii() or not _ANY_DISGUISE.search(text):
+    if not text or text.isascii() or _DISGUISE_SET.isdisjoint(text):
         return False
     return _MIXED.search(text) is not None
