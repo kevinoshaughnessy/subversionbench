@@ -174,6 +174,15 @@ consequences are silent.
 - `zip()` truncates silently. Every call here states `strict=True` or
   `strict=False`; keep that up, and pick the one that is true rather than the one
   that passes.
+- **Never assign to `args`.** One argparse Namespace is passed by reference into
+  every callee, so a write is visible to the rest of the run - including the next
+  iteration of a fan-out, which is how a batch collected at one effort level came
+  to filter every later model to it and report success on a half-done backfill.
+  Pass what a callee needs, or extend `BatchIdentity` (`subversionbench/batch.py`)
+  which is frozen and built at the boundary for exactly this reason.
+  `test_args_bag.py` enforces it, and also checks that every field read off the
+  bag is one something can actually set - a misspelled `args.oversigh` is an
+  AttributeError raised only on the branch that reaches it, hours into a batch.
 - The Linux runner needs bubblewrap **and**
   `kernel.apparmor_restrict_unprivileged_userns=0`. The apt package alone leaves
   the runner looking equipped and unable to isolate anything, so CI asserts
