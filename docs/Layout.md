@@ -4,7 +4,7 @@ Every module in the repository and what it is for. The README carries a
 condensed version of this; the full listing lives here because it is a reference
 to look things up in rather than something to read start to finish.
 
-This file is checked rather than maintained by hand. `test_readme_layout.py`
+This file is checked rather than maintained by hand. `test_project/test_readme_layout.py`
 asserts that every module of every package appears below, that every root script
 an operator invokes appears, and that nothing listed here has since been deleted
 or renamed. A layout that is merely mostly right is worse than none: a reader who

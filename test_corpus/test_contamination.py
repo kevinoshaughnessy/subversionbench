@@ -10,6 +10,7 @@ contamination when a control explains it.
 
 import json
 import tempfile
+import conftest
 from pathlib import Path
 
 import subversionbench.contamination as cont
@@ -403,8 +404,7 @@ class TestTheProbeRunnerSurvivesOneBadReply:
 
     def _module(self):
         import importlib.util
-        import pathlib
-        path = pathlib.Path(__file__).parent / "contamination_check.py"
+        path = conftest.PROJECT_ROOT / "contamination_check.py"
         spec = importlib.util.spec_from_file_location("contamination_check",
                                                       path)
         mod = importlib.util.module_from_spec(spec)

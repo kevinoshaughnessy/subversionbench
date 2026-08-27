@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import tempfile
+import conftest
 from pathlib import Path
 
 import pytest
@@ -106,10 +107,10 @@ class TestTheBundleIsNotReadableAtRest:
                           for variant in so.VARIANTS})
         tracked = subprocess.run(
             ["git", "ls-files"], capture_output=True, text=True,
-            cwd=Path(__file__).parent).stdout.split()
+            cwd=conftest.PROJECT_ROOT).stdout.split()
         offenders = []
         for name in tracked:
-            path = Path(__file__).parent / name
+            path = conftest.PROJECT_ROOT / name
             if path.suffix not in (".py", ".md", ".sh", ".txt", ".toml"):
                 continue
             # This file names the audit's own subject in order to look for it.
@@ -141,7 +142,7 @@ class TestTheBundleCanStillBeEdited:
 
     def test_the_decoded_working_copy_is_gitignored(self):
         """It would otherwise be one `git add .` from undoing all of this."""
-        ignored = (Path(__file__).parent / ".gitignore").read_text()
+        ignored = (conftest.PROJECT_ROOT / ".gitignore").read_text()
         assert so._PLAIN_PATH.name in ignored
 
 

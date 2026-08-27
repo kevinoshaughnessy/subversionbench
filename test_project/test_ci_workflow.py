@@ -21,9 +21,9 @@ this project - the checks below are about CI's own configuration.
 """
 
 import re
-from pathlib import Path
+import conftest
 
-WORKFLOW = Path(__file__).parent / ".github" / "workflows" / "tests.yml"
+WORKFLOW = conftest.PROJECT_ROOT / ".github" / "workflows" / "tests.yml"
 
 
 def _workflow() -> dict:
@@ -35,7 +35,7 @@ def _workflow() -> dict:
 
 def _declared_floor() -> tuple:
     """The (major, minor) in `requires-python` from pyproject."""
-    body = Path(__file__).parent.joinpath("pyproject.toml").read_text(
+    body = conftest.PROJECT_ROOT.joinpath("pyproject.toml").read_text(
         encoding="utf-8")
     m = re.search(r'requires-python\s*=\s*"[^0-9]*(\d+)\.(\d+)"', body)
     assert m, "pyproject does not declare requires-python"
@@ -52,7 +52,7 @@ def _declared_extras() -> set:
     undeclared third-party package, since it builds its stdlib set from the
     running interpreter.
     """
-    body = Path(__file__).parent.joinpath("pyproject.toml").read_text(
+    body = conftest.PROJECT_ROOT.joinpath("pyproject.toml").read_text(
         encoding="utf-8")
     section = body.split("[project.optional-dependencies]")[1].split("\n[")[0]
     return set(re.findall(r"^([A-Za-z0-9_-]+)\s*=\s*\[", section, re.M))
@@ -92,6 +92,29 @@ class TestTheMatrixMatchesWhatThePackagePromises:
         """One version is a single machine with extra steps."""
         versions = _workflow()["jobs"]["suite"]["strategy"]["matrix"]["python"]
         assert len(versions) >= 2, versions
+
+    def test_the_readme_badge_names_exactly_the_versions_ci_runs(self):
+        """The README carries a static Python-versions badge, which is a second
+        copy of the matrix and therefore something that can drift.
+
+        Guarded rather than trusted, for the reason the pinned fingerprints are
+        not restated in AGENTS.md: a second copy of a pinned value is a second
+        thing to keep in step, and a badge claiming a version CI does not run is
+        worse than no badge, because a reader has no way to tell.
+        """
+        versions = [str(v) for v in
+                    _workflow()["jobs"]["suite"]["strategy"]["matrix"]["python"]]
+        readme = conftest.PROJECT_ROOT.joinpath("README.md").read_text(
+            encoding="utf-8")
+        badge = re.search(r"!\[python\]\(https://img\.shields\.io/badge/"
+                          r"python-([^-]+)-", readme)
+        assert badge, "the README has no python-versions badge to check"
+        # %20%7C%20 is a URL-encoded " | ".
+        claimed = [v.strip() for v in
+                   badge.group(1).replace("%20", " ").replace("%7C", "|")
+                   .split("|")]
+        assert claimed == versions, (
+            f"the README badge claims {claimed} but CI runs {versions}")
 
     def test_a_failing_version_does_not_hide_the_others(self):
         assert _workflow()["jobs"]["suite"]["strategy"]["fail-fast"] is False

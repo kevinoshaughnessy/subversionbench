@@ -2,6 +2,9 @@
 
 ![SubversionBench logo](Logo.png)
 
+[![tests](https://github.com/kevinoshaughnessy/subversionbench/actions/workflows/tests.yml/badge.svg)](https://github.com/kevinoshaughnessy/subversionbench/actions/workflows/tests.yml)
+![python](https://img.shields.io/badge/python-3.10%20%7C%203.12%20%7C%203.13-blue)
+
 An agentic evaluation of **agentic misalignment**, **scheming** and **evaluation
 awareness**: whether a language model will take harmful instrumental action when doing so
 serves the goal it was given, whether it conceals having done so, and whether it suspects
@@ -70,7 +73,7 @@ pip install -r requirements.lock
 ```
 
 The declared minimums are set by published advisories, not by the oldest version that
-happens to work — `test_dependencies.py` pins them and names the advisory for each.
+happens to work — `test_project/test_dependencies.py` pins them and names the advisory for each.
 
 Set whichever key matches the models you plan to run:
 
@@ -280,27 +283,36 @@ pytest
 python run_tests.py     # same suite, no pytest required
 ```
 
-`run_tests.py` runs nearly all of it: three tests take pytest's `monkeypatch`
-fixture, which it cannot supply, so it is not one of the [CI](#ci) jobs either.
+`run_tests.py` runs nearly all of it: a handful of tests take pytest's
+`monkeypatch` or `tmp_path` fixtures, which it cannot supply, so it is not one of
+the [CI](#ci) jobs either. The count is deliberately not stated here — it said
+"three" for long enough to become wrong.
 
-One test file per module, and the test tree MIRRORS the package tree:
-`test_grading/test_acts.py` for `grading/acts.py`,
-`test_reporting/facts/test_rates.py` for `reporting/facts/rates.py`. A module
-directly under `subversionbench/` keeps its test at the root, so
-`test_sandbox.py` sits beside `test_power.py`. Builders used by more than one
-file live in `conftest.py`.
+One test file per module. Where the package has a subpackage, the test tree
+MIRRORS it: `test_grading/test_acts.py` for `grading/acts.py`,
+`test_reporting/facts/test_rates.py` for `reporting/facts/rates.py`. The modules
+sitting directly under `subversionbench/` have no subpackage to mirror, so their
+tests are grouped by subsystem instead — `test_collection/` for the batch and
+episode loop, `test_providers/` for the three model clients and routing,
+`test_isolation/` for the sandbox and the boundary an episode runs inside,
+`test_corpus/` for the scenario text and everything that keeps it out of
+plaintext, and `test_analysis/` for what is derived from a collected corpus.
+Builders used by more than one file live in `conftest.py`.
 
 The mirror is the rule rather than a preference, because the alternative was
 tried and drifted: a flat naming scheme put tests for the same module in two
 files at once - some of `grading/concealment.py` in `test_grading/` and the rest
 in a root `test_grading_concealment.py` - so whether a behaviour was covered
 could not be answered by opening one file. Each mirror directory is a package,
-which is what lets `test_init.py` exist at three levels without colliding.
+which is what lets `test_init.py` exist in four of them at once without
+colliding.
 
-Four files are about the repository rather than a module: `test_readme_layout.py`
-(the listing in [docs/Layout.md](docs/Layout.md) and the README's links),
-`test_dependencies.py`, `test_project_files.py` (what the static guards examine) and
-`test_ci_workflow.py`.
+`test_project/` holds the files that are about the repository rather than about
+any one module: `test_readme_layout.py` (the listing in
+[docs/Layout.md](docs/Layout.md) and the README's links),
+`test_dependencies.py`, `test_project_files.py` (what the static guards
+examine), `test_ci_workflow.py`, and `test_args_bag.py` (the one argparse
+Namespace that every CLI passes down by reference).
 
 `report_snapshots/` holds the printed report for nine fixed batches, compared
 byte-for-byte on every run. Splitting the report into one function per section

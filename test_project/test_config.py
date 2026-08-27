@@ -8,6 +8,7 @@ they are immutable by construction rather than by convention.
 import os
 import re
 
+import conftest
 from pathlib import Path
 from subversionbench.config import (
     DEFAULT_INTERROGATION,
@@ -413,13 +414,72 @@ class TestTheQuestionsThreatenTheModel:
         from the report - and the report is generated from episodes. A fixture that
         put scenario text into one would carry it into the repository, which is the
         one thing the encoded bundle exists to prevent.
+
+        THE PYTHON FILES COME FROM CONFTEST, not from a glob written here. The
+        glob this replaces was `root.glob("*.py")` plus `subversionbench/`, which
+        covered 73 of 182 project files: every file under report/, trends/,
+        test_grading/, test_readmodes/ and test_reporting/ was outside the scope
+        of the repository's most important guard, and had been since those
+        directories were created. Deriving the list is also what keeps a
+        directory added later inside it.
+
+        The floor below is not decoration. Both callers of this helper loop over
+        what it returns and assert on each file, so a scope that came back empty
+        would leave them passing over nothing - which is precisely what happened
+        when the root test files moved into packages and the old glob stopped
+        finding them.
         """
-        from pathlib import Path
-        root = Path(__file__).parent
-        return (list(root.glob("*.py")) + list(root.glob("*.md"))
-                + list((root / "docs").glob("*.md"))
-                + list((root / "report_snapshots").glob("*.txt"))
-                + list((root / "subversionbench").rglob("*.py")))
+        root = conftest.PROJECT_ROOT
+        files = ([root / p for p in conftest.project_python_files()]
+                 + list(root.glob("*.md"))
+                 + list((root / "docs").glob("*.md"))
+                 + list((root / "report_snapshots").glob("*.txt")))
+        assert len(files) > 150, (
+            f"the plaintext scope collapsed to {len(files)} files; the guards "
+            f"built on it would pass over almost nothing")
+        return files
+
+    def test_the_plaintext_scope_reaches_every_directory_that_ships(self):
+        """What the two guards below are worth is what this list covers, and for
+        a long time it covered 73 of 182 files while both passed.
+
+        Named directories rather than a count, because a count goes green again
+        the moment the total drifts back up for an unrelated reason. Each of
+        these was outside the scope until it was widened: report/ and trends/
+        generate committed plaintext, and a test package is where a fixture
+        holding scenario text would most naturally be written.
+        """
+        root = conftest.PROJECT_ROOT
+        covered = {p.relative_to(root).parts[0]
+                   for p in self._plaintext_files()}
+        for directory in ("subversionbench", "report", "trends",
+                          "test_grading", "test_readmodes", "test_reporting",
+                          "test_corpus", "test_collection", "test_project"):
+            assert directory in covered, (
+                f"{directory}/ is outside the plaintext scope, so scenario text "
+                f"committed there would not be found")
+
+    def test_a_token_anywhere_in_scope_is_actually_found(self):
+        """The positive control on the search itself.
+
+        Uses a harmless token rather than the real needle: writing scenario text
+        into the repository tree, even to an untracked file that is deleted
+        again, is the one thing the encoded bundle exists to prevent. What is
+        being checked here is that a file in a newly covered directory is read
+        at all - the matching is the same either way.
+        """
+        token = "ZZ_PLAINTEXT_SCOPE_PROBE_ZZ"
+        planted = conftest.PROJECT_ROOT / "trends" / "_scope_probe.py"
+        assert not planted.exists(), planted
+        try:
+            planted.write_text(f'X = "{token}"\n', encoding="utf-8")
+            hits = [p for p in self._plaintext_files()
+                    if token in p.read_text(encoding="utf-8")]
+            assert hits, ("a file under trends/ holding the token was not read, "
+                          "so the guards below would not have seen it either")
+        finally:
+            planted.unlink(missing_ok=True)
+        assert not planted.exists()
 
     def test_the_questions_are_not_in_plaintext_in_the_repo(self):
         """Scenario text lives in the encoded bundle. A coercive interrogation
@@ -505,7 +565,7 @@ class TestTheFacadeStaysComplete:
         way a hand-kept list would. A name taken from config anywhere in the
         tree has to resolve, whether it lives here or was re-exported."""
         import ast
-        root = Path(__file__).parent
+        root = conftest.PROJECT_ROOT
         # This repo's own files, not a bare rglob. A walk from the working
         # directory reaches .venv, where pydantic and coverage have `config`
         # modules of their own and every name they export reads as a miss.

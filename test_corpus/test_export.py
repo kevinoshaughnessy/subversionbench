@@ -13,6 +13,7 @@ import os
 import sys
 import re
 import tempfile
+import conftest
 from pathlib import Path
 
 import pytest
@@ -1074,7 +1075,7 @@ class TestTheIdentifierScanCannotReturnCleanForAFileItDidNotRead:
              "from subversionbench.export import redact_tree;"
              f"print(json.dumps(redact_tree({src!r}, {into!r})))"],
             capture_output=True, text=True, env=env,
-            cwd=os.path.dirname(os.path.abspath(__file__)))
+            cwd=conftest.PROJECT_ROOT)
         assert result.returncode == 0, result.stderr[-800:]
         counts = json.loads(result.stdout.strip().splitlines()[-1])
         assert counts["json"] == 1 and counts["written"] == 1, counts

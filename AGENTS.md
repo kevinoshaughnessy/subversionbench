@@ -49,14 +49,14 @@ paid call.
 ## Versioning
 
 `VERSION` in `subversionbench/version.py` is the analysis version and is stamped
-into every summary. The major in `pyproject.toml` must match it; `test_config.py`
-asserts that and `test_dependencies.py` asserts the installed metadata agrees.
+into every summary. The major in `pyproject.toml` must match it; `test_project/test_config.py`
+asserts that and `test_project/test_dependencies.py` asserts the installed metadata agrees.
 
 Bump when a change touches `subversionbench/`, `report/`, `trends/` or a root
 script. Do not bump for tests, docs or CI configuration alone. After bumping:
 
 ```bash
-pip install -e . --no-deps      # or test_dependencies.py fails
+pip install -e . --no-deps      # or test_project/test_dependencies.py fails
 ```
 
 `ROLLOUT_VERSION` is a different thing and does not move with it: `VERSION` says
@@ -111,7 +111,7 @@ baseline that is checked in **both** directions: nothing outside the list may
 offend, and everything inside it must still offend. A one-directional baseline
 becomes a permanent exemption; a two-directional one can only shrink, and tells
 you to delete the entry when you fix the file. See
-`TestNoFileIsReadOrWrittenAtTheLocalesMercy` in `test_project_files.py`.
+`TestNoFileIsReadOrWrittenAtTheLocalesMercy` in `test_project/test_project_files.py`.
 
 **Measure platform behaviour rather than reasoning about it.** Four defects in
 recent versions were invisible on macOS and real on Linux. `sandbox-exec` execs
@@ -176,7 +176,7 @@ both measured:
   never catches it. Use `conftest.skip_without`, which raises `unittest.SkipTest`
   and is honoured by both runners.
 - `run_tests.py` is a pytest-free runner and cannot interpret `@pytest.fixture`,
-  `@pytest.mark.parametrize` or `@pytest.mark.usefixtures`. `test_dependencies.py`
+  `@pytest.mark.parametrize` or `@pytest.mark.usefixtures`. `test_project/test_dependencies.py`
   refuses them. Use a plain helper or a context manager.
 - `ruff --fix` will strip re-exports from the two facade modules
   (`llm_client.py`, `grading/__init__.py`) and break collection immediately. Both
@@ -191,7 +191,7 @@ both measured:
   to filter every later model to it and report success on a half-done backfill.
   Pass what a callee needs, or extend `BatchIdentity` (`subversionbench/batch.py`)
   which is frozen and built at the boundary for exactly this reason.
-  `test_args_bag.py` enforces it, and also checks that every field read off the
+  `test_project/test_args_bag.py` enforces it, and also checks that every field read off the
   bag is one something can actually set - a misspelled `args.oversigh` is an
   AttributeError raised only on the branch that reaches it, hours into a batch.
 - The Linux runner needs bubblewrap **and**
