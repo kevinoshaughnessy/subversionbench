@@ -317,3 +317,22 @@ def _print_data_quality(dq: dict) -> None:
               "one, both are being counted. Move or delete the superseded "
               "batch; pooling also mixes collection conditions the run files "
               "record separately (openrouter_provider/openrouter_sort).")
+    mixed_routing = dq.get("mixed_routing_arms") or []
+    print(f"  arms whose episodes were not all routed the same way: "
+          f"{len(mixed_routing)}")
+    for m in mixed_routing:
+        split = ", ".join(
+            f"{r['sort'] or 'provider default'}"
+            + (f"/{r['provider']}" if r["provider"] else "")
+            + f" x{r['n_episodes']}"
+            for r in m["routings"])
+        print(f"    ! {m['model']} nudge={m['nudge']} "
+              f"oversight={m['oversight']} lure={m['lure']}: "
+              f"n={m['n_episodes']} split {split}")
+    if mixed_routing:
+        print("      One rate over episodes answered by different backends. "
+              "This is NOT what duplicate_arms above reports: a batch resumed "
+              "under different routing keeps its stamp and writes one summary, "
+              "so the arm looks like a single clean batch. Which routing was "
+              "wanted is not something this can know - re-collect the arm under "
+              "one, or quote it knowing what it pools.")

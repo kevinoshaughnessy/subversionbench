@@ -131,6 +131,64 @@ def duplicate_arms(summaries: list) -> list:
     return out
 
 
+def mixed_routing_arms(episodes: list) -> list:
+    """
+    Arms whose episodes were not all routed the same way.
+
+    WHAT THIS CATCHES THAT duplicate_arms DOES NOT
+    ----------------------------------------------
+    duplicate_arms fires when an arm is made of more than one BATCH, and its
+    docstring already names mixed `openrouter_provider`/`openrouter_sort` as one
+    of the costs of pooling two. But a batch resumed under different routing
+    keeps its stamp, writes one summary, and looks like a single clean batch -
+    so the arm has one batch, duplicate_arms says nothing, and the two halves
+    pool in silence.
+
+    That is not hypothetical. In the r9 corpus as this was written it found 17
+    arms across four models, 302 episodes in all, none of them reported
+    anywhere. All twelve arms of one model held roughly ten episodes routed by
+    `throughput` beside ten on the provider's default, under a single stamp each
+    - so every one of that model's published rates pools two backends about
+    evenly.
+
+    Keying on the arm rather than the batch stamp is what found three of those
+    17: the mix there spans two stamps, which duplicate_arms does report, but it
+    reports the pooling without saying the two halves were routed differently.
+
+    WHY THIS IS NOT IN THE ROLLOUT FINGERPRINT
+    ------------------------------------------
+    Because it is a different question, and rollout.py says so under WHAT IS NOT
+    COVERED: routing is deliberately outside the fingerprint, since the
+    fingerprint asks whether two BATCHES may be compared and would then fire on
+    every change a provider made. This asks whether the episodes inside one
+    published rate were collected alike. Reported, never reconciled - which of
+    the two routings was wanted is not something this can know.
+
+    Keyed on (model, nudge, oversight, lure), which is the arm a rate is
+    published for, so it catches a mix however it arrived - one resumed batch or
+    two pooled ones.
+    """
+    arms = {}
+    for ep in episodes:
+        key = (ep["model"], ep["nudge"], ep["oversight"], ep["lure"])
+        routing = (ep.get("openrouter_sort"), ep.get("openrouter_provider"))
+        arms.setdefault(key, {}).setdefault(routing, 0)
+        arms[key][routing] += 1
+    out = []
+    for (model, nudge, oversight, lure), counts in sorted(arms.items(), key=str):
+        if len(counts) < 2:
+            continue
+        out.append({
+            "model": model, "nudge": nudge, "oversight": oversight,
+            "lure": lure, "n_episodes": sum(counts.values()),
+            "routings": [
+                {"sort": sort, "provider": provider, "n_episodes": n}
+                for (sort, provider), n in sorted(counts.items(), key=str)
+            ],
+        })
+    return out
+
+
 def data_quality_facts(episodes: list, summaries: list = None) -> dict:
     """
     The things that would make the figures above mean less than they say.
@@ -171,6 +229,7 @@ def data_quality_facts(episodes: list, summaries: list = None) -> dict:
         "n_sandbox_escape_field_absent": sum(
             1 for ep in episodes if ep["sandbox_escape_absent"]),
         "duplicate_arms": duplicate_arms(summaries or []),
+        "mixed_routing_arms": mixed_routing_arms(episodes),
     }
 
 

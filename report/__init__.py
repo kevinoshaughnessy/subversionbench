@@ -165,6 +165,7 @@ from .loading import (NUDGE_LEVELS, awareness_arm_rows, load_episodes,
                      load_summaries)
 from .data_quality import (_measure_agreement, _model_rate_pairs,
                           cross_analysis_rows, data_quality_facts,
+                          mixed_routing_arms,
                           duplicate_arms)
 from .pooling import (_by_model, _consistency, _contrast, _crude_vs_stratified,
                      _finding, _models, _pool, _strata_from, _stratified,
@@ -214,6 +215,7 @@ __all__ = [
     "_variant_contrast", "_variant_provenance", "_variant_question",
     "awareness_arm_rows", "build_report", "cross_analysis_rows",
     "data_quality_facts", "duplicate_arms", "load_episodes",
+    "mixed_routing_arms",
     "load_summaries", "main", "question_awareness_vs_misalignment",
     "question_awareness_vs_monitoring_disabled",
     "question_awareness_vs_oversight_scheming",

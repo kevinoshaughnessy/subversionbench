@@ -10,6 +10,40 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v106
+
+Package version `106.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+The report now says when a published rate pools episodes answered by different
+backends.
+
+- **`mixed_routing_arms`** in `report/data_quality.py`, reported per arm and
+  printed in the DATA QUALITY section. `openrouter_sort` and
+  `openrouter_provider` have been recorded on every run file since routing became
+  selectable, and nothing downstream read them — the report's episode records did
+  not even carry the fields.
+- **This is the gap `duplicate_arms` leaves, not a duplicate of it.**
+  `duplicate_arms` fires when an arm is made of more than one batch, and its
+  docstring already names mixed routing as a cost of pooling two. But a batch
+  resumed under different routing keeps its stamp and writes one summary, so the
+  arm looks like a single clean batch and the halves pool in silence. Asserted as
+  a pair, so the distinction cannot collapse into the other check.
+- Keyed on `(model, nudge, oversight, lure)` — the arm a rate is published for —
+  so it catches a mix however it arrived, one resumed batch or two pooled ones.
+  Keying on the arm rather than the batch stamp is what finds the cases where the
+  mix spans two stamps: `duplicate_arms` reports that pooling without saying the
+  halves were routed differently.
+- **Deliberately not added to the rollout fingerprint.** `rollout.py` excludes
+  routing under its own WHAT IS NOT COVERED heading, and correctly: the
+  fingerprint asks whether two batches may be compared at all, and would fire on
+  every change a provider made. This asks the narrower question of whether the
+  episodes inside one rate were collected alike. Reported, never reconciled —
+  which routing was wanted is not something the report can know.
+- It finds real arms in the r9 corpus today, including every arm of one model.
+  The figures are in the function's docstring and the commit message rather than
+  here.
+
 ## v105
 
 Package version `105.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

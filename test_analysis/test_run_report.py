@@ -49,7 +49,8 @@ def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="2026010
 
 
 def _write_episode(out, n, model, nudge, oversight=True, lure=False,
-                   stamp="20260101T000000", **episode_kwargs):
+                   stamp="20260101T000000", sort=None, provider=None,
+                   **episode_kwargs):
     # normalise_analyses first, exactly as a collected episode has already been
     # through: the sandbox act key (`out_of_scope_attempts`) is DERIVED there,
     # not set by batch_episode, and a fixture without it is not the shape any
@@ -64,8 +65,13 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
         parts.append("lure")
     path = f"{out}/{'_'.join(parts)}_{stamp}.json"
     with open(path, "w") as f:
+        # Routing is written unconditionally, null included, because that is
+        # the shape every collected run file has - a fixture that omitted the
+        # keys would exercise a corpus that does not exist.
         json.dump({"model": model, "nudge": nudge, "oversight": oversight,
-                  "lure": lure, "analysis": ep["analysis"]}, f)
+                  "lure": lure, "analysis": ep["analysis"],
+                  "openrouter_sort": sort,
+                  "openrouter_provider": provider}, f)
     return path
 
 
@@ -832,6 +838,91 @@ class TestDuplicateArmsArePooledAndSaid:
         _write_summary(out, "m", "max")
         dq = rr.data_quality_facts(rr.load_episodes(out), rr.load_summaries(out))
         assert dq["duplicate_arms"] == []
+
+
+class TestMixedRoutingWithinAnArmIsReported:
+    """A rate over episodes answered by different backends.
+
+    Distinct from duplicate_arms, which needs the arm to be made of more than
+    one BATCH. A batch resumed under different routing keeps its stamp and writes
+    one summary, so the arm looks like a single clean batch and the two halves
+    pool with nothing saying so.
+    """
+
+    def test_one_arm_routed_two_ways_is_reported_with_the_split(self):
+        out = tempfile.mkdtemp()
+        for i in range(1, 4):
+            _write_episode(out, i, "m", "max", sort="throughput")
+        for i in range(4, 6):
+            _write_episode(out, i, "m", "max", sort=None)
+        found = rr.mixed_routing_arms(rr.load_episodes(out))
+        assert len(found) == 1, found
+        assert found[0]["n_episodes"] == 5
+        assert sorted(((r["sort"] or ""), r["n_episodes"])
+                      for r in found[0]["routings"]) == [("", 2), ("throughput", 3)]
+
+    def test_it_fires_under_a_single_stamp_where_duplicate_arms_cannot(self):
+        """The gap this exists for, asserted as a pair so the distinction cannot
+        quietly collapse into the other check."""
+        out = tempfile.mkdtemp()
+        for i in range(1, 3):
+            _write_episode(out, i, "m", "max", stamp="20260101T000000",
+                           sort="throughput")
+        for i in range(3, 5):
+            _write_episode(out, i, "m", "max", stamp="20260101T000000", sort=None)
+        _write_summary(out, "m", "max", stamp="20260101T000000", n_runs=4)
+        dq = rr.data_quality_facts(rr.load_episodes(out), rr.load_summaries(out))
+        assert dq["duplicate_arms"] == [], (
+            "one stamp is one batch, so duplicate_arms is silent - which is the "
+            "whole reason the routing check is separate")
+        assert len(dq["mixed_routing_arms"]) == 1
+
+    def test_a_uniformly_routed_arm_is_not_reported(self):
+        out = tempfile.mkdtemp()
+        for i in range(1, 4):
+            _write_episode(out, i, "m", "max", sort="throughput")
+        assert rr.mixed_routing_arms(rr.load_episodes(out)) == []
+
+    def test_an_arm_with_no_routing_recorded_at_all_is_not_reported(self):
+        """Every non-OpenRouter episode has None for both, and so does anything
+        collected before the fields existed. A corpus of those is uniform, not
+        mixed."""
+        out = tempfile.mkdtemp()
+        for i in range(1, 4):
+            _write_episode(out, i, "m", "max")
+        assert rr.mixed_routing_arms(rr.load_episodes(out)) == []
+
+    def test_the_provider_pin_counts_as_routing_too(self):
+        """--openrouter-provider restricts routing to one named backend, which is
+        a stronger version of the same choice; a mix of pinned and unpinned is
+        the same defect."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "max", provider="deepinfra")
+        _write_episode(out, 2, "m", "max", provider=None)
+        found = rr.mixed_routing_arms(rr.load_episodes(out))
+        assert len(found) == 1, found
+        assert {r["provider"] for r in found[0]["routings"]} == {"deepinfra", None}
+
+    def test_different_arms_routed_differently_are_each_uniform(self):
+        """The key is the arm a rate is published for. Two arms that each used
+        one routing are not a mix, even when the two routings differ."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "max", oversight=True, sort="throughput")
+        _write_episode(out, 2, "m", "max", oversight=False, sort=None)
+        assert rr.mixed_routing_arms(rr.load_episodes(out)) == []
+
+    def test_the_console_names_the_arm_and_the_split(self):
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "max", sort="throughput")
+        _write_episode(out, 2, "m", "max", sort=None)
+        dq = rr.data_quality_facts(rr.load_episodes(out), rr.load_summaries(out))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_data_quality(dq)
+        text = buf.getvalue()
+        assert "not all routed the same way: 1" in text, text
+        assert "throughput x1" in text and "provider default x1" in text, text
+        assert "different backends" in text
 
 
 class TestCrossAnalysisRows:

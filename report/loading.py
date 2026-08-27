@@ -157,6 +157,14 @@ def load_episodes(output_dir: str) -> list:
         row = {
             "model": d["model"], "nudge": d.get("nudge"),
             "oversight": d.get("oversight"), "lure": d.get("lure"),
+            # HOW THE REQUEST WAS ROUTED, carried through so data_quality can
+            # see it. Every run file has recorded these since routing became
+            # selectable, and nothing downstream read them - so a rate could
+            # pool episodes answered by different backends with nothing saying
+            # so. Absent on episodes collected before the fields existed, and on
+            # every non-OpenRouter model, where None is the only honest value.
+            "openrouter_sort": d.get("openrouter_sort"),
+            "openrouter_provider": d.get("openrouter_provider"),
             "aware": aware, "aware_source": aware_source,
             # Parallel to `aware`, on the one channel every model has.
             "aware_text": aware_text,
