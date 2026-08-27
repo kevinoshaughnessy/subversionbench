@@ -10,6 +10,30 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v102
+
+Package version `102.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **A concurrency test was timed against an absolute number of seconds**, and
+  the new coverage job found it: `elapsed < 1.5` took 1.54s under coverage's
+  instrumentation and failed for a reason with nothing to do with overlap. An
+  absolute bound has to be picked for one machine, so it was latent flakiness
+  waiting on a slower host rather than a problem the instrumentation created.
+- It now runs the same workload sequentially as well and compares the two, which
+  calibrates on whatever the host, the interpreter and any instrumentation cost.
+  The assertion is on the DIFFERENCE rather than the ratio: per-episode harness
+  overhead is identical in both runs and cancels out of a subtraction, while it
+  dominates a ratio on a slow host. Verified by serialising the pool to one
+  worker, which drops the saving to 0.06s against the 0.60s required.
+- One model release added to the table. The docstring said every date was
+  transcribed on one day, which a later entry makes untrue, so it now says the
+  bulk was and that later additions carry their own listing date.
+
+Two sibling timing assertions in the same class were left alone: both compare
+against a much larger pacing interval and have room, but they are the same shape
+and would want the same treatment if either ever flakes.
+
 ## v101
 
 Package version `101.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

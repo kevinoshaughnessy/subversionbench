@@ -17,7 +17,9 @@ is reported rather than discovered.
 
 WHAT THE DATES ARE
 ------------------
-The date OpenRouter lists the model as available, transcribed on 2026-08-20.
+The date OpenRouter lists the model as available. The bulk of the table was
+transcribed on 2026-08-20; entries added later carry their own listing date and
+so postdate that, which is expected rather than a transcription error.
 That is a ROUTE availability date, not necessarily the lab's announcement date,
 and the two differ by days for some models. It is the right one for this
 corpus's purposes - every model here was reached through OpenRouter, so the
@@ -110,6 +112,7 @@ RELEASE_DATES = {
     "qwen/qwen3.6-flash": date(2026, 4, 27),
     "qwen/qwen3.7-flash": date(2026, 7, 27),
     "qwen/qwen3.8-27b": date(2026, 8, 14),
+    "qwen/qwen3.8-flash": date(2026, 8, 26),
 
     # tencent
     "tencent/hy3": date(2026, 7, 6),

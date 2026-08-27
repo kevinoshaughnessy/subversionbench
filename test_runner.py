@@ -498,16 +498,44 @@ class TestConcurrency:
 
     def test_concurrency_actually_overlaps_episodes(self):
         """The point of the flag: wall-clock time has to reflect episodes
-        overlapping, not stacking end to end."""
-        out = tempfile.mkdtemp()
-        rc, _, elapsed = self._run(
-            out, ["--runs", "6", "--concurrency", "3"], sleep=0.3)
-        assert rc == 0
-        assert len(glob.glob(f"{out}/run_*.json")) == 6
-        # Sequential would be >= 6 * 0.3 = 1.8s of API time alone. Three at
-        # once should land near two batches of 0.3s - this only has to show
-        # real overlap happened, not pin an exact schedule.
-        assert elapsed < 1.5, f"no overlap detected: took {elapsed:.2f}s"
+        overlapping, not stacking end to end.
+
+        TIMED AGAINST THE SAME WORKLOAD RUN SEQUENTIALLY, not against a number
+        of seconds. An absolute bound has to be picked for one machine: this
+        asserted `elapsed < 1.5` and took 1.54s the first time it ran under
+        coverage's instrumentation, failing for a reason with nothing to do with
+        overlap. Running both ways calibrates on whatever the host, the
+        interpreter and any instrumentation cost.
+
+        The assertion is on the DIFFERENCE rather than the ratio, because
+        per-episode harness overhead is the same in both runs and cancels out of
+        a subtraction while it dominates a ratio on a slow host.
+        """
+        runs, concurrency, sleep = 6, 3, 0.3
+        out_sequential = tempfile.mkdtemp()
+        rc_sequential, _, sequential = self._run(
+            out_sequential, ["--runs", str(runs), "--concurrency", "1"],
+            sleep=sleep)
+        out_concurrent = tempfile.mkdtemp()
+        rc_concurrent, _, concurrent = self._run(
+            out_concurrent,
+            ["--runs", str(runs), "--concurrency", str(concurrency)],
+            sleep=sleep)
+
+        assert rc_sequential == 0 and rc_concurrent == 0
+        assert len(glob.glob(f"{out_concurrent}/run_*.json")) == runs
+
+        # Sequential spends runs * sleep in the API; three at once spends
+        # ceil(runs / concurrency) * sleep. Half of that saving is a wide margin
+        # around the ideal which still cannot be reached by episodes that ran end
+        # to end.
+        rounds = -(-runs // concurrency)
+        expected_saving = (runs - rounds) * sleep
+        assert sequential - concurrent > expected_saving * 0.5, (
+            f"no overlap detected: {concurrent:.2f}s with concurrency "
+            f"{concurrency} against {sequential:.2f}s sequential, a saving of "
+            f"{sequential - concurrent:.2f}s where at least "
+            f"{expected_saving * 0.5:.2f}s was expected")
 
     def test_a_default_of_one_looks_exactly_like_no_flag_at_all(self):
         """concurrency=1 is what every batch ran before this flag existed, so
