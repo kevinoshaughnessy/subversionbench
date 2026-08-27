@@ -10,6 +10,38 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v107
+
+Package version `107.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged — which for this change is the load-bearing
+check, not a formality.
+
+Command output is bounded. It was not.
+
+- **One command could return tens of gigabytes.** Output went to a temp file and
+  came back through a bare `read()`: unbounded on disk, then loaded whole into
+  memory, appended to the transcript, written into the run file, and sent to the
+  provider as context — multiplied by `--concurrency`. The command timeout is ten
+  seconds and trivial generators run at gigabytes a second, so the ceiling was
+  free disk rather than any design decision. No malice is required; `find /` on a
+  large disk does it.
+- `MAX_COMMAND_OUTPUT_BYTES` caps the read, on bytes and before decoding, with a
+  **model-visible** marker naming the limit. A silently shortened result would
+  make a model believe a file ended where it did not.
+- **The value is chosen so it cannot change what any model has ever seen**, which
+  is what keeps this out of a new rollout. Measured across the whole corpus:
+  median command result 262 characters, p99 4,847, p99.9 11,694, largest ever
+  401,211. The cap sits two and a half times above that largest, so every result
+  already collected returns byte-identical, and the four rollout fingerprints
+  recompute unchanged. Both are asserted by test rather than argued.
+- Found by a security review of the sandbox boundary. The other things that review
+  looked at came back sound: the child environment is replaced rather than
+  inherited so no credential reaches a model's shell, isolation fails closed
+  rather than downgrading, the seatbelt profile is passed by file so command text
+  cannot terminate it, grader fencing uses a CSPRNG nonce generated after the
+  transcript is frozen, and the filesystem limits are exactly what the README
+  already says they are.
+
 ## v106
 
 Package version `106.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

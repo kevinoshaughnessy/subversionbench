@@ -6,6 +6,7 @@ inside ordinary text would refuse a command the model was entitled to run - and 
 reaping has to leave nothing behind that outlives the command that started it.
 """
 
+import io
 import os
 import signal
 import subprocess
@@ -16,6 +17,7 @@ from pathlib import Path
 from subversionbench.sandbox import (_group_of, _reap_group,
                                      execute_tool_sandboxed, tool_input_cmd)
 import subversionbench as ev
+import subversionbench.sandbox as sb
 from conftest import darwin_only, sandbox_profile
 
 
@@ -986,3 +988,124 @@ class TestTheSandboxHonoursIt:
                                      isolation="deny-external",
                                      profile_path=sandbox_profile("deny-external"))
         assert "permission denied" in out
+
+
+class TestCommandOutputIsBounded:
+    """One command could return tens of gigabytes before this.
+
+    Output went to a temp file and came back through a bare `read()`: written to
+    disk without limit, then loaded whole into memory, appended to the
+    transcript, saved into the run file, and sent to the provider as context -
+    multiplied by --concurrency. Trivial generators run at gigabytes a second and
+    the command timeout is ten seconds, so the ceiling was disk, not design.
+
+    THE CAP IS CHOSEN TO BE INVISIBLE. Across the r9 corpus's 64,839 command
+    results the largest was 401,211 characters; the cap is two and a half times
+    that, so nothing any model has produced would come back differently. The
+    tests below pin both halves of that claim - that real-sized output is
+    untouched, and that the pathological case is bounded.
+    """
+
+    # The largest single command result in the r9 corpus, measured over all
+    # 4,062 run files. Named here so the reason for the cap's value survives.
+    R9_LARGEST_RESULT = 401_211
+
+    def test_the_cap_is_above_the_largest_output_ever_collected(self):
+        """If this fails the cap has been lowered under real observed output, and
+        episodes would stop being comparable with the ones already collected."""
+        assert sb.MAX_COMMAND_OUTPUT_BYTES > self.R9_LARGEST_RESULT, (
+            f"cap {sb.MAX_COMMAND_OUTPUT_BYTES} is at or below the largest "
+            f"result r9 actually contains ({self.R9_LARGEST_RESULT})")
+
+    def test_output_the_size_of_that_largest_result_is_returned_whole(self):
+        payload = b"x" * self.R9_LARGEST_RESULT
+        got = sb._read_capped(io.BytesIO(payload))
+        assert got == payload
+        assert b"truncated" not in got
+
+    def test_output_at_exactly_the_cap_is_not_marked(self):
+        """Off-by-one in the boundary would mark ordinary output as truncated,
+        which is a false claim to the model about a file it just read."""
+        payload = b"y" * sb.MAX_COMMAND_OUTPUT_BYTES
+        got = sb._read_capped(io.BytesIO(payload))
+        assert got == payload
+        assert b"truncated" not in got
+
+    def test_one_byte_over_the_cap_is_truncated_and_says_so(self):
+        payload = b"z" * (sb.MAX_COMMAND_OUTPUT_BYTES + 1)
+        got = sb._read_capped(io.BytesIO(payload))
+        assert got.startswith(b"z" * sb.MAX_COMMAND_OUTPUT_BYTES)
+        assert b"output truncated by the harness" in got
+        assert len(got) == sb.MAX_COMMAND_OUTPUT_BYTES + len(sb._TRUNCATION_NOTICE)
+
+    def test_the_result_is_never_longer_than_the_cap_plus_the_notice(self):
+        """The property that bounds memory, over sizes either side of the cap."""
+        ceiling = sb.MAX_COMMAND_OUTPUT_BYTES + len(sb._TRUNCATION_NOTICE)
+        for size in (0, 1, sb.MAX_COMMAND_OUTPUT_BYTES - 1,
+                     sb.MAX_COMMAND_OUTPUT_BYTES,
+                     sb.MAX_COMMAND_OUTPUT_BYTES + 1,
+                     sb.MAX_COMMAND_OUTPUT_BYTES * 8):
+            assert len(sb._read_capped(io.BytesIO(b"q" * size))) <= ceiling, size
+
+    def test_truncation_is_marked_but_never_announced_for_small_output(self):
+        """A model must not be told its output was cut when it was not."""
+        assert b"truncated" not in sb._read_capped(io.BytesIO(b"hello"))
+        assert b"truncated" not in sb._read_capped(io.BytesIO(b""))
+
+    def test_a_cut_through_a_multibyte_character_does_not_raise(self):
+        """The cut happens on bytes, before decoding. `_as_text` decodes with
+        errors=replace, so the cost is one replacement character rather than a
+        UnicodeDecodeError in the middle of an episode."""
+        # A 3-byte character straddling the boundary.
+        payload = b"a" * (sb.MAX_COMMAND_OUTPUT_BYTES - 1) + "中".encode() * 4
+        text = sb._as_text(sb._read_capped(io.BytesIO(payload)))
+        assert "output truncated by the harness" in text
+
+    def test_the_cap_does_not_move_the_rollout_fingerprints(self):
+        """Named in MAX_COMMAND_OUTPUT_BYTES' own comment, which claims the cap
+        cannot change the rollout. The fingerprint is behavioural over a fixed
+        command battery, so whether a cap touches it is a measurement rather than
+        a judgement - and no battery command comes near a megabyte."""
+        from subversionbench.rollout_pins import (ROLLOUT_FINGERPRINTS,
+                                                  fingerprint_for)
+        for oversight in (False, True):
+            for lure in (False, True):
+                assert (fingerprint_for(oversight, lure)
+                        == ROLLOUT_FINGERPRINTS[(oversight, lure)]), (
+                    oversight, lure)
+
+    # THE TWO BELOW GO THROUGH THE REAL ENTRY POINT, and they exist because the
+    # unit tests above did not. Planting the original defect - putting the bare
+    # `read()` back at the capture site - left every test in this class passing,
+    # because all of them called `_read_capped` directly and none of them checked
+    # that anything CALLS it. The same plant on stderr alone was also missed, by
+    # a test that was the property check above under a different name.
+    #
+    # A helper tested in isolation says nothing about whether it is wired in.
+
+    def _via_sandbox(self, cmd):
+        env_dir = tempfile.mkdtemp(prefix="cap_e2e_")
+        return ev.sandbox.execute_tool_sandboxed(
+            {"command": cmd}, env_dir,
+            isolation=ev.isolation.DEFAULT_ISOLATION)
+
+    def test_stdout_is_capped_through_the_real_entry_point(self):
+        over = sb.MAX_COMMAND_OUTPUT_BYTES * 2
+        out = self._via_sandbox(f"yes | head -c {over}")
+        assert len(out) <= sb.MAX_COMMAND_OUTPUT_BYTES + 200, len(out)
+        assert "output truncated by the harness" in out
+
+    def test_stderr_is_capped_through_the_real_entry_point(self):
+        """Output falls back to stderr when stdout is empty, so an uncapped
+        stderr is the same defect by the other channel."""
+        over = sb.MAX_COMMAND_OUTPUT_BYTES * 2
+        out = self._via_sandbox(f"yes | head -c {over} >&2")
+        assert len(out) <= sb.MAX_COMMAND_OUTPUT_BYTES + 200, len(out)
+        assert "output truncated by the harness" in out
+
+    def test_ordinary_output_still_arrives_intact_through_the_entry_point(self):
+        """The cap must be invisible at real sizes, end to end and not only in
+        the helper."""
+        out = self._via_sandbox("echo hello-from-the-sandbox")
+        assert out.strip() == "hello-from-the-sandbox", out
+        assert "truncated" not in out

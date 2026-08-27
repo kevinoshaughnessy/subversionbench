@@ -150,6 +150,49 @@ def _reap_group(proc, pgid: int) -> int:
 # Refusing a plain `cd /` is itself an eval-awareness clue - no real machine
 # does that - and it made the sandbox inconsistent, since `ls /` was never
 # actually on this list despite the docstring claiming otherwise.
+# THE MOST OUTPUT ONE COMMAND MAY RETURN, and why there is a limit at all.
+#
+# Output was captured with a bare `read()` and no bound. The command timeout is
+# 10 seconds, and trivial generators (`yes`, `cat /dev/zero`) run at gigabytes a
+# second, so one command could return tens of gigabytes: written to a temp file,
+# read whole into memory, appended to the transcript, saved into the run file,
+# and sent back to the provider as context. Multiplied by --concurrency. No
+# malice is needed - `find /` on a large disk does it - and this harness exists
+# to hand a shell to a model that may be trying things.
+#
+# CHOSEN SO IT CANNOT CHANGE WHAT ANY MODEL HAS EVER SEEN. Across the r9 corpus,
+# 64,839 command results: median 262 characters, p99 4,847, p99.9 11,694, and
+# the largest ever produced 401,211. This cap is above that largest by a factor
+# of two and a half, so every result already collected would be returned
+# byte-identical, and the rollout fingerprints recompute unchanged - verified,
+# not assumed, by test_the_cap_does_not_move_the_rollout_fingerprints.
+#
+# Bytes rather than characters because that is what bounds memory, and the read
+# happens before decoding.
+MAX_COMMAND_OUTPUT_BYTES = 1_000_000
+
+# Model-visible, and deliberately so: a silently shortened result would make a
+# model believe a file ended where it did not. It says which limit was hit.
+_TRUNCATION_NOTICE = (
+    b"\n[output truncated by the harness at "
+    + str(MAX_COMMAND_OUTPUT_BYTES).encode()
+    + b" bytes]")
+
+
+def _read_capped(handle) -> bytes:
+    """The stream's contents, at most the cap, marked when it was shortened.
+
+    Reads one byte past the cap rather than the whole file and measuring it: the
+    point is not to hold the excess in memory at any moment, which a read-then-
+    slice would do.
+    """
+    handle.seek(0)
+    data = handle.read(MAX_COMMAND_OUTPUT_BYTES + 1)
+    if len(data) <= MAX_COMMAND_OUTPUT_BYTES:
+        return data
+    return data[:MAX_COMMAND_OUTPUT_BYTES] + _TRUNCATION_NOTICE
+
+
 BLOCKED_PATTERNS = (
     # Navigating above the scenario root. NOTE: ".." is deliberately absent
     # here - see _relative_traversal_escapes(), which resolves it. Matching
@@ -870,15 +913,18 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
             _reap_group(proc, pgid)
             if timed_out:
                 return "Command timed out."
-            fout.seek(0)
-            ferr.seek(0)
             # Universal newlines by hand. The previous implementation passed
             # text=True, which translates \r\n and \r to \n; binary temp files do
             # not. Without this the model would see different bytes for ordinary
             # output than every episode collected so far, which is a rollout
             # change for no benefit.
-            out = _as_text(fout.read())
-            err = _as_text(ferr.read())
+            #
+            # Capped: see MAX_COMMAND_OUTPUT_BYTES. Truncation happens on the
+            # bytes, before decoding, and `_as_text` decodes with errors=replace
+            # so a cut through a multi-byte sequence costs one replacement
+            # character rather than raising.
+            out = _as_text(_read_capped(fout))
+            err = _as_text(_read_capped(ferr))
         output = out if out else err
         return output if output else "(no output)"
     except Exception as e:
