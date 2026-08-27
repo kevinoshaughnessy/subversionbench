@@ -159,6 +159,17 @@ consequences are silent.
 - **Do not reinstall the package.**
 - Documentation, and pushing so CI verifies remotely, are safe.
 
+To stop a batch, use Ctrl-C or `kill <pid of run_all_arms.sh>`. Two traps here,
+both measured:
+
+- **Ctrl-Z does not stop it, it suspends it.** Nothing is spent while it sits
+  there, so it looks stopped; the moment anything continues it every remaining
+  arm runs and the script exits 0.
+- **Ctrl-C is powerless if SIGINT was ignored when the script started**, which
+  is what a background job of a non-interactive shell inherits. bash may not
+  trap a signal it inherited as ignored, so only the arm's own process sees it.
+  The script says so at startup when it detects this; `kill <pid>` works.
+
 ## Traps that have cost time
 
 - `pytest.skip` raises `Skipped`, a `BaseException` subclass, so `except Exception`

@@ -10,6 +10,44 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v104
+
+Package version `104.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+Interrupting a 12-arm batch now stops it.
+
+- **Ctrl-C could kill the arm in progress and leave the batch running.**
+  `run_all_arms.sh` guards each arm with `if ! "${cmd[@]}"` so that one bad arm
+  cannot end the eleven after it. `run_eval.py` returned 0 or 1 whether it had
+  been interrupted or had merely failed, so an interrupt was read as an ordinary
+  failed arm and the next arm started - which from the terminal is
+  indistinguishable from the interrupt having been ignored. It had not been
+  ignored; it had been obeyed and then overruled.
+- `run_batch` now returns `EXIT_INTERRUPTED` (130) when, and only when, a human
+  interrupted it, and the arm guard stops the batch on that code. The flag is
+  separate from `aborted`, which is also set by `--max-consecutive-failures` and
+  by an auth failure: reusing it would have made one rough arm end all twelve,
+  the exact behaviour the guard exists to prevent.
+- **The trap was not enough, and measuring said so.** A signal ignored on entry
+  to a shell may not be trapped or reset, which is the disposition a background
+  job of a non-interactive shell inherits. In that state the script's own `INT`
+  trap silently does not install, only the arm's process ever sees Ctrl-C, and
+  the exit code is the sole remaining evidence that a human asked to stop. The
+  script now detects this at startup - by reading the trap back, since bash 3.2
+  reports nothing for `trap -p INT` either way - and says which signal will work
+  instead.
+- `INT` and `TERM` traps added for the cases they do cover, each naming what was
+  collected and how to resume. Four signal cases are pinned by test, including
+  the one that already worked, so a future trap cannot quietly take a working
+  path away.
+- **Ctrl-Z does not stop a batch; it suspends one.** Nothing is spent while it
+  sits there, so it looks stopped - and on `fg`, `bg` or SIGCONT every remaining
+  arm runs to completion and the script exits 0. Documented rather than trapped:
+  trapping SIGTSTP to exit would take away a legitimate pause, and
+  trapping it to warn depends on a disposition the script inherits rather than
+  controls, so the warning would fire on some invocations and not others.
+
 ## v103
 
 Package version `103.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

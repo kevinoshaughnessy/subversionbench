@@ -40,6 +40,23 @@ from .rollout import rollout_drift_error
 from .scenario import scenario_for
 
 
+# "The operator asked to stop", as distinct from "this arm failed".
+#
+# 128 + SIGINT, the shell convention. It exists because run_all_arms.sh runs 12
+# arms back to back behind `if ! "${cmd[@]}"`, a guard whose whole purpose is to
+# keep one bad arm from ending the batch - so an interrupt returning the same 1
+# as a rough patch meant Ctrl-C killed the arm and the NEXT arm started, which
+# reads from the terminal as the interrupt having been ignored. It had not been
+# ignored; it had been obeyed and then overruled.
+#
+# This matters most where the shell cannot help itself: if SIGINT was ignored on
+# entry to the script - which it is for a background job of a non-interactive
+# shell - bash may not trap or reset it, so run_all_arms.sh's own INT trap never
+# fires and only the child ever sees the signal. The exit code is then the sole
+# evidence that a human asked for this to end.
+EXIT_INTERRUPTED = 130
+
+
 class _PerThreadStdout:
     """
     Routes each worker thread's prints into a private buffer instead of the
@@ -115,6 +132,10 @@ class _BatchProgress:
         self.failures = []
         self.consecutive_failures = 0
         self.aborted = False
+        # Separate from `aborted`, which is also set by the consecutive-failure
+        # limit and by an auth failure. Only a human asking to stop should stop
+        # the arms AFTER this one.
+        self.interrupted = False
         self._max_consecutive_failures = max_consecutive_failures
         self._batch_stamp = batch_stamp
 
@@ -219,6 +240,7 @@ def _keep_pool_full(ex, worker, pending, concurrency, progress, stop):
         print("\n\nInterrupted by user. Episode(s) already in flight will "
               "finish and save; nothing further will be launched.")
         progress.aborted = True
+        progress.interrupted = True
         stop.set()
         _drain_after_interrupt(futures, progress)
 
@@ -414,7 +436,8 @@ def _run_episodes_concurrently(args, identity, system_prompt, user_prompt,
         _keep_pool_full(ex, worker, pending, args.concurrency, progress, stop)
 
     return (progress.ordered_results(), progress.failures,
-            progress.consecutive_failures, progress.aborted, total_wait[0])
+            progress.consecutive_failures, progress.aborted,
+            progress.interrupted, total_wait[0])
 
 
 def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
@@ -583,9 +606,10 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     failures = []
     consecutive_failures = 0
     aborted = False
+    interrupted = False
 
     if args.concurrency > 1:
-        (all_results, failures, consecutive_failures, aborted,
+        (all_results, failures, consecutive_failures, aborted, interrupted,
          total_delay_seconds) = _run_episodes_concurrently(
             args, identity, system_prompt, user_prompt, reasoning_kwargs,
             reasoning_config, effective_effort, profile_path, _arm_tag,
@@ -620,6 +644,7 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
             except KeyboardInterrupt:
                 print("\n\nInterrupted by user.")
                 aborted = True
+                interrupted = True
                 break
 
             if not record["ok"]:
@@ -697,6 +722,10 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
               "flag instead; it looks\n  up each arm's own stamp itself.")
 
     if not all_results:
+        if interrupted:
+            print("\nInterrupted before any episode completed - nothing to "
+                  "summarise.")
+            return EXIT_INTERRUPTED
         print("\nNo episodes completed - nothing to summarise.")
         return 1
 
@@ -717,4 +746,10 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
             "total_delay_seconds": total_delay_seconds,
         },
     )
+    if interrupted:
+        # The summary above IS written and the episodes on disk are reusable -
+        # the exit code is about intent, not about damage. It says a human asked
+        # for this to end, so run_all_arms.sh stops the batch rather than
+        # starting the next of twelve arms.
+        return EXIT_INTERRUPTED
     return 0 if summary else 1

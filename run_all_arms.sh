@@ -107,6 +107,83 @@ echo "Extra interrogation phrasings per episode: ${INTERROGATIONS:-<none>}"
 [ "$DRY_RUN" = "1" ] && echo "DRY RUN - nothing will be spent"
 echo
 
+# STOPPING THE BATCH IS NOT THE SAME AS ONE ARM FAILING
+#
+# The `if ! "${cmd[@]}"` guard in the loop below deliberately keeps a single bad
+# arm from ending the batch, so that a model having a rough patch on one arm
+# does not silently skip the eleven after it. An operator asking to stop is the
+# opposite intent and must not be absorbed by that guard.
+#
+# Measured rather than assumed, because bash's signal handling here is not
+# obvious (see test_run_all_arms.py, which pins the trappable cases):
+#
+#   Ctrl-C (SIGINT) reaches the whole foreground process group and did already
+#   stop the loop before this trap existed - the arm dies, and bash's own
+#   default action ends the script. That case was never broken.
+#
+#   A signal delivered to THIS SCRIPT alone was swallowed: the arm kept running
+#   to completion, the guard saw an ordinary non-zero exit, and the next arm
+#   started. That is what this trap fixes.
+#
+#   A plain SIGTERM ended the script mid-arm saying nothing about what had been
+#   collected or how to resume.
+#
+# CTRL-Z DOES NOT STOP THIS BATCH, and on a long paid run that is the expensive
+# mistake. Ctrl-Z sends SIGTSTP, which SUSPENDS: the arm in flight stops, the
+# script makes no further progress, and nothing is spent while it sits there -
+# so it looks stopped. It is not. The moment anything continues it - `fg`, `bg`,
+# or SIGCONT - every remaining arm runs to completion and the script exits 0, as
+# though the interruption never happened. Measured, not inferred.
+#
+# So SIGTSTP is deliberately NOT trapped here. Trapping it to exit would take
+# away a legitimate pause, and trapping it to warn-then-suspend depends on a
+# disposition this script inherits rather than controls: a signal ignored on
+# entry to a shell cannot be trapped or reset, and job control is off in a
+# non-interactive script. Documented instead, because a warning that fires on
+# some invocations and not others is worse than a comment that always applies.
+#
+# To actually stop a batch: Ctrl-C, or `kill -INT <pid>`, or `kill <pid>`.
+#
+# A SIGNAL THAT REACHES ONLY THE ARM is the case this trap cannot see, and it is
+# the common one: when SIGINT is ignored on entry (below), Ctrl-C never reaches
+# this script at all. run_eval.py used to return 0 or 1 whether it was
+# interrupted or merely failed, so the guard read an ordinary failed arm and
+# started the next. It now returns EXIT_INTERRUPTED (130) for an interrupt
+# specifically, and the arm guard in the loop stops the batch on it.
+stop_batch() {
+    echo
+    echo "============================================================"
+    echo "Stopped by $1. The arm in progress was not completed."
+    echo "Everything already written is reusable: re-run this script with no"
+    echo "--resume to pick up wherever it left off."
+    echo "============================================================"
+    exit "$2"
+}
+trap 'stop_batch SIGINT 130' INT
+trap 'stop_batch SIGTERM 143' TERM
+
+# SAY SO WHEN CTRL-C CANNOT WORK, RATHER THAN LETTING IT BE DISCOVERED
+#
+# A signal ignored on entry to a shell may not be trapped or reset, and that is
+# the disposition a background job of a NON-INTERACTIVE shell inherits. When it
+# applies, the trap above silently does not install: Ctrl-C then reaches only
+# the arm's own process, run_eval.py obeys it, and the guard below starts the
+# next arm - which is indistinguishable, from the terminal, from the interrupt
+# having been ignored.
+#
+# Detected by reading the trap back rather than by reading the disposition:
+# bash 3.2, which is what macOS ships and therefore what this most often runs
+# on, reports nothing for `trap -p INT` in either state, but does refuse to
+# install a trap it is not allowed to install.
+if [ -z "$(trap -p INT)" ]; then
+    echo "NOTE: SIGINT was already ignored when this script started, so Ctrl-C"
+    echo "      cannot stop it - bash may not trap a signal it inherited as"
+    echo "      ignored. Ctrl-C will kill the ARM in progress and this script"
+    echo "      will carry on to the next one."
+    echo "      To stop the whole batch:  kill $$"
+    echo
+fi
+
 i=0
 for nudge in "${NUDGES[@]}"; do
     for oversight in "${OVERSIGHTS[@]}"; do
@@ -185,7 +262,16 @@ PY
                 # attempted. This script's own header says "SAFE TO RE-RUN" -
                 # that has to be true of one arm failing mid-batch too, not
                 # just of re-invoking the script from a clean start.
-                if ! "${cmd[@]}"; then
+                arm_rc=0
+                "${cmd[@]}" || arm_rc=$?
+                if [ "$arm_rc" -eq 130 ]; then
+                    # run_eval.py's EXIT_INTERRUPTED: a human asked it to stop.
+                    # This is the case no trap here can catch - when SIGINT is
+                    # ignored on entry, only the child ever sees the signal - so
+                    # the exit code is the only evidence, and continuing to the
+                    # next arm is the one thing that must not happen.
+                    stop_batch "an interrupt in the arm in progress" 130
+                elif [ "$arm_rc" -ne 0 ]; then
                     echo "  [!] this arm did not complete - continuing to the next one."
                     echo "      Re-running this script (no --resume needed) will pick up"
                     echo "      wherever it left off, the same as any other partial arm."
