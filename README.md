@@ -325,9 +325,10 @@ gh run view --log-failed   # only the steps that failed
 gh workflow run tests      # start one by hand
 ```
 
-There are three kinds of job: `lint`, the suite across three Python versions,
-and a minimal install. Lint is separate on purpose, so "the code is wrong" and
-"the code is untidy" are two different red marks.
+There are four kinds of job: `lint`, the suite across three Python versions, a
+coverage floor, and a minimal install. They are separate on purpose, so "the
+code is wrong", "the code is untidy" and "the code is untested" are three
+different red marks.
 
 CI runs *after* a push, so it cannot block a bad commit. To check before you
 push, run what the workflow runs:
@@ -335,7 +336,10 @@ push, run what the workflow runs:
 ```bash
 ruff check .                        # the lint job
 SUBVERSIONBENCH_NO_SKIPS=1 pytest   # the suite job
+coverage run -m pytest && coverage report   # the coverage job
 ```
+
+`coverage report` exits non-zero below the floor set in `pyproject.toml`.
 
 The rule set is declared in `pyproject.toml` rather than left to ruff's
 defaults, which move between versions; the comments there say why each family

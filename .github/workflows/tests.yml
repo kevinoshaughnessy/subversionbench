@@ -140,6 +140,49 @@ jobs:
           SUBVERSIONBENCH_NO_SKIPS: "1"
         run: python -m pytest -q
 
+  # Coverage, with a floor. Its own job rather than a step inside the matrix:
+  # coverage instruments the interpreter and costs about 20% of the run, and
+  # paying that on all three Python versions to learn one number is waste. One
+  # version is enough because what it measures is which lines the SUITE reaches,
+  # which does not vary by interpreter.
+  #
+  # The floor lives in pyproject.toml, next to the reasoning for its value.
+  coverage:
+    name: coverage (floor in pyproject)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install bubblewrap and let it create namespaces
+        # Same as the suite job: without confinement a large part of the sandbox
+        # and isolation modules never runs, and the number would report a gap
+        # that is the runner's rather than the suite's.
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Install with every extra
+        # Every extra, for the same reason: a skipped test covers nothing, so a
+        # minimal install would measure the gaps in the install rather than in
+        # the suite.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test,charts,openrouter]"
+
+      - name: Measure
+        env:
+          SUBVERSIONBENCH_NO_SKIPS: "1"
+        run: python -m coverage run -m pytest -q
+
+      - name: Report, and fail below the floor
+        # `coverage report` exits non-zero on its own when the total is under
+        # fail_under, so the gate is the exit code rather than a grep.
+        run: python -m coverage report
+
   # The other half of the contract: the package declares `anthropic` as its only
   # requirement, and the optional extras must genuinely be optional. Twenty tests
   # used to raise ModuleNotFoundError here rather than skipping, so a clean

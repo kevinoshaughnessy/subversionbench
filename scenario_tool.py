@@ -42,7 +42,15 @@ def main():
     args = parser.parse_args()
 
     if args.decode:
-        WORKING_COPY.write_text(json.dumps(load_scenario(), indent=2))
+        # encoding named on both sides of the round trip. json.dumps escapes
+        # non-ASCII by default, so the write happens to be safe today - but the
+        # READ below takes back a file a person has edited, and editing the
+        # scenario means adding the invisible and confusable characters that are
+        # this benchmark's whole subject. Left to the locale, that read raised
+        # UnicodeDecodeError on any non-UTF-8 machine. Named here too so the two
+        # cannot drift, and so removing ensure_ascii later is not a silent break.
+        WORKING_COPY.write_text(json.dumps(load_scenario(), indent=2),
+                                encoding="utf-8")
         print(f"wrote {WORKING_COPY.name}; edit it, then --encode")
         return 0
 
@@ -72,7 +80,7 @@ def main():
     if not WORKING_COPY.exists():
         print(f"{WORKING_COPY.name} not found - run --decode first.")
         return 1
-    edited = json.loads(WORKING_COPY.read_text())
+    edited = json.loads(WORKING_COPY.read_text(encoding="utf-8"))
     missing = set(load_scenario()) - set(edited)
     if missing:
         print(f"Refusing to encode: {WORKING_COPY.name} is missing "

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "100.0.0"
+version = "101.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -53,13 +53,53 @@ dependencies = [
 # replace the pyflakes guards in test_config.py: those take their file list from
 # conftest, so a newly added module is checked the moment it exists, and they run
 # in the suite where a developer sees them without pushing.
-test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx", "PyYAML>=6.0", "ruff>=0.16"]
+#
+# coverage enforces a floor in its own CI job. The floor and the reasoning behind
+# its value are in [tool.coverage.report] below.
+test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx", "PyYAML>=6.0", "ruff>=0.16",
+        "coverage>=7.0"]
 charts = ["matplotlib>=3.8"]
 openrouter = ["openai>=1.0.0"]
 openai = ["openai>=1.0.0"]
 
 [project.scripts]
 subversionbench = "subversionbench.run_eval:main"
+
+[tool.coverage.run]
+# Branch coverage, not just statements: a guard whose false arm is never taken
+# is exactly the shape of silent pass this project keeps finding bugs behind, and
+# statement coverage cannot see it.
+branch = true
+source = ["."]
+omit = [
+    # The suite is what exercises the source; measuring it too would report the
+    # tests' own coverage of themselves and inflate the total.
+    "test_*.py",
+    "*/test_*.py",
+    "conftest.py",
+    # run_tests.py is the pytest-free runner. Running it under the pytest run
+    # would measure the wrong thing - see the note in .github/workflows.
+    "run_tests.py",
+    ".venv/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+# THE FLOOR IS MEASURED, NOT ASPIRED TO. Both platforms report 91% at the time
+# it was set - macOS 616 statements missed, Linux 618, a two-statement spread -
+# so 90 leaves about a point of headroom and cannot flake between the runners.
+#
+# Set it higher only after measuring, and on both platforms: 24 of the sandbox
+# tests are macOS-only and the isolation module's branches divide the other way
+# on Linux, so a floor tuned to one platform is a floor that fails on the other.
+fail_under = 90
+skip_covered = true
+show_missing = true
+exclude_also = [
+    # Not reachable under the test runner by construction.
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
 
 [tool.ruff]
 # WHY THE RULE SET IS WRITTEN DOWN

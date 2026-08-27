@@ -10,6 +10,49 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v101
+
+Package version `101.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+A coverage floor in CI, and the one module that had no tests at all.
+
+- **`scenario_tool.py` was the only module in the project at 0% coverage** - 50
+  statements, none executed by anything. It is also the single supported way to
+  edit the scenario, and one of its four modes rewrites the bundle in place. Now
+  covered by twenty tests, each verified by planting the defect it claims to
+  catch: the missing-entry refusal, the exit code on a name that matches
+  nothing, the absent-working-copy refusal, and the encoding below.
+- Why it had stayed untested is real rather than an oversight: the obvious test
+  runs the tool, and the tool decodes the scenario. The tests replace
+  `load_scenario` with a synthetic bundle and redirect the working copy into a
+  temp directory, so no scenario text reaches disk or an assertion and the real
+  bundle cannot be written even if the tool's own guards were wrong.
+- **The tool read a person-edited file at the machine's locale's mercy.** Editing
+  the scenario means adding invisible and confusable characters - they are the
+  subject of the benchmark - and `--encode` would have raised
+  UnicodeDecodeError on any non-UTF-8 machine. The same defect class the export
+  path already had fixed once. Guarded as a rule over the module rather than by
+  round-tripping a non-ASCII string, because that round trip passes on a UTF-8
+  machine whether or not the encoding is named.
+- **The coverage floor is measured, not aspired to.** Both platforms report 91%,
+  a two-statement spread between them, so 90 leaves about a point of headroom and
+  cannot flake between runners. Measuring on Linux first mattered: 24 of the
+  sandbox tests are macOS-only and the isolation module's branches divide the
+  other way there, so a floor tuned to one platform is a floor that fails on the
+  other.
+- Branch coverage rather than statement coverage: a guard whose false arm is
+  never taken is the shape of silent pass this project keeps finding bugs behind,
+  and statement coverage cannot see it.
+- Its own CI job, on one Python version. Coverage costs about 20% of the run and
+  paying that three times to learn one number is waste; what it measures is which
+  lines the suite reaches, which does not vary by interpreter.
+- Coverage rose from 90.8% to 91.5% on the new tests.
+
+Separately noted and not acted on: 51 text-IO sites across the project still
+take the machine's locale, and the existing guard against that is scoped to one
+module. Widening it is its own piece of work.
+
 ## v100
 
 Package version `100.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
