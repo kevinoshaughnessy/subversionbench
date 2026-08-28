@@ -101,6 +101,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    answered across every model in a results directory
   loading.py       the two loaders, and the arms rebuilt from episodes
   data_quality.py  where the corpus disagrees with itself
+  characteristics.py  how an episode was conducted rather than how often it
+                   went wrong. Descriptive profiles, deliberately not questions:
+                   each splits on something the model chose mid-episode
   pooling.py       pooling, contrasts, strata, consistency. No question attached
   questions_arms.py       Q1-4: the exposure is an arm the design assigned
   questions_awareness.py  Q5-10: the exposure is something the model did
@@ -116,6 +119,11 @@ sad_oversight.py   an external situational-awareness leaderboard, encrypted at
                    rest with the published passphrase for the same reason the
                    scenario is, and its rank correlation with the awareness
                    rates measured here (7 overlapping models: descriptive only)
+agentic_misalignment.py
+                   an external agentic-misalignment benchmark, encrypted the
+                   same way, correlated on two axes: the harmful-behaviour
+                   level, and the unaware-minus-aware gap that both benchmarks
+                   can measure (5 overlapping models: descriptive only)
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree

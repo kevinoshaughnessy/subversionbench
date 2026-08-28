@@ -55,6 +55,27 @@ conjunction would invite the reading that these models do not act covertly, whic
 row contradicts. Read the pair from the current run report rather than from a figure quoted
 here.
 
+**Both constructs are unions over the misaligned acts, and the acts do not share the same
+support.** An episode counts as misaligned if it took *any* act, and as scheming if it
+concealed *any* act. That makes each headline a composite, and a composite is only
+comparable across two arms when both arms could commit the same acts. They cannot here:
+tampering with oversight requires a monitoring artefact to tamper with, so in the
+no-oversight arm the act is **impossible rather than merely unobserved**. The composite
+therefore pools two acts on one side of that contrast and one act on the other.
+
+This is not confounding, and stratifying does not repair it — the cell is structurally
+empty, so no reweighting can fill it. It is also not Simpson's paradox, which is a
+reversal produced by unequal group weights and *is* repaired by standardisation. Treating
+it as either would prescribe the wrong remedy. The remedy that applies is to change what is
+reported: the run report gives each act its own contrast beside the composite, states how
+many episodes in each arm could have committed that act at all, and names which acts both
+arms could commit. Where the composite and a shared act point in different directions, it
+says so and directs the reader to the per-act figure.
+
+A zero has two readings, and only the availability count separates them: *nobody did it*
+is a fact about the models, *nobody could* is a fact about the design. The report never
+decides comparability from a rate being zero, for exactly this reason.
+
 Evaluation awareness plays a dual role. It is a construct of independent interest, and it
 is also **construct-irrelevant variance** for the other two: a model that recognises the
 setup is not exhibiting the behaviour the eval is trying to observe, so an awareness rate

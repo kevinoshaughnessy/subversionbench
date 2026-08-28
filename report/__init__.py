@@ -161,8 +161,10 @@ This file is the single import site: everything is reached through `report`, so
 the layout inside can change without moving anyone else's imports.
 """
 
-from .loading import (NUDGE_LEVELS, awareness_arm_rows, load_episodes,
-                     load_summaries)
+from .loading import (NUDGE_LEVELS, act_arm_rows, awareness_arm_rows,
+                     load_episodes, load_summaries)
+from .characteristics import (characteristics, decision_profile,
+                             persistence_after_refusal)
 from .data_quality import (_measure_agreement, _model_rate_pairs,
                           cross_analysis_rows, data_quality_facts,
                           mixed_routing_arms,
@@ -188,7 +190,10 @@ from .questions_paired import (EVIDENCE_COLUMNS, EVIDENCE_ROWS,
                               _variant_question,
                               question_evidence_vs_concealment,
                               question_paraphrase_vs_concealment)
-from .console import (_fmt_contrast_line, _fmt_rate, _print_data_quality,
+from .console import (_fmt_contrast_line, _fmt_rate, _print_by_act,
+                     _print_characteristics, _print_decision_profile,
+                     _print_persistence,
+                     _print_data_quality,
                      _print_model_table, _print_multiplicity, _print_question,
                      _print_stratified, _print_text_reachable,
                      _print_variant_question)
@@ -207,16 +212,18 @@ __all__ = [
     "_consistency", "_contrast", "_crude_vs_stratified", "_finding",
     "_fmt_contrast_line", "_fmt_rate", "_measure_agreement",
     "_model_rate_pairs", "_models", "_paired_variant_table", "_pool",
-    "_print_data_quality", "_print_model_table", "_print_multiplicity",
-    "_print_question", "_print_stratified", "_print_text_reachable",
-    "_print_variant_question", "_provenance_warning",
-    "_question_act_scheming", "_question_oversight", "_strata_from",
-    "_stratified", "_stratified_interpretation", "_text_reachable_block",
-    "_variant_contrast", "_variant_provenance", "_variant_question",
-    "awareness_arm_rows", "build_report", "cross_analysis_rows",
-    "data_quality_facts", "duplicate_arms", "load_episodes",
-    "mixed_routing_arms",
-    "load_summaries", "main", "question_awareness_vs_misalignment",
+    "_print_by_act", "_print_characteristics", "_print_data_quality",
+    "_print_decision_profile", "_print_model_table", "_print_multiplicity",
+    "_print_persistence", "_print_question", "_print_stratified",
+    "_print_text_reachable", "_print_variant_question",
+    "_provenance_warning", "_question_act_scheming", "_question_oversight",
+    "_strata_from", "_stratified", "_stratified_interpretation",
+    "_text_reachable_block", "_variant_contrast", "_variant_provenance",
+    "_variant_question", "act_arm_rows", "awareness_arm_rows",
+    "build_report", "characteristics", "cross_analysis_rows",
+    "data_quality_facts", "decision_profile", "duplicate_arms",
+    "load_episodes", "load_summaries", "main", "mixed_routing_arms",
+    "persistence_after_refusal", "question_awareness_vs_misalignment",
     "question_awareness_vs_monitoring_disabled",
     "question_awareness_vs_oversight_scheming",
     "question_awareness_vs_sandbox_escape",
@@ -224,5 +231,5 @@ __all__ = [
     "question_awareness_vs_scheming", "question_evidence_vs_concealment",
     "question_nudge_vs_awareness", "question_oversight_vs_awareness",
     "question_oversight_vs_misalignment", "question_oversight_vs_scheming",
-    "question_paraphrase_vs_concealment"
+    "question_paraphrase_vs_concealment",
 ]

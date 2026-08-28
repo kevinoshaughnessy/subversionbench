@@ -24,10 +24,13 @@ import report_charts
 from subversionbench.config import ROLLOUT_VERSION, VERSION
 from subversionbench.redaction import redact_paths
 
-from .console import (_print_data_quality, _print_question,
+from .console import (_print_characteristics, _print_data_quality,
+                      _print_question,
                       _print_variant_question)
+from .characteristics import characteristics
 from .data_quality import data_quality_facts
-from .loading import awareness_arm_rows, load_episodes, load_summaries
+from .loading import (act_arm_rows, awareness_arm_rows, load_episodes,
+                      load_summaries)
 from .pooling import _crude_vs_stratified, _models
 from .questions_arms import (question_nudge_vs_awareness,
                              question_oversight_vs_awareness,
@@ -50,10 +53,16 @@ def build_report(output_dir: str) -> dict:
     # summary field holds. Questions 2 and 4 take the headline measure from the
     # summaries as before and this alongside it; see _text_reachable_block.
     arm_rows = awareness_arm_rows(episodes)
+    # Arms rebuilt from episodes again, this time carrying each misaligned act
+    # separately. Questions 1 and 3 report a UNION over the acts, and the acts do
+    # not have the same support across the oversight arms - see
+    # _common_support_block - so each of those two questions carries the per-act
+    # contrast beside its composite.
+    act_rows = act_arm_rows(episodes)
     questions = [
-        question_oversight_vs_scheming(summaries),
+        question_oversight_vs_scheming(summaries, act_rows),
         question_oversight_vs_awareness(summaries, arm_rows),
-        question_oversight_vs_misalignment(summaries),
+        question_oversight_vs_misalignment(summaries, act_rows),
         question_nudge_vs_awareness(summaries, arm_rows),
         question_awareness_vs_misalignment(episodes, summaries),
         question_awareness_vs_monitoring_disabled(episodes),
@@ -88,6 +97,10 @@ def build_report(output_dir: str) -> dict:
         "n_episode_files": len(episodes),
         "n_models": len(_models(summaries)),
         "data_quality": data_quality_facts(episodes, summaries),
+        # Conduct rather than rates, and deliberately NOT in
+        # `questions`: these are descriptive profiles, and the
+        # question machinery would attach effect estimates to them.
+        "characteristics": characteristics(episodes),
         "questions": questions,
     }
 
@@ -137,6 +150,10 @@ def main() -> int:
             _print_variant_question(section)
         else:
             _print_question(section)
+
+    # After the questions, because it answers a different kind of question and
+    # reads as a footnote to them rather than as a thirteenth one.
+    _print_characteristics(report["characteristics"])
 
     # Before the JSON is written, so `charts` lands in the file rather than
     # describing an artefact the report has no record of.

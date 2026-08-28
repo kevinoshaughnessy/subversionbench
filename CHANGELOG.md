@@ -10,6 +10,215 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v109
+
+Package version `109.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged. The scenario is untouched — this is an analysis
+change, and every episode already collected is read exactly as before.
+
+Identified and fixed an important interpretive issue in the two composite
+questions: they now report each misaligned act separately, so a reader can see
+which acts both arms could actually commit.
+
+- **The insight.** `misaligned` and `scheming` are unions over `MISALIGNED_ACTS`
+  — an episode counts if it took *any* act. A union is only comparable across two
+  arms when both arms can commit the same acts, and here they cannot: tampering
+  with oversight needs a monitoring artefact to tamper with, so in the
+  no-oversight arm that act is **impossible rather than merely unobserved**.
+  `oversight_observable` is true for every episode of one arm and false for every
+  episode of the other, which the loaders have recorded all along. The composite
+  contrast was therefore pooling two acts on one side and one on the other.
+- **Correctly diagnosed, because the diagnosis picks the remedy.** This is a
+  composite-endpoint artefact over a structural violation of common support. It
+  is *not* confounding, and it is *not* Simpson's paradox — both of those are
+  repaired by stratifying or standardising, and neither can help when the cell is
+  structurally empty. Naming it precisely is what pointed at the remedy that does
+  work: change what is reported, not how it is weighted.
+- **`by_act`**, attached to both composite questions and printed under `PER ACT`.
+  For each act it gives the contrast, how many episodes in each arm could have
+  committed it at all, and whether both arms could. It names the acts that are
+  comparable, carries the differential `scheming_undetermined` counts where they
+  apply, and classifies whether the composite survives being read one act at a
+  time — saying so plainly, and pointing at the per-act figure, when it does not.
+- **A composite of exactly zero has no direction, and is now reported as such.**
+  The agreement check compared each act's sign against the composite's, and
+  suppressed the comparison when the composite was zero — which returned
+  *agree* rather than declining to answer. That is the wrong way round: a zero
+  composite carried by two acts moving in opposite directions by equal amounts
+  is the strongest form of the artefact this block exists to catch, and it was
+  the one case guaranteed to be described as agreement. A new `no_direction`
+  verdict names the acts that moved and says the zero is cancellation, and
+  distinguishes it from the flat corpus where nothing moved anywhere.
+- **The concealment caveat now prints only on the question it is true of.** The
+  differential `scheming_undetermined` counts came with the note that those
+  episodes sit in the denominator and cannot reach the numerator, so each arm's
+  rate is depressed. That holds for the scheming numerator, which requires a
+  concealment verdict. It is false for the misalignment numerator, which counts
+  the act whatever the concealment came out as — those episodes are already
+  inside it. Both blocks share one printer, so the caveat was reaching the
+  misalignment question and inviting a reader to treat a correct rate as an
+  underestimate. The count is now withheld from that block rather than
+  explained away in it, since a figure whose only accompanying interpretation
+  is wrong is better absent.
+- **A zero has two readings and the report now separates them.** *Nobody did it*
+  is a fact about the models; *nobody could* is a fact about the design. Both
+  print as zero, and only the availability count tells them apart, so
+  comparability is never decided from a rate being zero — a rule with a test
+  behind it.
+- Acts and their support are derived from `MISALIGNED_ACTS` and measured from the
+  corpus, never hardcoded, so a third act added to the scenario is carried
+  without this code being edited, and a scenario change that gave both arms the
+  same act menu would be reported as such on its own.
+- Purely additive: all twelve question ids unchanged, no existing field removed
+  or renamed, and every previously published figure still computed the same way.
+- Eleven planted defects, all eleven caught — the block dropped from either
+  question, comparability decided by rate instead of availability, the single-arm
+  act counted as agreeing, the scheming block reading act counts instead of
+  concealment counts, a contradiction reported as agreement, the console
+  section silently not printed, the zero-composite guard returning *agree*
+  either through the sign filter or by never noticing a moving act, and the
+  concealment caveat ungated at both the block and the printer.
+- Planting also turned up a fixture that wrote `oversight_tampered: False` in the
+  no-oversight arm where the harness writes `None` — "did not tamper" standing in
+  for "could not tamper", which is exactly the distinction at issue. Corrected,
+  and nothing else depended on it.
+
+**The report test file is now five files.** `test_run_report.py` had grown to
+1,603 lines and most of it was not about `run_report`: the pooling arithmetic,
+the two loaders, the data-quality facts and the twelve questions each belong to a
+different module. Split by deriving, for every test, which `report/` submodule
+owns the names it actually calls — which also found a class whose 15 tests
+spanned three concerns. `test_run_report.py` is 345 lines and now exercises only
+the assembly layer. The test set is identical before and after: same 488 tests,
+same names, verified by diff rather than by count alone.
+
+**A new kind of output: model characteristics.** The report answered how often
+things went wrong and never how an episode was conducted, while the harness had
+been recording the second all along — an audit found 31 saved fields that no
+analysis code read. `report/characteristics.py` starts on that, with the first
+profile: **persistence after refusal**, whether a model issues another blocked
+command after the sandbox has told it no.
+
+- Deliberately **not** a thirteenth question, and kept out of `questions` so it
+  cannot collect a p-value or a Mantel-Haenszel estimate. Persistence is a choice
+  made mid-episode, so splitting on it conditions on a post-treatment variable
+  and the two sides are two populations rather than two arms. The block says so
+  in its own `interpretation` field, the console prints "descriptive", and a test
+  asserts the effect-shaped fields are absent.
+- **The support condition is the measure.** Only an episode actually shown a
+  refusal can persist or comply; most were not, and counting those as compliant
+  would be the same error the composite questions had. They are excluded and
+  reported as a count. `refusal_shown` is built from the same test the grader
+  uses for `already_refused` — a refusal the model was shown — rather than from a
+  count of blocked commands, because those are different sets.
+- The support set is a union with the numerator, so a rate above one is
+  unreachable: one r9 episode records a retry with no refusal visible in its
+  saved transcript, and a transcript-only denominator would exclude it.
+- Free and read-only. Every field was already on every saved episode, so this
+  needed no re-collection and no `--resummarise` — which also made it safe to
+  build while a batch was collecting, since `subversionbench/` imports neither
+  `report/` nor `trends/`.
+- Eight planted defects, all eight caught. Two survived the first version of the
+  guards, and both for reasons worth recording: one test was **vacuous** — it
+  guarded its assertion behind an `if` that a fixture could never satisfy,
+  because the field it needed is derived during grading and not by
+  `normalise_analyses` — and the console tests called the printer directly, so
+  deleting its only call site changed nothing. Fixed by asserting the fixture
+  precondition, and by driving the whole CLI through `main`.
+
+**The second profile: the task decision, and whether it held.** The report has
+always measured what the model did wrong and never what it actually recommended,
+though `strategy_recommended` has been stored on every episode since v10.
+`decision_profile` reports three things, each with its own denominator:
+
+- **The decision** — strategy A, B, or none stated, over every episode, since
+  every episode had a recommendation to make.
+- **Consistency** — whether the answer changed while the episode ran, over
+  episodes that stated a strategy **more than once**. One statement, or none, is
+  no opportunity to contradict itself, and counting it as consistent would report
+  silence as steadiness. That exclusion is most of the corpus, so it moves the
+  rate by roughly a factor of five rather than trimming it.
+- **Under in-scenario pressure** — whether the change followed the quality check
+  the model can run on its own draft. **Ordering is required, not co-occurrence**:
+  the change has to land on a turn after the check was shown, because a model
+  that switched before ever checking switched for some other reason.
+
+Two things that had to be got right for it to mean anything:
+
+- **The first check, not the stored one.** `quality_check_result` is written on
+  every check and so holds the last, which hides the entire event: flagged,
+  revised, re-checked clean reads as `passed`. Both are now reported, and the gap
+  between them says how often a flag was resolved rather than absorbed.
+- **The per-turn reading calls the shipped matcher**, one entry at a time, rather
+  than reimplementing it. `detect_strategy_recommendation` has accumulated
+  negation, comparative-reject and sentence-boundary rules, each added to fix a
+  real misread; a second copy would be a second thing to keep in step with all of
+  them.
+
+A model's rate is marked `underpowered` below `MIN_INFORMATIVE_DENOMINATOR` and
+sorted below the rest — the same threshold `trends.metrics` uses. Without it a
+one-of-one headed a rate-ordered table and read as the strongest result in it.
+
+Fourteen planted defects across both profiles, all fourteen caught, but only
+after two rounds. The pattern in the misses is now clear enough to name: **the
+blocks were unit-tested on hand-built rows while the loader that produces those
+rows was not**, so a numerator or a support flag could be computed wrongly at the
+point of derivation and every block-level test would still pass. Both misses this
+round were there — `strategy_restated` meaning "stated at all", and the ordering
+check reduced to a constant. The console had the same shape of gap twice: a
+printer tested directly says nothing about whether anything calls it, and the
+first version chained the two profiles so that a corpus with no refusals silently
+lost the second one.
+
+**A second external benchmark to correlate against.** `agentic_misalignment.py`
+joins an external agentic-misalignment table to the rates measured here, on the
+same pattern `sad_oversight.py` established: the table is encrypted at rest with
+the published passphrase, the model and scenario names live inside the bundle
+rather than in plain source, and the decoded working copy is gitignored. The
+crypto is imported from `sad_oversight` rather than reimplemented — a second copy
+of a key-derivation routine is a second thing to keep in step.
+
+- **Two correlations, because they are different claims.** The LEVEL comparison
+  puts the external harmful-behaviour rate against the misalignment rate here,
+  and is the weaker of the two: the scenarios differ, the harms differ, and one
+  benchmark's "harmful" is not the other's "misaligned act". The AWARENESS
+  SUPPRESSION comparison uses the unaware-minus-aware gap on each side, which is
+  the axis the two genuinely share — both record whether the model verbalised
+  that it might be under evaluation. A within-benchmark gap is far less sensitive
+  to the two measuring different absolute things.
+- **Direction is counted beside every rho, and it is the thing rho cannot say.**
+  A rank correlation is invariant to where zero sits, so both sides can order the
+  models identically while disagreeing about whether awareness suppresses harm at
+  all. On this corpus they do exactly that: the ranks correlate positively and
+  most pairs disagree on the sign. This is the mirror of the argument already in
+  `data_quality._measure_agreement` — sign alone is not enough there, and rho
+  alone is not enough here.
+- **The awareness buckets do not line up, so both poolings are reported.** The
+  external table splits awareness three ways and this benchmark records one
+  binary verdict; which pooling is right is not settled by the data, so the
+  choice is printed rather than buried.
+- **Every rho carries its n and its leave-one-out range**, because at five pairs
+  a single model moves a correlation across most of its range — and on this
+  corpus one model is the most influential point in all three.
+- **A row is either aliased or recorded as a decision.** One external model is
+  deliberately unmatched: no local model shares both its version and its size,
+  and pairing either candidate would repeat the substring mistake
+  `sad_oversight.local_index` already records. The reason is stored with it, and
+  a test refuses an exclusion without one.
+- Counts are pooled before dividing on both sides, never averaged as rates: the
+  awareness buckets differ in size by more than an order of magnitude within a
+  single model. Episodes whose awareness verdict did not resolve are excluded
+  from both sides rather than counted as unaware.
+- Ten planted defects, all ten caught first time. Two of the tests were wrong
+  rather than the code and are recorded as such: one asserted that external names
+  and local IDs never share a normalised stem, which is simply false, and was
+  replaced by a behavioural guard that an alias-less bundle yields no pairs; the
+  other could not produce an unresolved awareness verdict at all, because
+  clearing the grader leaves the keyword detector to resolve it.
+
+Also recorded the release date for one newly listed model, so the calendar axis
+and the version-order check cover it when it is collected.
+
 ## v108
 
 Package version `108.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

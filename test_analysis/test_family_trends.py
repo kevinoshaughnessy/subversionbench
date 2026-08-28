@@ -13,7 +13,7 @@ import tempfile
 from datetime import date
 
 import trends as ft
-from test_analysis.test_run_report import _write_summary
+from test_analysis.report_fixtures import _write_summary
 
 
 class TestParsingRealModelIds:

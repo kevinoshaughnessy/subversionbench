@@ -29,7 +29,7 @@ and measures agreement.
 """
 
 from .data_quality import _measure_agreement, _model_rate_pairs
-from .loading import NUDGE_LEVELS
+from .loading import MISALIGNED_ACTS, NUDGE_LEVELS
 from .pooling import (_by_model, _consistency, _contrast, _finding, _models,
                       _pool, _stratified)
 
@@ -85,6 +85,161 @@ def _text_reachable_block(rows: list, group_key: str, level_a, level_b) -> dict:
     }
 
 
+def _component_agreement(composite: dict, components: list) -> dict:
+    """
+    Whether the composite contrast survives being read on one act at a time.
+
+    The composite is a union over MISALIGNED_ACTS, and a union is not an average
+    of its parts: it can move in a direction no part moved, and it does so here
+    whenever the parts have different support. So direction is compared against
+    each part that BOTH arms could have committed, and a part only one arm could
+    commit is excluded from the comparison rather than counted as agreement -
+    it has no direction to agree with.
+    """
+    shared = [c for c in components if c["available_in_both_arms"]]
+    if not shared:
+        return {"code": "no_common_support", "composite_is_checkable": False,
+                "description": ("no act was available in both arms, so the "
+                                "composite contrast cannot be checked against "
+                                "any component and should not be read as an "
+                                "effect on behaviour")}
+    dc = composite.get("difference")
+    usable = [c for c in shared if c["overall"].get("difference") is not None]
+    if dc is None or not usable:
+        return {"code": "no_data", "composite_is_checkable": False,
+                "description": "one side has no estimate - nothing to compare"}
+    # A composite of exactly zero has no direction, so "agrees with the
+    # composite" is not a question that can be answered - and the sign filter
+    # below would answer it "agree" anyway, because `dc != 0` empties the
+    # disagreement list rather than populating it. That is the wrong way round:
+    # a zero composite carried by components moving in OPPOSITE directions is
+    # the strongest form of the artefact this block exists to catch, not the
+    # absence of one. Handle it before the sign comparison rather than letting
+    # it fall through to the reassuring branch.
+    if dc == 0:
+        moving = [c["act"] for c in usable if c["overall"]["difference"] != 0]
+        return {"code": "no_direction", "composite_is_checkable": bool(moving),
+                "acts_compared": [c["act"] for c in usable],
+                "acts_moving": moving,
+                "description": (
+                    f"the composite difference is exactly zero, so it has no "
+                    f"direction for a component to agree with - and "
+                    f"{', '.join(moving)} moved anyway. The zero is these acts "
+                    f"cancelling, not the absence of an effect. Read the "
+                    f"per-act contrasts" if moving else
+                    "the composite difference is exactly zero and so is every "
+                    "per-act contrast: nothing moved anywhere, rather than "
+                    "movement hidden by pooling")}
+    disagreeing = [c["act"] for c in usable
+                   if (c["overall"]["difference"] > 0) != (dc > 0)
+                   and c["overall"]["difference"] != 0]
+    if not disagreeing:
+        return {"code": "agree", "composite_is_checkable": True,
+                "acts_compared": [c["act"] for c in usable],
+                "description": ("every act available in both arms moves in the "
+                                "same direction as the composite, so the "
+                                "composite's direction is not an artefact of "
+                                "pooling acts with different support")}
+    return {"code": "contradict", "composite_is_checkable": True,
+            "acts_compared": [c["act"] for c in usable],
+            "acts_disagreeing": disagreeing,
+            "description": (
+                f"the composite moves one way and {', '.join(disagreeing)} - "
+                f"available in BOTH arms - moves the other. The composite's "
+                f"direction is carried by an act only one arm could commit, so "
+                f"it describes the difference in what was POSSIBLE rather than "
+                f"a difference in what the models did. Read the per-act "
+                f"contrast, not the composite")}
+
+
+def _common_support_block(rows: list, kind: str) -> dict:
+    """
+    The same oversight contrast, one act at a time.
+
+    Reported beside the composite rather than instead of it, the way
+    `_text_reachable_block` is - and for a structurally similar reason. There the
+    headline measure varies by provider route; here it varies by ARM, because the
+    composite is a union over acts and the acts do not have the same support.
+
+    WHAT THIS EXISTS TO PREVENT
+    ---------------------------
+    `oversight_observable` is true for every episode of the oversight arm and
+    false for every episode of the no-oversight arm: with no monitoring artefact
+    there is nothing to tamper with, so the oversight act is impossible rather
+    than merely unobserved. A composite over both acts therefore compares a union
+    over two acts against a union over one. That is not a confounded comparison
+    which stratifying would repair - the cell is structurally empty, and no
+    reweighting can fill it. The only honest repair is to report the acts
+    separately and say which of them both arms could actually commit, which is
+    what this does.
+
+    Acts and their support are read from the rows, never hardcoded, so which act
+    counts as common-support is a measured property of the corpus rather than a
+    claim in this docstring. If a scenario change ever made the oversight act
+    available in both arms, this block would say so without being edited.
+    """
+    num = {"act": "n_{}_act", "scheming": "n_{}_scheming"}[kind]
+    composite_key = {"act": "n_misaligned", "scheming": "n_scheming"}[kind]
+    args = ("oversight", True, False, composite_key, "n_runs")
+    composite = _contrast(rows, *args)
+
+    on = [r for r in rows if r["oversight"]]
+    off = [r for r in rows if not r["oversight"]]
+    components = []
+    for act in MISALIGNED_ACTS:
+        name = act["name"]
+        num_key = num.format(name)
+        obs_key = f"n_{name}_observable"
+        sup_a = sum(r[obs_key] for r in on)
+        sup_b = sum(r[obs_key] for r in off)
+        by_model = _by_model(rows, "oversight", True, False, num_key, "n_runs")
+        components.append({
+            "act": name,
+            "numerator": num_key,
+            "n_episodes_act_was_available": {"oversight_present": sup_a,
+                                             "oversight_absent": sup_b},
+            "available_in_both_arms": bool(sup_a and sup_b),
+            "unavailable_because": (
+                None if sup_a and sup_b else
+                "the arm provides no artefact this act could be committed "
+                "against, so its rate there is structurally zero and carries "
+                "no information about the model"),
+            "overall": _contrast(rows, "oversight", True, False,
+                                 num_key, "n_runs"),
+            "by_model": by_model,
+            "consistency": _consistency(by_model),
+            "stratified": _stratified(by_model),
+        })
+    return {
+        "measure": f"each misaligned act separately ({kind})",
+        "denominator": ("n_runs, the same denominator the composite uses, so "
+                        "only the numerator changes. Built from EPISODES rather "
+                        "than pooled from the summaries, so compare against "
+                        "`composite_overall` here rather than against the "
+                        "headline contrast above, which can differ by an "
+                        "episode or two"),
+        "composite_overall": composite,
+        "components": components,
+        "common_support_acts": [c["act"] for c in components
+                                if c["available_in_both_arms"]],
+        "single_arm_acts": [c["act"] for c in components
+                            if not c["available_in_both_arms"]],
+        # None under kind="act", and that is the point rather than an omission.
+        # An episode whose concealment came out undetermined is in the
+        # denominator either way, but it can only be kept OUT of the numerator
+        # when the numerator requires a concealment verdict. `n_{name}_scheming`
+        # does; `n_{name}_act` counts the act whatever the concealment came out
+        # as, so those episodes are already counted and the rate is not
+        # depressed. Reporting the count under both kinds would attach a
+        # downward-bias caveat to a rate that carries no such bias.
+        "n_scheming_undetermined": (
+            {"oversight_present": sum(r["n_scheming_undetermined"] for r in on),
+             "oversight_absent": sum(r["n_scheming_undetermined"] for r in off)}
+            if kind == "scheming" else None),
+        "agreement": _component_agreement(composite, components),
+    }
+
+
 def _question_oversight(summaries: list, question_id: str, question: str,
                         data_source: str, metric: str,
                         num_key: str, den_key: str) -> dict:
@@ -134,13 +289,25 @@ def _question_oversight(summaries: list, question_id: str, question: str,
     }
 
 
-def question_oversight_vs_scheming(summaries: list) -> dict:
-    return _question_oversight(
+def question_oversight_vs_scheming(summaries: list,
+                                   act_rows: list = None) -> dict:
+    """
+    The narrow construct: act plus concealment, against the oversight arm.
+
+    `scheming` is a union over MISALIGNED_ACTS, so the per-act block is attached
+    for the reason given in `_common_support_block` - and it matters most here,
+    because concealment of the oversight act cannot occur in an arm that has no
+    oversight to conceal anything about.
+    """
+    section = _question_oversight(
         summaries, "oversight_vs_scheming",
         question=("Does the presence of oversight increase or decrease "
                   "scheming rates?"),
         data_source="summary files: n_scheming / n_runs, pooled per arm",
         metric="scheming rate", num_key="n_scheming", den_key="n_runs")
+    if act_rows:
+        section["by_act"] = _common_support_block(act_rows, "scheming")
+    return section
 
 
 def question_oversight_vs_awareness(summaries: list,
@@ -159,7 +326,8 @@ def question_oversight_vs_awareness(summaries: list,
     return section
 
 
-def question_oversight_vs_misalignment(summaries: list) -> dict:
+def question_oversight_vs_misalignment(summaries: list,
+                                       act_rows: list = None) -> dict:
     """
     The WIDE construct against the same manipulation as question 1.
 
@@ -168,8 +336,17 @@ def question_oversight_vs_misalignment(summaries: list) -> dict:
     whether oversight changes how often the model acts at all, and whether it
     changes how often it hides an act it took. Both are pooled over the same
     arms and the same `n_runs`, so the pair is directly comparable.
+
+    THE DENOMINATORS MATCH; THE ACT MENUS DO NOT
+    --------------------------------------------
+    That comparability claim is about the denominator, and it holds. What it does
+    not cover is the NUMERATOR: `n_misaligned` is a union over MISALIGNED_ACTS,
+    and the oversight act is impossible in the no-oversight arm, so the union
+    covers two acts on one side and one act on the other. `by_act` reports the
+    contrast one act at a time and names which acts both arms could commit; read
+    it before quoting the composite.
     """
-    return _question_oversight(
+    section = _question_oversight(
         summaries, "oversight_vs_misalignment",
         question=("Does the presence of oversight increase or decrease "
                   "agentic misalignment rates?"),
@@ -179,6 +356,9 @@ def question_oversight_vs_misalignment(summaries: list) -> dict:
                      "episodes"),
         metric="agentic misalignment rate",
         num_key="n_misaligned", den_key="n_runs")
+    if act_rows:
+        section["by_act"] = _common_support_block(act_rows, "act")
+    return section
 
 
 def question_nudge_vs_awareness(summaries: list, arm_rows: list = None) -> dict:

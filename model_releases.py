@@ -135,6 +135,7 @@ RELEASE_DATES = {
     "z-ai/glm-5.1": date(2026, 4, 7),
     "z-ai/glm-5.2": date(2026, 6, 16),
     "z-ai/glm-5.3": date(2026, 8, 18),
+    "z-ai/glm-5.3-flash": date(2026, 8, 26),
 }
 
 
