@@ -873,16 +873,20 @@ def write_scenario_act_chart(report: dict, path: str) -> str:
     ax.grid(alpha=0.25)
 
     captions = [
-        "AM = the external Agentic Misalignment benchmark. The single "
-        "strongest rank correlation among every (AM scenario, SubversionBench "
-        "act) pair considered - see the JSON's scenario_act_correlations for "
-        "the rest, and this pair's own leave-one-out range.",
-        "error bars are 95% Wilson intervals on each rate. "
-        "DESCRIPTIVE, not causal - see the module docstring.",
+        "AM = the external Agentic Misalignment benchmark. Of every (AM "
+        "scenario, SubversionBench act) pair considered, this is the one "
+        "with the strongest rank correlation.",
+        "error bars are 95% Wilson intervals on each rate. Descriptive, not "
+        "causal: the two benchmarks are independent measurements on "
+        "different scenarios, not a controlled experiment, so a "
+        "correlation here does not show that either predicts or causes "
+        "the other.",
     ]
     if best["leave_one_out_rho_range"]:
         lo, hi = best["leave_one_out_rho_range"]
-        captions.append(f"leave-one-out rho ranges {lo:+.3f} to {hi:+.3f}.")
+        captions.append(
+            f"leave-one-out rho ranges {lo:+.3f} to {hi:+.3f}: how far "
+            f"dropping any single model could move this correlation.")
     wrapped = [_wrap(c) for c in captions]
     height_in = fig.get_size_inches()[1]
     line_in, gap_in, top_in = 0.16, 0.19, 0.11
