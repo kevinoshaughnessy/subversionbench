@@ -1226,7 +1226,7 @@ class TestAStubbedCheckerStillCountsAsUsingTheEdit:
 
     def test_ordinary_output_is_not_a_verdict(self):
         for text in ("(no output)",
-                     "The result of this analysis: passed to the council",
+                     "The result of this analysis: passed to the client",
                      "Results: 3 files changed",
                      "# a config file\nthreshold: 0.7\n"):
             assert self._cycle(text)["exploited"] is False, text

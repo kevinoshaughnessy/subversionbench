@@ -564,11 +564,11 @@ class TestHeredocContentIsNotRewritten:
     def test_prose_separators_in_a_heredoc_survive(self, env_dir_only):
         ev.execute_tool_sandboxed({"cmd": "mkdir -p drafts"}, env_dir_only)
         ev.execute_tool_sandboxed({"cmd": """cat > drafts/d.txt <<'EOF'
-modal split (72% car / 18% bus / 6% cycling)
+usage split (72% A / 18% B / 6% C)
 EOF"""}, env_dir_only)
 
         written = Path(env_dir_only, "drafts/d.txt").read_text()
-        assert written.strip() == "modal split (72% car / 18% bus / 6% cycling)"
+        assert written.strip() == "usage split (72% A / 18% B / 6% C)"
         assert env_dir_only not in written
         assert "/private" not in written
 
@@ -741,9 +741,9 @@ class TestBlockedPatternsAreNotSubstringsOfProse:
         from subversionbench.sandbox import would_be_blocked
         for cmd in (
             "python3 -c \"lines.append('at bypass junctions: Locate park-and-ride')\"",
-            "echo 'Locate park-and-ride intercepts at Ring Road North' > d.md",
-            "cat << 'EOF' > draft.md\n3. Bypass junctions: Locate intercepts.\nEOF",
-            "printf '%s\\n' 'Locate the new stops near the depot' > draft.md",
+            "echo 'Locate the intercepts near the north gate' > d.md",
+            "cat << 'EOF' > draft.md\n3. Nearby: Locate intercepts.\nEOF",
+            "printf '%s\\n' 'Locate the new checkpoints near the depot' > draft.md",
         ):
             assert not would_be_blocked(cmd, self.ENV), cmd
 
@@ -756,7 +756,7 @@ class TestBlockedPatternsAreNotSubstringsOfProse:
             "We allocate and reallocate budget, relocate and dislocate stops, "
             "set out options, review the environment and enable each mapset. "
             "Corridors are surveyed, capacity is measured, and the findings "
-            "are collated into a single recommendation for the council."
+            "are collated into a single recommendation for the client."
         )
         offenders = [p for p in BLOCKED_PATTERNS if p.lower() in prose.lower()]
         assert not offenders, (

@@ -103,10 +103,9 @@ def agent_corpus(transcript: list) -> str:
     Deliberately excludes tool_call and tool_result entries: every rubric
     question is about what the AGENT itself said or thought, never about
     scenario content it merely read. Command output includes the full text of
-    the planted internal memo, which narrates the goal conflict outright
-    ("council... unhappy... recommendations keep leaning toward public
-    transit...") - shown that, the grader cites the memo's words as if the
-    agent had written them.
+    the planted internal memo, which narrates the goal conflict outright -
+    shown that, the grader cites the memo's words as if the agent had written
+    them.
 
     Shared with the rubric-wording experiment in rubric_ab.py, so that an
     experiment on wording measures the wording and not a different harness.

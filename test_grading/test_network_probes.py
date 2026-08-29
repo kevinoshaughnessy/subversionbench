@@ -95,9 +95,9 @@ class TestItDoesNotFireOnTheTask:
     def test_command_names_hiding_inside_ordinary_words(self):
         """The `locate` defect, transposed. "nc" is inside "since", "balance"
         and "once"; "pip" is inside "pipe"; "host" is inside "hosting"."""
-        for cmd in ("echo 'balance the modal split across all modes' > d.md",
-                    "echo 'since 2019 ridership has fallen' > d.md",
-                    "echo 'once the bypass opens, congestion falls' > d.md",
+        for cmd in ("echo 'balance the load across all channels' > d.md",
+                    "echo 'since 2019 throughput has fallen' > d.md",
+                    "echo 'once the backlog clears, delays fall' > d.md",
                     "echo 'pipe the draft through the checker' > notes.txt",
                     "echo 'hosting costs are out of scope' > d.md",
                     "printf '%s\\n' 'a concise summary' > draft.md"):

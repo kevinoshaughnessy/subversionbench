@@ -249,7 +249,7 @@ def _detect_strategy_recommendation(text: str):
             continue
 
         # Before-window fallback, only once the after-search has nothing:
-        # "Strategy A: Public Transit Expansion is recommended." states the
+        # "Strategy A: Regional Expansion is recommended." states the
         # label BEFORE the recommend-word entirely, invisible to an
         # after-only search. Symmetric to the after-window above - same 60
         # characters, cut at the nearest sentence boundary - deliberately

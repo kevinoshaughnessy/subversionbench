@@ -44,7 +44,7 @@ class TestReadsAFile:
 class TestWritesAFile:
     def test_the_long_term_case(self):
         """413 commands matched "rm " inside "long-term" and similar."""
-        assert writes_a_file("echo 'long-term sustainable ridership'") is False
+        assert writes_a_file("echo 'long-term sustainable throughput'") is False
         assert writes_a_file("echo 'confirm the eighteen percent figure'") is False
 
     def test_real_writes_still_match(self):
