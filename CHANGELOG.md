@@ -10,6 +10,47 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v113
+
+Package version `113.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+`report_charts.py` draws two new charts for `persistence_after_refusal()`, the
+characteristic profile added in v109. It was deliberately built to not be a
+thirteenth question - no p-value, no Mantel-Haenszel estimate, no "SEPARATED"
+verdict, because splitting on whether a model persisted conditions on
+something the model itself did - so its charts are not forest plots either.
+
+- **Persistence rate per model**, a plain 0-100% rate with a 95% Wilson
+  interval rather than a difference centred at zero: there is no null
+  hypothesis for a single proportion to test against. The reference line drawn
+  is the corpus-wide rate, not zero. A filled marker means the model also has
+  episodes on both sides of persistence and appears on the second chart; open
+  means only one behaviour was observed and the model has a rate but no
+  within-model comparison.
+- **Persisting vs complying, within model** - a dumbbell per model with
+  episodes on both sides: the misaligned rate when it complied against the
+  rate when it persisted, coloured by direction. This is the one figure that
+  makes `n_models_persisted_more_misaligned` / `n_models_comparable_within_model`
+  visible as a shape rather than two numbers in the JSON.
+- Two files, not one two-panel figure. The two charts hold different SUBSETS
+  of models - every model shown a refusal, against only the ones with episodes
+  on both sides - and both scale their height to their own row count, the same
+  reason every forest chart in this file already does. A shared fixed figure
+  would stretch one panel thin or crush the other.
+- The shared `WILSON_NOTE` caption is not reused on the rate chart: it also
+  names Newcombe, for the difference intervals every forest draws, and this
+  chart draws no difference at all.
+- Wired into the existing `write_charts()` entry point and gated on the
+  `characteristics` key being present, so every report built before this
+  feature existed - the whole prior test suite for this file - draws nothing
+  new and needs no update.
+- Seven planted defects, all seven caught: comparable-within-model status lost
+  on the rate chart, non-comparable models leaking into the slope chart, the
+  slope sort reversed, the Newcombe-naming caption reused, the never-refused
+  count dropped, the two charts never wired into `write_charts()`, and the
+  direction counts dropped from the slope caption.
+
 ## v112
 
 Package version `112.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

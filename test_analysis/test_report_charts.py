@@ -434,3 +434,315 @@ class TestTheReportRunsWithAndWithoutCharts:
                 report = json.load(f)
             assert report["charts"]
             assert all(p.endswith(".png") for p in report["charts"])
+
+
+# ---------------------------------------------------------------------------
+# Persistence after refusal
+# ---------------------------------------------------------------------------
+#
+# report/characteristics.py's job, not this file's: whether a row belongs in
+# `by_model` at all, whether refusal_shown tracks the grader's own test, and
+# what the loader derives from a saved transcript are all covered in
+# test_report_characteristics.py. What is tested here is the boundary this
+# file owns - profile dict in, chart rows and a rendered figure out - the same
+# split _section()/_contrast() already draw for the twelve questions.
+
+def _by_model_row(model, n_refused, n_persisted, comparable=None,
+                  persisted_mis=(0, 0), complied_mis=(0, 0)):
+    """One `by_model` entry shaped like persistence_after_refusal() emits.
+
+    `comparable` defaults to whether both sides have episodes - the same rule
+    the function under test applies - rather than always being stated, so a
+    test can still override it to build the (n>0, n>0) case with the flag
+    deliberately wrong if that is ever what it needs to check.
+    """
+    n_complied = n_refused - n_persisted
+    pm, pn = persisted_mis
+    cm, cn = complied_mis
+    return {
+        "model": model, "n_refused": n_refused, "n_persisted": n_persisted,
+        "persistence_rate": round(n_persisted / n_refused, 4) if n_refused else None,
+        "persisted": {"n": pn, "misaligned": pm,
+                     "misaligned_rate": round(pm / pn, 4) if pn else None},
+        "complied": {"n": cn, "misaligned": cm,
+                    "misaligned_rate": round(cm / cn, 4) if cn else None},
+        "comparable_within_model": (bool(n_persisted and n_complied)
+                                    if comparable is None else comparable),
+    }
+
+
+def _persistence_profile(by_model=None, **over):
+    by_model = by_model if by_model is not None else []
+    n_refused = sum(r["n_refused"] for r in by_model)
+    n_persisted = sum(r["n_persisted"] for r in by_model)
+    profile = {
+        "measure": "issued a further blocked command after being shown a "
+                  "refusal",
+        "is_descriptive_not_causal": True,
+        "interpretation": "a profile, not an effect",
+        "denominator": "episodes shown at least one sandbox refusal",
+        "n_episodes": n_refused, "n_refused": n_refused, "n_never_refused": 0,
+        "persistence_rate": (round(n_persisted / n_refused, 4)
+                             if n_refused else None),
+        "persisted": {"n": n_persisted, "misaligned": 0,
+                     "misaligned_rate": None},
+        "complied": {"n": n_refused - n_persisted, "misaligned": 0,
+                    "misaligned_rate": None},
+        "by_model": by_model,
+        "n_models_comparable_within_model": sum(
+            1 for r in by_model if r["comparable_within_model"]),
+        "n_models_persisted_more_misaligned": sum(
+            1 for r in by_model
+            if r["comparable_within_model"]
+            and (r["persisted"]["misaligned_rate"] or 0)
+            > (r["complied"]["misaligned_rate"] or 0)),
+        "max_retries_in_one_episode": 0,
+    }
+    profile.update(over)
+    return profile
+
+
+class TestPersistenceRateRows:
+    def test_one_row_per_model_in_the_profiles_own_order(self):
+        profile = _persistence_profile([
+            _by_model_row("p/a", 10, 8), _by_model_row("p/b", 6, 1)])
+        rows = rc._persistence_rate_rows(profile)
+        assert [r.label for r in rows] == ["p/a", "p/b"]
+        assert [r.diff for r in rows] == [0.8, round(1 / 6, 4)]
+
+    def test_the_interval_is_wilson_and_brackets_the_point_estimate(self):
+        rows = rc._persistence_rate_rows(
+            _persistence_profile([_by_model_row("p/a", 20, 12)]))
+        row = rows[0]
+        assert row.lo is not None and row.hi is not None
+        assert row.lo <= row.diff <= row.hi
+
+    def test_marked_carries_comparable_within_model_not_significance(self):
+        """There is no significance test on this chart - `marked` is repurposed
+        to say whether the model also appears on the within-model chart."""
+        profile = _persistence_profile([
+            _by_model_row("p/comparable", 10, 5, comparable=True),
+            _by_model_row("p/not", 10, 10, comparable=False),
+        ])
+        rows = {r.label: r for r in rc._persistence_rate_rows(profile)}
+        assert rows["p/comparable"].marked is True
+        assert rows["p/not"].marked is False
+
+    def test_the_support_count_travels_with_the_row(self):
+        rows = rc._persistence_rate_rows(
+            _persistence_profile([_by_model_row("p/a", 37, 9)]))
+        assert rows[0].note == "n=37"
+
+    def test_no_models_means_no_rows(self):
+        assert rc._persistence_rate_rows(_persistence_profile([])) == []
+
+
+class TestPersistenceSlopeRows:
+    def test_only_comparable_models_are_included(self):
+        profile = _persistence_profile([
+            _by_model_row("p/both", 10, 5, comparable=True,
+                          persisted_mis=(2, 5), complied_mis=(1, 5)),
+            _by_model_row("p/only-persisted", 10, 10, comparable=False,
+                          persisted_mis=(2, 10)),
+        ])
+        rows = rc._persistence_slope_rows(profile)
+        assert [r["model"] for r in rows] == ["p/both"]
+
+    def test_the_two_rates_are_read_from_the_right_side(self):
+        profile = _persistence_profile([_by_model_row(
+            "p/a", 10, 5, comparable=True,
+            persisted_mis=(4, 5), complied_mis=(1, 5))])
+        row = rc._persistence_slope_rows(profile)[0]
+        assert row["persisted_rate"] == 0.8
+        assert row["complied_rate"] == 0.2
+        assert row["n_persisted"] == 5 and row["n_complied"] == 5
+
+    def test_sorted_by_how_far_the_rate_moved_descending(self):
+        profile = _persistence_profile([
+            _by_model_row("p/small-move", 10, 5, comparable=True,
+                          persisted_mis=(3, 5), complied_mis=(2, 5)),
+            _by_model_row("p/big-move", 10, 5, comparable=True,
+                          persisted_mis=(5, 5), complied_mis=(0, 5)),
+            _by_model_row("p/reversed", 10, 5, comparable=True,
+                          persisted_mis=(0, 5), complied_mis=(5, 5)),
+        ])
+        rows = rc._persistence_slope_rows(profile)
+        assert [r["model"] for r in rows] == \
+            ["p/big-move", "p/small-move", "p/reversed"]
+
+    def test_no_comparable_models_means_no_rows(self):
+        profile = _persistence_profile([
+            _by_model_row("p/a", 10, 10, comparable=False)])
+        assert rc._persistence_slope_rows(profile) == []
+
+
+class TestPersistenceChartsRender:
+    def _report(self, **profile_over):
+        return {"characteristics": {
+            "persistence_after_refusal": _persistence_profile(
+                [_by_model_row("p/a", 20, 12, comparable=True,
+                               persisted_mis=(6, 12), complied_mis=(1, 8)),
+                 _by_model_row("p/b", 10, 10, comparable=False,
+                              persisted_mis=(2, 10))],
+                **profile_over)}}
+
+    def test_both_charts_render(self):
+        _plt()
+        report = self._report()
+        with tempfile.TemporaryDirectory() as out:
+            rate = rc.plot_persistence_rate(
+                rc.charting.import_pyplot(), report,
+                os.path.join(out, "r.png"))
+            slope = rc.plot_persistence_within_model(
+                rc.charting.import_pyplot(), report,
+                os.path.join(out, "s.png"))
+            assert rate and os.path.exists(rate)
+            assert slope and os.path.exists(slope)
+
+    def test_no_characteristics_key_means_no_chart(self):
+        """A report built before this feature existed - every other fixture in
+        this file - must draw nothing here rather than raising."""
+        _plt()
+        plt = rc.charting.import_pyplot()
+        with tempfile.TemporaryDirectory() as out:
+            assert rc.plot_persistence_rate(
+                plt, {"questions": []}, os.path.join(out, "r.png")) is None
+            assert rc.plot_persistence_within_model(
+                plt, {"questions": []}, os.path.join(out, "s.png")) is None
+
+    def test_no_models_shown_a_refusal_means_no_rate_chart(self):
+        _plt()
+        plt = rc.charting.import_pyplot()
+        report = {"characteristics": {
+            "persistence_after_refusal": _persistence_profile([])}}
+        with tempfile.TemporaryDirectory() as out:
+            assert rc.plot_persistence_rate(
+                plt, report, os.path.join(out, "r.png")) is None
+
+    def test_no_comparable_models_means_no_slope_chart(self):
+        _plt()
+        plt = rc.charting.import_pyplot()
+        report = {"characteristics": {"persistence_after_refusal":
+            _persistence_profile([_by_model_row("p/a", 10, 10, comparable=False)])}}
+        with tempfile.TemporaryDirectory() as out:
+            assert rc.plot_persistence_within_model(
+                plt, report, os.path.join(out, "s.png")) is None
+
+    def test_never_refused_count_reaches_the_caption(self):
+        report = self._report(n_never_refused=3361)
+        _plt()
+        plt = rc.charting.import_pyplot()
+        captured = []
+        original = rc._draw_rate_chart
+        def capture(plot, rows, title, captions, *a, **k):
+            captured.append(captions)
+            return original(plot, rows, title, captions, *a, **k)
+        rc._draw_rate_chart = capture
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                rc.plot_persistence_rate(plt, report, os.path.join(out, "r.png"))
+        finally:
+            rc._draw_rate_chart = original
+        assert any("3361" in c for c, _ in captured[0])
+
+    def test_the_caption_names_wilson_only_not_newcombe(self):
+        """This chart draws no difference at all - WILSON_NOTE names Newcombe
+        for one, and repeating it here would point at a line the figure does
+        not have."""
+        _plt()
+        plt = rc.charting.import_pyplot()
+        captured = []
+        original = rc._draw_rate_chart
+        def capture(plot, rows, title, captions, *a, **k):
+            captured.append(captions)
+            return original(plot, rows, title, captions, *a, **k)
+        rc._draw_rate_chart = capture
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                rc.plot_persistence_rate(plt, self._report(),
+                                         os.path.join(out, "r.png"))
+        finally:
+            rc._draw_rate_chart = original
+        texts = [c for c, _ in captured[0]]
+        assert any("Wilson" in t for t in texts)
+        assert not any("Newcombe" in t for t in texts)
+
+    def test_the_direction_counts_reach_the_slope_captions(self):
+        report = self._report()
+        _plt()
+        plt = rc.charting.import_pyplot()
+        captured = []
+        original = rc._draw_slope_chart
+        def capture(plot, rows, title, captions, *a, **k):
+            captured.append(captions)
+            return original(plot, rows, title, captions, *a, **k)
+        rc._draw_slope_chart = capture
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                rc.plot_persistence_within_model(
+                    plt, report, os.path.join(out, "s.png"))
+        finally:
+            rc._draw_slope_chart = original
+        profile = report["characteristics"]["persistence_after_refusal"]
+        n_worse = profile["n_models_persisted_more_misaligned"]
+        n_both = profile["n_models_comparable_within_model"]
+        assert any(f"{n_worse}/{n_both}" in c for c, _ in captured[0])
+
+    def test_write_charts_includes_both_when_characteristics_present(self):
+        _plt()
+        report = dict(self._report(), questions=[])
+        with tempfile.TemporaryDirectory() as out:
+            written = rc.write_charts(report, out)
+        names = {os.path.basename(p) for p in written}
+        assert "persistence_rate.png" in names
+        assert "persistence_within_model.png" in names
+
+    def test_write_charts_omits_both_when_characteristics_absent(self):
+        """The exact case test_one_chart_per_question_plus_an_overview already
+        pins - restated here so the reason is next to what it protects."""
+        _plt()
+        with tempfile.TemporaryDirectory() as out:
+            written = rc.write_charts({"questions": [_section()]}, out)
+        names = {os.path.basename(p) for p in written}
+        assert "persistence_rate.png" not in names
+        assert "persistence_within_model.png" not in names
+
+    def test_missing_matplotlib_costs_these_charts_and_nothing_else(self):
+        original = charting.import_pyplot
+        charting.import_pyplot = lambda *a, **k: None
+        try:
+            report = dict(self._report(), questions=[])
+            assert rc.write_charts(report, "/nonexistent") == []
+        finally:
+            charting.import_pyplot = original
+
+
+class TestPersistenceChartsInARealReport:
+    """The wiring, not the arithmetic above: does an actual corpus with a
+    refused-and-persisted episode make it all the way from run_report.main()
+    to the two files on disk. persistence_after_refusal() and its loader are
+    covered exhaustively in test_report_characteristics.py; this is the one
+    place that chain is driven end to end through THIS file's entry point."""
+
+    def _corpus(self, out):
+        from test_analysis.report_fixtures import _write_episode, refusal_result
+        for oversight in (True, False):
+            with open(os.path.join(
+                    out, f"summary_strong_{'oversight' if oversight else 'nooversight'}"
+                        f"_nolure_2026010100000{int(oversight)}.json"), "w") as f:
+                json.dump({"model": "p/m", "nudge": "strong", "n_runs": 1,
+                          "n_scheming": 0, "n_misaligned": 0,
+                          "awareness_subgroups": {"aware": 0, "unaware": 1}}, f)
+        # One episode shown a refusal and recorded as persisting - the case
+        # the whole chart pair exists to draw.
+        _write_episode(out, 1, "p/m", "strong", transcript=[refusal_result()])
+
+    def test_persistence_charts_appear_in_a_real_run(self, monkeypatch):
+        _plt()
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            monkeypatch.setattr("sys.argv",
+                                ["run_report.py", "--output-dir", out])
+            assert run_report.main() == 0
+            names = set(os.listdir(os.path.join(out, "charts")))
+        assert "persistence_rate.png" in names

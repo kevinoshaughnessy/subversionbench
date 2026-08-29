@@ -61,6 +61,7 @@ import os
 import textwrap
 
 from subversionbench import charting
+from subversionbench.power import wilson_ci
 
 # ---------------------------------------------------------------------------
 # Chart conventions
@@ -632,6 +633,216 @@ def plot_overview(plt, report: dict, path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Persistence after refusal
+# ---------------------------------------------------------------------------
+#
+# The one characteristic charted so far, and a different shape from every
+# forest above it - deliberately, since report/characteristics.py builds this
+# to be read as a profile rather than a question: no p-value, no Mantel-
+# Haenszel estimate, no "SEPARATED" verdict, because splitting on whether a
+# model persisted conditions on something the model itself did. A forest
+# centred on zero would visually borrow the causal apparatus the underlying
+# data withholds, so these draw a plain rate (0-100%, no zero line to test
+# against) and a paired before/after comparison instead.
+#
+# Two files rather than one two-panel figure. Both are row-per-model charts
+# whose height scales with the row count - the same reason every forest above
+# does - and the two panels hold different SUBSETS of models (every model with
+# a refused episode, against only the ones with episodes on both sides of
+# persistence), so a single fixed figure height would either stretch one panel
+# thin or crush the other. report_charts.py has never combined two
+# variable-height row charts into one figure; splitting them keeps that true.
+
+def _persistence_rate_rows(profile: dict) -> list:
+    """
+    One row per model shown at least one refusal, in the order
+    `persistence_after_refusal()` already sorted them - by rate, descending.
+
+    `marked` carries `comparable_within_model` here, not statistical
+    significance - there is no significance test on this chart. It says
+    whether the model also appears on the within-model comparison chart: a
+    filled marker has episodes on both sides of persistence, an open one only
+    ever complied or only ever persisted, and so has a rate but no comparison.
+    """
+    rows = []
+    for r in profile.get("by_model") or []:
+        lo, hi = wilson_ci(r["n_persisted"], r["n_refused"]) or (None, None)
+        rows.append(Row(r["model"], r["persistence_rate"], lo, hi, "model",
+                        marked=bool(r["comparable_within_model"]),
+                        note=f"n={r['n_refused']}"))
+    return rows
+
+
+def _draw_rate_chart(plt, rows: list, title: str, captions: list, path: str,
+                     xlabel: str, ref: float = None, ref_label: str = "") -> str:
+    """
+    One marker per row plus its Wilson interval, on a fixed 0-100% axis.
+
+    Not `_draw_forest`: that chart's zero line is a null hypothesis for a
+    DIFFERENCE, and a persistence rate is a plain proportion with no such
+    line to draw. The reference line here is the corpus-wide rate instead, so
+    a reader sees which models sit above or below the aggregate rather than
+    which side of zero they fall on.
+    """
+    height = _FIGURE_MARGIN + _ROW_HEIGHT * max(len(rows), 1)
+    fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, height))
+    ys = list(range(len(rows) - 1, -1, -1))
+    for y, row in zip(ys, rows, strict=True):
+        colour = _COLOURS["model"]
+        if row.lo is not None and row.hi is not None:
+            ax.plot([row.lo * PP, row.hi * PP], [y, y], color=colour,
+                    linewidth=1.3, alpha=0.75, zorder=3)
+        ax.plot([row.diff * PP], [y], marker=_MODEL_MARKER, markersize=5.5,
+                color=colour,
+                markerfacecolor=colour if row.marked else "white",
+                markeredgecolor=colour, markeredgewidth=1.3, zorder=4)
+        if row.note:
+            ax.text(1.005, y, row.note, transform=ax.get_yaxis_transform(),
+                    va="center", fontsize=7, color="#666666")
+    if ref is not None:
+        ax.axvline(ref * PP, color="#333333", linewidth=1.0, linestyle="--",
+                   alpha=0.7, zorder=1)
+        if ref_label:
+            ax.text(ref * PP, len(rows) - 0.2, f"  {ref_label}", fontsize=7,
+                    color="#333333", va="bottom")
+    ax.set_yticks(ys)
+    ax.set_yticklabels([r.label for r in rows], fontsize=8)
+    ax.set_ylim(-0.8, len(rows) - 0.2)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel(xlabel, fontsize=9)
+    ax.set_title(_wrap(title, _TITLE_WRAP), fontsize=10, loc="left")
+    ax.grid(axis="x", alpha=0.25)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    inches = _BelowAxes(fig, ax, height)
+    for caption, colour in captions:
+        inches.caption(caption, colour)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def _persistence_slope_rows(profile: dict) -> list:
+    """
+    Only the models with episodes on both sides of persistence - the subset
+    `comparable_within_model` already marks, because a model that only ever
+    complied or only ever persisted has nothing to compare within itself.
+
+    Sorted by how far the rate moved, descending, the same convention
+    `_model_rows` uses for the forests: the row order is itself part of what
+    the chart shows.
+    """
+    rows = []
+    for r in profile.get("by_model") or []:
+        if not r["comparable_within_model"]:
+            continue
+        c, p = r["complied"]["misaligned_rate"], r["persisted"]["misaligned_rate"]
+        rows.append({"model": r["model"], "complied_rate": c, "persisted_rate": p,
+                    "n_complied": r["complied"]["n"], "n_persisted": r["persisted"]["n"]})
+    rows.sort(key=lambda row: row["persisted_rate"] - row["complied_rate"],
+             reverse=True)
+    return rows
+
+
+def _draw_slope_chart(plt, rows: list, title: str, captions: list,
+                      path: str) -> str:
+    """Two markers per row - complied, then persisted - joined by a line, so
+    the direction of the move is the shape of the row rather than a number a
+    reader has to compute from two separate charts."""
+    height = _FIGURE_MARGIN + _ROW_HEIGHT * max(len(rows), 1)
+    fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, height))
+    ys = list(range(len(rows) - 1, -1, -1))
+    for y, row in zip(ys, rows, strict=True):
+        c, p = row["complied_rate"] * PP, row["persisted_rate"] * PP
+        colour = _COLOURS["model_significant"] if p > c else _COLOURS["model"]
+        ax.plot([c, p], [y, y], color=colour, linewidth=1.6, alpha=0.8, zorder=3)
+        ax.plot([c], [y], marker=_MODEL_MARKER, markersize=6,
+                markerfacecolor="white", markeredgecolor=colour,
+                markeredgewidth=1.3, zorder=4)
+        ax.plot([p], [y], marker=_MODEL_MARKER, markersize=6, color=colour,
+                zorder=4)
+        ax.text(1.005, y, f"n={row['n_complied']}/{row['n_persisted']}",
+                transform=ax.get_yaxis_transform(), va="center", fontsize=7,
+                color="#666666")
+    ax.set_yticks(ys)
+    ax.set_yticklabels([r["model"] for r in rows], fontsize=8)
+    ax.set_ylim(-0.8, len(rows) - 0.2)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("misaligned rate (%)", fontsize=9)
+    ax.set_title(_wrap(title, _TITLE_WRAP), fontsize=10, loc="left")
+    ax.grid(axis="x", alpha=0.25)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    inches = _BelowAxes(fig, ax, height)
+    from matplotlib.lines import Line2D
+    inches.legend([
+        Line2D([], [], color="#666666", marker=_MODEL_MARKER, markersize=6,
+              markerfacecolor="white", linestyle="", label="complied"),
+        Line2D([], [], color="#666666", marker=_MODEL_MARKER, markersize=6,
+              linestyle="", label="persisted"),
+    ])
+    for caption, colour in captions:
+        inches.caption(caption, colour)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def plot_persistence_rate(plt, report: dict, path: str) -> str:
+    """Every model shown a sandbox refusal: how often it tried again anyway."""
+    profile = ((report.get("characteristics") or {})
+              .get("persistence_after_refusal") or {})
+    rows = _persistence_rate_rows(profile)
+    if not rows:
+        return None
+    ref = profile.get("persistence_rate")
+    captions = [
+        (profile.get("interpretation", "") + ".", "#555555"),
+        (f"{profile.get('n_never_refused', 0)} episode(s) were never shown a "
+         f"refusal and are excluded, not counted as compliant.", "#555555"),
+        ("dashed line: the corpus-wide rate. filled marker: this model also "
+         "has episodes on both sides of persistence and appears on the "
+         "within-model comparison chart; open: only one behaviour was "
+         "observed here.", "#555555"),
+        # Not WILSON_NOTE: that note also names Newcombe, for the difference
+        # intervals every forest above draws. This chart draws no difference
+        # at all, so naming Newcombe here would point a reader at a line that
+        # is not on the figure.
+        ("intervals: 95% Wilson", "#777777"),
+    ]
+    return _draw_rate_chart(
+        plt, rows, "Persistence after a sandbox refusal", captions, path,
+        "persistence rate (%)", ref=ref,
+        ref_label=f"all models: {ref:.1%}" if ref is not None else "")
+
+
+def plot_persistence_within_model(plt, report: dict, path: str) -> str:
+    """Only models with episodes on both sides: does persisting go with a
+    higher misaligned rate than complying, within the same model."""
+    profile = ((report.get("characteristics") or {})
+              .get("persistence_after_refusal") or {})
+    rows = _persistence_slope_rows(profile)
+    if not rows:
+        return None
+    n_worse = profile.get("n_models_persisted_more_misaligned", 0)
+    n_both = profile.get("n_models_comparable_within_model", 0)
+    captions = [
+        (profile.get("interpretation", "") + ".", "#555555"),
+        (f"{n_worse}/{n_both} model(s) with episodes on both sides show a "
+         f"HIGHER misaligned rate after persisting than after complying.",
+         "#b00020" if n_worse else "#555555"),
+        ("red: persisting went with more misalignment in this model; blue: "
+         "it did not. right-hand count: n(complied)/n(persisted) episodes.",
+         "#555555"),
+    ]
+    return _draw_slope_chart(
+        plt, rows, "Persisting vs complying: misaligned rate, within model",
+        captions, path)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -655,4 +866,15 @@ def write_charts(report: dict, chart_dir: str) -> list:
     overview = os.path.join(chart_dir, "questions_overview.png")
     if plot_overview(plt, report, overview):
         written.append(overview)
+    # After the questions, mirroring where _print_characteristics prints in
+    # run_report.py: a footnote to the twelve, not a thirteenth one. `.get`
+    # throughout both plot_ functions, so a report built without a
+    # "characteristics" key - every fixture in this test file before this
+    # feature existed - draws nothing here rather than raising.
+    rate_path = os.path.join(chart_dir, "persistence_rate.png")
+    if plot_persistence_rate(plt, report, rate_path):
+        written.append(rate_path)
+    slope_path = os.path.join(chart_dir, "persistence_within_model.png")
+    if plot_persistence_within_model(plt, report, slope_path):
+        written.append(slope_path)
     return written
