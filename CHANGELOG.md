@@ -10,6 +10,31 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v111
+
+Package version `111.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+- **`z-ai/glm` now draws in its own brand colour**, joining the six families
+  already on file. No other change was needed for the family: `trends/` derives
+  families and their version order from the model IDs rather than listing them,
+  so the three collected versions already grouped, ordered and trended without
+  an edit — which is what that design is for.
+- **The colour table is now guarded**, because both ways it fails are silent. A
+  key that no `family_key()` ever produces falls back to the palette and looks
+  merely unbranded; two colours too close together read as one family on a
+  chart carrying both. The new guards check that every key is a fixed point of
+  the function that actually looks it up, that every value is a well-formed
+  hex, and that no two entries fall within a perceptual distance floor — in
+  CIE L\*a\*b\*, since two near-blacks are far apart in RGB arithmetic and
+  identical to a reader. The floor is set below the table's existing tightest
+  pair, so it rejects a near-duplicate addition without pretending the current
+  spacing is more generous than it is.
+- Six planted defects, all six caught: an exact duplicate colour, a
+  near-duplicate, a malformed hex, a misspelled family key, the lookup ignoring
+  the table, and a branded family consuming a palette slot and so reshuffling
+  the unbranded families' colours.
+
 ## v110
 
 Package version `110.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

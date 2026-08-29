@@ -54,6 +54,12 @@ _BRAND_COLOURS = {
     "qwen/qwen-flash": "#615CED",
     "deepseek/deepseek-flash": "#81858C",
     "deepseek/deepseek-pro": "#22C55E",
+    # Very dark navy, and the nearest neighbour in this table is grok's pure
+    # black at dE 18.9. That is close, but it is not the tightest pair here -
+    # gemini-flash and deepseek-pro sit at 15.4 - so it is within the spacing
+    # this table already accepts rather than a new worst case. The guard in
+    # test_family_trends.py holds the whole table to a floor below both.
+    "z-ai/glm": "#0A192F",
 }
 
 

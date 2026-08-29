@@ -1907,3 +1907,127 @@ class TestTheSingleImportSite:
             f"rebound through the package rather than on the module that "
             f"defines the name: {offenders}. Patch the submodule instead - see "
             f"test_the_charts_still_degrade_rather_than_fail.")
+
+
+def _pyplot_or_skip():
+    """pyplot through the one import site, or skip.
+
+    `charting.import_pyplot()` returns None rather than raising when matplotlib
+    is absent, so a bare call would hand `None` to the function under test and
+    fail somewhere unrelated. Under SUBVERSIONBENCH_NO_SKIPS the extra is
+    installed and this never skips.
+    """
+    from subversionbench import charting
+    plt = charting.import_pyplot()
+    if plt is None:
+        import unittest
+        raise unittest.SkipTest("matplotlib not installed")
+    return plt
+
+
+class TestTheBrandColourTable:
+    """`_BRAND_COLOURS` is a hand-maintained lookup, and both ways it can go
+    wrong are silent: a key that no `family_key()` ever produces falls back to
+    the palette and looks merely unbranded, and two colours too close together
+    read as one family on a chart that carries several."""
+
+    # Below the table's tightest real pair (gemini-flash vs deepseek-pro, 15.4)
+    # with headroom, so this rejects a duplicate or near-duplicate addition
+    # without pretending the existing spacing is more generous than it is.
+    MIN_DELTA_E = 12.0
+
+    @staticmethod
+    def _lab(hex_colour):
+        """sRGB to CIE L*a*b*, so distance is perceptual rather than a
+        difference between two byte triples - #0A192F and #000000 are far apart
+        in RGB arithmetic and both read as black."""
+        r, g, b = (int(hex_colour[i:i + 2], 16) / 255 for i in (1, 3, 5))
+
+        def lin(c):
+            return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+        r, g, b = lin(r), lin(g), lin(b)
+        x = r * 0.4124 + g * 0.3576 + b * 0.1805
+        y = r * 0.2126 + g * 0.7152 + b * 0.0722
+        z = r * 0.0193 + g * 0.1192 + b * 0.9505
+
+        def f(t):
+            return t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+
+        fx, fy, fz = f(x / 0.95047), f(y / 1.0), f(z / 1.08883)
+        return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+
+    def _delta_e(self, a, b):
+        return sum((p - q) ** 2
+                   for p, q in zip(self._lab(a), self._lab(b), strict=True)) ** 0.5
+
+    def test_the_table_is_not_empty(self):
+        """Scope check: an empty table would make every guard below vacuous."""
+        assert len(ft._BRAND_COLOURS) >= 5
+
+    def test_every_value_is_a_six_digit_hex_colour(self):
+        import re
+        for family, colour in ft._BRAND_COLOURS.items():
+            assert re.fullmatch(r"#[0-9A-Fa-f]{6}", colour), (family, colour)
+
+    def test_no_two_families_share_a_colour(self):
+        seen = {}
+        for family, colour in ft._BRAND_COLOURS.items():
+            assert colour.upper() not in seen, (
+                f"{family} and {seen.get(colour.upper())} are the same colour")
+            seen[colour.upper()] = family
+
+    def test_no_two_colours_are_perceptually_indistinguishable(self):
+        import itertools
+        pairs = list(itertools.combinations(ft._BRAND_COLOURS.items(), 2))
+        assert pairs, "no pairs to compare"
+        too_close = [(a, b, round(self._delta_e(ca, cb), 1))
+                     for (a, ca), (b, cb) in pairs
+                     if self._delta_e(ca, cb) < self.MIN_DELTA_E]
+        assert not too_close, (
+            f"these families would read as one on a chart carrying both: "
+            f"{too_close}")
+
+    def test_every_key_is_a_family_key_something_can_actually_produce(self):
+        """The failure this catches is a key that is merely misspelled. It
+        cannot be seen on a chart - the family just renders in a palette colour,
+        exactly as an unbranded family does - so nothing about the output says
+        the entry was never consulted.
+
+        The check is derived rather than listed: each key must be a fixed point
+        of `family_key(parse_model_id(...))`, which is the function that
+        actually looks the table up."""
+        from trends.model_ids import family_key, parse_model_id
+        for family in ft._BRAND_COLOURS:
+            # A family key is provider/stem; the stem carries no version, so
+            # appending one reconstructs an ID that maps back to the key.
+            provider, _, stem = family.partition("/")
+            base, _, suffix = stem.partition("-")
+            candidate = (f"{provider}/{base}-9.9-{suffix}" if suffix
+                         else f"{provider}/{base}-9.9")
+            assert family_key(parse_model_id(candidate)) == family, (
+                f"{family!r} is not a key family_key() produces (tried "
+                f"{candidate!r} -> {family_key(parse_model_id(candidate))!r}), "
+                f"so this entry is never consulted and the family silently "
+                f"renders in a palette colour")
+
+    def test_a_branded_family_gets_its_brand_colour_end_to_end(self):
+        """Through `_family_colours`, not by reading the table back - the table
+        being right and the lookup using it are different claims."""
+        plt = _pyplot_or_skip()
+        families = [{"family": "z-ai/glm"}, {"family": "not/branded"}]
+        colours = ft._family_colours(plt, families)
+        assert colours[0] == "#0A192F"
+        assert colours[1] != "#0A192F"
+
+    def test_a_branded_family_does_not_consume_a_palette_slot(self):
+        """The documented reason the fallback counts only unbranded families:
+        adding a branded one must not reshuffle the unbranded colours."""
+        plt = _pyplot_or_skip()
+        without = ft._family_colours(plt, [{"family": "a/unbranded"},
+                                           {"family": "b/unbranded"}])
+        with_brand = ft._family_colours(plt, [{"family": "z-ai/glm"},
+                                              {"family": "a/unbranded"},
+                                              {"family": "b/unbranded"}])
+        assert with_brand[1:] == without, (
+            "adding a branded family moved the unbranded families' colours")
