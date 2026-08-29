@@ -10,6 +10,64 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v112
+
+Package version `112.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+`agentic_misalignment.py` draws a chart now, on the same pattern
+`sad_oversight.write_chart` established: one PNG under `--output-dir/charts`
+by default, `--chart-dir` to redirect it, `--no-charts` to skip it, and no
+figure on it that is not already in the printed report and the JSON.
+
+- **Two panels: harmful-behaviour level, and the unaware-minus-aware gap.**
+  The gap panel is the point of the chart. A rank correlation on the gap can
+  be strongly positive while the two benchmarks disagree about whether
+  awareness suppresses harm at all - which is exactly what this corpus shows,
+  rho positive with 3 of 5 pairs opposite in sign - because rho is invariant
+  to where zero sits. Dashed lines at zero turn that into a quadrant a reader
+  sees directly, coloured by agreement, rather than a fact only visible in the
+  console's direction count.
+  - Axes read **AM** (the external Agentic Misalignment benchmark) against
+    **SubversionBench**, spelled out once in the caption, rather than
+    "external"/"local" - internal to the code, but backwards for a reader with
+    no reason to know which side of the comparison either word refers to.
+  - Both panel titles carry `p=` beside `rho=`, matching
+    `sad_oversight.write_chart`'s convention. The first version of this chart
+    dropped it with no reason behind it - the console output two lines away
+    already prints p for the same numbers - and the asymmetry against the
+    sibling chart is what prompted the fix before either version reached a
+    commit.
+- **The level panel carries real uncertainty**, not a bare scatter: 95% Wilson
+  intervals on both axes, since with five points the intervals are most of
+  what there is to see. The gap panel carries none - a difference of two rates
+  has no interval already computed anywhere in this file, and building one
+  would be new statistical machinery where a more direct caution already
+  exists: a hollow marker on any pair resting on an aware bucket below
+  `MIN_INFORMATIVE_DENOMINATOR`, which is the gap's actual known weak point.
+- **A pair with no measurable gap is excluded, never plotted at zero.** A
+  local model with zero aware episodes has `suppression_gap = None`; plotting
+  it at the origin would claim awareness had no effect, a different and
+  unsupported claim from "not measured."
+- The label-collision guard is its own copy in this file rather than an import
+  from `sad_oversight.py`'s private `_place_labels` - each top-level script in
+  this repository owns its own chart internals, and only `charting.import_pyplot`
+  and the encryption routines are shared across them.
+- **Building the chart's test fixture surfaced a real, independent crash.**
+  `print_report`'s per-pair table formatted the suppression gap directly and
+  printed `OPPOSITE` even when one side's gap could not be measured - the same
+  defect class v110 fixed in the correlation summary, one level down, on any
+  local model thin enough to have zero aware episodes. Fixed the same way:
+  absent prints as "n/a", not as a formatted `None` or a claimed disagreement.
+- Seven planted defects, all seven caught: the shipped per-pair `None`-format
+  crash, every gap point drawn one colour, an underpowered pair drawn filled,
+  an unmeasurable gap plotted at the origin, `--no-charts` ignored, the two
+  panels transposed into a stack, and `p` dropped from both titles. The
+  origin-plotting plant was missed on first pass - the test asserted only that
+  `write_chart` did not raise, which is true of the defective version too -
+  and is now checked against the actual plotted points via a `scatter` spy,
+  not against write_chart merely surviving.
+
 ## v111
 
 Package version `111.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

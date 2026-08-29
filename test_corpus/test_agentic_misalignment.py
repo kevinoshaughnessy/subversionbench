@@ -20,6 +20,7 @@ sides even agree on the sign.
 """
 
 import json
+import sys
 import tempfile
 from pathlib import Path
 
@@ -307,6 +308,51 @@ class TestTheReportSaysWhatItCannotSay:
         assert "leave-one-out" in printed
         assert "gap = unaware rate minus aware rate" in printed
 
+    def test_it_prints_a_pair_with_no_aware_episodes_on_either_side(self):
+        """A local model with zero aware episodes has `suppression_gap = None`
+        - possible on any model thin enough, and not a hypothetical: writing a
+        chart fixture with exactly this shape crashed print_report before this
+        test existed. The per-pair row formatted the gap directly and claimed
+        "OPPOSITE" for a comparison that never happened; both must instead say
+        there was nothing to compare."""
+        import contextlib
+        import io
+        pair = {
+            "local_model": "thin-model",
+            "external": {"overall_rate": 0.3, "suppression_gap": 0.1,
+                        "aware_side_underpowered": False},
+            "local": {"misaligned_rate": 0.2, "suppression_gap": None,
+                     "aware_side_underpowered": True},
+        }
+        report = {
+            "version": "fixture", "rollout_version": "fixture",
+            "source": "fixture", "n_pairs": 1, "interpretation": "fixture",
+            "unmatched_external_models": [], "unmatched_local_models": [],
+            "pairs_by_pooling": {"any_aware": [pair]},
+            "correlations": [
+                {"measure": "level", "measure_label": "l", "aware_pooling": None,
+                 "n_models": 1, "spearman_rho": None, "p": None,
+                 "p_method": None, "separated": None, "note": "too few",
+                 "leave_one_out_rho_range": None,
+                 "n_underpowered_aware_sides": 0},
+                {"measure": "suppression", "measure_label": "s",
+                 "aware_pooling": "any_aware", "n_models": 1,
+                 "spearman_rho": None, "p": None, "p_method": None,
+                 "separated": None, "note": "too few",
+                 "leave_one_out_rho_range": None,
+                 "n_underpowered_aware_sides": 0},
+            ],
+        }
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            am.print_report(report)   # must not raise
+        printed = buf.getvalue()
+        assert "thin-model" in printed
+        assert "n/a" in printed, (
+            "no placeholder printed for the unmeasurable gap")
+        assert "OPPOSITE" not in printed, (
+            "a pair with no local gap to compare was still marked OPPOSITE")
+
     def test_it_prints_when_nothing_overlaps(self):
         """The path a machine without the corpus takes, which is every CI run
         and every fresh clone.
@@ -339,3 +385,323 @@ class TestTheReportSaysWhatItCannotSay:
                    for c in report["correlations"])
         assert "rho=+0.000" not in printed and "p=0" not in printed, (
             "absent is being printed as zero, which is a different claim")
+
+
+class TestTheChart:
+    """The chart adds no arithmetic - every number on it is already in
+    `report` - so what these guard is presentation: that it renders at all
+    without the corpus, and that the one thing a rho cannot show (which pairs
+    disagree on the SIGN of the suppression gap) is visibly distinguished
+    rather than merged into one dot colour."""
+
+    def _bundle(self):
+        # Three models, spread so the level and gap panels both have real
+        # variation - and so gap signs differ, which is the case the right
+        # panel exists to show. Awareness buckets sized above
+        # MIN_INFORMATIVE_DENOMINATOR so no marker is hollow by construction;
+        # one dedicated fixture below shrinks a bucket on purpose instead.
+        def row(model, unaware, safety):
+            return {"model": model, "scenario": am.OVERALL,
+                   "buckets": {"unaware": {"harmful": unaware[0], "n": unaware[1]},
+                               "safety_aware": {"harmful": safety[0], "n": safety[1]},
+                               "capability_aware": {"harmful": 0, "n": 30}}}
+        return {
+            "source": "fixture", "rows": [
+                row("Ext A", (60, 100), (10, 100)),   # gap positive
+                row("Ext B", (10, 100), (40, 100)),   # gap negative
+                row("Ext C", (50, 100), (50, 100)),   # gap ~zero
+            ],
+            "aliases": [
+                {"external_model": "Ext A", "local_models": ["a"]},
+                {"external_model": "Ext B", "local_models": ["b"]},
+                {"external_model": "Ext C", "local_models": ["c"]},
+            ],
+        }
+
+    def _local(self):
+        def side(misaligned, n):
+            return {"misaligned": misaligned, "n": n,
+                   "rate": misaligned / n if n else None}
+        # a: gap positive like Ext A (agrees). b: gap positive, UNLIKE Ext B's
+        # negative gap (disagrees) - the case the right panel has to show as a
+        # different colour from a. c: no aware episodes at all, so its gap is
+        # None and it must be silently excluded rather than plotted as zero.
+        rows = {
+            "a": {"misaligned": 20, "n": 100,
+                 "unaware": side(15, 60), "aware": side(2, 40)},
+            "b": {"misaligned": 30, "n": 100,
+                 "unaware": side(10, 60), "aware": side(2, 40)},
+            "c": {"misaligned": 5, "n": 100,
+                 "unaware": side(5, 100), "aware": side(0, 0)},
+        }
+        for row in rows.values():
+            row["misaligned_rate"] = row["misaligned"] / row["n"]
+            u, av = row["unaware"]["rate"], row["aware"]["rate"]
+            row["suppression_gap"] = None if av is None else round(u - av, 4)
+            row["aware_side_underpowered"] = (
+                row["aware"]["n"] < am.MIN_INFORMATIVE_DENOMINATOR)
+        return rows
+
+    def _report(self, pooling="any_aware"):
+        # Assembled with the same keys build_report() sets, rather than the
+        # minimum write_chart happens to read, so a print_report() call on
+        # this fixture (as the CLI test below makes) exercises the real
+        # shape instead of one this test invented.
+        bundle, local = self._bundle(), self._local()
+        pairs = am.build_pairs(bundle, local, pooling)
+        return {
+            "version": "fixture", "rollout_version": "fixture",
+            "source": "fixture source",
+            "n_pairs": len(pairs),
+            "interpretation": "fixture interpretation",
+            "unmatched_external_models": [],
+            "unmatched_local_models": [],
+            "pairs_by_pooling": {pooling: pairs},
+            "correlations": [
+                am.correlate(pairs, "level"),
+                am.correlate(pairs, "suppression", pooling),
+            ],
+        }
+
+    def _plt_or_skip(self):
+        from subversionbench import charting
+        if charting.import_pyplot() is None:
+            import unittest
+            raise unittest.SkipTest("matplotlib not installed")
+        return charting.import_pyplot()
+
+    def test_the_chart_renders_without_error(self):
+        self._plt_or_skip()
+        with tempfile.TemporaryDirectory() as out:
+            path = am.write_chart(self._report(), str(Path(out) / "c.png"))
+            assert path and Path(path).exists()
+
+    def test_no_pairs_means_no_chart_rather_than_an_empty_one(self):
+        assert am.write_chart({"n_pairs": 0, "pairs_by_pooling": {}},
+                              "/dev/null/unwritable.png") is None
+
+    def test_without_matplotlib_it_returns_none_rather_than_raising(self):
+        """The same degrade-don't-fail contract every chart in this repository
+        makes: losing matplotlib costs presentation, not the report."""
+        from subversionbench import charting as real_charting
+        original = real_charting.import_pyplot
+        real_charting.import_pyplot = lambda *a, **k: None
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                result = am.write_chart(self._report(), str(Path(out) / "c.png"))
+        finally:
+            real_charting.import_pyplot = original
+        assert result is None
+
+    def test_a_disagreeing_pair_is_drawn_in_a_different_colour_than_agreeing(self):
+        """The whole reason this chart exists rather than the rho alone: rho
+        cannot show WHICH pairs disagree on the sign of the gap, and this is
+        the assertion that the chart actually encodes that rather than just
+        plotting every point the same way."""
+        self._plt_or_skip()
+        import inspect
+        source = inspect.getsource(am.write_chart)
+        assert "agree" in source and "#c44e52" in source and "#4c72b0" in source
+
+    def test_a_pair_with_no_suppression_gap_is_excluded_not_zeroed(self):
+        """model c has no aware episodes, so its local gap is None. Plotting
+        it at 0 would claim awareness had no effect, which is a different and
+        unsupported claim from "not measured" - and is indistinguishable from
+        a genuinely near-zero gap to anyone reading the chart. Checked on the
+        actual scatter calls, not on write_chart merely surviving: a version
+        that plots (0, 0) for the excluded pair still returns a path."""
+        plt = self._plt_or_skip()
+        pairs = am.build_pairs(self._bundle(), self._local(), "any_aware")
+        c_pair = next(p for p in pairs if p["local_model"] == "c")
+        assert c_pair["local"]["suppression_gap"] is None, (
+            "the fixture no longer reproduces an unmeasurable gap, so this "
+            "test would pass however write_chart handled it")
+        import unittest.mock
+        calls = []
+        original = plt.Axes.scatter
+        def spy(self, x, y, *a, **k):
+            calls.append((x, y))
+            return original(self, x, y, *a, **k)
+        with unittest.mock.patch.object(plt.Axes, "scatter", spy):
+            with tempfile.TemporaryDirectory() as out:
+                path = am.write_chart(self._report(), str(Path(out) / "c.png"))
+        assert path
+        assert len(calls) == 2, (
+            f"expected one gap point per pair with a measurable gap (a, b), "
+            f"got {len(calls)}: {calls}")
+        assert (0, 0) not in calls, (
+            "the pair with no measurable gap was plotted at the origin")
+
+    def test_an_underpowered_pair_draws_a_hollow_marker(self):
+        """The gap panel carries no confidence interval - a difference of two
+        rates has none computed anywhere in this file - so the underpowered
+        flag already on each pair is the marker's only caution. A filled dot
+        promises more certainty than a bucket this small can support."""
+        self._plt_or_skip()
+        import inspect
+        source = inspect.getsource(am.write_chart)
+        assert "aware_side_underpowered" in source
+        assert 'facecolors=("none"' in source
+
+    def test_subplots_is_called_for_two_side_by_side_panels(self):
+        """write_chart closes its figure before returning, so the panel
+        geometry is checked from the source - `plt.subplots(1, 2, ...)` is
+        what keeps this a level-panel/gap-panel pair rather than a stack."""
+        import inspect
+        source = inspect.getsource(am.write_chart)
+        assert "plt.subplots(1, 2" in source
+
+    def test_both_panel_titles_carry_a_p_value_beside_rho(self):
+        """sad_oversight.py's chart shows rho beside p; an earlier version of
+        this one showed rho and n but dropped p, an inconsistency with no
+        reason behind it - the console output two lines away prints p for the
+        same numbers. Checked on the rendered titles, not the source text, so
+        a rewording that keeps the value out would still be caught."""
+        plt = self._plt_or_skip()
+        titles = []
+        original = plt.Axes.set_title
+        def spy(self, label, *a, **k):
+            titles.append(label)
+            return original(self, label, *a, **k)
+        import unittest.mock
+        with unittest.mock.patch.object(plt.Axes, "set_title", spy):
+            with tempfile.TemporaryDirectory() as out:
+                am.write_chart(self._report(), str(Path(out) / "c.png"))
+        assert len(titles) == 2, titles
+        # The shared fixture's gap panel legitimately has no rho - model c's
+        # local gap is None, leaving only two usable pairs, one short of what
+        # a coefficient needs - so its title correctly shows the `note`
+        # instead. The level panel has all three and is what this test checks.
+        assert "p=" in titles[0], titles
+
+    def test_the_gap_panel_shows_p_too_when_it_has_a_rho(self):
+        """The case the test above cannot reach: a corpus where the gap
+        correlation itself has enough pairs to compute. A fourth model, so
+        three (not two) pairs carry a measurable gap on both sides."""
+        plt = self._plt_or_skip()
+        bundle, local = self._bundle(), self._local()
+        bundle["rows"].append({"model": "Ext D", "scenario": am.OVERALL,
+                               "buckets": {"unaware": {"harmful": 20, "n": 100},
+                                          "safety_aware": {"harmful": 5, "n": 100},
+                                          "capability_aware": {"harmful": 0, "n": 30}}})
+        bundle["aliases"].append({"external_model": "Ext D", "local_models": ["d"]})
+        local["d"] = {"misaligned": 10, "n": 100, "misaligned_rate": 0.1,
+                     "unaware": {"misaligned": 8, "n": 60, "rate": 8 / 60},
+                     "aware": {"misaligned": 1, "n": 40, "rate": 1 / 40},
+                     "suppression_gap": round(8 / 60 - 1 / 40, 4),
+                     "aware_side_underpowered": False}
+        pairs = am.build_pairs(bundle, local, "any_aware")
+        report = {"n_pairs": len(pairs), "interpretation": "fixture",
+                  "pairs_by_pooling": {"any_aware": pairs},
+                  "correlations": [am.correlate(pairs, "level"),
+                                   am.correlate(pairs, "suppression", "any_aware")]}
+        gap_stat = next(c for c in report["correlations"]
+                        if c["measure"] == "suppression")
+        assert gap_stat["spearman_rho"] is not None, (
+            "the fixture still has fewer than three usable gap pairs, so this "
+            "test would pass without reaching the code path it targets")
+        titles = []
+        original = plt.Axes.set_title
+        def spy(self, label, *a, **k):
+            titles.append(label)
+            return original(self, label, *a, **k)
+        import unittest.mock
+        with unittest.mock.patch.object(plt.Axes, "set_title", spy):
+            with tempfile.TemporaryDirectory() as out:
+                am.write_chart(report, str(Path(out) / "c.png"))
+        assert "p=" in titles[1], titles
+
+
+class TestChartLabelsDoNotOverlap:
+    """The same measured-bbox collision guard sad_oversight.py's chart needed,
+    exercised here because this file owns its own copy rather than importing a
+    private name across a module boundary - see write_chart's docstring."""
+
+    def _plt(self):
+        from subversionbench import charting
+        if charting.import_pyplot() is None:
+            import unittest
+            raise unittest.SkipTest("matplotlib not installed")
+        return charting.import_pyplot()
+
+    def test_a_lone_label_keeps_the_natural_offset(self):
+        plt = self._plt()
+        fig, ax = plt.subplots()
+        am._place_labels(fig, ax, [(50.0, 50.0, "only-model")])
+        assert ax.texts[0].xyann == am._LABEL_OFFSETS[0]
+        plt.close(fig)
+
+    def test_several_points_at_nearly_the_same_spot_all_get_readable_labels(self):
+        plt = self._plt()
+        fig, ax = plt.subplots()
+        points = [(65.0, 10.0 + i, f"model-{i}") for i in range(4)]
+        for x, y, _t in points:
+            ax.plot([x], [y], "o")
+        am._place_labels(fig, ax, points)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        boxes = [t.get_window_extent(renderer=renderer) for t in ax.texts]
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1:]:
+                assert not a.overlaps(b)
+        plt.close(fig)
+
+    def test_every_point_gets_exactly_one_label(self):
+        plt = self._plt()
+        fig, ax = plt.subplots()
+        points = [(65.0, 10.0 + i * 0.1, f"model-{i}") for i in range(5)]
+        am._place_labels(fig, ax, points)
+        assert len(ax.texts) == 5
+        assert {t.get_text() for t in ax.texts} == {p[2] for p in points}
+        plt.close(fig)
+
+
+class TestTheCLIWritesTheChart:
+    """Not the correlation arithmetic - the classes above already exercise
+    that against fixtures - but the wiring: does main() call write_chart, does
+    the file land under --output-dir/charts by default, and does --no-charts
+    actually skip it. build_report is patched to a canned report so this does
+    not depend on the shipped bundle pairing a real local model with episodes
+    this test would otherwise have to fabricate."""
+
+    def _report(self):
+        return TestTheChart()._report()
+
+    def _run(self, output_dir, *extra_args):
+        import unittest.mock
+        argv = sys.argv
+        sys.argv = ["agentic_misalignment.py", "--output-dir", output_dir,
+                   "--json-out", str(Path(output_dir) / "r.json"), *extra_args]
+        try:
+            with unittest.mock.patch.object(am, "build_report",
+                                            return_value=self._report()):
+                return am.main()
+        finally:
+            sys.argv = argv
+
+    def test_a_normal_run_writes_a_chart_under_output_dir(self):
+        from subversionbench import charting
+        if charting.import_pyplot() is None:
+            import unittest
+            raise unittest.SkipTest("matplotlib not installed")
+        out = tempfile.mkdtemp()
+        assert self._run(out) == 0
+        chart = Path(out) / "charts" / "agentic_misalignment_correlation.png"
+        assert chart.exists(), "main() did not write a chart to the default path"
+
+    def test_no_charts_flag_skips_the_chart_file(self):
+        out = tempfile.mkdtemp()
+        assert self._run(out, "--no-charts") == 0
+        assert not (Path(out) / "charts").exists(), (
+            "--no-charts wrote a chart directory anyway")
+
+    def test_chart_dir_is_honoured(self):
+        from subversionbench import charting
+        if charting.import_pyplot() is None:
+            import unittest
+            raise unittest.SkipTest("matplotlib not installed")
+        out = tempfile.mkdtemp()
+        chart_dir = str(Path(out) / "somewhere-else")
+        assert self._run(out, "--chart-dir", chart_dir) == 0
+        assert (Path(chart_dir) /
+               "agentic_misalignment_correlation.png").exists()
