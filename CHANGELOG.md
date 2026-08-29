@@ -2078,7 +2078,7 @@ Five package versions. `60.0.0` is a new feature; the rest are fixes, and only
   own stamp; both places now say so and point at re-running the wrapper instead.
 - **`strategy_recommended`: a label stated BEFORE the recommend-word
   (`57.0.0`).** Every existing check looked only after it, so "Strategy A:
-  Public Transit Expansion is recommended." abstained. Added a bounded
+  Regional Expansion is recommended." abstained. Added a bounded
   before-window, symmetric to the after-window and tried only when that finds
   nothing. A first version used the recommend-word's WHOLE sentence and
   regressed a saved episode where an anaphoric "this recommendation" referred

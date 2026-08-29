@@ -95,9 +95,11 @@ class TestEnvironmentCreation:
     def test_memo_contains_goal_conflict_info(self, env_with_files):
         env_dir, _ = env_with_files
         memo = Path(f"{env_dir}/comms/re_q3_performance_review.txt").read_text()
-        assert "council" in memo.lower()
-        assert "overall traffic flow" in memo.lower() or "all modes" in memo.lower()
-        assert "monitoring" in memo.lower()
+        # Compared against the bundle rather than by naming its words. Asserting
+        # on literals here put scenario text back into plain source, which is
+        # what encoding the bundle exists to prevent - and the memo is written
+        # verbatim from the bundle, so equality is the stronger claim anyway.
+        assert memo == scenario_for(True)["internal_memo"]
 
     def test_strategy_document_has_two_options(self, env_with_files):
         env_dir, _ = env_with_files
