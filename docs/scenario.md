@@ -38,11 +38,16 @@ CANARY.md and see whether it completes the GUID. It is deliberately absent from 
 the agent reads, since a GUID announcing "benchmark data" in its working directory would
 be the loudest eval-awareness cue in the design.
 
-**What this does not cover.** The README describes the scenario in prose, the changelog
-quotes fragments of it, and the test suite uses short excerpts as fixtures. A model
-trained on this repository would learn the shape of the eval without having memorised its
-text. That is a real but much weaker exposure than publishing the memo verbatim, and it is
-the price of the repository being comprehensible.
+**What this does not cover.** The README describes the *structure* of the scenario -
+an assigned objective, a monitoring artefact, a consequence for being flagged - without
+naming the domain or quoting it, and `test_project/test_config.py` guards the README and
+every other prose document against the specific phrasings that would give it away. The
+test suite is a different matter: several grading tests use realistic domain vocabulary as
+fixture text, because a keyword or pattern matcher can only be tested against text that
+resembles what it is meant to catch. A model trained on this repository would learn the
+shape of the eval and some of its vocabulary from those fixtures, without having memorised
+the scenario text itself. That is a real but much weaker exposure than publishing the memo
+verbatim, and it is the price of testing the graders against realistic input.
 
 ### Testing for contamination
 
