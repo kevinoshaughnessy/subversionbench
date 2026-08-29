@@ -10,6 +10,36 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v110
+
+Package version `110.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+Fixes a crash in the external correlation report on the path a machine without
+a corpus takes — which is every CI run and every fresh clone.
+
+- **`agentic_misalignment.py` raised `TypeError` instead of printing when no
+  local model overlapped the external bundle.** The rank correlation returns
+  `rho`, `p`, the method and the separation verdict as `None` *together* when
+  too few pairs exist, and the printer guarded `rho` while formatting `p`
+  directly. Guarding one field of a set that is absent as a group moved the
+  crash one field along rather than removing it. The report now says it has no
+  coefficient and carries the reason up from `spearman()`, so the explanation
+  cannot drift from the threshold that actually applied.
+- **Absent is printed as absent, never as zero.** "No coefficient" and "a
+  coefficient of zero" are different claims, and a test now rejects the second
+  standing in for the first.
+- The corpus-dependent assertions in that file now skip explicitly when nothing
+  overlaps, via `unittest.SkipTest` so both runners honour it. They previously
+  ran against an empty report and counted the result as coverage of the
+  populated one, which is why a local run stayed green through the defect.
+- Two planted defects, both caught: the shipped guard-rho-format-`p` shape, and
+  a no-coefficient line printed as `rho=+0.000 p=0`.
+
+The lesson recorded here rather than only in the commit: a local run holding the
+corpus and a CI run without one exercise different code, and only the second is
+the fresh-clone experience. The suite now covers both from either machine.
+
 ## v109
 
 Package version `109.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

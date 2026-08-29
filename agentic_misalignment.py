@@ -400,10 +400,18 @@ def print_report(report: dict) -> None:
     print("-" * 78)
     for c in report["correlations"]:
         pooling = f" [{c['aware_pooling']}]" if c["aware_pooling"] else ""
-        rho = (f"{c['spearman_rho']:+.3f}" if c["spearman_rho"] is not None
-               else "n/a")
         print(f"\n{c['measure']}{pooling}: {c['measure_label']}")
-        print(f"    n={c['n_models']}   Spearman rho={rho}   "
+        # rho, p, the method and the separation verdict are None TOGETHER: too
+        # few pairs overlap for a coefficient to exist, which is not the same as
+        # a coefficient of zero and must not be formatted as one. Guarding only
+        # rho - which is what this did - moves the crash one field along rather
+        # than removing it, and the run that finds it is the one with no corpus.
+        # `note` comes from spearman() and says why, so the reason is reported
+        # rather than a threshold being restated here and drifting from it.
+        if c["spearman_rho"] is None:
+            print(f"    n={c['n_models']}   no coefficient: {c['note']}")
+            continue
+        print(f"    n={c['n_models']}   Spearman rho={c['spearman_rho']:+.3f}   "
               f"p={c['p']:.4g} ({c['p_method']})   "
               f"{'SEPARATED' if c['separated'] else 'not separated'}")
         if c["leave_one_out_rho_range"]:

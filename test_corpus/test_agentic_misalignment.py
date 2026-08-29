@@ -27,6 +27,20 @@ import agentic_misalignment as am
 import conftest
 
 
+def _require_pairs(report):
+    """Skip when the corpus is absent, rather than assert on a degenerate report.
+
+    `unittest.SkipTest` rather than `pytest.skip`, which raises a BaseException
+    subclass that `run_tests.py` does not honour. Without this a CI machine with
+    no corpus ran these assertions against an empty report and reported the
+    result as coverage of the populated one.
+    """
+    import unittest
+    if not report["n_pairs"]:
+        raise unittest.SkipTest(
+            "no local results overlap the external bundle in this checkout")
+
+
 class TestTheBundleIsEncryptedAndRoundTrips:
     def test_the_shipped_bundle_decrypts(self):
         bundle = am.load_bundle()
@@ -283,10 +297,45 @@ class TestTheReportSaysWhatItCannotSay:
     def test_it_prints(self):
         import contextlib
         import io
+        report = am.build_report("eval_results_r9")
+        _require_pairs(report)
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            am.print_report(am.build_report("eval_results_r9"))
+            am.print_report(report)
         printed = buf.getvalue()
         assert "Spearman rho" in printed
         assert "leave-one-out" in printed
         assert "gap = unaware rate minus aware rate" in printed
+
+    def test_it_prints_when_nothing_overlaps(self):
+        """The path a machine without the corpus takes, which is every CI run
+        and every fresh clone.
+
+        This is not hypothetical tidiness: rho, p, the method and the separation
+        verdict are None TOGETHER, and the printer formatted rho defensively
+        while formatting p directly - so a corpus-free run raised TypeError
+        instead of printing. It passed locally throughout, because a machine
+        holding the corpus never takes this path. The report must degrade to
+        saying it has no coefficient, not crash and not print a zero.
+        """
+        import contextlib
+        import io
+        empty = tempfile.mkdtemp()
+        report = am.build_report(empty)
+        assert report["n_pairs"] == 0, (
+            "an empty directory produced pairs, so this test is no longer "
+            "exercising the no-overlap path")
+        assert all(c["spearman_rho"] is None for c in report["correlations"]), (
+            "a coefficient survived with nothing to correlate")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            am.print_report(report)
+        printed = buf.getvalue()
+        assert "no coefficient" in printed, (
+            "the corpus-free report does not say why it has no correlation")
+        # The reason is carried from spearman(), so it cannot drift from the
+        # threshold that actually applied.
+        assert any(c["note"] and c["note"] in printed
+                   for c in report["correlations"])
+        assert "rho=+0.000" not in printed and "p=0" not in printed, (
+            "absent is being printed as zero, which is a different claim")
