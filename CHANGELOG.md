@@ -10,6 +10,36 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v114
+
+Package version `114.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+`agentic_misalignment.py` draws three more charts, one per external harm
+scenario rather than only the pooled `OVERALL` row every correlation in this
+file uses. Each is a per-model rate chart with a 95% Wilson interval and tick
+marks for the unaware/aware split, read straight from the decrypted bundle at
+runtime. SubversionBench has one scenario, not three, so these are a
+descriptive breakdown of the external benchmark's own data rather than
+another comparison - `external_rates` and the new
+`external_rates_by_scenario` share one `_model_stats` helper so both compute a
+model's rate the same way.
+
+`agentic_misalignment.enc`'s alias list gained a pairing whose
+`deliberately_unmatched` exclusion reason - no local model shared both its
+version and its size - stopped being true once a matching model was
+evaluated. The stale exclusion is removed rather than left beside a
+now-contradicting alias.
+
+A fourth chart adds the SubversionBench side of that same breakdown:
+`local_act_rates()` splits `local_rates()`'s pooled `misaligned_rate` into a
+rate per SubversionBench act, so `scenario_act_correlations()` can correlate
+every (external scenario, SubversionBench act) pair rather than only the two
+pooled measures every other correlation in this file reports. The strongest
+of those - not a fixed pairing, chosen fresh from the bundle and the corpus
+on every report build - gets its own rate-vs-rate chart, in the same style as
+`write_chart`'s level panel.
+
 ## v113
 
 Package version `113.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

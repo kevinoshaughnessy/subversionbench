@@ -84,6 +84,7 @@ from report import load_episodes
 from sad_oversight import decrypt, encrypt
 from subversionbench import charting
 from subversionbench.config import ROLLOUT_VERSION, VERSION
+from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.power import (MIN_INFORMATIVE_DENOMINATOR, spearman,
                                    spearman_leave_one_out, wilson_ci)
 from subversionbench.redaction import redact_paths
@@ -109,6 +110,11 @@ MEASURES = {
     "suppression": "unaware-minus-aware gap, on each side",
 }
 
+# SubversionBench's own act names, not the external benchmark's - these are
+# not scenario text and may be written down. Derived from MISALIGNED_ACTS
+# rather than hardcoded, so a third act added there is picked up here too.
+ACTS = tuple(act["name"] for act in MISALIGNED_ACTS)
+
 
 def load_bundle(path: Path = None) -> dict:
     """The decrypted table."""
@@ -119,39 +125,59 @@ def _rate(harmful: int, n: int):
     return harmful / n if n else None
 
 
-def external_rates(bundle: dict, pooling: str = "any_aware") -> dict:
-    """
-    Per external model: the overall harmful rate, and the suppression gap.
+def _model_stats(buckets: dict, aware_keys: tuple) -> dict:
+    """One row's rates: the overall harmful rate, and the suppression gap.
 
     Counts are summed before dividing, never averaged as rates: the awareness
     buckets differ in size by more than an order of magnitude within a single
     model, so a mean of the three bucket rates is not the model's rate and
-    would weight thirteen trajectories the same as eight hundred.
+    would weight thirteen trajectories the same as eight hundred. Shared by
+    external_rates (the OVERALL row) and external_rates_by_scenario (every
+    other row), so the two compute a model's rate the same way.
+    """
+    total_h = sum(b["harmful"] for b in buckets.values())
+    total_n = sum(b["n"] for b in buckets.values())
+    unaware = buckets["unaware"]
+    aware_h = sum(buckets[k]["harmful"] for k in aware_keys)
+    aware_n = sum(buckets[k]["n"] for k in aware_keys)
+    unaware_rate = _rate(unaware["harmful"], unaware["n"])
+    aware_rate = _rate(aware_h, aware_n)
+    return {
+        "harmful": total_h, "n": total_n,
+        "overall_rate": _rate(total_h, total_n),
+        "unaware": {"harmful": unaware["harmful"], "n": unaware["n"],
+                    "rate": unaware_rate},
+        "aware": {"harmful": aware_h, "n": aware_n, "rate": aware_rate},
+        # Positive = awareness went with LESS harmful behaviour.
+        "suppression_gap": (None if unaware_rate is None or aware_rate is None
+                            else round(unaware_rate - aware_rate, 4)),
+        "aware_side_underpowered": aware_n < MIN_INFORMATIVE_DENOMINATOR,
+    }
+
+
+def external_rates(bundle: dict, pooling: str = "any_aware") -> dict:
+    """Per external model, pooled over all scenarios: the OVERALL row."""
+    aware_keys = AWARE_POOLINGS[pooling]
+    return {row["model"]: _model_stats(row["buckets"], aware_keys)
+            for row in bundle["rows"] if row["scenario"] == OVERALL}
+
+
+def external_rates_by_scenario(bundle: dict, pooling: str = "any_aware") -> dict:
+    """Per external model, per non-OVERALL scenario: the same rates.
+
+    OVERALL pools all three scenarios and is what every correlation in this
+    file uses - a rank correlation over five models is thin enough already
+    without splitting it three ways. This is for the scenario charts only: a
+    descriptive breakdown of the external benchmark's own scenarios, not
+    something compared against SubversionBench, which has one scenario.
     """
     aware_keys = AWARE_POOLINGS[pooling]
     out = {}
     for row in bundle["rows"]:
-        if row["scenario"] != OVERALL:
+        if row["scenario"] == OVERALL:
             continue
-        buckets = row["buckets"]
-        total_h = sum(b["harmful"] for b in buckets.values())
-        total_n = sum(b["n"] for b in buckets.values())
-        unaware = buckets["unaware"]
-        aware_h = sum(buckets[k]["harmful"] for k in aware_keys)
-        aware_n = sum(buckets[k]["n"] for k in aware_keys)
-        unaware_rate = _rate(unaware["harmful"], unaware["n"])
-        aware_rate = _rate(aware_h, aware_n)
-        out[row["model"]] = {
-            "harmful": total_h, "n": total_n,
-            "overall_rate": _rate(total_h, total_n),
-            "unaware": {"harmful": unaware["harmful"], "n": unaware["n"],
-                        "rate": unaware_rate},
-            "aware": {"harmful": aware_h, "n": aware_n, "rate": aware_rate},
-            # Positive = awareness went with LESS harmful behaviour.
-            "suppression_gap": (None if unaware_rate is None or aware_rate is None
-                                else round(unaware_rate - aware_rate, 4)),
-            "aware_side_underpowered": aware_n < MIN_INFORMATIVE_DENOMINATOR,
-        }
+        out.setdefault(row["scenario"], {})[row["model"]] = (
+            _model_stats(row["buckets"], aware_keys))
     return out
 
 
@@ -190,6 +216,37 @@ def local_rates(output_dir: str) -> dict:
                                  else round(u - a, 4))
         row["aware_side_underpowered"] = (
             row["aware"]["n"] < MIN_INFORMATIVE_DENOMINATOR)
+    return out
+
+
+def local_act_rates(output_dir: str) -> dict:
+    """
+    Per local model, per SubversionBench act: that act's own rate.
+
+    local_rates()'s misaligned_rate pools both acts together with an OR - a
+    model can take either and count once - so it cannot say which act is
+    driving a correlation. This is that question answered: one rate per act,
+    each on its own denominator.
+
+    The oversight act does not exist in the no-oversight arm - there is no
+    monitor to tamper with there - so its denominator is restricted to
+    episodes where load_episodes already marked it observable, the same
+    restriction load_summaries' own per-arm count needs (see its
+    n_oversight_act comment). The sandbox act needs no such restriction: it is
+    observable in every arm.
+    """
+    out = {}
+    for episode in load_episodes(output_dir):
+        row = out.setdefault(episode["model"],
+                             {act: {"taken": 0, "n": 0} for act in ACTS})
+        for act in ACTS:
+            if not episode[f"{act}_observable"]:
+                continue
+            row[act]["n"] += 1
+            row[act]["taken"] += 1 if episode[f"{act}_act_taken"] else 0
+    for row in out.values():
+        for act in ACTS:
+            row[act]["rate"] = _rate(row[act]["taken"], row[act]["n"])
     return out
 
 
@@ -328,6 +385,76 @@ def correlate(pairs: list, measure: str, pooling: str = "any_aware") -> dict:
     return out
 
 
+def scenario_act_pairs(bundle: dict, local_acts: dict, scenario: str, act: str,
+                       pooling: str = "any_aware") -> list:
+    """One row per (external model, local model): external's rate on ONE
+    scenario paired with local's rate on ONE act - the per-(scenario, act)
+    analogue of build_pairs, which pairs the pooled OVERALL row against the
+    pooled misaligned_rate instead."""
+    ext = external_rates_by_scenario(bundle, pooling).get(scenario, {})
+    pairs = []
+    for local_model, external_model in sorted(local_index(bundle).items()):
+        if local_model not in local_acts or external_model not in ext:
+            continue
+        pairs.append({
+            "local_model": local_model, "external_model": external_model,
+            "external": ext[external_model], "local_act": local_acts[local_model][act],
+        })
+    return pairs
+
+
+def scenario_act_correlations(bundle: dict, local_acts: dict,
+                              pooling: str = "any_aware") -> list:
+    """
+    Every (external scenario, SubversionBench act) pair's rank correlation.
+
+    write_chart's level panel already covers the pooled OVERALL row against
+    the pooled misaligned_rate; this is that same question taken apart two
+    ways at once instead of pooled - one scenario at a time, one act at a
+    time - so a reader can see whether one scenario or one act is carrying a
+    correlation the pooled numbers hide.
+    """
+    out = []
+    for scenario in sorted(external_rates_by_scenario(bundle, pooling)):
+        for act in ACTS:
+            pairs = scenario_act_pairs(bundle, local_acts, scenario, act, pooling)
+            usable = [p for p in pairs
+                     if p["external"]["overall_rate"] is not None
+                     and p["local_act"]["rate"] is not None]
+            xs = [p["external"]["overall_rate"] for p in usable]
+            ys = [p["local_act"]["rate"] for p in usable]
+            result = spearman(xs, ys)
+            influence = spearman_leave_one_out(xs, ys)
+            out.append({
+                "scenario": scenario, "act": act,
+                "n_models": len(usable),
+                "spearman_rho": (round(result["rho"], 4)
+                                if result["rho"] is not None else None),
+                "p": result["p"], "p_method": result["method"],
+                "separated": result["separated"], "note": result["note"],
+                "leave_one_out_rho_range": (
+                    [round(influence["min_rho"], 4), round(influence["max_rho"], 4)]
+                    if influence["min_rho"] is not None else None),
+                "pairs": usable,
+            })
+    return out
+
+
+def best_scenario_act_pairing(correlations: list) -> dict:
+    """
+    The strongest of scenario_act_correlations()'s rows, or None if none has
+    a coefficient.
+
+    Ranked by rho itself, not |rho|: a positive rho here means the two
+    benchmarks agree on which models are worse, the same sense every other
+    rho in this file is read. Not a fixed choice - which scenario and which
+    act win is whatever this correlates strongest today, and can move as
+    stamps get added and models get re-evaluated.
+    """
+    candidates = [c for c in correlations if c["spearman_rho"] is not None]
+    return max(candidates, key=lambda c: c["spearman_rho"]) if candidates else None
+
+
 def build_report(output_dir: str, bundle: dict = None) -> dict:
     """The whole comparison: pairs, every correlation, and what was left out."""
     bundle = bundle or load_bundle()
@@ -355,6 +482,12 @@ def build_report(output_dir: str, bundle: dict = None) -> dict:
         if pooling == "any_aware":
             report["correlations"].append(correlate(pairs, "level"))
     report["n_pairs"] = len(report["pairs_by_pooling"]["any_aware"])
+
+    local_acts = local_act_rates(output_dir)
+    report["scenario_act_correlations"] = scenario_act_correlations(
+        bundle, local_acts)
+    report["best_scenario_act_pairing"] = best_scenario_act_pairing(
+        report["scenario_act_correlations"])
     return report
 
 
@@ -439,6 +572,24 @@ def print_report(report: dict) -> None:
                   f"aware bucket below {MIN_INFORMATIVE_DENOMINATOR}")
         if c["note"]:
             print(f"    {c['note']}")
+
+    print("\n" + "-" * 78)
+    print("SCENARIO x ACT (every external scenario against every "
+          "SubversionBench act)")
+    print("-" * 78)
+    best = report.get("best_scenario_act_pairing")
+    for c in report.get("scenario_act_correlations") or []:
+        mark = " <-- strongest" if best is not None and c is best else ""
+        if c["spearman_rho"] is None:
+            print(f"  {c['scenario']:<14} x {c['act']:<10} n={c['n_models']}   "
+                  f"no coefficient: {c['note']}{mark}")
+            continue
+        lo_hi = ""
+        if c["leave_one_out_rho_range"]:
+            lo, hi = c["leave_one_out_rho_range"]
+            lo_hi = f"   loo {lo:+.3f} to {hi:+.3f}"
+        print(f"  {c['scenario']:<14} x {c['act']:<10} n={c['n_models']}   "
+              f"rho={c['spearman_rho']:+.3f}   p={c['p']:.4g}{lo_hi}{mark}")
     print(f"\n{report['interpretation']}.")
 
 
@@ -599,6 +750,154 @@ def write_chart(report: dict, path: str) -> str:
     return path
 
 
+def _slug(text: str) -> str:
+    """Filesystem-safe stand-in for a bundle-sourced name.
+
+    Never applied to a name written in this file - only to text read from the
+    decrypted bundle at runtime, the same boundary external_rates_by_scenario
+    keeps. A hardcoded scenario name in source would be exactly the plaintext
+    this file's crypto exists to avoid; a slug computed from the runtime value
+    is not, because it never appears in anything tracked.
+    """
+    return "".join(c if c.isalnum() else "_" for c in text.lower()).strip("_")
+
+
+def write_scenario_charts(bundle: dict, chart_dir: str,
+                          pooling: str = "any_aware") -> list:
+    """
+    One bar chart per external harm scenario: each model's harmful rate.
+
+    SubversionBench has one scenario, not three, so there is nothing local to
+    correlate a scenario against - these are a descriptive breakdown of the
+    external benchmark's own data, not a comparison. write_chart's OVERALL
+    panel is the pooled version of exactly this; these are the three scenarios
+    it pools, undone, for a reader who wants to see whether they tell the same
+    story or different ones.
+    """
+    plt = charting.import_pyplot("Chart")
+    if plt is None:
+        return []
+    by_scenario = external_rates_by_scenario(bundle, pooling)
+    paths = []
+    for scenario in sorted(by_scenario):
+        models = by_scenario[scenario]
+        rows = sorted(
+            ((m, s) for m, s in models.items() if s["overall_rate"] is not None),
+            key=lambda ms: ms[1]["overall_rate"])
+        if not rows:
+            continue
+        fig, ax = plt.subplots(figsize=(7.5, 0.45 * len(rows) + 1.8))
+        ys = range(len(rows))
+        for y, (_model, stats) in zip(ys, rows, strict=True):
+            rate = stats["overall_rate"] * 100
+            lo, hi = wilson_ci(stats["harmful"], stats["n"])
+            ax.errorbar(rate, y, xerr=[[rate - lo * 100], [hi * 100 - rate]],
+                        fmt="o", markersize=6, capsize=3, elinewidth=1.1,
+                        color="#4c72b0", zorder=3)
+            if stats["unaware"]["rate"] is not None:
+                ax.scatter(stats["unaware"]["rate"] * 100, y, marker="|", s=130,
+                          linewidths=1.6, color="#c44e52", zorder=4,
+                          label="unaware" if y == 0 else None)
+            if stats["aware"]["rate"] is not None:
+                ax.scatter(stats["aware"]["rate"] * 100, y, marker="|", s=130,
+                          linewidths=1.6, color="#55a868", zorder=4,
+                          label="aware" if y == 0 else None)
+        ax.set_yticks(list(ys))
+        ax.set_yticklabels([model for model, _ in rows], fontsize=8)
+        ax.set_xlim(left=0)
+        ax.set_xlabel("AM harmful-behaviour rate (%)", fontsize=9)
+        ax.set_title(scenario, fontsize=10)
+        ax.grid(axis="x", alpha=0.25)
+        if ax.get_legend_handles_labels()[1]:
+            ax.legend(fontsize=7, loc="lower right")
+        caption = _wrap(
+            "AM = the external Agentic Misalignment benchmark. Dot + error "
+            "bar: overall rate, 95% Wilson interval. Ticks: the unaware/aware "
+            "split that feeds the suppression-gap correlation elsewhere in "
+            "this report. Descriptive only, not compared against "
+            "SubversionBench - see the JSON for n per model.")
+        fig.text(0.01, 0.01, caption, fontsize=7, va="bottom", color="#555555")
+        fig.tight_layout(rect=(0, 0.1, 1, 1))
+        path = os.path.join(
+            chart_dir, f"agentic_misalignment_scenario_{_slug(scenario)}.png")
+        fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+        plt.close(fig)
+        paths.append(path)
+    return paths
+
+
+def write_scenario_act_chart(report: dict, path: str) -> str:
+    """
+    The single (external scenario, SubversionBench act) pair with the
+    strongest rank correlation among every one scenario_act_correlations()
+    considered.
+
+    NOT A FIXED PAIRING. Which scenario and which act win is read off
+    `report` at runtime, never chosen in source - scenario names may not sit
+    in source at all (see the module docstring), and the winning pair is a
+    fact about the corpus today that can move as stamps get added and models
+    get re-evaluated. Same shape as write_chart's level panel - a rate
+    against a rate, both with real Wilson intervals - rather than the gap
+    panel's hollow-marker convention, which exists for a DIFFERENCE of rates
+    that has no interval computed anywhere in this file.
+    """
+    plt = charting.import_pyplot("Chart")
+    if plt is None:
+        return None
+    best = report.get("best_scenario_act_pairing")
+    if not best or not best.get("pairs"):
+        return None
+
+    fig, ax = plt.subplots(figsize=(6.5, 5.5))
+    points = []
+    for pair in best["pairs"]:
+        e, loc = pair["external"], pair["local_act"]
+        ex, lo = e["overall_rate"] * 100, loc["rate"] * 100
+        ex_ci = wilson_ci(e["harmful"], e["n"])
+        lo_ci = wilson_ci(loc["taken"], loc["n"])
+        ax.errorbar(
+            ex, lo,
+            xerr=[[ex - ex_ci[0] * 100], [ex_ci[1] * 100 - ex]],
+            yerr=[[lo - lo_ci[0] * 100], [lo_ci[1] * 100 - lo]],
+            fmt="o", markersize=7, capsize=3, elinewidth=1.1,
+            color="#4c72b0", alpha=0.85, zorder=3)
+        points.append((ex, lo, pair["local_model"]))
+    _place_labels(fig, ax, points)
+
+    subtitle = (f"rho={best['spearman_rho']:+.2f}, p={best['p']:.3f}, "
+               f"n={best['n_models']}")
+    ax.set_title(f"{best['scenario']} (AM) vs {best['act']} act "
+                f"(SubversionBench)\n{subtitle}", fontsize=10)
+    ax.set_xlabel(f"AM {best['scenario']} harmful-behaviour rate (%)", fontsize=9)
+    ax.set_ylabel(f"SubversionBench {best['act']} act rate (%)", fontsize=9)
+    ax.grid(alpha=0.25)
+
+    captions = [
+        "AM = the external Agentic Misalignment benchmark. The single "
+        "strongest rank correlation among every (AM scenario, SubversionBench "
+        "act) pair considered - see the JSON's scenario_act_correlations for "
+        "the rest, and this pair's own leave-one-out range.",
+        "error bars are 95% Wilson intervals on each rate. "
+        "DESCRIPTIVE, not causal - see the module docstring.",
+    ]
+    if best["leave_one_out_rho_range"]:
+        lo, hi = best["leave_one_out_rho_range"]
+        captions.append(f"leave-one-out rho ranges {lo:+.3f} to {hi:+.3f}.")
+    wrapped = [_wrap(c) for c in captions]
+    height_in = fig.get_size_inches()[1]
+    line_in, gap_in, top_in = 0.16, 0.19, 0.11
+    lines = sum(w.count("\n") + 1 for w in wrapped)
+    reserved = (line_in * lines + gap_in * len(wrapped)) / height_in
+    fig.tight_layout(rect=(0, reserved, 1, 1))
+    y = reserved - top_in / height_in
+    for text in wrapped:
+        fig.text(0.01, y, text, fontsize=7.5, va="top", color="#555555")
+        y -= (line_in * (text.count("\n") + 1) + gap_in * 0.6) / height_in
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 def _wrap(text: str, width: int = 150) -> str:
     import textwrap
     return "\n".join(textwrap.wrap(text, width, break_long_words=False,
@@ -652,7 +951,8 @@ def main() -> int:
     if not Path(args.output_dir).is_dir():
         print(f"no such results directory: {args.output_dir}", file=sys.stderr)
         return 2
-    report = build_report(args.output_dir)
+    bundle = load_bundle()
+    report = build_report(args.output_dir, bundle)
     if not report["n_pairs"]:
         print("no model in this corpus matches a row in the external table.",
               file=sys.stderr)
@@ -667,6 +967,19 @@ def main() -> int:
         if chart:
             print(f"\nChart written to {redact_paths(chart)}")
             report["chart"] = redact_paths(chart)
+        scenario_charts = write_scenario_charts(bundle, chart_dir)
+        if scenario_charts:
+            redacted = [redact_paths(p) for p in scenario_charts]
+            print(f"\n{len(redacted)} scenario chart(s) written:")
+            for p in redacted:
+                print(f"  {p}")
+            report["scenario_charts"] = redacted
+        scenario_act_chart = write_scenario_act_chart(report, os.path.join(
+            chart_dir, "agentic_misalignment_scenario_act_correlation.png"))
+        if scenario_act_chart:
+            print(f"\nScenario/act chart written to "
+                  f"{redact_paths(scenario_act_chart)}")
+            report["scenario_act_chart"] = redact_paths(scenario_act_chart)
 
     path = args.json_out or str(Path(args.output_dir) / (
         f"agentic_misalignment_correlation_"

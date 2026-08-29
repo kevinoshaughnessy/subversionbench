@@ -16,4 +16,4 @@ incomparable, because --reclassify and --resummarise re-derive every analysed
 field from the saved transcript.
 """
 
-VERSION = "v113"
+VERSION = "v114"
