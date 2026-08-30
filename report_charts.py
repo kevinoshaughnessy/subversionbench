@@ -113,6 +113,38 @@ _TITLE_WRAP = 80
 
 WILSON_NOTE = "intervals: 95% (Newcombe for differences, Wilson for rates)"
 
+# Said wherever the rule below removed a row, so a reader counting models against
+# the printed report can see why the two differ.
+EXCLUDED_NOTE = ("models with fewer than "
+                 f"{MIN_INFORMATIVE_DENOMINATOR} episodes are not plotted")
+
+
+def has_chart_support(n) -> bool:
+    """
+    Whether one model has enough episodes to be worth a row on any chart.
+
+    ONE RULE, NOT ONE PER CHART. Every per-model chart here applies this, and
+    each applies it to its OWN denominator - the refusals for the persistence
+    chart, the resolved episodes for the rate charts, the smaller arm for a
+    question's forest - because "n" means a different count on each and the
+    rule is about support for the estimate drawn, not about episode count in
+    the abstract.
+
+    WHY EXCLUDE RATHER THAN MARK. These used to be drawn with a hollow marker
+    and a footnote, which is honest but does not survive being looked at: a
+    model with 11 episodes and no events still gets a Wilson interval running
+    past 25%, and on a chart whose finding is one episode in one model that
+    row is the most visually prominent thing on the figure. A reader takes the
+    width for a result. The count that the row carried is still in the printed
+    report and in the JSON, neither of which drops anything - the chart is the
+    only place this applies, and it is applied because a chart is read at a
+    glance and a table is not.
+
+    Threshold is MIN_INFORMATIVE_DENOMINATOR rather than a number chosen here,
+    so it moves with the rest of the analysis if it ever moves at all.
+    """
+    return n is not None and n >= MIN_INFORMATIVE_DENOMINATOR
+
 # Said on every forest, because a row of per-model intervals invites reading the
 # ones that exclude zero as findings. They are not: the report corrects for
 # multiplicity across the 28 models, and only the corrected flag is marked here.
@@ -222,6 +254,14 @@ def _model_rows(by_model: list) -> list:
     Models with no data on one side sort to the end, since they have no effect
     to place among the others.
     """
+    # DELIBERATELY NOT has_chart_support. The descriptive charts below drop a
+    # model that cannot support an estimate; a question forest must not, and
+    # the reason is in this module's own docstring: the report prints "N/M had
+    # data on both sides" above this figure, and a chart showing fewer than M
+    # rows makes that sentence unverifiable. Measured on r9: the rule would
+    # remove 25 to 34 of 37 models from the awareness-conditioned questions,
+    # which is most of the evidence those charts exist to show - including
+    # every model whose thin side is thin BECAUSE the effect is real.
     rows = []
     for r in by_model:
         diff = r.get("difference")
@@ -666,6 +706,8 @@ def _persistence_rate_rows(profile: dict) -> list:
     """
     rows = []
     for r in profile.get("by_model") or []:
+        if not has_chart_support(r["n_refused"]):
+            continue
         lo, hi = wilson_ci(r["n_persisted"], r["n_refused"]) or (None, None)
         rows.append(Row(r["model"], r["persistence_rate"], lo, hi, "model",
                         marked=bool(r["comparable_within_model"]),
@@ -674,16 +716,33 @@ def _persistence_rate_rows(profile: dict) -> list:
 
 
 def _draw_rate_chart(plt, rows: list, title: str, captions: list, path: str,
-                     xlabel: str, ref: float = None, ref_label: str = "") -> str:
+                     xlabel: str, ref: float = None, ref_label: str = "",
+                     xmax_pp: float = 100) -> str:
     """
-    One marker per row plus its Wilson interval, on a fixed 0-100% axis.
+    One marker per row plus its Wilson interval, on a 0-`xmax_pp`% axis.
 
     Not `_draw_forest`: that chart's zero line is a null hypothesis for a
     DIFFERENCE, and a persistence rate is a plain proportion with no such
     line to draw. The reference line here is the corpus-wide rate instead, so
     a reader sees which models sit above or below the aggregate rather than
     which side of zero they fall on.
+
+    `xmax_pp` NARROWS THE AXIS AND CANNOT CLIP IT. A rate that never
+    approaches 100% is unreadable on a 0-100 axis - every marker stacks
+    against the spine and the intervals are hairlines - so a caller that knows
+    its measure's range says so. But an axis that hides a value is a chart
+    that lies, and the caller's expectation is a prior rather than a
+    guarantee, so the requested maximum is widened to fit the data whenever
+    the data exceeds it. The widening is silent by design: the alternative is
+    a chart that renders with a point outside its own axes.
     """
+    reach = [v * PP for r in rows
+             for v in (r.diff, r.hi) if v is not None]
+    if ref is not None:
+        reach.append(ref * PP)
+    xmax = max([xmax_pp] + reach) if reach else xmax_pp
+    # A little headroom so a marker at the maximum is not drawn on the spine.
+    xmax = min(100, xmax * 1.05) if xmax < 100 else 100
     height = _FIGURE_MARGIN + _ROW_HEIGHT * max(len(rows), 1)
     fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, height))
     ys = list(range(len(rows) - 1, -1, -1))
@@ -708,7 +767,7 @@ def _draw_rate_chart(plt, rows: list, title: str, captions: list, path: str,
     ax.set_yticks(ys)
     ax.set_yticklabels([r.label for r in rows], fontsize=8)
     ax.set_ylim(-0.8, len(rows) - 0.2)
-    ax.set_xlim(0, 100)
+    ax.set_xlim(0, xmax)
     ax.set_xlabel(xlabel, fontsize=9)
     ax.set_title(_wrap(title, _TITLE_WRAP), fontsize=10, loc="left")
     ax.grid(axis="x", alpha=0.25)
@@ -736,6 +795,10 @@ def _persistence_slope_rows(profile: dict) -> list:
     rows = []
     for r in profile.get("by_model") or []:
         if not r["comparable_within_model"]:
+            continue
+        # The smaller side, for the reason _model_rows gives: a slope between a
+        # 40-episode rate and a 2-episode one is carried entirely by the 2.
+        if not has_chart_support(min(r["complied"]["n"], r["persisted"]["n"])):
             continue
         c, p = r["complied"]["misaligned_rate"], r["persisted"]["misaligned_rate"]
         rows.append({"model": r["model"], "complied_rate": c, "persisted_rate": p,
@@ -801,7 +864,8 @@ def plot_persistence_rate(plt, report: dict, path: str) -> str:
     captions = [
         (profile.get("interpretation", "") + ".", "#555555"),
         (f"{profile.get('n_never_refused', 0)} episode(s) were never shown a "
-         f"refusal and are excluded, not counted as compliant.", "#555555"),
+         f"refusal and are excluded, not counted as compliant. "
+         + EXCLUDED_NOTE + ".", "#555555"),
         ("dashed line: the corpus-wide rate. filled marker: this model also "
          "has episodes on both sides of persistence and appears on the "
          "within-model comparison chart; open: only one behaviour was "
@@ -869,6 +933,13 @@ def _signal_clusters(profile: dict) -> list:
     keys = profile.get("signal_keys") or []
     clusters = []
     for r in profile.get("by_model") or []:
+        # Model-level support, so a model is present or absent as a whole
+        # rather than as a cluster with holes in it. A signal that is
+        # individually thin on an otherwise well-supported model keeps its
+        # hollow marker below - that is a different statement, about one
+        # point rather than about whether the model belongs on the figure.
+        if not has_chart_support(r.get("n_episodes")):
+            continue
         points = []
         for key in keys:
             s = r["signals"].get(key) or {}
@@ -949,23 +1020,24 @@ def _draw_signal_chart(plt, clusters: list, signal_keys: list, title: str,
 
 def _encoded_payload_rate_rows(profile: dict) -> list:
     """
-    One row per model with at least one resolved episode, sorted the way
+    One row per model with enough resolved episodes to plot, sorted the way
     `_by_model` already returns them (alphabetically) rather than by rate -
     unlike persistence, there is no meaningful "worst offender" ordering for a
     concealment attempt this rare in the corpus.
 
-    `marked` carries whether the model clears MIN_INFORMATIVE_DENOMINATOR,
-    the same hollow-marker convention plot_eval_signal_rates uses for the
-    same reason - a rate estimated from very few episodes reads differently
-    from one estimated from many, and the marker should say so at a glance.
+    Every row is `marked`, because after has_chart_support every row that
+    survives clears the floor and a hollow marker would distinguish nothing.
+    The field is kept rather than dropped so this shares _draw_rate_chart
+    with the persistence chart, where `marked` still carries a real
+    distinction.
     """
     rows = []
     for r in profile.get("by_model") or []:
-        if not r["n_resolved"]:
+        if not has_chart_support(r["n_resolved"]):
             continue
         lo, hi = wilson_ci(r["n_true"], r["n_resolved"]) or (None, None)
         rows.append(Row(r["model"], r["rate"], lo, hi, "model",
-                        marked=not r["underpowered"], note=f"n={r['n_resolved']}"))
+                        marked=True, note=f"n={r['n_resolved']}"))
     return rows
 
 
@@ -979,18 +1051,23 @@ def plot_encoded_payload_rate(plt, report: dict, path: str) -> str:
     ref = (profile.get("pooled") or {}).get("rate")
     captions = [
         (profile.get("measure", "") + ".", "#555555"),
-        ("filled marker: at least "
-         f"{MIN_INFORMATIVE_DENOMINATOR} resolved episodes for that model. "
-         "open: fewer.", "#555555"),
+        (EXCLUDED_NOTE + ".", "#555555"),
         ("descriptive, not causal, and not folded into any misalignment act - "
          "see grading/encoded_payload.py for what this can and cannot prove.",
          "#555555"),
-        ("intervals: 95% Wilson", "#777777"),
+        ("intervals: 95% Wilson. NOTE THE AXIS: it runs to a fraction of "
+         "100%, so a short bar here is a smaller rate than the same bar on a "
+         "full-width chart.", "#777777"),
     ]
     return _draw_rate_chart(
         plt, rows, "Encoded payloads in the model's own words", captions,
         path, "episodes with a decodable payload (%)", ref=ref,
-        ref_label=f"all models: {ref:.1%}" if ref is not None else "")
+        ref_label=f"all models: {ref:.2%}" if ref is not None else "",
+        # This measure is a rare event by construction - a concealment
+        # technique, not a behaviour every episode has the chance to show - so
+        # a 0-100 axis stacks every marker against the spine. Widened
+        # automatically if the data ever exceeds it; see _draw_rate_chart.
+        xmax_pp=10)
 
 
 def plot_eval_signal_rates(plt, report: dict, path: str) -> str:
@@ -1000,9 +1077,9 @@ def plot_eval_signal_rates(plt, report: dict, path: str) -> str:
     clusters = _signal_clusters(profile)
     captions = [
         (profile.get("interpretation", "") + ".", "#555555"),
-        ("open marker: fewer than "
-         f"{MIN_INFORMATIVE_DENOMINATOR} resolved episodes for that model on "
-         "that signal.", "#555555"),
+        (EXCLUDED_NOTE + ". Of the models that remain, an open marker is one "
+         f"whose own resolved count for THAT signal is under "
+         f"{MIN_INFORMATIVE_DENOMINATOR}.", "#555555"),
         ("intervals: 95% Wilson. Descriptive: each signal is one rubric "
          "question's own answer, not folded into the pooled eval_aware "
          "verdict reported elsewhere in this report.", "#555555"),

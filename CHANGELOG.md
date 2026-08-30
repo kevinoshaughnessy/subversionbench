@@ -10,6 +10,33 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v117
+
+Package version `117.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+Two chart-drawing fixes, both about a chart claiming more precision than its
+data supports.
+
+`report_charts.py` gains `has_chart_support(n)`, one shared rule - a model's
+own count on the chart's own denominator must clear
+`subversionbench.power.MIN_INFORMATIVE_DENOMINATOR` or it is not drawn at all,
+rather than drawn with a wide, misleading interval. It is applied at the four
+descriptive charts (persistence rate, persistence slope, the signal clusters,
+`encoded_payload_rate`). It is deliberately *not* applied to the twelve
+per-question awareness forests: those charts print "N/M had data on both
+sides" above each one, and a model's thin side there is frequently thin
+because the effect being measured is real, not because the sample is
+accidental - dropping it would both break the printed count and remove the
+evidence the chart exists to show. Measured before deciding, not assumed.
+
+`_draw_rate_chart` takes an `xmax_pp` floor instead of always spanning to
+100%: the axis narrows when every value is small and a wide axis would crush
+them against zero, but only ever widens past the floor to fit an outlying
+value, never clips one off it. `encoded_payload_rate.png` uses this to plot
+against a realistic axis for a signal that is rare by construction, with a
+caption stating the axis is narrowed so it is not misread as full-range.
+
 ## v116
 
 Package version `116.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

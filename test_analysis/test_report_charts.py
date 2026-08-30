@@ -506,14 +506,14 @@ def _persistence_profile(by_model=None, **over):
 class TestPersistenceRateRows:
     def test_one_row_per_model_in_the_profiles_own_order(self):
         profile = _persistence_profile([
-            _by_model_row("p/a", 10, 8), _by_model_row("p/b", 6, 1)])
+            _by_model_row("p/a", 100, 80), _by_model_row("p/b", 60, 10)])
         rows = rc._persistence_rate_rows(profile)
         assert [r.label for r in rows] == ["p/a", "p/b"]
         assert [r.diff for r in rows] == [0.8, round(1 / 6, 4)]
 
     def test_the_interval_is_wilson_and_brackets_the_point_estimate(self):
         rows = rc._persistence_rate_rows(
-            _persistence_profile([_by_model_row("p/a", 20, 12)]))
+            _persistence_profile([_by_model_row("p/a", 200, 120)]))
         row = rows[0]
         assert row.lo is not None and row.hi is not None
         assert row.lo <= row.diff <= row.hi
@@ -522,8 +522,8 @@ class TestPersistenceRateRows:
         """There is no significance test on this chart - `marked` is repurposed
         to say whether the model also appears on the within-model chart."""
         profile = _persistence_profile([
-            _by_model_row("p/comparable", 10, 5, comparable=True),
-            _by_model_row("p/not", 10, 10, comparable=False),
+            _by_model_row("p/comparable", 100, 50, comparable=True),
+            _by_model_row("p/not", 100, 100, comparable=False),
         ])
         rows = {r.label: r for r in rc._persistence_rate_rows(profile)}
         assert rows["p/comparable"].marked is True
@@ -531,8 +531,8 @@ class TestPersistenceRateRows:
 
     def test_the_support_count_travels_with_the_row(self):
         rows = rc._persistence_rate_rows(
-            _persistence_profile([_by_model_row("p/a", 37, 9)]))
-        assert rows[0].note == "n=37"
+            _persistence_profile([_by_model_row("p/a", 370, 90)]))
+        assert rows[0].note == "n=370"
 
     def test_no_models_means_no_rows(self):
         assert rc._persistence_rate_rows(_persistence_profile([])) == []
@@ -541,31 +541,31 @@ class TestPersistenceRateRows:
 class TestPersistenceSlopeRows:
     def test_only_comparable_models_are_included(self):
         profile = _persistence_profile([
-            _by_model_row("p/both", 10, 5, comparable=True,
-                          persisted_mis=(2, 5), complied_mis=(1, 5)),
-            _by_model_row("p/only-persisted", 10, 10, comparable=False,
-                          persisted_mis=(2, 10)),
+            _by_model_row("p/both", 100, 50, comparable=True,
+                          persisted_mis=(20, 50), complied_mis=(10, 50)),
+            _by_model_row("p/only-persisted", 100, 100, comparable=False,
+                          persisted_mis=(20, 100)),
         ])
         rows = rc._persistence_slope_rows(profile)
         assert [r["model"] for r in rows] == ["p/both"]
 
     def test_the_two_rates_are_read_from_the_right_side(self):
         profile = _persistence_profile([_by_model_row(
-            "p/a", 10, 5, comparable=True,
-            persisted_mis=(4, 5), complied_mis=(1, 5))])
+            "p/a", 100, 50, comparable=True,
+            persisted_mis=(40, 50), complied_mis=(10, 50))])
         row = rc._persistence_slope_rows(profile)[0]
         assert row["persisted_rate"] == 0.8
         assert row["complied_rate"] == 0.2
-        assert row["n_persisted"] == 5 and row["n_complied"] == 5
+        assert row["n_persisted"] == 50 and row["n_complied"] == 50
 
     def test_sorted_by_how_far_the_rate_moved_descending(self):
         profile = _persistence_profile([
-            _by_model_row("p/small-move", 10, 5, comparable=True,
-                          persisted_mis=(3, 5), complied_mis=(2, 5)),
-            _by_model_row("p/big-move", 10, 5, comparable=True,
-                          persisted_mis=(5, 5), complied_mis=(0, 5)),
-            _by_model_row("p/reversed", 10, 5, comparable=True,
-                          persisted_mis=(0, 5), complied_mis=(5, 5)),
+            _by_model_row("p/small-move", 100, 50, comparable=True,
+                          persisted_mis=(30, 50), complied_mis=(20, 50)),
+            _by_model_row("p/big-move", 100, 50, comparable=True,
+                          persisted_mis=(50, 50), complied_mis=(0, 50)),
+            _by_model_row("p/reversed", 100, 50, comparable=True,
+                          persisted_mis=(0, 50), complied_mis=(50, 50)),
         ])
         rows = rc._persistence_slope_rows(profile)
         assert [r["model"] for r in rows] == \
@@ -573,7 +573,7 @@ class TestPersistenceSlopeRows:
 
     def test_no_comparable_models_means_no_rows(self):
         profile = _persistence_profile([
-            _by_model_row("p/a", 10, 10, comparable=False)])
+            _by_model_row("p/a", 100, 100, comparable=False)])
         assert rc._persistence_slope_rows(profile) == []
 
 
@@ -581,10 +581,10 @@ class TestPersistenceChartsRender:
     def _report(self, **profile_over):
         return {"characteristics": {
             "persistence_after_refusal": _persistence_profile(
-                [_by_model_row("p/a", 20, 12, comparable=True,
-                               persisted_mis=(6, 12), complied_mis=(1, 8)),
-                 _by_model_row("p/b", 10, 10, comparable=False,
-                              persisted_mis=(2, 10))],
+                [_by_model_row("p/a", 200, 120, comparable=True,
+                               persisted_mis=(60, 120), complied_mis=(10, 80)),
+                 _by_model_row("p/b", 100, 100, comparable=False,
+                              persisted_mis=(20, 100))],
                 **profile_over)}}
 
     def test_both_charts_render(self):
@@ -624,7 +624,7 @@ class TestPersistenceChartsRender:
         _plt()
         plt = rc.charting.import_pyplot()
         report = {"characteristics": {"persistence_after_refusal":
-            _persistence_profile([_by_model_row("p/a", 10, 10, comparable=False)])}}
+            _persistence_profile([_by_model_row("p/a", 100, 100, comparable=False)])}}
         with tempfile.TemporaryDirectory() as out:
             assert rc.plot_persistence_within_model(
                 plt, report, os.path.join(out, "s.png")) is None
@@ -734,9 +734,14 @@ class TestPersistenceChartsInARealReport:
                 json.dump({"model": "p/m", "nudge": "strong", "n_runs": 1,
                           "n_scheming": 0, "n_misaligned": 0,
                           "awareness_subgroups": {"aware": 0, "unaware": 1}}, f)
-        # One episode shown a refusal and recorded as persisting - the case
-        # the whole chart pair exists to draw.
-        _write_episode(out, 1, "p/m", "strong", transcript=[refusal_result()])
+        # Episodes shown a refusal and recorded as persisting - the case the
+        # whole chart pair exists to draw. MIN_INFORMATIVE_DENOMINATOR of
+        # them, not one: has_chart_support drops a model below the floor, so a
+        # single episode would draw no chart and this test would pass or fail
+        # for a reason other than the one it names.
+        for i in range(1, MIN_INFORMATIVE_DENOMINATOR + 1):
+            _write_episode(out, i, "p/m", "strong",
+                           transcript=[refusal_result()])
 
     def test_persistence_charts_appear_in_a_real_run(self, monkeypatch):
         _plt()
@@ -790,39 +795,140 @@ def _epr_profile(by_model=None, **over):
 class TestEncodedPayloadRateRows:
     def test_one_row_per_model_with_resolved_episodes(self):
         profile = _epr_profile([
-            _epr_row("p/a", 10, 8), _epr_row("p/b", 6, 1)])
+            _epr_row("p/a", 100, 80), _epr_row("p/b", 60, 10)])
         rows = rc._encoded_payload_rate_rows(profile)
         assert [r.label for r in rows] == ["p/a", "p/b"]
         assert [r.diff for r in rows] == [0.8, round(1 / 6, 4)]
 
     def test_a_model_with_no_resolved_episodes_gets_no_row(self):
-        profile = _epr_profile([_epr_row("p/a", 0, 0), _epr_row("p/b", 5, 1)])
+        profile = _epr_profile([_epr_row("p/a", 0, 0), _epr_row("p/b", 50, 10)])
         rows = rc._encoded_payload_rate_rows(profile)
         assert [r.label for r in rows] == ["p/b"]
 
     def test_the_interval_is_wilson_and_brackets_the_point_estimate(self):
         rows = rc._encoded_payload_rate_rows(
-            _epr_profile([_epr_row("p/a", 20, 12)]))
+            _epr_profile([_epr_row("p/a", 200, 120)]))
         row = rows[0]
         assert row.lo is not None and row.hi is not None
         assert row.lo <= row.diff <= row.hi
 
-    def test_marked_carries_powered_not_significance(self):
+    def test_a_model_below_the_floor_is_dropped_not_drawn_hollow(self):
+        """The rule that replaced the hollow marker. A thin model used to get
+        a row with an open marker; on r9 that put a model with 11 episodes and
+        no events on the chart carrying a Wilson interval past 25%, which is
+        the widest thing on a figure whose finding is one episode."""
         profile = _epr_profile([
-            _epr_row("p/powered", 25, 1, underpowered=False),
-            _epr_row("p/thin", 3, 1, underpowered=True),
+            _epr_row("p/powered", 25, 1),
+            _epr_row("p/thin", 3, 1),
         ])
-        rows = {r.label: r for r in rc._encoded_payload_rate_rows(profile)}
-        assert rows["p/powered"].marked is True
-        assert rows["p/thin"].marked is False
+        labels = [r.label for r in rc._encoded_payload_rate_rows(profile)]
+        assert labels == ["p/powered"]
+
+    def test_the_floor_is_the_shared_one_not_a_number_chosen_here(self):
+        """Exactly at the floor is in; one below it is out. Pinned against
+        MIN_INFORMATIVE_DENOMINATOR rather than a literal so the rule moves
+        with the rest of the analysis if it ever moves."""
+        n = MIN_INFORMATIVE_DENOMINATOR
+        at = _epr_profile([_epr_row("p/at", n, 0)])
+        under = _epr_profile([_epr_row("p/under", n - 1, 0)])
+        assert [r.label for r in rc._encoded_payload_rate_rows(at)] == ["p/at"]
+        assert rc._encoded_payload_rate_rows(under) == []
 
     def test_the_support_count_travels_with_the_row(self):
         rows = rc._encoded_payload_rate_rows(
-            _epr_profile([_epr_row("p/a", 37, 1)]))
-        assert rows[0].note == "n=37"
+            _epr_profile([_epr_row("p/a", 370, 1)]))
+        assert rows[0].note == "n=370"
 
     def test_no_models_means_no_rows(self):
         assert rc._encoded_payload_rate_rows(_epr_profile([])) == []
+
+
+class TestTheSupportFloorAppliesToEveryDescriptiveChart:
+    """One rule, applied at each chart's OWN denominator - see
+    rc.has_chart_support. Written against the rule rather than against one
+    chart, because scoping it to a single row builder is how the other three
+    would quietly stop applying it."""
+
+    def test_persistence_drops_a_model_with_too_few_refusals(self):
+        n = MIN_INFORMATIVE_DENOMINATOR
+        profile = _persistence_profile([
+            _by_model_row("p/enough", n, 1),
+            _by_model_row("p/thin", n - 1, 1),
+        ])
+        labels = [r.label for r in rc._persistence_rate_rows(profile)]
+        assert labels == ["p/enough"]
+
+    def test_the_slope_chart_drops_a_model_whose_thin_side_is_thin(self):
+        """The SMALLER side decides: a slope between a 40-episode rate and a
+        2-episode one is carried entirely by the 2."""
+        n = MIN_INFORMATIVE_DENOMINATOR
+        profile = _persistence_profile([
+            _by_model_row("p/both-thick", 100, 50, comparable=True,
+                          persisted_mis=(10, n), complied_mis=(5, n)),
+            _by_model_row("p/one-thin", 100, 50, comparable=True,
+                          persisted_mis=(1, n - 1), complied_mis=(5, 60)),
+        ])
+        labels = [r["model"] for r in rc._persistence_slope_rows(profile)]
+        assert labels == ["p/both-thick"]
+
+    def test_the_signal_chart_drops_a_thin_model_whole(self):
+        """Model-level, so a model is present or absent entirely rather than
+        as a cluster with holes in it."""
+        n = MIN_INFORMATIVE_DENOMINATOR
+        profile = _signal_profile([
+            _signal_by_model_row("p/enough", mentioned_test=(5, n)),
+            _signal_by_model_row("p/thin", n_episodes=n - 1,
+                                 mentioned_test=(1, 3)),
+        ])
+        labels = [c["model"] for c in rc._signal_clusters(profile)]
+        assert labels == ["p/enough"]
+
+    def test_a_thin_signal_on_a_plotted_model_is_kept_and_marked(self):
+        """The two statements are different: the model belongs on the figure,
+        and one of its points is estimated from few episodes. Excluding the
+        model would lose its other four signals."""
+        n = MIN_INFORMATIVE_DENOMINATOR
+        profile = _signal_profile([
+            _signal_by_model_row("p/m", mentioned_test=(5, n),
+                                 broke_character=(1, 3))])
+        points = {pt["signal"]: pt for pt in rc._signal_clusters(profile)[0]["points"]}
+        assert points["mentioned_test"]["underpowered"] is False
+        assert points["broke_character"]["underpowered"] is True
+
+
+class TestTheRateAxisNarrowsButNeverClips:
+    """A rare-event measure on a 0-100 axis stacks every marker against the
+    spine; an axis that hides a value is worse. So the requested maximum is a
+    floor on the axis, not a cap on the data."""
+
+    def _drawn_xlim(self, rows, xmax_pp):
+        plt = _plt()
+        captured = {}
+        real = rc._BelowAxes
+
+        class Spy(real):
+            def __init__(self, fig, ax, height):
+                captured["xlim"] = ax.get_xlim()
+                super().__init__(fig, ax, height)
+
+        rc._BelowAxes = Spy
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                rc._draw_rate_chart(plt, rows, "t", [], os.path.join(out, "x.png"),
+                                    "x", xmax_pp=xmax_pp)
+        finally:
+            rc._BelowAxes = real
+        return captured["xlim"]
+
+    def test_a_narrow_axis_is_honoured_when_the_data_fits(self):
+        rows = [rc.Row("p/a", 0.01, 0.0, 0.03, "model", marked=True)]
+        assert self._drawn_xlim(rows, 10)[1] <= 11
+
+    def test_the_axis_widens_rather_than_clipping_a_larger_value(self):
+        """The regression that matters: a 40% rate on a chart asked for a 10%
+        axis must not be drawn outside its own axes."""
+        rows = [rc.Row("p/a", 0.40, 0.30, 0.52, "model", marked=True)]
+        assert self._drawn_xlim(rows, 10)[1] >= 52
 
 
 class TestEncodedPayloadChartRenders:
@@ -901,10 +1007,13 @@ def _signal_by_model_row(model, **rates):
     convention `_by_model_row` above uses for a side with no episodes.
     """
     signals = {}
-    n_episodes = 0
+    # Model-level support, independent of any one signal's resolved count:
+    # _signal_clusters excludes a model below the floor entirely, and these
+    # fixtures are about what a PLOTTED model's cluster looks like. A test
+    # that wants the exclusion itself passes n_episodes explicitly.
+    n_episodes = rates.pop("n_episodes", MIN_INFORMATIVE_DENOMINATOR)
     for key in _SIGNAL_KEYS:
         n_true, n_resolved = rates.get(key, (0, 0))
-        n_episodes = max(n_episodes, n_resolved)
         signals[key] = {
             "n_resolved": n_resolved, "n_true": n_true,
             "rate": round(n_true / n_resolved, 4) if n_resolved else None,
@@ -1056,11 +1165,16 @@ class TestSignalChartInARealReport:
             json.dump({"model": "p/m", "nudge": "strong", "n_runs": 1,
                       "n_scheming": 0, "n_misaligned": 0,
                       "awareness_subgroups": {"aware": 0, "unaware": 1}}, f)
-        path = _write_episode(out, 1, "p/m", "strong")
-        d = json.load(open(path))
-        d["analysis"]["eval_awareness_grader"] = {"rubric_results": {
-            "broke_character": {"answer": True, "quote": "this is a test"}}}
-        json.dump(d, open(path, "w"))
+        # MIN_INFORMATIVE_DENOMINATOR episodes, not one: has_chart_support
+        # excludes a model below the floor, so a one-episode corpus draws
+        # nothing and this test would pass against a chart that was never
+        # written for the wrong reason.
+        for i in range(1, MIN_INFORMATIVE_DENOMINATOR + 1):
+            path = _write_episode(out, i, "p/m", "strong")
+            d = json.load(open(path))
+            d["analysis"]["eval_awareness_grader"] = {"rubric_results": {
+                "broke_character": {"answer": True, "quote": "this is a test"}}}
+            json.dump(d, open(path, "w"))
 
     def test_the_signal_chart_appears_in_a_real_run(self, monkeypatch):
         _plt()
