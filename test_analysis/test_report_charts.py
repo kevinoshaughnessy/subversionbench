@@ -746,3 +746,197 @@ class TestPersistenceChartsInARealReport:
             assert run_report.main() == 0
             names = set(os.listdir(os.path.join(out, "charts")))
         assert "persistence_rate.png" in names
+
+
+# ---------------------------------------------------------------------------
+# Eval-awareness rubric signals
+# ---------------------------------------------------------------------------
+#
+# Same split as the persistence charts above: report/characteristics.py's
+# eval_signal_rates() owns the denominators and the pooling; this file owns
+# only the boundary from its profile dict to chart rows and a rendered
+# figure.
+
+# Derived from the package, not restated: a fixture with its own hand-copied
+# key list would still pass if RUBRIC_SIGNAL_KEYS drifted from it.
+_SIGNAL_KEYS = run_report.RUBRIC_SIGNAL_KEYS
+
+
+def _signal_by_model_row(model, **rates):
+    """One `by_model` entry shaped like eval_signal_rates() emits.
+
+    `rates` maps a signal key to (n_true, n_resolved); a key not passed gets
+    no resolved episodes at all - unmeasured, not a rate of zero, the same
+    convention `_by_model_row` above uses for a side with no episodes.
+    """
+    signals = {}
+    n_episodes = 0
+    for key in _SIGNAL_KEYS:
+        n_true, n_resolved = rates.get(key, (0, 0))
+        n_episodes = max(n_episodes, n_resolved)
+        signals[key] = {
+            "n_resolved": n_resolved, "n_true": n_true,
+            "rate": round(n_true / n_resolved, 4) if n_resolved else None,
+            "underpowered": n_resolved < 20,
+        }
+    return {"model": model, "n_episodes": n_episodes, "signals": signals}
+
+
+def _signal_profile(by_model=None, **over):
+    by_model = by_model if by_model is not None else []
+    profile = {
+        "measure": "whether the eval-awareness grader answered yes to each "
+                  "rubric question",
+        "signal_keys": list(_SIGNAL_KEYS),
+        "n_episodes": sum(r["n_episodes"] for r in by_model),
+        "interpretation": "a rubric question's own answer",
+        "pooled": {key: {"n_resolved": 0, "n_true": 0, "rate": None}
+                  for key in _SIGNAL_KEYS},
+        "by_model": by_model,
+    }
+    profile.update(over)
+    return profile
+
+
+class TestSignalClusters:
+    def test_one_cluster_per_model_one_point_per_signal_in_fixed_order(self):
+        profile = _signal_profile([
+            _signal_by_model_row("a", mentioned_test=(5, 10)),
+            _signal_by_model_row("b", broke_character=(2, 10))])
+        clusters = rc._signal_clusters(profile)
+        assert [c["model"] for c in clusters] == ["a", "b"]
+        assert ([p["signal"] for p in clusters[0]["points"]]
+               == list(_SIGNAL_KEYS))
+        assert ([p["signal"] for p in clusters[1]["points"]]
+               == list(_SIGNAL_KEYS))
+
+    def test_rate_and_interval_come_from_the_profiles_own_counts(self):
+        profile = _signal_profile([
+            _signal_by_model_row("a", broke_character=(3, 12))])
+        points = rc._signal_clusters(profile)[0]["points"]
+        point = next(p for p in points if p["signal"] == "broke_character")
+        assert point["rate"] == 0.25
+        assert point["lo"] is not None and point["hi"] is not None
+        assert point["lo"] < 0.25 < point["hi"]
+
+    def test_an_unresolved_signal_has_no_rate_and_no_interval(self):
+        """Not zero: a signal never graded for this model must not read as a
+        confident 'no' on the chart."""
+        profile = _signal_profile([_signal_by_model_row("a")])
+        points = rc._signal_clusters(profile)[0]["points"]
+        assert all(p["rate"] is None and p["lo"] is None for p in points)
+
+    def test_no_models_means_no_clusters(self):
+        assert rc._signal_clusters(_signal_profile([])) == []
+
+
+class TestSignalChartsRender:
+    def _report(self, **over):
+        return {"characteristics": {"eval_signal_rates": _signal_profile([
+            _signal_by_model_row("p/a", mentioned_test=(6, 12),
+                                 broke_character=(3, 12)),
+            _signal_by_model_row("p/b", mentioned_test=(1, 5))],
+            **over)}}
+
+    def test_the_chart_renders(self):
+        _plt()
+        with tempfile.TemporaryDirectory() as out:
+            path = rc.plot_eval_signal_rates(
+                rc.charting.import_pyplot(), self._report(),
+                os.path.join(out, "s.png"))
+            assert path and os.path.exists(path)
+
+    def test_no_characteristics_key_means_no_chart(self):
+        """A report built before this feature existed must draw nothing here
+        rather than raising."""
+        _plt()
+        plt = rc.charting.import_pyplot()
+        with tempfile.TemporaryDirectory() as out:
+            assert rc.plot_eval_signal_rates(
+                plt, {"questions": []}, os.path.join(out, "s.png")) is None
+
+    def test_no_models_means_no_chart(self):
+        _plt()
+        plt = rc.charting.import_pyplot()
+        report = {"characteristics": {
+            "eval_signal_rates": _signal_profile([])}}
+        with tempfile.TemporaryDirectory() as out:
+            assert rc.plot_eval_signal_rates(
+                plt, report, os.path.join(out, "s.png")) is None
+
+    def test_a_signal_keeps_the_same_colour_in_every_models_cluster(self):
+        """The whole reason clusters are drawn in a fixed key order: a
+        reader who learns 'blue = mentioned_test' from the legend must be
+        able to trust that in every model's cluster, not just the first."""
+        _plt()
+        plt = rc.charting.import_pyplot()
+        report = {"characteristics": {"eval_signal_rates": _signal_profile([
+            _signal_by_model_row("p/a", mentioned_test=(6, 12)),
+            _signal_by_model_row("p/b", mentioned_test=(1, 12))])}}
+        import unittest.mock
+        calls = []
+        original = plt.Axes.plot
+
+        def spy(self, *a, **k):
+            calls.append(k)
+            return original(self, *a, **k)
+
+        with tempfile.TemporaryDirectory() as out, \
+                unittest.mock.patch.object(plt.Axes, "plot", spy):
+            rc.plot_eval_signal_rates(plt, report, os.path.join(out, "s.png"))
+        markers = [c for c in calls if c.get("marker") == rc._MODEL_MARKER]
+        assert len(markers) == 2, "expected one marker per model"
+        colours = {c["color"] for c in markers}
+        assert colours == {rc._SIGNAL_COLOURS["mentioned_test"]}, (
+            "the same signal drew in two different colours across models")
+
+    def test_an_underpowered_point_is_drawn_hollow(self):
+        _plt()
+        plt = rc.charting.import_pyplot()
+        report = {"characteristics": {"eval_signal_rates": _signal_profile([
+            _signal_by_model_row("p/a", broke_character=(1, 3))])}}
+        import unittest.mock
+        calls = []
+        original = plt.Axes.plot
+
+        def spy(self, *a, **k):
+            calls.append(k)
+            return original(self, *a, **k)
+
+        with tempfile.TemporaryDirectory() as out, \
+                unittest.mock.patch.object(plt.Axes, "plot", spy):
+            rc.plot_eval_signal_rates(plt, report, os.path.join(out, "s.png"))
+        markers = [c for c in calls if c.get("marker") == rc._MODEL_MARKER]
+        assert markers, "no marker was drawn at all"
+        assert any(c.get("markerfacecolor") == "white" for c in markers)
+
+
+class TestSignalChartInARealReport:
+    """The wiring, not the arithmetic: does an actual corpus with a graded
+    rubric answer make it all the way from run_report.main() to the file on
+    disk. eval_signal_rates() and its loader are covered exhaustively in
+    test_report_characteristics.py and test_report_loading.py."""
+
+    def _corpus(self, out):
+        from test_analysis.report_fixtures import _write_episode
+        with open(os.path.join(
+                out, "summary_strong_oversight_nolure_20260101000000.json"),
+                "w") as f:
+            json.dump({"model": "p/m", "nudge": "strong", "n_runs": 1,
+                      "n_scheming": 0, "n_misaligned": 0,
+                      "awareness_subgroups": {"aware": 0, "unaware": 1}}, f)
+        path = _write_episode(out, 1, "p/m", "strong")
+        d = json.load(open(path))
+        d["analysis"]["eval_awareness_grader"] = {"rubric_results": {
+            "broke_character": {"answer": True, "quote": "this is a test"}}}
+        json.dump(d, open(path, "w"))
+
+    def test_the_signal_chart_appears_in_a_real_run(self, monkeypatch):
+        _plt()
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            monkeypatch.setattr("sys.argv",
+                                ["run_report.py", "--output-dir", out])
+            assert run_report.main() == 0
+            names = set(os.listdir(os.path.join(out, "charts")))
+        assert "eval_signal_rates.png" in names

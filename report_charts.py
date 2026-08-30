@@ -61,7 +61,7 @@ import os
 import textwrap
 
 from subversionbench import charting
-from subversionbench.power import wilson_ci
+from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR, wilson_ci
 
 # ---------------------------------------------------------------------------
 # Chart conventions
@@ -846,6 +846,126 @@ def plot_persistence_within_model(plt, report: dict, path: str) -> str:
 # Entry point
 # ---------------------------------------------------------------------------
 
+_SIGNAL_COLOURS = {
+    "mentioned_test": _COLOURS["model"],
+    "suspects_being_tested": _COLOURS["crude"],
+    "questioned_authenticity": _COLOURS["stratified"],
+    "referenced_ai_safety": _COLOURS["parallel"],
+    "broke_character": _COLOURS["model_significant"],
+}
+
+
+def _signal_clusters(profile: dict) -> list:
+    """
+    One cluster per model: its label, and one point per signal in
+    `signal_keys`' fixed order - the pure data shape _draw_signal_chart
+    draws, kept separate so it can be tested without matplotlib, the same
+    split _persistence_rate_rows/_draw_rate_chart use.
+
+    A point's `rate` is None where the signal was never resolved for that
+    model; `_draw_signal_chart` draws nothing for it rather than a marker at
+    zero, so an unmeasured signal cannot be read as a confident "no".
+    """
+    keys = profile.get("signal_keys") or []
+    clusters = []
+    for r in profile.get("by_model") or []:
+        points = []
+        for key in keys:
+            s = r["signals"].get(key) or {}
+            rate = s.get("rate")
+            lo, hi = (wilson_ci(s["n_true"], s["n_resolved"])
+                      if rate is not None else (None, None))
+            points.append({"signal": key, "rate": rate, "lo": lo, "hi": hi,
+                          "underpowered": bool(s.get("underpowered"))})
+        clusters.append({"model": r["model"], "points": points})
+    return clusters
+
+
+def _draw_signal_chart(plt, clusters: list, signal_keys: list, title: str,
+                       captions: list, path: str, xlabel: str) -> str:
+    """
+    One cluster of rows per model, one row per rubric signal within it,
+    always in `signal_keys`' fixed order - so a given signal sits at the same
+    position in every model's cluster and its colour is what a reader needs
+    to track, not its position. Same 1-data-unit-per-row convention every
+    other chart in this file uses, with an extra blank unit between clusters
+    so a model's rows read as one group rather than a continuous list.
+    """
+    n_signals = len(signal_keys)
+    if not clusters or not n_signals:
+        return None
+
+    # A quarter of _ROW_HEIGHT: this chart has n_signals rows per model
+    # rather than one, and at the full row height a corpus with 30+ models
+    # produces a figure many feet tall. The data-unit spacing between rows
+    # is unchanged - only how many inches one unit maps to for this chart -
+    # so the Wilson intervals still separate cleanly.
+    row_height = _ROW_HEIGHT / 4
+    total_rows = len(clusters) * (n_signals + 1) - 1
+    height = _FIGURE_MARGIN + row_height * total_rows
+    fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, height))
+
+    y = total_rows - 1
+    yticks, ylabels = [], []
+    for cluster in clusters:
+        cluster_top = y
+        for point in cluster["points"]:
+            colour = _SIGNAL_COLOURS[point["signal"]]
+            if point["rate"] is not None:
+                ax.plot([point["lo"] * PP, point["hi"] * PP], [y, y],
+                        color=colour, linewidth=1.1, alpha=0.75, zorder=3)
+                ax.plot(
+                    [point["rate"] * PP], [y], marker=_MODEL_MARKER,
+                    markersize=5, color=colour,
+                    markerfacecolor="white" if point["underpowered"] else colour,
+                    markeredgecolor=colour, markeredgewidth=1.2, zorder=4)
+            y -= 1
+        yticks.append(cluster_top - (n_signals - 1) / 2)
+        ylabels.append(cluster["model"])
+        y -= 1  # blank row separating this cluster from the next
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(ylabels, fontsize=8)
+    ax.set_ylim(-0.8, total_rows - 0.2)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel(xlabel, fontsize=9)
+    ax.set_title(_wrap(title, _TITLE_WRAP), fontsize=10, loc="left")
+    ax.grid(axis="x", alpha=0.25)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    inches = _BelowAxes(fig, ax, height)
+    from matplotlib.lines import Line2D
+    inches.legend([
+        Line2D([], [], color=_SIGNAL_COLOURS[key], marker=_MODEL_MARKER,
+              markersize=6, linestyle="", label=key)
+        for key in signal_keys
+    ])
+    for caption, colour in captions:
+        inches.caption(caption, colour)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def plot_eval_signal_rates(plt, report: dict, path: str) -> str:
+    """Every eval-awareness rubric question, each its own rate per model."""
+    profile = (report.get("characteristics") or {}).get("eval_signal_rates") or {}
+    keys = profile.get("signal_keys") or []
+    clusters = _signal_clusters(profile)
+    captions = [
+        (profile.get("interpretation", "") + ".", "#555555"),
+        ("open marker: fewer than "
+         f"{MIN_INFORMATIVE_DENOMINATOR} resolved episodes for that model on "
+         "that signal.", "#555555"),
+        ("intervals: 95% Wilson. Descriptive: each signal is one rubric "
+         "question's own answer, not folded into the pooled eval_aware "
+         "verdict reported elsewhere in this report.", "#555555"),
+    ]
+    return _draw_signal_chart(
+        plt, clusters, keys, "Eval-awareness rubric signals, per model",
+        captions, path, "answered yes (%)")
+
+
 def write_charts(report: dict, chart_dir: str) -> list:
     """
     Every question chart plus the overview, into chart_dir.
@@ -877,4 +997,7 @@ def write_charts(report: dict, chart_dir: str) -> list:
     slope_path = os.path.join(chart_dir, "persistence_within_model.png")
     if plot_persistence_within_model(plt, report, slope_path):
         written.append(slope_path)
+    signal_path = os.path.join(chart_dir, "eval_signal_rates.png")
+    if plot_eval_signal_rates(plt, report, signal_path):
+        written.append(signal_path)
     return written

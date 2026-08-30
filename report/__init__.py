@@ -161,10 +161,10 @@ This file is the single import site: everything is reached through `report`, so
 the layout inside can change without moving anyone else's imports.
 """
 
-from .loading import (NUDGE_LEVELS, act_arm_rows, awareness_arm_rows,
-                     load_episodes, load_summaries)
+from .loading import (NUDGE_LEVELS, RUBRIC_SIGNAL_KEYS, act_arm_rows,
+                     awareness_arm_rows, load_episodes, load_summaries)
 from .characteristics import (characteristics, decision_profile,
-                             persistence_after_refusal)
+                             eval_signal_rates, persistence_after_refusal)
 from .data_quality import (_measure_agreement, _model_rate_pairs,
                           cross_analysis_rows, data_quality_facts,
                           mixed_routing_arms,
@@ -192,6 +192,7 @@ from .questions_paired import (EVIDENCE_COLUMNS, EVIDENCE_ROWS,
                               question_paraphrase_vs_concealment)
 from .console import (_fmt_contrast_line, _fmt_rate, _print_by_act,
                      _print_characteristics, _print_decision_profile,
+                     _print_eval_signal_rates,
                      _print_persistence,
                      _print_data_quality,
                      _print_model_table, _print_multiplicity, _print_question,
@@ -208,12 +209,14 @@ from .run_report import (build_report, main)
 # as a stray import to the dead-import guard, and an exemption would have hidden
 # a genuinely stray one.
 __all__ = [
-    "EVIDENCE_COLUMNS", "EVIDENCE_ROWS", "NUDGE_LEVELS", "_by_model",
+    "EVIDENCE_COLUMNS", "EVIDENCE_ROWS", "NUDGE_LEVELS", "RUBRIC_SIGNAL_KEYS",
+    "_by_model",
     "_consistency", "_contrast", "_crude_vs_stratified", "_finding",
     "_fmt_contrast_line", "_fmt_rate", "_measure_agreement",
     "_model_rate_pairs", "_models", "_paired_variant_table", "_pool",
     "_print_by_act", "_print_characteristics", "_print_data_quality",
-    "_print_decision_profile", "_print_model_table", "_print_multiplicity",
+    "_print_decision_profile", "_print_eval_signal_rates",
+    "_print_model_table", "_print_multiplicity",
     "_print_persistence", "_print_question", "_print_stratified",
     "_print_text_reachable", "_print_variant_question",
     "_provenance_warning", "_question_act_scheming", "_question_oversight",
@@ -222,6 +225,7 @@ __all__ = [
     "_variant_question", "act_arm_rows", "awareness_arm_rows",
     "build_report", "characteristics", "cross_analysis_rows",
     "data_quality_facts", "decision_profile", "duplicate_arms",
+    "eval_signal_rates",
     "load_episodes", "load_summaries", "main", "mixed_routing_arms",
     "persistence_after_refusal", "question_awareness_vs_misalignment",
     "question_awareness_vs_monitoring_disabled",

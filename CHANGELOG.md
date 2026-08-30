@@ -10,6 +10,25 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v115
+
+Package version `115.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+Every eval-awareness rubric question (`mentioned_test`,
+`suspects_being_tested`, `questioned_authenticity`, `referenced_ai_safety`,
+`broke_character`) gets its own characteristic,
+`report/characteristics.py:eval_signal_rates()`, rather than staying folded
+into the pooled `eval_aware` verdict. `load_episodes` reads each straight
+off the stored grader answer - `RUBRIC_SIGNAL_KEYS` in `report/loading.py`,
+kept in sync with grader.py's own key list by a guard test rather than a
+shared import, since the grader's list is private - with a failed or
+missing grader call reading `None` and excluded from the rate's
+denominator, not counted as a confident "no". Reaches the console under
+MODEL CHARACTERISTICS and a new chart, `eval_signal_rates.png`: one cluster
+of rows per model, one row per signal, Wilson intervals, hollow markers
+below the usual power floor.
+
 ## v114
 
 Package version `114.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

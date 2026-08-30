@@ -536,3 +536,107 @@ class TestTheDecisionProfileReachesTheReport:
         assert "nothing to describe" in printed
         assert "TASK DECISION" in printed, (
             "the persistence block's early return swallowed the decision profile")
+
+
+def _sep(model="m", **rubric):
+    """One episode row shaped like load_episodes builds them, for
+    eval_signal_rates. Any RUBRIC_SIGNAL_KEYS key not passed defaults to
+    None - unresolved, not a confident False."""
+    row = {"model": model}
+    for key in rr.RUBRIC_SIGNAL_KEYS:
+        row[f"rubric_{key}"] = rubric.get(key)
+    return row
+
+
+class TestEvalSignalRatesExcludesUngradedFromTheDenominator:
+    """A failed grader call reads None on the episode, and None must not be
+    folded into the rate's denominator as a confident 'no' - the same rule
+    persistence_after_refusal applies to episodes never shown a refusal."""
+
+    def test_none_is_excluded_not_counted_as_false(self):
+        eps = [_sep(broke_character=True), _sep(broke_character=None),
+              _sep(broke_character=None)]
+        b = rr.eval_signal_rates(eps)
+        signal = b["pooled"]["broke_character"]
+        assert signal["n_resolved"] == 1
+        assert signal["rate"] == 1.0
+
+    def test_a_model_with_nothing_resolved_gets_no_rate_rather_than_zero(self):
+        eps = [_sep(broke_character=None)]
+        b = rr.eval_signal_rates(eps)
+        row = b["by_model"][0]["signals"]["broke_character"]
+        assert row["rate"] is None
+
+
+class TestEvalSignalRatesEachSignalHasItsOwnDenominator:
+    def test_true_on_one_signal_and_ungraded_on_another_are_not_conflated(self):
+        eps = [_sep(mentioned_test=True, broke_character=None)]
+        b = rr.eval_signal_rates(eps)
+        signals = b["by_model"][0]["signals"]
+        assert signals["mentioned_test"]["rate"] == 1.0
+        assert signals["broke_character"]["rate"] is None
+
+
+class TestEvalSignalRatesPerModel:
+    def test_rate_is_over_that_models_own_resolved_episodes(self):
+        eps = [_sep("a", broke_character=True), _sep("a", broke_character=False),
+              _sep("b", broke_character=True)]
+        b = rr.eval_signal_rates(eps)
+        by_model = {r["model"]: r["signals"]["broke_character"]
+                   for r in b["by_model"]}
+        assert by_model["a"]["rate"] == 0.5
+        assert by_model["b"]["rate"] == 1.0
+
+    def test_a_thin_model_is_marked_underpowered(self):
+        eps = [_sep("a", broke_character=True)]
+        b = rr.eval_signal_rates(eps)
+        assert (b["by_model"][0]["signals"]["broke_character"]["underpowered"]
+               is True)
+
+
+class TestEvalSignalRatesPooledSumsBeforeDividing:
+    def test_pooled_rate_is_not_a_mean_of_the_per_model_rates(self):
+        """1/1 for model b and 1/10 for model a average to 55%; pooling the raw
+        counts first gives 2/11, the same distinction
+        TestTheRatesArePooledNotAveraged makes for the external side of
+        agentic_misalignment.py."""
+        eps = ([_sep("a", broke_character=True)]
+              + [_sep("a", broke_character=False) for _ in range(9)]
+              + [_sep("b", broke_character=True)])
+        b = rr.eval_signal_rates(eps)
+        assert b["pooled"]["broke_character"]["rate"] == round(2 / 11, 4)
+
+
+class TestEvalSignalRatesReachesTheReport:
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        path = _write_episode(out, 1, "m", "strong")
+        d = json.load(open(path))
+        d["analysis"]["eval_awareness_grader"] = {
+            "rubric_results": {"broke_character": {"answer": True, "quote": ""}}}
+        json.dump(d, open(path, "w"))
+        return out
+
+    def test_the_loader_reads_it_and_the_characteristic_reports_it(self):
+        eps = rr.load_episodes(self._dir())
+        assert eps[0]["rubric_broke_character"] is True
+        b = rr.eval_signal_rates(eps)
+        assert b["pooled"]["broke_character"]["rate"] == 1.0
+
+    def test_it_prints_without_suppressing_the_other_two_profiles(self):
+        """Same dispatcher-isolation guard as
+        test_one_profile_cannot_suppress_the_other, extended to the third
+        profile: none of the three may swallow either of the others."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_characteristics({
+                "persistence_after_refusal": rr.persistence_after_refusal(
+                    [_ep() for _ in range(3)]),
+                "decision_profile": rr.decision_profile(
+                    [_dep(seq=["A", "B"]), _dep(seq=["A", "A"])]),
+                "eval_signal_rates": rr.eval_signal_rates(
+                    [_sep(broke_character=True)])})
+        printed = buf.getvalue()
+        assert "nothing to describe" in printed
+        assert "TASK DECISION" in printed
+        assert "EVAL-AWARENESS RUBRIC SIGNALS" in printed

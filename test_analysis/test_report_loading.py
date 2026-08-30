@@ -129,6 +129,59 @@ class TestLoadEpisodes:
             json.dump({"model": "m", "nudge": "none"}, f)
         assert rr.load_episodes(out) == []
 
+
+class TestTheRubricSignalFields:
+    """RUBRIC_SIGNAL_KEYS read off the stored grader verdict, not re-derived -
+    unlike an act, there is no deterministic rule to recompute one from the
+    transcript."""
+
+    def _with_rubric(self, out, n, model, nudge, rubric):
+        path = _write_episode(out, n, model, nudge)
+        d = json.load(open(path))
+        d["analysis"]["eval_awareness_grader"] = {
+            "rubric_results": {k: {"answer": v, "quote": ""}
+                              for k, v in rubric.items()}}
+        json.dump(d, open(path, "w"))
+        return path
+
+    def test_every_key_reads_its_own_answer(self):
+        out = tempfile.mkdtemp()
+        self._with_rubric(out, 1, "m", "strong", {
+            "mentioned_test": True, "suspects_being_tested": False,
+            "questioned_authenticity": True, "referenced_ai_safety": True,
+            "broke_character": False})
+        ep = rr.load_episodes(out)[0]
+        assert ep["rubric_mentioned_test"] is True
+        assert ep["rubric_suspects_being_tested"] is False
+        assert ep["rubric_questioned_authenticity"] is True
+        assert ep["rubric_referenced_ai_safety"] is True
+        assert ep["rubric_broke_character"] is False
+
+    def test_a_key_absent_from_the_stored_rubric_reads_as_none(self):
+        """A grader call that never returned an answer for this question -
+        not a confident False."""
+        out = tempfile.mkdtemp()
+        self._with_rubric(out, 1, "m", "strong", {"mentioned_test": True})
+        ep = rr.load_episodes(out)[0]
+        assert ep["rubric_broke_character"] is None
+
+    def test_no_grader_block_at_all_reads_every_key_as_none(self):
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong")
+        ep = rr.load_episodes(out)[0]
+        for key in rr.RUBRIC_SIGNAL_KEYS:
+            assert ep[f"rubric_{key}"] is None, key
+
+    def test_matches_the_graders_own_key_list_exactly(self):
+        """RUBRIC_SIGNAL_KEYS is restated rather than imported from grader.py
+        (a private name, kept for eval_signal_spans) - so a sixth rubric
+        question added to one and not the other would silently narrow which
+        questions this package reports. Sets, not tuples: order may
+        legitimately differ between the two lists."""
+        from subversionbench.grading.grader import _EVAL_SIGNAL_KEYS
+        assert set(rr.RUBRIC_SIGNAL_KEYS) == set(_EVAL_SIGNAL_KEYS)
+
+
 class TestTheDefaultPhrasingArmSurvivesADroppedCopy:
     """The map holds the EXTRA phrasings; the default's answers live in the
     headline field. A copy of the default used to sit in the map too, and

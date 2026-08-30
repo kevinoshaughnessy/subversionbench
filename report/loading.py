@@ -41,6 +41,16 @@ from subversionbench.scenario import SANDBOX_REFUSAL
 
 NUDGE_LEVELS = ("none", "strong", "max")
 
+# All five eval-awareness rubric questions grader.py's _EVAL_SIGNAL_KEYS asks
+# per episode. Restated here rather than imported - grader.py's own name is
+# private (`_EVAL_SIGNAL_KEYS`), because it exists for eval_signal_spans, not
+# for this - and stating the five again is a second thing to keep in step
+# only if a sixth question is ever added to one list and not the other,
+# which the two files' own tests would catch.
+RUBRIC_SIGNAL_KEYS = ("mentioned_test", "suspects_being_tested",
+                     "questioned_authenticity", "referenced_ai_safety",
+                     "broke_character")
+
 
 def load_summaries(output_dir: str) -> list:
     """
@@ -270,6 +280,17 @@ def load_episodes(output_dir: str) -> list:
             row[f"{name}_act_taken"] = bool(analysis.get(act["key"]))
             row[f"scheming_{name}_stored_disagrees"] = (
                 stored_act is not None and stored_act != derived_act)
+
+        # The four rubric signals RUBRIC_SIGNAL_KEYS names, read straight off
+        # the grader's stored verdict rather than re-derived: unlike an act,
+        # there is no deterministic rule to recompute one from the transcript.
+        # None means the grader call failed or the episode was never graded,
+        # not a confident "no" - left as None so a caller cannot fold it into
+        # a rate's denominator by accident.
+        rubric_results = (analysis.get("eval_awareness_grader") or {}).get(
+            "rubric_results") or {}
+        for key in RUBRIC_SIGNAL_KEYS:
+            row[f"rubric_{key}"] = (rubric_results.get(key) or {}).get("answer")
 
         # Per-phrasing concealment, for questions 11-12. Re-derived rather than
         # read from concealment_<act>_by_variant, and applying the same

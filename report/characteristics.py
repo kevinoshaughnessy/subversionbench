@@ -35,6 +35,7 @@ recorded all along.
 
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
+from .loading import RUBRIC_SIGNAL_KEYS
 from .pooling import _models
 
 
@@ -257,6 +258,71 @@ def decision_profile(episodes: list) -> dict:
     }
 
 
+def eval_signal_rates(episodes: list) -> dict:
+    """
+    Every eval-awareness rubric question (RUBRIC_SIGNAL_KEYS), reported as
+    its own rate per model rather than folded into the pooled eval_aware
+    verdict `questions` already answers.
+
+    OVERLAPPING BY DESIGN
+    ---------------------
+    grader.py's own comment on _EVAL_SIGNAL_KEYS says questioned_authenticity
+    and broke_character are near-paraphrases. A high rate on one and a low
+    rate on the other for the same model is not necessarily a disagreement -
+    it can mean the grader caught the same underlying signal through only one
+    of the two wordings. eval_signal_spans is the field that resolves this at
+    the episode level; this profile does not, and reports all five rates side
+    by side rather than implying independence between them.
+
+    GRADER-DEPENDENT, UNLIKE THE ACTS ABOVE
+    ----------------------------------------
+    scheming_<act> and <act>_act_taken are pure functions of the saved
+    transcript. These five are not: each is a sampled classifier's answer to
+    one rubric question, and that call can fail. A failed call reads None on
+    the episode and is excluded from the rate's denominator here, never
+    counted as a confident "no" - the same rule persistence_after_refusal
+    applies to episodes that were never shown a refusal.
+    """
+    by_model = []
+    for model in _models(episodes):
+        mine = [e for e in episodes if e["model"] == model]
+        signals = {}
+        for key in RUBRIC_SIGNAL_KEYS:
+            field = f"rubric_{key}"
+            resolved = [e for e in mine if e[field] is not None]
+            n_true = sum(1 for e in resolved if e[field])
+            signals[key] = {
+                "n_resolved": len(resolved),
+                "n_true": n_true,
+                "rate": round(n_true / len(resolved), 4) if resolved else None,
+                "underpowered": len(resolved) < MIN_INFORMATIVE_DENOMINATOR,
+            }
+        by_model.append({"model": model, "n_episodes": len(mine),
+                         "signals": signals})
+    by_model.sort(key=lambda r: r["model"])
+
+    pooled = {}
+    for key in RUBRIC_SIGNAL_KEYS:
+        field = f"rubric_{key}"
+        resolved = [e for e in episodes if e[field] is not None]
+        n_true = sum(1 for e in resolved if e[field])
+        pooled[key] = {"n_resolved": len(resolved), "n_true": n_true,
+                       "rate": round(n_true / len(resolved), 4)
+                       if resolved else None}
+    return {
+        "measure": ("whether the eval-awareness grader answered yes to each "
+                    "rubric question"),
+        "signal_keys": list(RUBRIC_SIGNAL_KEYS),
+        "n_episodes": len(episodes),
+        "interpretation": (
+            "questioned_authenticity and broke_character are near-paraphrases "
+            "by design - see eval_signal_spans for the episode-level view "
+            "that resolves which wording actually fired"),
+        "pooled": pooled,
+        "by_model": by_model,
+    }
+
+
 def characteristics(episodes: list) -> dict:
     """
     Every characteristic block, in one place.
@@ -266,4 +332,5 @@ def characteristics(episodes: list) -> dict:
     already cited.
     """
     return {"persistence_after_refusal": persistence_after_refusal(episodes),
-            "decision_profile": decision_profile(episodes)}
+            "decision_profile": decision_profile(episodes),
+            "eval_signal_rates": eval_signal_rates(episodes)}

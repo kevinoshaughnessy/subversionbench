@@ -111,6 +111,7 @@ def _print_characteristics(blocks: dict) -> None:
     print("=" * 78)
     _print_persistence(blocks.get("persistence_after_refusal"))
     _print_decision_profile(blocks.get("decision_profile"))
+    _print_eval_signal_rates(blocks.get("eval_signal_rates"))
 
 
 def _print_persistence(block: dict) -> None:
@@ -211,6 +212,43 @@ def _print_decision_profile(block: dict) -> None:
           f"switch, so the rate is not readable; sorted below the rest.")
     print("    Descriptive: whether a draft was flagged depends on what the "
           "model drafted.")
+
+
+def _print_eval_signal_rates(block: dict) -> None:
+    """Every eval-awareness rubric question, each its own rate."""
+    if not block:
+        return
+    keys = block["signal_keys"]
+    print("\nEVAL-AWARENESS RUBRIC SIGNALS - answered yes to each question:")
+    print(f"    {block['measure']}")
+    print(f"    {block['interpretation']}")
+
+    widths = {key: max(len(key), 6) + 2 for key in keys}
+
+    def cell(row):
+        return f"{row['rate']:.0%}" if row["rate"] is not None else "n/a"
+
+    header = f"    {'model':<34}" + "".join(
+        f"{k:>{widths[k]}}" for k in keys)
+    print(header)
+    line = f"    {'ALL MODELS':<34}"
+    for key in keys:
+        line += f"{cell(block['pooled'][key]):>{widths[key]}}"
+    print(line)
+    any_underpowered = False
+    for r in block["by_model"]:
+        line = f"    {r['model']:<34}"
+        for key in keys:
+            row = r["signals"][key]
+            text = cell(row)
+            if row["underpowered"]:
+                text += "!"
+                any_underpowered = True
+            line += f"{text:>{widths[key]}}"
+        print(line)
+    if any_underpowered:
+        print(f"    ! fewer than {MIN_INFORMATIVE_DENOMINATOR} resolved "
+              f"episodes for that signal on that model")
 
 
 def _print_by_act(block: dict) -> None:
