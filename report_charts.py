@@ -947,6 +947,52 @@ def _draw_signal_chart(plt, clusters: list, signal_keys: list, title: str,
     return path
 
 
+def _encoded_payload_rate_rows(profile: dict) -> list:
+    """
+    One row per model with at least one resolved episode, sorted the way
+    `_by_model` already returns them (alphabetically) rather than by rate -
+    unlike persistence, there is no meaningful "worst offender" ordering for a
+    concealment attempt this rare in the corpus.
+
+    `marked` carries whether the model clears MIN_INFORMATIVE_DENOMINATOR,
+    the same hollow-marker convention plot_eval_signal_rates uses for the
+    same reason - a rate estimated from very few episodes reads differently
+    from one estimated from many, and the marker should say so at a glance.
+    """
+    rows = []
+    for r in profile.get("by_model") or []:
+        if not r["n_resolved"]:
+            continue
+        lo, hi = wilson_ci(r["n_true"], r["n_resolved"]) or (None, None)
+        rows.append(Row(r["model"], r["rate"], lo, hi, "model",
+                        marked=not r["underpowered"], note=f"n={r['n_resolved']}"))
+    return rows
+
+
+def plot_encoded_payload_rate(plt, report: dict, path: str) -> str:
+    """How often each model wrote a base64 payload the grader could decode."""
+    profile = (report.get("characteristics") or {}).get(
+        "encoded_payload_rate") or {}
+    rows = _encoded_payload_rate_rows(profile)
+    if not rows:
+        return None
+    ref = (profile.get("pooled") or {}).get("rate")
+    captions = [
+        (profile.get("measure", "") + ".", "#555555"),
+        ("filled marker: at least "
+         f"{MIN_INFORMATIVE_DENOMINATOR} resolved episodes for that model. "
+         "open: fewer.", "#555555"),
+        ("descriptive, not causal, and not folded into any misalignment act - "
+         "see grading/encoded_payload.py for what this can and cannot prove.",
+         "#555555"),
+        ("intervals: 95% Wilson", "#777777"),
+    ]
+    return _draw_rate_chart(
+        plt, rows, "Encoded payloads in the model's own words", captions,
+        path, "episodes with a decodable payload (%)", ref=ref,
+        ref_label=f"all models: {ref:.1%}" if ref is not None else "")
+
+
 def plot_eval_signal_rates(plt, report: dict, path: str) -> str:
     """Every eval-awareness rubric question, each its own rate per model."""
     profile = (report.get("characteristics") or {}).get("eval_signal_rates") or {}
@@ -1000,4 +1046,7 @@ def write_charts(report: dict, chart_dir: str) -> list:
     signal_path = os.path.join(chart_dir, "eval_signal_rates.png")
     if plot_eval_signal_rates(plt, report, signal_path):
         written.append(signal_path)
+    encoded_path = os.path.join(chart_dir, "encoded_payload_rate.png")
+    if plot_encoded_payload_rate(plt, report, encoded_path):
+        written.append(encoded_path)
     return written

@@ -548,6 +548,73 @@ def _sep(model="m", **rubric):
     return row
 
 
+def _pep(model="m", encoded_payload=None):
+    """One episode row shaped like load_episodes builds them, for
+    encoded_payload_rate. None means not yet derived - unlike the rubric
+    signals, this is a pure function of the transcript, not a sampled
+    classifier's answer, but it still reads None until a run has been
+    through --resummarise at least once."""
+    return {"model": model, "encoded_payload": encoded_payload}
+
+
+class TestEncodedPayloadRateExcludesUngradedFromTheDenominator:
+    """The same not-yet-derived-is-not-clean rule eval_signal_rates applies to
+    a failed grader call, applied here to a run that predates
+    --resummarise."""
+
+    def test_none_is_excluded_not_counted_as_false(self):
+        eps = [_pep(encoded_payload=True), _pep(encoded_payload=None),
+              _pep(encoded_payload=None)]
+        b = rr.encoded_payload_rate(eps)
+        assert b["pooled"]["n_resolved"] == 1
+        assert b["pooled"]["rate"] == 1.0
+
+    def test_a_model_with_nothing_resolved_gets_no_rate_rather_than_zero(self):
+        eps = [_pep(encoded_payload=None)]
+        b = rr.encoded_payload_rate(eps)
+        assert b["by_model"][0]["rate"] is None
+
+
+class TestEncodedPayloadRatePerModel:
+    def test_rate_is_over_that_models_own_resolved_episodes(self):
+        eps = [_pep("a", encoded_payload=True), _pep("a", encoded_payload=False),
+              _pep("b", encoded_payload=True)]
+        b = rr.encoded_payload_rate(eps)
+        by_model = {r["model"]: r for r in b["by_model"]}
+        assert by_model["a"]["rate"] == 0.5
+        assert by_model["b"]["rate"] == 1.0
+
+    def test_a_thin_model_is_marked_underpowered(self):
+        eps = [_pep("a", encoded_payload=True)]
+        b = rr.encoded_payload_rate(eps)
+        assert b["by_model"][0]["underpowered"] is True
+
+
+class TestEncodedPayloadRatePooledSumsBeforeDividing:
+    def test_pooled_rate_is_not_a_mean_of_the_per_model_rates(self):
+        eps = ([_pep("a", encoded_payload=True)]
+              + [_pep("a", encoded_payload=False) for _ in range(9)]
+              + [_pep("b", encoded_payload=True)])
+        b = rr.encoded_payload_rate(eps)
+        assert b["pooled"]["rate"] == round(2 / 11, 4)
+
+
+class TestEncodedPayloadRateReachesTheReport:
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        path = _write_episode(out, 1, "m", "strong")
+        d = json.load(open(path))
+        d["analysis"]["encoded_payload"] = True
+        json.dump(d, open(path, "w"))
+        return out
+
+    def test_the_loader_reads_it_and_the_characteristic_reports_it(self):
+        eps = rr.load_episodes(self._dir())
+        assert eps[0]["encoded_payload"] is True
+        b = rr.encoded_payload_rate(eps)
+        assert b["pooled"]["rate"] == 1.0
+
+
 class TestEvalSignalRatesExcludesUngradedFromTheDenominator:
     """A failed grader call reads None on the episode, and None must not be
     folded into the rate's denominator as a confident 'no' - the same rule
@@ -623,10 +690,10 @@ class TestEvalSignalRatesReachesTheReport:
         b = rr.eval_signal_rates(eps)
         assert b["pooled"]["broke_character"]["rate"] == 1.0
 
-    def test_it_prints_without_suppressing_the_other_two_profiles(self):
+    def test_it_prints_without_suppressing_the_other_three_profiles(self):
         """Same dispatcher-isolation guard as
-        test_one_profile_cannot_suppress_the_other, extended to the third
-        profile: none of the three may swallow either of the others."""
+        test_one_profile_cannot_suppress_the_other, extended to the fourth
+        profile: none of the four may swallow any of the others."""
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rr._print_characteristics({
@@ -635,8 +702,11 @@ class TestEvalSignalRatesReachesTheReport:
                 "decision_profile": rr.decision_profile(
                     [_dep(seq=["A", "B"]), _dep(seq=["A", "A"])]),
                 "eval_signal_rates": rr.eval_signal_rates(
-                    [_sep(broke_character=True)])})
+                    [_sep(broke_character=True)]),
+                "encoded_payload_rate": rr.encoded_payload_rate(
+                    [_pep(encoded_payload=True)])})
         printed = buf.getvalue()
         assert "nothing to describe" in printed
         assert "TASK DECISION" in printed
         assert "EVAL-AWARENESS RUBRIC SIGNALS" in printed
+        assert "ENCODED PAYLOADS" in printed

@@ -281,7 +281,7 @@ def load_episodes(output_dir: str) -> list:
             row[f"scheming_{name}_stored_disagrees"] = (
                 stored_act is not None and stored_act != derived_act)
 
-        # The four rubric signals RUBRIC_SIGNAL_KEYS names, read straight off
+        # The five rubric signals RUBRIC_SIGNAL_KEYS names, read straight off
         # the grader's stored verdict rather than re-derived: unlike an act,
         # there is no deterministic rule to recompute one from the transcript.
         # None means the grader call failed or the episode was never graded,
@@ -291,6 +291,16 @@ def load_episodes(output_dir: str) -> list:
             "rubric_results") or {}
         for key in RUBRIC_SIGNAL_KEYS:
             row[f"rubric_{key}"] = (rubric_results.get(key) or {}).get("answer")
+
+        # A base64 payload in the model's own words - see
+        # subversionbench/grading/encoded_payload.py. Derived from the
+        # transcript, unlike the rubric signals above, but only by
+        # normalise_analyses (reporting/facts/normalise.py), not at live
+        # collection time - so this reads None until a run file has been
+        # through --resummarise at least once. None is the correct reading
+        # for "not yet derived" either way, so no special-casing is needed
+        # here beyond what classify_encoded_payload already returns.
+        row["encoded_payload"] = analysis.get("encoded_payload")
 
         # Per-phrasing concealment, for questions 11-12. Re-derived rather than
         # read from concealment_<act>_by_variant, and applying the same

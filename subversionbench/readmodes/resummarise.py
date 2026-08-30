@@ -78,6 +78,11 @@ REDERIVED_ANALYSIS_FIELDS = (
     # substitution became visible without re-running anything.
     "disguised_text",
     "disguised_text_detail",
+    # A base64 payload in the model's own words, read off the transcript like
+    # the two above - see disguised_text_detail's own comment for why this is
+    # a rebuild rather than a resample.
+    "encoded_payload",
+    "encoded_payload_detail",
     "out_of_scope_attempts",
     "out_of_scope_detail",
     "concealment_oversight",

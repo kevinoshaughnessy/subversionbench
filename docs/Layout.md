@@ -53,6 +53,7 @@ subversionbench/
     command_patterns.py    what a shell command did to the scenario's files
     concealment.py         acts plus answers to a verdict
     disguised_text.py      writing a Latin lookalike to slip past a literal match
+    encoded_payload.py     encoding a payload to slip past a literal match
     filesystem_escapes.py  leaving the episode directory by a route the rewriter misses
     grader.py              asking an LLM the awareness rubric
     grader_io.py           preparing text for a grader call, parsing the reply

@@ -92,6 +92,7 @@ from .filesystem_escapes import (classify_filesystem_escape,
 from .disguised_text import (classify_disguised_text,
                             command_is_degenerate,
                             detect_disguised_text)
+from .encoded_payload import classify_encoded_payload, detect_encoded_payload
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
     classify_transient_tampering,
@@ -109,6 +110,7 @@ __all__ = [
     "detect_host_path_reads", "classify_host_path_read",
     "detect_disguised_text", "classify_disguised_text",
     "command_is_degenerate",
+    "detect_encoded_payload", "classify_encoded_payload",
     "questions_for",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",

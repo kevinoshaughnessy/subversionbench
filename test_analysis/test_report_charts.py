@@ -17,6 +17,7 @@ import tempfile
 import report as run_report
 import report_charts as rc
 from subversionbench import charting
+from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 
 # ---------------------------------------------------------------------------
@@ -746,6 +747,136 @@ class TestPersistenceChartsInARealReport:
             assert run_report.main() == 0
             names = set(os.listdir(os.path.join(out, "charts")))
         assert "persistence_rate.png" in names
+
+
+# ---------------------------------------------------------------------------
+# Encoded payloads
+# ---------------------------------------------------------------------------
+#
+# Same split as the persistence charts above: report/characteristics.py's
+# encoded_payload_rate() owns the denominators and the pooling; this file owns
+# only the boundary from its profile dict to chart rows and a rendered
+# figure. Reuses _draw_rate_chart directly - a single-signal rate chart is
+# exactly what plot_persistence_rate already draws, so plot_encoded_payload_rate
+# is a second caller of the same drawing function rather than a new one.
+
+def _epr_row(model, n_resolved, n_true, underpowered=None):
+    """One `by_model` entry shaped like encoded_payload_rate() emits."""
+    return {
+        "model": model, "n_episodes": n_resolved,
+        "n_resolved": n_resolved, "n_true": n_true,
+        "rate": round(n_true / n_resolved, 4) if n_resolved else None,
+        "underpowered": (n_resolved < MIN_INFORMATIVE_DENOMINATOR
+                         if underpowered is None else underpowered),
+    }
+
+
+def _epr_profile(by_model=None, **over):
+    by_model = by_model if by_model is not None else []
+    n_resolved = sum(r["n_resolved"] for r in by_model)
+    n_true = sum(r["n_true"] for r in by_model)
+    profile = {
+        "measure": ("whether the episode contains a base64-alphabet run in "
+                    "the model's own words that decodes to real text"),
+        "n_episodes": n_resolved,
+        "pooled": {"n_resolved": n_resolved, "n_true": n_true,
+                  "rate": round(n_true / n_resolved, 4) if n_resolved else None},
+        "by_model": by_model,
+    }
+    profile.update(over)
+    return profile
+
+
+class TestEncodedPayloadRateRows:
+    def test_one_row_per_model_with_resolved_episodes(self):
+        profile = _epr_profile([
+            _epr_row("p/a", 10, 8), _epr_row("p/b", 6, 1)])
+        rows = rc._encoded_payload_rate_rows(profile)
+        assert [r.label for r in rows] == ["p/a", "p/b"]
+        assert [r.diff for r in rows] == [0.8, round(1 / 6, 4)]
+
+    def test_a_model_with_no_resolved_episodes_gets_no_row(self):
+        profile = _epr_profile([_epr_row("p/a", 0, 0), _epr_row("p/b", 5, 1)])
+        rows = rc._encoded_payload_rate_rows(profile)
+        assert [r.label for r in rows] == ["p/b"]
+
+    def test_the_interval_is_wilson_and_brackets_the_point_estimate(self):
+        rows = rc._encoded_payload_rate_rows(
+            _epr_profile([_epr_row("p/a", 20, 12)]))
+        row = rows[0]
+        assert row.lo is not None and row.hi is not None
+        assert row.lo <= row.diff <= row.hi
+
+    def test_marked_carries_powered_not_significance(self):
+        profile = _epr_profile([
+            _epr_row("p/powered", 25, 1, underpowered=False),
+            _epr_row("p/thin", 3, 1, underpowered=True),
+        ])
+        rows = {r.label: r for r in rc._encoded_payload_rate_rows(profile)}
+        assert rows["p/powered"].marked is True
+        assert rows["p/thin"].marked is False
+
+    def test_the_support_count_travels_with_the_row(self):
+        rows = rc._encoded_payload_rate_rows(
+            _epr_profile([_epr_row("p/a", 37, 1)]))
+        assert rows[0].note == "n=37"
+
+    def test_no_models_means_no_rows(self):
+        assert rc._encoded_payload_rate_rows(_epr_profile([])) == []
+
+
+class TestEncodedPayloadChartRenders:
+    def _report(self, **profile_over):
+        return {"characteristics": {
+            "encoded_payload_rate": _epr_profile(
+                [_epr_row("p/a", 61, 1, underpowered=False),
+                 _epr_row("p/b", 10, 0, underpowered=True)],
+                **profile_over)}}
+
+    def test_the_chart_renders(self):
+        _plt()
+        report = self._report()
+        with tempfile.TemporaryDirectory() as out:
+            path = rc.plot_encoded_payload_rate(
+                rc.charting.import_pyplot(), report,
+                os.path.join(out, "e.png"))
+            assert path and os.path.exists(path)
+
+    def test_no_characteristics_key_means_no_chart(self):
+        """A report built before this feature existed must draw nothing here
+        rather than raising."""
+        _plt()
+        plt = rc.charting.import_pyplot()
+        with tempfile.TemporaryDirectory() as out:
+            assert rc.plot_encoded_payload_rate(
+                plt, {"questions": []}, os.path.join(out, "e.png")) is None
+
+    def test_no_resolved_episodes_means_no_chart(self):
+        _plt()
+        plt = rc.charting.import_pyplot()
+        report = {"characteristics": {
+            "encoded_payload_rate": _epr_profile([])}}
+        with tempfile.TemporaryDirectory() as out:
+            assert rc.plot_encoded_payload_rate(
+                plt, report, os.path.join(out, "e.png")) is None
+
+    def test_the_measure_reaches_the_caption(self):
+        _plt()
+        plt = rc.charting.import_pyplot()
+        captured = []
+        original = rc._draw_rate_chart
+        def capture(plot, rows, title, captions, *a, **k):
+            captured.append(captions)
+            return original(plot, rows, title, captions, *a, **k)
+        rc._draw_rate_chart = capture
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                rc.plot_encoded_payload_rate(
+                    plt, self._report(), os.path.join(out, "e.png"))
+        finally:
+            rc._draw_rate_chart = original
+        texts = [c for c, _ in captured[0]]
+        assert any("base64-alphabet run" in t for t in texts)
 
 
 # ---------------------------------------------------------------------------

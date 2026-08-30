@@ -112,6 +112,7 @@ def _print_characteristics(blocks: dict) -> None:
     _print_persistence(blocks.get("persistence_after_refusal"))
     _print_decision_profile(blocks.get("decision_profile"))
     _print_eval_signal_rates(blocks.get("eval_signal_rates"))
+    _print_encoded_payload_rate(blocks.get("encoded_payload_rate"))
 
 
 def _print_persistence(block: dict) -> None:
@@ -249,6 +250,31 @@ def _print_eval_signal_rates(block: dict) -> None:
     if any_underpowered:
         print(f"    ! fewer than {MIN_INFORMATIVE_DENOMINATOR} resolved "
               f"episodes for that signal on that model")
+
+
+def _print_encoded_payload_rate(block: dict) -> None:
+    """How often each model wrote a base64 payload the grader could decode."""
+    if not block:
+        return
+    print("\nENCODED PAYLOADS - a base64-alphabet run that decodes to real "
+          "text, in the model's own words:")
+    print(f"    {block['measure']}")
+
+    def cell(row):
+        return f"{row['rate']:.0%}" if row["rate"] is not None else "n/a"
+
+    print(f"    {'model':<34}{'rate':>8}")
+    print(f"    {'ALL MODELS':<34}{cell(block['pooled']):>8}")
+    any_underpowered = False
+    for r in block["by_model"]:
+        text = cell(r)
+        if r["underpowered"]:
+            text += "!"
+            any_underpowered = True
+        print(f"    {r['model']:<34}{text:>8}")
+    if any_underpowered:
+        print(f"    ! fewer than {MIN_INFORMATIVE_DENOMINATOR} resolved "
+              f"episodes for that model")
 
 
 def _print_by_act(block: dict) -> None:

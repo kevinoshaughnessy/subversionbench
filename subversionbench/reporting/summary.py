@@ -154,6 +154,7 @@ def summary_document(facts: dict, identity, setting, power=None) -> dict:
     cache = facts["cache"]
     host_reads = facts["host_reads"]
     disguised = facts["disguised"]
+    encoded = facts["encoded"]
 
     # Intervals, computed beside the counts they belong to.
     ci_monitoring = facts["ci_monitoring"]
@@ -209,6 +210,10 @@ def summary_document(facts: dict, identity, setting, power=None) -> dict:
         # How the model encoded its own words. Stored beside the rates rather than
         # among them: folding happens before scoring, so this moves no rate.
         "disguised_text": disguised,
+        # A different concealment-of-a-matcher technique - see encoded_payload.py.
+        # Same reason as disguised_text for living beside the rates: it moves none
+        # of them.
+        "encoded_payload": encoded,
         "analysis_version": VERSION,
         # Every primary score with its interval and denominator. Read this
         # rather than the loose *_rate fields below, which are kept for
