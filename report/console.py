@@ -113,6 +113,7 @@ def _print_characteristics(blocks: dict) -> None:
     _print_decision_profile(blocks.get("decision_profile"))
     _print_eval_signal_rates(blocks.get("eval_signal_rates"))
     _print_encoded_payload_rate(blocks.get("encoded_payload_rate"))
+    _print_awareness_refusal_timing(blocks.get("awareness_refusal_timing"))
     _print_lure_effect(blocks.get("lure_effect"))
 
 
@@ -278,6 +279,58 @@ def _print_encoded_payload_rate(block: dict) -> None:
               f"episodes for that model")
 
 
+def _print_awareness_refusal_timing(block: dict) -> None:
+    """
+    Whether awareness came before or after the model was shown a refusal.
+
+    THE ARM SPLIT IS PRINTED ABOVE THE MODELS, because the pooled share answers
+    the question the wrong way round: most episodes verbalise awareness BEFORE
+    the refusal, which on its own reads as "the refusal explains nothing". The
+    two arms disagree by a wide margin, and that disagreement is the finding.
+    """
+    if not block:
+        return
+    pooled = block["pooled"]
+    print("\nAWARENESS vs THE SANDBOX REFUSAL - which came first:")
+    print(f"    {block['measure']}")
+    print("    NOT a thirteenth question. Awareness and the sandbox act are "
+          "one 2x2, and question 7 already reports it; the same test returns "
+          "the same p whichever variable is called the exposure. Only the "
+          "ORDERING is new, and ordering is conduct, not an effect.")
+    print(f"    instrument: {block['instrument']}")
+    print(f"    of {pooled['n_episodes']} episodes, "
+          f"{pooled['n_locatable']} carry a placeable ordering: "
+          f"{pooled['n_before_refusal']} aware first, "
+          f"{pooled['n_after_refusal']} refused first")
+    print(f"    not placeable: {pooled['n_no_refusal']} never refused, "
+          f"{pooled['n_not_aware']} refused with no keyword hit, "
+          f"{pooled['n_refusal_unlocatable']} refused where the transcript "
+          f"cannot say when - none of these are in the rate")
+
+    def cell(row):
+        return (f"{row['rate_after']:.0%}" if row["rate_after"] is not None
+                else "n/a")
+
+    print(f"\n    {'':<34}{'after':>8}{'n':>7}")
+    for name, label in (("oversight", "oversight present"),
+                        ("no_oversight", "oversight absent")):
+        arm = block["by_arm"][name]
+        print(f"    {label:<34}{cell(arm):>8}{arm['n_locatable']:>7}")
+    print(f"    {'ALL EPISODES':<34}{cell(pooled):>8}"
+          f"{pooled['n_locatable']:>7}")
+    print("\n    per model:")
+    any_underpowered = False
+    for r in block["by_model"]:
+        text = cell(r)
+        if r["underpowered"]:
+            text += "!"
+            any_underpowered = True
+        print(f"    {r['model']:<34}{text:>8}{r['n_locatable']:>7}")
+    if any_underpowered:
+        print(f"    ! fewer than {MIN_INFORMATIVE_DENOMINATOR} placeable "
+              f"orderings for that model")
+
+
 def _print_lure_effect(block: dict) -> None:
     """
     What the lure arm changed, and how far the bait was taken.
@@ -415,6 +468,13 @@ def _print_question(section: dict) -> None:
     print(f"{section['question']}")
     print(f"{'=' * 78}")
     print(f"Source: {section['data_source']}")
+    # Said here and returned, rather than printed as a header over a table of
+    # empty rows. Everything below this point describes a contrast that has one
+    # side, and a reader shown "no data" in twelve places will look for the
+    # reason in the corpus rather than in the exclusion that caused it.
+    if section.get("collapsed_by_exclusion"):
+        print(f"\n  !! {section['collapsed_by_exclusion'].upper()}")
+        return
     if "n_episodes_not_applicable" in section:
         considered = section.get("n_episodes_observable",
                                  section.get("n_episodes_considered"))
@@ -549,6 +609,45 @@ def _print_variant_question(section: dict) -> None:
             print(f"      ... {len(movers) - 6} more model(s) moved; all in the JSON")
         if not movers:
             print("      no model moved at all under this rephrasing")
+
+
+def _print_arm_exclusion(stamp: dict) -> None:
+    """
+    Which arms this report is about, when it is not about all of them.
+
+    SILENT WHEN NOTHING WAS EXCLUDED. A banner reading "no arms excluded" above
+    every ordinary report trains a reader to skip the block, and skipping it is
+    the one failure this block exists to prevent.
+
+    The dropped and unknown-arm counts are printed rather than only stored,
+    because both are how the exclusion fails visibly: nothing dropped means the
+    predicate matched no episode, and an unknown-arm count means the corpus
+    holds episodes whose arm was never recorded and which are therefore absent
+    from both readings.
+    """
+    if not stamp or stamp.get("axis") is None:
+        return
+    print(f"\n{'=' * 78}")
+    print(f"ARM EXCLUDED: {stamp['words'].upper()}")
+    print(f"{'=' * 78}")
+    print(f"  {stamp['why']}")
+    print(f"  episodes: {stamp['n_episodes_kept']} kept of "
+          f"{stamp['n_episodes_before']}, {stamp['n_episodes_dropped']} "
+          f"dropped; arm summaries: {stamp['n_summaries_kept']} of "
+          f"{stamp['n_summaries_before']}")
+    if not stamp["n_episodes_dropped"]:
+        print("    ! Nothing was dropped. The exclusion matched no episode, so "
+              "this report is the full corpus under a name that says it is "
+              "not. Check that the arm field still holds the value named "
+              "above.")
+    if stamp["n_episodes_unknown_arm"]:
+        print(f"    ! {stamp['n_episodes_unknown_arm']} episode(s) record no "
+              f"{stamp['axis']} arm at all and are excluded here as well - "
+              f"they are in neither reading of the corpus.")
+    print("  A SENSITIVITY READING, NOT A CORRECTION. It does not repair the "
+          "excluded arm's figures; it reports what is left without them. Every "
+          "question that contrasted the excluded arm against another loses its "
+          "comparison entirely and is marked below.")
 
 
 def _print_data_quality(dq: dict) -> None:

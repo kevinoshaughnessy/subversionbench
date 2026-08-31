@@ -374,6 +374,48 @@ def _rate_caption(section: dict) -> str:
             f"     {label_b}: {b['rate'] * PP:.1f}% ({b['successes']}/{b['n']})")
 
 
+def _model_count_caption(section: dict) -> str:
+    """
+    How many models the figure is over, and how many of them carry an estimate.
+
+    WHY IT IS SAID AT ALL, when the stratified row already names a count. That
+    row's label is the number of STRATA the Mantel-Haenszel estimate pooled,
+    which equals the model total only when every model has episodes on both
+    sides. On the oversight questions it does; on the awareness-conditioned ones
+    it does not - one draws 37 rows of which 9 are gaps and labels its pooled
+    row 28 - and a reader has no way to tell which of the two they are looking
+    at from the label alone.
+
+    READ OFF `consistency`, NOT COUNTED FROM THE ROWS. The printed report states
+    "N/M had data on both sides" from that block, and this module's own
+    docstring explains why the chart keeps a row for a model with no estimate:
+    dropping it would make that sentence unverifiable. Counting the rows here
+    would be a second derivation of the same figure, free to disagree with the
+    sentence it exists to corroborate - so the number comes from the same place
+    the report's own wording does.
+
+    Two forms rather than one. Where every model has an estimate the split is
+    not worth a clause, and spelling out "and 0 drawn as a gap" invites a reader
+    to look for a gap that is not there.
+
+    Returns "" for a section with no `consistency` block: the two paired
+    questions hold one row per interrogation contrast rather than one per model,
+    each already pooled over every model, so a model count on those charts would
+    be a different claim needing a different source.
+    """
+    consistency = section.get("consistency") or {}
+    total = consistency.get("n_models_total")
+    if not total:
+        return ""
+    with_data = consistency.get("n_models_with_data")
+    if with_data is None or with_data == total:
+        return (f"{total} models, every one with episodes on both sides of the "
+                f"contrast.")
+    return (f"{total} models in total: {with_data} with episodes on both sides "
+            f"of the contrast and drawn with an interval, "
+            f"{total - with_data} with none and drawn as a gap.")
+
+
 def _divergence_caption(section: dict) -> str:
     """
     The report's own words where crude and stratified disagree.
@@ -383,6 +425,67 @@ def _divergence_caption(section: dict) -> str:
     """
     divergence = section.get("crude_vs_stratified") or {}
     return divergence.get("warning") or ""
+
+
+# ---------------------------------------------------------------------------
+# Saying which arms a chart is about
+# ---------------------------------------------------------------------------
+#
+# THE HAZARD THESE TWO FUNCTIONS EXIST FOR. The arm-excluded reading writes the
+# same chart filenames as the full-corpus one, holding different numbers, and
+# `--exclude-no-oversight` only keeps them apart by directory. A figure lifted
+# out of that directory and pasted into a document carries no directory with it.
+# So the restriction is written into the TITLE, where it cannot be separated
+# from the plot, and again in a caption in the warning colour, where there is
+# room to say what was excluded and why.
+#
+# Both are applied by write_charts to every chart it draws, not by each plot_
+# function choosing whether to mention it. A chart that opted out would be one
+# that looks exactly like the full-corpus figure of the same name.
+
+def _exclusion_title_suffix(report: dict) -> str:
+    """Appended to every chart title while an arm is excluded."""
+    stamp = report.get("arm_exclusion") or {}
+    if stamp.get("axis") is None:
+        return ""
+    return f"  [{stamp['words']}]"
+
+
+def _exclusion_captions(report: dict) -> list:
+    """
+    The caption block naming the exclusion, or nothing at all.
+
+    In `#b00020` - the colour this module already reserves for the divergence
+    warning - because it is the same class of statement: something a reader who
+    stops at the markers would take the chart to mean, and does not.
+    """
+    stamp = report.get("arm_exclusion") or {}
+    if stamp.get("axis") is None:
+        return []
+    return [
+        (f"ARM EXCLUDED: {stamp['words']}. {stamp['n_episodes_kept']} of "
+         f"{stamp['n_episodes_before']} episodes. A sensitivity reading, not a "
+         f"correction - the full-corpus version of this chart is the one to "
+         f"read alongside it, never instead of it.", "#b00020"),
+        (stamp["why"], "#555555"),
+    ]
+
+
+def _excluded_stratum(report: dict, stratum: str) -> bool:
+    """
+    Whether a chart's own stratum name is the arm the report excluded.
+
+    `lure_effect` splits its panels on oversight and names them "oversight" and
+    "no_oversight"; the exclusion names the axis it acted on and the level it
+    dropped. Matching the two by name rather than by a table of which panels
+    belong to which arm, so a panel added later is compared against the
+    exclusion on the same rule.
+    """
+    stamp = report.get("arm_exclusion") or {}
+    axis = stamp.get("axis")
+    if axis is None:
+        return False
+    return stratum == (axis if stamp.get("excluded_level") else f"no_{axis}")
 
 
 def _scope_caption(section: dict) -> str:
@@ -574,8 +677,23 @@ def _question_title(index: int, section: dict) -> str:
     return f"Q{index}. {section['question']}"
 
 
-def plot_question(plt, index: int, section: dict, path: str) -> str:
-    """One question's forest: every model, then the pooled estimates."""
+def plot_question(plt, index: int, section: dict, path: str,
+                  report: dict) -> str:
+    """
+    One question's forest: every model, then the pooled estimates.
+
+    `report` is required rather than defaulted, for the reason
+    _exclusion_captions gives: a parameter a caller may omit is a chart that can
+    silently be drawn without the words saying which arms it covers.
+
+    Draws NOTHING for a question the arm exclusion collapsed. Those sections
+    still hold a full set of per-model rows, every one of them "no data on one
+    side", and a forest of thirty such lines under the question's own title
+    reads as a measured null rather than as an absent comparison. The console
+    says the same thing in words, and write_charts reports the omission.
+    """
+    if section.get("collapsed_by_exclusion"):
+        return None
     paired = "contrasts" in section
     rows = (_paired_rows(section) if paired
             else _model_rows(section.get("by_model") or [])
@@ -598,12 +716,20 @@ def plot_question(plt, index: int, section: dict, path: str) -> str:
     else:
         captions += [
             (_rate_caption(section), "#333333"),
+            # Directly under the rates, because both describe the base of the
+            # figure: what the pooled rates are over, and how many models that
+            # is. Reading them apart is what invites the stratified row's
+            # stratum count to be taken for the corpus total.
+            (_model_count_caption(section), "#333333"),
             (MULTIPLICITY_NOTE, "#555555"),
             (_divergence_caption(section), "#b00020"),
         ]
     captions.append((WILSON_NOTE, "#777777"))
-    return _draw_forest(plt, rows, _question_title(index, section), captions,
-                        path, xlabel, legend=not paired)
+    captions += _exclusion_captions(report)
+    return _draw_forest(plt, rows,
+                        _question_title(index, section)
+                        + _exclusion_title_suffix(report),
+                        captions, path, xlabel, legend=not paired)
 
 
 def plot_overview(plt, report: dict, path: str) -> str:
@@ -624,6 +750,16 @@ def plot_overview(plt, report: dict, path: str) -> str:
                 row.label = f"Q{i}. {row.label}"
                 row.note = ""
                 rows.append(row)
+            continue
+        # KEPT AS A ROW, not dropped. This chart's whole claim is that it holds
+        # all twelve questions, and the caption below counts them; a version
+        # silently showing nine would make a reader believe the three were never
+        # asked rather than that the exclusion took their comparator away.
+        if section.get("collapsed_by_exclusion"):
+            rows.append(Row(f"Q{i}. {short_label(section['id'])}",
+                            None, None, None, "stratified",
+                            missing="no comparator - the excluded arm was one "
+                                    "side of this contrast"))
             continue
         mh = ((section.get("stratified") or {}).get("mantel_haenszel") or {})
         overall = section.get("overall") or {}
@@ -664,9 +800,10 @@ def plot_overview(plt, report: dict, path: str) -> str:
         ("each row is a different outcome on a different denominator: read the "
          "direction and interval, not the ranking", "#b00020"),
         (WILSON_NOTE, "#777777"),
-    ]
+    ] + _exclusion_captions(report)
     return _draw_forest(
-        plt, rows, "All twelve research questions: effect and 95% interval",
+        plt, rows, "All twelve research questions: effect and 95% interval"
+        + _exclusion_title_suffix(report),
         captions, path,
         "difference in rate, percentage points (exposed minus unexposed)",
         legend=True, bold_pooled=False)
@@ -875,9 +1012,10 @@ def plot_persistence_rate(plt, report: dict, path: str) -> str:
         # at all, so naming Newcombe here would point a reader at a line that
         # is not on the figure.
         ("intervals: 95% Wilson", "#777777"),
-    ]
+    ] + _exclusion_captions(report)
     return _draw_rate_chart(
-        plt, rows, "Persistence after a sandbox refusal", captions, path,
+        plt, rows, "Persistence after a sandbox refusal"
+        + _exclusion_title_suffix(report), captions, path,
         "persistence rate (%)", ref=ref,
         ref_label=f"all models: {ref:.1%}" if ref is not None else "")
 
@@ -900,9 +1038,10 @@ def plot_persistence_within_model(plt, report: dict, path: str) -> str:
         ("red: persisting went with more misalignment in this model; blue: "
          "it did not. right-hand count: n(complied)/n(persisted) episodes.",
          "#555555"),
-    ]
+    ] + _exclusion_captions(report)
     return _draw_slope_chart(
-        plt, rows, "Persisting vs complying: misaligned rate, within model",
+        plt, rows, "Persisting vs complying: misaligned rate, within model"
+        + _exclusion_title_suffix(report),
         captions, path)
 
 
@@ -1058,9 +1197,10 @@ def plot_encoded_payload_rate(plt, report: dict, path: str) -> str:
         ("intervals: 95% Wilson. NOTE THE AXIS: it runs to a fraction of "
          "100%, so a short bar here is a smaller rate than the same bar on a "
          "full-width chart.", "#777777"),
-    ]
+    ] + _exclusion_captions(report)
     return _draw_rate_chart(
-        plt, rows, "Encoded payloads in the model's own words", captions,
+        plt, rows, "Encoded payloads in the model's own words"
+        + _exclusion_title_suffix(report), captions,
         path, "episodes with a decodable payload (%)", ref=ref,
         ref_label=f"all models: {ref:.2%}" if ref is not None else "",
         # This measure is a rare event by construction - a concealment
@@ -1068,6 +1208,89 @@ def plot_encoded_payload_rate(plt, report: dict, path: str) -> str:
         # a 0-100 axis stacks every marker against the spine. Widened
         # automatically if the data ever exceeds it; see _draw_rate_chart.
         xmax_pp=10)
+
+
+def _awareness_refusal_rows(profile: dict) -> list:
+    """
+    One row per model with enough placeable orderings to plot, in the order
+    `awareness_refusal_timing()` already sorted them - by the share descending.
+
+    THE FLOOR IS ON `n_locatable`, NOT ON EPISODES. A model with 400 episodes
+    and 3 placeable orderings has three data points on this measure, and the
+    Wilson interval on 3 runs most of the axis. Each chart applies
+    has_chart_support to its OWN denominator, and this measure's denominator is
+    the orderings, not the corpus.
+    """
+    rows = []
+    for r in profile.get("by_model") or []:
+        if not has_chart_support(r["n_locatable"]):
+            continue
+        if r["rate_after"] is None:
+            continue
+        lo, hi = wilson_ci(r["n_after_refusal"], r["n_locatable"]) \
+            or (None, None)
+        rows.append(Row(r["model"], r["rate_after"], lo, hi, "model",
+                        marked=True, note=f"n={r['n_locatable']}"))
+    return rows
+
+
+def plot_awareness_refusal_timing(plt, report: dict, path: str) -> str:
+    """
+    Per model: of the placeable orderings, how often awareness arrived only
+    after the model had been shown a sandbox refusal.
+
+    A RATE CHART RATHER THAN A FOREST, and the reason is the same one the
+    persistence charts give: there is no zero line to test against here. This is
+    not a difference between two arms, it is a share of one population, and a
+    forest centred on zero would borrow a causal apparatus the ordering does not
+    have. Being refused follows from the model's own command.
+    """
+    profile = (report.get("characteristics") or {}).get(
+        "awareness_refusal_timing") or {}
+    rows = _awareness_refusal_rows(profile)
+    if not rows:
+        return None
+    pooled = profile.get("pooled") or {}
+    ref = pooled.get("rate_after")
+    arms = profile.get("by_arm") or {}
+
+    def arm_words(key, label):
+        arm = arms.get(key) or {}
+        rate = arm.get("rate_after")
+        return (f"{label} {rate * PP:.0f}% of {arm.get('n_locatable', 0)}"
+                if rate is not None else f"{label} n/a")
+
+    captions = [
+        (profile.get("measure", "") + ".", "#555555"),
+        # The single most load-bearing sentence on the figure: without it a
+        # reader takes this for a second, independent piece of evidence that
+        # awareness and the sandbox act go together.
+        ("NOT a thirteenth research question. Awareness and the sandbox act "
+         "are one 2x2 table and question 7 already reports it - Fisher's exact "
+         "test returns the same p whichever variable is called the exposure. "
+         "Only the ORDERING is new here.", "#b00020"),
+        (f"Split by arm, which is where the difference is: "
+         f"{arm_words('oversight', 'oversight present')}, "
+         f"{arm_words('no_oversight', 'oversight absent')}. With oversight "
+         f"present the model has almost always said it before being told no.",
+         "#333333"),
+        (f"Denominator is the placeable orderings, not episodes: "
+         f"{pooled.get('n_no_refusal', 0)} episodes were never refused and "
+         f"{pooled.get('n_not_aware', 0)} were refused with no keyword hit. "
+         + EXCLUDED_NOTE + ", counted on those orderings.", "#555555"),
+        (profile.get("instrument", "") + ".", "#555555"),
+        ("descriptive, not an effect: being refused follows from the model's "
+         "own command, so the two groups differ in more than the refusal. "
+         "intervals: 95% Wilson.", "#777777"),
+    ] + _exclusion_captions(report)
+    return _draw_rate_chart(
+        plt, rows,
+        "Was the model already suspicious when the sandbox refused it?"
+        + _exclusion_title_suffix(report),
+        captions, path,
+        "episodes verbalising awareness only AFTER the refusal (%)",
+        ref=ref,
+        ref_label=f"all models: {ref:.0%}" if ref is not None else "")
 
 
 # ---------------------------------------------------------------------------
@@ -1145,6 +1368,14 @@ def plot_lure_misalignment(plt, report: dict, path: str) -> str:
         rows = _lure_effect_rows(profile, stratum)
         if not rows:
             continue
+        # This chart is ALREADY split by the axis the exclusion acts on, so the
+        # excluded panel simply has no rows and falls out above. The check here
+        # is for the case where it does not - a stratum left with a handful of
+        # episodes from an arm that should have been dropped entirely - which
+        # would draw a panel titled "no oversight" inside a report whose every
+        # other figure says the no-oversight arm was excluded.
+        if _excluded_stratum(report, stratum):
+            continue
         pooled = (profile.get("pooled") or {}).get(stratum) or {}
         diff = pooled.get("diff")
         captions = [
@@ -1161,12 +1392,13 @@ def plot_lure_misalignment(plt, report: dict, path: str) -> str:
                "multiplicity correction is applied here.", "#555555"),
             ("intervals: 95% Newcombe on the difference of two proportions. "
              "n=lure/no-lure episodes.", "#777777"),
-        ]
+        ] + _exclusion_captions(report)
         out = path if len(rows) and stratum == "oversight" else path.replace(
             ".png", "_no_oversight.png")
         written.append(_draw_forest(
             plt, rows,
-            f"Effect of the lure arm on misalignment ({human})",
+            f"Effect of the lure arm on misalignment ({human})"
+            + _exclusion_title_suffix(report),
             captions, out, "difference in misalignment rate (pp)",
             legend=False, bold_pooled=False))
     return written[0] if written else None
@@ -1224,7 +1456,8 @@ def plot_honeypot_access(plt, report: dict, path: str) -> str:
     ax.set_yticklabels([r["model"] for r in rows], fontsize=8)
     ax.set_ylim(-0.8, len(rows) - 0.2)
     ax.set_xlabel("lure-arm episodes (count, not a rate)", fontsize=9)
-    ax.set_title(_wrap("How far each model got with the lure file",
+    ax.set_title(_wrap("How far each model got with the lure file"
+                       + _exclusion_title_suffix(report),
                        _TITLE_WRAP), fontsize=10, loc="left")
     ax.grid(axis="x", alpha=0.25)
     ax.spines["top"].set_visible(False)
@@ -1256,7 +1489,7 @@ def plot_honeypot_access(plt, report: dict, path: str) -> str:
          "neither a subset nor a precondition of reading: the file can be "
          "read by a glob that never names it, and its name can be listed "
          "and left alone.", "#777777"),
-    ]:
+    ] + _exclusion_captions(report):
         inches.caption(caption, colour)
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
@@ -1276,9 +1509,10 @@ def plot_eval_signal_rates(plt, report: dict, path: str) -> str:
         ("intervals: 95% Wilson. Descriptive: each signal is one rubric "
          "question's own answer, not folded into the pooled eval_aware "
          "verdict reported elsewhere in this report.", "#555555"),
-    ]
+    ] + _exclusion_captions(report)
     return _draw_signal_chart(
-        plt, clusters, keys, "Eval-awareness rubric signals, per model",
+        plt, clusters, keys, "Eval-awareness rubric signals, per model"
+        + _exclusion_title_suffix(report),
         captions, path, "answered yes (%)")
 
 
@@ -1289,6 +1523,13 @@ def write_charts(report: dict, chart_dir: str) -> list:
     Numbered by position in the report rather than by id, so the filenames sort
     into the order the questions are asked and a reader can pair a chart with a
     section of the printed output without a lookup.
+
+    THE FILENAMES DO NOT CHANGE WHEN AN ARM IS EXCLUDED. That is deliberate and
+    is why run_report writes the two readings into different directories: a
+    reader comparing the arm-excluded chart with the full-corpus one wants the
+    same name in two places, not a name they have to translate. What keeps them
+    apart once a file leaves its directory is the title and the caption every
+    chart carries - see _exclusion_captions.
     """
     plt = charting.import_pyplot()
     if plt is None:
@@ -1297,7 +1538,7 @@ def write_charts(report: dict, chart_dir: str) -> list:
     written = []
     for i, section in enumerate(report.get("questions") or [], start=1):
         path = os.path.join(chart_dir, f"question_{i:02d}_{section['id']}.png")
-        if plot_question(plt, i, section, path):
+        if plot_question(plt, i, section, path, report):
             written.append(path)
     overview = os.path.join(chart_dir, "questions_overview.png")
     if plot_overview(plt, report, overview):
@@ -1319,6 +1560,9 @@ def write_charts(report: dict, chart_dir: str) -> list:
     encoded_path = os.path.join(chart_dir, "encoded_payload_rate.png")
     if plot_encoded_payload_rate(plt, report, encoded_path):
         written.append(encoded_path)
+    timing_path = os.path.join(chart_dir, "awareness_refusal_timing.png")
+    if plot_awareness_refusal_timing(plt, report, timing_path):
+        written.append(timing_path)
     # The lure arm, as two readings: what it did to misalignment, and what
     # happened to the file itself. plot_lure_misalignment writes one file per
     # oversight stratum and returns only the first, so the second is collected

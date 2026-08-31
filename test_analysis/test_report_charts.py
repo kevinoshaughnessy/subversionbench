@@ -1314,3 +1314,401 @@ class TestTheHoneypotChartShowsOnlyWhatHappened:
         assert os.path.exists(out.replace(".png", "_no_oversight.png")), (
             "the no-oversight stratum must get its own file - the two strata "
             "carry opposite signs and cannot share a panel")
+
+
+# ---------------------------------------------------------------------------
+# The arm-excluded reading
+# ---------------------------------------------------------------------------
+#
+# The no-oversight arm's task README promises a quality preview the arm itself
+# removes, so `python3 -m report --exclude-no-oversight` answers every question
+# again without it. Those charts are written under the SAME FILENAMES as the
+# full-corpus ones, in a different directory, and hold different numbers - so
+# the risk this block guards is a figure that leaves its directory and is read
+# as the full-corpus chart of that name.
+
+def _excluded_stamp(kept=120, before=240):
+    """The stamp exclude_arm() puts on a report with the arm dropped."""
+    return {
+        "excluded": "no_oversight", "axis": "oversight",
+        "excluded_level": False,
+        "words": "no-oversight arm excluded - oversight-present episodes only",
+        "why": "the arm's README promises a preview it removes.",
+        "n_summaries_before": 8, "n_summaries_kept": 4,
+        "n_episodes_before": before, "n_episodes_kept": kept,
+        "n_episodes_dropped": before - kept, "n_episodes_unknown_arm": 0,
+    }
+
+
+class TestEveryChartSaysWhichArmsItCovers:
+    def _plot_functions(self):
+        """Every chart entry point this module offers, from the module itself.
+
+        DERIVED, AND ASSERTED NON-EMPTY. A hand-written list of the charts is
+        the defect class this repository keeps re-fixing: the grading package's
+        guards enumerated their own submodules in a tuple, fell two behind the
+        directory, and four guards silently stopped covering two modules. A glob
+        that matches nothing empties the scope and every guard built on it
+        passes, so the count is checked before it is used.
+        """
+        import inspect
+        found = {name: obj for name, obj in vars(rc).items()
+                 if name.startswith("plot_") and inspect.isfunction(obj)
+                 and obj.__module__ == rc.__name__}
+        assert len(found) >= 7, (
+            f"only found {sorted(found)} - the enumeration is broken, and an "
+            f"empty scope makes every assertion below vacuous")
+        return found
+
+    def test_every_chart_names_the_exclusion_in_its_title_and_captions(self):
+        """The rule, not a path. Any chart added later inherits this: it is
+        enumerated from the module rather than listed here, so a new plot_
+        function that forgets the words fails this test rather than shipping a
+        figure indistinguishable from the full-corpus one of the same name."""
+        import inspect
+        for name, func in self._plot_functions().items():
+            source = inspect.getsource(func)
+            assert "_exclusion_title_suffix" in source, (
+                f"{name} does not put the exclusion in its title, so the "
+                f"figure cannot be told from the full-corpus chart of the "
+                f"same filename once it leaves its directory")
+            assert "_exclusion_captions" in source, (
+                f"{name} draws no caption naming the excluded arm")
+
+    def test_nothing_is_said_when_no_arm_was_excluded(self):
+        """The ordinary report must not grow a banner reading "nothing
+        excluded": a reader trained to skip that block skips it on the one
+        chart where it matters."""
+        for report in ({}, {"arm_exclusion": None},
+                       {"arm_exclusion": {"axis": None, "words": ""}}):
+            assert rc._exclusion_title_suffix(report) == ""
+            assert rc._exclusion_captions(report) == []
+
+    def test_the_words_and_the_counts_reach_the_reader(self):
+        report = {"arm_exclusion": _excluded_stamp(kept=120, before=240)}
+        assert "no-oversight arm excluded" in rc._exclusion_title_suffix(report)
+        text = " ".join(c for c, _ in rc._exclusion_captions(report))
+        assert "no-oversight arm excluded" in text
+        # The counts, so a reader can see how much of the corpus is behind the
+        # figure without opening the JSON.
+        assert "120 of 240" in text
+        # And that this is not a repaired estimate.
+        assert "sensitivity" in text.lower()
+        assert "not a correction" in text.lower()
+
+    def test_the_caption_is_drawn_in_the_warning_colour(self):
+        """Same colour this module already reserves for the crude-vs-stratified
+        divergence, because it is the same class of statement: something a
+        reader who stops at the markers would take the chart to mean."""
+        captions = rc._exclusion_captions(
+            {"arm_exclusion": _excluded_stamp()})
+        assert captions[0][1] == "#b00020"
+
+    def test_a_question_the_exclusion_collapsed_draws_no_chart(self):
+        """A forest of thirty "no data on one side" rows under the question's
+        own title reads as a measured null rather than an absent comparison."""
+        plt = _plt()
+        section = _section()
+        section["collapsed_by_exclusion"] = "not estimable with the arm excluded"
+        out = os.path.join(tempfile.mkdtemp(), "q.png")
+        assert rc.plot_question(plt, 1, section, out,
+                                {"arm_exclusion": _excluded_stamp()}) is None
+        assert not os.path.exists(out)
+
+    def test_the_same_question_still_draws_when_nothing_collapsed(self):
+        """The positive control: without the mark the chart renders, so the
+        test above is about the mark and not about the fixture."""
+        plt = _plt()
+        out = os.path.join(tempfile.mkdtemp(), "q.png")
+        assert rc.plot_question(plt, 1, _section(), out,
+                                {"arm_exclusion": _excluded_stamp()})
+        assert os.path.getsize(out) > 1000
+
+    def test_the_overview_keeps_a_row_for_a_collapsed_question(self):
+        """Dropped rather than marked, this chart would show nine questions
+        while its own caption calls it all twelve - and a reader would conclude
+        the three were never asked."""
+        plt = _plt()
+        collapsed = _section(id="oversight_vs_scheming")
+        collapsed["collapsed_by_exclusion"] = "no comparator"
+        report = {"questions": [collapsed,
+                                _section(id="awareness_vs_scheming")],
+                  "arm_exclusion": _excluded_stamp()}
+        captured = {}
+        original = rc._draw_forest
+
+        def capture(plt_, rows, title, captions, path, *a, **kw):
+            captured["rows"] = rows
+            captured["title"] = title
+            return path
+
+        rc._draw_forest = capture
+        try:
+            rc.plot_overview(plt, report, os.path.join(tempfile.mkdtemp(), "o.png"))
+        finally:
+            rc._draw_forest = original
+        labels = [r.label for r in captured["rows"]]
+        assert len(labels) == 2, labels
+        gap = [r for r in captured["rows"] if r.diff is None]
+        assert len(gap) == 1 and "excluded arm" in gap[0].missing
+        assert "no-oversight arm excluded" in captured["title"]
+
+    def test_the_excluded_arms_own_lure_panel_is_not_drawn(self):
+        """`lure_effect` is already split on oversight, so the excluded panel
+        normally has no rows and falls out. This is the other case: a stratum
+        left with rows from an arm the report says it dropped, which would draw
+        a panel titled "no oversight" inside an oversight-only reading."""
+        plt = _plt()
+        rows = [_lure_model_row(f"p/m{i}", 40, 40, i + 1, 1) for i in range(4)]
+        profile = {"by_model": rows,
+                   "pooled": {"oversight": rows[0]["oversight"],
+                              "no_oversight": rows[0]["no_oversight"]}}
+        out = os.path.join(tempfile.mkdtemp(), "lure_misalignment.png")
+        assert rc.plot_lure_misalignment(
+            plt, {"characteristics": {"lure_effect": profile},
+                  "arm_exclusion": _excluded_stamp()}, out)
+        assert os.path.exists(out)
+        assert not os.path.exists(out.replace(".png", "_no_oversight.png")), (
+            "the no-oversight panel was drawn inside a report whose every "
+            "other figure says that arm was excluded")
+
+    def test_the_stratum_match_is_by_name_against_the_excluded_level(self):
+        """Both directions, so the helper cannot pass by always answering one
+        way: with the no-oversight arm dropped it is the `no_oversight` panel
+        that goes, and with the oversight arm dropped it is the other."""
+        drop_no_oversight = {"arm_exclusion": _excluded_stamp()}
+        assert rc._excluded_stratum(drop_no_oversight, "no_oversight")
+        assert not rc._excluded_stratum(drop_no_oversight, "oversight")
+        flipped = {"arm_exclusion": dict(_excluded_stamp(),
+                                         excluded_level=True)}
+        assert rc._excluded_stratum(flipped, "oversight")
+        assert not rc._excluded_stratum(flipped, "no_oversight")
+        assert not rc._excluded_stratum({}, "no_oversight")
+
+
+class TestTheForestSaysHowManyModelsItIsOver:
+    """The stratified row's label is a count of STRATA POOLED, which equals the
+    model total only when every model has episodes on both sides. On the
+    oversight questions it does and on the awareness-conditioned ones it does
+    not, and nothing on the figure distinguished the two."""
+
+    def _consistency(self, total, with_data):
+        return {"n_models_total": total, "n_models_with_data": with_data,
+                "n_models_no_data": total - with_data, "n_increase": 0,
+                "n_decrease": 0, "n_tied": 0,
+                "n_individually_significant": 0, "significant_models": []}
+
+    def test_it_states_the_total_when_every_model_has_an_estimate(self):
+        text = rc._model_count_caption(
+            {"consistency": self._consistency(37, 37)})
+        assert "37 models" in text
+        # No phantom gap: a reader told "0 drawn as a gap" goes looking for one.
+        assert "gap" not in text
+        assert "0" not in text.replace("37", "")
+
+    def test_it_splits_the_total_when_some_models_have_no_estimate(self):
+        """The case the caption exists for: 37 rows, 28 of them with an
+        interval, and a pooled row labelled 28 that a reader would otherwise
+        take for the corpus."""
+        text = rc._model_count_caption(
+            {"consistency": self._consistency(37, 28)})
+        assert "37 models in total" in text
+        assert "28" in text and "9" in text
+        assert "gap" in text
+
+    def test_the_two_forms_are_actually_different(self):
+        """A guard against both branches collapsing to one sentence, which
+        would make the pair of tests above assert nothing about the split."""
+        every = rc._model_count_caption(
+            {"consistency": self._consistency(37, 37)})
+        some = rc._model_count_caption(
+            {"consistency": self._consistency(37, 28)})
+        assert every and some and every != some
+
+    def test_the_count_comes_from_consistency_not_from_the_rows(self):
+        """The report prints "N/M had data on both sides" from `consistency`,
+        and the chart keeps a row for a model with no estimate so that sentence
+        can be checked against the figure. A caption counting the rows would be
+        a second derivation free to disagree with the sentence it corroborates -
+        so a section whose row count and whose consistency block disagree must
+        report the consistency block."""
+        section = _section(consistency=self._consistency(37, 28))
+        assert len(section["by_model"]) == 3, "fixture assumption"
+        text = rc._model_count_caption(section)
+        assert "37" in text and "3 models" not in text
+
+    def test_a_section_without_the_block_says_nothing(self):
+        """The paired questions hold one row per interrogation contrast, each
+        already pooled over every model, so a model count there would be a
+        different claim from a different source."""
+        assert rc._model_count_caption({}) == ""
+        assert rc._model_count_caption({"consistency": {}}) == ""
+        assert rc._model_count_caption(_paired_section()) == ""
+
+    def test_it_reaches_the_rendered_chart(self):
+        """Wired in, not merely written: the caption has to be in the list
+        plot_question hands to _draw_forest."""
+        plt = _plt()
+        section = _section(consistency=self._consistency(37, 28))
+        captured = {}
+        original = rc._draw_forest
+
+        def capture(plt_, rows, title, captions, path, *a, **kw):
+            captured["captions"] = [c for c, _ in captions]
+            return path
+
+        rc._draw_forest = capture
+        try:
+            rc.plot_question(plt, 1, section,
+                             os.path.join(tempfile.mkdtemp(), "q.png"), {})
+        finally:
+            rc._draw_forest = original
+        assert any("37 models in total" in c for c in captured["captions"]), \
+            captured["captions"]
+
+    def test_the_paired_chart_does_not_grow_an_empty_caption_line(self):
+        """An empty string reaches _BelowAxes.caption, which returns without
+        drawing - so the paired charts must not gain a blank line where the
+        model count would be."""
+        plt = _plt()
+        captured = {}
+        original = rc._draw_forest
+
+        def capture(plt_, rows, title, captions, path, *a, **kw):
+            captured["captions"] = [c for c, _ in captions]
+            return path
+
+        rc._draw_forest = capture
+        try:
+            rc.plot_question(plt, 11, _paired_section(),
+                             os.path.join(tempfile.mkdtemp(), "q.png"), {})
+        finally:
+            rc._draw_forest = original
+        assert not any("models" in c and "total" in c
+                       for c in captured["captions"])
+
+
+def _timing_profile(**over):
+    """A profile shaped like awareness_refusal_timing() returns."""
+    def arm(before, after):
+        return {"n_before_refusal": before, "n_after_refusal": after,
+                "n_no_refusal": 100, "n_not_aware": 40,
+                "n_refusal_unlocatable": 0, "n_episodes": 140 + before + after,
+                "n_locatable": before + after,
+                "rate_after": round(after / (before + after), 4)
+                if before + after else None,
+                "underpowered": before + after < MIN_INFORMATIVE_DENOMINATOR}
+    profile = {
+        "measure": "the share that verbalised it only AFTER the refusal",
+        "instrument": "keyword measure, not the rubric grader",
+        "not_an_effect": "descriptive",
+        "pooled": arm(60, 40),
+        "by_arm": {"oversight": arm(50, 5), "no_oversight": arm(10, 35)},
+        "by_model": [{"model": "p/a", **arm(20, 20)},
+                     {"model": "p/b", **arm(30, 5)},
+                     # Below the floor: 3 placeable orderings.
+                     {"model": "p/c", **arm(2, 1)},
+                     # Refused often, never placeable.
+                     {"model": "p/d", **arm(0, 0)}],
+    }
+    profile.update(over)
+    return profile
+
+
+class TestTheAwarenessRefusalTimingChart:
+    def _report(self, **over):
+        return {"characteristics": {
+            "awareness_refusal_timing": _timing_profile(**over)}}
+
+    def test_the_floor_is_applied_to_the_orderings_not_the_episodes(self):
+        """p/c has 143 episodes and 3 placeable orderings. A Wilson interval on
+        3 runs most of the axis, and on a chart read at a glance that width is
+        taken for a result."""
+        rows = rc._awareness_refusal_rows(_timing_profile())
+        assert [r.label for r in rows] == ["p/a", "p/b"]
+
+    def test_a_model_with_no_placeable_ordering_is_not_drawn_at_zero(self):
+        """p/d was refused plenty and never placeable. Drawing it at 0% would
+        report "never became aware after a refusal" where the truth is "no
+        ordering could be read"."""
+        rows = rc._awareness_refusal_rows(_timing_profile())
+        assert not any(r.label == "p/d" for r in rows)
+
+    def test_the_note_carries_the_placeable_count(self):
+        rows = rc._awareness_refusal_rows(_timing_profile())
+        assert rows[0].note == "n=40"
+
+    def test_nothing_is_drawn_when_no_model_clears_the_floor(self):
+        plt = _plt()
+        out = os.path.join(tempfile.mkdtemp(), "timing.png")
+        thin = _timing_profile(by_model=[{"model": "p/c", "n_before_refusal": 2,
+                                          "n_after_refusal": 1,
+                                          "n_locatable": 3, "rate_after": 0.33,
+                                          "underpowered": True}])
+        assert rc.plot_awareness_refusal_timing(
+            plt, {"characteristics": {"awareness_refusal_timing": thin}},
+            out) is None
+
+    def test_it_renders(self):
+        plt = _plt()
+        out = os.path.join(tempfile.mkdtemp(), "timing.png")
+        assert rc.plot_awareness_refusal_timing(plt, self._report(), out)
+        assert os.path.getsize(out) > 1000
+
+    def test_the_chart_denies_being_a_thirteenth_question(self):
+        """THE LOAD-BEARING CAPTION. Awareness and the sandbox act are one 2x2
+        and question 7 already reports it; without this sentence a reader takes
+        the figure for a second, independent piece of evidence that the two go
+        together."""
+        plt = _plt()
+        captured = {}
+        original = rc._draw_rate_chart
+
+        def capture(plt_, rows, title, captions, path, *a, **kw):
+            captured["captions"] = [c for c, _ in captions]
+            captured["colours"] = dict(captions)
+            captured["title"] = title
+            return path
+
+        rc._draw_rate_chart = capture
+        try:
+            rc.plot_awareness_refusal_timing(
+                plt, self._report(), os.path.join(tempfile.mkdtemp(), "t.png"))
+        finally:
+            rc._draw_rate_chart = original
+        text = " ".join(captured["captions"])
+        assert "NOT a thirteenth research question" in text
+        assert "question 7" in text
+        denial = next(c for c in captured["captions"]
+                      if "thirteenth" in c)
+        assert captured["colours"][denial] == "#b00020", (
+            "the denial must be in the warning colour, not buried in grey")
+
+    def test_the_arm_split_reaches_the_caption(self):
+        """Pooled, the majority ordering is "before", which alone reads as "the
+        refusal explains nothing". The arms disagree and that is the finding."""
+        plt = _plt()
+        captured = {}
+        original = rc._draw_rate_chart
+
+        def capture(plt_, rows, title, captions, path, *a, **kw):
+            captured["captions"] = [c for c, _ in captions]
+            return path
+
+        rc._draw_rate_chart = capture
+        try:
+            rc.plot_awareness_refusal_timing(
+                plt, self._report(), os.path.join(tempfile.mkdtemp(), "t.png"))
+        finally:
+            rc._draw_rate_chart = original
+        text = " ".join(captured["captions"])
+        assert "oversight present 9%" in text
+        assert "oversight absent 78%" in text
+
+    def test_it_is_wired_into_write_charts(self):
+        _plt()   # skips when matplotlib is absent; write_charts imports its own
+        out = tempfile.mkdtemp()
+        report = dict(self._report(), questions=[_section()])
+        written = rc.write_charts(report, out)
+        assert any(os.path.basename(p) == "awareness_refusal_timing.png"
+                   for p in written), [os.path.basename(p) for p in written]

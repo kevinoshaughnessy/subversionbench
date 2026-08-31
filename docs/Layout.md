@@ -111,7 +111,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,
                    override and escape; interrogation phrasing vs concealment)
                    answered across every model in a results directory
-  loading.py       the two loaders, and the arms rebuilt from episodes
+  loading.py       the two loaders, the arms rebuilt from episodes, and
+                   exclude_arm: one arm dropped from BOTH loaders at once, for
+                   the --exclude-no-oversight sensitivity reading
   data_quality.py  where the corpus disagrees with itself
   characteristics.py  how an episode was conducted rather than how often it
                    went wrong. Descriptive profiles, deliberately not questions:
@@ -126,7 +128,10 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
 report_charts.py   a forest plot per research question with the `charts` extra:
                    every model's effect and interval, then the crude pooled and
                    model-stratified estimates, so a crude result resting on one
-                   model is visible rather than inferable; plus one overview
+                   model is visible rather than inferable; plus one overview.
+                   Every chart names the excluded arm in its own title and
+                   caption, because the two readings share filenames and
+                   differ only by directory
 sad_oversight.py   an external situational-awareness leaderboard, encrypted at
                    rest with the published passphrase for the same reason the
                    scenario is, and its rank correlation with the awareness

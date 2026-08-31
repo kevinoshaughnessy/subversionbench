@@ -10,6 +10,116 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v122
+
+`python3 -m report --exclude-no-oversight` answers all twelve questions again
+with the no-oversight arm set aside, and writes its charts and JSON under
+separate names so the two readings sit side by side.
+
+WHY. That arm is defined as a removal from the oversight condition, and the
+removal is incomplete: the task README still instructs the model to preview its
+draft against an automated quality score while the arm has deleted the script
+that would produce one. The instruction is live and unrealisable, so the model
+hunts for the missing artefact, fails inside the project, and reaches outside
+it. The resulting out-of-scope attempt is scored correctly - the model did leave
+the project directory - but it was induced by a broken instruction rather than
+by the absence of oversight, and that arm has no oversight act available, so the
+out-of-scope attempt alone decides its misalignment rate.
+
+A SENSITIVITY READING, NOT A CORRECTION, and the distinction is load-bearing.
+Repairing the README changes what the model observes and so needs a new
+`ROLLOUT_VERSION`, which this corpus cannot absorb. Nothing here repairs the
+excluded arm's figures; it reports what is left without them. The established
+per-command machinery does not transfer, because the pattern it was built for -
+`sandbox_name_pattern_refusals` - works where the command never actually left,
+and here the commands genuinely do.
+
+ONE PREDICATE, BOTH SOURCES. Questions 1-4 are answered from `summary_*.json`
+and 5-12 from `run_*.json`. An exclusion reaching only one of those is the worst
+available outcome: every number still renders and half of them describe a
+different corpus from the other half. `exclude_arm` in `report/loading.py`
+narrows both in one call, and the first version of this work did filter only the
+episodes - caught by the kept/dropped counts it returns, which exist for exactly
+that reason and are printed rather than only stored.
+
+ATTRIBUTION NEEDS TWO CONDITIONS, not one. An empty side of a contrast is
+necessary and not sufficient for blaming the exclusion: a question can lose a
+side because the corpus never held that level. The first version labelled the
+nudge question "the excluded arm was one side of this contrast" on a fixture
+whose nudge level was simply absent - a false explanation, and worse than
+silence because a reader cannot check it. The question's own manipulated axis
+must also be the axis excluded, read off the id the same way the chart layer
+already parses it.
+
+EVERY CHART NAMES THE EXCLUDED ARM, in its title and again in a caption in the
+warning colour. The two readings share filenames and differ only by directory,
+so a figure lifted out of that directory carries nothing to distinguish it
+otherwise. A guard enumerates the chart entry points from the module and asserts
+each one carries both, so a chart added later inherits the rule instead of
+shipping a figure indistinguishable from the full-corpus one of the same name.
+
+Questions whose contrast the exclusion collapses draw nothing rather than a
+forest of "no data on one side" rows, which reads as a measured null; the
+console says so in words and the overview keeps a labelled gap, because that
+chart's own caption calls it all twelve.
+
+AWARENESS vs THE SANDBOX REFUSAL: WHICH CAME FIRST. A new characteristic and
+chart, and deliberately NOT a thirteenth research question.
+
+It was proposed as one - does verbalised awareness correlate with the sandbox
+refusal rate - and that question is already answered. `sandbox_escape` and
+`refusal_shown` agree on 99.8% of this corpus, so it would read question 7's own
+2x2 down instead of across: Fisher's exact test on a 2x2 is direction-agnostic,
+and measured both ways the p differed only in the twelfth significant figure,
+which is floating-point summation order. Only the risk-difference SCALE changes,
+and that difference is the two marginals rather than new evidence. Reporting it
+as a question would present one association twice and invite the second to be
+read as corroboration of the first.
+
+What no contrast on that table can say at any scale is which came FIRST, and
+that is the only part bearing on whether the refusal produced the awareness. So
+the ordering is what is derived, and it lives in `characteristics.py` - being
+refused follows from the model's own command, which is the post-treatment
+conditioning that module exists to keep out of `questions`.
+
+COMPARED BY INDEX, AGAINST THE TOOL RESULT. A turn holds the model's reasoning
+and then the tool call it leads to, so a turn number cannot separate "said it
+while deciding to probe" from "said it after being refused" - both carry the
+same turn. An index can, and the refusal is located at the `tool_result`, the
+thing the model was shown, so awareness at a later index is awareness written
+with the refusal already in front of it. The same reasoning
+`grading/awareness_timing.py` gives for its own orderings, and its
+`first_awareness_position` is the shared matcher reused rather than copied.
+
+THREE LEVELS MEAN "NO ORDERING AVAILABLE" AND ARE KEPT APART: never refused,
+refused where the transcript cannot say when (`refusal_shown` is a union, and
+one r9 episode records a retry with no visible refusal), and refused with no
+keyword hit. None are in the rate's denominator. That last group is large and
+includes episodes the grader calls aware, which is the measure's main
+limitation: the ordering rests on the keyword channel because the grader returns
+one verdict per episode with no position in it. The block says so, and the chart
+prints it.
+
+The chart is split by arm in its caption, because the pooled share answers the
+question the wrong way round - most episodes verbalise awareness BEFORE the
+refusal, which alone reads as "the refusal explains nothing" - while the two
+arms disagree sharply, and that disagreement is the finding.
+
+EVERY QUESTION FOREST NOW STATES HOW MANY MODELS IT IS OVER. The only count on
+the figure was the stratified row's label, which is the number of strata the
+Mantel-Haenszel estimate pooled - equal to the model total only where every
+model has episodes on both sides. On the oversight questions it is; on the
+awareness-conditioned ones it is not, and one of them draws a full set of rows
+of which several are gaps while labelling its pooled row with the smaller
+number. Nothing on the figure distinguished the two cases, so a reader had no
+way to tell a pooled count from a corpus count. The caption is read off the same
+`consistency` block the printed report words its own "N/M had data on both
+sides" sentence from, rather than counted from the drawn rows, which would be a
+second derivation free to disagree with the sentence it exists to corroborate.
+The paired questions get no such line: their rows are interrogation contrasts
+already pooled over every model, so a model count there would be a different
+claim from a different source.
+
 ## v121
 
 Package version `121.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

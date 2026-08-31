@@ -161,9 +161,14 @@ This file is the single import site: everything is reached through `report`, so
 the layout inside can change without moving anyone else's imports.
 """
 
-from .loading import (NUDGE_LEVELS, RUBRIC_SIGNAL_KEYS, act_arm_rows,
-                     awareness_arm_rows, load_episodes, load_summaries)
-from .characteristics import (characteristics, decision_profile,
+from .loading import (ARM_EXCLUSIONS, AWARENESS_REFUSAL_LEVELS,
+                     AWARENESS_REFUSAL_LOCATABLE, EXCLUDE_NO_OVERSIGHT,
+                     NO_EXCLUSION,
+                     NUDGE_LEVELS, RUBRIC_SIGNAL_KEYS, act_arm_rows,
+                     awareness_arm_rows, exclude_arm, load_episodes,
+                     load_summaries)
+from .characteristics import (awareness_refusal_timing, characteristics,
+                             decision_profile,
                              encoded_payload_rate, eval_signal_rates,
                              lure_effect,
                              persistence_after_refusal)
@@ -192,7 +197,9 @@ from .questions_paired import (EVIDENCE_COLUMNS, EVIDENCE_ROWS,
                               _variant_question,
                               question_evidence_vs_concealment,
                               question_paraphrase_vs_concealment)
-from .console import (_fmt_contrast_line, _fmt_rate, _print_by_act,
+from .console import (_fmt_contrast_line, _fmt_rate, _print_arm_exclusion,
+                     _print_awareness_refusal_timing,
+                     _print_by_act,
                      _print_characteristics, _print_decision_profile,
                      _print_encoded_payload_rate, _print_eval_signal_rates,
                      _print_lure_effect,
@@ -212,11 +219,15 @@ from .run_report import (build_report, main)
 # as a stray import to the dead-import guard, and an exemption would have hidden
 # a genuinely stray one.
 __all__ = [
-    "EVIDENCE_COLUMNS", "EVIDENCE_ROWS", "NUDGE_LEVELS", "RUBRIC_SIGNAL_KEYS",
+    "ARM_EXCLUSIONS", "AWARENESS_REFUSAL_LEVELS",
+    "AWARENESS_REFUSAL_LOCATABLE", "EVIDENCE_COLUMNS", "EVIDENCE_ROWS",
+    "EXCLUDE_NO_OVERSIGHT", "NO_EXCLUSION",
+    "NUDGE_LEVELS", "RUBRIC_SIGNAL_KEYS",
     "_by_model",
     "_consistency", "_contrast", "_crude_vs_stratified", "_finding",
     "_fmt_contrast_line", "_fmt_rate", "_measure_agreement",
     "_model_rate_pairs", "_models", "_paired_variant_table", "_pool",
+    "_print_arm_exclusion", "_print_awareness_refusal_timing",
     "_print_by_act", "_print_characteristics", "_print_data_quality",
     "_print_decision_profile", "_print_encoded_payload_rate",
     "_print_lure_effect",
@@ -228,9 +239,10 @@ __all__ = [
     "_strata_from", "_stratified", "_stratified_interpretation",
     "_text_reachable_block", "_variant_contrast", "_variant_provenance",
     "_variant_question", "act_arm_rows", "awareness_arm_rows",
+    "awareness_refusal_timing",
     "build_report", "characteristics", "cross_analysis_rows",
     "data_quality_facts", "decision_profile", "duplicate_arms",
-    "encoded_payload_rate", "eval_signal_rates", "lure_effect",
+    "encoded_payload_rate", "eval_signal_rates", "exclude_arm", "lure_effect",
     "load_episodes", "load_summaries", "main", "mixed_routing_arms",
     "persistence_after_refusal", "question_awareness_vs_misalignment",
     "question_awareness_vs_monitoring_disabled",

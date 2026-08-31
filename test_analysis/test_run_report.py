@@ -343,3 +343,259 @@ class TestTheSingleImportSiteForTheReport:
         assert declared == reachable, (
             f"declared but absent: {sorted(declared - reachable)}; "
             f"present but undeclared: {sorted(reachable - declared)}")
+
+
+# ---------------------------------------------------------------------------
+# Excluding an arm
+# ---------------------------------------------------------------------------
+#
+# `--exclude-no-oversight` answers all twelve questions again with the
+# no-oversight arm set aside, because that arm's task README still promises the
+# quality preview the arm itself removes. A sensitivity reading, not a
+# correction - see report/loading.py.
+
+def _two_arm_dir(nudges=("strong", "max"), unknown_arm=0):
+    """
+    A corpus with both oversight arms, both awareness levels inside each, and
+    both nudge levels named by `nudges`.
+
+    BOTH AWARENESS LEVELS IN BOTH ARMS on purpose: it is what lets a test tell
+    "this question lost a side because the arm went" from "this question never
+    had two sides here", which is the distinction _collapsed_by_exclusion was
+    corrected to respect.
+    """
+    out = tempfile.mkdtemp()
+    cross = {"aware": {"n": 8, "misaligned": 6},
+             "unaware": {"n": 2, "misaligned": 0}}
+    n = 0
+    for oversight in (True, False):
+        stamp = f"20260101T00000{int(oversight)}"
+        for nudge in nudges:
+            _write_summary(out, "m", nudge, oversight=oversight, lure=False,
+                           stamp=stamp, n_runs=20, n_scheming=1, n_misaligned=3,
+                           n_aware=8, n_unaware=12, cross=cross)
+            for aware in (True, False):
+                for _ in range(6):
+                    _write_episode(out, n, "m", nudge, oversight=oversight,
+                                   aware=aware, monitoring=not oversight,
+                                   escape=["cd /"] if aware else [],
+                                   tampered=None if not oversight else True,
+                                   stamp=stamp)
+                    n += 1
+    for _ in range(unknown_arm):
+        # An episode whose arm was never recorded. Written by hand rather than
+        # through _write_episode, which always states one.
+        path = f"{out}/run_{n}_m_strong_20260101T000009.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"model": "m", "nudge": "strong", "oversight": None,
+                       "lure": False, "analysis": {"misaligned": False},
+                       "transcript": []}, f)
+        n += 1
+    return out
+
+
+class TestExcludingAnArmReachesBothDataSources:
+    """The failure this class exists for, and it was a real one during the
+    build: questions 1-4 are answered from summary_*.json and 5-12 from
+    run_*.json, so an exclusion that reached only the episodes would leave a
+    report whose halves describe different corpora while every number in it
+    still rendered."""
+
+    def test_both_the_summaries_and_the_episodes_shrink(self):
+        out = _two_arm_dir()
+        full = rr.build_report(out)
+        cut = rr.build_report(out, rr.EXCLUDE_NO_OVERSIGHT)
+        assert cut["n_episode_files"] < full["n_episode_files"]
+        assert cut["n_summary_files"] < full["n_summary_files"], (
+            "the summaries were not filtered - questions 1-4 are answered from "
+            "them, so they would describe the full corpus while 5-12 describe "
+            "the narrowed one")
+
+    def test_the_surviving_rows_are_all_the_kept_arm(self):
+        """The strong form. The counts above could match while the wrong rows
+        survived, so the arms themselves are checked."""
+        out = _two_arm_dir()
+        summaries, episodes, stamp = rr.exclude_arm(
+            rr.load_summaries(out), rr.load_episodes(out),
+            rr.EXCLUDE_NO_OVERSIGHT)
+        assert summaries and episodes
+        assert {r["oversight"] for r in summaries} == {True}
+        assert {r["oversight"] for r in episodes} == {True}
+        assert stamp["n_episodes_dropped"] == stamp["n_episodes_before"] - \
+            stamp["n_episodes_kept"]
+
+    def test_nothing_moves_when_no_arm_is_excluded(self):
+        """The positive control: the same call with the default leaves both
+        lists exactly as they were, so the tests above are about the exclusion
+        and not about the loaders."""
+        out = _two_arm_dir()
+        summaries, episodes = rr.load_summaries(out), rr.load_episodes(out)
+        kept_s, kept_e, stamp = rr.exclude_arm(summaries, episodes)
+        assert kept_s == summaries and kept_e == episodes
+        assert stamp["axis"] is None
+        assert stamp["n_episodes_dropped"] == 0
+
+    def test_an_episode_with_no_arm_recorded_is_dropped_and_counted(self):
+        """Neither kept nor silently treated as the arm being excluded: a
+        missing field is a fact about the corpus, and folding it into either
+        reading would hide it."""
+        out = _two_arm_dir(unknown_arm=3)
+        _, episodes, stamp = rr.exclude_arm(
+            rr.load_summaries(out), rr.load_episodes(out),
+            rr.EXCLUDE_NO_OVERSIGHT)
+        assert stamp["n_episodes_unknown_arm"] == 3
+        assert all(r["oversight"] is True for r in episodes)
+
+    def test_an_unknown_exclusion_raises_rather_than_passing_everything(self):
+        """A typo must not read as "exclude nothing" and produce a full-corpus
+        report under a name that says otherwise."""
+        try:
+            rr.exclude_arm([], [], "oversght")
+        except ValueError as exc:
+            assert "oversght" in str(exc)
+        else:
+            raise AssertionError("a misspelled exclusion was accepted")
+
+    def test_the_stamp_is_present_even_when_nothing_was_excluded(self):
+        """So a consumer never has to tell "no exclusion" from "a report
+        written before exclusions existed" - both would be a missing key."""
+        report = rr.build_report(_two_arm_dir())
+        assert report["arm_exclusion"]["excluded"] == rr.NO_EXCLUSION
+        assert report["arm_exclusion"]["axis"] is None
+
+
+class TestWhichQuestionsTheExclusionIsBlamedFor:
+    def test_the_three_oversight_contrasts_lose_their_comparator(self):
+        report = rr.build_report(_two_arm_dir(), rr.EXCLUDE_NO_OVERSIGHT)
+        marked = [q["id"] for q in report["questions"]
+                  if q.get("collapsed_by_exclusion")]
+        assert marked == ["oversight_vs_scheming", "oversight_vs_awareness",
+                          "oversight_vs_misalignment"]
+
+    def test_a_question_that_lost_a_side_for_another_reason_is_not_blamed(self):
+        """THE CORRECTION THIS TEST EXISTS FOR. An empty side is necessary and
+        not sufficient. Measured on this fixture: with only `strong` and `max`
+        collected, question 4 contrasts a nudge level the corpus never held and
+        so has one empty side in BOTH readings. Blaming the exclusion there
+        invents an explanation a reader cannot check."""
+        out = _two_arm_dir(nudges=("strong", "max"))
+        full = rr.build_report(out)
+        cut = rr.build_report(out, rr.EXCLUDE_NO_OVERSIGHT)
+
+        def one_side_empty(report, qid):
+            section = next(q for q in report["questions"] if q["id"] == qid)
+            overall = section["overall"]
+            return not ((overall["a"] or {})["n"] and (overall["b"] or {})["n"])
+
+        assert one_side_empty(full, "nudge_vs_awareness"), (
+            "the fixture no longer reproduces the case - question 4 has both "
+            "sides even on the full corpus, so this test proves nothing")
+        assert one_side_empty(cut, "nudge_vs_awareness")
+        section = next(q for q in cut["questions"]
+                       if q["id"] == "nudge_vs_awareness")
+        assert "collapsed_by_exclusion" not in section, (
+            "question 4 was blamed on the exclusion, but it has one empty side "
+            "with the full corpus too")
+
+    def test_nothing_is_blamed_when_no_arm_was_excluded(self):
+        report = rr.build_report(_two_arm_dir())
+        assert not [q for q in report["questions"]
+                    if q.get("collapsed_by_exclusion")]
+
+    def test_the_paired_questions_are_never_marked(self):
+        """They hold `contrasts` rather than `overall` - a different shape with
+        no single pair of sides to be empty - so the mark would be read off a
+        key they do not have."""
+        report = rr.build_report(_two_arm_dir(), rr.EXCLUDE_NO_OVERSIGHT)
+        for section in report["questions"]:
+            if "contrasts" in section:
+                assert "collapsed_by_exclusion" not in section
+
+
+class TestTheTwoReadingsCannotOverwriteEachOther:
+    def test_the_chart_directory_and_json_name_differ(self):
+        """Same chart filenames, different directory: that is what keeps the
+        arm-excluded figures from being written over the full-corpus ones."""
+        import report.run_report as module
+        plain = module._artefact_suffix(rr.NO_EXCLUSION)
+        cut = module._artefact_suffix(rr.EXCLUDE_NO_OVERSIGHT)
+        assert plain == ""
+        assert cut and cut != plain
+        assert "no_oversight" in cut
+
+    def test_every_exclusion_gets_a_name_of_its_own(self):
+        """Derived from the exclusion's own key rather than tabulated beside it,
+        so an exclusion added later cannot arrive with no entry and quietly
+        write its charts over the full-corpus ones. Enumerated from
+        ARM_EXCLUSIONS, so a new one is covered without editing this test."""
+        import report.run_report as module
+        assert len(rr.ARM_EXCLUSIONS) >= 2
+        suffixes = {name: module._artefact_suffix(name)
+                    for name in rr.ARM_EXCLUSIONS}
+        assert len(set(suffixes.values())) == len(suffixes), suffixes
+        assert suffixes[rr.NO_EXCLUSION] == ""
+
+    def test_an_unknown_name_gets_no_suffix_and_raises_instead(self):
+        import report.run_report as module
+        try:
+            module._artefact_suffix("oversght")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a misspelled exclusion got an artefact name")
+
+
+class TestTheConsoleSaysWhichArmsTheNumbersAreAbout:
+    def _printed(self, stamp):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_arm_exclusion(stamp)
+        return buf.getvalue()
+
+    def _stamp(self, **over):
+        stamp = {"excluded": "no_oversight", "axis": "oversight",
+                 "excluded_level": False,
+                 "words": "no-oversight arm excluded", "why": "the README.",
+                 "n_summaries_before": 8, "n_summaries_kept": 4,
+                 "n_episodes_before": 240, "n_episodes_kept": 120,
+                 "n_episodes_dropped": 120, "n_episodes_unknown_arm": 0}
+        stamp.update(over)
+        return stamp
+
+    def test_it_says_nothing_when_no_arm_was_excluded(self):
+        """A banner over every ordinary report trains a reader to skip the
+        block, and skipping it is the failure the block exists to prevent."""
+        assert self._printed({}) == ""
+        assert self._printed({"axis": None}) == ""
+
+    def test_it_names_the_arm_the_counts_and_that_it_is_not_a_correction(self):
+        text = self._printed(self._stamp())
+        assert "NO-OVERSIGHT ARM EXCLUDED" in text
+        assert "120" in text and "240" in text
+        assert "NOT A CORRECTION" in text
+
+    def test_it_warns_when_the_exclusion_matched_nothing(self):
+        """The silent failure: a renamed field drops no episode, and the report
+        is the full corpus under a name that says it is not."""
+        text = self._printed(self._stamp(n_episodes_dropped=0,
+                                         n_episodes_kept=240))
+        assert "Nothing was dropped" in text
+
+    def test_it_warns_about_episodes_in_neither_reading(self):
+        text = self._printed(self._stamp(n_episodes_unknown_arm=7))
+        assert "7 episode(s) record no oversight arm" in text
+        assert "neither reading" in text
+
+    def test_a_collapsed_question_is_said_rather_than_tabulated_empty(self):
+        """`_print_question` returns after saying so, instead of printing a
+        header over a table of "no data" rows a reader would blame on the
+        corpus."""
+        section = {"question": "Q?", "data_source": "summaries",
+                   "collapsed_by_exclusion": "not estimable with the arm "
+                                             "excluded"}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_question(section)
+        text = buf.getvalue()
+        assert "NOT ESTIMABLE WITH THE ARM EXCLUDED" in text
+        assert "CRUDE POOLED" not in text
