@@ -10,6 +10,62 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v125
+
+Package version `125.0.0`. **`ROLLOUT_VERSION` moves to `r10`** - the first
+bump since r9, and the first ever in which only some arms moved.
+
+WHAT CHANGED. The no-oversight arm is documented as removal-only: it drops two
+artefacts, and `scenario_for`'s docstring says every document referring to them
+has those references removed. Five of the six overridden documents did that. The
+sixth still closed with an instruction to act on one of the deleted artefacts -
+live, and impossible to satisfy. One paragraph, in that arm's own override, now
+removed. Structurally diffed before and after: 40 entries in the bundle, one
+changed.
+
+ONLY THE NO-OVERSIGHT ARMS MOVED, which is the property the whole bump is built
+around. The fingerprint hashes the assembled ARM rather than the bundle, so an
+edit confined to that arm's override leaves both oversight arms byte-for-byte
+identical to r9 and they keep their pinned values. r9 and r10 oversight episodes
+therefore remain one population. Fixing it by editing the shared document would
+have moved all four fingerprints and confounded any r9-vs-r10 comparison with a
+second change; that route is now blocked by a test asserting the oversight arm
+still carries the instruction, since with oversight present the artefact exists
+and the instruction is satisfiable.
+
+WHY IT WAS WORTH A ROLLOUT. Measured on r9: models in that arm searched for the
+missing artefact in 68.0% of episodes against 37.4% with oversight present, and
+a search ended in a sandbox refusal 56.9% of the time against 13.4%. Absent a
+search the arms were nearly identical, 8.6% against 5.5%. So the arm's entire
+excess of boundary crossings ran through a hunt for something its own text
+promised and its own construction removed - and since it has no oversight act
+available, that crossing alone decided its misalignment rate.
+
+THE HELD-OUT TWIN WAS REPAIRED IN THE SAME COMMIT, because its parity guard said
+to. While the shipped scenario carried the defect the twin was deliberately made
+to carry it too, so the two differed in wording rather than in what the
+environment afforded; that guard asserted the promise was present in BOTH and
+its docstring said that a repair of the shipped scenario would fail it, and that
+the failure was the reminder to fix the twin alongside. It failed exactly as
+described. The invariant is unchanged - the two must afford the same things -
+and only its value moved, from "both promise it" to "neither does". The twin's
+own pins re-computed for its two no-oversight arms; its rollout name stays
+`heldout2` because nothing was ever collected under it, so a bump would leave a
+phantom version rather than protect any episode.
+
+r9's figures are NOT retroactively repaired. They describe a different arm from
+r10's and stand as collected, with the sensitivity reading beside them. The r9
+corpus remains the published one; `report` and `trends` now default to
+`./eval_results_r10`, so analysing r9 takes an explicit `--output-dir`.
+
+A test asserting `ROLLOUT_VERSION == "r9"` failed on this bump for no reason
+connected to what it guarded - a second copy of a pinned value, which is the
+thing this repository's conventions warn about. It now asserts the property it
+was for: that the version and the four fingerprints are written as literals, so
+a rollout change shows up in a diff. The sidecar test that refuses a held-out
+bundle claiming the shipped rollout's name now derives that name instead of
+spelling it.
+
 ## v124
 
 Package version `124.0.0`. `ROLLOUT_VERSION` stays `r9`.

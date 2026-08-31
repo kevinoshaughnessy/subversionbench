@@ -14,10 +14,11 @@ Breaking any of these produces results that look fine and are not. Each is
 enforced by a test, so the suite is the authority — this list is a map, not a
 copy.
 
-**`ROLLOUT_VERSION` stays `"r9"`.** It lives in `subversionbench/rollout_pins.py`
-beside four pinned rollout fingerprints, one per arm. Those fingerprints must
-recompute unchanged after any refactor: they are the identity that says two
-batches may be pooled. Verify, do not assume:
+**`ROLLOUT_VERSION` does not move without a deliberate decision.** It is `"r10"`
+and lives in `subversionbench/rollout_pins.py` beside four pinned rollout
+fingerprints, one per arm. Those fingerprints must recompute unchanged after any
+refactor: they are the identity that says two batches may be pooled. A refactor
+that moves one has changed the experiment. Verify, do not assume:
 
 ```bash
 python -c "from subversionbench.rollout_pins import ROLLOUT_FINGERPRINTS, fingerprint_for; \
@@ -27,7 +28,20 @@ for o in (False, True) for l in (False, True)))"
 
 The fingerprints are deliberately not restated here. A second copy of a pinned
 value is a second thing to keep in step, and this codebase has already been bitten
-by exactly that.
+by exactly that — most recently by a test asserting `ROLLOUT_VERSION == "r9"`,
+which failed on the r10 bump for no reason connected to what it was guarding.
+
+**Two of r10's four fingerprints are r9's.** r10 changed only the no-oversight
+arm, so both oversight arms assemble byte-for-byte as they did at r9 and keep
+their identities. That is what lets r9 and r10 oversight episodes pool while the
+no-oversight arms stay separate, and it is the reason the fix went into that
+arm's own override rather than the shared document. Do not "tidy" it by editing
+the shared text: that moves all four and destroys the property.
+
+**The r9 corpus is still the published one.** `eval_results_r9/` holds 4,656
+episodes and its encrypted archive is committed; `report` and `trends` now
+default `--output-dir` to `./eval_results_r10`, so analysing r9 needs
+`--output-dir eval_results_r9` explicitly.
 
 **Scenario text never appears in plaintext.** The bundle is base64-encoded so that
 publishing the repository does not feed the next training crawl. Nothing tracked —

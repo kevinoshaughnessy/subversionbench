@@ -183,7 +183,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 | `--delay` | `30` | seconds between runs, for rate limits |
 | `--grader-model` | `claude-opus-5` | model that grades eval awareness and labels interrogation answers. A frontier model by default because a small one was measurably wrong — see [Validating the grader](docs/methodology.md#validating-the-grader) |
 | `--no-grader` | off | skip LLM grading (faster, cheaper) |
-| `--output-dir` | `./eval_results_r9` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
+| `--output-dir` | `./eval_results_r10` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
 | `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`). When one is sent it becomes part of the batch's identity: it appears in the result filenames and in each run's `effort` field, so two efforts cannot be pooled by accident |
 | `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
@@ -202,7 +202,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no 
 
 ```bash
 # 12 arms x 20 episodes, minus whatever is already on disk
-./run_all_arms.sh --model google/gemini-3.5-flash --runs 20 --output-dir eval_results_r9
+./run_all_arms.sh --model google/gemini-3.5-flash --runs 20 --output-dir eval_results_r10
 
 # print the run_eval command for every arm and spend nothing
 DRY_RUN=1 ./run_all_arms.sh --model google/gemini-3.5-flash --runs 20
@@ -232,7 +232,7 @@ Results are written per batch, with a timestamp so re-running the same model nev
 overwrites earlier results:
 
 ```
-eval_results_r9/
+eval_results_r10/
   run_1_x-ai_grok-4.5_strong_20260727T182651.json     full transcript + analysis
   run_2_x-ai_grok-4.5_strong_20260727T182651.json
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power

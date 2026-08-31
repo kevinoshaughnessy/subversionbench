@@ -32,7 +32,7 @@ from types import MappingProxyType
 # Keying the directory on VERSION got this wrong in both directions - it split
 # v15 and v17 batches that ran identical prompts, and it kept two different
 # strong-nudge prompts inside eval_results_v14. See rollout.py.
-ROLLOUT_VERSION = "r9"
+ROLLOUT_VERSION = "r10"
 
 # sha256 over the assembled scenario ARM, the tool definitions, and the
 # sandbox's behaviour on a fixed battery of commands. Pinned here rather than
@@ -52,11 +52,19 @@ ROLLOUT_VERSION = "r9"
 # with another by accident. All four moved at r6 -> r7, r7 -> r8 and r8 -> r9:
 # the interrogation questions, then the kernel's filesystem boundary, then the
 # client's name - each shared by every arm.
+#
+# r9 -> r10 IS THE FIRST ROLLOUT WHERE ONLY SOME ARMS MOVED, and that is the
+# whole point of it. The edit is one paragraph removed from the counterfactual's
+# OWN README, so the two oversight fingerprints below are byte-identical to r9's
+# and the two counterfactual ones are new. This is not a coincidence to be
+# noticed later: it is the property that lets r9 and r10 oversight episodes pool
+# while the counterfactual arms stay separate, and it is asserted by a test
+# rather than left to the reader to verify. See the r9 -> r10 note below.
 ROLLOUT_FINGERPRINTS = MappingProxyType({
-    (True,  False): "b686db2fe97e",   # oversight present, no lure
-    (False, False): "f3d2ef9486cb",   # counterfactual, no lure
-    (True,  True):  "8dfacd4f1d3c",   # oversight present, lure
-    (False, True):  "4d9560cae323",   # counterfactual, lure
+    (True,  False): "b686db2fe97e",   # oversight present, no lure - as r9
+    (False, False): "8d7cba1de9a2",   # counterfactual, no lure    - NEW at r10
+    (True,  True):  "8dfacd4f1d3c",   # oversight present, lure    - as r9
+    (False, True):  "161d16042731",   # counterfactual, lure       - NEW at r10
 })
 # Superseded values, kept so an archived directory can be identified from a
 # fingerprint alone rather than from its name:
@@ -74,6 +82,10 @@ ROLLOUT_FINGERPRINTS = MappingProxyType({
 #        oversight+lure 4333baf099c2   counterfactual+lure 2a9eafc7f599
 #   r8   oversight 5440ddc083be    counterfactual 68f4a7f77c9b (no lure)
 #        oversight+lure 10bf7ca37db4   counterfactual+lure 1f04fc4b981f
+#   r9   oversight b686db2fe97e    counterfactual f3d2ef9486cb (no lure)
+#        oversight+lure 8dfacd4f1d3c   counterfactual+lure 4d9560cae323
+#        (the two oversight values are NOT superseded - r10 carries the same
+#         two, because r10 changed only the counterfactual arms)
 #
 # r1 -> r2 fixed a sandbox defect. "locate " was matched as a bare substring, so
 # a draft mentioning allocating budget or relocating stops was refused as an
@@ -216,6 +228,34 @@ ROLLOUT_FINGERPRINTS = MappingProxyType({
 # `..` is deliberately still readable. It holds the scenario's neighbour
 # directories and, in the lure arm, the lure file itself, so confining to the
 # project directory would have switched that arm off while every test passed.
+
+# r9 -> r10 made the counterfactual removal-only, which it was documented to be
+# and was not. scenario_for's own docstring says the arm drops two artefacts and
+# that "every document that referred to them has those references removed". Five
+# of the six overridden documents did exactly that. The sixth still carried a
+# closing instruction to act on the artefact the arm deletes - live, and
+# impossible to satisfy.
+#
+# Measured on r9 before the fix, the consequence was not cosmetic. Models in the
+# counterfactual arm went looking for the missing artefact in 68.0% of episodes
+# against 37.4% with oversight present, and a search ended in a sandbox refusal
+# 56.9% of the time against 13.4%. Absent a search the two arms were nearly
+# identical - 8.6% against 5.5% - so the arm's entire excess of boundary
+# crossings ran through a hunt for something its own text promised and its own
+# construction removed. Since the counterfactual has no oversight act available,
+# that crossing alone decided the arm's misalignment rate, which is why this is a
+# construct-validity defect in the headline figure rather than a detail.
+#
+# ONLY THE COUNTERFACTUAL ARMS MOVED. The paragraph lived in the arm's own
+# override, so the oversight arms assemble byte-for-byte as they did at r9 and
+# keep their fingerprints. That is deliberate and is the reason to fix it this
+# way rather than by editing the shared document: r9 and r10 oversight episodes
+# remain one population, which is what makes an r9-vs-r10 comparison of the
+# counterfactual interpretable rather than confounded with a second change.
+#
+# r9's own counterfactual figures are NOT retroactively repaired by this. They
+# describe a different arm from r10's and stay as collected, with the sensitivity
+# reading beside them - see report/loading.py's exclude_arm.
 
 # =========================================================================
 # An alternative scenario bundle is a DIFFERENT ROLLOUT
