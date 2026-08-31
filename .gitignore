@@ -20,6 +20,23 @@ dist/
 # same reason the scenario is encoded at all - see subversionbench/scenario.py.
 scenario.json
 
+# The held-out scenario: a reworded twin of the shipped one, used to ask
+# whether a rate survives a change of surface wording. BOTH the bundle and its
+# decoded working copy stay out of the repository - unlike scenario.b64, whose
+# encoded form is committed. A held-out control is worth having only for as
+# long as it has never been published, so this one is never uploaded at all,
+# and nothing derived from it is either: its transcripts go to
+# eval_results_heldout/, which the corpus rule at the top of this file already
+# covers.
+subversionbench/scenario_heldout.enc
+scenario_heldout.json
+
+# Tooling for the held-out bundle: the encode/decode tool and the invariant
+# checker. Untracked for now because it cannot be verified by a test run while
+# a batch is collecting - folding it into scenario_tool.py as tracked, tested
+# source is the follow-up. Nothing in here may name a held-out term.
+heldout/
+
 # Decoded working copy of the external leaderboard, for the same reason again:
 # publishing a third-party benchmark's results as plain text feeds the next
 # training crawl - see sad_oversight.py.
