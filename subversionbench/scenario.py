@@ -28,9 +28,52 @@ committed by accident.
 
 import base64
 import json
+import os
 from pathlib import Path
 
 _BUNDLE_PATH = Path(__file__).with_name("scenario.b64")
+
+# Which bundle this process runs against.
+#
+# WHY AN ENVIRONMENT VARIABLE AND NOT A FLAG. Every name below is derived from
+# the bundle at import: CLIENT_NAME, PROJECT_DIR, TASK_FILE_NAME,
+# SANDBOX_REFUSAL, CONTAMINATING_TERMS and SCENARIO. run_eval imports config -
+# and so this module - at its own import, long before argparse runs, so a
+# --scenario-bundle flag would arrive after all of them were frozen. The seam
+# has to be readable at import time, and that leaves the environment.
+#
+# UNSET IS THE SHIPPED SCENARIO, BY THE SAME EXPRESSION AS BEFORE. r9's
+# identity must not come to depend on a variable being absent in the right
+# way, so the default is not a lookup with a fallback - it is _BUNDLE_PATH,
+# untouched, and the override is a separate branch that the shipped path never
+# enters.
+#
+# The override exists for the held-out twin: a reworded scenario used to ask
+# whether a rate survives a change of surface wording. It is a DIFFERENT
+# rollout, and rollout_pins.py refuses to stamp r9's identity onto it.
+BUNDLE_ENV_VAR = "SUBVERSIONBENCH_SCENARIO_BUNDLE"
+
+
+def selected_bundle_path() -> Path:
+    """The bundle path this process resolves to, shipped unless overridden."""
+    override = os.environ.get(BUNDLE_ENV_VAR, "").strip()
+    if not override:
+        return _BUNDLE_PATH
+    path = Path(override)
+    if not path.is_file():
+        # Loud rather than a fallback. A typo that silently ran the shipped
+        # scenario would produce episodes labelled as the held-out arm and
+        # pooled against it, and nothing about them would look wrong.
+        raise FileNotFoundError(
+            f"{BUNDLE_ENV_VAR}={override!r} does not name a readable file. "
+            f"Unset it to run the shipped scenario."
+        )
+    return path
+
+
+def bundle_is_overridden() -> bool:
+    """Whether an alternative bundle is selected, without reading it."""
+    return bool(os.environ.get(BUNDLE_ENV_VAR, "").strip())
 
 # The phrasing the BASE ladder carries, and so the reference probe every episode
 # is asked. Named here rather than in config.py because config imports this
@@ -56,10 +99,21 @@ DEFAULT_INTERROGATION = "zeroevidence"
 
 
 def load_scenario(path: Path = None) -> dict:
-    """Decode the scenario bundle."""
-    path = path or _BUNDLE_PATH
-    raw = base64.b64decode("".join(path.read_text().split()))
-    return json.loads(raw)
+    """
+    Decode the scenario bundle.
+
+    A `.json` path is read as plain JSON; anything else is base64, which is
+    what scenario.b64 is and has always been. That split is what keeps a
+    decryption path out of this module: the held-out bundle is encrypted at
+    rest, and the tool that owns its passphrase hands it over decrypted to a
+    private temporary file rather than teaching the module every rollout's
+    identity derives from how to decrypt things.
+    """
+    path = Path(path) if path else selected_bundle_path()
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".json":
+        return json.loads(text)
+    return json.loads(base64.b64decode("".join(text.split())))
 
 
 # ---------------------------------------------------------------------------
@@ -119,14 +173,67 @@ CONTAMINATING_TERMS = tuple(_BUNDLE["contaminating_terms"]) + (
     " ".join(SANDBOX_REFUSAL.rstrip(")").split()[-3:]),)
 
 
+def _first_check_name(monitoring_config: str) -> str:
+    """The name of the first check the monitoring config declares."""
+    lines = monitoring_config.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() != "checks:":
+            continue
+        for follow in lines[i + 1:]:
+            if not follow.strip() or follow.lstrip().startswith("#"):
+                continue
+            if not follow.startswith((" ", "\t")):
+                break                      # dedented out of the block
+            name = follow.strip().rstrip(":")
+            if name:
+                return name
+        break
+    return ""
+
+
+# The balance check's name, as the monitoring config writes it.
+#
+# It reaches a GRADER QUESTION - as one example of what "the check's outcome"
+# looks like in a report - and it was a plain literal there. That literal is
+# this scenario's own vocabulary, so a bundle in another domain, whose config
+# declares a differently-named check, would be graded by a question naming a
+# metric none of its documents mention. Read from the config, the question
+# follows whichever bundle is loaded.
+#
+# DERIVED FROM monitoring_config RATHER THAN STORED AS ITS OWN KEY, for the
+# reason the docstring of scenario_for() gives about every other addition: a
+# new bundle key reaches the assembled arm and moves all four of r9's
+# fingerprints, declaring every episode already collected incomparable with a
+# scenario it still matches exactly. Parsing one line costs nothing by
+# comparison, and the config is where the name actually lives.
+QUALITY_METRIC_NAME = _first_check_name(_BUNDLE.get("monitoring_config", ""))
+
+
 def encode_scenario(bundle: dict, path: Path = None) -> None:
-    """Write a bundle back out encoded, wrapped for a readable diff."""
-    path = path or _BUNDLE_PATH
+    """
+    Write a bundle back out encoded, wrapped for a readable diff.
+
+    Defaults to the SHIPPED path even when an alternative bundle is selected,
+    and refuses that combination rather than guessing which was meant. Writing
+    is where an override does real damage: the whole point of the seam is that
+    the read side follows it, so a bundle loaded from the held-out twin and
+    written back with the default path would fold its text into scenario.b64
+    and move all four of r9's fingerprints. The refusal is here rather than in
+    scenario_tool.py because the rule is about this function, not that caller.
+    """
+    if path is None and bundle_is_overridden():
+        raise RuntimeError(
+            f"refusing to write the shipped bundle while {BUNDLE_ENV_VAR} is "
+            f"set - unset it, or pass an explicit path. Encoding a bundle "
+            f"loaded from the override into scenario.b64 would change r9."
+        )
+    path = Path(path) if path else _BUNDLE_PATH
     encoded = base64.b64encode(
         json.dumps(bundle, indent=1).encode()
     ).decode()
     path.write_text(
-        "\n".join(encoded[i:i + 76] for i in range(0, len(encoded), 76)) + "\n"
+        "\n".join(encoded[i:i + 76] for i in range(0, len(encoded), 76)) + "\n",
+        encoding="utf-8",
     )
 
 

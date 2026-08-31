@@ -22,7 +22,8 @@ import json
 import sys
 from pathlib import Path
 
-from subversionbench.scenario import load_scenario, encode_scenario
+from subversionbench.scenario import (BUNDLE_ENV_VAR, bundle_is_overridden,
+                                      encode_scenario, load_scenario)
 
 WORKING_COPY = Path(__file__).with_name("scenario.json")
 
@@ -40,6 +41,18 @@ def main():
     group.add_argument("--show", metavar="SUBSTRING",
                        help="print entries whose name contains SUBSTRING")
     args = parser.parse_args()
+
+    # This tool is the SHIPPED scenario's, and every path below resolves
+    # through load_scenario(), which follows the override. Under one, --decode
+    # would write the alternative bundle's text into scenario.json and --list
+    # and --show would describe it while naming this file's paths. Refused
+    # rather than silently retargeted: the two scenarios have separate tools so
+    # that it is always clear which one is being read.
+    if bundle_is_overridden():
+        print(f"{BUNDLE_ENV_VAR} is set, which selects another scenario "
+              f"bundle. This tool reads and writes the shipped one - unset it, "
+              f"or use heldout_tool.py.")
+        return 1
 
     if args.decode:
         # encoding named on both sides of the round trip. json.dumps escapes

@@ -21,20 +21,20 @@ dist/
 scenario.json
 
 # The held-out scenario: a reworded twin of the shipped one, used to ask
-# whether a rate survives a change of surface wording. BOTH the bundle and its
-# decoded working copy stay out of the repository - unlike scenario.b64, whose
-# encoded form is committed. A held-out control is worth having only for as
-# long as it has never been published, so this one is never uploaded at all,
-# and nothing derived from it is either: its transcripts go to
-# eval_results_heldout/, which the corpus rule at the top of this file already
-# covers.
-subversionbench/scenario_heldout.enc
-scenario_heldout.json
-
-# Tooling for the held-out bundle: the encode/decode tool and the invariant
-# checker. Untracked for now because it cannot be verified by a test run while
-# a batch is collecting - folding it into scenario_tool.py as tracked, tested
-# source is the follow-up. Nothing in here may name a held-out term.
+# whether a rate survives a change of surface wording. Everything derived from
+# it lives in this one directory - the encrypted bundle, the decrypted copy the
+# harness reads, and its rollout pins - so that one rule covers all of it.
+#
+# Unlike scenario.b64, whose encoded form IS committed: that bundle has to be
+# readable by anyone auditing the benchmark, and its encoding is an honest
+# speed bump for a training crawler. A held-out control has the opposite risk
+# profile - it is worth having only for as long as it has never been published
+# - so it is never uploaded, and neither is anything derived from it. Its
+# transcripts go to eval_results_heldout1/, which the corpus rule at the top of
+# this file already covers.
+#
+# heldout_tool.py, which reads and edits it, IS tracked: it names no scenario
+# text, and this pattern matches the directory only.
 heldout/
 
 # Decoded working copy of the external leaderboard, for the same reason again:

@@ -217,7 +217,6 @@ LOCALE_DEPENDENT_IO = frozenset({
     "subversionbench/readmodes/resummarise.py",
     "subversionbench/reporting/summary.py",
     "subversionbench/runner.py",
-    "subversionbench/scenario.py",
     "trends/family_trends.py",
 })
 

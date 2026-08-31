@@ -10,6 +10,82 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v118
+
+Package version `118.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged, and `scenario.b64` is byte-identical. The
+shipped scenario is the thing this release is careful about: every value it
+derives - the client name, the project directory, the task file's name, the
+sandbox refusal, the term list, all twelve assembled arms and all four
+fingerprints - was hashed before the work and re-hashed after, and the two
+records are identical.
+
+A second scenario bundle can now be selected, so that a rate this benchmark
+reports can be re-measured against a reworded twin of the same situation. Same
+acts, same arms, same mechanism, different surface text: the question is
+whether a published rate survives a change that carries no semantic content,
+which is not answerable while there is only one wording. The bundle itself is
+not in the repository and never will be - a held-out control is worth having
+only for as long as it has never been published - so what lands here is the
+seam, its guards, and the tool that reads it.
+
+The seam is an environment variable rather than a flag, because it cannot be
+anything else. `scenario.py` derives every name above at import, and `run_eval`
+imports config before argparse runs, so a `--scenario-bundle` option would
+arrive after all of them were frozen. Unset resolves to `scenario.b64` by the
+same expression as before, rather than by a lookup with a fallback: r9's
+identity must not come to depend on a variable being absent in the right way.
+
+An alternative bundle is a DIFFERENT ROLLOUT, and `rollout_pins.py` now refuses
+to let it borrow r9's. `episode.py` stamps both `rollout_version` and a pinned
+fingerprint into every run file, so leaving them alone would have labelled a
+reworded scenario's episodes r9 and pooled them with a corpus they do not
+match - the exact mislabelling that table exists to prevent, and silent. The
+alternative's pins live in a sidecar beside its bundle, keyed on the bundle's
+stem so the encrypted form and the decrypted one the harness reads resolve to
+one identity. A missing, versionless, r9-claiming or partly-filled sidecar is a
+hard failure; inheriting r9's values is the one outcome worse than not running.
+
+Pinning had a real defect, found by measuring rather than reasoning. The first
+implementation computed the fingerprints by patching `rollout.scenario_for` in
+a process that had not selected the bundle - but the fingerprint covers the
+sandbox display path and the task file's name too, and both derive from the
+bundle at import. It therefore mixed one scenario's documents with another's
+paths and pinned four values no run could reproduce. All four arms disagreed
+once checked under the real override. Pinning now runs in a subprocess with the
+variable actually set, breaking the resulting cycle with a provisional sidecar
+whose fingerprints are not hex and so cannot match anything. A regression test
+reproduces the wrong method and confirms it fails.
+
+The grader question that asked about "a `modal_balance` score" now reads the
+check's name out of the monitoring config instead of restating it. That literal
+is one scenario's vocabulary, and a bundle in another domain would have been
+graded by a question naming a metric none of its documents mention. Derived
+from `monitoring_config` rather than added as a bundle key, because a new key
+reaches the assembled arm and would have moved all four fingerprints. The
+question is byte-identical for the shipped bundle, which is asserted.
+
+Two writing paths are refused rather than retargeted. `encode_scenario` will
+not write the shipped bundle while an override is set - the read side follows
+the override, so a bundle loaded from the twin and written back to the default
+path would fold its text into `scenario.b64` - and the refusal is in the
+function rather than its caller, because the rule is about the function.
+`scenario_tool.py` refuses outright under an override, since every path in it
+resolves through the seam.
+
+`subversionbench/scenario.py` leaves the `LOCALE_DEPENDENT_IO` baseline in
+`test_project/test_project_files.py`: both of its text-IO sites now name
+`encoding="utf-8"`. The baseline is checked in both directions, so it told us
+to remove the entry - which is the whole point of writing one that way.
+
+Thirty-five tests in `test_corpus/test_heldout_scenario.py`, split so the half
+that matters in CI runs there: sixteen cover the seam, the refusals and the
+pin-sidecar rules and need no bundle, and nineteen cover a bundle's own
+invariants and skip when it is absent. That skip is corpus-absent, not a
+missing optional dependency, so `SUBVERSIONBENCH_NO_SKIPS` still allows it.
+Nothing in the file names a term from either scenario; every planted string is
+derived from the bundle under test.
+
 ## v117
 
 Package version `117.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned

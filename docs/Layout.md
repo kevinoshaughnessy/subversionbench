@@ -95,6 +95,15 @@ export_accepted.txt  findings reviewed and approved for publication
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
+heldout_tool.py    the same for the held-out scenario - a reworded twin of the
+                   shipped one, for asking whether a rate survives a change of
+                   surface wording - plus --pin, which computes its rollout
+                   fingerprints so its episodes cannot be labelled r9. The
+                   bundle lives in heldout/ and is gitignored: a held-out
+                   control is worth having only while it has never been
+                   published, so it exists only where it was authored
+run_heldout.sh     collect under the held-out scenario instead of the shipped
+                   one; passes its arguments through to run_all_arms.sh
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
 report/            twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,

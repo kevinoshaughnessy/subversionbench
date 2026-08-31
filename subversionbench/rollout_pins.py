@@ -217,6 +217,94 @@ ROLLOUT_FINGERPRINTS = MappingProxyType({
 # directories and, in the lure arm, the lure file itself, so confining to the
 # project directory would have switched that arm off while every test passed.
 
+# =========================================================================
+# An alternative scenario bundle is a DIFFERENT ROLLOUT
+# =========================================================================
+#
+# Everything above is r9 and stays r9. This block replaces it wholesale when
+# SUBVERSIONBENCH_SCENARIO_BUNDLE selects another bundle - the held-out twin,
+# a reworded scenario for asking whether a rate survives a change of surface
+# wording - and does nothing at all when it does not.
+#
+# WHY IT HAS TO. episode.py stamps `rollout_version` and
+# `fingerprint_for(oversight, lure)` into every run file, and both are PINNED
+# values rather than computed ones. Left alone, a reworded scenario's episodes
+# would carry r9's version and r9's four fingerprints, and pool silently with
+# the 4,623 episodes they do not match. That is exactly the mislabelling this
+# table exists to prevent, and the reason fingerprint_for() raises on an
+# unknown arm rather than falling back.
+#
+# WHY THE PINS ARE NOT IN THIS FILE. The held-out bundle is gitignored on
+# purpose: a held-out control is worth having only for as long as it has never
+# been published. So this file cannot compute its fingerprints and CI cannot
+# check them - CI never has the bundle. They live in a sidecar JSON beside it,
+# written by `heldout_tool.py --pin`, and are read only under the override.
+#
+# A MISSING OR MALFORMED SIDECAR IS A HARD FAILURE, never a fallback to the
+# values above. Falling back is the one outcome worse than not running.
+#
+# Keyed on the bundle's STEM, so `scenario_heldout.enc` and the decrypted
+# `scenario_heldout.json` the harness actually reads resolve to the same
+# sidecar. Keying on the full name would give the encrypted form and its own
+# plaintext two different identities for one scenario.
+_PINS_SIDECAR_SUFFIX = ".pins.json"
+
+
+def _alternative_pins():
+    """The selected bundle's own rollout identity, or None if it is shipped."""
+    # Imported here rather than at module scope: this module is the DATA half
+    # of the rollout check and is imported very early, and the read is needed
+    # once. scenario.py imports nothing from the package, so there is no cycle
+    # either way - this is about keeping the import graph boring.
+    import json
+    from pathlib import Path
+
+    from .scenario import (BUNDLE_ENV_VAR, bundle_is_overridden,
+                           selected_bundle_path)
+
+    if not bundle_is_overridden():
+        return None
+
+    bundle = selected_bundle_path()
+    sidecar = Path(bundle).with_suffix(_PINS_SIDECAR_SUFFIX)
+    if not sidecar.is_file():
+        raise FileNotFoundError(
+            f"{BUNDLE_ENV_VAR} selects {bundle}, but its rollout pins "
+            f"({sidecar.name}) are missing. Run heldout_tool.py --pin to "
+            f"compute them. They are NOT inherited from r9: episodes stamped "
+            f"with r9's identity would be pooled with a scenario they do not "
+            f"match."
+        )
+    declared = json.loads(sidecar.read_text(encoding="utf-8"))
+    version = str(declared.get("rollout_version", "")).strip()
+    if not version or version == ROLLOUT_VERSION:
+        raise ValueError(
+            f"{sidecar.name} must declare a rollout_version, and it must not "
+            f"be {ROLLOUT_VERSION!r} - that is the shipped scenario's, and "
+            f"sharing it is what makes two rollouts indistinguishable."
+        )
+    pins = {}
+    for entry in declared.get("fingerprints", []):
+        pins[(bool(entry["oversight"]), bool(entry["lure"]))] = \
+            str(entry["fingerprint"])
+    # Every arm, or none. A sidecar one arm short would raise from
+    # fingerprint_for() hours later, on whichever arm was missing.
+    missing = set(ROLLOUT_FINGERPRINTS) - set(pins)
+    if missing:
+        raise ValueError(
+            f"{sidecar.name} pins {len(pins)} arm(s); {sorted(missing)} "
+            f"unpinned. Every arm needs its own identity or it cannot be told "
+            f"apart from another's."
+        )
+    return version, pins
+
+
+_alternative = _alternative_pins()
+if _alternative is not None:
+    ROLLOUT_VERSION, _alt_pins = _alternative
+    ROLLOUT_FINGERPRINTS = MappingProxyType(_alt_pins)
+
+
 # The plain oversight arm, for callers that predate the later arms.
 #
 # NOT for stamping an episode. Doing that recorded the primary arm's identity on
