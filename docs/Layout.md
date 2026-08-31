@@ -94,7 +94,9 @@ subversionbench/
 
 requirements.lock  the exact stack published results were produced with
 export_accepted.txt  findings reviewed and approved for publication
-zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results)
+zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results).
+                   zip.sh never archives a held-out corpus - not by default and
+                   not when named - because it makes the published artefact
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
 heldout_tool.py    the same for the held-out scenario - a reworded twin of the

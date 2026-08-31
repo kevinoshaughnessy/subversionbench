@@ -607,3 +607,150 @@ class TestTheTwinIsMatchedToTheShippedScenario:
                 "no document promises the preview the arm removed - the twin "
                 "and the shipped scenario must agree about this, and the "
                 "shipped one does promise it")
+
+
+class TestZipShNeverArchivesTheHeldOutCorpus:
+    """The held-out corpus is worth having only while it has never been
+    published, and zip.sh produces the artefact that gets published.
+
+    Its own .zip being gitignored is a SECOND line of defence, not a first: the
+    shipped archive is deliberately tracked, so the ignore rule is already
+    overridden for a file of exactly that shape. The exclusion has to be in
+    front of the step that creates the archive.
+
+    Exercised through --print-selection rather than by running the real thing:
+    an exclusion whose only evidence is which files a 75MB archive step did not
+    create is not something a test can assert on.
+    """
+
+    def _root(self):
+        import os
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def _selection(self, *args):
+        """What zip.sh says it would archive, what it skips, and the raw text.
+
+        The raw stdout is returned as well as the parsed lists because the
+        machine-readable `skip:` lines and the sentence a person reads are two
+        different outputs, and a test that checks only the first passes on a
+        script whose skip went silent.
+        """
+        import os
+        import subprocess
+        result = subprocess.run(
+            [os.path.join(self._root(), "zip.sh"), "--print-selection", *args],
+            cwd=self._root(), capture_output=True, text=True, timeout=120)
+        assert result.returncode == 0, result.stderr
+        archive, skip = [], []
+        for line in result.stdout.splitlines():
+            if line.startswith("archive: "):
+                archive.append(line[len("archive: "):])
+            elif line.startswith("skip: "):
+                skip.append(line[len("skip: "):])
+        return archive, skip, result.stdout
+
+    def _made(self, name):
+        """A throwaway results directory in the repo root, removed afterwards.
+
+        In the ROOT, not a temp dir: zip.sh does `cd "$(dirname "$0")"` so that
+        it works from anywhere, which means its selection is always over the
+        repo root and cannot be pointed elsewhere for a test. Matches
+        eval_results_*/ in .gitignore, so it cannot be committed by accident
+        even if the cleanup is skipped.
+        """
+        import os
+        import shutil
+        path = os.path.join(self._root(), name)
+        os.makedirs(path, exist_ok=True)
+
+        class Made:
+            def __enter__(self):
+                return name
+
+            def __exit__(self, *exc):
+                shutil.rmtree(path, ignore_errors=True)
+        return Made()
+
+    def test_an_unqualified_run_skips_a_held_out_directory(self):
+        with self._made("eval_results_zzztest_heldout") as name:
+            archive, skip, raw = self._selection()
+            assert name not in archive, (
+                f"{name} would be archived by a bare ./zip.sh")
+            assert name in skip, (
+                f"{name} was neither archived nor reported as skipped - a "
+                f"silent drop is how a caller comes to believe it was done")
+            # And said in words, not only in the machine-readable listing. A
+            # --remove run that silently skipped a directory would leave the
+            # only copy being the archive that was never made.
+            assert "held-out" in raw and name in raw, (
+                "the skip was not announced in the run's own output")
+
+    def test_an_ordinary_directory_is_still_archived(self):
+        """The positive control. Without it the test above passes just as well
+        on a script that archives nothing at all."""
+        with self._made("eval_results_zzztest_ordinary") as name:
+            archive, _skip, _raw = self._selection()
+            assert name in archive, (
+                f"{name} is not held out and must still be archived")
+
+    def test_naming_a_held_out_directory_explicitly_is_refused(self):
+        """A skip would be wrong here. --dirs means "this one and no others", so
+        dropping it silently would report success over an archive the caller
+        never got."""
+        import os
+        import subprocess
+        with self._made("eval_results_zzztest_heldout") as name:
+            result = subprocess.run(
+                [os.path.join(self._root(), "zip.sh"), "--dirs", name],
+                cwd=self._root(), capture_output=True, text=True, timeout=120)
+            assert result.returncode != 0, (
+                "zip.sh accepted a held-out directory named explicitly")
+            assert "REFUS" in result.stderr.upper()
+            assert not os.path.exists(
+                os.path.join(self._root(), f"{name}.zip")), \
+                "an archive was written before the refusal"
+
+    def test_the_name_test_does_not_depend_on_the_pins_sidecar(self):
+        """The sidecar is gitignored, so on a fresh clone it is absent and the
+        name pattern is the whole guard. Asserted by reading zip.sh: the name
+        case must not sit behind a check for the sidecar's existence."""
+        import os
+        source = open(os.path.join(self._root(), "zip.sh"),
+                      encoding="utf-8").read()
+        body = source.split("is_heldout()")[1].split("\n}")[0]
+        name_case = body.index("*heldout*")
+        sidecar_use = body.index("heldout_rollout_versions")
+        assert name_case < sidecar_use, (
+            "is_heldout consults the sidecar before the name pattern, so a "
+            "checkout without heldout/ would lose the name guard")
+
+    def test_the_sidecar_half_names_every_rollout_it_declares(self):
+        """Including superseded ones: a superseded held-out rollout still has a
+        corpus on disk, and dropping the old names would leave it unguarded by
+        this half."""
+        import glob
+        import json
+        import os
+        import subprocess
+        sidecars = glob.glob(os.path.join(self._root(),
+                                          "heldout", "*.pins.json"))
+        if not sidecars:
+            import unittest
+            raise unittest.SkipTest("no held-out pins in this checkout")
+        expected = set()
+        for path in sidecars:
+            declared = json.loads(open(path, encoding="utf-8").read())
+            expected.add(declared["rollout_version"])
+            expected.update(old["rollout_version"]
+                            for old in declared.get("superseded") or [])
+        source = open(os.path.join(self._root(), "zip.sh"),
+                      encoding="utf-8").read()
+        function = source.split("heldout_rollout_versions() {")[1]
+        function = "heldout_rollout_versions() {" + function.split("\n}")[0] + "\n}"
+        result = subprocess.run(
+            ["bash", "-c", f"{function}\nheldout_rollout_versions"],
+            cwd=self._root(), capture_output=True, text=True, timeout=120)
+        assert result.returncode == 0, result.stderr
+        assert set(result.stdout.split()) == expected, (
+            f"zip.sh derives {sorted(set(result.stdout.split()))} from the "
+            f"sidecar but it declares {sorted(expected)}")

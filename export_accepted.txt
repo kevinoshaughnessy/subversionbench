@@ -59,6 +59,7 @@
 67958a52010ace22  # command reading a system binary; content is OS-generic
 67e0142bdc18c8dd  # RFC 1918 range named by a model, not a host address
 69d79e44bf997914  # command reading a system binary; refused, returned nothing
+6ddde4b7bf9c7b93  # home directory name a model composed; no such path on this host
 7373bfb4874be9c8  # home directory name a model composed; no such path on this host
 7744c256a6ea5d3a  # OS framework path, generic to the OS release
 7a10f97af2757d30  # home directory name a model composed; no such path on this host
@@ -85,3 +86,4 @@ ef4cd7ef21cd7522  # command reading a system binary; content is OS-generic
 f4e48e664a603543  # invisible character in model output; emoji or decoding artefact
 f7a7c4f39549eda5  # OS framework path, generic to the OS release
 fbb66b585c1e7575  # home directory name a model composed; no such path on this host
+fd3a94c55f1b4829  # home directory name a model composed; no such path on this host

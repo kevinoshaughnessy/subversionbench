@@ -10,6 +10,45 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v124
+
+Package version `124.0.0`. `ROLLOUT_VERSION` stays `r9`.
+
+`zip.sh` NEVER ARCHIVES A HELD-OUT CORPUS. The default was "every
+`eval_results_*` directory in the repo root", and the held-out corpus is one of
+those: the harness defaults `--output-dir` to `./eval_results_$ROLLOUT_VERSION`,
+and under the held-out bundle that is `eval_results_heldout1` /
+`eval_results_heldout2`. A bare `./zip.sh` therefore built an archive of the
+held-out transcripts beside the shipped one and printed a reassuring line about
+it. A held-out control is worth having only for as long as it has never been
+published, and this script exists to produce the artefact that gets published.
+
+The archive being gitignored was the only thing standing in the way, and that is
+a second line of defence rather than a first: the shipped archive is
+deliberately tracked, so the ignore rule is already overridden for a file of
+exactly that shape, and one `git add -f` or one later decision to track a
+pattern would have been enough.
+
+Named explicitly through `--dirs` it is REFUSED, not skipped, and there is no
+override flag. `--dirs` means "this one and no others", so silently dropping the
+one directory a caller asked for would report success over an archive they never
+got. The only reason to pass a held-out directory is a mistake, and having to do
+it by hand is the friction that should be there.
+
+TWO TESTS FOR "IS THIS HELD OUT", because neither alone is enough. The name
+pattern needs nothing on disk and covers every held-out rollout past and future
+without being told about them. The pins sidecar is the authority on what the
+held-out rollout is actually called - including superseded ones, whose corpora
+are still on disk - so it also catches a rollout renamed to something with no
+"heldout" in it; but it is gitignored, so on a fresh clone the name pattern is
+the whole guard, and a test asserts the name test is not sitting behind a check
+for the sidecar's existence.
+
+A skip is always announced. `--print-selection` is a new dry run listing what a
+call would archive and what it is skipping, which is what makes the exclusion
+testable at all: an exclusion whose only evidence is which files a 75MB archive
+step did not create is not something a suite can assert on.
+
 ## v123
 
 Package version `123.0.0`. `ROLLOUT_VERSION` stays `r9`.

@@ -10,10 +10,19 @@
 # there so that crawlers and dataset-scraping pipelines cannot read the
 # contents, in the same way SAD and BIG-bench guard their test sets.
 #
+# HELD-OUT RESULTS ARE NEVER ARCHIVED BY THIS SCRIPT. Not by an unqualified
+# run, and not when named explicitly either - see the exclusion below. A
+# held-out control is worth having only for as long as it has never been
+# published, and this script's whole purpose is to produce the artefact that
+# gets published.
+#
 # Usage:
-#   ./zip.sh                    encrypt every eval_results_* directory
+#   ./zip.sh                    encrypt every eval_results_* directory except
+#                               any held-out one
 #   ./zip.sh --dirs d1 d2       encrypt only the directories named
 #   ./zip.sh --remove           delete the plaintext once the archive verifies
+#   ./zip.sh --print-selection  list the directories a run would archive, and
+#                               those it is skipping, then exit
 #   ./zip.sh --dirs d1 --remove both
 #
 # The archive is always verified before anything is deleted.
@@ -24,11 +33,76 @@ PASSWORD="donottrainonsubversionbench"
 
 cd "$(dirname "$0")"
 
+# ---------------------------------------------------------------------------
+# The held-out exclusion
+# ---------------------------------------------------------------------------
+#
+# WHY THE DEFAULT WAS THE WRONG WAY ROUND. It was "every eval_results_*
+# directory in the repo root", and the held-out corpus is one of those: the
+# harness defaults --output-dir to ./eval_results_$ROLLOUT_VERSION, and under
+# the held-out bundle that is eval_results_heldout1 / eval_results_heldout2. So
+# a bare ./zip.sh built an archive of the held-out transcripts beside the
+# shipped one and printed a reassuring line about it.
+#
+# The .zip being gitignored is a SECOND line of defence, not a first. The
+# shipped archive is deliberately tracked, so the ignore rule is already being
+# overridden for a file of exactly this shape - one `git add -f`, or one later
+# decision to track a pattern, and the control is gone. The exclusion therefore
+# lives here, in front of the step that creates the artefact.
+#
+# TWO TESTS, BECAUSE NEITHER ALONE IS ENOUGH. The name pattern needs no files
+# on disk and covers every held-out rollout, past and future, without being
+# told about them. The pins sidecar is the authority on what the held-out
+# rollout is actually called, so it also catches a held-out rollout renamed to
+# something with no "heldout" in it - but it is gitignored, so on a fresh clone
+# it is absent and the name pattern is all there is.
+
+heldout_rollout_versions() {
+    # Every rollout name the held-out pins declare, current and superseded. A
+    # superseded rollout still has a corpus on disk - eval_results_heldout1 is
+    # exactly that - so dropping the old names would leave the older corpus
+    # unguarded by this half of the check.
+    local sidecar
+    for sidecar in heldout/*.pins.json; do
+        [ -f "$sidecar" ] || continue
+        python3 - "$sidecar" <<'PY' 2>/dev/null || true
+import json, sys
+declared = json.load(open(sys.argv[1], encoding="utf-8"))
+names = [declared.get("rollout_version")]
+names += [old.get("rollout_version")
+          for old in (declared.get("superseded") or [])]
+for name in names:
+    if name:
+        print(name)
+PY
+    done
+}
+
+is_heldout() {
+    local name lowered version
+    name="$(basename "${1%/}")"
+    lowered="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')"
+    case "$lowered" in
+        *heldout*|*held-out*|*held_out*) return 0 ;;
+    esac
+    while read -r version; do
+        [ -n "$version" ] || continue
+        [ "$name" = "eval_results_${version}" ] && return 0
+    done < <(heldout_rollout_versions)
+    return 1
+}
+
 dirs=()
 remove=false
+print_selection=false
+skipped=()
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --print-selection)
+            print_selection=true
+            shift
+            ;;
         --dirs)
             shift
             while [[ $# -gt 0 ]] && [[ $1 != --* ]]; do
@@ -52,15 +126,56 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Default: every results directory in the repo root.
+# Default: every results directory in the repo root EXCEPT a held-out one.
 if [ ${#dirs[@]} -eq 0 ]; then
     for candidate in eval_results_*/; do
-        [ -d "$candidate" ] && dirs+=("${candidate%/}")
+        [ -d "$candidate" ] || continue
+        if is_heldout "$candidate"; then
+            skipped+=("${candidate%/}")
+            continue
+        fi
+        dirs+=("${candidate%/}")
+    done
+else
+    # NAMED EXPLICITLY IS STILL A REFUSAL, not a skip. --dirs is how a caller
+    # says "this one and no others", so silently dropping the one they asked for
+    # would report success over an archive they did not get. And there is no
+    # override flag: the only reason to pass a held-out directory here is a
+    # mistake, and the friction of doing it by hand is the point.
+    for candidate in "${dirs[@]}"; do
+        if is_heldout "$candidate"; then
+            echo "REFUSING: $candidate is a held-out results directory." >&2
+            echo "This script produces the archive that gets published, and a" >&2
+            echo "held-out control is worth having only while it has never" >&2
+            echo "been published. Nothing was archived." >&2
+            exit 1
+        fi
     done
 fi
 
+# Said out loud, never silently. A skip a caller does not see is a caller who
+# believes the corpus was archived - which on a --remove run is how the only
+# copy would be the one that was never made.
+if [ ${#skipped[@]} -gt 0 ]; then
+    echo "skipping ${#skipped[@]} held-out directory/directories, which are" \
+         "never archived: ${skipped[*]}"
+fi
+
+if [ "$print_selection" = true ]; then
+    # A dry run, so the selection can be checked - by a person before a
+    # --remove, and by the suite, which cannot assert on an exclusion whose
+    # only evidence is which files a 75MB archive step did not create.
+    for dir in "${dirs[@]:-}"; do
+        [ -n "$dir" ] && echo "archive: $dir"
+    done
+    for dir in "${skipped[@]:-}"; do
+        [ -n "$dir" ] && echo "skip: $dir"
+    done
+    exit 0
+fi
+
 if [ ${#dirs[@]} -eq 0 ]; then
-    echo "No eval_results_* directories found - nothing to encrypt."
+    echo "No archivable eval_results_* directories found - nothing to encrypt."
     exit 0
 fi
 
