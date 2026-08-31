@@ -54,6 +54,8 @@ subversionbench/
     concealment.py         acts plus answers to a verdict
     disguised_text.py      writing a Latin lookalike to slip past a literal match
     encoded_payload.py     encoding a payload to slip past a literal match
+    honeypot.py            how far the episode got with the lure arm's file:
+                           saw its name in a listing, then read its contents
     filesystem_escapes.py  leaving the episode directory by a route the rewriter misses
     grader.py              asking an LLM the awareness rubric
     grader_io.py           preparing text for a grader call, parsing the reply

@@ -1185,3 +1185,132 @@ class TestSignalChartInARealReport:
             assert run_report.main() == 0
             names = set(os.listdir(os.path.join(out, "charts")))
         assert "eval_signal_rates.png" in names
+
+
+def _lure_model_row(model, n_lure, n_no_lure, mis_lure, mis_no_lure):
+    """One by_model row shaped like lure_effect() builds them."""
+    from subversionbench.power import newcombe_diff_ci
+    def contrast(n1, n2, x1, x2):
+        r1 = x1 / n1 if n1 else None
+        r2 = x2 / n2 if n2 else None
+        lo, hi = newcombe_diff_ci(x1, n1, x2, n2) if n1 and n2 else (None, None)
+        return {"n_lure": n1, "n_no_lure": n2, "n_misaligned_lure": x1,
+                "n_misaligned_no_lure": x2, "rate_lure": r1, "rate_no_lure": r2,
+                "diff": None if r1 is None or r2 is None else r1 - r2,
+                "lo": lo, "hi": hi,
+                "underpowered": min(n1, n2) < MIN_INFORMATIVE_DENOMINATOR}
+    c = contrast(n_lure, n_no_lure, mis_lure, mis_no_lure)
+    return {"model": model, "n_episodes": n_lure + n_no_lure,
+            "n_lure_resolved": n_lure, "n_discovered": 0, "n_read": 0,
+            "overall": c, "oversight": c, "no_oversight": c}
+
+
+class TestTheLureForestFoldsOnlyTheModelsWithNothingToMove:
+    """The fold is narrowly "zero misaligned on BOTH sides", not "difference of
+    zero". Those are different findings and one of them belongs on the chart."""
+
+    def test_a_model_with_no_misalignment_either_side_is_folded(self):
+        rows = rc._lure_effect_rows(
+            {"by_model": [_lure_model_row("p/quiet", 30, 30, 0, 0)]},
+            "oversight")
+        assert [r.label for r in rows] == ["(1 models omitted)"]
+        assert rows[0].diff is None, (
+            "a folded group must not be drawn as a marker at zero - it is not "
+            "a data point")
+
+    def test_a_high_base_rate_null_is_KEPT(self):
+        """24/30 in both arms is a genuine null at a high base rate, and the
+        most informative null in the set. Folding it away with the models that
+        never did anything would hide it."""
+        rows = rc._lure_effect_rows(
+            {"by_model": [_lure_model_row("p/busy", 30, 30, 24, 24)]},
+            "oversight")
+        assert [r.label for r in rows] == ["p/busy"]
+        assert rows[0].diff == 0
+
+    def test_the_two_are_distinguished_in_one_chart(self):
+        rows = rc._lure_effect_rows(
+            {"by_model": [_lure_model_row("p/quiet", 30, 30, 0, 0),
+                          _lure_model_row("p/busy", 30, 30, 24, 24)]},
+            "oversight")
+        labels = [r.label for r in rows]
+        assert "p/busy" in labels and "p/quiet" not in labels
+        assert "(1 models omitted)" in labels
+
+    def test_the_floor_applies_to_the_thinner_arm(self):
+        """A difference is only as informative as its thinner side, so a model
+        with plenty of lure episodes and almost none without is not plotted."""
+        thin = _lure_model_row("p/lopsided", 200, MIN_INFORMATIVE_DENOMINATOR - 1,
+                               10, 1)
+        assert rc._lure_effect_rows({"by_model": [thin]},
+                                               "oversight") == []
+        fat = _lure_model_row("p/balanced", 200, MIN_INFORMATIVE_DENOMINATOR,
+                              10, 1)
+        assert [r.label for r in rc._lure_effect_rows(
+            {"by_model": [fat]}, "oversight")] == ["p/balanced"]
+
+    def test_a_marker_is_filled_only_when_its_interval_excludes_zero(self):
+        moved = _lure_model_row("p/moved", 40, 40, 20, 0)
+        flat = _lure_model_row("p/flat", 40, 40, 4, 3)
+        rows = {r.label: r for r in rc._lure_effect_rows(
+            {"by_model": [moved, flat]}, "oversight")}
+        assert rows["p/moved"].marked
+        assert not rows["p/flat"].marked
+
+    def test_rows_are_sorted_by_the_difference(self):
+        rows = rc._lure_effect_rows(
+            {"by_model": [_lure_model_row("p/down", 40, 40, 2, 12),
+                          _lure_model_row("p/up", 40, 40, 12, 2)]},
+            "oversight")
+        assert [r.label for r in rows] == ["p/up", "p/down"]
+
+
+class TestTheHoneypotChartShowsOnlyWhatHappened:
+    def _profile(self):
+        rows = [_lure_model_row(f"p/m{i}", 30, 30, 1, 1) for i in range(5)]
+        rows[0]["n_discovered"], rows[0]["n_read"] = 7, 3
+        rows[1]["n_discovered"], rows[1]["n_read"] = 2, 0
+        rows[2]["n_discovered"], rows[2]["n_read"] = 0, 1
+        return {"by_model": rows,
+                "pooled": {"n_lure_resolved": 150, "n_discovered": 9,
+                           "n_read": 4}}
+
+    def test_only_models_that_reached_it_are_rowed(self):
+        rows = rc._honeypot_rows(self._profile())
+        assert [r["model"] for r in rows] == ["p/m0", "p/m1", "p/m2"]
+
+    def test_a_read_without_a_discovery_still_appears(self):
+        """Measured on the corpus: an episode can glob the contents without the
+        filename ever being listed, so a row must not be gated on discovery."""
+        rows = rc._honeypot_rows(self._profile())
+        assert any(r["model"] == "p/m2" and r["n_read"] for r in rows)
+
+    def test_it_renders_and_states_how_many_models_are_not_drawn(self):
+        plt = _plt()
+        out = os.path.join(tempfile.mkdtemp(), "honeypot.png")
+        assert rc.plot_honeypot_access(
+            plt, {"characteristics": {"lure_effect": self._profile()}}, out)
+        assert os.path.getsize(out) > 1000
+
+    def test_nothing_is_drawn_when_no_model_reached_it(self):
+        """An empty chart claiming a measure was taken is worse than no chart."""
+        plt = _plt()
+        profile = self._profile()
+        for r in profile["by_model"]:
+            r["n_discovered"] = r["n_read"] = 0
+        out = os.path.join(tempfile.mkdtemp(), "honeypot.png")
+        assert rc.plot_honeypot_access(
+            plt, {"characteristics": {"lure_effect": profile}}, out) is None
+
+    def test_the_misalignment_chart_writes_one_file_per_stratum(self):
+        plt = _plt()
+        rows = [_lure_model_row(f"p/m{i}", 40, 40, i + 1, 1) for i in range(4)]
+        out = os.path.join(tempfile.mkdtemp(), "lure_misalignment.png")
+        assert rc.plot_lure_misalignment(
+            plt, {"characteristics": {"lure_effect": {"by_model": rows,
+                  "pooled": {"oversight": rows[0]["oversight"],
+                             "no_oversight": rows[0]["no_oversight"]}}}}, out)
+        assert os.path.exists(out)
+        assert os.path.exists(out.replace(".png", "_no_oversight.png")), (
+            "the no-oversight stratum must get its own file - the two strata "
+            "carry opposite signs and cannot share a panel")

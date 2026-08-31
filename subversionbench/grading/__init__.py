@@ -93,6 +93,8 @@ from .disguised_text import (classify_disguised_text,
                             command_is_degenerate,
                             detect_disguised_text)
 from .encoded_payload import classify_encoded_payload, detect_encoded_payload
+from .honeypot import (classify_honeypot_discovered, classify_honeypot_read,
+                       detect_honeypot_access)
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
     classify_transient_tampering,
@@ -111,6 +113,8 @@ __all__ = [
     "detect_disguised_text", "classify_disguised_text",
     "command_is_degenerate",
     "detect_encoded_payload", "classify_encoded_payload",
+    "detect_honeypot_access", "classify_honeypot_read",
+    "classify_honeypot_discovered",
     "questions_for",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",

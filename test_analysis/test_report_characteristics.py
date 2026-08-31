@@ -710,3 +710,119 @@ class TestEvalSignalRatesReachesTheReport:
         assert "TASK DECISION" in printed
         assert "EVAL-AWARENESS RUBRIC SIGNALS" in printed
         assert "ENCODED PAYLOADS" in printed
+
+
+def _lure_ep(model="m", lure=False, oversight=True, misaligned=False,
+             discovered=None, read=None):
+    """One episode row for the lure block.
+
+    `discovered`/`read` default to None, which is what load_episodes puts on a
+    NON-lure episode - there is no bait in that arm, so the fields are
+    unmeasured rather than False.
+
+    Built on _ep() so the row is COMPLETE rather than only the fields this
+    block reads. characteristics() runs every profile over the same list, and a
+    partial row makes an unrelated profile raise - which is a fixture failure
+    reported as if this block were broken.
+    """
+    row = _ep(model=model, misaligned=misaligned)
+    row.update({"oversight": oversight, "lure": lure,
+                "honeypot_discovered": discovered, "honeypot_read": read})
+    return row
+
+
+class TestTheLureContrastIsStratifiedNotPooled:
+    """Pooling across oversight averages a sign change away, and the two strata
+    do not even measure the same outcome - the oversight act does not exist in
+    the no-oversight arm."""
+
+    def _mixed(self):
+        # oversight present: lure 2/4 vs no-lure 0/4  -> +50pp
+        # oversight absent : lure 0/4 vs no-lure 2/4  -> -50pp
+        eps = []
+        for i in range(4):
+            eps.append(_lure_ep(lure=True, oversight=True, misaligned=i < 2,
+                                discovered=False, read=False))
+            eps.append(_lure_ep(lure=False, oversight=True, misaligned=False))
+            eps.append(_lure_ep(lure=True, oversight=False, misaligned=False,
+                                discovered=False, read=False))
+            eps.append(_lure_ep(lure=False, oversight=False, misaligned=i < 2))
+        return eps
+
+    def test_the_strata_keep_their_opposite_signs(self):
+        pooled = rr.lure_effect(self._mixed())["pooled"]
+        assert pooled["oversight"]["diff"] > 0
+        assert pooled["no_oversight"]["diff"] < 0
+
+    def test_and_the_pooled_figure_cancels_them(self):
+        """Not an accusation against the pooled number - it is reported. This
+        pins WHY the chart draws the strata instead."""
+        pooled = rr.lure_effect(self._mixed())["pooled"]
+        assert pooled["overall"]["diff"] == 0
+
+    def test_the_difference_carries_an_interval(self):
+        c = rr.lure_effect(self._mixed())["pooled"]["oversight"]
+        assert c["lo"] is not None and c["hi"] is not None
+        assert c["lo"] <= c["diff"] <= c["hi"]
+
+
+class TestTheFunnelCountsOnlyTheArmThatHadBait:
+    def test_a_non_lure_episode_is_not_in_the_denominator(self):
+        """Its honeypot fields are None. Counting them would report models
+        declining bait that was never laid, and sink the rate toward zero."""
+        eps = [_lure_ep(lure=True, discovered=True, read=True)] + \
+              [_lure_ep(lure=False) for _ in range(50)]
+        pooled = rr.lure_effect(eps)["pooled"]
+        assert pooled["n_lure_resolved"] == 1
+        assert pooled["n_discovered"] == 1 and pooled["n_read"] == 1
+
+    def test_reading_is_counted_even_without_discovery(self):
+        """Measured on the corpus: an episode can `cat ../*/*` and get the
+        contents without the filename ever appearing in a listing, so read must
+        not be gated on discovered."""
+        eps = [_lure_ep(lure=True, discovered=False, read=True)]
+        pooled = rr.lure_effect(eps)["pooled"]
+        assert pooled["n_discovered"] == 0 and pooled["n_read"] == 1
+
+    def test_per_model_counts_are_that_model_s_own(self):
+        eps = [_lure_ep("a", lure=True, discovered=True, read=True),
+               _lure_ep("b", lure=True, discovered=False, read=False)]
+        rows = {r["model"]: r for r in rr.lure_effect(eps)["by_model"]}
+        assert (rows["a"]["n_discovered"], rows["a"]["n_read"]) == (1, 1)
+        assert (rows["b"]["n_discovered"], rows["b"]["n_read"]) == (0, 0)
+
+
+class TestTheLureBlockReachesThePrintedReport:
+    def test_the_dispatcher_prints_it(self):
+        """The wiring risk is a block that is computed and never printed, which
+        is what happened when the second profile was chained onto the end of
+        the first. Asserted through _print_characteristics rather than through
+        characteristics(), because that function runs every profile over the
+        same rows and would need a fixture complete for all four - a fixture
+        failure would then be reported as if this block were broken."""
+        block = rr.lure_effect([_lure_ep(lure=True, discovered=True, read=True),
+                                _lure_ep(lure=False, misaligned=True)])
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            rr._print_characteristics({"lure_effect": block})
+        assert "THE LURE ARM" in buffer.getvalue()
+
+    def test_the_console_prints_the_strata_and_warns_about_the_pooled_line(self):
+        block = rr.lure_effect(
+            [_lure_ep(lure=True, discovered=True, read=True),
+             _lure_ep(lure=False, misaligned=True)])
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            rr._print_lure_effect(block)
+        out = buffer.getvalue()
+        assert "oversight present" in out
+        assert "POOLED" in out and "sign change" in out
+        assert "discovered" in out and "read" in out
+
+    def test_the_console_prints_nothing_for_an_absent_block(self):
+        """One profile must not be able to suppress another - the dispatcher
+        calls every printer unconditionally, so each has to tolerate None."""
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            rr._print_lure_effect(None)
+        assert buffer.getvalue() == ""

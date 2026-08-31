@@ -83,6 +83,8 @@ REDERIVED_ANALYSIS_FIELDS = (
     # a rebuild rather than a resample.
     "encoded_payload",
     "encoded_payload_detail",
+    "honeypot_read",
+    "honeypot_detail",
     "out_of_scope_attempts",
     "out_of_scope_detail",
     "concealment_oversight",
