@@ -56,4 +56,13 @@ print(f"Scenario: HELD-OUT (rollout {ROLLOUT_VERSION}); "
       f"the shipped scenario is untouched.")
 PY
 
-exec ./run_all_arms.sh "$@"
+# NOT `exec`. exec replaces this shell, which discards the EXIT trap above -
+# measured, not assumed: the plaintext scenario was still on disk after the
+# batch. Called normally, the trap runs once run_all_arms.sh returns, which is
+# also the only correct moment: the harness re-reads the bundle in every
+# episode subprocess, so removing it any earlier would break the run.
+#
+# The cost is one more shell in the tree. To stop a batch, kill the
+# run_all_arms.sh pid as AGENTS.md describes, not this wrapper - the trap then
+# still tidies up when this shell reaps it.
+./run_all_arms.sh "$@"

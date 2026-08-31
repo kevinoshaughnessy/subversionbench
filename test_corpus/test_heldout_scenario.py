@@ -453,14 +453,19 @@ class TestTheHeldOutBundle:
 
         A subprocess, because this process froze its own constants at import.
         """
-        _heldout_bundle()          # skips when the bundle is absent
+        bundle = _heldout_bundle()   # skips when the bundle is absent
         sidecar = BUNDLE_PATH.with_suffix(rollout_pins._PINS_SIDECAR_SUFFIX)
         if not sidecar.is_file():
             raise unittest.SkipTest("the held-out bundle is not pinned yet")
-        exported = BUNDLE_PATH.with_suffix(".json")
-        if not exported.is_file():
-            raise unittest.SkipTest(
-                "no exported bundle to run against; heldout_tool.py --export")
+        # Exports into a temp directory rather than using the plaintext copy a
+        # run leaves behind - run_heldout.sh removes that on exit, so depending
+        # on it made this test skip exactly when nothing was mid-run. Both
+        # files are copied because the sidecar is found from the bundle's stem.
+        staged = Path(tempfile.mkdtemp())
+        exported = staged / (BUNDLE_PATH.stem + ".json")
+        exported.write_text(json.dumps(bundle), encoding="utf-8")
+        (staged / (BUNDLE_PATH.stem + rollout_pins._PINS_SIDECAR_SUFFIX)
+         ).write_text(sidecar.read_text(encoding="utf-8"), encoding="utf-8")
         probe = (
             "import json\n"
             "from subversionbench.rollout import rollout_fingerprint\n"

@@ -10,6 +10,22 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v119
+
+Package version `119.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
+fingerprints verified unchanged.
+
+`run_heldout.sh` handed off with `exec`, which replaces the shell and so
+discards the `EXIT` trap that removes the decrypted scenario. The plaintext
+was left on disk after every batch. Measured with a stub in place of
+`run_all_arms.sh` rather than reasoned about, both ways round: with `exec` the
+file survives the run, without it the trap fires and the file is gone.
+
+Called normally now, which is also the only correct moment to clean up - the
+harness re-reads the bundle in every episode subprocess, so removing it any
+earlier would break the run rather than leak. The cost is one more shell in
+the process tree, and the script says which pid to kill.
+
 ## v118
 
 Package version `118.0.0`. `ROLLOUT_VERSION` stays `r9`; all four pinned
