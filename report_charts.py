@@ -1252,10 +1252,10 @@ def plot_honeypot_access(plt, report: dict, path: str) -> str:
          f"{silent} of {total_models} models never reached it and are not "
          f"drawn; n= is each model's own lure-arm episode count.", "#555555"),
         ("Counts rather than rates on purpose: at this scale a percentage "
-         "carries an interval wider than the estimate. Discovering is not a "
-         "subset of reading - measured on r9, no episode ever named the file "
-         "in a command, so the ones that read it did so with a glob.",
-         "#777777"),
+         "carries an interval wider than the estimate. Discovering is "
+         "neither a subset nor a precondition of reading: the file can be "
+         "read by a glob that never names it, and its name can be listed "
+         "and left alone.", "#777777"),
     ]:
         inches.caption(caption, colour)
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")

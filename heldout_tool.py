@@ -21,6 +21,7 @@ barrier, not a secret, and deliberately not a new credential to manage.
     python heldout_tool.py --show memo  # print one entry
     python heldout_tool.py --list       # entry names and sizes
     python heldout_tool.py --encode     # fold the working copy back in
+    python heldout_tool.py --encode --repin   # ... and accept a new rollout
     python heldout_tool.py --check      # run the bundle's invariants
     python heldout_tool.py --pin        # compute its rollout fingerprints
     python heldout_tool.py --export     # decrypt for a run, and print the path
@@ -57,7 +58,7 @@ TESTS = ROOT / "test_corpus" / "test_heldout_scenario.py"
 # sidecar that claims to be: sharing a rollout version is what makes two
 # rollouts indistinguishable. Numbered so a later reword is a later rollout
 # rather than a silent redefinition of this one.
-ROLLOUT_VERSION = "heldout1"
+ROLLOUT_VERSION = "heldout2"
 
 
 def load_heldout(path: Path = None) -> dict:
@@ -133,13 +134,48 @@ def _fingerprints(bundle_for_run: Path) -> dict:
                 f"{result.stderr.rstrip()}")
         return {(bool(o), bool(lure)): fp
                 for o, lure, fp in json.loads(result.stdout)}
-    except BaseException:
-        # Leave nothing provisional behind on any exit, interrupt included.
+    finally:
+        # Restores on EVERY exit, not only on failure. This function computes;
+        # the caller decides whether to accept. Leaving the provisional sidecar
+        # behind on success made the accept step implicit, and an interrupted
+        # --pin then left the bundle pinned to a value nothing produced.
         if previous is None:
             PINS_PATH.unlink(missing_ok=True)
         else:
             PINS_PATH.write_bytes(previous)
-        raise
+
+
+def _pinned() -> dict:
+    """The fingerprints currently on the sidecar, keyed like _fingerprints."""
+    if not PINS_PATH.is_file():
+        return {}
+    declared = json.loads(PINS_PATH.read_text(encoding="utf-8"))
+    return {(bool(e["oversight"]), bool(e["lure"])): str(e["fingerprint"])
+            for e in declared.get("fingerprints", [])}
+
+
+def _write_pins(pins: dict) -> None:
+    """
+    Replace the sidecar, carrying the values it held into `superseded`.
+
+    The same practice rollout_pins.py applies to r1-r8: a superseded
+    fingerprint is kept so an archived results directory can be identified
+    from a fingerprint alone rather than from the name of the directory it
+    happens to sit in.
+    """
+    old = {}
+    if PINS_PATH.is_file():
+        old = json.loads(PINS_PATH.read_text(encoding="utf-8"))
+    history = list(old.get("superseded") or [])
+    if old.get("fingerprints") and old.get("rollout_version") != ROLLOUT_VERSION:
+        history.append({"rollout_version": old.get("rollout_version"),
+                        "fingerprints": old["fingerprints"]})
+    PINS_PATH.write_text(json.dumps({
+        "rollout_version": ROLLOUT_VERSION,
+        "fingerprints": [{"oversight": o, "lure": lure, "fingerprint": fp}
+                         for (o, lure), fp in sorted(pins.items())],
+        "superseded": history,
+    }, indent=2), encoding="utf-8")
 
 
 def main():
@@ -160,6 +196,12 @@ def main():
                        help="compute and write the rollout fingerprints")
     group.add_argument("--export", action="store_true",
                        help="decrypt for a run and print the path")
+    # NOT in the mutually exclusive group: a modifier on --encode, not a mode.
+    parser.add_argument("--repin", action="store_true",
+                        help="with --encode, accept that the edit moves the "
+                             "rollout and re-pin its fingerprints. Required "
+                             "for any edit to a document the model reads, so "
+                             "that a new rollout is always a deliberate act.")
     args = parser.parse_args()
 
     if not BUNDLE_PATH.is_file():
@@ -206,12 +248,7 @@ def main():
             print(f"Refusing to pin: {sorted(shared)} match the shipped "
                   f"rollout's fingerprints exactly.")
             return 1
-        PINS_PATH.write_text(json.dumps({
-            "rollout_version": ROLLOUT_VERSION,
-            "fingerprints": [
-                {"oversight": o, "lure": lure, "fingerprint": fp}
-                for (o, lure), fp in sorted(pins.items())],
-        }, indent=2), encoding="utf-8")
+        _write_pins(pins)
         print(f"wrote {PINS_PATH.relative_to(ROOT)} "
               f"(rollout_version {ROLLOUT_VERSION})")
         for (o, lure), fp in sorted(pins.items()):
@@ -261,16 +298,53 @@ def main():
     # Written, then checked, then kept or rolled back. The invariants run as
     # the tracked test, which reads the bundle at its real path, so there is no
     # staging path to check it at - the rollback is what makes that safe.
-    previous = BUNDLE_PATH.read_bytes()
+    previous_bundle = BUNDLE_PATH.read_bytes()
+    previous_pins = PINS_PATH.read_bytes() if PINS_PATH.is_file() else None
     BUNDLE_PATH.write_text(encrypt(edited), encoding="utf-8")
-    if not _invariants_hold():
-        BUNDLE_PATH.write_bytes(previous)
-        print(f"\nRefusing to encode: {BUNDLE_PATH.name} rolled back.")
-        return 1
+    accepted = False
+    try:
+        # DOES THIS EDIT MOVE THE ROLLOUT? Asked before the invariants run,
+        # because one of those invariants is that the sidecar matches what a
+        # run reproduces - so an edit to any document the model reads fails it
+        # by construction, and the first version of this had no way to land
+        # such an edit at all. Which is the wrong shape twice over: the check
+        # is right that the rollout moved, and refusing outright made a
+        # legitimate reword impossible.
+        WORKING_COPY.write_text(json.dumps(edited, indent=2), encoding="utf-8")
+        os.chmod(WORKING_COPY, 0o600)
+        computed = _fingerprints(WORKING_COPY)
+        moved = sorted(k for k, v in computed.items() if _pinned().get(k) != v)
+        if moved and not args.repin:
+            print(f"\nRefusing to encode: this edit moves {len(moved)} of "
+                  f"{len(computed)} arm fingerprint(s), so it is a NEW "
+                  f"ROLLOUT:")
+            for key in moved:
+                print(f"    oversight={key[0]!s:5s} lure={key[1]!s:5s}  "
+                      f"{_pinned().get(key, '(unpinned)')} -> {computed[key]}")
+            print(f"\nEpisodes already collected under "
+                  f"{(_pinned() and json.loads(PINS_PATH.read_text(encoding='utf-8')).get('rollout_version')) or 'the current pins'} "
+                  f"are NOT comparable with episodes collected after it.\n"
+                  f"Set ROLLOUT_VERSION in this file to a new value and re-run "
+                  f"with --repin to accept.")
+            return 1
+        if moved:
+            _write_pins(computed)
+        if not _invariants_hold():
+            print(f"\nRefusing to encode: {BUNDLE_PATH.name} rolled back.")
+            return 1
+        accepted = True
+    finally:
+        if not accepted:
+            BUNDLE_PATH.write_bytes(previous_bundle)
+            if previous_pins is None:
+                PINS_PATH.unlink(missing_ok=True)
+            else:
+                PINS_PATH.write_bytes(previous_pins)
     print(f"{BUNDLE_PATH.name} updated.")
-    if PINS_PATH.is_file():
-        print(f"NOTE: {PINS_PATH.name} may now be stale - re-run --pin if any "
-              f"document the model reads changed.")
+    if moved:
+        print(f"NEW ROLLOUT {ROLLOUT_VERSION}: {len(moved)} arm(s) re-pinned. "
+              f"Collect into a fresh --output-dir; the previous rollout's "
+              f"episodes stand but do not pool with these.")
     return 0
 
 
