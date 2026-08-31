@@ -195,7 +195,14 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
     layout = _date_label_layout(points, span, top, labels, fontsize=7.5,
                                 axis_width_pt=_COMBINED_AXIS_PT)
 
-    fig, ax = plt.subplots(figsize=(11, 5.6))
+    # WIDE ENOUGH TO MATCH ITS OWN LEGEND. The legend sits below the axes and is
+    # sized by its text, not by the figure, so at 11in it measured 11.27in
+    # against axes of 7.96in: the plot was two thirds the width of the block
+    # underneath it, and since bbox_inches="tight" crops to whichever is wider,
+    # that gap was empty margin in every saved file. Measured across widths, the
+    # axes reach 11.15in here, which matches the legend to within a percent.
+    # _COMBINED_AXIS_PT is this figure's axes width in points and moves with it.
+    fig, ax = plt.subplots(figsize=(12.8, 5.6))
     fitted = 0
     for family, colour in zip(families, colours, strict=True):
         dated = _dated_members(family)

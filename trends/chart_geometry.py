@@ -85,8 +85,21 @@ _LABEL_CHAR_PT = 0.6
 # nearly the full figure, a label covers proportionally fewer days, and leaving
 # this at 500 would over-estimate every label and stagger rows that do not
 # collide.
+# MEASURED, NOT ESTIMATED, and the combined figure was widened to match its own
+# legend. The legend sits under the axes and is sized by its own text, so it ran
+# 11.27in wide while the axes ran 7.96in - the plot was two thirds the width of
+# the block beneath it, and bbox_inches="tight" cropped to the legend, so the
+# wasted width was in every saved file. At a 12.8in figure the axes measure
+# 11.15in, which is the legend to within a percent.
+#
+# 800 is that measurement in points. The old 700 described no figure this module
+# ever drew: at the previous 11in width the axes were 573pt, so every label was
+# converted into too few days and the stagger under-fired. If the figsize in
+# _plot_all_family_dates moves, re-measure and move this with it -
+# test_the_combined_axis_constant_matches_the_figure_it_describes renders the
+# real chart and compares the two.
 _PER_FAMILY_AXIS_PT = 540.0
-_COMBINED_AXIS_PT = 700.0
+_COMBINED_AXIS_PT = 800.0
 
 
 def _point_label(member: dict, rate: float) -> str:
@@ -168,7 +181,16 @@ def _label_layout(families: list, longest: int, top: float) -> dict:
 # A fixed 0-100 axis puts a family that never exceeds 15% into the bottom sixth
 # of the chart, where three steps of a few points each look like one flat line.
 # Scaled instead, the same three steps are legible.
-_AXIS_STEPS = ((5, 1), (20, 5), (50, 10), (100, 10))
+#
+# THE 5-STEP BAND RUNS TO 50, NOT TO 20. It used to stop at 20, which put every
+# max between 18.6 and 46.3 into a step of 10 and bought dead space rather than
+# clearance: the combined scheming chart topped out at 20.0%, took the headroom
+# to 21.6, and rounded to 30 - a third of the panel empty above the tallest
+# point, on a chart whose subject is how low the remaining points sit. The same
+# figure now rounds to 25, and nothing is lost, because the step sets the axis
+# CAP only: matplotlib chooses the tick spacing itself and already drew
+# 0/5/10/../30 on the wider axis.
+_AXIS_STEPS = ((5, 1), (50, 5), (100, 10))
 
 # Never scale below this, so an all-zero family gets an axis with height rather
 # than a flat line on a zero-tall panel.

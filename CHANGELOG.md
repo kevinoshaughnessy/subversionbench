@@ -10,6 +10,45 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v123
+
+Package version `123.0.0`. `ROLLOUT_VERSION` stays `r9`.
+
+`qwen/qwen3.6-27b` gains a release date, which it did not have. The trends CLI
+reported it as an error rather than passing over it - the model sits in a family,
+so it was present on every version-order chart and missing from every
+release-date one, and only the CLI's own check said so. Its OpenRouter release
+day is the same as `qwen/qwen3.6-flash`, and it is placed before that entry
+because `by_release_date` keeps the given order for equal dates: a tie broken
+differently between runs would move a chart's x-axis.
+
+TWO GEOMETRY FIXES ON THE COMBINED RELEASE CHARTS, both measured rather than
+estimated.
+
+The y axis bought dead space instead of clearance. The rounding ladder's
+5-point band stopped at 20, so a maximum of 20.0% went to 21.6 with headroom
+and then rounded up on a step of 10 - a third of the panel empty above the
+tallest point, on a chart whose subject is how low the remaining points sit.
+The band now runs to 50 and the same figure caps at 25. Nothing is lost: the
+step sets the axis CAP only, and matplotlib was already choosing the ticks.
+
+The plot was two thirds the width of its own legend. The legend sits below the
+axes and is sized by its text rather than by the figure, so it measured 11.27in
+while the axes measured 7.96in - and since `bbox_inches="tight"` crops to
+whichever is wider, that difference was empty margin in every saved file. Widths
+were measured across candidate figsizes; at 12.8in the axes reach 11.15in, which
+matches the legend to within a percent. As a side effect the point labels on the
+crowded right-hand end have room to separate.
+
+`_COMBINED_AXIS_PT` moves with it, from 700 to 800. It is a PREDICTION of the
+axes width, made before the figure exists, and used to convert a label's width
+into days for the stagger layout - so a wrong value silently mis-staggers every
+label. The old 700 described no figure this module drew: at the previous 11in
+the axes were 573pt. A test now renders the real chart and compares the two,
+because neither number can be derived from the figsize alone - tight_layout
+takes the left margin from the y tick labels and the y label, which is why the
+same figure measures 866pt on a fixture and 803pt on the corpus.
+
 ## v122
 
 `python3 -m report --exclude-no-oversight` answers all twelve questions again

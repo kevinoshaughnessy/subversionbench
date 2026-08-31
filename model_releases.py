@@ -111,6 +111,11 @@ RELEASE_DATES = {
 
     # qwen
     "qwen/qwen3.5-flash-02-23": date(2026, 2, 25),
+    # Same OpenRouter release day as the 3.6 flash below. Placed before it so
+    # the tie breaks the way the rest of this block is ordered - by id - since
+    # by_release_date keeps the order it was given for equal dates, and a tie
+    # broken differently between runs would move a chart's x-axis.
+    "qwen/qwen3.6-27b": date(2026, 4, 27),
     "qwen/qwen3.6-flash": date(2026, 4, 27),
     "qwen/qwen3.7-flash": date(2026, 7, 27),
     "qwen/qwen3.8-27b": date(2026, 8, 14),

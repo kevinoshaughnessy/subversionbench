@@ -13,6 +13,7 @@ import tempfile
 from datetime import date
 
 import trends as ft
+from subversionbench import charting
 from test_analysis.report_fixtures import _write_summary
 
 
@@ -2031,3 +2032,171 @@ class TestTheBrandColourTable:
                                               {"family": "b/unbranded"}])
         assert with_brand[1:] == without, (
             "adding a branded family moved the unbranded families' colours")
+
+
+class TestTheYAxisDoesNotBuyDeadSpace:
+    """The rounding ladder sets the axis CAP. A step too coarse leaves a third
+    of the panel empty above the tallest point, on charts whose subject is how
+    low the remaining points sit."""
+
+    def test_a_max_of_twenty_caps_at_twenty_five_not_thirty(self):
+        """The case that prompted the change: the combined scheming chart tops
+        out at 20.0%, which with headroom is 21.6, and the old ladder put that
+        in a step of 10."""
+        assert ft.axis_top([20.0]) == 25
+
+    def test_the_five_step_band_reaches_fifty(self):
+        for value, expected in ((22.0, 25), (26.0, 30), (33.0, 40), (44.0, 50)):
+            assert ft.axis_top([value]) == expected, value
+
+    def test_the_cap_still_clears_every_point_it_is_given(self):
+        """The property the ladder must never break, whatever the steps are: a
+        point drawn above its own axis is a chart that lies."""
+        value = 0.1
+        while value < 100:
+            assert ft.axis_top([value]) >= value, value
+            value *= 1.07
+
+    def test_the_ladder_never_wastes_more_than_a_third_of_the_panel(self):
+        """The rule the change is really about, asserted across the range
+        rather than against the one value that motivated it - so a ladder
+        edited later cannot reintroduce the gap somewhere else.
+
+        FROM 10 UPWARD. Below that the step is necessarily coarse relative to
+        the value - a max of 5.4 can only round to 10 on a 5-point step - and
+        the padding there is deliberate: _MIN_AXIS_TOP exists so an all-but-zero
+        family still gets an axis with height rather than a flat line. Every
+        rate this corpus actually charts sits above 10 or below the floor.
+        """
+        value = 10.0
+        while value < 95:
+            top = ft.axis_top([value])
+            assert top <= value * 1.5, (
+                f"a max of {value:.1f} caps at {top}, leaving "
+                f"{(top - value) / top:.0%} of the panel empty")
+            value *= 1.03
+
+
+class TestTheCombinedDateChartIsAsWideAsItsLegend:
+    """Two properties, checked against two different things on purpose.
+
+    The axes width is set by the figsize and tight_layout's margins, so it can
+    be measured on any fixture. Whether it MATCHES the legend depends on the
+    legend's own text - how many families, and how long their names are - so
+    that half is checked against the real corpus the width was tuned for, and
+    skipped when no corpus is present.
+    """
+
+    def _dated_corpus(self, out):
+        """Models that are actually in RELEASE_DATES, so the chart has points.
+
+        Taken from the table rather than invented: `_dated_members` drops any
+        model with no recorded date, and a fixture of made-up ids would render
+        an empty chart that every assertion below would then pass against.
+        """
+        from model_releases import RELEASE_DATES
+        chosen = [m for m in RELEASE_DATES
+                  if m.startswith(("qwen/qwen3.", "z-ai/glm-"))]
+        assert len(chosen) >= 4, sorted(RELEASE_DATES)
+        for i, model in enumerate(sorted(chosen)):
+            _write_summary(out, model, "strong", n_runs=10,
+                           n_misaligned=i % 5, n_scheming=1,
+                           n_aware=2, n_unaware=8)
+        return out
+
+    def _render(self, report):
+        """The real combined chart, kept open so it can be measured.
+
+        RENDERED RATHER THAN REASONED ABOUT. Both numbers here come out of
+        tight_layout and the legend's own text metrics, neither predictable
+        from the figsize. The previous constant was wrong by 127pt for exactly
+        that reason.
+        """
+        import conftest
+        conftest.skip_without("matplotlib")
+        plt = charting.import_pyplot()
+        assert plt is not None
+        from trends.chart_geometry import release_span
+        from trends.chart_style import _family_colours
+        from trends.date_charts import _dated_members, _plot_all_family_dates
+        drawn = [f for f in report["families"] if _dated_members(f)]
+        assert drawn, "no dated family to draw - the fixture proves nothing"
+        held = {}
+
+        class Shim:
+            def __getattr__(self, name):
+                return getattr(plt, name)
+
+            def subplots(self, *a, **kw):
+                fig, ax = plt.subplots(*a, **kw)
+                held["fig"], held["ax"] = fig, ax
+                return fig, ax
+
+            def close(self, *a, **kw):
+                pass
+
+        out = os.path.join(tempfile.mkdtemp(), "combined.png")
+        assert _plot_all_family_dates(Shim(), report,
+                                      _family_colours(plt, drawn),
+                                      release_span(report), out)
+        held["fig"].canvas.draw()
+        return plt, held["fig"], held["ax"]
+
+    def _width_in(self, fig, artist):
+        inv = fig.dpi_scale_trans.inverted()
+        box = inv.transform(artist.get_window_extent())
+        return box[1][0] - box[0][0]
+
+    # Tolerance, in points. The axes width is not a constant of the figsize:
+    # tight_layout takes the left margin from the y tick labels and the y label,
+    # so the same figure measures 866pt on the fixture below and 803pt on the
+    # real corpus, whose ylabel is longer. 90 admits that spread.
+    #
+    # WHAT THIS CATCHES, AND WHAT IT DOES NOT. It catches a constant that
+    # describes no figure at all - the previous 700 is 166pt from the fixture's
+    # measurement and fails. It does NOT catch the figsize being reverted while
+    # the constant stays, because 1.8in of figure is 130pt and the spread above
+    # is already 63: that case is caught by the ratio test below, where the axes
+    # would fall to 0.71 of the legend.
+    _AXIS_PT_TOLERANCE = 90
+
+    def test_the_combined_axis_constant_matches_the_figure_it_describes(self):
+        """_COMBINED_AXIS_PT converts a label's width into days BEFORE the
+        figure exists, so it is a prediction of the axes width, and a wrong one
+        silently mis-staggers every point label. It was 700 while the axes
+        measured 573."""
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._dated_corpus(out))
+            plt, fig, ax = self._render(report)
+            try:
+                measured_pt = self._width_in(fig, ax) * 72
+                assert (abs(measured_pt - ft._COMBINED_AXIS_PT)
+                        <= self._AXIS_PT_TOLERANCE), (
+                    f"_COMBINED_AXIS_PT is {ft._COMBINED_AXIS_PT} but the axes "
+                    f"measure {measured_pt:.0f}pt - re-measure and move it")
+            finally:
+                plt.close(fig)
+
+    def test_the_axes_are_about_as_wide_as_the_legend_beneath_them(self):
+        """bbox_inches="tight" crops to whichever is wider, so an axes narrower
+        than its legend puts empty margin into every saved file. Checked on the
+        real corpus because the legend's width is its text: on a two-family
+        fixture the legend is short and any figsize passes.
+
+        Corpus-absent skip, which SUBVERSIONBENCH_NO_SKIPS still permits.
+        """
+        import glob
+        import unittest
+        corpus = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "eval_results_r9")
+        if not glob.glob(os.path.join(corpus, "summary_*.json")):
+            raise unittest.SkipTest("no corpus in this checkout")
+        report = ft.build_report(corpus, "scheming")
+        plt, fig, ax = self._render(report)
+        try:
+            ratio = (self._width_in(fig, ax)
+                     / self._width_in(fig, ax.get_legend()))
+            assert 0.9 <= ratio <= 1.15, (
+                f"the axes are {ratio:.2f} times the legend's width")
+        finally:
+            plt.close(fig)
