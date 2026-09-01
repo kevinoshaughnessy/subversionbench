@@ -19,6 +19,7 @@ leave-one-out range - and, on the suppression measure, without whether the two
 sides even agree on the sign.
 """
 
+import functools
 import json
 import sys
 import tempfile
@@ -26,6 +27,23 @@ from pathlib import Path
 
 import agentic_misalignment as am
 import conftest
+
+
+@functools.lru_cache(maxsize=1)
+def _shipped_report():
+    """The report over the real corpus, built once for the whole module.
+
+    Every build walks the entire corpus TWICE - `local_rates` and
+    `local_act_rates` each call `load_episodes` - which on the r9 corpus is
+    over a minute. Four tests each building their own made this module most of
+    the suite's total runtime, and they were asserting on reports that could
+    not differ from one another.
+
+    READ-ONLY. Any test that mutates a report, or wants one over a different
+    corpus or bundle, must build its own - this is shared state and the saving
+    is not worth a test that passes because of what another one did to it.
+    """
+    return am.build_report("eval_results_r9")
 
 
 def _require_pairs(report):
@@ -493,13 +511,13 @@ class TestARhoIsNeverReportedAlone:
 
 class TestTheReportSaysWhatItCannotSay:
     def test_it_declares_itself_descriptive(self):
-        report = am.build_report("eval_results_r9")
+        report = _shipped_report()
         assert report["is_descriptive_not_causal"] is True
         assert "not an effect" in report["interpretation"] or \
                "two populations" in report["interpretation"]
 
     def test_it_reports_both_poolings_so_the_choice_is_visible(self):
-        report = am.build_report("eval_results_r9")
+        report = _shipped_report()
         assert set(report["pairs_by_pooling"]) == set(am.AWARE_POOLINGS)
         measures = {(c["measure"], c["aware_pooling"])
                     for c in report["correlations"]}
@@ -529,7 +547,11 @@ class TestTheReportSaysWhatItCannotSay:
             "deliberately_unmatched": [
                 {"external_model": "Excluded", "reason": "fixture exclusion"}],
         }
-        report = am.build_report("eval_results_r9", bundle)
+        # An empty output dir, not the corpus: this asserts that
+        # `unmatched_external_models` is `unmatched_rows(bundle)` passed
+        # through, which no episode contributes to. Naming the corpus here
+        # cost a full two-pass walk of it to reach an identical answer.
+        report = am.build_report(tempfile.mkdtemp(), bundle)
         assert report["unmatched_external_models"] == [
             {"external_model": "Excluded", "decided": True,
             "reason": "fixture exclusion"}]
@@ -537,7 +559,7 @@ class TestTheReportSaysWhatItCannotSay:
     def test_it_prints(self):
         import contextlib
         import io
-        report = am.build_report("eval_results_r9")
+        report = _shipped_report()
         _require_pairs(report)
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):

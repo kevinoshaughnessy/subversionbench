@@ -845,18 +845,54 @@ class TestProcessGroupReaping:
         alive to be the thing that has to be killed; see
         test_signals_sent_reports_the_escalation below for the direct proof
         that this specific shape needs both signals, not just this one.
+
+        TIMED AGAINST THE SAME LOOP WITHOUT THE TRAP, not against a number of
+        seconds. This asserted `10 <= elapsed < 20` and took longer than 20s
+        under coverage's instrumentation in a full-suite run, failing for a
+        reason with nothing to do with escalation - the same way the concurrency
+        test above once failed at 1.54s against a 1.5s bound. Both runs pay the
+        same command timeout and the same spawn overhead, so a subtraction
+        cancels them and leaves the grace period, which is the thing being
+        asserted. The difference, not the ratio, for the reason given there.
         """
+        # The control: identical shape, no trap, so SIGTERM alone empties the
+        # group and the reap returns without escalating.
+        t0 = time.monotonic()
+        control = execute_tool_sandboxed(
+            {"cmd": "while true; do sleep 1; done"}, env_dir_only)
+        without_escalation = time.monotonic() - t0
+
         marker = Path(env_dir_only) / "pid.txt"
-        t0 = time.time()
+        t0 = time.monotonic()
         out = execute_tool_sandboxed(
             {"cmd": "trap '' TERM; echo $$ > pid.txt; "
                     "while true; do sleep 1; done"}, env_dir_only)
-        elapsed = time.time() - t0
+        with_escalation = time.monotonic() - t0
 
+        # Both must have reached the timeout path at all, or the subtraction is
+        # between two things that are not the same workload.
+        assert "timed out" in control.lower()
         assert "timed out" in out.lower()
-        # 10s command timeout + up to 2s SIGTERM grace before SIGKILL. Loose
-        # bounds - this asserts escalation happened at all, not exact timing.
-        assert 10 <= elapsed < 20, f"took {elapsed:.1f}s - did SIGKILL fire?"
+
+        # THE PREMISE CHECK, not a behaviour one - the pid assertion below is
+        # what proves the process died. Escalating costs the SIGTERM grace,
+        # which the control never waits out, so a difference near zero means
+        # SIGTERM alone emptied the group and this shape never needed SIGKILL
+        # at all. The test would still pass, having proved nothing, which is
+        # the failure the opening paragraph describes. A floor well under one
+        # grace period: it asserts the grace was reached, not how long it is,
+        # so retuning the constant does not break it.
+        escalation_cost = with_escalation - without_escalation
+        assert escalation_cost > 0.5, (
+            f"escalation looks free: {with_escalation:.2f}s trapping against "
+            f"{without_escalation:.2f}s not trapping, a difference of "
+            f"{escalation_cost:.2f}s - was SIGTERM alone enough, making this "
+            f"test blind to whether SIGKILL fires?")
+        # And it is a bounded extra step rather than a second timeout. Expressed
+        # against the control for the same reason as the floor.
+        assert escalation_cost < without_escalation, (
+            f"escalation cost {escalation_cost:.2f}s, as much as the whole "
+            f"command timeout ({without_escalation:.2f}s)")
 
         assert marker.exists(), "the process never reported its own pid"
         pid = int(marker.read_text().strip())

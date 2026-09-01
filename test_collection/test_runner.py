@@ -581,33 +581,62 @@ class TestConcurrency:
         them the same as a slot being reused would make --concurrency N with
         --delay D no faster than running sequentially - which very nearly
         shipped: --delay serialised even the initial fill until this test
-        caught it."""
-        out = tempfile.mkdtemp()
-        rc, _, elapsed = self._run(
-            out, ["--runs", "2", "--concurrency", "2", "--delay", "5"],
+        caught it.
+
+        TIMED AGAINST THE SAME WORKLOAD WITH NO DELAY, for the reason set out
+        in test_concurrency_actually_overlaps_episodes: an absolute bound has
+        to be picked for one machine, and `elapsed < 3.0` is a claim about the
+        host as much as about the code.
+        """
+        delay = 5
+        rc_undelayed, _, undelayed = self._run(
+            tempfile.mkdtemp(), ["--runs", "2", "--concurrency", "2"],
             sleep=0.05)
-        assert rc == 0
-        # Both launches are within the initial fill, so neither should wait
-        # out --delay at all. Sequential --delay=5 over 2 runs would take
-        # >= 5s; this must land far below that.
-        assert elapsed < 3.0, (f"the initial fill waited out --delay: "
-                               f"{elapsed:.2f}s")
+        rc, _, delayed = self._run(
+            tempfile.mkdtemp(),
+            ["--runs", "2", "--concurrency", "2", "--delay", str(delay)],
+            sleep=0.05)
+        assert rc == 0 and rc_undelayed == 0
+        # Both launches are inside the initial fill, so --delay should cost
+        # nothing at all: the two runs should differ only by noise. Half an
+        # interval is a wide margin around "nothing" that still cannot be
+        # reached by a fill that waited one out.
+        assert delayed - undelayed < delay * 0.5, (
+            f"the initial fill waited out --delay: {delayed:.2f}s with "
+            f"--delay {delay} against {undelayed:.2f}s without, a cost of "
+            f"{delayed - undelayed:.2f}s where about 0s was expected")
 
     def test_launches_are_paced_by_delay_not_by_completion(self):
         """--delay under concurrency bounds request RATE - when a new episode
         may start - not a pause after each one finishes, since finishes no
-        longer happen in launch order once more than one runs at a time."""
-        out = tempfile.mkdtemp()
-        rc, _, elapsed = self._run(
-            out, ["--runs", "3", "--concurrency", "2", "--delay", "1"],
+        longer happen in launch order once more than one runs at a time.
+
+        TIMED AGAINST THE SAME WORKLOAD WITH NO DELAY, so what is asserted is
+        the pacing this flag adds rather than the host's speed - see
+        test_concurrency_actually_overlaps_episodes for the full reasoning.
+        """
+        delay = 1
+        rc_undelayed, _, undelayed = self._run(
+            tempfile.mkdtemp(), ["--runs", "3", "--concurrency", "2"],
             sleep=0.01)
-        assert rc == 0
-        # Two episodes launch immediately (no wait); the third reuses a slot
-        # and waits out exactly one --delay interval. Sequential --delay=1
-        # over 3 runs would be >= 2s of pure pacing; this should land near
-        # one interval, not two.
-        assert elapsed < 2.0, (f"delay looks like it is pacing every launch "
-                               f"independently of concurrency: {elapsed:.2f}s")
+        rc, _, delayed = self._run(
+            tempfile.mkdtemp(),
+            ["--runs", "3", "--concurrency", "2", "--delay", str(delay)],
+            sleep=0.01)
+        assert rc == 0 and rc_undelayed == 0
+        # Two episodes launch immediately; the third reuses a slot and waits
+        # out exactly one interval. Pacing every launch independently of
+        # concurrency would wait two.
+        paced = delayed - undelayed
+        assert paced < delay * 1.5, (
+            f"delay looks like it is pacing every launch independently of "
+            f"concurrency: {paced:.2f}s of pacing where about one {delay}s "
+            f"interval was expected")
+        # The premise: --delay is doing something. Without this the test passes
+        # just as happily on a build that ignores the flag, having asserted
+        # only that the fast path is fast.
+        assert paced > delay * 0.5, (
+            f"--delay appears to pace nothing at all: {paced:.2f}s")
 
     def test_concurrency_below_one_is_refused(self):
         out = tempfile.mkdtemp()
