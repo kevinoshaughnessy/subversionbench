@@ -451,6 +451,90 @@ class TestLocalActRates:
         assert got["oversight"]["rate"] is None
 
 
+class TestTheCorpusIsWalkedOnce:
+    """`load_episodes` opens and parses every run file in the directory, and
+    build_report needs two views of the result - the pooled misalignment rate
+    and the per-act rates. It used to ask for the corpus once per view, so every
+    report parsed every file twice to reach two readings of the same episodes.
+    On the r9 corpus that was the dominant cost of the script, and of this test
+    module.
+
+    A performance property, but guarded like a correctness one because the cost
+    is invisible in the output: the report was right either way, so nothing
+    failed when the second walk was added and nothing would fail if it came
+    back."""
+
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        for i in range(3):
+            ep = conftest.batch_episode(tampered=bool(i % 2))
+            with open(f"{out}/run_{i}_m_strong_20260101T000000.json", "w",
+                      encoding="utf-8") as f:
+                json.dump({"model": "m", "nudge": "strong", "oversight": True,
+                           "lure": False, "analysis": ep["analysis"],
+                           "transcript": []}, f)
+        return out
+
+    def _counted(self, call):
+        """Run `call`, returning (result, how many times the corpus was read).
+
+        Patches the name the module resolves at call time, so it counts reads
+        from every function here rather than from one that was told about.
+        """
+        calls = []
+        original = am.load_episodes
+
+        def counting(output_dir):
+            calls.append(output_dir)
+            return original(output_dir)
+
+        am.load_episodes = counting
+        try:
+            return call(), len(calls)
+        finally:
+            am.load_episodes = original
+
+    def test_a_report_reads_the_corpus_once(self):
+        out = self._dir()
+        _report, reads = self._counted(lambda: am.build_report(out, {
+            "source": "fixture", "rows": [], "aliases": []}))
+        assert reads == 1, (
+            f"build_report read the corpus {reads} times; both views must "
+            f"share one load")
+
+    def test_a_preloaded_corpus_is_not_read_again(self):
+        """What lets build_report share one list. Without it the parameter
+        would be accepted and ignored, which is the same cost with a wider
+        signature."""
+        out = self._dir()
+        episodes = am.load_episodes(out)
+        for name, fn in (("local_rates", am.local_rates),
+                         ("local_act_rates", am.local_act_rates)):
+            _got, reads = self._counted(lambda fn=fn: fn(out, episodes))
+            assert reads == 0, f"{name} reloaded a corpus it was handed"
+
+    def test_handing_the_episodes_over_changes_no_figure(self):
+        """The correctness claim the sharing rests on: both functions only read
+        the episodes, so which list they read is not observable. Asserted on
+        the whole returned structure rather than a chosen field, so a figure
+        that starts depending on load order fails here."""
+        out = self._dir()
+        episodes = am.load_episodes(out)
+        assert am.local_rates(out) == am.local_rates(out, episodes)
+        assert am.local_act_rates(out) == am.local_act_rates(out, episodes)
+
+    def test_neither_view_mutates_the_shared_episodes(self):
+        """Sharing one list between two callers is only safe while it stays
+        read-only. A field written by whichever ran first would make the other
+        one's figures depend on the call order."""
+        out = self._dir()
+        episodes = am.load_episodes(out)
+        before = json.dumps(episodes, sort_keys=True, default=str)
+        am.local_rates(out, episodes)
+        am.local_act_rates(out, episodes)
+        assert json.dumps(episodes, sort_keys=True, default=str) == before
+
+
 class TestARhoIsNeverReportedAlone:
     def _pairs(self, points):
         """points: (external_gap, local_gap, external_rate, local_rate)."""

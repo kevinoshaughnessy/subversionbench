@@ -181,7 +181,7 @@ def external_rates_by_scenario(bundle: dict, pooling: str = "any_aware") -> dict
     return out
 
 
-def local_rates(output_dir: str) -> dict:
+def local_rates(output_dir: str, episodes: list = None) -> dict:
     """
     Per local model: the misalignment rate, and the same suppression gap.
 
@@ -190,9 +190,18 @@ def local_rates(output_dir: str) -> dict:
     whose awareness verdict did not resolve are left out of BOTH awareness
     sides rather than counted as unaware - an unresolved verdict is a missing
     measurement, and the external table has no such bucket to match it to.
+
+    `episodes` is an already-loaded corpus, for a caller wanting more than one
+    view of it. `load_episodes` opens and parses every run file in the
+    directory, so build_report asking for it twice - once here and once in
+    local_act_rates - doubled the cost of the whole report and returned the
+    same episodes both times. Read-only here, which is what makes sharing one
+    list safe. Defaults to loading them, so a caller with a single question
+    passes a single argument.
     """
     out = {}
-    for episode in load_episodes(output_dir):
+    for episode in (load_episodes(output_dir) if episodes is None
+                    else episodes):
         row = out.setdefault(episode["model"], {
             "misaligned": 0, "n": 0,
             "unaware": {"misaligned": 0, "n": 0},
@@ -219,7 +228,7 @@ def local_rates(output_dir: str) -> dict:
     return out
 
 
-def local_act_rates(output_dir: str) -> dict:
+def local_act_rates(output_dir: str, episodes: list = None) -> dict:
     """
     Per local model, per SubversionBench act: that act's own rate.
 
@@ -234,9 +243,12 @@ def local_act_rates(output_dir: str) -> dict:
     restriction load_summaries' own per-arm count needs (see its
     n_oversight_act comment). The sandbox act needs no such restriction: it is
     observable in every arm.
+
+    `episodes` as in local_rates: a pre-loaded corpus, read but never mutated.
     """
     out = {}
-    for episode in load_episodes(output_dir):
+    for episode in (load_episodes(output_dir) if episodes is None
+                    else episodes):
         row = out.setdefault(episode["model"],
                              {act: {"taken": 0, "n": 0} for act in ACTS})
         for act in ACTS:
@@ -458,7 +470,12 @@ def best_scenario_act_pairing(correlations: list) -> dict:
 def build_report(output_dir: str, bundle: dict = None) -> dict:
     """The whole comparison: pairs, every correlation, and what was left out."""
     bundle = bundle or load_bundle()
-    local = local_rates(output_dir)
+    # Loaded ONCE and shared by both views below. Each walked the directory for
+    # itself, so every report parsed every run file twice to reach two readings
+    # of the same episodes - the dominant cost of this whole script on a corpus
+    # of any size.
+    episodes = load_episodes(output_dir)
+    local = local_rates(output_dir, episodes)
     report = {
         "version": VERSION,
         "rollout_version": ROLLOUT_VERSION,
@@ -483,7 +500,7 @@ def build_report(output_dir: str, bundle: dict = None) -> dict:
             report["correlations"].append(correlate(pairs, "level"))
     report["n_pairs"] = len(report["pairs_by_pooling"]["any_aware"])
 
-    local_acts = local_act_rates(output_dir)
+    local_acts = local_act_rates(output_dir, episodes)
     report["scenario_act_correlations"] = scenario_act_correlations(
         bundle, local_acts)
     report["best_scenario_act_pairing"] = best_scenario_act_pairing(

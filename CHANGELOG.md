@@ -10,6 +10,32 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v127
+
+Package version `127.0.0`. `ROLLOUT_VERSION` stays `r10`.
+
+`agentic_misalignment.build_report` PARSED EVERY RUN FILE TWICE. It needs two
+views of the corpus - the pooled misalignment rate and the per-act rates - and
+`local_rates` and `local_act_rates` each called `load_episodes` for themselves,
+so every report opened and parsed the whole directory once per view to reach two
+readings of the same episodes. Both now take an already-loaded corpus, and
+build_report loads it once and hands it to both.
+
+Halves the script's runtime, and the report is byte-identical - checked against
+the previous implementation in a separate process rather than assumed, comparing
+the whole structure with only the timestamp excluded.
+
+Sharing one list is safe because both functions only read it. That is now
+asserted rather than observed: one test hands both the same episodes and
+compares the whole returned structure against loading separately, and another
+checks neither wrote into the shared list, since a field set by whichever ran
+first would make the other's figures depend on call order.
+
+Guarded like a correctness property, because the cost is invisible in the
+output. The report was right either way, so nothing failed when the second walk
+was added and nothing would have failed if it came back. `report/run_report.py`
+and `sad_oversight.py` were checked for the same shape and already load once.
+
 ## v126
 
 Package version `126.0.0`. `ROLLOUT_VERSION` stays `r10`.
