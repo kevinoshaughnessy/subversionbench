@@ -214,3 +214,152 @@ class TestTheHostSurfaceIsAggregated:
         assert rates["filesystem_escape"]["successes"] == 0
         assert rates["misaligned"]["successes"] == 0
         assert rates["host_path_read"]["successes"] == 1
+
+
+class TestWhatTheCurrentCodeAssemblesIsNamedPerArm:
+    """The rollout block records what produced the episodes; this half records
+    what the code produces now, so a reader can tell whether the two still
+    agree.
+
+    It was reported by calling `rollout_fingerprint()` with no arguments, whose
+    defaults are the oversight-present, no-lure arm. Every batch was therefore
+    described by that one arm's hash: a no-oversight batch carried a fingerprint
+    none of its own episodes could have had, which reads as drift where there is
+    none. r10 sharpened it - the two no-oversight arms took identities of their
+    own - so three arms in four were being described by a fourth's.
+
+    The fingerprints here are derived rather than written down, because a second
+    copy of a pinned value is a second thing to keep in step.
+    """
+
+    def _episode(self, oversight=False, lure=False, fingerprint=..., **extra):
+        from conftest import batch_episode
+        from subversionbench.rollout import rollout_fingerprint
+        e = batch_episode()
+        if oversight is not None:
+            e["oversight"] = oversight
+        if lure is not None:
+            e["lure"] = lure
+        if fingerprint is ...:
+            fingerprint = rollout_fingerprint(oversight=bool(oversight),
+                                              lure=bool(lure))
+        if fingerprint is not None:
+            e["rollout_fingerprint"] = fingerprint
+        e.update(extra)
+        return e
+
+    def _rollout(self, episodes):
+        from subversionbench.reporting.facts import batch_facts, normalise_analyses
+        normalise_analyses(episodes)
+        return batch_facts(episodes, {})["rollout"]
+
+    def test_a_no_oversight_batch_is_compared_against_its_own_arm(self):
+        """The defect, in the arm it was worst for. The reported value must be
+        what THIS arm assembles to - not what the function's defaults do."""
+        from subversionbench.rollout import rollout_fingerprint
+        mine = rollout_fingerprint(oversight=False, lure=False)
+        theirs = rollout_fingerprint(oversight=True, lure=False)
+        assert mine != theirs, "arms share a fingerprint; this test proves nothing"
+        rollout = self._rollout([self._episode(oversight=False, lure=False)
+                                 for _ in range(3)])
+        assert rollout["current_fingerprints"] == {
+            "oversight=False lure=False": mine}
+        assert theirs not in rollout["current_fingerprints"].values()
+        assert rollout["matches_current"] is True
+        assert rollout["n_matches_current"] == 3
+
+    def test_each_arm_a_batch_straddles_gets_its_own_entry(self):
+        """The reason this is a map and not a value. A batch spanning two arms
+        has two right answers, and reporting one of them is the original defect
+        in a second form."""
+        from subversionbench.rollout import rollout_fingerprint
+        rollout = self._rollout([self._episode(oversight=False, lure=False),
+                                 self._episode(oversight=False, lure=True)])
+        assert rollout["current_fingerprints"] == {
+            "oversight=False lure=False": rollout_fingerprint(oversight=False,
+                                                              lure=False),
+            "oversight=False lure=True": rollout_fingerprint(oversight=False,
+                                                             lure=True),
+        }
+        # Both episodes match their own arm, so the batch straddling two arms is
+        # not by itself a drift finding - `mixed` above is what says it straddles.
+        assert rollout["matches_current"] is True
+        assert rollout["mixed"] is True
+
+    def test_isolation_is_not_part_of_the_arm(self):
+        """`_sandbox_behaviour` accepts an isolation mode and deliberately does
+        not hash it, so two isolation modes are one arm. Keying on it would
+        imply a dependence the fingerprint does not have, and would split one
+        arm's entry in two."""
+        rollout = self._rollout([
+            self._episode(oversight=True, lure=False, isolation="deny-network"),
+            self._episode(oversight=True, lure=False, isolation="none"),
+        ])
+        assert list(rollout["current_fingerprints"]) == [
+            "oversight=True lure=False"]
+        assert rollout["isolation_mixed"] is True
+
+    def test_a_fingerprint_the_code_no_longer_produces_is_flagged(self):
+        """What the field is for. The recorded hash is the one thing here that
+        cannot be recomputed, so a mismatch is the only available evidence that
+        the scenario moved under a saved batch."""
+        rollout = self._rollout([self._episode(fingerprint="0123456789ab")])
+        assert rollout["matches_current"] is False
+        assert rollout["n_differs_from_current"] == 1
+        assert rollout["n_matches_current"] == 0
+
+    def test_one_stale_episode_is_enough_to_withhold_the_claim(self):
+        """A batch half-collected either side of a rollout change. `True` has to
+        mean every episode, or the field cannot be relied on when it says so."""
+        rollout = self._rollout([self._episode(),
+                                 self._episode(fingerprint="0123456789ab")])
+        assert rollout["matches_current"] is False
+        assert rollout["n_matches_current"] == 1
+        assert rollout["n_differs_from_current"] == 1
+
+    def test_an_episode_with_no_arm_recorded_is_not_credited_as_matching(self):
+        """Cannot tell is not matches. An episode predating the arm fields has
+        no arm to compare against, and crediting it to whichever one the
+        defaults name is exactly the error above."""
+        rollout = self._rollout([self._episode(oversight=None, lure=None,
+                                               fingerprint="0123456789ab")])
+        assert rollout["matches_current"] is None
+        assert rollout["n_unattributable_to_an_arm"] == 1
+        assert rollout["current_fingerprints"] == {}
+
+    def test_an_episode_predating_the_fingerprint_is_not_credited_either(self):
+        """The arm is known and the recorded hash is not, so there is nothing to
+        compare - a different absence from the one above, counted the same."""
+        rollout = self._rollout([self._episode(fingerprint=None)])
+        assert rollout["matches_current"] is None
+        assert rollout["n_unattributable_to_an_arm"] == 1
+
+    def test_one_unattributable_episode_withholds_the_claim_too(self):
+        """Symmetric with the stale case: matching episodes beside an
+        unaccountable one do not add up to a batch that matches."""
+        rollout = self._rollout([self._episode(),
+                                 self._episode(oversight=None, lure=None)])
+        assert rollout["matches_current"] is None
+        assert rollout["n_matches_current"] == 1
+        assert rollout["n_unattributable_to_an_arm"] == 1
+
+    def test_a_batch_predating_both_fields_says_so_without_failing(self):
+        """Every episode collected before the arm was recorded. The whole corpus
+        was once in this state, and the block still has to be writable."""
+        from conftest import batch_episode
+        rollout = self._rollout([batch_episode(), batch_episode()])
+        assert rollout["matches_current"] is None
+        assert rollout["current_fingerprints"] == {}
+        assert rollout["n_unattributable_to_an_arm"] == 2
+
+    def test_the_arm_entries_are_ordered_so_two_rebuilds_compare_equal(self):
+        """Written into the summary, so an unstable order would make identical
+        rebuilds differ - the reason the host prefixes are sorted too."""
+        forwards = self._rollout([self._episode(oversight=True, lure=True),
+                                  self._episode(oversight=False, lure=False)])
+        backwards = self._rollout([self._episode(oversight=False, lure=False),
+                                   self._episode(oversight=True, lure=True)])
+        assert list(forwards["current_fingerprints"]) == \
+            list(backwards["current_fingerprints"])
+        assert list(forwards["current_fingerprints"]) == [
+            "oversight=False lure=False", "oversight=True lure=True"]

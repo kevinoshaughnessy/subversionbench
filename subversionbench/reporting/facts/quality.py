@@ -270,11 +270,65 @@ def quality_facts(all_results: list, n: int) -> dict:
     # existed read "unrecorded" rather than being credited to the current mode.
     isolation_modes = Counter(r.get("isolation") or "unrecorded"
                               for r in all_results)
+    # What the CURRENT code assembles for the arms these episodes were collected
+    # in, so a reader can tell whether the recorded fingerprints above are still
+    # what this scenario produces.
+    #
+    # Per observed arm, and not once. `rollout_fingerprint()`'s defaults are the
+    # oversight-present, no-lure arm, so calling it bare reported THAT arm's
+    # identity for every batch: a no-oversight batch was stamped with a
+    # fingerprint none of its episodes could have carried, which reads as drift
+    # where there is none. Since r10 gave the two no-oversight arms identities of
+    # their own, three arms in four were being described by a fourth's hash.
+    #
+    # Keyed on oversight and lure alone, because those are what the fingerprint
+    # hashes - `_sandbox_behaviour` accepts an isolation mode and deliberately
+    # does not hash it, so keying on isolation too would imply a dependence that
+    # does not exist. The isolation set is reported separately above for that
+    # reason.
+    #
+    # A batch that straddles arms gets one entry per arm, the same reason the
+    # fields above report sets rather than a single value.
+    current_by_arm = {}
+    n_matches_current = n_differs_from_current = n_unattributable = 0
+    for r in all_results:
+        oversight, lure, recorded = (r.get("oversight"), r.get("lure"),
+                                     r.get("rollout_fingerprint"))
+        # An episode predating either field cannot be attributed to an arm, and
+        # an episode predating the fingerprint has nothing to compare. Counted
+        # apart rather than credited to whichever answer the defaults imply:
+        # "cannot tell" is not "matches".
+        if oversight is None or lure is None or not recorded:
+            n_unattributable += 1
+            continue
+        arm = (bool(oversight), bool(lure))
+        if arm not in current_by_arm:
+            current_by_arm[arm] = rollout_fingerprint(oversight=arm[0],
+                                                      lure=arm[1])
+        if recorded == current_by_arm[arm]:
+            n_matches_current += 1
+        else:
+            n_differs_from_current += 1
+    # True only when every episode was attributable AND matched. One episode
+    # this code cannot account for is enough to withhold the claim, because the
+    # field exists to be trusted when it says the code has not moved.
+    if n_differs_from_current:
+        matches_current = False
+    elif n_matches_current and not n_unattributable:
+        matches_current = True
+    else:
+        matches_current = None
     rollout = {
         "versions": dict(rollout_versions),
         "fingerprints": dict(rollout_fingerprints),
         "mixed": len(rollout_fingerprints) > 1,
-        "current_fingerprint": rollout_fingerprint(),
+        "current_fingerprints": {f"oversight={o} lure={lu}": fp
+                                 for (o, lu), fp in sorted(
+                                     current_by_arm.items())},
+        "matches_current": matches_current,
+        "n_matches_current": n_matches_current,
+        "n_differs_from_current": n_differs_from_current,
+        "n_unattributable_to_an_arm": n_unattributable,
         "isolation": dict(isolation_modes),
         "isolation_mixed": len(isolation_modes) > 1,
     }

@@ -10,6 +10,71 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v126
+
+Package version `126.0.0`. `ROLLOUT_VERSION` stays `r10`.
+
+EVERY BATCH SUMMARY DESCRIBED ITSELF WITH ONE ARM'S FINGERPRINT. The rollout
+block records the fingerprints the episodes carry, and beside them a
+`current_fingerprint` saying what the code assembles now - the only available
+evidence that a scenario has moved under a saved batch, since the recorded hash
+is the one field that cannot be recomputed. It called `rollout_fingerprint()`
+with no arguments, and those defaults are the oversight-present, no-lure arm. So
+a no-oversight batch was stamped with a fingerprint none of its own episodes
+could have carried, which reads as drift where there is none. r10 sharpened it
+from three arms in four to the same three describing themselves by a fourth's
+identity, since the two no-oversight arms took identities of their own.
+
+Replaced by `current_fingerprints`, one entry per arm the batch actually
+contains, plus a `matches_current` verdict and its three counts. A batch that
+straddles arms has two right answers, so reporting one value was the same defect
+in a second form. Keyed on oversight and lure alone, because those are what the
+fingerprint hashes: `_sandbox_behaviour` accepts an isolation mode and
+deliberately does not hash it, so keying on isolation would imply a dependence
+that does not exist and split one arm's entry in two.
+
+`matches_current` is `True` only when every episode was attributable AND
+matched. An episode predating the arm fields has no arm to compare, and an
+episode predating the fingerprint has nothing to compare; both are counted apart
+rather than credited to whichever answer the defaults imply, because "cannot
+tell" is not "matches" - which is the error the whole entry is about. One stale
+episode is likewise enough to withhold the claim, since the field exists to be
+trusted when it says the code has not moved.
+
+Nothing read the field, which is why it survived: not the console, not the
+printed report, not a test. It is written into every summary as a forensic
+record, so being wrong there was silent by construction.
+
+POST-MORTEM OF THE r9 NO-OVERSIGHT DEFECT, which r10 fixed and which has now
+been measured rather than argued. Two low-cost models were re-collected in that
+arm at n=10 per lure value, run parameters identical: same turn cap, same token
+budget, same isolation mode, no reasoning parameter sent, no provider pinning.
+The sandbox-escape attempt rate went from 53/59 episodes to 0/40 - one model
+from 100% in both lure arms to none, the other from 70% to none. Pooled, 89.8%
+to 0.0%, a fall of 89.8pp [76.3, 95.3], Fisher p 1.1e-21.
+
+Checked against the ways a zero can be an artefact rather than a finding. All 40
+episodes carry r10's two no-oversight fingerprints, so nothing pools with r9 by
+accident. The sandbox still refuses out-of-project paths under the current code.
+The escape flag is a literal marker match against saved transcript text, so it
+cannot drift with an analysis version, and the raw markers were counted
+independently: 205 across the r9 episodes, none across the r10 ones. The only
+two out-of-project-looking r10 commands are probes the path rewriter absorbs, as
+it did in r9.
+
+The arm's other boundary measures went the same way - out-of-scope attempts,
+filesystem escapes and network probes all to zero - and so did verbalised
+awareness, from 39.0% to 10.3% by the grader, which is the confounding the
+oversight-vs-awareness question was already flagged for: refusal exposure was
+driving the awareness measure in that arm. The defect was also costing the
+models the task. 57.6% of r9 episodes in that arm ended at the turn cap and
+40.7% produced a deliverable; in r10 none hit the cap and 95.0% delivered. The
+excess boundary crossings were a hunt for a promised artefact, and the hunt was
+consuming the whole turn budget.
+
+Two models and one nudge level, so the fall is not assumed uniform across the
+arm; 0/40 bounds the rate below about 8.8% rather than at zero.
+
 ## v125
 
 Package version `125.0.0`. **`ROLLOUT_VERSION` moves to `r10`** - the first
