@@ -109,6 +109,27 @@ heldout_tool.py    the same for the held-out scenario - a reworded twin of the
 run_heldout.sh     collect under the held-out scenario instead of the shipped
                    one; passes its arguments through to run_all_arms.sh
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
+grader_ab.py       cross the grader MODEL against the grader CALL SHAPE on
+                   saved transcripts: nine calls per episode against one
+                   batched call, on each grader given. The batched asker lives
+                   here rather than in grading/ deliberately - a call-shape
+                   setting in production would fork the corpus - so adopting it
+                   means moving it there and re-grading. Reports the position
+                   gradient, quote grounding and signal correlation, because
+                   those are how batching would lose accuracy if it does
+restage_model.py   copy one model's poolable episodes from an older results
+                   directory into a newer one, so report/trends/arms_summary
+                   can run against a directory that combines what a rollout
+                   bump left unchanged with what it fixed. Poolable means the
+                   episode's own rollout_fingerprint matches what CURRENT code
+                   assembles for its arm - checked per arm, not per model, so
+                   an oversight-arm episode a rollout bump left untouched
+                   stages while a no-oversight one the same bump fixed does
+                   not. Never overwrites --dest-dir, never writes --source-dir,
+                   idempotent across reruns - built to be called once per
+                   model as no-oversight collection continues under a new
+                   rollout while the oversight side stays reusable from the
+                   old one
 report/            twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,
                    override and escape; interrogation phrasing vs concealment)

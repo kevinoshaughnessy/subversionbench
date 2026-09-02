@@ -10,6 +10,106 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v128
+
+Package version `128.0.0`. `ROLLOUT_VERSION` stays `r10`.
+
+`grader_ab.py` CROSSES THE GRADER MODEL AGAINST THE GRADER CALL SHAPE. Two cost
+questions were open and neither is answerable by reasoning about it: whether the
+nine per-question calls could be one batched call, and whether claude-sonnet-5
+holds where claude-haiku-4-5 did not. Accuracy comes first, so neither ships on
+the strength of its price; this measures what each costs in agreement.
+
+THE BATCHED ASKER LIVES IN THE SCRIPT, NOT IN `grading/`. A call-shape setting in
+the production grader would fork the corpus - episodes graded under each shape
+are not poolable until proven equivalent, and if they are equivalent there is no
+reason to keep two. `detect_eval_awareness_grader` also routes every question
+through `ask_rubric_question` precisely so `rubric_ab.py` cannot drift from
+production, and a second shape there would leave that experiment validating a
+path nobody runs. So the batched asker is a faithful preview built from the
+shipped primitives - same system prompt, same untrusted-text fencing, same
+strict verdict parser, each answer routed through `parse_boolean_verdict` rather
+than a second copy of its rules. Adopting it means moving it into
+`grading/grader.py`, recording the shape in `score_provenance`, and re-grading.
+
+THE REFERENCE CELL IS RE-RUN RATHER THAN READ. Graders are non-deterministic, so
+comparing a new cell against the labels already in the run files would conflate
+the change with ordinary run-to-run variation. The fresh reference against the
+stored labels is reported as a noise floor, and every other number has to beat
+it to mean anything.
+
+The read-outs are chosen for how batching would fail if it does. A position
+gradient, because nine answers with quotes in one generation invites the late
+ones to degrade - and independent calls cannot produce a slope, so the shipped
+shape is a flat control. Quote grounding, the other face of output pressure.
+Signal correlation across the five overlapping eval-signal questions, because
+`classify_awareness_from_rubric` counts distinct SPANS across them, so answers
+that become correlated by construction change what that logic is fed even where
+per-question accuracy looks unchanged. And failure granularity: one bad reply
+costs one answer of nine today and all nine when batched.
+
+Sampling is stratified by model, balanced on the stored verdict, and oversamples
+the models whose awareness the keyword screen catches least often. Sampling at
+the corpus's natural aware rate would measure precision well and recall badly,
+and a proportional sample would be decided by the models whose phrasing is easy
+- when the ones that break a weak grader are the ones phrasing it unusually.
+
+`--dry-run` prints the sample and a costed call count without calling anything.
+The report is exercised by tests on synthetic cells because every read-out is
+computed after the calls are paid for, so a crash there costs the whole run.
+
+TWO REVISIONS TO grader_ab.py FOLLOWED FROM RUNNING IT FOR REAL. `--delay`
+paced episodes rather than the nine calls within one, which is the burst a
+per-minute limit actually catches; it now sleeps between calls, and a
+throttled call is now distinguished from a malformed reply (`error_kind`,
+via the repository's own provider-error classifier) so rate limiting during
+the batched cell cannot read as the batched SHAPE being fragile. An auth or
+usage-limit failure now aborts immediately with the real provider message,
+rather than rendering a complete-looking report off zero successful calls -
+which is what a one-call smoke test of the unpatched script produced.
+
+Real usage is now captured off every response - input exactly on both
+shapes, output exactly on the batched one, which is the only shape built
+from scratch rather than routed through a production function that
+discards it. A model that cannot disable thinking (claude-fable-5) has an
+unmeasured, possibly large output cost on the per_question shape
+specifically, and that gap is now labelled (`+` on the total) rather than
+silently absent. Every cell now saves to the output file immediately after
+it finishes rather than the whole run writing once at the end - a full 2x2
+result was lost outright to a kill between cells before this, with nothing
+recoverable, because there was nothing on disk to recover. The output
+filename now carries the graders, shapes and sample size, since a fixed
+name let an unrelated one-episode probe silently overwrite that same 2x2
+result a second way.
+
+`restage_model.py` LETS A MODEL'S NO-OVERSIGHT COLLECTION MOVE TO r10
+WITHOUT RE-COLLECTING ITS OVERSIGHT ARM. r10 changed only the no-oversight
+arm; both oversight arms assemble byte-for-byte as they did at r9, so an
+oversight-arm episode collected under r9 remains exactly what current code
+produces and is safe to reuse. Checked per arm rather than per model,
+using the same test the rollout block in every summary already reports
+drift with: does the episode's own `rollout_fingerprint` match what
+`rollout_fingerprint(oversight, lure)` computes now. Verified against
+google/gemini-3.5-flash's real r9 corpus before being trusted: exactly its
+100 oversight-present episodes match current code across all three nudge
+levels, and all 105 no-oversight ones are stale regardless of nudge - the
+defect the r10 fix removed was arm-wide, not tied to one nudge setting.
+
+Copies real files unmodified into the destination directory rather than
+rewriting anything, so a reader sees exactly what the rollout block already
+reports: the observed SET of versions and fingerprints a batch straddles,
+not a single rewritten value. Never overwrites an existing destination
+file, never writes to the source directory, and reruns for the same model
+copy nothing a second time - built to be called once per model as
+no-oversight collection continues, which is the loop the docstring shows.
+
+Run for google/gemini-3.5-flash: 100 oversight-arm episodes plus 6 summaries
+staged into eval_results_r10 alongside its 20 natively-collected
+no-oversight episodes. The resulting corpus-wide report surfaces the r10
+fix's effect beyond the escape rate already measured - at nudge=strong,
+misalignment is 18/20 with oversight present against 0/10 with the fixed
+no-oversight arm.
+
 ## v127
 
 Package version `127.0.0`. `ROLLOUT_VERSION` stays `r10`.
