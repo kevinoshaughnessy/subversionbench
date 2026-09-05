@@ -34,6 +34,23 @@ NO_OVERSIGHT_TAG = "nooversight"
 # it with two segments to peel where one has meaning.
 CAPABILITY_TAG = "capability"
 
+# "Do not filter on the corpus at all" - propensity and capability files alike.
+#
+# NEEDED BECAUSE None IS A VALUE HERE, not an absence. Every other optional
+# filter on find_run_files (effort, oversight) reads None as "caller does not
+# care", but a propensity episode's capability IS None, so that convention
+# cannot express the difference between "the propensity corpus" and "either
+# corpus". An object() rather than a string, for the same reason
+# report.loading.ANY_CAPABILITY is one: it cannot collide with a target name a
+# bundle adds later.
+#
+# NOT THE SAME THING as report.loading.ANY_CAPABILITY, despite the similar
+# name, and the two must not be swapped. That one selects the capability
+# corpus and EXCLUDES propensity episodes; this one selects both. They differ
+# because the loaders separate two corpora for reporting, while this module
+# also serves read-modes that legitimately want every file on disk.
+ANY_CORPUS = object()
+
 
 @dataclass(frozen=True)
 class BatchIdentity:
@@ -353,7 +370,8 @@ def discover_batches(output_dir: str, model: str = ALL,
 
 def find_run_files(output_dir: str, model_slug: str, nudge: str,
                    batch_stamp: str = None, effort: str = None,
-                   oversight: bool = None) -> list:
+                   oversight: bool = None,
+                   capability=ANY_CORPUS) -> list:
     """
     Existing run files for one model and nudge, oldest batch first.
 
@@ -368,6 +386,13 @@ def find_run_files(output_dir: str, model_slug: str, nudge: str,
     `effort` narrows to one level. Left as None, every level matches, so a
     caller that does not care (--grade-existing, --resummarise) sees the
     batches regardless of what they were run at.
+
+    `capability` narrows to one corpus, and DEFAULTS TO BOTH so that the read
+    modes keep seeing every file on disk: a capability episode still needs
+    grading, resummarising and reclassifying like any other. Pass None for the
+    propensity corpus alone - which is what a collection resume-count wants,
+    since counting a capability episode toward a propensity arm's target would
+    skip collecting that arm. Pass a target name for that one arm.
     """
     # Glob broadly, then filter on the identity parsed back out of each name.
     # Pattern-matching the arm directly does not work: the trailing wildcard
@@ -408,12 +433,71 @@ def find_run_files(output_dir: str, model_slug: str, nudge: str,
     for path in found:
         if not delimited.match(os.path.basename(path)):
             continue
-        got_effort, _, got_oversight, _got_lure, _got_cap = parse_batch_filename(
+        got_effort, _, got_oversight, _got_lure, got_cap = parse_batch_filename(
             path, nudge)
         if effort is not None and got_effort != effort:
             continue
         if oversight is not None and got_oversight != oversight:
             continue
+        if capability is not ANY_CORPUS and got_cap != capability:
+            continue
         keep.append(path)
 
     return sorted(keep)
+
+
+def _shell_bool(name: str, value: str) -> bool:
+    """One of the literal strings run_all_arms.sh spells an axis with.
+
+    RAISES rather than defaulting, which is the whole point. The shell used to
+    write `oversight == "true"` inline, so every value that was not exactly
+    "true" - a typo, an empty variable, "True", "yes" - silently meant False.
+    That reads as the counterfactual arm, so a mistyped axis would have counted
+    the wrong arm's files and then collected into the right one, and nothing
+    downstream could tell that had happened.
+    """
+    if value not in ("true", "false"):
+        raise ValueError(f"{name} must be 'true' or 'false', got {value!r}")
+    return value == "true"
+
+
+def arm_run_file_census(output_dir: str, model: str, nudge: str,
+                        oversight: str, lure: str) -> tuple:
+    """
+    How many run files one exact collection arm already has, and under which
+    batch stamps, as `(count, [stamp, ...])`.
+
+    THE SHELL'S SKIP/RESUME DECISION, in Python where it can be tested.
+    run_all_arms.sh used to carry this as a heredoc that unpacked
+    parse_batch_filename's return inline. When v132 grew that return from four
+    values to five, every ordinary call site was updated and this one was not,
+    because Python inside a shell heredoc is reached by neither ruff nor the
+    import graph nor the suite. The result was silent and expensive: the
+    census raised, the shell read an empty count, `set -e` did not fire
+    (a failing `[` inside an `if` condition is exempt), both branches fell
+    through, and the arm was re-collected fresh under a new stamp - paying
+    again for episodes already on disk, which is the exact defect the skip
+    logic exists to prevent.
+
+    Taking the shell's own string spellings rather than bools is deliberate:
+    the string-to-bool step is the part that was silently wrong, so it belongs
+    on this side of the boundary where `_shell_bool` can reject a bad value and
+    a test can prove it does.
+
+    `lure` is filtered here rather than by find_run_files, which does not carry
+    it; `capability=None` is passed so the capability corpus can never satisfy
+    a propensity arm's target.
+    """
+    want_oversight = _shell_bool("oversight", oversight)
+    want_lure = _shell_bool("lure", lure)
+
+    stamps = set()
+    n = 0
+    for path in find_run_files(output_dir, model.replace("/", "_"), nudge,
+                               oversight=want_oversight, capability=None):
+        _effort, stamp, _oversight, got_lure, _cap = parse_batch_filename(
+            path, nudge)
+        if got_lure == want_lure:
+            n += 1
+            stamps.add(stamp or "")
+    return n, sorted(stamps)

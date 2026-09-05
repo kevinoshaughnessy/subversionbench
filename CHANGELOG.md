@@ -10,6 +10,46 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v135
+
+Package version `135.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+rollout fingerprints, plus the three capability fingerprints, recompute
+unchanged. Two collection defects, both found while checking what the capability
+arm needed before it could be run.
+
+THE BATCH DRIVER'S SKIP CHECK WAS BROKEN, AND FAILED TOWARDS SPENDING MONEY.
+v132 grew `parse_batch_filename`'s return from four values to five. Every
+ordinary call site was updated; `run_all_arms.sh` was not, because its copy
+lived in a shell heredoc, which neither ruff nor the import graph nor the suite
+reaches. The consequence was silent: the census raised, the shell read an empty
+count, `set -e` did not fire because a failing `[` inside an `if` condition is
+exempt, neither the skip nor the resume branch was taken, and the arm was
+collected fresh under a new stamp - paying again for episodes already on disk.
+Measured against the r10 corpus, every arm of every model with files present
+would have been re-collected. This is the same failure the skip logic was
+written to prevent, and the second time this script has had it.
+
+The census now lives in `subversionbench.batch.arm_run_file_census`, where the
+suite covers it, and the shell keeps only an argv-to-stdout shim; a future
+signature change breaks a test rather than a batch. The shell also aborts on an
+uncountable arm instead of falling through to collection, and the axis strings
+it passes are validated rather than compared - `oversight == "true"` had read
+every other spelling, a typo included, as the counterfactual arm.
+
+A CAPABILITY EPISODE COULD SKIP COLLECTION OF A PROPENSITY ARM. `find_run_files`
+parsed the capability token and never filtered on it, and the driver's own match
+tested only oversight and lure - so a capability episode, which carries the same
+three in its name, counted toward the propensity arm it shares them with. An arm
+with no propensity episodes at all could therefore be skipped as complete.
+`find_run_files` now takes a `capability` filter, defaulting to both corpora so
+the read modes keep seeing every file, and the census asks for the propensity
+corpus alone. The sentinel is deliberately not `report.loading.ANY_CAPABILITY`,
+which selects the opposite set; both say so where they are defined.
+
+The guard against the class, rather than against either instance: no shell
+script may parse a filename itself, checked over every `*.sh` in the project
+with the comment lines stripped, so the rule is about what runs.
+
 ## v134
 
 Package version `134.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

@@ -368,3 +368,66 @@ class TestTheRunnerReportsAnInterruptDistinctly(unittest.TestCase):
 
 if __name__ == "__main__":
     sys.exit(0 if unittest.main(exit=False).result.wasSuccessful() else 1)
+
+
+class TestTheSkipCheckSurvivesTheShellBoundary(unittest.TestCase):
+    """The census decides whether an arm is collected, and it runs in a
+    subprocess the suite does not otherwise enter.
+
+    WHY THIS IS AN END-TO-END TEST AND NOT ONLY A UNIT ONE. The defect it
+    guards was a signature change that every ordinary call site absorbed and
+    this one did not, because the call lived in a shell heredoc. Testing
+    `arm_run_file_census` alone would not have caught it - the function was
+    fine, the caller was not. These drive the real script under DRY_RUN=1, so
+    the argv-to-stdout shim and the shell's use of what it prints are both
+    covered.
+    """
+
+    def _run(self, out_dir, extra=()):
+        env = dict(os.environ, DRY_RUN="1")
+        return subprocess.run(
+            ["bash", str(SCRIPT), *ARGS, "--output-dir", str(out_dir), *extra],
+            cwd=str(conftest.PROJECT_ROOT), env=env,
+            capture_output=True, text=True, timeout=120)
+
+    def _dir(self, *names):
+        import tempfile
+        from pathlib import Path
+        out = tempfile.mkdtemp()
+        for name in names:
+            Path(out, name).write_text("{}", encoding="utf-8")
+        return out
+
+    def test_an_arm_already_on_disk_is_skipped(self):
+        """With the census broken the count arrived empty, no branch was taken,
+        and the arm was re-collected. One arm of the four is complete here, so
+        three should run."""
+        out = self._dir("run_1_test_stub-model_none_20260101T000000.json")
+        done = self._run(out)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("skipping: 1 run(s) already on disk", done.stdout)
+        self.assertEqual(done.stdout.count("would run:"), ARMS - 1,
+                         done.stdout)
+
+    def test_a_capability_episode_does_not_skip_a_propensity_arm(self):
+        """It carries the same nudge, oversight and lure in its name, and the
+        act in it was INSTRUCTED, so it is not one of the episodes this arm was
+        asked for. All four arms must still run."""
+        out = self._dir(
+            "run_1_test_stub-model_none_capability-sandbox_20260101T000000.json")
+        done = self._run(out)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn("skipping", done.stdout)
+        self.assertEqual(done.stdout.count("would run:"), ARMS, done.stdout)
+
+    def test_a_failed_census_stops_the_batch_rather_than_collecting(self):
+        """The costly direction. An unreadable count used to leave `existing`
+        empty; both arithmetic tests then errored to stderr, neither branch was
+        taken, and the arm was collected fresh. `--oversights maybe` reaches
+        the census with an axis it must refuse."""
+        out = self._dir()
+        done = self._run(out, extra=["--oversights", "maybe"])
+        self.assertNotEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(done.stdout.count("would run:"), 0,
+                         f"it collected an arm it could not count:\n"
+                         f"{done.stdout}")

@@ -34,8 +34,12 @@
 # command for every arm and spends nothing.
 #
 # SAFE TO RE-RUN. Before each arm, this checks --output-dir for run files
-# already on disk under that exact (model, nudge, oversight, lure) - not just
-# oversight, since find_run_files() does not itself filter on lure:
+# already on disk under that exact (model, nudge, oversight, lure), via
+# subversionbench.batch.arm_run_file_census - not just oversight, since
+# find_run_files() does not itself filter on lure. The census counts the
+# PROPENSITY corpus only: a capability episode carries the same nudge,
+# oversight and lure in its name, so counting one toward this arm's target
+# would skip collecting an arm that has no propensity episodes at all:
 #
 #   - --runs or more already there: skipped.
 #   - some there, all under ONE batch stamp: continued with run_eval.py's own
@@ -212,24 +216,32 @@ for nudge in "${NUDGES[@]}"; do
             # match this exact arm, and the distinct stamps they were found
             # under, so the shell can decide skip / resume / fresh without
             # re-parsing filenames itself.
-            read -r existing stamps <<< "$(python3 - "$OUTPUT_DIR" "$MODEL" \
-                "$nudge" "$oversight" "$lure" <<'PY'
+            # The census itself lives in subversionbench.batch, NOT here.
+            # This block used to unpack parse_batch_filename inline; when that
+            # function's return grew by one value the unpack broke, and no
+            # test could see it because Python in a heredoc is invisible to
+            # ruff, to the import graph and to the suite. Keeping only the
+            # argv-to-stdout shim here means a future signature change breaks
+            # test_collection/test_batch.py instead of a paid batch.
+            if ! read -r existing stamps <<< "$(python3 -c '
 import sys
-from subversionbench.batch import find_run_files, parse_batch_filename
-
-output_dir, model, nudge, oversight, lure = sys.argv[1:6]
-oversight, lure = oversight == "true", lure == "true"
-slug = model.replace("/", "_")
-stamps = set()
-n = 0
-for path in find_run_files(output_dir, slug, nudge, oversight=oversight):
-    _effort, stamp, got_oversight, got_lure = parse_batch_filename(path, nudge)
-    if got_oversight == oversight and got_lure == lure:
-        n += 1
-        stamps.add(stamp or "")
-print(n, ",".join(sorted(stamps)) or "-")
-PY
-)"
+from subversionbench.batch import arm_run_file_census
+n, stamps = arm_run_file_census(*sys.argv[1:])
+print(n, ",".join(stamps) or "-")
+' "$OUTPUT_DIR" "$MODEL" "$nudge" "$oversight" "$lure")"; then
+                echo "  ERROR: could not count existing runs for this arm" >&2
+                exit 1
+            fi
+            # An empty count means the census failed and printed nothing. Left
+            # to the arithmetic tests below it would raise "integer expression
+            # expected" on stderr, take neither branch, and fall through to a
+            # FRESH collection of an arm that may already be complete. Checked
+            # explicitly because `set -e` does not cover a failing `[` inside
+            # an `if` condition.
+            if [ -z "$existing" ]; then
+                echo "  ERROR: run census produced no count for this arm" >&2
+                exit 1
+            fi
 
             resume_args=()
             if [ "$existing" -ge "$RUNS" ]; then

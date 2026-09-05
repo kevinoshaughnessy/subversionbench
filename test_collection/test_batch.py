@@ -471,3 +471,125 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
             _, _, oversight, _lure, _cap = parse_batch_filename(
                 f"run_1_m_{nudge}_nooversight_20260805T155405.json", nudge)
             assert oversight is False, nudge
+
+
+class TestFindRunFilesSeparatesTheTwoCorpora:
+    """A capability episode's filename carries the same model, nudge, oversight
+    and lure as a propensity one. Only the capability tag tells them apart, and
+    a caller that cannot express which corpus it wants gets both."""
+
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        for name in ("run_1_m_none_20260101T000000.json",
+                     "run_1_m_none_capability-sandbox_20260101T000001.json",
+                     "run_1_m_none_capability-oversight_20260101T000002.json"):
+            Path(out, name).write_text("{}")
+        return out
+
+    def test_the_default_is_both_so_the_read_modes_see_every_file(self):
+        """--grade-existing and --resummarise must not stop seeing a corpus."""
+        assert len(find_run_files(self._dir(), "m", "none")) == 3
+
+    def test_none_is_the_propensity_corpus_not_an_absent_filter(self):
+        found = find_run_files(self._dir(), "m", "none", capability=None)
+        assert [os.path.basename(p) for p in found] == [
+            "run_1_m_none_20260101T000000.json"]
+
+    def test_a_target_name_selects_that_arm_alone(self):
+        found = find_run_files(self._dir(), "m", "none", capability="sandbox")
+        assert [os.path.basename(p) for p in found] == [
+            "run_1_m_none_capability-sandbox_20260101T000001.json"]
+
+
+class TestTheCollectionCensusCountsOnlyWhatItWouldCollect:
+    """run_all_arms.sh skips an arm that already has enough runs. Miscounting
+    in either direction costs money: too high skips an arm that was never
+    collected, too low re-collects one that was."""
+
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        for name in (
+                # the arm under test: oversight, no lure, two episodes
+                "run_1_m_none_20260101T000000.json",
+                "run_2_m_none_20260101T000000.json",
+                # same arm's CAPABILITY episodes - instructed, not propensity
+                "run_1_m_none_capability-sandbox_20260101T000001.json",
+                "run_2_m_none_capability-sandbox_20260101T000001.json",
+                # neighbouring arms
+                "run_1_m_none_nooversight_20260101T000002.json",
+                "run_1_m_none_lure_20260101T000003.json"):
+            Path(out, name).write_text("{}")
+        return out
+
+    def test_it_counts_the_arm_and_returns_its_stamp(self):
+        """Also the regression test for the arity defect: this walks real files
+        through parse_batch_filename, so a return that grows again fails here
+        rather than mid-batch."""
+        from subversionbench.batch import arm_run_file_census
+        n, stamps = arm_run_file_census(self._dir(), "m", "none",
+                                        "true", "false")
+        assert (n, stamps) == (2, ["20260101T000000"])
+
+    def test_a_capability_episode_does_not_satisfy_a_propensity_arm(self):
+        """The defect: four files match this arm's (nudge, oversight, lure) and
+        only two are propensity. Counting all four skips collection of an arm
+        holding half the episodes it was asked for."""
+        from subversionbench.batch import arm_run_file_census
+        n, _ = arm_run_file_census(self._dir(), "m", "none", "true", "false")
+        assert n == 2
+
+    def test_it_separates_the_oversight_and_lure_axes(self):
+        from subversionbench.batch import arm_run_file_census
+        out = self._dir()
+        assert arm_run_file_census(out, "m", "none", "false", "false")[0] == 1
+        assert arm_run_file_census(out, "m", "none", "true", "true")[0] == 1
+
+    def test_a_slugged_model_is_found_under_its_real_name(self):
+        from subversionbench.batch import arm_run_file_census
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_x-ai_grok-4.5_none_20260101T000000.json").write_text("{}")
+        assert arm_run_file_census(out, "x-ai/grok-4.5", "none",
+                                   "true", "false")[0] == 1
+
+    def test_an_unspelled_boolean_raises_rather_than_meaning_false(self):
+        """`oversight == "true"` silently read every other spelling as the
+        counterfactual arm, so a typo counted one arm and collected another."""
+        from subversionbench.batch import arm_run_file_census
+        out = self._dir()
+        for bad in ("True", "yes", "", "1"):
+            with pytest.raises(ValueError):
+                arm_run_file_census(out, "m", "none", bad, "false")
+            with pytest.raises(ValueError):
+                arm_run_file_census(out, "m", "none", "true", bad)
+
+
+class TestNoShellScriptParsesAFilenameItself:
+    """The arity defect survived because Python inside a shell heredoc is
+    reached by neither ruff nor the import graph nor this suite. The rule is
+    about every shell script, not about the one that broke: a filename is
+    parsed in Python that something can import and test."""
+
+    def _shell_scripts(self):
+        from conftest import PROJECT_ROOT
+        found = sorted(PROJECT_ROOT.glob("*.sh"))
+        assert found, "no shell scripts found - the guard would pass vacuously"
+        return found
+
+    @staticmethod
+    def _code(text: str) -> str:
+        """The script minus its comments, shell and embedded-Python alike.
+
+        Both languages start a whole-line comment with `#`, and the rule is
+        about what RUNS: a comment naming the parser - such as the one in
+        run_all_arms.sh explaining why the call was moved out - is not a call.
+        """
+        return "\n".join(line for line in text.splitlines()
+                         if not line.lstrip().startswith("#"))
+
+    def test_no_shell_script_unpacks_the_batch_parser(self):
+        offenders = [p.name for p in self._shell_scripts()
+                     if "parse_batch_filename"
+                     in self._code(p.read_text(encoding="utf-8"))]
+        assert not offenders, (
+            f"{offenders} parse filenames in shell; call a function in "
+            f"subversionbench.batch instead, so the suite covers it")
