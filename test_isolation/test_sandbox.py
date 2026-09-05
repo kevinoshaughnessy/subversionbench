@@ -14,11 +14,31 @@ import tempfile
 import time
 
 from pathlib import Path
-from subversionbench.sandbox import (_group_of, _reap_group,
-                                     execute_tool_sandboxed, tool_input_cmd)
+from subversionbench.sandbox import (SANDBOX_TIMING, SandboxTiming, _group_of,
+                                     _reap_group, execute_tool_sandboxed,
+                                     tool_input_cmd)
+
 import subversionbench as ev
 import subversionbench.sandbox as sb
 from conftest import darwin_only, sandbox_profile
+
+# The timing every WAITING test runs under.
+#
+# WHY THIS IS SOUND, AND WHAT STILL PINS THE SHIPPED VALUES. The behaviour these
+# tests are about - wait, TimeoutExpired, reap, escalate to SIGKILL - is the
+# same code at any value, so waiting out the shipped ten seconds re-observes a
+# constant rather than exercising anything the fast values do not. What the
+# shipped values need is an assertion that they ARE the shipped values and that
+# production reads them, and both are in TestTheShippedTimingIsWhatShips below,
+# where they cost nothing.
+#
+# Chosen against MEASURED host behaviour rather than picked: a trivial command
+# through the real wrapper takes about 11ms here and 22ms at worst, and a
+# non-trapping group empties about 55ms after SIGTERM. So these are roughly 45x
+# and 9x the thing they must outlast, and test_the_fast_timing_has_headroom
+# re-measures the first on whatever host is running rather than trusting these
+# numbers - a slow CI box gets a named failure instead of a flaky timeout.
+FAST = SandboxTiming(command_timeout=1.0, escalation_grace=0.5)
 
 
 class TestSandbox:
@@ -106,8 +126,10 @@ class TestSandbox:
         assert "permission denied" in result.lower()
 
     def test_timeout_handling(self, env_dir_only):
+        """A command that outlasts its budget reads as a timeout. Under FAST,
+        because the branch taken is the same at any budget - see FAST."""
         result = ev.execute_tool_sandboxed(
-            {"cmd": "sleep 30"}, env_dir_only
+            {"cmd": "sleep 30"}, env_dir_only, timing=FAST
         )
         assert "timed out" in result.lower()
 
@@ -773,12 +795,19 @@ class TestProcessGroupReaping:
         target = Path(env_dir_only) / "target.txt"
         target.write_text("original\n")
 
+        # The two waits are RELATED, so the relationship is written down rather
+        # than left as two magic numbers: the write is scheduled for `delay`
+        # after the command returns, and the check happens comfortably past
+        # it. Neither is bounded by the command timeout - the `&` returns at
+        # once - so this is a pure scaling with the margin preserved, not a
+        # tightening.
+        delay = 0.5
         execute_tool_sandboxed(
-            {"cmd": "sh -c '(sleep 2; echo tampered > target.txt) &'"},
+            {"cmd": f"sh -c '(sleep {delay}; echo tampered > target.txt) &'"},
             env_dir_only)
 
         # Well past the scheduled write. If reaping failed, the file changes here.
-        time.sleep(3.5)
+        time.sleep(delay * 2 + 0.2)
         assert target.read_text() == "original\n", (
             "a backgrounded process wrote to the artefact after its command "
             "returned - the TOCTOU gap is open")
@@ -811,7 +840,8 @@ class TestProcessGroupReaping:
     def test_timeout_still_reports_timeout(self, env_dir_only):
         """A genuinely long command still reads as a timeout rather than as an
         error or empty output."""
-        out = execute_tool_sandboxed({"cmd": "sleep 30"}, env_dir_only)
+        out = execute_tool_sandboxed({"cmd": "sleep 30"}, env_dir_only,
+                                     timing=FAST)
         assert "timed out" in out.lower()
 
     def test_reap_never_signals_our_own_group(self):
@@ -859,14 +889,16 @@ class TestProcessGroupReaping:
         # group and the reap returns without escalating.
         t0 = time.monotonic()
         control = execute_tool_sandboxed(
-            {"cmd": "while true; do sleep 1; done"}, env_dir_only)
+            {"cmd": "while true; do sleep 1; done"}, env_dir_only,
+            timing=FAST)
         without_escalation = time.monotonic() - t0
 
         marker = Path(env_dir_only) / "pid.txt"
         t0 = time.monotonic()
         out = execute_tool_sandboxed(
             {"cmd": "trap '' TERM; echo $$ > pid.txt; "
-                    "while true; do sleep 1; done"}, env_dir_only)
+                    "while true; do sleep 1; done"}, env_dir_only,
+            timing=FAST)
         with_escalation = time.monotonic() - t0
 
         # Both must have reached the timeout path at all, or the subtraction is
@@ -883,11 +915,18 @@ class TestProcessGroupReaping:
         # grace period: it asserts the grace was reached, not how long it is,
         # so retuning the constant does not break it.
         escalation_cost = with_escalation - without_escalation
-        assert escalation_cost > 0.5, (
+        # DERIVED FROM THE GRACE IN USE, not a hardcoded 0.5. The paragraph
+        # above claims retuning the constant does not break this test, and
+        # against a literal that was not true - it was a number that happened
+        # to sit under the shipped two seconds. Half of whatever grace this
+        # run uses keeps the claim honest at any value.
+        floor = FAST.escalation_grace / 2
+        assert escalation_cost > floor, (
             f"escalation looks free: {with_escalation:.2f}s trapping against "
             f"{without_escalation:.2f}s not trapping, a difference of "
-            f"{escalation_cost:.2f}s - was SIGTERM alone enough, making this "
-            f"test blind to whether SIGKILL fires?")
+            f"{escalation_cost:.2f}s, under the {floor:.2f}s floor - was "
+            f"SIGTERM alone enough, making this test blind to whether SIGKILL "
+            f"fires?")
         # And it is a bounded extra step rather than a second timeout. Expressed
         # against the control for the same reason as the floor.
         assert escalation_cost < without_escalation, (
@@ -932,7 +971,7 @@ class TestProcessGroupReaping:
                 "test precondition: the trapping shell must be BELOW the leader, "
                 "otherwise this is the same shape as the macOS wrapper")
 
-            assert _reap_group(proc, pgid) == 2, (
+            assert _reap_group(proc, pgid, FAST.escalation_grace) == 2, (
                 "the leader died on SIGTERM and nothing escalated - a wrapper's "
                 "exit was read as proof its children were gone")
             time.sleep(0.2)
@@ -976,7 +1015,7 @@ class TestProcessGroupReaping:
             start_new_session=True)
         time.sleep(0.3)
         try:
-            sent = _reap_group(proc, _group_of(proc))
+            sent = _reap_group(proc, _group_of(proc), FAST.escalation_grace)
         finally:
             if proc.poll() is None:
                 proc.kill()
@@ -1145,3 +1184,126 @@ class TestCommandOutputIsBounded:
         out = self._via_sandbox("echo hello-from-the-sandbox")
         assert out.strip() == "hello-from-the-sandbox", out
         assert "truncated" not in out
+
+
+class TestTheShippedTimingIsWhatShips:
+    """What the tests above stopped proving by waiting, and now prove directly.
+
+    Every waiting test runs under FAST, so nothing above would notice if the
+    shipped command timeout became one second - the branch taken is the same.
+    That is the trade this class pays for: the VALUES are pinned by equality,
+    and production is proved to READ them. Both cost nothing, and together they
+    are strictly stronger than a ten-second sleep, which only ever showed that
+    some timeout fired.
+    """
+
+    def test_the_shipped_values_are_ten_and_two(self):
+        """The command timeout is part of what the model experiences - an
+        episode collected under a different one gave the model more or less
+        time to finish, which is a different rollout. Pinned as a literal
+        because that is exactly the kind of change that must be deliberate."""
+        assert SANDBOX_TIMING.command_timeout == 10.0
+        assert SANDBOX_TIMING.escalation_grace == 2.0
+
+    def test_the_fast_timing_is_not_the_shipped_one(self):
+        """Without this the two consultation tests below pass vacuously: if
+        FAST were the shipped timing, substituting it would change nothing and
+        a default that is never read would look correct."""
+        assert FAST != SANDBOX_TIMING
+        assert FAST.command_timeout < SANDBOX_TIMING.command_timeout
+        assert FAST.escalation_grace < SANDBOX_TIMING.escalation_grace
+
+    def test_execute_tool_sandboxed_consults_the_shipped_timing(self, env_dir_only):
+        """Called with no `timing`, it must read SANDBOX_TIMING at CALL time.
+        A signature default would be bound once at import and would look
+        identical from outside while ignoring any later change to the
+        constant - so the substitution below is the only thing that can tell
+        a consulted default from a decorative one."""
+        original = sb.SANDBOX_TIMING
+        sb.SANDBOX_TIMING = FAST
+        try:
+            t0 = time.monotonic()
+            out = execute_tool_sandboxed({"cmd": "sleep 30"}, env_dir_only)
+            elapsed = time.monotonic() - t0
+        finally:
+            sb.SANDBOX_TIMING = original
+        assert "timed out" in out.lower()
+        # Against the SHIPPED value, not an absolute: this asserts the
+        # substitution took effect, not how fast the host is.
+        assert elapsed < SANDBOX_TIMING.command_timeout / 2, (
+            f"timed out after {elapsed:.2f}s with the timing substituted - "
+            f"the shipped value is being read from somewhere this cannot "
+            f"reach, so no test covers what production actually waits")
+
+    def test_reap_group_consults_the_shipped_timing(self):
+        """The same question for the escalation grace, which has its own
+        default and its own way of going stale."""
+        original = sb.SANDBOX_TIMING
+        sb.SANDBOX_TIMING = FAST
+        proc = subprocess.Popen(
+            ["/bin/sh", "-c", "trap '' TERM; while true; do sleep 1; done"],
+            start_new_session=True)
+        time.sleep(0.3)
+        try:
+            t0 = time.monotonic()
+            sent = _reap_group(proc, _group_of(proc))
+            elapsed = time.monotonic() - t0
+        finally:
+            sb.SANDBOX_TIMING = original
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+        # It escalated, so it waited out a whole grace - which is the only
+        # case where the value is observable at all.
+        assert sent == 2, "the fixture no longer forces escalation"
+        assert elapsed < SANDBOX_TIMING.escalation_grace / 2, (
+            f"escalated after {elapsed:.2f}s with the timing substituted - "
+            f"_reap_group is not reading SANDBOX_TIMING at call time")
+
+    def test_the_fast_timing_has_headroom_on_this_host(self):
+        """MEASURED, not reasoned about. FAST is only sound while a real
+        command through the real wrapper finishes far inside it; on a host
+        slow enough that it does not, the timing tests would go noisy and
+        eventually flaky. This turns that into a named failure with the
+        numbers attached, on whatever machine is running - which is the
+        platform rule this repository keeps paying for."""
+        d = tempfile.mkdtemp()
+        os.makedirs(f"{d}/config", exist_ok=True)
+        # Several, and the worst taken: one sample on a loaded box says
+        # nothing, and it is the slow tail that would break the timing tests.
+        worst = 0.0
+        for _ in range(5):
+            t0 = time.monotonic()
+            execute_tool_sandboxed({"cmd": "echo hi"}, d)
+            worst = max(worst, time.monotonic() - t0)
+        assert FAST.command_timeout > worst * 5, (
+            f"a trivial sandboxed command takes up to {worst*1000:.0f}ms on "
+            f"this host, against a fast command timeout of "
+            f"{FAST.command_timeout}s - too close for the timing tests to "
+            f"stay meaningful. Raise FAST rather than letting them flake.")
+        assert FAST.escalation_grace > worst * 2, (
+            f"{worst*1000:.0f}ms trivial command against a "
+            f"{FAST.escalation_grace}s fast grace")
+
+    def test_nothing_in_production_varies_the_timing(self):
+        """`timing` exists for the suite. A production caller that passed one
+        could collect episodes under a command budget no run file records,
+        which is a rollout difference invisible in the artefact - the same
+        class of defect as an unrecorded scaffold.
+
+        Scoped by the RULE rather than by a path: every shipping file except
+        the module that defines the seam, taken from conftest so a module
+        added later inherits the check instead of escaping it."""
+        import conftest
+        source = [p for p in conftest.source_python_files()
+                  if p.name != "sandbox.py"]
+        assert len(source) > 20, f"empty scope: {len(source)}"
+        offenders = []
+        for path in source:
+            text = path.read_text(encoding="utf-8")
+            if "timing=" in text and "execute_tool_sandboxed" in text:
+                offenders.append(str(path))
+        assert not offenders, (
+            f"these shipping files pass a sandbox timing: {offenders}. The "
+            f"shipped values are the only ones an episode may be collected "
+            f"under.")

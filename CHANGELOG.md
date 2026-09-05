@@ -10,6 +10,60 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v133
+
+Package version `133.0.0`. `ROLLOUT_VERSION` stays `r10`, all four pinned
+fingerprints recompute unchanged, and the shipped sandbox timing is unchanged -
+that last one is asserted rather than assumed, which is most of what this
+version is about.
+
+THE SANDBOX'S TWO WAITS ARE NAMED. `SandboxTiming` carries the command timeout
+and the escalation grace, both of which were bare literals inside the
+functions that used them. That made the guarantees they encode untestable
+except by waiting them out: proving a command times out took ten seconds, and
+proving a SIGTERM-ignoring process is escalated to took two more on top. Six
+tests spent about fifty seconds a run observing constants.
+
+Named, the WAITING and the VALUES become separate questions. The behaviour -
+wait, TimeoutExpired, reap, escalate to SIGKILL - is the same code at any
+value, so the tests exercise it under a fast timing, and the shipped values
+are pinned by an equality assertion that costs nothing. The sandbox tests go
+from 51s to 8.5s and the suite from 142s to 100s.
+
+WHAT MAKES THAT SAFE, rather than a coverage hole traded for speed. Three new
+guards, each proven against the defect it names:
+
+  - the shipped values are asserted to be ten and two, as literals, because
+    the command timeout is part of what the model experiences and an episode
+    collected under a different one gave the model more or less time to
+    finish - a different rollout
+  - production is proven to READ them, by substituting a faster timing at the
+    module attribute and observing the change. A signature default would be
+    bound once at import and look identical from outside while ignoring the
+    constant, so this is the only thing that tells a consulted default from a
+    decorative one
+  - nothing outside this module and the suite may pass a timing, scoped by the
+    rule over every shipping file from `conftest` rather than by naming paths
+
+Together those are stricter than the ten-second sleep they replace, which only
+ever showed that some timeout fired.
+
+The fast values are chosen against MEASURED host behaviour, not picked: a
+trivial command through the real wrapper takes 11ms here and 22ms at worst,
+and a non-trapping group empties 55ms after SIGTERM. A further guard
+re-measures the first on whatever host is running and fails by name if the
+margin has gone, so a slow machine gets a diagnosis instead of a flaky
+timeout.
+
+TWO ASSERTIONS IMPROVED BY THE WORK. The escalation test's floor was a literal
+`0.5`, while its own docstring claimed that retuning the grace would not break
+it - untrue, since the number happened to sit under the shipped two seconds.
+It derives from the grace in use now, so the claim is honest at any value. And
+the delayed-write test's two sleeps were independent magic numbers; the second
+is now derived from the first, so the margin that makes the test meaningful is
+written down rather than implied. Both were re-verified by disabling reaping
+outright and watching each fail.
+
 ## v132
 
 Package version `132.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

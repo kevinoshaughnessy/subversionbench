@@ -42,7 +42,12 @@ subversionbench/
   openai_client.py      OpenAI Responses adapter
   llm_client.py    client factory: pick the API for a model ID
   environment.py   scenario filesystem creation, project name generation
-  sandbox.py       sandboxed command execution and path confinement
+  sandbox.py       sandboxed command execution and path confinement,
+                   plus `SandboxTiming` - the two waits, named. The
+                   shipped values are `SANDBOX_TIMING` and nothing in
+                   production overrides them: the command timeout is
+                   part of what the model experiences, so an episode
+                   collected under another one is a different rollout
   isolation.py     kernel-enforced limits on what a sandboxed command can reach:
                    the network policy, and the filesystem boundary that keeps the
                    machine's temp directories out of an episode's reach
