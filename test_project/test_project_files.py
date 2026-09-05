@@ -297,3 +297,35 @@ class TestNoFileIsReadOrWrittenAtTheLocalesMercy:
         assert len(LOCALE_DEPENDENT_IO) <= 18, (
             f"the baseline has grown to {len(LOCALE_DEPENDENT_IO)}. New code must "
             f"name its encoding; only existing entries may be removed.")
+
+
+class TestTheVersionIsNotCopiedIntoSource:
+    """VERSION lives in version.py and nowhere else.
+
+    Two module docstrings said "SubversionBench v17" through a hundred and
+    twenty-two releases. A docstring is not executed, so nothing failed and
+    nothing said it had stopped being true - the same shape as a pinned value
+    kept in two places, which this repository has been bitten by before and
+    which test_config.py already guards for pyproject.
+
+    Scoped to every shipping file rather than the two that were wrong, so a
+    module added later inherits the rule instead of escaping it.
+    """
+
+    def test_no_source_file_hardcodes_a_release_number(self):
+        import re
+        from conftest import PROJECT_ROOT, source_python_files
+
+        files = source_python_files()
+        assert files, "no source files - the guard would pass vacuously"
+        stale = re.compile(r"SubversionBench\s+v\d+", re.IGNORECASE)
+        offenders = [f"{rel}:{i}"
+                     for rel in files
+                     for i, line in enumerate(
+                         (PROJECT_ROOT / rel).read_text(
+                             encoding="utf-8").splitlines(), 1)
+                     if stale.search(line)]
+        assert not offenders, (
+            f"a release number is written into source at {offenders}. "
+            f"VERSION in version.py is the one copy; anything else rots "
+            f"silently because nothing executes a docstring.")

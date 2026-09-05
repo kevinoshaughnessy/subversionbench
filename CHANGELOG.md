@@ -10,6 +10,48 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v140
+
+Package version `140.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+`run_eval.main` IS NOW 53 LINES, from 471 two releases ago. The remaining
+blocks moved out: flag rejection, reasoning resolution, routing warnings, the
+capability preconditions and the read-mode dispatch. Every extracted helper is
+under 100 lines.
+
+`build_parser` also split four ways, by the groups that have independent
+reasons to change - collection, model/provider, read modes, analysis. That
+split is not a matter of taste: of the sixteen commits that have ever changed a
+flag declaration in this file, fourteen changed exactly one of those four
+groups, and the two that did not are the initial commit and one bulk
+restructure. Two of the four are still over 100 lines, at 120 and 109; they are
+declaration lists, and splitting them on an arbitrary seam to reach a number
+would buy nothing.
+
+The only user-visible change is the order argparse prints options in `usage:`
+and `--help`. Verified by capturing all eighteen paths through main that exit
+before a rollout, before and after: exit codes identical, message content
+identical, option set identical.
+
+TWO THINGS THIS FOUND. The `Reasoning:` line that announces the resolved
+configuration was dropped during the extraction, the entire suite passed
+anyway, and only the before/after capture caught it - a batch header that no
+longer says what reasoning was sent is one whose transcript cannot be read back
+with confidence, so it now has a test. And `_capability_refusal` briefly
+returned `2` instead of its message, which would have made main print "2" and
+lose the explanation; that has a test too.
+
+The three `args.x = ...` coercions stay in main, and a guard asserts none of
+the five helpers writes to the bag.
+
+TWO MODULE DOCSTRINGS SAID "SubversionBench v17" through a hundred and
+twenty-two releases. Removed rather than corrected: `VERSION` in version.py is
+the one copy, stamped into every summary and checked against pyproject by
+test_config.py, and a docstring is not executed so nothing reports when a
+second copy stops being true. A guard now refuses a release number in any
+shipping file.
+
 ## v139
 
 Package version `139.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

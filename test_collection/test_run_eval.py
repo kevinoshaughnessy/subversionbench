@@ -522,3 +522,78 @@ class TestTheParserIsReadableWithoutRunningABatch:
         assert sorted(actions["nudge"].choices) == ["all", "max", "none",
                                                     "strong"]
         assert sorted(actions["capability"].choices) == ["oversight", "sandbox"]
+
+
+class TestMainsHelpersKeepTheirContracts:
+    """main() is now 53 lines because five helpers carry what it used to.
+
+    Each is guarded for the property that made it safe to extract, and the
+    first of these exists because extracting it was NOT safe: the line
+    announcing the resolved reasoning config was dropped in the move, the whole
+    suite passed anyway, and only a before/after capture of the real CLI caught
+    it. A batch whose header no longer says what reasoning it sent is a batch
+    whose transcript cannot be read back with confidence, so it is asserted
+    here rather than left to the next person to notice.
+    """
+
+    def _args(self, **over):
+        parser = ev_run.build_parser()
+        args = parser.parse_args(["--model", "claude-opus-5"])
+        args.interrogations = ()
+        for k, v in over.items():
+            setattr(args, k, v)
+        return parser, args
+
+    def test_the_resolved_reasoning_is_announced(self):
+        parser, args = self._args()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            kwargs, config = ev_run._resolve_reasoning(parser, args)
+        assert "Reasoning:" in out.getvalue(), out.getvalue()
+        assert str(config) in out.getvalue()
+
+    def test_a_clean_capability_run_is_not_refused(self):
+        _p, args = self._args(capability="sandbox", nudge="none",
+                              lure=False, oversight=True)
+        assert ev_run._capability_refusal(args) is None
+
+    def test_each_capability_precondition_returns_prose_not_a_code(self):
+        """It returns the message for main() to print. Returning 2 here - which
+        it did briefly while being extracted - makes main() print "2" and lose
+        the explanation."""
+        for over in ({"nudge": "strong"}, {"lure": True},
+                     {"capability": "oversight", "oversight": False}):
+            base = {"capability": "sandbox", "nudge": "none", "lure": False,
+                    "oversight": True}
+            _p, args = self._args(**(base | over))
+            got = ev_run._capability_refusal(args)
+            assert isinstance(got, str) and "--capability" in got, (over, got)
+
+    def test_no_read_mode_asked_for_returns_none(self):
+        """None is the signal that this invocation collects. Any int here would
+        be read as an exit code and would stop the batch before it started."""
+        _p, args = self._args()
+        for flag in ("compare", "summarise_arms", "resummarise",
+                     "reinterrogate", "reclassify", "grade_existing"):
+            assert getattr(args, flag) in (False, None), flag
+        assert ev_run._run_read_mode(args, None) is None
+
+    def test_no_helper_writes_to_the_args_bag(self):
+        """AGENTS.md's rule, checked where the extraction could have broken it:
+        the three coercions stay in main(), so a helper that took args and
+        corrected it would put the same mutation somewhere a later caller
+        cannot see. test_args_bag.py enforces this repo-wide; this pins it for
+        the functions carved out of main."""
+        import ast
+        import inspect
+        for name in ("_reject_contradictory_flags", "_resolve_reasoning",
+                     "_warn_about_inapplicable_routing", "_capability_refusal",
+                     "_run_read_mode"):
+            tree = ast.parse(inspect.getsource(getattr(ev_run, name)))
+            writes = [t.attr for n in ast.walk(tree)
+                      if isinstance(n, (ast.Assign, ast.AugAssign))
+                      for t in (n.targets if isinstance(n, ast.Assign)
+                                else [n.target])
+                      if isinstance(t, ast.Attribute)
+                      and getattr(t.value, "id", "") == "args"]
+            assert not writes, f"{name} sets args.{writes}"
