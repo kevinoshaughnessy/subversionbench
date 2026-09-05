@@ -234,6 +234,12 @@ class OpenRouterClient:
         # Recorded, never sent back: see _reasoning_detail_summary.
         reasoning_details = _reasoning_detail_summary(
             getattr(choice, "reasoning_details", None))
+        # Which backend answered THIS call. OpenRouter reports it top-level on
+        # the completion; it is not a field we send, and it can differ between
+        # turns of one episode when the router falls back mid-run - which is
+        # exactly the drift `openrouter_provider` cannot show, because that
+        # records only what was asked for. See _Response.provider.
+        served_by = getattr(completion, "provider", None)
 
         blocks = []
         if reasoning:
@@ -257,7 +263,8 @@ class OpenRouterClient:
                     ))
                 return _Response(blocks, _reasoning_usage(completion),
                                  stop_reason=finish_reason,
-                                 reasoning_details=reasoning_details)
+                                 reasoning_details=reasoning_details,
+                                 provider=served_by)
 
         if choice.content:
             blocks.append(_Block("text", text=choice.content))
@@ -292,6 +299,7 @@ class OpenRouterClient:
 
         return _Response(blocks, _reasoning_usage(completion),
                          stop_reason=finish_reason,
-                         reasoning_details=reasoning_details)
+                         reasoning_details=reasoning_details,
+                         provider=served_by)
 
 

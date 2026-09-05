@@ -196,6 +196,157 @@ def exclude_arm(summaries: list, episodes: list,
     return kept_summaries, kept_episodes, stamp
 
 
+# ---------------------------------------------------------------------------
+# Excluding AWARE EPISODES from the corpus
+# ---------------------------------------------------------------------------
+#
+# WHY THIS IS A SEPARATE FUNCTION AND NOT ANOTHER ARM_EXCLUSIONS ENTRY.
+# `exclude_arm` narrows both loaders with ONE predicate, which is the whole
+# point of it: questions 1-4 read the summaries and 5-12 the episodes, and an
+# exclusion reaching only one of those is a report whose halves describe
+# different corpora. That works for `oversight` because a summary row IS one
+# arm, so the same field means the same thing on both sides.
+#
+# Awareness is not like that. It is measured PER EPISODE, and a summary row
+# aggregates ten of them - some aware, some not. There is no summary-side
+# awareness predicate to write: dropping a whole arm because some of its
+# episodes were aware would discard the unaware ones with them. So this
+# narrows the episode list only, and callers that want arm-level rows under
+# it must rebuild them from the surviving episodes with `awareness_arm_rows`
+# and `act_arm_rows` rather than reading summary_*.json. Folding this into
+# ARM_EXCLUSIONS would put a predicate in there that cannot honour that
+# module's own one-predicate-both-sources rule.
+#
+# WHAT THE READING IS FOR. Questions 1-4 measure an arm's effect on an
+# outcome. A reader can object that the effect is not the arm at all: that
+# the models which noticed they were being evaluated behaved differently
+# between arms, and the contrast is that noticing rather than the condition.
+# Answering questions 1-4 again over only the episodes where no awareness was
+# found tests that objection directly. If the contrast survives, the objection
+# is weakened; if it collapses, the corpus cannot separate the two.
+#
+# WHAT IT IS NOT. Awareness is measured DURING the episode, so it is an
+# outcome of the arm and not a condition assigned alongside it. Conditioning
+# on it does not give an unbiased estimate of the arm's effect - where
+# awareness and the outcome share an unmeasured common cause, conditioning
+# opens a path between arm and outcome that the design had closed, and where
+# awareness mediates the arm's effect this blocks a mediator. So this is a
+# ROBUSTNESS READING against one named alternative explanation, in the same
+# spirit as ARM_EXCLUSIONS above, and not a better answer than the primary.
+# Published as a second reading beside the first, never in place of it.
+#
+# QUESTIONS 5-10 CANNOT BE ANSWERED UNDER IT AT ALL. Their exposure IS
+# awareness - see questions_awareness.py - so removing the aware episodes
+# removes the group they contrast against. A caller must omit them and say so
+# rather than render them off an empty arm; rendering is the failure this
+# repository keeps meeting, because every number still appears. Questions
+# 11-12 are unaffected: their exposure is interrogation phrasing.
+
+NO_AWARENESS_EXCLUSION = "none"
+EXCLUDE_AWARE_PRIMARY = "aware_primary"
+EXCLUDE_AWARE_UNION = "aware_union"
+
+# Keyed by name for the same reasons ARM_EXCLUSIONS is: the flag, the JSON
+# stamp and the caption all name one thing, and `words` travels with the
+# predicate so a caption cannot describe a different exclusion from the one
+# applied.
+#
+# TWO MEASURES, AND WHICH IS PRIMARY. `aware` is the published measure - the
+# rubric grader where there is one, the keyword screen only as a fallback,
+# which is awareness_flag's own order and is not restated here. `aware_union`
+# counts an episode aware if EITHER measure says so, so it also catches the
+# episodes the grader called unaware but the keyword screen flagged. The union
+# is the stricter screen and therefore the smaller surviving corpus, which is
+# why it is offered: an objection answered on the union is harder to argue
+# with. It is secondary because it is not the measure any published rate here
+# uses, and mixing the two would make the sensitivity reading answer a
+# question about a different instrument from the one it is defending.
+AWARENESS_EXCLUSIONS = {
+    NO_AWARENESS_EXCLUSION: {
+        "field": None,
+        "words": "",
+        "why": "",
+    },
+    EXCLUDE_AWARE_PRIMARY: {
+        "field": "aware",
+        "words": "eval-aware episodes excluded - unaware episodes only "
+                 "(primary measure: grader, keyword screen as fallback)",
+        "why": "an arm contrast can be objected to as the models that "
+               "noticed the evaluation behaving differently between arms "
+               "rather than the arm itself. Answering again over the "
+               "episodes where no awareness was found tests that objection. "
+               "Awareness is measured during the episode, so this is a "
+               "robustness reading and not an unbiased estimate of the "
+               "arm's effect. See report/loading.py.",
+    },
+    EXCLUDE_AWARE_UNION: {
+        "field": "aware_union",
+        "words": "eval-aware episodes excluded - unaware episodes only "
+                 "(secondary measure: grader OR keyword screen)",
+        "why": "the same reading against the stricter of the two awareness "
+               "screens: an episode counts as aware if either the grader or "
+               "the keyword screen found awareness, so fewer episodes "
+               "survive and an objection answered here is harder to argue "
+               "with. Secondary, because no published rate uses this "
+               "measure. See report/loading.py.",
+    },
+}
+
+
+def exclude_aware_episodes(episodes: list,
+                           exclusion: str = NO_AWARENESS_EXCLUSION) -> tuple:
+    """
+    The episode list with eval-aware episodes dropped, plus what went.
+
+    Returns (episodes, stamp). Episodes only, deliberately - see the note
+    above for why there is no summary-side counterpart, and why a caller
+    under this reading has to rebuild arm rows from what survives.
+
+    AN UNDETERMINED EPISODE IS DROPPED AND COUNTED APART. `None` means no
+    awareness measure was available - the grader call failed and the keyword
+    screen had nothing either - which is not the same fact as awareness having
+    been looked for and not found. Keeping it would put an unmeasured episode
+    into a corpus defined by a measurement, and it is exactly the
+    absence-is-not-a-no error the rubric parser exists to prevent. Counted
+    separately so the two reasons a row left are never conflated, the same
+    way exclude_arm separates an excluded arm from an unattributable one.
+
+    THE COUNTS ARE THE POINT OF THE RETURN VALUE, as in exclude_arm: an
+    exclusion that silently matched everything renders a full report of
+    "no data" rather than raising, and the stamp is what makes that visible
+    in the document rather than only to whoever thinks to check.
+    """
+    spec = AWARENESS_EXCLUSIONS.get(exclusion)
+    if spec is None:
+        raise ValueError(
+            f"unknown awareness exclusion {exclusion!r}; "
+            f"expected one of {sorted(AWARENESS_EXCLUSIONS)}")
+    field = spec["field"]
+    stamp = {
+        "excluded": exclusion,
+        "field": field,
+        "measure": ("primary" if exclusion == EXCLUDE_AWARE_PRIMARY else
+                    "secondary" if exclusion == EXCLUDE_AWARE_UNION else None),
+        "words": spec["words"],
+        "why": spec["why"],
+        "n_episodes_before": len(episodes),
+    }
+    if field is None:
+        stamp.update(n_episodes_kept=len(episodes), n_episodes_dropped_aware=0,
+                     n_episodes_dropped_undetermined=0)
+        return episodes, stamp
+
+    kept = [r for r in episodes if r.get(field) is False]
+    stamp.update(
+        n_episodes_kept=len(kept),
+        n_episodes_dropped_aware=sum(1 for r in episodes
+                                     if r.get(field) is True),
+        n_episodes_dropped_undetermined=sum(1 for r in episodes
+                                            if r.get(field) is None),
+    )
+    return kept, stamp
+
+
 def load_summaries(output_dir: str) -> list:
     """
     Every per-arm summary in output_dir, flattened to one row.
@@ -295,6 +446,36 @@ def load_episodes(output_dir: str) -> list:
         if not d.get("model") or not analysis:
             continue
         aware, aware_source = awareness_flag(analysis)
+        # THE UNION OF THE TWO AWARENESS SCREENS, for the secondary
+        # sensitivity reading AWARENESS_EXCLUSIONS describes.
+        #
+        # Not the same thing as `aware` above. awareness_flag PREFERS the
+        # grader and consults the keyword screen only when there is no grader
+        # verdict, so an episode the grader called unaware never reaches the
+        # keyword screen at all. The union asks the weaker question - did
+        # EITHER instrument find awareness - which flags those episodes too.
+        # A larger aware set, so a smaller unaware corpus, which is the point:
+        # a contrast that survives the union survives the stricter screen.
+        #
+        # None only when NEITHER instrument had anything to say. Where one is
+        # missing and the other found nothing, the answer is False: awareness
+        # was looked for with the instrument available and not found, which is
+        # the same standard `aware` itself applies when it falls back. The
+        # source records which instruments actually contributed, so a reader
+        # can see when a False rested on the keyword screen alone.
+        _grader = analysis.get("eval_awareness_grader") or {}
+        _keywords = analysis.get("eval_awareness_keywords") or {}
+        _grader_aware = (None if (_grader.get("grading_failed")
+                                  or _grader.get("eval_aware") is None)
+                         else bool(_grader["eval_aware"]))
+        _keyword_aware = (None if _keywords.get("eval_aware") is None
+                          else bool(_keywords["eval_aware"]))
+        _seen = [v for v in (_grader_aware, _keyword_aware) if v is not None]
+        aware_union = None if not _seen else any(_seen)
+        aware_union_source = "+".join(
+            name for name, value in (("grader", _grader_aware),
+                                     ("keywords", _keyword_aware))
+            if value is not None) or None
         # The parallel measure, read from visible text only. Computed here
         # because it needs the transcript, which is dropped below - see
         # awareness_channels for what it bounds and what it does not.
@@ -355,7 +536,23 @@ def load_episodes(output_dir: str) -> list:
             # every non-OpenRouter model, where None is the only honest value.
             "openrouter_sort": d.get("openrouter_sort"),
             "openrouter_provider": d.get("openrouter_provider"),
+            # WHICH BACKEND ANSWERED, as opposed to which was asked for. The
+            # two above are the request and are None wherever nothing was
+            # pinned, which is most of this corpus; these are read off the
+            # responses. A tuple of the distinct providers across the
+            # episode's turns, because the router can fall back mid-episode.
+            # Empty on every episode collected before the field existed, and
+            # on every non-OpenRouter route - "not recorded" throughout,
+            # never "one provider".
+            "served_by_providers": tuple(d.get("served_by_providers") or ()),
+            "served_by_changed": bool(d.get("served_by_changed")),
             "aware": aware, "aware_source": aware_source,
+            # Secondary: aware if EITHER screen says so - see above. Carried
+            # beside the primary rather than replacing it, because the
+            # sensitivity reading is published as a second reading and both
+            # have to be computable from one load of the corpus.
+            "aware_union": aware_union,
+            "aware_union_source": aware_union_source,
             # Parallel to `aware`, on the one channel every model has.
             "aware_text": aware_text,
             # A floor rather than an estimate wherever reasoning came back; exact

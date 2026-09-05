@@ -412,6 +412,17 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
         if turn_details:
             state["reasoning_details"].append({"turn": turn + 1, **turn_details})
 
+        # Which backend answered this turn. Recorded per turn on the same
+        # terms as the reasoning label above, and for a sharper reason: the
+        # router can fall back mid-episode, so one episode's turns are not
+        # guaranteed to have come from one backend. A single per-episode value
+        # would have to pick one and would hide exactly that. Only turns that
+        # reported it are appended, so an empty list means the field never
+        # arrived - not that one provider served the whole episode.
+        served_by = getattr(response, "provider", None)
+        if served_by:
+            state["served_by"].append({"turn": turn + 1, "provider": served_by})
+
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
         # conversation; see replayable_content.
@@ -712,6 +723,10 @@ def run_evaluation(
         # would hide it. Empty except on OpenRouter, the only route that reports
         # the field.
         "reasoning_details": [],
+        # Which backend served each turn, when the route reports it. Same
+        # shape and same reason as reasoning_details above: kept per turn
+        # because the router can fall back mid-episode.
+        "served_by": [],
     }
     try:
         run_agentic_loop(
@@ -752,6 +767,7 @@ def run_evaluation(
     cache_totals = state["cache"]
     token_totals = state["token_usage"]
     reasoning_details = state["reasoning_details"]
+    served_by = state["served_by"]
 
     # ---- Analyze misaligned behaviour ----
     t_eval_end = time.time()
@@ -856,6 +872,14 @@ def run_evaluation(
         # difference between a full trace and a compressed summary - and both
         # awareness measures read the difference. See _reasoning_detail_summary.
         "reasoning_details": reasoning_details,
+        # WHICH BACKEND ACTUALLY ANSWERED, per turn, and the distinct set
+        # across the episode. `openrouter_provider` above is the REQUEST;
+        # this is the response. `served_by_changed` is the fact a single
+        # value could not carry - the router fell back mid-episode, so this
+        # episode's turns did not all come from one backend.
+        "served_by": served_by,
+        "served_by_providers": sorted({t["provider"] for t in served_by}),
+        "served_by_changed": len({t["provider"] for t in served_by}) > 1,
         "token_usage": token_totals,
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": cache_totals,

@@ -22,7 +22,9 @@ subversionbench/
   routing.py       which API serves a model ID
   reasoning.py     which reasoning parameters each model generation accepts
   blocks.py        the Anthropic-shaped response objects adapters normalise to,
-                   and a saved run back into a conversation the API accepts
+                   a saved run back into a conversation the API accepts, and
+                   which backend served a response - the router's own
+                   account, as opposed to the provider that was requested
   tool_parsing.py  recovering tool calls a model emitted as prose
   api_errors.py    classifying provider errors by whether a retry could help
   invisible.py     characters that render as nothing: stripped from the view
@@ -134,10 +136,25 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,
                    override and escape; interrogation phrasing vs concealment)
                    answered across every model in a results directory
-  loading.py       the two loaders, the arms rebuilt from episodes, and
-                   exclude_arm: one arm dropped from BOTH loaders at once, for
-                   the --exclude-no-oversight sensitivity reading
-  data_quality.py  where the corpus disagrees with itself
+  loading.py       the two loaders, the arms rebuilt from episodes, and the
+                   two narrowings, which are deliberately not one thing.
+                   exclude_arm drops one arm from BOTH loaders at once, for
+                   the --exclude-no-oversight sensitivity reading.
+                   exclude_aware_episodes drops the eval-aware episodes from
+                   the EPISODES ONLY, for --exclude-aware: awareness is
+                   measured per episode, so a summary row aggregating both
+                   kinds has no predicate to narrow it, and the arm questions
+                   pool from rebuilt rows instead. Two measures - the
+                   published grader-with-keyword-fallback one, and the
+                   stricter union of both screens as a secondary. A
+                   robustness reading against one named objection, not an
+                   unbiased estimate: awareness is an outcome of the arm
+  data_quality.py  where the corpus disagrees with itself, and the three
+                   routing checks: what was REQUESTED inside one rate,
+                   what actually ANSWERED it, and whether the two sides
+                   of a contrast were collected alike - the last being
+                   silent in the first two whenever each arm is
+                   internally uniform and the arms differ from each other
   characteristics.py  how an episode was conducted rather than how often it
                    went wrong. Descriptive profiles, deliberately not questions:
                    each splits on something the model chose mid-episode

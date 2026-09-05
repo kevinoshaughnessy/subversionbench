@@ -131,6 +131,133 @@ def duplicate_arms(summaries: list) -> list:
     return out
 
 
+# The arm-level exposures questions 1-4 contrast. Named here because
+# data_quality holds no question ids, and tied to the ones build_report
+# actually emits by a test rather than by trust - a fifth arm question added
+# later must either appear here or fail that test, instead of quietly going
+# unchecked for the confound below.
+CONTRASTED_AXES = ("oversight", "nudge")
+
+
+def routing_differs_across_contrast(episodes: list, axis: str) -> list:
+    """
+    Models whose two sides of a contrast were not routed alike.
+
+    WHAT THIS CATCHES THAT mixed_routing_arms DOES NOT
+    --------------------------------------------------
+    mixed_routing_arms keys on the whole arm - (model, nudge, oversight, lure)
+    - and asks whether the episodes INSIDE one published rate were collected
+    alike. That is the right question for a rate, and it is silent on the one
+    that matters for a CONTRAST: every arm can be internally uniform while the
+    two arms being compared were routed differently from each other. Nothing
+    is mixed anywhere, and the difference between the arms is still partly a
+    difference between backends.
+
+    Measured on the r10 corpus as this was written: every episode carrying a
+    non-default sort sits on the oversight side, and none on the counterfactual
+    side, for models whose two arms were collected months apart. Each arm is
+    uniform, so mixed_routing_arms reports nothing at all, and the contrast the
+    rollout exists to make is confounded with routing for those models.
+
+    `disjoint` IS THE FIELD THAT MATTERS. Where the two sides share no routing
+    at all, no episode in the corpus holds the arm fixed while routing varies
+    or the reverse, so the contrast cannot be estimated free of routing by any
+    reweighting of what was collected - it needs re-collection. Where they
+    merely differ in proportion, the confound is a matter of degree and the
+    strata are at least populated on both sides.
+
+    Reported, never reconciled, on the same terms as mixed_routing_arms: which
+    routing was wanted is not something this can know.
+    """
+    by_model = {}
+    for ep in episodes:
+        level = ep.get(axis)
+        if level is None:
+            continue
+        routing = (ep.get("openrouter_sort"), ep.get("openrouter_provider"))
+        levels = by_model.setdefault(ep["model"], {})
+        counts = levels.setdefault(level, {})
+        counts[routing] = counts.get(routing, 0) + 1
+
+    out = []
+    for model, levels in sorted(by_model.items(), key=str):
+        # One level present is no contrast, so nothing here can be confounded.
+        if len(levels) < 2:
+            continue
+        routings = {level: frozenset(counts) for level, counts in levels.items()}
+        if len(set(routings.values())) == 1:
+            continue
+        shared = frozenset.intersection(*routings.values())
+        out.append({
+            "model": model,
+            "axis": axis,
+            "disjoint": not shared,
+            "levels": [
+                {
+                    "level": level,
+                    "n_episodes": sum(counts.values()),
+                    "routings": [
+                        {"sort": sort, "provider": provider, "n_episodes": n}
+                        for (sort, provider), n in sorted(counts.items(),
+                                                          key=str)
+                    ],
+                }
+                for level, counts in sorted(levels.items(), key=str)
+            ],
+        })
+    return out
+
+
+def mixed_served_provider_arms(episodes: list) -> list:
+    """
+    Arms whose episodes were not all ANSWERED by the same backend.
+
+    THE COMPANION TO mixed_routing_arms, AND THE ONE THAT CAN ACTUALLY SEE IT.
+    That check reads `openrouter_sort`/`openrouter_provider`, which record what
+    the operator ASKED for and are None wherever nothing was pinned - so on a
+    corpus collected under default routing it is silent by construction,
+    however many backends actually answered. This reads what the router said
+    served each turn, so it reports the thing the caveat is about rather than
+    the request that failed to constrain it.
+
+    `episodes_changing_mid_run` is counted apart because it is a different
+    fact from an arm pooling two backends: there, one EPISODE was answered by
+    more than one, so not even a single transcript is attributable to one
+    backend. An arm can be uniform and still contain such episodes.
+
+    Silent on everything collected before the field existed, and on every
+    non-OpenRouter route: an empty provider set is "not recorded", and
+    reporting it as a mix would invent a finding out of a missing field.
+    """
+    arms = {}
+    for ep in episodes:
+        providers = ep.get("served_by_providers") or ()
+        if not providers:
+            continue
+        key = (ep["model"], ep["nudge"], ep["oversight"], ep["lure"])
+        entry = arms.setdefault(key, {"providers": {}, "changed": 0, "n": 0})
+        entry["n"] += 1
+        if ep.get("served_by_changed"):
+            entry["changed"] += 1
+        for provider in providers:
+            entry["providers"][provider] = entry["providers"].get(provider, 0) + 1
+
+    out = []
+    for (model, nudge, oversight, lure), entry in sorted(arms.items(), key=str):
+        if len(entry["providers"]) < 2 and not entry["changed"]:
+            continue
+        out.append({
+            "model": model, "nudge": nudge, "oversight": oversight,
+            "lure": lure, "n_episodes": entry["n"],
+            "episodes_changing_mid_run": entry["changed"],
+            "providers": [
+                {"provider": provider, "n_episodes": n}
+                for provider, n in sorted(entry["providers"].items())
+            ],
+        })
+    return out
+
+
 def mixed_routing_arms(episodes: list) -> list:
     """
     Arms whose episodes were not all routed the same way.
@@ -230,6 +357,14 @@ def data_quality_facts(episodes: list, summaries: list = None) -> dict:
             1 for ep in episodes if ep["sandbox_escape_absent"]),
         "duplicate_arms": duplicate_arms(summaries or []),
         "mixed_routing_arms": mixed_routing_arms(episodes),
+        "mixed_served_provider_arms": mixed_served_provider_arms(episodes),
+        # Keyed by axis rather than flattened, so a reader can tell a contrast
+        # confounded on oversight from one confounded on nudge without parsing
+        # the entries back apart.
+        "routing_differs_across_contrast": {
+            axis: routing_differs_across_contrast(episodes, axis)
+            for axis in CONTRASTED_AXES
+        },
     }
 
 

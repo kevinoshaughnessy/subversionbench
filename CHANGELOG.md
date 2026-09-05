@@ -10,6 +10,102 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v129
+
+Package version `129.0.0`. `ROLLOUT_VERSION` stays `r10`, and all four pinned
+fingerprints recompute unchanged. Routing is deliberately outside the
+fingerprint - see rollout.py under WHAT IS NOT COVERED - so recording which
+backend answered changes no arm's identity.
+
+WHICH BACKEND ANSWERED IS NOW RECORDED, NOT JUST WHICH WAS ASKED FOR.
+`openrouter_provider` and `openrouter_sort` state the operator's REQUEST, and
+are unset wherever nothing was pinned - which is most of a corpus collected
+under default routing. So the caveat the README has carried all along, that the
+router may move between backends within a batch, was unfalsifiable from the run
+files: nothing recorded what actually served a call. The OpenRouter adapter now
+reads the provider off its own responses and the episode records it PER TURN,
+because the router can fall back mid-episode and a single per-episode value
+would have to pick one and hide exactly that. `served_by_changed` states it
+outright. Empty on every non-OpenRouter route and on everything collected
+before the field existed - "not recorded" throughout, never "one provider".
+
+TWO ROUTING CHECKS, BECAUSE THERE ARE TWO WAYS TO POOL BACKENDS AND THE
+EXISTING ONE COULD SEE NEITHER RELIABLY. `mixed_routing_arms` asks whether the
+episodes inside one published rate were REQUESTED alike, which is the right
+question for a rate and is silent by construction wherever nothing was pinned.
+`mixed_served_provider_arms` asks the same question of what actually answered,
+and counts separately the episodes that changed backend mid-run - not even one
+transcript there is attributable to a single backend.
+`routing_differs_across_contrast` asks a different question again: whether the
+two sides of a contrast were collected alike. Every arm can be internally
+uniform - so the first check reports nothing at all - while the arms being
+compared were routed differently from each other, which makes the difference
+between them partly a difference between backends. Its `disjoint` field is the
+one that matters: where the two sides share no routing, no reweighting of the
+corpus separates arm from backend and only re-collection can.
+
+The axes it checks are named in `CONTRASTED_AXES`, in a module that holds no
+question ids, and are tied by a test to the exposures `build_report` actually
+emits - so a fifth arm question must appear there or fail, rather than going
+unchecked.
+
+THE UNAWARE-CORPUS READING. An arm contrast here can be objected to on one
+specific ground: that it is not the arm at all, but the models which noticed
+they were being evaluated behaving differently between arms. Nothing in the
+report answered that. `--exclude-aware` answers the arm questions again over
+only the episodes where no evaluation awareness was found, so the objection can
+be tested rather than argued about. External system cards now report exactly
+this restriction alongside their headline comparisons, and a benchmark whose
+dependent variable IS evaluation awareness has less excuse than most for
+omitting it.
+
+A ROBUSTNESS READING, NOT A BETTER ESTIMATE, and the distinction is load-bearing
+enough to be printed above the numbers rather than left to a footnote. Awareness
+is measured DURING an episode, so it is an outcome of the arm and not a
+condition assigned alongside it. Conditioning on it does not give an unbiased
+estimate of the arm's effect: where awareness and the outcome share an
+unmeasured common cause, conditioning opens a path the design had closed, and
+where awareness mediates the effect this blocks a mediator. It tests one named
+objection and is published beside the primary reading, never in place of it.
+
+TWO MEASURES, PRIMARY AND SECONDARY, matching how the corpus is already graded.
+`aware_primary` uses the published measure - the rubric grader, with the keyword
+screen only as a fallback, which is `awareness_flag`'s own order. `aware_union`
+counts an episode aware if EITHER screen fired, which also catches the episodes
+the grader called unaware but the keyword screen flagged. The union is the
+stricter screen and the smaller surviving corpus, so an objection answered on it
+is harder to argue with; it is secondary because no published rate here uses it.
+
+NOT AN `ARM_EXCLUSIONS` ENTRY, deliberately. `exclude_arm` narrows both loaders
+with one predicate, which is the whole point of it - questions 1-4 read the
+summaries and 5-12 the episodes, and an exclusion reaching only one is a report
+whose halves describe different corpora. Awareness has no summary-side
+counterpart: a summary row aggregates aware and unaware episodes together, so
+there is no predicate to write. `exclude_aware_episodes` therefore narrows
+episodes only, and questions 1-4 pool from arm rows REBUILT out of the surviving
+episodes instead of from `summary_*.json`, whose counts describe whole arms
+including the episodes just removed. That is a different computation path from
+the primary reading - the summaries are exact because the harness counted them
+once at collection time - and the report stamps which source it used.
+
+THE QUESTIONS THE READING CANNOT SUPPORT SAY SO RATHER THAN RENDER, and there
+are two distinct ways to fail. Where awareness is the EXPOSURE the contrast
+group is simply gone. Where awareness is the OUTCOME the numbers still compute,
+which is the more dangerous case: every surviving episode was selected for
+having no awareness, so both sides read zero by construction and a reader is
+shown a definition dressed as a measurement. Both are detected off the question
+id, on the `<exposure>_vs_<outcome>` convention the chart layer already parses,
+so a thirteenth question naming awareness on either side inherits the rule
+instead of being answered on a corpus that cannot support it.
+
+AN EPISODE WITH NO AWARENESS VERDICT IS DROPPED AND COUNTED APART. Neither
+screen having anything to say is not the same fact as awareness having been
+looked for and not found, and folding the two together would put an unmeasured
+episode into a corpus defined by a measurement. The two narrowings also compose:
+the arm-excluded, aware-excluded and both-excluded readings write the same chart
+filenames, so each contributes its own segment to the artefact name and the
+arm-only name is unchanged.
+
 ## v128
 
 Package version `128.0.0`. `ROLLOUT_VERSION` stays `r10`.

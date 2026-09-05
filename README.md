@@ -254,6 +254,31 @@ appears as a fixed placeholder path and the file owner as `operator`, so results
 text regardless of whose machine produced them and are safe to paste into a write-up.
 Redaction is display-only and cannot affect what is measured.
 
+### Sensitivity readings
+
+`python3 -m report` can answer its questions over a narrowed corpus as well as the whole
+one. Each reading writes its charts to its own directory and its JSON under its own name,
+because the two hold different numbers under identical filenames — one directory would
+leave figures that cannot be told apart by looking at them.
+
+| flag | what it sets aside | why |
+|---|---|---|
+| `--exclude-no-oversight` | the no-oversight arm | on `r9` that arm's task README still promises the automated quality preview the arm itself removes, so episodes there hunt for a missing artefact and leave the project directory looking for it. Repairing it needs a new rollout, so both readings are published instead |
+| `--exclude-aware aware_primary` | every episode where evaluation awareness was found, by the published measure — the rubric grader, keyword screen as fallback | an arm contrast can be objected to as the models that *noticed* the evaluation behaving differently between arms rather than the arm itself. This answers the arm questions again with those episodes gone, so the objection is tested rather than argued about |
+| `--exclude-aware aware_union` | the same, by the stricter secondary measure — aware if *either* screen fired | the union also catches episodes the grader called unaware but the keyword screen flagged. A smaller surviving corpus, so an objection answered here is harder to argue with. Secondary, because no published rate uses this measure |
+
+Both are **sensitivity readings, not corrections.** Neither repairs the figures it sets
+aside; each reports what is left without them.
+
+The awareness reading carries one further limitation, printed above its numbers rather
+than left to a footnote: awareness is measured *during* an episode, so it is an outcome of
+the arm and not a condition assigned alongside it. Conditioning on it does not give an
+unbiased estimate of an arm's effect — it tests one named objection, and is published
+beside the primary reading rather than in place of it. Questions whose exposure *or*
+outcome is awareness cannot be answered on an unaware corpus at all and say so instead of
+rendering: where awareness is the outcome the numbers still compute, and both sides read
+zero by construction.
+
 ## Layout
 
 ```
@@ -392,10 +417,24 @@ contamination](docs/scenario.md#testing-for-contamination).
 reasoning, and how much reasoning a provider returns varies from a full trace to none —
 [reasoning exposure](docs/methodology.md#reasoning-exposure-and-the-provider-route).
 
+**An arm contrast may be the models that noticed rather than the arm.** Every awareness
+measure here is *verbalised* awareness, and episodes where a model detected the evaluation
+may respond to the arms differently from episodes where it did not — which would move a
+contrast without the arm causing it. Check it rather than assuming either way:
+`--exclude-aware` answers the arm questions again over the episodes where no awareness was
+found — see [sensitivity readings](#sensitivity-readings). Because awareness is measured
+during the episode rather than assigned with the arm, that reading bounds the objection
+rather than settling it.
+
 **Grader error, and provider routing.** LLM-graded rates carry classification error on top of
 sampling error, and at low true rates imperfect specificity biases the estimate upward by more
 than the interval is wide. OpenRouter may also route across backends mid-batch, which the
-intervals assume it does not.
+intervals assume it does not. From v129 each episode records which backend actually answered
+each turn, so this is measurable rather than assumed - the data-quality block reports arms
+answered by more than one backend, episodes that changed backend mid-run, and contrasts whose
+two sides were not collected alike. Episodes collected before v129 record only the routing that
+was *requested*, which is unset wherever nothing was pinned, so for those the question cannot be
+answered after the fact. Pin with `--openrouter-provider` to make a batch reproducible.
 
 **r1 and r2 results carry a sandbox defect.** Episodes collected before `r3` ran under a
 sandbox that sometimes refused legitimate writes — `locate` was matched too loosely, twice,

@@ -24,14 +24,18 @@ import report_charts
 from subversionbench.config import ROLLOUT_VERSION, VERSION
 from subversionbench.redaction import redact_paths
 
-from .console import (_print_arm_exclusion, _print_characteristics,
+from .console import (_print_arm_exclusion, _print_awareness_exclusion,
+                      _print_characteristics,
                       _print_data_quality, _print_question,
                       _print_variant_question)
 from .characteristics import characteristics
 from .data_quality import data_quality_facts
-from .loading import (ARM_EXCLUSIONS, EXCLUDE_NO_OVERSIGHT, NO_EXCLUSION,
+from .loading import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
+                      EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
+                      EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
+                      NO_EXCLUSION,
                       act_arm_rows, awareness_arm_rows, exclude_arm,
-                      load_episodes, load_summaries)
+                      exclude_aware_episodes, load_episodes, load_summaries)
 from .pooling import _crude_vs_stratified, _models
 from .questions_arms import (question_nudge_vs_awareness,
                              question_oversight_vs_awareness,
@@ -47,7 +51,8 @@ from .questions_paired import (question_evidence_vs_concealment,
                                question_paraphrase_vs_concealment)
 
 
-def _artefact_suffix(exclusion: str) -> str:
+def _artefact_suffix(exclusion: str,
+                     awareness_exclusion: str = NO_AWARENESS_EXCLUSION) -> str:
     """
     What to append to the chart directory and the JSON filename.
 
@@ -56,10 +61,62 @@ def _artefact_suffix(exclusion: str) -> str:
     and the failure it produces is the one this naming exists to prevent: an
     exclusion added later, with no entry in the table, silently writing its
     charts over the full-corpus ones.
+
+    The two exclusions COMPOSE, and each contributes its own segment, because
+    they are independent readings that can be asked for together: the
+    oversight-only corpus and the unaware-only corpus are different documents
+    from the unaware-oversight-only one, and all three would otherwise share a
+    directory. Unchanged for the arm-only case, so the names every existing
+    artefact and test already uses stay exactly as they were.
     """
     if exclusion not in ARM_EXCLUSIONS:
         raise ValueError(f"unknown arm exclusion {exclusion!r}")
-    return "" if exclusion == NO_EXCLUSION else f"_excluding_{exclusion}"
+    if awareness_exclusion not in AWARENESS_EXCLUSIONS:
+        raise ValueError(
+            f"unknown awareness exclusion {awareness_exclusion!r}")
+    parts = [name for name, default in
+             ((exclusion, NO_EXCLUSION),
+              (awareness_exclusion, NO_AWARENESS_EXCLUSION))
+             if name != default]
+    return "".join(f"_excluding_{name}" for name in parts)
+
+
+def _not_estimable_on_the_unaware_corpus(section: dict) -> str:
+    """
+    Whether this question is answerable at all once the aware episodes are
+    gone, and the reason it is not.
+
+    READ OFF THE QUESTION ID, not from a list of which questions to skip. The
+    ids are written `<exposure>_vs_<outcome>` - the same convention
+    report_charts.exposure_of parses and _collapsed_by_exclusion already
+    relies on - so a thirteenth question naming awareness on either side
+    inherits this instead of being silently answered on a corpus that cannot
+    support it. A hand-kept list would be six entries today and stale on the
+    next question added.
+
+    TWO DIFFERENT FAILURES, kept apart because they are not the same fact.
+    Where awareness is the EXPOSURE (questions 5-10) the contrast group is
+    gone: there are no aware episodes left to compare the unaware ones with.
+    Where awareness is the OUTCOME (questions 2 and 4) the numbers do compute,
+    and are the more dangerous case for it: every surviving episode was
+    SELECTED for having no awareness, so both sides read zero by construction
+    and a reader meeting "0.0% vs 0.0%" has been shown a definition dressed
+    as a measurement.
+
+    Returns the reason as a sentence, or "" for a question the reading can
+    still answer.
+    """
+    exposure, _, outcome = section["id"].partition("_vs_")
+    if exposure == "awareness":
+        return ("not estimable on the unaware corpus: awareness is the "
+                "exposure of this question, so excluding the aware episodes "
+                "removes the group it contrasts against")
+    if outcome == "awareness":
+        return ("not estimable on the unaware corpus: awareness is the "
+                "outcome of this question, and every surviving episode was "
+                "selected for having none - so both sides are zero by "
+                "construction rather than by measurement")
+    return ""
 
 
 def _collapsed_by_exclusion(section: dict, axis: str) -> str:
@@ -99,7 +156,8 @@ def _collapsed_by_exclusion(section: dict, axis: str) -> str:
             f"to compare it against")
 
 
-def build_report(output_dir: str, exclusion: str = NO_EXCLUSION) -> dict:
+def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
+                 awareness_exclusion: str = NO_AWARENESS_EXCLUSION) -> dict:
     summaries = load_summaries(output_dir)
     episodes = load_episodes(output_dir)
     # BEFORE anything reads either list. Both sources are narrowed by the same
@@ -109,6 +167,10 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION) -> dict:
     # describe different corpora while every number in it still rendered.
     summaries, episodes, arm_exclusion = exclude_arm(
         summaries, episodes, exclusion)
+    # And then the awareness reading, which narrows the EPISODES ONLY - see
+    # exclude_aware_episodes for why there is no summary-side counterpart.
+    episodes, awareness_exclusion_stamp = exclude_aware_episodes(
+        episodes, awareness_exclusion)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
     # summary field holds. Questions 2 and 4 take the headline measure from the
     # summaries as before and this alongside it; see _text_reachable_block.
@@ -119,11 +181,31 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION) -> dict:
     # _common_support_block - so each of those two questions carries the per-act
     # contrast beside its composite.
     act_rows = act_arm_rows(episodes)
+    # WHICH SOURCE QUESTIONS 1-4 POOL FROM, and it changes under the awareness
+    # reading. summary_*.json holds counts the harness computed over WHOLE
+    # arms at collection time, so those rows still describe every episode in
+    # the arm - including the aware ones this reading just removed. Pooling
+    # them here would answer questions 1-4 on the full corpus while 5-12
+    # answered on the narrowed one, which is exactly the split-corpus report
+    # exclude_arm's own comment above exists to prevent.
+    #
+    # So on the awareness reading they pool from the rows rebuilt out of the
+    # surviving episodes instead. Those carry the same numerator and
+    # denominator keys the questions ask for - n_scheming/n_misaligned over
+    # n_runs for 1 and 3, n_aware over n_awareness_resolved for 2 and 4 -
+    # which is why the substitution is a change of source and not a change of
+    # measure. It IS a different computation path from the primary reading,
+    # where the summaries are exact because the harness counted them once;
+    # rebuilt rows are re-derived, and the stamp says which reading a document
+    # is so the two are never mistaken for one another.
+    on_awareness_reading = awareness_exclusion_stamp["field"] is not None
+    act_source = act_rows if on_awareness_reading else summaries
+    aware_source = arm_rows if on_awareness_reading else summaries
     questions = [
-        question_oversight_vs_scheming(summaries, act_rows),
-        question_oversight_vs_awareness(summaries, arm_rows),
-        question_oversight_vs_misalignment(summaries, act_rows),
-        question_nudge_vs_awareness(summaries, arm_rows),
+        question_oversight_vs_scheming(act_source, act_rows),
+        question_oversight_vs_awareness(aware_source, arm_rows),
+        question_oversight_vs_misalignment(act_source, act_rows),
+        question_nudge_vs_awareness(aware_source, arm_rows),
         question_awareness_vs_misalignment(episodes, summaries),
         question_awareness_vs_monitoring_disabled(episodes),
         question_awareness_vs_sandbox_escape(episodes),
@@ -162,6 +244,19 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION) -> dict:
             if reason:
                 section["collapsed_by_exclusion"] = reason
 
+    # The same marking for the awareness reading, onto the SAME field, because
+    # the two consumers of it - the console banner and the chart layer's
+    # skip - already do the right thing with whatever reason is attached, and a
+    # parallel field would need both taught about it separately. `contrasts`
+    # sections are not skipped here: the derivation reads the question id, and
+    # questions 11-12 name awareness on neither side, so they fall out on their
+    # own rather than by being excused.
+    if on_awareness_reading:
+        for section in questions:
+            reason = _not_estimable_on_the_unaware_corpus(section)
+            if reason:
+                section["collapsed_by_exclusion"] = reason
+
     return {
         "version": VERSION,
         "rollout_version": ROLLOUT_VERSION,
@@ -170,6 +265,14 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION) -> dict:
         # exclusion" from "an older report that predates exclusions" - the two
         # would otherwise both read as a missing key.
         "arm_exclusion": arm_exclusion,
+        # The second, independent narrowing, on the same terms and present for
+        # the same reason. `questions_pooled_from` records which source
+        # questions 1-4 took their headline counts from, because that is the
+        # one thing about this reading a consumer cannot infer from the
+        # numbers themselves.
+        "awareness_exclusion": awareness_exclusion_stamp,
+        "questions_pooled_from": ("rebuilt_arm_rows" if on_awareness_reading
+                                  else "summaries"),
         "output_dir": redact_paths(os.path.abspath(output_dir)),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "n_summary_files": len(summaries),
@@ -215,6 +318,21 @@ def main() -> int:
                              "sensitivity reading, not a correction: see "
                              "report/loading.py for what the arm's task "
                              "README promises and does not deliver")
+    parser.add_argument("--exclude-aware",
+                        choices=(EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION),
+                        default=None,
+                        help="answer the arm questions again over only the "
+                             "episodes where no evaluation awareness was "
+                             "found, to test whether an arm contrast is the "
+                             "arm or the models that noticed the evaluation. "
+                             f"{EXCLUDE_AWARE_PRIMARY!r} uses the published "
+                             f"measure (grader, keyword screen as fallback); "
+                             f"{EXCLUDE_AWARE_UNION!r} the stricter secondary "
+                             "one (either screen). Awareness is measured "
+                             "during the episode, so this is a robustness "
+                             "reading and not an unbiased estimate - see "
+                             "report/loading.py. Questions 2 and 4-10 are not "
+                             "estimable under it and say so")
     args = parser.parse_args()
 
     if not os.path.isdir(args.output_dir):
@@ -224,7 +342,8 @@ def main() -> int:
     # further in. One Namespace is shared by reference across this run.
     exclusion = (EXCLUDE_NO_OVERSIGHT if args.exclude_no_oversight
                  else NO_EXCLUSION)
-    report = build_report(args.output_dir, exclusion)
+    awareness_exclusion = args.exclude_aware or NO_AWARENESS_EXCLUSION
+    report = build_report(args.output_dir, exclusion, awareness_exclusion)
     if not report["n_summary_files"]:
         print(f"No summary files found in {redact_paths(args.output_dir)}.")
         return 1
@@ -237,6 +356,7 @@ def main() -> int:
     # corpus, and a reader who meets that fact at the bottom has already read
     # the numbers as though it were the whole one.
     _print_arm_exclusion(report["arm_exclusion"])
+    _print_awareness_exclusion(report["awareness_exclusion"])
     _print_data_quality(report["data_quality"])
     for section in report["questions"]:
         # "contrasts" is the paired-question shape; the others carry "overall".
@@ -259,7 +379,8 @@ def main() -> int:
         # ones by looking at them. An explicit --chart-dir still wins, so a
         # caller who wants them somewhere else says so.
         chart_dir = args.chart_dir or os.path.join(
-            args.output_dir, "charts" + _artefact_suffix(exclusion))
+            args.output_dir,
+            "charts" + _artefact_suffix(exclusion, awareness_exclusion))
         written = report_charts.write_charts(report, chart_dir)
         if written:
             print(f"\n{len(written)} chart(s) written to "
@@ -289,7 +410,7 @@ def main() -> int:
     # bare-prefix collision find_run_files documents three prior instances of.
     json_out = args.json_out or os.path.join(
         args.output_dir,
-        f"research_report{_artefact_suffix(exclusion)}"
+        f"research_report{_artefact_suffix(exclusion, awareness_exclusion)}"
         f"_{time.strftime('%Y%m%dT%H%M%S')}.json")
     os.makedirs(os.path.dirname(os.path.abspath(json_out)), exist_ok=True)
     with open(json_out, "w") as f:

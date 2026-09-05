@@ -650,6 +650,58 @@ def _print_arm_exclusion(stamp: dict) -> None:
           "comparison entirely and is marked below.")
 
 
+def _print_awareness_exclusion(stamp: dict) -> None:
+    """
+    Which episodes this report is about, when it is only the unaware ones.
+
+    SILENT WHEN NOTHING WAS EXCLUDED, for the reason _print_arm_exclusion is:
+    a banner over every ordinary report is a banner readers learn to skip.
+
+    Separate from _print_arm_exclusion rather than folded into it because the
+    two narrowings answer different objections and count different things - an
+    arm exclusion reports summaries dropped, this one reports episodes whose
+    awareness could not be determined - and one function taking either shape
+    would have to branch on which it was given anyway.
+
+    THE UNDETERMINED COUNT IS PRINTED, not merely stored. Those episodes are
+    in neither reading: awareness was never measured for them, so they cannot
+    be called aware or unaware, and a reader comparing the two documents needs
+    to know they are absent from both rather than inferring it from a total
+    that does not add up.
+    """
+    if not stamp or stamp.get("field") is None:
+        return
+    print(f"\n{'=' * 78}")
+    print(f"AWARE EPISODES EXCLUDED: {stamp['words'].upper()}")
+    print(f"{'=' * 78}")
+    print(f"  {stamp['why']}")
+    print(f"  episodes: {stamp['n_episodes_kept']} kept of "
+          f"{stamp['n_episodes_before']}, "
+          f"{stamp['n_episodes_dropped_aware']} dropped as aware, "
+          f"{stamp['n_episodes_dropped_undetermined']} dropped as "
+          f"undetermined")
+    print(f"  measure: {stamp['measure']} ({stamp['field']})")
+    if not stamp["n_episodes_dropped_aware"]:
+        print("    ! Nothing was dropped as aware. The measure found no aware "
+              "episode at all, so this report is the full corpus under a name "
+              "that says it is not. Check that the awareness field still "
+              "holds a verdict.")
+    if stamp["n_episodes_dropped_undetermined"]:
+        print(f"    ! {stamp['n_episodes_dropped_undetermined']} episode(s) "
+              f"have no awareness verdict from either screen and are excluded "
+              f"here as well - they are in neither reading of the corpus.")
+    print("  A ROBUSTNESS READING, NOT A BETTER ESTIMATE. Awareness is "
+          "measured DURING the episode, so it is an outcome of the arm and "
+          "not a condition assigned alongside it: conditioning on it does not "
+          "give an unbiased estimate of an arm's effect. It tests one named "
+          "objection - that a contrast is the models which noticed the "
+          "evaluation rather than the arm - and is published beside the "
+          "primary reading, never in place of it.")
+    print("  Questions 1-4 pool from arm rows REBUILT from the surviving "
+          "episodes, not from summary_*.json, whose counts describe whole "
+          "arms including the episodes just removed.")
+
+
 def _print_data_quality(dq: dict) -> None:
     print(f"\n{'=' * 78}")
     print("DATA QUALITY (read this before quoting anything above)")
@@ -717,3 +769,45 @@ def _print_data_quality(dq: dict) -> None:
               "so the arm looks like a single clean batch. Which routing was "
               "wanted is not something this can know - re-collect the arm under "
               "one, or quote it knowing what it pools.")
+    served = dq.get("mixed_served_provider_arms") or []
+    print(f"  arms answered by more than one backend: {len(served)}")
+    for m in served:
+        split = ", ".join(f"{p['provider']} x{p['n_episodes']}"
+                          for p in m["providers"])
+        line = (f"    ! {m['model']} nudge={m['nudge']} "
+                f"oversight={m['oversight']} lure={m['lure']}: "
+                f"n={m['n_episodes']} served by {split}")
+        if m["episodes_changing_mid_run"]:
+            line += (f"; {m['episodes_changing_mid_run']} episode(s) changed "
+                     f"backend MID-RUN")
+        print(line)
+    if served:
+        print("      Read off the responses, not the request: the check above "
+              "sees only what was ASKED for, and is silent by construction "
+              "wherever nothing was pinned. An episode that changed backend "
+              "mid-run is not attributable to one at all. Pin with "
+              "--openrouter-provider to make this reproducible.")
+    across = dq.get("routing_differs_across_contrast") or {}
+    n_across = sum(len(v) for v in across.values())
+    print(f"  models whose two sides of a contrast were routed differently: "
+          f"{n_across}")
+    for axis, entries in sorted(across.items()):
+        for entry in entries:
+            sides = "  vs  ".join(
+                f"{level['level']}: "
+                + ", ".join(
+                    f"{r['sort'] or 'provider default'}"
+                    + (f"/{r['provider']}" if r["provider"] else "")
+                    + f" x{r['n_episodes']}"
+                    for r in level["routings"])
+                for level in entry["levels"])
+            mark = "!!" if entry["disjoint"] else "!"
+            print(f"    {mark} {entry['model']} on {axis}: {sides}")
+    if n_across:
+        print("      The arms may each be internally uniform - the check above "
+              "is silent then - while the CONTRAST between them is partly a "
+              "contrast between backends. `!!` marks the sides sharing no "
+              "routing at all: no episode holds the arm fixed while routing "
+              "varies, so no reweighting of this corpus separates the two and "
+              "the arm needs re-collecting under one routing before that "
+              "model's contrast can be quoted.")

@@ -614,3 +614,75 @@ class TestTheTranslationIntoChatCompletions:
         resp_ids = {i.get("call_id") for i in via_responses
                     if isinstance(i, dict) and i.get("call_id")}
         assert or_ids == resp_ids == {"t7"}
+
+
+class TestWhichBackendActuallyAnswered:
+    """`openrouter_provider` on an episode records what the operator ASKED
+    for, and is None wherever nothing was pinned - which is most of a corpus
+    collected under default routing. It therefore cannot say which backend
+    answered, and the README's own caveat about the router moving between
+    backends mid-batch was unfalsifiable from the run files. This reads the
+    router's own account off the response instead.
+    """
+
+    def setup_method(self, method):
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+    def _make_client(self, provider_name=None):
+        from unittest.mock import MagicMock
+        import os
+        from subversionbench.openrouter_client import OpenRouterClient
+
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = OpenRouterClient(provider_name=provider_name)
+        client._client = MagicMock()
+        return client
+
+    def _set_completion(self, client, fake_completion):
+        from unittest.mock import MagicMock
+        fake_raw = MagicMock()
+        fake_raw.parse.return_value = fake_completion
+        client._client.chat.completions.with_raw_response.create.return_value = fake_raw
+
+    def _completion(self, provider=...):
+        from unittest.mock import MagicMock
+        message = MagicMock()
+        message.content = "done"
+        message.tool_calls = None
+        message.reasoning = None
+        message.reasoning_details = None
+        choice = MagicMock()
+        choice.message = message
+        choice.finish_reason = "stop"
+        completion = MagicMock()
+        completion.choices = [choice]
+        # A MagicMock answers to every attribute, so "the router sent no
+        # provider" has to be spelled out - left unset, the double would supply
+        # a value the API never did, which is how a mock leaks into a run file.
+        completion.provider = None if provider is ... else provider
+        return completion
+
+    def _create(self, client):
+        return client.create(model="deepseek/deepseek-r1", max_tokens=4096,
+                             messages=[{"role": "user", "content": "hi"}])
+
+    def test_the_serving_backend_reaches_the_response(self):
+        client = self._make_client()
+        self._set_completion(client, self._completion(provider="Fireworks"))
+        assert self._create(client).provider == "Fireworks"
+
+    def test_a_response_that_names_no_backend_is_not_an_error(self):
+        """Absence must read as "not recorded", never as a provider name."""
+        client = self._make_client()
+        self._set_completion(client, self._completion())
+        assert self._create(client).provider is None
+
+    def test_it_is_read_off_the_response_not_the_request(self):
+        """The whole point of the field. A client that pinned one provider and
+        was served by another must report what ANSWERED - reporting the request
+        back would only restate `openrouter_provider`, which already exists."""
+        client = self._make_client(provider_name="deepinfra")
+        self._set_completion(client, self._completion(provider="Fireworks"))
+        assert self._create(client).provider == "Fireworks", (
+            "the response's provider was overwritten by the requested one")

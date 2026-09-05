@@ -222,3 +222,171 @@ class TestTheAwarenessMeasureAgreement:
     def test_agreement_needs_both_estimates(self):
         a = rr._measure_agreement({"difference": None}, {"difference": 0.1})
         assert a["code"] == "no_data" and a["direction_same"] is None
+
+
+class TestRoutingDiffersAcrossTheContrast:
+    """The confound mixed_routing_arms is structurally blind to.
+
+    That check asks whether the episodes inside ONE published rate were
+    collected alike, which is the right question for a rate. A contrast is two
+    rates, and both can be internally spotless while the two sides were routed
+    differently from each other - so nothing is mixed anywhere and the
+    difference between the arms is still partly a difference between backends.
+    Every test here is built around that gap being visible.
+    """
+
+    def _arm(self, out, model, oversight, sort, first, n=3, nudge="max"):
+        for i in range(first, first + n):
+            _write_episode(out, i, model, nudge, oversight=oversight, sort=sort)
+
+    def test_the_two_sides_routed_differently_are_reported(self):
+        out = tempfile.mkdtemp()
+        self._arm(out, "m", True, "throughput", 1)
+        self._arm(out, "m", False, None, 10)
+        found = rr.routing_differs_across_contrast(rr.load_episodes(out),
+                                                   "oversight")
+        assert len(found) == 1, found
+        assert found[0]["model"] == "m"
+        assert found[0]["axis"] == "oversight"
+
+    def test_the_within_arm_check_stays_silent_on_the_same_corpus(self):
+        """THE PAIR THAT MATTERS, asserted together so the distinction cannot
+        quietly collapse. Each arm is uniform, so mixed_routing_arms has
+        nothing to say - and the contrast is confounded regardless."""
+        out = tempfile.mkdtemp()
+        self._arm(out, "m", True, "throughput", 1)
+        self._arm(out, "m", False, None, 10)
+        episodes = rr.load_episodes(out)
+        assert rr.mixed_routing_arms(episodes) == [], (
+            "the within-arm check fired, so this fixture no longer reproduces "
+            "the gap the across-contrast check exists for")
+        assert rr.routing_differs_across_contrast(episodes, "oversight")
+
+    def test_sides_sharing_no_routing_are_marked_disjoint(self):
+        """The field that separates "imbalanced" from "not estimable at all":
+        with no shared routing, no reweighting of the corpus holds the arm
+        fixed while routing varies."""
+        out = tempfile.mkdtemp()
+        self._arm(out, "m", True, "throughput", 1)
+        self._arm(out, "m", False, None, 10)
+        found = rr.routing_differs_across_contrast(rr.load_episodes(out),
+                                                   "oversight")
+        assert found[0]["disjoint"] is True
+
+    def test_a_partial_overlap_is_reported_but_not_disjoint(self):
+        out = tempfile.mkdtemp()
+        self._arm(out, "m", True, "throughput", 1)
+        self._arm(out, "m", True, None, 10)
+        self._arm(out, "m", False, None, 20)
+        found = rr.routing_differs_across_contrast(rr.load_episodes(out),
+                                                   "oversight")
+        assert len(found) == 1
+        assert found[0]["disjoint"] is False, (
+            "both sides share the default routing, so the confound is a matter "
+            "of degree rather than of support")
+
+    def test_both_sides_routed_alike_is_not_reported(self):
+        out = tempfile.mkdtemp()
+        self._arm(out, "m", True, "throughput", 1)
+        self._arm(out, "m", False, "throughput", 10)
+        assert rr.routing_differs_across_contrast(
+            rr.load_episodes(out), "oversight") == []
+
+    def test_one_side_only_is_not_a_contrast_and_is_not_reported(self):
+        """A model collected on one arm has no contrast to confound, and
+        calling it confounded would invent an objection to a comparison
+        nobody made."""
+        out = tempfile.mkdtemp()
+        self._arm(out, "m", True, "throughput", 1)
+        assert rr.routing_differs_across_contrast(
+            rr.load_episodes(out), "oversight") == []
+
+    def test_it_is_per_model_not_pooled_across_them(self):
+        """The report stratifies by model, so the confound is per model.
+
+        THE FIXTURE IS CHOSEN SO POOLING AND STRATIFYING DISAGREE, which an
+        earlier version of this test did not do: with both models present on
+        both arms, a pooled implementation returns the same empty list as a
+        stratified one and the test passed either way. Here each model was
+        collected on ONE arm only - so per model there is no contrast to
+        confound and the answer is empty, while pooling across models sees
+        throughput on one side and the default on the other and would report a
+        confound that belongs to no comparison anyone makes.
+        """
+        out = tempfile.mkdtemp()
+        self._arm(out, "a", True, "throughput", 1)
+        self._arm(out, "b", False, None, 20)
+        episodes = rr.load_episodes(out)
+        assert rr.routing_differs_across_contrast(episodes, "oversight") == []
+        # The pooled reading this must not be, spelled out so the distinction
+        # is asserted rather than described.
+        pooled = {}
+        for ep in episodes:
+            pooled.setdefault(ep["oversight"], set()).add(
+                (ep.get("openrouter_sort"), ep.get("openrouter_provider")))
+        assert len(set(map(frozenset, pooled.values()))) > 1, (
+            "the fixture no longer distinguishes pooled from stratified, so "
+            "this test would pass against either")
+
+    def test_the_nudge_axis_is_checked_too(self):
+        out = tempfile.mkdtemp()
+        for i in range(1, 4):
+            _write_episode(out, i, "m", "none", sort="throughput")
+        for i in range(10, 13):
+            _write_episode(out, i, "m", "max", sort=None)
+        found = rr.routing_differs_across_contrast(rr.load_episodes(out),
+                                                   "nudge")
+        assert len(found) == 1 and found[0]["axis"] == "nudge"
+
+    def test_every_contrasted_axis_is_carried_into_the_facts(self):
+        """Derived from CONTRASTED_AXES rather than listed here, so an axis
+        added there is covered without editing this test - and an empty tuple,
+        which would make every assertion below vacuous, fails."""
+        out = tempfile.mkdtemp()
+        self._arm(out, "m", True, "throughput", 1)
+        self._arm(out, "m", False, None, 10)
+        _write_summary(out, "m", "max", n_runs=6)
+        dq = rr.data_quality_facts(rr.load_episodes(out),
+                                   rr.load_summaries(out))
+        assert rr.CONTRASTED_AXES, "no axis is checked at all"
+        assert set(dq["routing_differs_across_contrast"]) == set(
+            rr.CONTRASTED_AXES)
+
+    def test_the_axes_are_the_ones_the_report_actually_contrasts(self):
+        """CONTRASTED_AXES is a hand-written list in a module that holds no
+        question ids, so it is tied to the questions build_report emits rather
+        than trusted. A fifth arm question added later must appear there or
+        fail here, instead of going unchecked for this confound."""
+        import report_charts
+        from report.run_report import build_report
+        out = tempfile.mkdtemp()
+        for oversight in (True, False):
+            for nudge in ("none", "max"):
+                _write_summary(out, "m", nudge, oversight=oversight, n_runs=2)
+                _write_episode(out, hash((oversight, nudge)) % 1000, "m", nudge,
+                               oversight=oversight)
+        report = build_report(out)
+        arm_axes = {
+            report_charts.exposure_of(q["id"]) for q in report["questions"]
+            if report_charts.exposure_of(q["id"]) not in ("awareness",)
+            and "contrasts" not in q}
+        assert arm_axes == set(rr.CONTRASTED_AXES), (
+            f"the report contrasts {sorted(arm_axes)} but the routing check "
+            f"covers {sorted(rr.CONTRASTED_AXES)}")
+
+    def test_the_console_says_it_rather_than_only_the_json(self):
+        """A silent data-quality fact is the failure mode this module exists
+        to prevent."""
+        out = tempfile.mkdtemp()
+        self._arm(out, "m", True, "throughput", 1)
+        self._arm(out, "m", False, None, 10)
+        _write_summary(out, "m", "max", n_runs=6)
+        dq = rr.data_quality_facts(rr.load_episodes(out),
+                                   rr.load_summaries(out))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_data_quality(dq)
+        printed = buf.getvalue()
+        assert "routed differently" in printed
+        assert "!!" in printed, "the disjoint case is not marked"
+        assert "re-collecting" in printed
