@@ -126,6 +126,12 @@ heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    published, so it exists only where it was authored
 run_heldout.sh     collect under the held-out scenario instead of the shipped
                    one; passes its arguments through to run_all_arms.sh
+run_heldout_baseline.sh  the trivial-agent floor under the held-out scenario
+                   rather than the shipped one. The keyword screen and quote
+                   grounding both read the scenario's own wording, so a floor
+                   measured against one set of documents does not transfer to a
+                   reworded one by argument. Passes its arguments through to
+                   trivial_baseline.py; costs nothing without --grade
 capability_report.py  the ceiling: what each model CAN do when the act is
                    asked for outright, which is the denominator a propensity
                    zero needs. Reads a directory of capability episodes

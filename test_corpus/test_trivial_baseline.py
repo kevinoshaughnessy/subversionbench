@@ -381,3 +381,100 @@ class TestTheGraderFloorCanBeChecked:
         assert not tb.grader_unmeasured(
             {"eval_awareness_grader": {"eval_aware": False,
                                        "grading_failed": False}})
+
+
+class TestTheHeldOutWrapper:
+    """run_heldout_baseline.sh - the same floor check under the other bundle.
+
+    WHY A SHELL SCRIPT GETS ITS OWN TESTS HERE. The wrapper's two load-bearing
+    properties are both about what happens when something goes wrong, and both
+    were verified by hand when it was written. Hand-verification is exactly how
+    v135's defect survived: Python inside a shell script is reached by neither
+    ruff nor the import graph nor this suite, so a property nobody re-checks is
+    a property that silently stops holding.
+
+    THE PLAINTEXT SCENARIO MUST COME BACK OFF DISK. The wrapper exports the
+    held-out bundle decrypted in order to run against it. If it is still there
+    afterwards, a scenario this repository encodes precisely so it cannot be
+    read is sitting in the working tree.
+
+    A RUN THAT DID NOT SWITCH BUNDLES MUST REFUSE. The failure is otherwise
+    invisible and inverts the result: the shipped scenario's floor reported as
+    the held-out one is a clean answer to a question nobody asked.
+    """
+
+    @staticmethod
+    def _script():
+        from conftest import PROJECT_ROOT
+        return PROJECT_ROOT / "run_heldout_baseline.sh"
+
+    @staticmethod
+    def _code(path):
+        """The script minus its comments - the rule is about what runs."""
+        return "\n".join(
+            line for line in path.read_text(encoding="utf-8").splitlines()
+            if not line.lstrip().startswith("#"))
+
+    def _needs_bundle(self):
+        from conftest import PROJECT_ROOT
+        bundle = PROJECT_ROOT / "heldout" / "scenario_heldout.enc"
+        if not bundle.exists():
+            # A corpus-absent skip, not a missing optional dependency: the
+            # held-out bundle is deliberately not published, so it must not go
+            # through conftest.skip_without.
+            raise unittest.SkipTest(
+                "held-out bundle absent - it is deliberately unpublished")
+        return PROJECT_ROOT
+
+    def test_it_does_not_exec_the_check(self):
+        """exec replaces this shell, and the EXIT trap goes with it - which
+        leaves the decrypted scenario on disk. Measured once already in
+        run_heldout.sh; the same trap is here and so is the same mistake."""
+        code = self._code(self._script())
+        assert "exec " not in code and "exec\t" not in code, (
+            "run_heldout_baseline.sh execs, which discards the cleanup trap")
+
+    def test_it_cleans_up_on_every_exit_path(self):
+        """EXIT alone is not enough: an interrupted check must not leave the
+        scenario behind either."""
+        code = self._code(self._script())
+        assert "trap cleanup EXIT INT TERM" in code, code
+
+    def test_the_override_predicate_can_actually_say_no(self):
+        """The positive control for the refusal guard. The guard asks
+        bundle_is_overridden(); a predicate that answered True unconditionally
+        would let the wrapper report the shipped floor as the held-out one, and
+        would look identical from the outside."""
+        import os
+        from subversionbench.scenario import (BUNDLE_ENV_VAR,
+                                              bundle_is_overridden)
+        previous = os.environ.pop(BUNDLE_ENV_VAR, None)
+        try:
+            assert bundle_is_overridden() is False
+        finally:
+            if previous is not None:
+                os.environ[BUNDLE_ENV_VAR] = previous
+
+    def test_it_refuses_rather_than_measuring_the_shipped_scenario(self):
+        code = self._code(self._script())
+        assert "bundle_is_overridden" in code, (
+            "nothing checks that the bundle actually switched")
+        assert "SystemExit" in code or "exit" in code, code
+
+    def test_a_failed_check_still_removes_the_decrypted_scenario(self):
+        """The end-to-end half, and the one that matters most.
+
+        Driven with an unknown --arm so argparse rejects it before any sandbox
+        work: this is about the trap firing on a nonzero exit, not about the
+        floor, and a fast failure keeps a security property under test without
+        adding a slow case to the suite.
+        """
+        import subprocess
+        root = self._needs_bundle()
+        export = root / "heldout" / "scenario_heldout.json"
+        done = subprocess.run(
+            ["bash", str(self._script()), "--arm", "no-such-arm"],
+            cwd=str(root), capture_output=True, text=True, timeout=300)
+        assert done.returncode != 0, done.stdout + done.stderr
+        assert not export.exists(), (
+            f"the decrypted scenario was left at {export} after a failed run")

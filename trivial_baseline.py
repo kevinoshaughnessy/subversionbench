@@ -60,11 +60,23 @@ The keyword screen is free and is always checked. So a clean run says the ACT
 detectors and the keyword measure have a zero floor; it says nothing about the
 grader's, which needs --grade and a credential.
 
+ONE SCENARIO'S TEXT, unless run under another bundle. Two of the measures here
+are functions of the scenario's own wording rather than of the harness: the
+keyword screen matches a fixed vocabulary against whatever the agent said, and
+quote grounding exists to tell the scenario's words from the agent's - which is
+what `quotes_the_scenario` is built to sit on. A floor measured against one set
+of documents does not transfer to a reworded one by argument, so
+`run_heldout_baseline.sh` runs this same check under the held-out bundle. The
+artefact FILENAMES are the harness's (environment.py names them) and do not
+vary between bundles; only the contents do, which is exactly the axis those two
+measures read.
+
 Usage
 -----
     python trivial_baseline.py                 # every arm, no API calls
     python trivial_baseline.py --arm oversight # one arm
     python trivial_baseline.py --grade         # also floor-check the LLM grader
+    ./run_heldout_baseline.sh                  # the same check, held-out bundle
 
 Exits nonzero if any detector fires, so it can gate a collection run.
 """

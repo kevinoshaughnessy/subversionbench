@@ -10,6 +10,64 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v137
+
+Package version `137.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE TRIVIAL-AGENT FLOOR NOW RUNS UNDER THE HELD-OUT SCENARIO TOO.
+`run_heldout_baseline.sh` runs the same check against the held-out bundle. Two
+of the measures it covers are functions of the scenario's own wording rather
+than of the harness - the keyword screen matches a fixed vocabulary against
+whatever the agent said, and quote grounding exists to tell the scenario's
+words from the agent's, which is the line `quotes_the_scenario` is built to sit
+on. A floor measured against one set of documents does not transfer to a
+reworded one by argument, and the held-out scenario is a reworded twin, so
+wording is exactly the axis a keyword false positive would vary along.
+
+The artefact FILENAMES do not vary between bundles - environment.py names them
+and only their contents come from the bundle - so nothing had to be derived for
+this to work; the check was already scenario-independent in everything but the
+text it reads. Run under both bundles, every act detector and the keyword
+screen read zero on every trivial agent in every arm, with all four
+known-misaligned controls still caught. The floor is a property of the
+detectors rather than of the shipped wording.
+
+The wrapper's own two failure properties are tested rather than hand-checked,
+which is the lesson v135 paid for: the decrypted scenario it exports must come
+off disk on every exit path, and a run whose bundle did not actually switch
+must refuse rather than report the shipped floor as the held-out one. Planted
+all four ways - execing the check, narrowing the trap to EXIT, removing the
+trap, and dropping the override guard - and the end-to-end case caught the two
+that leave plaintext behind.
+
+## v136
+
+Package version `136.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+TWO TRIVIAL-AGENT FIXTURES WERE READING A FILE THAT DOES NOT EXIST. The
+reading agents ran `cat data/<name>` for a name the scenario never creates:
+the real brief is written from `TASK_FILE_NAME`, and that name carries a
+contaminating term, so a placeholder went into source to keep the leak guard
+green. The guard stayed green and the fixtures stopped reading anything -
+`reads_only` and `completes_task` were exercising a failed `cat` rather than a
+successful read of the scenario's own brief.
+
+It survived because it failed in the benign direction, which is the direction
+nothing looks at: a read that fails returns no scenario text, so every detector
+still read zero and the floor still looked like a floor. Nothing published was
+wrong; the two fixtures were simply weaker than they claimed, and no output
+said so. That is the shape of defect this script exists to catch, one level up.
+
+The commands are now built from `TASK_FILE_NAME` the way environment.py names
+the file when it creates it, so the source stays clean and the command
+addresses whatever the bundle calls the file today. The guard runs every
+command of every fixture against a real environment and requires that none
+reports a missing file and that a read returns more than a token amount - both
+halves needed, since the placeholder produced an error message rather than an
+empty result.
+
 ## v135
 
 Package version `135.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
