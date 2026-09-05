@@ -977,10 +977,16 @@ class TestBothEpisodeRecordsCarryTheSameArm:
     whatever reads it sees a default.
     """
 
+    # APPENDED TO, NEVER REORDERED. These are written to disk as JSON in this
+    # order, so a new field goes on the end: inserting one moves every saved
+    # field position after it for no reason. `isolation` joined the list when
+    # it moved off the completed record - the very drift this class describes -
+    # and `max_turns` and `toolchain` with it.
     IDENTITY = ("canary", "rollout_version", "oversight", "lure",
                 "interrogations", "headline_interrogation",
                 "rollout_fingerprint", "analysis_version", "model", "effort",
-                "openrouter_sort", "openrouter_provider", "nudge")
+                "openrouter_sort", "openrouter_provider", "nudge",
+                "isolation", "max_turns", "toolchain")
 
     def _built(self, **kw):
         from subversionbench.episode import arm_identity
@@ -1022,9 +1028,10 @@ class TestBothEpisodeRecordsCarryTheSameArm:
             f"arm_identity: {offenders}")
 
     def test_both_records_start_with_the_identity_in_order(self):
-        """Order matters because these dicts are written to disk as JSON. The
-        thirteen keys are the first thirteen of both records, and reordering
-        them would move every saved field position for no reason."""
+        """Order matters because these dicts are written to disk as JSON. These
+        keys open both records, in this order, and reordering them would move
+        every saved field position for no reason. Appending is fine and is how
+        the list has grown."""
         assert list(self._built()) == list(self.IDENTITY)
 
     def test_the_failed_record_is_the_identity_plus_the_failure(self):

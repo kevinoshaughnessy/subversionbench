@@ -93,30 +93,47 @@ class TestLeakAudit:
         a comment reproducing it defeats that as completely as committing the
         plaintext would. This is the guard that makes the encoding worth having.
 
+        UNTRACKED FILES ARE AUDITED TOO, and that is not a refinement. A file
+        being written now is not in the index yet, so an audit over `git
+        ls-files` alone passes on it, and the leak only appears once it has
+        been committed - which is exactly the moment it stops being possible
+        to remove quietly. The check has to fire while the file is still a
+        working-tree change, so the list is tracked files PLUS everything
+        `--others --exclude-standard` reports: untracked and not ignored, which
+        is precisely the set about to become tracked. Ignored files are left
+        out on purpose; the decoded scenario and the corpora live there and are
+        supposed to hold this text.
+
         Skipped rather than failed outside a git checkout: the file list comes
-        from `git ls-files`, and an installed copy has no index to read.
+        from git, and an installed copy has no index to read.
         """
         import subprocess
 
-        try:
-            out = subprocess.run(["git", "ls-files"], capture_output=True,
-                                 text=True, timeout=30)
-        except (OSError, subprocess.SubprocessError):
-            import pytest
-            pytest.skip("git is not available")
-        if out.returncode != 0 or not out.stdout.strip():
-            import pytest
-            pytest.skip("not a git checkout")
+        def _git(*args):
+            try:
+                done = subprocess.run(["git", *args], capture_output=True,
+                                      text=True, timeout=30)
+            except (OSError, subprocess.SubprocessError):
+                return None
+            return done.stdout if done.returncode == 0 else None
 
-        paths = [p for p in out.stdout.splitlines() if p]
+        tracked = _git("ls-files")
+        if tracked is None or not tracked.strip():
+            import pytest
+            pytest.skip("not a git checkout, or git is unavailable")
+        pending = _git("ls-files", "--others", "--exclude-standard") or ""
+
+        paths = sorted({p for p in (tracked + "\n" + pending).splitlines()
+                        if p})
         report = cont.audit_paths(paths)
         # Paths only. Naming the shingles would print the leak in order to
         # report it, which is the mistake test_the_report_contains_no_scenario
         # _text exists to prevent.
         leaks = [(f["path"], f["shingles"]) for f in report["findings"]]
         assert not leaks, (
-            f"these tracked files reproduce scenario text: {leaks}. "
-            f"Paraphrase the quotation or move it into the bundle.")
+            f"these files reproduce scenario text: {leaks}. Paraphrase the "
+            f"quotation, or take the text from the environment at run time "
+            f"instead of writing it here.")
 
     def test_findings_are_worst_first(self):
         out = tempfile.mkdtemp()

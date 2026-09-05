@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v131
+
+Package version `131.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged: none of this reaches what the model sees.
+
+THE HOST IS NOW RECORDED PER EPISODE. `rollout_fingerprint` is deliberately
+silent about the machine underneath - the same scenario, tools and policy give
+the same fingerprint anywhere - which is the right scope for an arm's identity
+and leaves a gap. Two episodes with identical fingerprints can have run under
+different shells, different coreutils and different kernel isolation
+mechanisms, and this repository has already paid for that difference: defects
+invisible on one platform and real on the other, a temp-directory path that
+means different things on each, and GNU against BSD tools that the model's own
+commands go through. None of it changes the arm, so none of it is hashed; all
+of it can change what a command DID, which is what every act detector reads, so
+all of it is recorded. `hostenv.py` holds it.
+
+Nothing identifying goes in - no hostname, no username, no paths - and that is
+asserted against this machine's real identifiers rather than against a pattern.
+A field that needs redacting before publication is one that will eventually be
+published unredacted.
+
+THE SCAFFOLD IS RECORDED TOO. `max_turns` was not in the run files at all. An
+episode that ended because the model stopped and one that ran out of turns are
+different observations, `ended_by` already distinguished them, and nothing said
+what the limit WAS - so a batch collected at a different cap could not be told
+apart from one collected at this one. `isolation` moves onto the shared record
+in the same change: the docstring of `arm_identity` had named its absence from
+the failed record as drift, and a mid-turn failure ran under the same policy
+with no field saying so.
+
+Both are built in `arm_identity`, which exists precisely because the completed
+and failed records once carried separate copies of these keys and the copies
+diverged. A test reads the number of assembly sites off the source, so a third
+record added later cannot quietly assemble its own.
+
+THE LEAK AUDIT NOW COVERS FILES THAT ARE NOT YET TRACKED. It ran over `git
+ls-files`, so a file still being written was outside its scope entirely and
+could only be audited once committed - which is the moment it stops being
+possible to address quietly. It now also reads `--others --exclude-standard`:
+untracked and not ignored, which is exactly the set about to become tracked.
+Ignored paths stay out, since the decoded scenario and the corpora live there
+and are supposed to hold that text.
+
+Named for items T.1 and R.6 of the Agentic Benchmark Checklist in Zhu et al.,
+Establishing Best Practices for Building Rigorous Agentic Benchmarks
+(arXiv 2507.02825). T.1 asks that tool versions be specified; this harness
+cannot specify them, because it uses whatever the host has, so it records them
+instead - which is the honest form of the same requirement.
+
 ## v130
 
 Package version `130.0.0`. `ROLLOUT_VERSION` stays `r10`; this adds a check and

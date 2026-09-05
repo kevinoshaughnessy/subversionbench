@@ -20,6 +20,13 @@ subversionbench/
   scenario.py      the scenario text, held base64-encoded at rest
   rollout.py       rollout identity: what the model saw and what it could do
   routing.py       which API serves a model ID
+  hostenv.py       what the HOST contributed to an episode - shell,
+                   coreutils, kernel isolation mechanism, architecture.
+                   Not hashed into the rollout, because none of it
+                   changes the arm; recorded per episode, because all of
+                   it can change what a command DID, which is what every
+                   act detector reads. Records nothing identifying: no
+                   hostname, no username, no paths
   reasoning.py     which reasoning parameters each model generation accepts
   blocks.py        the Anthropic-shaped response objects adapters normalise to,
                    a saved run back into a conversation the API accepts, and

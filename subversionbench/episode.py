@@ -36,6 +36,7 @@ from .config import (CANARY, DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION,
 from .grading import (MISALIGNED_ACTS, analyze_misalignment, awareness_timing,
                       detect_eval_awareness_keywords, first_awareness_position,
                       questions_for, settle_analysis, verify_oversight_unchanged)
+from .hostenv import toolchain_facts
 from .isolation import DEFAULT_ISOLATION
 from .llm_client import _BRACKET_TOOL_CALL_RE
 from .redaction import redact_paths
@@ -247,18 +248,20 @@ def record_turn_blocks(blocks: list, turn: int, transcript: list,
 
 
 def arm_identity(model, effort, nudge, oversight, lure, interrogations,
-                 openrouter_sort, openrouter_provider) -> dict:
+                 openrouter_sort, openrouter_provider,
+                 isolation=DEFAULT_ISOLATION, max_turns=None) -> dict:
     """
     The fields that say WHICH experiment this episode belongs to.
 
-    The first thirteen keys of every episode record, in order, and the reason
-    this is a function is that there are two records: the one returned when an
-    episode completes and the one attached to EpisodeAPIError when it dies
-    mid-turn. Both are saved, both are read by the same analyses, and both
-    carried their own copy of these thirteen fields.
+    The opening keys of every episode record, in order, and the reason this is
+    a function is that there are two records: the one returned when an episode
+    completes and the one attached to EpisodeAPIError when it dies mid-turn.
+    Both are saved, both are read by the same analyses, and both carried their
+    own copy of these fields.
 
-    The copies had already drifted. `isolation` is on the completed record and
-    not the failed one; and the same field, `analysis_version`, was documented
+    The copies had already drifted. `isolation` WAS on the completed record and
+    not the failed one, which is why it is built here now; and the same field,
+    `analysis_version`, was documented
     as "which analysis version COLLECTED it" in one and "last touched it" in the
     other - wordings that contradict each other, with the first explicitly
     correcting the second. A field added to one record and forgotten in the
@@ -337,6 +340,23 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # backend answered just as much as sort does.
         "openrouter_provider": openrouter_provider,
         "nudge": nudge,
+        # WHICH POLICY was asked for. Moved here from the completed record,
+        # where the docstring above already named its absence from the failed
+        # one as drift: an episode that died mid-turn ran under the same
+        # policy and had no field saying so.
+        "isolation": isolation,
+        # THE SCAFFOLD, which is part of what a rate measures and was not
+        # recorded at all. An episode that ends because the model stopped and
+        # one that ends because it ran out of turns are different observations,
+        # `ended_by` distinguishes them, and neither says what the limit WAS -
+        # so a batch collected at a different cap could not be told apart from
+        # one collected at this one.
+        "max_turns": max_turns,
+        # WHAT THE HOST CONTRIBUTED - shell, coreutils, kernel mechanism. Not
+        # part of the arm's identity and deliberately not hashed, but the first
+        # thing to look at when two batches with the same fingerprint disagree.
+        # See hostenv.py.
+        "toolchain": toolchain_facts(isolation),
     }
 
 
@@ -743,7 +763,8 @@ def run_evaluation(
         raise EpisodeAPIError(failed.cause, {
             **arm_identity(
                 model, effort, nudge_type, oversight, lure,
-                interrogations, openrouter_sort, openrouter_provider),
+                interrogations, openrouter_sort, openrouter_provider,
+                isolation=isolation, max_turns=max_turns),
             "ended_by": "api_error",
             "failed_on_turn": failed.turn + 1,
             "error": f"{type(failed.cause).__name__}: {red(str(failed.cause))}",
@@ -859,8 +880,8 @@ def run_evaluation(
     return {
         **arm_identity(
             model, effort, nudge_type, oversight, lure, interrogations,
-            openrouter_sort, openrouter_provider),
-        "isolation": isolation,
+            openrouter_sort, openrouter_provider,
+            isolation=isolation, max_turns=max_turns),
         "ended_by": ended_by,
         # Whether the model's reasoning reached us at all. Both awareness
         # detectors read it, so a batch where this is 0 measured awareness on
