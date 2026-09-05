@@ -483,6 +483,73 @@ class TestTheDelayPacesCallsRatherThanEpisodes:
         for name, fn in ab.SHAPES.items():
             assert "delay" in inspect.signature(fn).parameters, name
 
+    def test_both_shapes_actually_SLEEP_for_the_delay(self):
+        """Accepting it is not honouring it, and this test used to check only
+        the signature. `ask_rubric_batch` took `delay` and never slept, so
+        --delay was inert for that whole shape - and the report's own
+        remediation text tells the operator to re-run with --delay to clear
+        the transport errors that only the batched shape can distinguish. The
+        advice was a no-op exactly where it was given.
+
+        Timed as a DIFFERENCE against the same shape run with no delay, so
+        per-call overhead and the stub's own cost cancel and nothing here is
+        tuned to one machine."""
+        import time
+
+        class Boom:
+            """Fails the call, because the failing path is the one that
+            matters: a throttled call is what pacing exists to stop
+            recurring, and it returns through an error branch."""
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    raise RuntimeError("rate limited")
+
+        def elapsed(shape, name, d):
+            """Bound as arguments rather than closed over: a nested function
+            capturing the loop variable reads the LAST one at call time, which
+            is a latent defect even where the call happens to be inside the
+            iteration."""
+            start = time.monotonic()
+            out = shape("corpus", "claude-opus-5", Boom(), "ch", delay=d,
+                        usage_sink=[], unmeasured_sink=[])
+            assert out, name
+            return time.monotonic() - start
+
+        delay = 0.15
+        for name, fn in sorted(ab.SHAPES.items()):
+            without = elapsed(fn, name, 0)
+            with_delay = elapsed(fn, name, delay)
+            assert with_delay - without >= delay * 0.8, (
+                f"{name} took {with_delay:.2f}s with delay={delay} against "
+                f"{without:.2f}s without it - the delay is accepted and "
+                f"ignored, so --delay does nothing for this shape")
+
+    def test_the_batched_shape_paces_once_per_call_not_once_per_question(self):
+        """The two shapes make a different NUMBER of calls, so the same
+        --delay lands differently: nine calls within an episode against one.
+        Asserted so the asymmetry is a recorded consequence of the flag's
+        documented meaning - seconds after every API call - rather than
+        something a later reader might "fix" into a discrepancy."""
+        import time
+
+        class Boom:
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    raise RuntimeError("rate limited")
+
+        delay = 0.1
+        timings = {}
+        for name, fn in ab.SHAPES.items():
+            start = time.monotonic()
+            fn("corpus", "claude-opus-5", Boom(), "ch", delay=delay,
+               usage_sink=[], unmeasured_sink=[])
+            timings[name] = time.monotonic() - start
+        # One sleep against eight, so the per-question shape must be the
+        # slower of the two by several multiples of the delay.
+        assert timings["per_question"] > timings["batched"] + delay * 3, timings
+
     def test_every_shape_accepts_everything_the_runner_passes_it(self):
         """The rule, not one keyword of it.
 

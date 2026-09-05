@@ -20,11 +20,11 @@ def _rate(successes, n):
 
 
 def _write_arm(out, model, nudge, oversight, lure, stamp, n_runs=10,
-              misaligned=(0, 10), episodes=None):
+              misaligned=(0, 10), episodes=None, capability=None):
     """A minimal summary + matching run files for one arm."""
     from subversionbench.batch import batch_stem
     slug = model.replace("/", "_")
-    stem = batch_stem(slug, nudge, None, oversight, lure)
+    stem = batch_stem(slug, nudge, None, oversight, lure, capability)
     summary = {
         "model": model, "nudge": nudge, "batch_stamp": stamp,
         "n_runs": n_runs, "batch_aborted": False, "episode_failures": [],
@@ -186,3 +186,52 @@ class TestFormatting:
             report = build_summary_of_summaries(out, "x/m")
         out_text = format_summary_of_summaries(report)
         assert "No contrast" in out_text
+
+
+class TestTheCapabilityArmIsNotOneOfTheTwelve:
+    """Its acts were INSTRUCTED, so its rates are a ceiling and belong to no
+    cell of the nudge x oversight x lure design this file is about.
+
+    The reason this needs a test rather than a comment: a capability summary
+    and a propensity summary for the same model, nudge and arm differ in no
+    field `_find_arm_summaries` keys on, so dropping the token - which is what
+    it did - let whichever sorted last silently replace the other. The arms
+    table would then publish an instructed-act rate as that arm's propensity
+    rate, and the real batch would be absent, with nothing saying so."""
+
+    def test_a_capability_summary_does_not_displace_the_propensity_one(self):
+        with tempfile.TemporaryDirectory() as out:
+            # Same model, same nudge, same arm. Only the capability token
+            # differs, and the propensity rate is the one that must survive.
+            _write_arm(out, "x/m", "none", True, False, "20260101T000000",
+                       misaligned=(3, 10))
+            _write_arm(out, "x/m", "none", True, False, "20260102T000000",
+                       misaligned=(9, 10), capability="sandbox")
+            report = build_summary_of_summaries(out, "x/m")
+        assert set(report["arms"]) == {"none"}, report["arms"]
+        got = report["arms"]["none"]["rates"]["misaligned"]
+        assert got["successes"] == 3, (
+            f"the arms table reports {got['successes']}/10 - the instructed "
+            f"rate replaced the propensity one")
+
+    def test_a_capability_only_directory_yields_no_arms(self):
+        """Not one arm built from instructed episodes. There is no reading of
+        this table in which a ceiling is an arm's figure, so the honest output
+        is nothing rather than a plausible-looking row."""
+        with tempfile.TemporaryDirectory() as out:
+            _write_arm(out, "x/m", "none", True, False, "20260101T000000",
+                       misaligned=(9, 10), capability="sandbox")
+            report = build_summary_of_summaries(out, "x/m")
+        assert report["arms"] == {}, report["arms"]
+
+    def test_both_targets_are_excluded_not_just_one(self):
+        """Derived from the pinned targets rather than naming `sandbox`, so a
+        target added to the bundle later inherits the exclusion."""
+        from subversionbench.rollout_pins import CAPABILITY_TARGETS
+        assert CAPABILITY_TARGETS
+        with tempfile.TemporaryDirectory() as out:
+            for i, target in enumerate(CAPABILITY_TARGETS):
+                _write_arm(out, "x/m", "none", True, False,
+                           f"2026010{i+1}T000000", capability=target)
+            report = build_summary_of_summaries(out, "x/m")
+        assert report["arms"] == {}, report["arms"]

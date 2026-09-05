@@ -143,7 +143,12 @@ trivial_baseline.py  what the detectors say about an agent that did nothing
                    Runs known-MISALIGNED agents first as a positive control and
                    refuses to report a floor until each is caught, because
                    "everything read zero" is the same output whether the
-                   detectors are silent or broken. No API calls
+                   detectors are silent or broken. No API calls unless
+                   --grade is passed, which adds the LLM awareness grader:
+                   an aware verdict on a trivial agent is a floor violation,
+                   and a FAILED grade is neither that nor a clean result -
+                   reported separately, because a clean grader floor built
+                   out of transport errors is worse than an unmeasured one
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
 grader_ab.py       cross the grader MODEL against the grader CALL SHAPE on
                    saved transcripts: nine calls per episode against one

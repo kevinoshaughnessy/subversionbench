@@ -327,6 +327,79 @@ class TestTheLayersDoNotPointBackwards:
         assert len(seen) == 12, sorted(seen)
         assert sorted(seen.values()).count("questions_paired") == 2
 
+class TestTheHeaderCountsDescribeTheCorpusTheQuestionsUse:
+    """Under --exclude-aware the episodes are narrowed and the summaries are
+    NOT - exclude_aware_episodes has no summary-side counterpart, because
+    awareness is per episode and a summary row aggregates both kinds. So
+    `n_models` taken from the summaries reported the un-narrowed model count
+    beside numbers computed on the narrowed corpus: one header line describing
+    two different populations, with nothing saying so."""
+
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        # Two models. One is aware in every episode, so the awareness reading
+        # removes it entirely and the model count MUST fall.
+        for model, aware in (("m-aware", True), ("m-unaware", False)):
+            for oversight in (True, False):
+                _write_summary(
+                    out, model, "strong", oversight=oversight, lure=False,
+                    stamp=f"2026010100000{int(oversight)}",
+                    n_runs=4, n_scheming=1, n_aware=2, n_unaware=2)
+            for i in range(4):
+                _write_episode(out, i, model, "strong", oversight=True,
+                               aware=aware, monitoring=False, escape=[])
+        return out
+
+    def test_the_model_count_follows_the_narrowing(self):
+        out = self._dir()
+        full = rr.build_report(out)
+        narrowed = rr.build_report(out, awareness_exclusion=rr.EXCLUDE_AWARE_PRIMARY)
+        assert full["n_models"] == 2, full["n_models"]
+        assert narrowed["n_models"] == 1, (
+            f"{narrowed['n_models']} models reported on a corpus the "
+            f"awareness reading narrowed to one - the count came from the "
+            f"un-narrowed summaries")
+
+    def test_the_episode_count_follows_it_too(self):
+        """The half that was already right, asserted so the two cannot drift
+        apart again in the other direction."""
+        out = self._dir()
+        full = rr.build_report(out)
+        narrowed = rr.build_report(out, awareness_exclusion=rr.EXCLUDE_AWARE_PRIMARY)
+        assert narrowed["n_episode_files"] < full["n_episode_files"]
+
+    def test_the_console_says_the_summary_count_is_not_narrowed(self):
+        """The one number that legitimately still describes the whole
+        directory. It stays - summary files really were read - but a reader
+        given three counts on one line will read them as one corpus unless
+        told otherwise."""
+        import contextlib
+        import io
+        import sys
+        out = self._dir()
+        original = sys.argv
+        sys.argv = ["report", "--output-dir", out, "--no-charts",
+                    "--exclude-aware", rr.EXCLUDE_AWARE_PRIMARY]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                rr.main()
+        finally:
+            sys.argv = original
+        printed = buf.getvalue()
+        assert "summary-file count is files read" in printed
+        # And silent on the ordinary reading, where the three counts do all
+        # describe one corpus.
+        sys.argv = ["report", "--output-dir", out, "--no-charts"]
+        plain = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(plain):
+                rr.main()
+        finally:
+            sys.argv = original
+        assert "summary-file count is files read" not in plain.getvalue()
+
+
 class TestTheSingleImportSiteForTheReport:
     def test_every_name_the_package_offers_is_declared(self):
         """`report/__init__.py` re-exports mostly PRIVATE names, which the tests

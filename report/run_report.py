@@ -275,9 +275,22 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
                                   else "summaries"),
         "output_dir": redact_paths(os.path.abspath(output_dir)),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        # SUMMARY FILES READ, and deliberately not narrowed by the
+        # awareness reading - exclude_aware_episodes has no summary-side
+        # counterpart, because awareness is per episode and a summary row
+        # aggregates both kinds. So on that reading this counts files behind
+        # a corpus the questions no longer pool from, which the console says
+        # in as many words rather than leaving the three counts to be read as
+        # one description.
         "n_summary_files": len(summaries),
         "n_episode_files": len(episodes),
-        "n_models": len(_models(summaries)),
+        # FROM THE SOURCE QUESTIONS 1-4 ACTUALLY POOL FROM, which is the
+        # summaries normally and the rebuilt rows under the awareness reading.
+        # Taken from the summaries unconditionally, this reported the
+        # un-narrowed model count beside numbers computed on the narrowed
+        # corpus - a document describing two different populations in one
+        # header line, with nothing saying so.
+        "n_models": len(_models(aware_source)),
         "data_quality": data_quality_facts(episodes, summaries),
         # Conduct rather than rates, and deliberately NOT in
         # `questions`: these are descriptive profiles, and the
@@ -352,6 +365,16 @@ def main() -> int:
           f"{report['n_summary_files']} summary file(s), "
           f"{report['n_episode_files']} episode file(s), "
           f"{report['n_models']} model(s).")
+    if report["awareness_exclusion"].get("field") is not None:
+        # Said here rather than left to the banner below, because the line
+        # above puts a summary-file count next to an episode count that the
+        # awareness reading has narrowed and one that it has not. The banner
+        # explains the reading; this explains why two of its numbers are on
+        # different corpora.
+        print("  (the summary-file count is files read: the "
+              "awareness reading narrows episodes only, so "
+              "questions 1-4 pool from rows rebuilt out of the "
+              "surviving episodes instead.)")
     # Before the questions, not after: every rate below is on the narrowed
     # corpus, and a reader who meets that fact at the bottom has already read
     # the numbers as though it were the whole one.

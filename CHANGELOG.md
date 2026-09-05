@@ -10,6 +10,77 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v134
+
+Package version `134.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged. Five defects found by review of v128-v133,
+each with a guard proven against it.
+
+A CAPABILITY SUMMARY COULD REPLACE A PROPENSITY ONE IN THE ARMS TABLE.
+`_find_arm_summaries` parsed the new capability filename token and threw it
+away, keying arms on nudge/oversight/lure alone. A capability summary and a
+propensity summary for the same model, nudge and arm differ in no field that
+dict keys on, so whichever sorted last silently replaced the other - and the
+cross-arm report would then publish an instructed-act rate as that arm's
+propensity rate with the real batch absent. Three other readers had been
+taught to carry the token; this fourth was missed. Skipped rather than keyed
+alongside, on the same terms as the report loaders drop it: the capability arm
+is not a cell of the nudge x oversight x lure design this file is about, and
+there is no reading of an arms table in which a ceiling is an arm's figure.
+
+`--delay` WAS INERT FOR THE BATCHED GRADER SHAPE. `ask_rubric_batch` accepted
+the argument and never slept. The A/B report's own remediation text tells the
+operator to re-run with `--delay` to clear the transport errors that only that
+shape can distinguish, so the advice was a no-op exactly where it was given.
+The one call is now split from its pacing and the sleep sits in a `finally`,
+because the paths that matter are the failing ones - a throttled call is what
+pacing exists to stop recurring, and it returns through one of six error
+branches. The old test asserted the signature accepted `delay`; the new one
+times it against the same shape run without one, so accepting is no longer
+mistaken for honouring.
+
+trivial_baseline's `--grade` WAS DOCUMENTED THREE TIMES AND ABSENT FROM THE
+PARSER, so the documented invocation died in argparse with exit 2 - which
+reads like the floor check failing rather than like a flag that does not
+exist. That is the unsatisfiable-instruction defect class this repository
+already paid for in the r9 counterfactual. The flag is now implemented: it
+grades each trivial agent with the shipped grader and treats an aware verdict
+as a floor violation, while a FAILED grade is neither a violation nor a clean
+result. A failed call is not a verdict of "not aware", and counting it as one
+would build a clean grader floor out of transport errors - the same false
+assurance the positive control exists to prevent, one layer up - so it exits
+2 and reports no grader floor. The positive control stays ungraded: it exists
+to show the act detectors fire, and those are free.
+
+The parser moved into `build_parser` so its option strings can be asserted
+exactly. That was not cosmetic: the first version of the test grepped --help
+for "--grade", which passes against `--grade-disabled`, and argparse would
+even accept `--grade` as an unambiguous prefix of it - so the test failed to
+catch its own planted defect. The guard is now over every long option the
+module docstring mentions, so a flag documented later inherits it.
+
+THE TOOLCHAIN PROBES INHERITED STDIN. A tool that does not recognise
+--version can fall back to reading it, and an inherited stdin is whatever the
+harness was started with - a terminal during an interactive run, the parent's
+pipe under a wrapper script. The 5s timeout bounded that; it did not remove
+it, and the two are not the same fix, because five seconds of every episode
+looks like a slow host rather than a bug. On a terminal it would also swallow
+a keystroke meant for the harness.
+
+THE REPORT HEADER DESCRIBED TWO CORPORA AT ONCE. Under `--exclude-aware` the
+episodes are narrowed and the summaries are not - that reading has no
+summary-side counterpart by design - but `n_models` was taken from the
+summaries unconditionally, so it reported the un-narrowed model count beside
+numbers computed on the narrowed corpus. It now comes from the source
+questions 1-4 actually pool from, which changes nothing on the primary
+reading. The summary-file count legitimately still describes the directory, so
+it stays and the console says so in as many words rather than leaving three
+counts on one line to be read as one corpus.
+
+One lint finding fixed while adding the tests: a nested timing helper closed
+over its loop variable, which reads the last one at call time and is a latent
+defect even where the call happens to sit inside the iteration.
+
 ## v133
 
 Package version `133.0.0`. `ROLLOUT_VERSION` stays `r10`, all four pinned

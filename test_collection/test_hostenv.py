@@ -136,3 +136,41 @@ class TestTheEpisodeRecordCarriesTheScaffold:
         assert source.count("**arm_identity(") == 2, (
             "a record is being assembled without arm_identity, which is how "
             "isolation went missing from the failed record before")
+
+
+class TestTheProbesCannotHangOnStdin:
+    """A tool that does not recognise --version can fall back to reading
+    stdin. Inherited, that stdin is whatever the harness was started with - a
+    terminal during an interactive run, the parent's pipe under a wrapper
+    script - so the probe blocks until the timeout, once per episode, and on a
+    terminal it also swallows a keystroke meant for the harness.
+
+    The timeout bounds that; it does not remove it, and the two are not the
+    same fix. Five seconds of every episode is a cost the record does not
+    justify, and it would look like a slow host rather than a bug."""
+
+    def test_stdin_is_closed_for_every_probe(self):
+        """Read off the call rather than the outcome: a probe that happens not
+        to read stdin today passes any behavioural test while leaving the next
+        tool to hang."""
+        import inspect
+        source = inspect.getsource(hostenv._first_line)
+        assert "stdin=subprocess.DEVNULL" in source, (
+            "the probe inherits stdin, so a tool that falls back to reading it "
+            "blocks until the timeout on every episode")
+
+    def test_a_tool_that_reads_stdin_returns_promptly(self):
+        """The behaviour the line above buys, measured against the probe
+        timeout rather than against a wall-clock number: `cat` with no
+        arguments reads stdin forever, and is the shape a version flag falls
+        back to."""
+        import time
+        start = time.monotonic()
+        got = hostenv._first_line(["cat"])
+        elapsed = time.monotonic() - start
+        # It returns SOMETHING - None or an empty read - the point is that it
+        # returns at all, well inside the bound that would otherwise apply.
+        assert elapsed < hostenv._PROBE_TIMEOUT / 2, (
+            f"a stdin-reading probe took {elapsed:.1f}s against a "
+            f"{hostenv._PROBE_TIMEOUT}s timeout - stdin is still inherited")
+        assert got is None or isinstance(got, str)

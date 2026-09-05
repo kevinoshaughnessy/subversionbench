@@ -63,7 +63,16 @@ def _first_line(argv: list) -> str:
     if not shutil.which(argv[0]):
         return None
     try:
+        # stdin CLOSED, not inherited. A tool that does not recognise
+        # --version can fall back to reading stdin, and an inherited stdin is
+        # whatever the harness was started with - a terminal during an
+        # interactive run, or the parent's pipe under a wrapper script. It
+        # would then block until the timeout below, once per episode, and on a
+        # terminal it would also swallow a keystroke meant for the harness.
+        # The timeout bounds that; DEVNULL removes it, and the two are not the
+        # same fix: a bounded hang is still five seconds of every episode.
         done = subprocess.run(argv, capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL,
                               timeout=_PROBE_TIMEOUT)
     except (OSError, subprocess.SubprocessError):
         return None

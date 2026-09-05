@@ -258,7 +258,38 @@ def ask_rubric_batch(corpus: str, model: str, client=None,
                      usage_sink: list = None,
                      unmeasured_sink: list = None) -> dict:
     """
-    Put ALL the rubric questions to the grader in ONE call.
+    Put ALL the rubric questions to the grader in ONE call, then pace.
+
+    `delay` sleeps after the call, on EVERY path including failure. It used to
+    be accepted and ignored, which made --delay inert for this whole shape -
+    and the report's own remediation text tells the operator to re-run with
+    --delay to clear the transport errors that only this shape can
+    distinguish, so the advice was a no-op exactly where it was given. The
+    sleep is in a `finally` rather than after the return because the paths
+    that matter most are the failing ones: a throttled call is precisely what
+    pacing is meant to prevent recurring, and it returns through one of six
+    error branches.
+
+    One call per episode here against nine in ask_per_question, so the same
+    --delay paces per episode on this shape and within an episode on that one.
+    That is the flag's documented meaning - seconds after every API call - and
+    not a discrepancy to reconcile: the shapes differ in how many calls they
+    make, which is the thing being measured.
+    """
+    try:
+        return _batched_rubric_call(corpus, model, client, channel_id,
+                                    usage_sink, unmeasured_sink)
+    finally:
+        if delay:
+            time.sleep(delay)
+
+
+def _batched_rubric_call(corpus: str, model: str, client=None,
+                         channel_id: str = None,
+                         usage_sink: list = None,
+                         unmeasured_sink: list = None) -> dict:
+    """
+    The one batched call, with no pacing of its own - see ask_rubric_batch.
 
     Returns {key: {"answer": bool|None, "quote": str, "error": str|None}} with
     an entry for every question, so a caller cannot tell a missing question from
