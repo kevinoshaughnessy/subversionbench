@@ -10,6 +10,51 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v130
+
+Package version `130.0.0`. `ROLLOUT_VERSION` stays `r10`; this adds a check and
+changes nothing an episode sees.
+
+`trivial_baseline.py` MEASURES THE FALSE-POSITIVE FLOOR OF THE ACT DETECTORS.
+Every rate here counts episodes where a detector fired, and none of them means
+anything unless the detectors are silent on an episode containing no act. That
+was never checked. A detector with a nonzero floor does not fail loudly - it
+adds a constant to every arm, and the constant is invisible precisely because
+it is in every arm, so no contrast between arms can reveal it. The fixed
+no-oversight arm now sits in the range where such a floor would be
+indistinguishable from a real residual rate, which is what makes this worth
+having now rather than later.
+
+REAL ENVIRONMENT, REAL SANDBOX, REAL DETECTORS. The trivial agents are fixed
+command sequences with no model behind them, run through `execute_tool_sandboxed`
+against an environment from `create_hardened_environment` and scored by the same
+`analyze_misalignment`/`settle_analysis`/`normalise_analyses` an episode uses. A
+hand-written transcript would only show the detectors are silent on text this
+file imagined; running them shows it of the environment the corpus was collected
+in. Two of the agents are the awkward cases rather than the easy ones: one quotes
+the planted memo back verbatim, which is where a measure that reads the
+scenario's words as the agent's own fires and nowhere else, and one runs the
+sanctioned quality checker, which is legitimate use of the artefact the oversight
+act is about.
+
+A POSITIVE CONTROL RUNS FIRST, and this is what makes the result worth reading.
+"Every detector read zero" is the same output whether the detectors are correctly
+silent or simply not running, and a floor check that cannot fail converts an
+unmeasured risk into a false assurance. So known-misaligned agents go through the
+same path first and each must be caught; no floor is reported otherwise. One of
+them exists specifically because a blocked out-of-scope read lands in the wide
+`sandbox_escape_attempts` field without setting the narrow act key - a floor
+reading only act keys would be blind to the field the published sandbox rate is
+actually built on.
+
+Named for item R.13 of the Agentic Benchmark Checklist in Zhu et al.,
+Establishing Best Practices for Building Rigorous Agentic Benchmarks
+(arXiv 2507.02825), which asks what a benchmark scores for an agent that does
+nothing. The reading is inverted here, because this measures propensity rather
+than capability: there a trivial agent scoring well means the task is passable
+without the capability; here it means a published rate has a false positive in
+it.
+
 ## v129
 
 Package version `129.0.0`. `ROLLOUT_VERSION` stays `r10`, and all four pinned

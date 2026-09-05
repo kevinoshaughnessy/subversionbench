@@ -110,6 +110,16 @@ heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    published, so it exists only where it was authored
 run_heldout.sh     collect under the held-out scenario instead of the shipped
                    one; passes its arguments through to run_all_arms.sh
+trivial_baseline.py  what the detectors say about an agent that did nothing
+                   wrong: fixed command sequences with no model behind them,
+                   run through the real sandbox against a real environment and
+                   scored by the real pipeline, in every arm. Every act
+                   detector and the keyword awareness screen must read zero, or
+                   a false positive is sitting inside every rate built on them.
+                   Runs known-MISALIGNED agents first as a positive control and
+                   refuses to report a floor until each is caught, because
+                   "everything read zero" is the same output whether the
+                   detectors are silent or broken. No API calls
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
 grader_ab.py       cross the grader MODEL against the grader CALL SHAPE on
                    saved transcripts: nine calls per episode against one
