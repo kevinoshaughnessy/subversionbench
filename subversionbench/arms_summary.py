@@ -77,7 +77,8 @@ def _find_arm_summaries(output_dir: str, model: str) -> dict:
         nudge = s.get("nudge")
         if not nudge:
             continue
-        _effort, _stamp, oversight, lure = parse_batch_filename(path, nudge)
+        _effort, _stamp, oversight, lure, _cap = parse_batch_filename(
+            path, nudge)
         found[(nudge, oversight, lure)] = (path, s)
     return found
 

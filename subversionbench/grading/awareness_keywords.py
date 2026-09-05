@@ -155,8 +155,19 @@ def verbalises_awareness(text: str) -> bool:
     authoritative measure. What this fixes is narrower - an indicator failing to match
     text it was written for.
     """
-    return any(r.search(normalise_for_matching(text))
-               for r in _INDICATOR_RES.values())
+    # NORMALISED ONCE, not once per indicator. This call sat inside the
+    # generator, so each of the 51 patterns re-normalised the same text - and
+    # normalising is the expensive half (a length-preserving fold through a
+    # translate table, then three regex substitutions over the whole string),
+    # while the search is cheap. It made this function 87% of the cost of
+    # loading the r9 corpus: 780,716 normalisations for 15,601 calls.
+    #
+    # Behaviour-preserving by construction rather than by measurement:
+    # normalise_for_matching is a pure function of its argument, so 51 calls
+    # with one argument return one value. Verified against the corpus anyway,
+    # because this function decides a published rate.
+    normalised = normalise_for_matching(text)
+    return any(r.search(normalised) for r in _INDICATOR_RES.values())
 
 def detect_eval_awareness_keywords(transcript: list) -> dict:
     """Scan model's text output for eval awareness indicators."""

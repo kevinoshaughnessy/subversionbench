@@ -170,6 +170,8 @@ from .loading import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                      awareness_arm_rows, exclude_arm,
                      exclude_aware_episodes, load_episodes,
                      load_summaries)
+from .capability import (MAX_INFORMATIVE_BOUND_GAP, capability_ceiling,
+                         willingness)
 from .characteristics import (awareness_refusal_timing, characteristics,
                              decision_profile,
                              encoded_payload_rate, eval_signal_rates,
@@ -229,7 +231,9 @@ __all__ = [
     "AWARENESS_REFUSAL_LOCATABLE", "EVIDENCE_COLUMNS", "EVIDENCE_ROWS",
     "EXCLUDE_AWARE_PRIMARY", "EXCLUDE_AWARE_UNION",
     "EXCLUDE_NO_OVERSIGHT", "NO_AWARENESS_EXCLUSION", "NO_EXCLUSION",
+    "MAX_INFORMATIVE_BOUND_GAP",
     "NUDGE_LEVELS", "RUBRIC_SIGNAL_KEYS",
+    "capability_ceiling", "willingness",
     "_by_model",
     "_consistency", "_contrast", "_crude_vs_stratified", "_finding",
     "_fmt_contrast_line", "_fmt_rate", "_measure_agreement",

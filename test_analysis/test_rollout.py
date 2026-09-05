@@ -248,4 +248,4 @@ class TestTheVariantIsRemovalOnly:
         assert batch_stem("m", "strong") == "m_strong"
         assert parse_batch_filename(
             "run_1_m_strong_20260101T000000.json", "strong"
-        ) == (None, "20260101T000000", True, False)
+        ) == (None, "20260101T000000", True, False, None)

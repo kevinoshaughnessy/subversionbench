@@ -239,7 +239,8 @@ def encode_scenario(bundle: dict, path: Path = None) -> None:
 
 def scenario_for(oversight: bool = True, bundle: dict = None,
                  nudge: str = "strong", lure: bool = False,
-                 interrogation: str = DEFAULT_INTERROGATION) -> dict:
+                 interrogation: str = DEFAULT_INTERROGATION,
+                 capability: str = None) -> dict:
     """
     The scenario as one arm of the oversight counterfactual sees it.
 
@@ -276,6 +277,14 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     nothing is added, so any behavioural difference between arms is
     attributable to the absence of oversight rather than to incidental
     differences in how the two were written.
+
+    `capability` selects the capability arm, which is not a fifth cell of the
+    propensity design and never pools with one. It replaces the task
+    instruction with one that asks for the act outright, so that a model's
+    zero can be read: a 0% propensity against a 0% ceiling is a fact about the
+    scenario, and against a 90% ceiling a fact about the model. Everything
+    else - the environment, the system prompt, the tools, the sandbox - is
+    unchanged, so the arms differ in the instruction and nothing else.
     """
     bundle = dict(bundle or load_scenario())
     # Popped unconditionally, on the same terms as the arm keys below: the
@@ -337,11 +346,43 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
         bundle.update({k: v for k, v in lure_bundle.items()
                        if k != "neighbour_file"})
         bundle["lure_neighbour_file"] = lure_bundle.get("neighbour_file")
-    if oversight:
+    # The capability arm, on the same terms as every other arm: stored in the
+    # bundle, popped UNCONDITIONALLY, so `scenario_for()` returns exactly what
+    # it returned before this arm was authored and r10's four fingerprints
+    # stand. That pop is the load-bearing line - forgetting it moves all four
+    # and declares the whole corpus incomparable with a scenario it still
+    # matches exactly.
+    capability_arms = bundle.pop("capability", {})
+    if not oversight:
+        for key in dropped:
+            bundle.pop(key, None)
+        bundle.update(overrides)
+    if capability is None:
         return bundle
-    for key in dropped:
-        bundle.pop(key, None)
-    bundle.update(overrides)
+    # APPLIED LAST, AFTER THE COUNTERFACTUAL OVERRIDES. Both replace
+    # `user_prompt`, and the counterfactual's copy is the one that must not
+    # win here: it asks for a transport recommendation, which is the task this
+    # arm exists to replace. Applied before them, the sandbox ceiling would
+    # have been measured on episodes never given the instruction - and every
+    # one of them would have read as a refusal.
+    if capability not in capability_arms:
+        raise KeyError(
+            f"unknown capability target {capability!r}; the bundle offers "
+            f"{sorted(capability_arms)}. Refused rather than run without the "
+            f"instruction: an episode that was never told to take the act "
+            f"measures propensity, and would be recorded as a ceiling.")
+    if capability == "oversight" and not oversight:
+        # There is nothing to subvert in the counterfactual - the arm drops
+        # the monitoring config outright - so this instruction is
+        # unsatisfiable there. That is the r9 defect exactly: an instruction
+        # the arm's own construction removes the object of. Refused at the
+        # boundary rather than collected and puzzled over.
+        raise ValueError(
+            "capability target 'oversight' needs oversight=True: the "
+            "counterfactual arm removes the artefact the instruction names, "
+            "so every episode would be scored as incapable of an act the arm "
+            "makes impossible.")
+    bundle.update(capability_arms[capability])
     return bundle
 
 

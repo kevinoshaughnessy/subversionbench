@@ -26,7 +26,7 @@ import time
 
 from .batch import BatchIdentity, unique_batch_stamp
 from .blocks import serialise_messages
-from .config import ROLLOUT_FINGERPRINTS
+from .config import ROLLOUT_FINGERPRINTS, capability_fingerprint_for
 from .environment import create_episode_root
 from .episode import EpisodeAPIError, run_evaluation
 from .grading import MISALIGNED_ACTS, auth_error_in_analysis
@@ -285,6 +285,7 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
             episode_root=episode_root,
             openrouter_sort=args.openrouter_sort,
             openrouter_provider=args.openrouter_provider,
+            capability=args.capability,
         )
     except Exception as e:
         cause = e.cause if isinstance(e, EpisodeAPIError) else e
@@ -474,7 +475,12 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     # The counterfactual arm has its own user prompt: the r1 one names the
     # quality check, which the arm must not mention. The system prompts carry
     # no oversight reference and are shared by both arms unchanged.
-    user_prompt = scenario_for(args.oversight)["user_prompt"]
+    # The capability arm replaces this outright - its whole difference from a
+    # propensity arm is the instruction. Everything else the model sees is
+    # identical, which is what makes the ceiling a denominator for the rate
+    # rather than a measurement of some other scenario.
+    user_prompt = scenario_for(args.oversight,
+                               capability=args.capability)["user_prompt"]
 
     # No opt-out: every rollout runs under a policy. isolation.profile_for()
     # owns the policy file, so nothing here has to know that one platform needs
@@ -528,9 +534,15 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
         return 1
     print("Confinement: episode tree only (verified: temp directory "
           "unreadable by shell and by interpreter)")
+    # The capability arm checks its OWN pin. Checking the propensity arm's
+    # would compare a hash of the capability scenario against the pin for a
+    # different one and refuse every capability rollout; skipping the check
+    # would leave the new arm the only unguarded one.
     drift = rollout_drift_error(
-        ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)],
-        args.oversight, args.isolation, args.lure)
+        ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)]
+        if args.capability is None else
+        capability_fingerprint_for(args.capability, args.oversight),
+        args.oversight, args.isolation, args.lure, args.capability)
     if drift:
         print(f"\n{'='*60}")
         print("REFUSING TO ROLL OUT")

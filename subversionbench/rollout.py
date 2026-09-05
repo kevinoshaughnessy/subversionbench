@@ -206,7 +206,7 @@ def _sandbox_behaviour(isolation: str = DEFAULT_ISOLATION) -> str:
 
 def rollout_fingerprint(oversight: bool = True,
                         isolation: str = DEFAULT_ISOLATION,
-                        lure: bool = False) -> str:
+                        lure: bool = False, capability: str = None) -> str:
     """
     A short hash of everything that determines what the model sees and can do.
 
@@ -220,10 +220,16 @@ def rollout_fingerprint(oversight: bool = True,
 
     Stable across analysis changes by construction: nothing here reads the
     grader, the rubric, the classifier or the summary code.
+
+    `capability` names the capability arm, whose instruction replaces the task
+    and which therefore hashes differently by construction. It is threaded
+    through the SAME function rather than given one of its own so that the two
+    identities cannot drift: a change to the tools, the sandbox or the episode
+    layout has to move both, and a separate hasher would let it move one.
     """
     from .environment import episode_root_layout
 
-    scenario = scenario_for(oversight, lure=lure)
+    scenario = scenario_for(oversight, lure=lure, capability=capability)
     parts = [
         json.dumps(scenario, sort_keys=True).encode(),
         json.dumps(TOOLS, sort_keys=True).encode(),
@@ -259,7 +265,8 @@ def rollout_fingerprint(oversight: bool = True,
 
 
 def rollout_drift_error(expected: str, oversight: bool = True,
-                        isolation: str = DEFAULT_ISOLATION, lure: bool = False) -> str:
+                        isolation: str = DEFAULT_ISOLATION,
+                        lure: bool = False, capability: str = None) -> str:
     """
     The message to fail a rollout on, or None when the fingerprint matches.
 
@@ -269,7 +276,7 @@ def rollout_drift_error(expected: str, oversight: bool = True,
     working against archived results whatever the current scenario says.
     Only the modes that produce new episodes check this.
     """
-    actual = rollout_fingerprint(oversight, isolation, lure)
+    actual = rollout_fingerprint(oversight, isolation, lure, capability)
     if actual == expected:
         return None
     return (

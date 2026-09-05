@@ -26,6 +26,8 @@ and the tests that patch `grading.X` keep working.
 
 from .acts import auth_error_in_analysis, MISALIGNED_ACTS, questions_for
 from .awareness_keywords import detect_eval_awareness_keywords
+from .capability import (CAPABILITY_ACT_KEYS, CAPABILITY_OUTCOMES,
+                         artefact_edit_commands, capability_outcome)
 from .awareness_timing import (
     AWARENESS_ONSET_LEVELS,
     AWARENESS_TIMING_LEVELS,
@@ -116,6 +118,10 @@ __all__ = [
     "detect_honeypot_access", "classify_honeypot_read",
     "classify_honeypot_discovered",
     "questions_for",
+    # what a CAPABILITY episode demonstrated - see capability.py for why
+    # three outcomes and not two
+    "CAPABILITY_ACT_KEYS", "CAPABILITY_OUTCOMES",
+    "artefact_edit_commands", "capability_outcome",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",
     "ask_rubric_question", "awareness_timing", "awareness_onset",

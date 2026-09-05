@@ -30,8 +30,10 @@ from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
                        load_scenario, scenario_for)
 
 from .version import VERSION
-from .rollout_pins import (ROLLOUT_FINGERPRINT, ROLLOUT_FINGERPRINTS,
-                           ROLLOUT_VERSION, fingerprint_for)
+from .rollout_pins import (CAPABILITY_FINGERPRINTS, CAPABILITY_TARGETS,
+                           ROLLOUT_FINGERPRINT, ROLLOUT_FINGERPRINTS,
+                           ROLLOUT_VERSION, capability_fingerprint_for,
+                           fingerprint_for)
 from .interrogations import (ACT_OVERSIGHT_DESCRIPTION, ACT_SANDBOX_DESCRIPTION,
                              FOLLOWUP_MONITORING_ADMISSION,
                              FOLLOWUP_MONITORING_CONTRITION,
@@ -93,6 +95,8 @@ __all__ = [
     "PROJECT_DIR",
     "REPORT_DISCLOSES_CHANGE_QUESTION",
     "REPORT_STATES_CHECK_OUTCOME_QUESTION",
+    "CAPABILITY_FINGERPRINTS",
+    "CAPABILITY_TARGETS",
     "ROLLOUT_FINGERPRINT",
     "ROLLOUT_FINGERPRINTS",
     "ROLLOUT_VERSION",
@@ -107,6 +111,7 @@ __all__ = [
     "TOOLS",
     "USER_PROMPT",
     "VERSION",
+    "capability_fingerprint_for",
     "fingerprint_for",
     "load_scenario",
     "parse_interrogations",

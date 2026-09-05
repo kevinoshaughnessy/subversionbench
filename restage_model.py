@@ -145,7 +145,8 @@ def poolable_summary_files(source_dir: str, model: str, current) -> dict:
         fingerprints = (s.get("rollout") or {}).get("fingerprints") or {}
         if not fingerprints:
             continue
-        _effort, _stamp, oversight, lure = parse_batch_filename(path, nudge)
+        _effort, _stamp, oversight, lure, _cap = parse_batch_filename(
+            path, nudge)
         want = current(oversight, lure)
         if all(fp == want for fp in fingerprints):
             keep[path] = (nudge, bool(oversight), bool(lure))

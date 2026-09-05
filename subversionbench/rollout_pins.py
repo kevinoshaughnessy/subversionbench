@@ -355,6 +355,81 @@ if _alternative is not None:
 ROLLOUT_FINGERPRINT = ROLLOUT_FINGERPRINTS[(True, False)]
 
 
+# =========================================================================
+# The capability arm
+# =========================================================================
+#
+# The oracle-solver demonstration - item T.9 of the Agentic Benchmark Checklist
+# in Zhu et al., Establishing Best Practices for Building Rigorous Agentic
+# Benchmarks (arXiv 2507.02825). Every rate this benchmark publishes counts
+# episodes where a model took an act it was merely GIVEN THE OPPORTUNITY to
+# take, and a zero there has two readings: a model that would not, and a model
+# that could not. Nothing distinguished them. The capability arm supplies the
+# denominator by asking for the act outright, so a propensity rate can be read
+# against a ceiling instead of against nothing.
+#
+# A SEPARATE TABLE, NOT A THIRD KEY ON THE ONE ABOVE. The capability arm never
+# pools with a propensity arm - that is the whole point of it - so it is not a
+# fifth cell of the 2x2, and widening ROLLOUT_FINGERPRINTS' keys to carry a
+# `capability=None` default would edit the one table AGENTS.md names as the
+# experiment's identity for no analytical gain. It would also rewrite the
+# "two of r10's four fingerprints are r9's" property test, and every other
+# guard built on that table, to accommodate an arm none of them is about.
+#
+# NO LURE. The lure is a propensity manipulation - one sentence noting that
+# another engagement's material is still on the machine - and a ceiling
+# measured under it would be a ceiling for lure-following. capability_
+# fingerprint_for raises on lure=True rather than falling back on these, on
+# the same terms as fingerprint_for raises on an unpinned arm.
+#
+# Keyed by (target, oversight). The oversight target has no counterfactual
+# entry because the counterfactual removes the artefact its instruction names;
+# scenario_for refuses that combination at the boundary, so there is nothing
+# for a pin to identify.
+CAPABILITY_FINGERPRINTS = MappingProxyType({
+    ("oversight", True):  "cda50ccbdcd6",
+    ("sandbox",   True):  "a99fd228178f",
+    ("sandbox",   False): "809b6a38def0",
+})
+
+# The targets an operator may name, derived from the table rather than written
+# twice. A second copy is a second thing to keep in step, which is the defect
+# this file's own header describes.
+CAPABILITY_TARGETS = tuple(sorted({t for t, _o in CAPABILITY_FINGERPRINTS}))
+
+
+def capability_fingerprint_for(target: str, oversight: bool) -> str:
+    """
+    The pinned fingerprint of one capability arm.
+
+    Raises on anything unpinned, for the reason fingerprint_for does: a
+    capability episode stamped with a propensity arm's identity is exactly the
+    mislabelling that would let a ceiling be pooled into the rate it is the
+    denominator of. There is no fallback, and lure=True has no entry at all -
+    see the table above.
+    """
+    key = (str(target), bool(oversight))
+    if key not in CAPABILITY_FINGERPRINTS:
+        raise KeyError(
+            f"no pinned capability fingerprint for {key}. Targets are "
+            f"{list(CAPABILITY_TARGETS)}, and 'oversight' exists only with "
+            f"oversight=True. Pin it before collecting episodes under it, or "
+            f"they cannot be told apart from another arm's later."
+        )
+    if _alternative is not None:
+        # The held-out twin is a different rollout with its own pins in a
+        # sidecar, and the sidecar has no capability entries. Stamping the
+        # shipped scenario's capability identity onto its episodes is the one
+        # outcome worse than not running - see _alternative_pins.
+        from .scenario import BUNDLE_ENV_VAR
+        raise RuntimeError(
+            f"the capability arm has no pins under an alternative scenario "
+            f"bundle; these identify the shipped scenario's arms. Unset "
+            f"{BUNDLE_ENV_VAR}, or pin the twin's capability arms first."
+        )
+    return CAPABILITY_FINGERPRINTS[key]
+
+
 def fingerprint_for(oversight: bool, lure: bool = False) -> str:
     """
     The pinned fingerprint of one arm.

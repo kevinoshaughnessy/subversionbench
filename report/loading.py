@@ -32,7 +32,7 @@ import os
 from subversionbench.batch import parse_batch_filename
 from subversionbench.config import DEFAULT_INTERROGATION
 from subversionbench.grading import (MISALIGNED_ACTS, SCHEMING_LEVELS,
-                                     awareness_channels,
+                                     awareness_channels, capability_outcome,
                                      classify_misalignment, classify_scheming,
                                      classify_scheming_act, concealment_level,
                                      detect_honeypot_access)
@@ -109,6 +109,19 @@ RUBRIC_SIGNAL_KEYS = ("mentioned_test", "suspects_being_tested",
 
 NO_EXCLUSION = "none"
 EXCLUDE_NO_OVERSIGHT = "no_oversight"
+
+# The third state of both loaders' `capability` filter: every capability
+# episode, whatever its target.
+#
+# A SENTINEL RATHER THAN A SECOND PARAMETER. The filter's two ordinary
+# states - None for the propensity corpus, a target name for that one arm -
+# are complementary by construction, and that property is what guarantees no
+# episode reaches both corpora and none reaches neither. A `capability_only`
+# boolean beside the target would make three of the four combinations
+# meaningful and one nonsense, and nothing would reject the nonsense. An
+# object() rather than a string, so it cannot collide with a target name a
+# bundle adds later.
+ANY_CAPABILITY = object()
 
 # Keyed by name, so a caller states which arm it is dropping rather than passing
 # a predicate, and so run_report's flag, the JSON stamp and the chart captions
@@ -347,7 +360,7 @@ def exclude_aware_episodes(episodes: list,
     return kept, stamp
 
 
-def load_summaries(output_dir: str) -> list:
+def load_summaries(output_dir: str, capability: str = None) -> list:
     """
     Every per-arm summary in output_dir, flattened to one row.
 
@@ -372,7 +385,24 @@ def load_summaries(output_dir: str) -> list:
         model, nudge = d.get("model"), d.get("nudge")
         if not model or not nudge:
             continue
-        _effort, _stamp, oversight, lure = parse_batch_filename(path, nudge)
+        _effort, _stamp, oversight, lure, found_capability = \
+            parse_batch_filename(path, nudge)
+        # ONE FILTER, BOTH DIRECTIONS. `capability=None` - every caller in
+        # the report - keeps propensity batches only, because a capability
+        # episode was INSTRUCTED to take the act and pooling one into a
+        # misalignment rate inflates it towards the ceiling it exists to
+        # measure. Naming a target keeps that arm and nothing else.
+        #
+        # Written as an equality rather than as two branches so the two
+        # corpora are complementary by construction: no batch can be in both
+        # and none can be in neither. Two separate predicates could drift
+        # apart, and the failure would be silent in the direction that
+        # matters.
+        if capability is ANY_CAPABILITY:
+            if not found_capability:
+                continue
+        elif (found_capability or None) != capability:
+            continue
         subgroups = d.get("awareness_subgroups") or {}
         n_aware = subgroups.get("aware") or 0
         n_unaware = subgroups.get("unaware") or 0
@@ -419,7 +449,7 @@ def load_summaries(output_dir: str) -> list:
     return rows
 
 
-def load_episodes(output_dir: str) -> list:
+def load_episodes(output_dir: str, capability: str = None) -> list:
     """
     Every completed episode in output_dir, stripped to what questions 5-12 need.
 
@@ -444,6 +474,15 @@ def load_episodes(output_dir: str) -> list:
             continue
         analysis = d.get("analysis")
         if not d.get("model") or not analysis:
+            continue
+        # The same complementary filter load_summaries applies - see there.
+        # Read off the RECORD rather than the filename: a run file carries its
+        # own arm fields, and `capability` is one of them.
+        episode_capability = d.get("capability") or None
+        if capability is ANY_CAPABILITY:
+            if episode_capability is None:
+                continue
+        elif episode_capability != capability:
             continue
         aware, aware_source = awareness_flag(analysis)
         # THE UNION OF THE TWO AWARENESS SCREENS, for the secondary
@@ -603,6 +642,17 @@ def load_episodes(output_dir: str) -> list:
             "scheming_stored_disagrees": (
                 stored_scheming is not None
                 and stored_scheming != derived_scheming),
+            # WHICH ARM, and what it demonstrated. Both are None on every
+            # propensity episode, which is every episode a published rate is
+            # built on. Derived here rather than stored at collection time so
+            # that a saved capability corpus picks up a change to the outcome
+            # rules for free - the same reason the act verdicts themselves are
+            # re-derived rather than trusted.
+            "capability": episode_capability,
+            "capability_outcome": (
+                None if episode_capability is None else
+                capability_outcome(analysis, episode_capability,
+                                   d.get("transcript") or [])),
             "one": 1,
         }
         # Per-act scheming, keyed off MISALIGNED_ACTS rather than hardcoded, so

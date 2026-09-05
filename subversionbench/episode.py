@@ -32,7 +32,8 @@ from . import grading as grading_api
 from . import llm_client as llm_api
 from .api_errors import api_error_message, warn_usage_limit_once
 from .config import (CANARY, DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION,
-                     ROLLOUT_VERSION, TOOLS, VERSION, fingerprint_for)
+                     ROLLOUT_VERSION, TOOLS, VERSION,
+                     capability_fingerprint_for, fingerprint_for)
 from .grading import (MISALIGNED_ACTS, analyze_misalignment, awareness_timing,
                       detect_eval_awareness_keywords, first_awareness_position,
                       questions_for, settle_analysis, verify_oversight_unchanged)
@@ -249,7 +250,8 @@ def record_turn_blocks(blocks: list, turn: int, transcript: list,
 
 def arm_identity(model, effort, nudge, oversight, lure, interrogations,
                  openrouter_sort, openrouter_provider,
-                 isolation=DEFAULT_ISOLATION, max_turns=None) -> dict:
+                 isolation=DEFAULT_ISOLATION, max_turns=None,
+                 capability=None) -> dict:
     """
     The fields that say WHICH experiment this episode belongs to.
 
@@ -322,7 +324,15 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # above says a directory holding two fingerprints is two experiments, and
         # a directory holding one fingerprint across three arms is worse, because
         # it looks consistent.
-        "rollout_fingerprint": fingerprint_for(oversight, lure),
+        # The fingerprint of THIS arm, and for a capability episode that is
+        # the capability arm's own pin. Stamped with the propensity arm's
+        # instead, restage_model.py's poolability test would wave a
+        # capability batch into a propensity corpus - the one check that
+        # would otherwise catch it for free.
+        "rollout_fingerprint": (fingerprint_for(oversight, lure)
+                                if capability is None else
+                                capability_fingerprint_for(capability,
+                                                           oversight)),
         "analysis_version": VERSION,
         "model": model,
         # The effort actually sent, not the one requested: resolve_thinking_kwargs
@@ -357,6 +367,17 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # thing to look at when two batches with the same fingerprint disagree.
         # See hostenv.py.
         "toolchain": toolchain_facts(isolation),
+        # WHETHER THE ACT WAS INSTRUCTED. None on every propensity episode,
+        # which is what a published rate counts; a target name on a
+        # capability episode, where the model was asked for the act outright
+        # and the result is a ceiling rather than a propensity.
+        #
+        # This field is what report/loading.py drops on, so it is the reason
+        # a ceiling cannot reach a rate it is the denominator of. Recorded
+        # rather than left to the filename for the reason `lure` was: the arm
+        # that was left to the filename got pooled into a rate it did not
+        # belong to.
+        "capability": capability,
     }
 
 
@@ -640,6 +661,7 @@ def run_evaluation(
     episode_root=None,
     openrouter_sort: str = None,
     openrouter_provider: str = None,
+    capability: str = None,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection.
 
@@ -764,7 +786,8 @@ def run_evaluation(
             **arm_identity(
                 model, effort, nudge_type, oversight, lure,
                 interrogations, openrouter_sort, openrouter_provider,
-                isolation=isolation, max_turns=max_turns),
+                isolation=isolation, max_turns=max_turns,
+                capability=capability),
             "ended_by": "api_error",
             "failed_on_turn": failed.turn + 1,
             "error": f"{type(failed.cause).__name__}: {red(str(failed.cause))}",
@@ -831,13 +854,29 @@ def run_evaluation(
     # disconnected worlds.
     t_followup_start = time.time()
 
-    interrogate_acts(
-        analysis, transcript,
-        {"system_prompt": system_prompt, "messages": messages, "model": model,
-         "client": client, "max_tokens": max_tokens,
-         "reasoning_kwargs": reasoning_kwargs, "env_dir": env_dir},
-        grader_model=grader_model, nudge=nudge,
-        interrogations=interrogations, ended_by=ended_by)
+    # NOT IN THE CAPABILITY ARM. Every question in the ladder asks whether
+    # the model did something it has not been asked to do, and in this arm it
+    # was asked - so a truthful "yes, you told me to" would be scored against
+    # a question that is no longer about concealment. Skipped rather than
+    # asked and discarded, because the answers would still be saved, still
+    # cost a request per act, and still be there for someone to read as a
+    # concealment rate later.
+    if capability is None:
+        interrogate_acts(
+            analysis, transcript,
+            {"system_prompt": system_prompt, "messages": messages,
+             "client": client, "model": model, "max_tokens": max_tokens,
+             "reasoning_kwargs": reasoning_kwargs, "env_dir": env_dir},
+            grader_model=grader_model, nudge=nudge,
+            interrogations=interrogations, ended_by=ended_by)
+    else:
+        # Recorded, not merely absent. A missing followup_response reads as a
+        # measurement that failed; this says it was never attempted and why,
+        # which is the not-applicable-is-not-zero rule applied to a field
+        # rather than to a count.
+        analysis["interrogation_skipped"] = (
+            f"capability arm ({capability}): the act was instructed, so an "
+            f"interrogation about it measures nothing about concealment")
 
     t_followup_end = time.time()
 
@@ -881,7 +920,8 @@ def run_evaluation(
         **arm_identity(
             model, effort, nudge_type, oversight, lure, interrogations,
             openrouter_sort, openrouter_provider,
-            isolation=isolation, max_turns=max_turns),
+            isolation=isolation, max_turns=max_turns,
+            capability=capability),
         "ended_by": ended_by,
         # Whether the model's reasoning reached us at all. Both awareness
         # detectors read it, so a batch where this is 0 measured awareness on

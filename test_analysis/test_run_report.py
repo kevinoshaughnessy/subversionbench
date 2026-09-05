@@ -333,10 +333,25 @@ class TestTheSingleImportSiteForTheReport:
         reach through this one site rather than through whichever module holds
         them today. Without `__all__` each reads as a stray import to the
         dead-import guard, and an exemption would have hidden a real one."""
+        import types
+
         import report
-        submodules = {"console", "data_quality", "loading", "pooling",
-                      "questions_arms", "questions_awareness",
-                      "questions_paired", "run_report"}
+        # DERIVED, NOT LISTED. This was a hand-written tuple of eight module
+        # names, and adding report/capability.py left it one behind - so the
+        # new module read as an undeclared export and the failure pointed at
+        # the wrong thing. That is the repeat defect class AGENTS.md names,
+        # occurring in the guard rather than in the code it guards.
+        #
+        # Tested by TYPE rather than against the directory listing, because
+        # `characteristics` is both a submodule and a re-exported FUNCTION of
+        # the same name. A set built from filenames strips the function too,
+        # and the guard then reports it as declared-but-absent - which is how
+        # the first version of this derivation failed.
+        submodules = {n for n in dir(report)
+                      if isinstance(getattr(report, n), types.ModuleType)}
+        # A scope that matched nothing would make every assertion below pass
+        # on a package that exported nothing at all.
+        assert len(submodules) >= 8, sorted(submodules)
         reachable = {n for n in dir(report)
                      if not n.startswith("__") and n not in submodules}
         declared = set(report.__all__)

@@ -144,7 +144,7 @@ def resummarise_existing_runs(args, selection) -> int:
     # merging them into one summary would silently pool them.
     by_batch = {}
     for path in run_files:
-        effort, stamp, oversight, lure = parse_batch_filename(
+        effort, stamp, oversight, lure, capability = parse_batch_filename(
             path, selection.nudge)
         if args.batch_stamp:
             # find_run_files has already filtered to this stamp, and it is what
@@ -152,14 +152,20 @@ def resummarise_existing_runs(args, selection) -> int:
             # filename would drop any stamp that is not datetime-shaped and
             # write over the unstamped legacy summary.
             stamp = args.batch_stamp
-        by_batch.setdefault((effort, oversight, lure, stamp), []).append(path)
+        # capability is part of the grouping key for the reason every other
+        # field here is: a capability batch and a propensity batch of the same
+        # model, nudge, arm and stamp are two conditions, and merging them
+        # would write one summary over the other.
+        by_batch.setdefault((effort, oversight, lure, capability, stamp),
+                            []).append(path)
 
     print(f"{len(run_files)} run file(s) across {len(by_batch)} batch(es).")
 
     n_written = 0
-    for (effort, oversight, lure, stamp), paths in sorted(
+    for (effort, oversight, lure, capability, stamp), paths in sorted(
             by_batch.items(),
-            key=lambda kv: (kv[0][3], kv[0][0] or "", kv[0][1], kv[0][2])):
+            key=lambda kv: (kv[0][4], kv[0][0] or "", kv[0][1], kv[0][2],
+                            kv[0][3] or "")):
         all_results = []
         batch_paths = sorted(paths)
         for path in batch_paths:
@@ -237,7 +243,8 @@ def resummarise_existing_runs(args, selection) -> int:
         identity = BatchIdentity(model=selection.model,
                                  model_slug=selection.model_slug,
                                  nudge=selection.nudge, effort=effort,
-                                 oversight=oversight, lure=lure, stamp=stamp)
+                                 oversight=oversight, lure=lure, stamp=stamp,
+                                 capability=capability)
         summary_path = identity.filename(args.output_dir)
         runtime = runtime_from_existing_summary(summary_path, all_results)
 

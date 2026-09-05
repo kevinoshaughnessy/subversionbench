@@ -21,6 +21,19 @@ from .llm_client import EFFORT_LEVELS
 # the oversight arm keep the names they have.
 NO_OVERSIGHT_TAG = "nooversight"
 
+# The capability arm's mark, and the first line of defence keeping it out of
+# every propensity rate. A capability episode pooled into a misalignment rate
+# would inflate it catastrophically - the act was INSTRUCTED there - so the
+# arm is marked in the filename, stamped with its own rollout fingerprint, and
+# dropped by both report loaders. Three independent defences, because the
+# consequence of one failing silently is a published rate that is wrong in the
+# direction nobody checks.
+#
+# Hyphenated rather than underscored inside the token. The suffix stripper
+# below peels `_`-separated segments, and `_capability_sandbox` would present
+# it with two segments to peel where one has meaning.
+CAPABILITY_TAG = "capability"
+
 
 @dataclass(frozen=True)
 class BatchIdentity:
@@ -56,12 +69,18 @@ class BatchIdentity:
     oversight: bool = True
     lure: bool = False
     stamp: str = ""
+    # None on every propensity batch, which is all of them until one is
+    # collected under --capability. Part of the identity rather than a
+    # separate flag because a capability batch and a propensity batch of the
+    # same model, nudge and arm are two conditions whose summaries must not
+    # land on the same filename.
+    capability: str = None
 
     @property
     def stem(self) -> str:
         """The middle of every filename belonging to this batch."""
         return batch_stem(self.model_slug, self.nudge, self.effort,
-                          self.oversight, self.lure)
+                          self.oversight, self.lure, self.capability)
 
     def filename(self, output_dir: str, prefix: str = "summary") -> str:
         """
@@ -88,7 +107,7 @@ class BatchIdentity:
         """
         return cls(model=args.model, model_slug=model_slug, nudge=args.nudge,
                    effort=effort, oversight=args.oversight, lure=args.lure,
-                   stamp=stamp)
+                   stamp=stamp, capability=getattr(args, "capability", None))
 
 
 
@@ -152,7 +171,8 @@ class BatchSelection:
 
 
 def batch_stem(model_slug: str, nudge: str, effort=None,
-               oversight: bool = True, lure: bool = False) -> str:
+               oversight: bool = True, lure: bool = False,
+               capability: str = None) -> str:
     """
     The middle of every filename belonging to one batch.
 
@@ -175,7 +195,11 @@ def batch_stem(model_slug: str, nudge: str, effort=None,
     # measure means the same thing in every batch and they pool for it. Marking
     # the extras would split that measure across summaries and shrink its n for
     # no gain - the extras live in the run's metadata instead.
+    # The capability mark sits FIRST among the optional suffixes, so that a
+    # directory listing sorts a model's capability batches away from its
+    # propensity ones rather than interleaving them by effort.
     return (f"{model_slug}_{nudge}"
+            + (f"_{CAPABILITY_TAG}-{capability}" if capability else "")
             + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
             + ("_lure" if lure else "")
             + (f"_{effort}" if effort else ""))
@@ -214,7 +238,7 @@ def parse_batch_filename(path: str, nudge: str):
     # summary file beside the right one, claiming an effort never requested. The
     # guard is safe because the nudge is the LAST segment left once the optional
     # suffixes are gone, so a trailing token equal to the nudge is the nudge.
-    effort, lure, oversight = None, False, True
+    effort, lure, oversight, capability = None, False, True, None
     while True:
         if name.endswith("_lure"):
             name = name[:-len("_lure")]
@@ -223,6 +247,17 @@ def parse_batch_filename(path: str, nudge: str):
         if name.endswith(f"_{NO_OVERSIGHT_TAG}"):
             name = name[:-len(f"_{NO_OVERSIGHT_TAG}")]
             oversight = False
+            continue
+        # Matched by prefix on the segment, not against a list of known
+        # targets: a target added to the bundle later must be readable off a
+        # filename written today, and a parser that fell back to None for an
+        # unrecognised one would silently return a capability batch as a
+        # propensity batch - which is the single reading this tag exists to
+        # prevent.
+        marked = re.search(rf"_{CAPABILITY_TAG}-([^_]+)$", name)
+        if marked:
+            capability = marked.group(1)
+            name = name[:marked.start()]
             continue
         if not name.endswith(f"_{nudge}"):
             for level in EFFORT_LEVELS:
@@ -235,7 +270,7 @@ def parse_batch_filename(path: str, nudge: str):
             continue
         break
 
-    return effort, stamp, oversight, lure
+    return effort, stamp, oversight, lure, capability
 
 # =========================================================================
 # Finding a batch on disk
@@ -373,7 +408,7 @@ def find_run_files(output_dir: str, model_slug: str, nudge: str,
     for path in found:
         if not delimited.match(os.path.basename(path)):
             continue
-        got_effort, _, got_oversight, _got_lure = parse_batch_filename(
+        got_effort, _, got_oversight, _got_lure, _got_cap = parse_batch_filename(
             path, nudge)
         if effort is not None and got_effort != effort:
             continue

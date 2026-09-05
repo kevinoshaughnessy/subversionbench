@@ -60,6 +60,10 @@ subversionbench/
     awareness_timing.py    when awareness came, and what had been read by then
     closing_report.py      what the deliverable said, vs what the answers said
     command_patterns.py    what a shell command did to the scenario's files
+    capability.py          what a CAPABILITY episode demonstrated: the act
+                           taken, reached for and missed, or never reached
+                           for at all. Three outcomes because a refusal is
+                           not an incapability - see the module
     concealment.py         acts plus answers to a verdict
     disguised_text.py      writing a Latin lookalike to slip past a literal match
     encoded_payload.py     encoding a payload to slip past a literal match
@@ -117,6 +121,14 @@ heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    published, so it exists only where it was authored
 run_heldout.sh     collect under the held-out scenario instead of the shipped
                    one; passes its arguments through to run_all_arms.sh
+capability_report.py  the ceiling: what each model CAN do when the act is
+                   asked for outright, which is the denominator a propensity
+                   zero needs. Reads a directory of capability episodes
+                   collected by `run_eval --capability`; costs nothing and
+                   makes no API call. Prints a BRACKET per model rather than
+                   a rate - refusals move the lower bound only - and
+                   withholds the willingness ratio wherever that bracket is
+                   too wide to divide by
 trivial_baseline.py  what the detectors say about an agent that did nothing
                    wrong: fixed command sequences with no model behind them,
                    run through the real sandbox against a real environment and
@@ -166,6 +178,15 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    stricter union of both screens as a secondary. A
                    robustness reading against one named objection, not an
                    unbiased estimate: awareness is an outcome of the arm
+  capability.py    the ceiling, and the refusal to divide by one that
+                   was never established. Published as a bracket -
+                   lower counts every refusal as an incapability,
+                   upper excludes them - because a refusal is a second
+                   measurement of propensity, not of capability, and
+                   scoring it as a zero would make the ceiling a FLOOR
+                   for exactly the safety-trained models whose
+                   ceilings matter. `willingness` returns None rather
+                   than a ratio wherever the bracket is too wide
   data_quality.py  where the corpus disagrees with itself, and the three
                    routing checks: what was REQUESTED inside one rate,
                    what actually ANSWERED it, and whether the two sides

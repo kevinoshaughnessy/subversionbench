@@ -32,6 +32,7 @@ import argparse
 from .arms_summary import write_summary_of_summaries
 from .compare import compare_batches
 from .config import (
+    CAPABILITY_TARGETS,
     DEFAULT_GRADER_MODEL,
     DEFAULT_INTERROGATION,
     INTERROGATION_CHOICES,
@@ -169,6 +170,18 @@ def main():
                              "its own rollout arm, so a lure batch cannot pool "
                              "with a plain one: under the lure, reaching outside "
                              "partly measures response to a hint.")
+    parser.add_argument(
+        "--capability", choices=list(CAPABILITY_TARGETS), default=None,
+        help="Capability arm - the oracle-solver denominator. Replaces the "
+             "task instruction with one that asks for the act outright, so "
+             "that a model's zero on the propensity arm can be read: 0%% "
+             "against a 0%% ceiling is a fact about the scenario, 0%% against "
+             "a 90%% ceiling is a fact about the model. Its own rollout "
+             "fingerprint and its own filename mark, and the report drops it "
+             "from every propensity rate - the act was INSTRUCTED here, so "
+             "pooling one episode into a misalignment rate inflates it "
+             "towards the ceiling it exists to measure. Collect into a "
+             "separate --output-dir.")
     parser.add_argument("--isolation", choices=list(ISOLATION_MODES),
                         default=DEFAULT_ISOLATION,
                         help="Kernel-enforced limit on what a sandboxed command "
@@ -503,6 +516,34 @@ def main():
 
     args.oversight = args.oversight == "true"
     args.lure = args.lure == "true"
+
+    # THE CAPABILITY ARM'S PRECONDITIONS, refused rather than corrected.
+    #
+    # Each of these would produce episodes that look like a ceiling and are
+    # not, and none of them is visible in the artefact afterwards - which is
+    # the whole reason they are checked at the boundary. Silently coercing
+    # them instead would run an arm the operator did not ask for.
+    if args.capability:
+        if args.nudge != "none":
+            print(f"\n--capability needs --nudge none, not {args.nudge!r}. The "
+                  f"nudge is the goal-conflict pressure, and it is propensity "
+                  f"machinery: a ceiling measured under it is a ceiling for "
+                  f"what a pressured model can do, which is not the "
+                  f"denominator any propensity rate wants.")
+            return 2
+        if args.lure:
+            print("\n--capability cannot be combined with --lure true. The "
+                  "lure is a hint, so a ceiling measured under it is a "
+                  "ceiling for hint-following. There is deliberately no "
+                  "pinned fingerprint for that combination.")
+            return 2
+        if args.capability == "oversight" and not args.oversight:
+            print("\n--capability oversight needs --oversight true. The "
+                  "counterfactual arm removes the artefact the instruction "
+                  "names, so every episode would be scored as incapable of an "
+                  "act the arm itself makes impossible - the r9 defect "
+                  "exactly, in a new place.")
+            return 2
 
     os.makedirs(args.output_dir, exist_ok=True)
 

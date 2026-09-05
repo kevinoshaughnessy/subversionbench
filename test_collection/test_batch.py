@@ -74,7 +74,8 @@ class TestTheNamingRoundTrips:
                         stamp="20260101T000000")
                     path = identity.filename("/out", "run_1")
                     got = parse_batch_filename(path, "strong")
-                    assert got == (effort, "20260101T000000", oversight, lure), (
+                    assert got == (effort, "20260101T000000", oversight, lure,
+                                   None), (
                         f"{path} parsed back as {got}")
 
     def test_the_stamp_is_always_last(self):
@@ -265,22 +266,22 @@ class TestEffortInFilenames:
         before the stamp."""
         assert ev_run.parse_batch_filename(
             "run_1_some-model-max_strong_20260731T010203.json", "strong"
-        ) == (None, "20260731T010203", True, False)
+        ) == (None, "20260731T010203", True, False, None)
 
     def test_the_arm_and_the_level_compose(self):
         assert ev_run.parse_batch_filename(
             "run_1_m_strong_nooversight_high_20260731T010203.json", "strong"
-        ) == ("high", "20260731T010203", False, False)
+        ) == ("high", "20260731T010203", False, False, None)
 
     def test_the_arm_the_lure_and_the_level_all_compose(self):
         """Four optional suffixes now, stripped in any order. A fixed sequence
         broke the moment a new one landed between two existing ones."""
         assert ev_run.parse_batch_filename(
             "run_1_m_max_nooversight_lure_high_20260731T010203.json", "max"
-        ) == ("high", "20260731T010203", False, True)
+        ) == ("high", "20260731T010203", False, True, None)
         assert ev_run.parse_batch_filename(
             "run_1_m_strong_lure_20260731T010203.json", "strong"
-        ) == (None, "20260731T010203", True, True)
+        ) == (None, "20260731T010203", True, True, None)
 
     def _write(self, out, name):
         Path(f"{out}/{name}").write_text(json.dumps(
@@ -397,7 +398,7 @@ class TestBatchIdentityInTheOversightArm:
         assert stem == "m_strong_nooversight_high"
         assert ev_run.parse_batch_filename(
             f"run_1_{stem}_20260802T000000.json", "strong"
-        ) == ("high", "20260802T000000", False, False)
+        ) == ("high", "20260802T000000", False, False, None)
 
     def test_the_arms_cannot_be_pooled_by_discovery(self):
         from pathlib import Path
@@ -439,7 +440,7 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
 
     def test_a_max_nudge_batch_has_no_effort(self):
         from subversionbench.batch import parse_batch_filename
-        effort, stamp, oversight, _lure = parse_batch_filename(
+        effort, stamp, oversight, _lure, _cap = parse_batch_filename(
             "run_1_x-ai_grok-4.5_max_20260805T155405.json", "max")
         assert effort is None
         assert stamp == "20260805T155405"
@@ -460,13 +461,13 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
     def test_the_summary_name_does_not_double_the_nudge(self):
         """The visible symptom: `<model>_max_max`."""
         import subversionbench.run_eval as ev_run
-        effort, _, oversight, _lure = ev_run.parse_batch_filename(
+        effort, _, oversight, _lure, _cap = ev_run.parse_batch_filename(
             "run_1_m_max_20260805T155405.json", "max")
         assert ev_run.batch_stem("m", "max", effort, oversight) == "m_max"
 
     def test_the_counterfactual_arm_survives_the_fix(self):
         from subversionbench.batch import parse_batch_filename
         for nudge in ("strong", "max"):
-            _, _, oversight, _lure = parse_batch_filename(
+            _, _, oversight, _lure, _cap = parse_batch_filename(
                 f"run_1_m_{nudge}_nooversight_20260805T155405.json", nudge)
             assert oversight is False, nudge

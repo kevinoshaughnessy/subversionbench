@@ -177,7 +177,8 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
-            yes=False, openrouter_sort=None, openrouter_provider=None)
+            yes=False, openrouter_sort=None, openrouter_provider=None,
+            capability=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -256,7 +257,8 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
-            yes=False, openrouter_sort=None, openrouter_provider=None)
+            yes=False, openrouter_sort=None, openrouter_provider=None,
+            capability=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -669,7 +671,8 @@ class TestTheConcurrentLoopEndsEarly:
             resume=None, max_consecutive_failures=3, thinking_budget=None,
             concurrency=concurrency, interrogations=("default",),
             write_back=False, batch_stamp=None, yes=False,
-            openrouter_sort=None, openrouter_provider=None)
+            openrouter_sort=None, openrouter_provider=None,
+            capability=None)
 
     def _episode(self, with_auth_error, sleep=0.0):
         """A run_evaluation stand-in: one saved episode, optionally carrying
