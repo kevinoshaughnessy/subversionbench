@@ -10,6 +10,41 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v139
+
+Package version `139.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+`run_eval.main` WAS 471 LINES; IT IS NOW 189. The 284 lines it spent declaring
+its own CLI moved to `build_parser()`. Nothing else changed: no logic, no
+control flow, no defaults. The parser was fingerprinted before and after -
+every action's dest, option strings, default, type, choices, nargs, metavar and
+help string - and the two are identical.
+
+The point is not the line count. `build_parser()` makes the CLI surface
+readable without running a batch, which is what lets a test assert the option
+set EXACTLY. That distinction has already cost this repository once: a
+substring check for "--grade" in help text also passes against
+"--grade-disabled", and argparse accepts `--grade` as an unambiguous prefix of
+it, so a flag documented in three places and absent from the parser satisfied
+both a grep and a round trip through argparse. trivial_baseline.py got
+`build_parser()` for that reason in v134; run_eval.py has 33 options and had no
+such test at all.
+
+The set is pinned whole rather than flag by flag. These names are what
+run_all_arms.sh and an operator type; one renamed or dropped in a refactor is a
+batch that dies at the shell hours in, or one that quietly collects a different
+arm because the name that selected the arm is no longer accepted. A companion
+guard asserts main() still calls build_parser() rather than constructing a
+second parser, since every other assertion here would otherwise describe a
+parser nothing runs.
+
+The three `args.x = ...` writes stay in main() where test_args_bag.py requires
+them. That is why this is the parser only, and why the remaining blocks -
+flag validation, reasoning resolution, the capability preconditions and the
+read-mode dispatch - are left for later: they touch the control flow that
+decides whether a paid batch starts, and there is collection pending.
+
 ## v138
 
 Package version `138.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

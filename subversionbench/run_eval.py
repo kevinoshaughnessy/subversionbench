@@ -143,7 +143,17 @@ __all__ = [
 _wilson_ci = wilson_ci
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
+    """The CLI, built where a test can read its option strings.
+
+    SEPARATE FROM main() so the options can be asserted EXACTLY rather than by
+    grepping --help. The distinction is not academic: a substring check for
+    "--grade" in help text also passes against "--grade-disabled", and argparse
+    accepts `--grade` as an unambiguous prefix of it, so a flag documented in
+    three places and absent from the parser satisfied both checks at once in
+    trivial_baseline.py. Same parser, same options, and now reachable without
+    running a batch.
+    """
     parser = argparse.ArgumentParser(
         description=f"Run SubversionBench {VERSION}"
     )
@@ -427,6 +437,11 @@ def main():
                              "or fastest one (what --openrouter-sort would "
                              "pick) is the broken one. Ignored (with no "
                              "error) for a non-OpenRouter model.")
+    return parser
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
 
     try:

@@ -448,3 +448,77 @@ class TestTheModuleStaysACli:
             if name.startswith("_") or inspect.ismodule(value):
                 continue
             assert value is not None or name in ("__doc__",), name
+
+
+class TestTheParserIsReadableWithoutRunningABatch:
+    """build_parser() exists so the CLI surface can be asserted exactly.
+
+    WHY EXACTLY, AND NOT BY GREPPING --help. A substring check for "--grade" in
+    help text also passes against "--grade-disabled", and argparse accepts
+    `--grade` as an unambiguous prefix of it - so in trivial_baseline.py a flag
+    that was documented in three places and absent from the parser satisfied
+    both a grep and a round trip through argparse. Neither can tell a
+    documented flag from a longer one that merely starts the same way. The
+    option strings can, which is the whole reason this parser is reachable
+    without running main().
+
+    The set is pinned WHOLE rather than one flag at a time. A collection run is
+    driven by these names from run_all_arms.sh and by hand; a flag renamed or
+    dropped in a refactor is a batch that fails at the shell, hours in, or -
+    worse - one that silently collects a different arm because the name it no
+    longer accepts was the one selecting the arm.
+    """
+
+    EXPECTED = {
+        "--batch-stamp", "--capability", "--compare", "--concurrency",
+        "--delay", "--effort", "--grade-existing", "--grader-model",
+        "--interrogation", "--isolation", "--lure", "--max-consecutive-failures",
+        "--max-tokens", "--max-turns", "--model", "--no-grader", "--no-power",
+        "--nudge", "--openrouter-provider", "--openrouter-sort", "--output-dir",
+        "--oversight", "--reclassify", "--reinterrogate", "--resume",
+        "--resummarise", "--resummarize", "--runs", "--summarise-arms",
+        "--summarize-arms", "--thinking-budget", "--write-back", "--yes",
+        "-h", "--help",
+    }
+
+    def test_every_option_is_the_set_that_was_shipped(self):
+        got = {opt for a in ev_run.build_parser()._actions
+               for opt in a.option_strings}
+        assert got == self.EXPECTED, (
+            f"added: {sorted(got - self.EXPECTED)}  "
+            f"removed: {sorted(self.EXPECTED - got)}")
+
+    def test_building_the_parser_neither_prints_nor_spends(self):
+        """It is called by the test above and by --help, so it must be inert:
+        no API client, no output directory, no console output."""
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            ev_run.build_parser()
+        assert out.getvalue() == "" and err.getvalue() == ""
+
+    def test_main_uses_that_parser_rather_than_building_its_own(self):
+        """The extraction is only worth anything while the parser under test is
+        the parser the batch runs. A second argparse.ArgumentParser constructed
+        inside main would make every assertion above describe a parser nothing
+        uses."""
+        import ast
+        import inspect
+        tree = ast.parse(inspect.getsource(ev_run.main))
+        built = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute)
+                 and n.func.attr == "ArgumentParser"]
+        assert not built, "main() builds its own parser again"
+        calls = {n.func.id for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+        assert "build_parser" in calls, sorted(calls)
+
+    def test_the_arm_selecting_flags_keep_their_choices(self):
+        """These four decide which arm is collected. A changed choice list
+        silently redirects a batch rather than failing it."""
+        actions = {a.dest: a for a in ev_run.build_parser()._actions}
+        assert sorted(actions["oversight"].choices) == ["false", "true"]
+        assert sorted(actions["lure"].choices) == ["false", "true"]
+        assert sorted(actions["nudge"].choices) == ["all", "max", "none",
+                                                    "strong"]
+        assert sorted(actions["capability"].choices) == ["oversight", "sandbox"]
