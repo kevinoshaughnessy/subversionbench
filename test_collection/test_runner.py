@@ -820,3 +820,48 @@ class TestTheConcurrentLoopEndsEarly:
             runs=8, concurrency=2, interrupt_once_running=True)
         assert "Interrupted by user" in output
         assert n_calls == 2, f"{n_calls} episodes ran after the interrupt"
+
+
+class TestThePerThreadStdoutBehavesLikeAStream:
+    """The two methods that exist so this can stand in for sys.stdout.
+
+    Neither was exercised by the suite. They are one line each, which is
+    exactly why: a one-line method looks too obvious to test, and both of
+    these are obvious in a way that is wrong if reversed.
+    """
+
+    def _tee(self):
+        import subversionbench.runner as ev_runner
+        return ev_runner._PerThreadStdout(io.StringIO())
+
+    def test_it_never_claims_to_be_a_terminal(self):
+        """A library that believes it is writing to a tty emits ANSI cursor
+        moves and progress bars. Those would go into a worker's buffer and be
+        flushed as one block at the end of the episode, so the terminal would
+        replay a progress animation into scrollback after the fact."""
+        assert self._tee().isatty() is False
+
+    def test_flush_reaches_the_real_stream(self):
+        """The buffers are flushed by pop(); flush() is about the underlying
+        stream, and a flush that stopped at the wrapper would strand output
+        that was written straight through by an unregistered thread."""
+        import subversionbench.runner as ev_runner
+
+        flushed = []
+
+        class _Real(io.StringIO):
+            def flush(self):
+                flushed.append(True)
+
+        ev_runner._PerThreadStdout(_Real()).flush()
+        assert flushed == [True]
+
+    def test_an_unregistered_thread_writes_straight_through(self):
+        """The property flush() has to preserve: the scheduler itself never
+        registers, so its run headers must reach the terminal rather than a
+        buffer nothing pops."""
+        real = io.StringIO()
+        import subversionbench.runner as ev_runner
+        tee = ev_runner._PerThreadStdout(real)
+        tee.write("header")
+        assert real.getvalue() == "header"

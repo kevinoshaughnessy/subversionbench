@@ -25,6 +25,7 @@ test_scenario.py's positive control uses, and for the same reason: a guard that
 names what it is protecting is the leak it was written to prevent.
 """
 
+import io
 import json
 import os
 import re
@@ -816,3 +817,162 @@ class TestZipShNeverArchivesTheHeldOutCorpus:
         assert set(result.stdout.split()) == expected, (
             f"zip.sh derives {sorted(set(result.stdout.split()))} from the "
             f"sidecar but it declares {sorted(expected)}")
+
+
+class TestTheFingerprintSidecar:
+    """heldout_tool's pin helpers, neither previously executed by the suite.
+
+    The sidecar is what lets a held-out results directory be identified from a
+    fingerprint alone. Getting it wrong is not loud: a batch collected against
+    a bundle whose pins were silently dropped still runs, and the arm it
+    claims cannot be checked afterwards.
+    """
+
+    def _redirect(self, tmp):
+        """Point the tool at a scratch sidecar, returning a restore callable."""
+        import heldout_tool as ht
+        real = ht.PINS_PATH
+        ht.PINS_PATH = tmp
+        return lambda: setattr(ht, "PINS_PATH", real)
+
+    def test_an_absent_sidecar_reads_as_no_pins(self):
+        """Not an error: the first pinning run has nothing to read, and a
+        raise here would make bootstrapping a new bundle impossible."""
+        import heldout_tool as ht
+        restore = self._redirect(Path(tempfile.mkdtemp()) / "absent.json")
+        try:
+            assert ht._pinned() == {}
+        finally:
+            restore()
+
+    def test_pins_round_trip_through_the_sidecar(self):
+        """_write_pins then _pinned must agree, or a drift guard compares a
+        fingerprint against a differently-keyed copy of itself."""
+        import heldout_tool as ht
+        tmp = Path(tempfile.mkdtemp()) / "pins.json"
+        restore = self._redirect(tmp)
+        try:
+            pins = {(True, False): "aaaaaaaaaaaa", (False, True): "bbbbbbbbbbbb"}
+            ht._write_pins(pins)
+            assert ht._pinned() == pins
+        finally:
+            restore()
+
+    def test_superseded_fingerprints_are_kept_not_overwritten(self):
+        """The practice rollout_pins.py applies to r1-r8. A sidecar that
+        forgot the previous rollout's values would leave an archived results
+        directory unidentifiable from its fingerprints alone."""
+        import heldout_tool as ht
+        tmp = Path(tempfile.mkdtemp()) / "pins.json"
+        restore = self._redirect(tmp)
+        try:
+            # A sidecar that ALREADY carries history, so this covers both
+            # halves: the outgoing rollout is appended, and what was already
+            # superseded is carried forward. Seeding an empty history hid a
+            # `history = []` from this test entirely - the append still ran,
+            # so the count was still one and the plant passed.
+            tmp.write_text(json.dumps({
+                "rollout_version": "r-previous",
+                "fingerprints": [{"oversight": True, "lure": False,
+                                  "fingerprint": "oldoldoldold"}],
+                "superseded": [{"rollout_version": "r-ancient",
+                                "fingerprints": [{"oversight": True,
+                                                  "lure": False,
+                                                  "fingerprint": "ancientaaaa"}]}],
+            }), encoding="utf-8")
+            ht._write_pins({(True, False): "newnewnewnew"})
+            written = json.loads(tmp.read_text(encoding="utf-8"))
+            assert written["rollout_version"] == ht.ROLLOUT_VERSION
+            assert written["fingerprints"][0]["fingerprint"] == "newnewnewnew"
+            history = written["superseded"]
+            assert len(history) == 2, history
+            versions = [h["rollout_version"] for h in history]
+            assert versions == ["r-ancient", "r-previous"], versions
+            assert (history[-1]["fingerprints"][0]["fingerprint"]
+                    == "oldoldoldold")
+            assert (history[0]["fingerprints"][0]["fingerprint"]
+                    == "ancientaaaa")
+        finally:
+            restore()
+
+    def test_rewriting_the_same_rollout_does_not_grow_the_history(self):
+        """Re-pinning the CURRENT rollout is a correction, not a supersession.
+        Recording it would fill the sidecar with copies of one rollout and
+        bury the entry that identifies an older corpus."""
+        import heldout_tool as ht
+        tmp = Path(tempfile.mkdtemp()) / "pins.json"
+        restore = self._redirect(tmp)
+        try:
+            ht._write_pins({(True, False): "firstfirstaa"})
+            ht._write_pins({(True, False): "secondsecond"})
+            written = json.loads(tmp.read_text(encoding="utf-8"))
+            assert written["superseded"] == [], written["superseded"]
+            assert ht._pinned() == {(True, False): "secondsecond"}
+        finally:
+            restore()
+
+
+class TestTheToolsTwoSubprocessBoundaries:
+    """load_heldout and _invariants_hold: one reads a path, one reads an exit
+    code, and both were unexecuted by the suite.
+
+    Neither fails loudly if it is wrong. A load_heldout that ignored its
+    argument would silently pin the SHIPPED scenario's fingerprints onto the
+    held-out sidecar. An _invariants_hold with its sense inverted would accept
+    a bundle whose invariants had just failed - and the whole point of that
+    function is that the assertions live in one file rather than being
+    reimplemented beside the bundle.
+    """
+
+    def test_load_heldout_reads_the_path_it_is_given(self):
+        """Not always BUNDLE_PATH. The default is the shipped location, so an
+        ignored argument is the difference between pinning the held-out bundle
+        and pinning the wrong one."""
+        import heldout_tool as ht
+        seen = {}
+        real = ht.decrypt
+        try:
+            def _decrypt(text):
+                seen["text"] = text
+                return {"ok": 1}
+            ht.decrypt = _decrypt
+            tmp = Path(tempfile.mkdtemp()) / "b.enc"
+            tmp.write_text("CIPHERTEXT", encoding="utf-8")
+            assert ht.load_heldout(tmp) == {"ok": 1}
+            assert seen["text"] == "CIPHERTEXT"
+        finally:
+            ht.decrypt = real
+
+    def test_the_invariants_verdict_follows_the_exit_code(self):
+        import contextlib
+        import types
+
+        import heldout_tool as ht
+        real = ht.subprocess.run
+        try:
+            for code, expected in ((0, True), (1, False), (5, False)):
+                ht.subprocess.run = (
+                    lambda *a, _c=code, **k: types.SimpleNamespace(
+                        returncode=_c, stdout="1 passed", stderr=""))
+                with contextlib.redirect_stdout(io.StringIO()):
+                    assert ht._invariants_hold() is expected, code
+        finally:
+            ht.subprocess.run = real
+
+    def test_it_says_what_pytest_said(self):
+        """The operator is being asked to trust a pass. A silent True is the
+        same output as a broken check."""
+        import contextlib
+        import types
+
+        import heldout_tool as ht
+        real = ht.subprocess.run
+        try:
+            ht.subprocess.run = lambda *a, **k: types.SimpleNamespace(
+                returncode=0, stdout="49 passed in 1.80s", stderr="")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                ht._invariants_hold()
+            assert "49 passed" in out.getvalue()
+        finally:
+            ht.subprocess.run = real
