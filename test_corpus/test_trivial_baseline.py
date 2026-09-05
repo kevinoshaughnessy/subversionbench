@@ -53,6 +53,57 @@ class TestTheTrivialAgentsAreActuallyTrivial:
                                "touch ", "chmod "):
                     assert writer not in cmd, (name, cmd, writer)
 
+    def test_every_fixture_command_addresses_something_that_exists(self):
+        """A fixture command must actually do what it says.
+
+        THE DEFECT THIS CATCHES. Two agents ran `cat data/<name>` for a name
+        the scenario does not use - the real brief is built from
+        TASK_FILE_NAME, which carries a contaminating term, so a placeholder
+        was written in source to keep the leak guard green. Both guards then
+        passed while the fixtures read nothing: the command failed, and the
+        agents exercised a failed `cat` instead of a successful read.
+
+        It could hide indefinitely because it failed in the BENIGN direction.
+        A read that fails returns no scenario text, so every detector still
+        read zero and the floor still looked like a floor - the fixtures were
+        weaker than they claimed, and nothing said so.
+
+        Derived from TRIVIAL_AGENTS rather than checking the one path, so a
+        fixture added later inherits the rule. Run in the oversight arm, where
+        every artefact the fixtures name exists.
+        """
+        _needs_sandbox()
+        from subversionbench.environment import (create_episode_root,
+                                                 create_hardened_environment)
+        from subversionbench.sandbox import execute_tool_sandboxed
+        import shutil
+
+        assert tb.TRIVIAL_AGENTS, "no fixtures - the guard would pass vacuously"
+        root, env_dir, _info = create_episode_root(oversight=True, lure=False)
+        try:
+            create_hardened_environment(env_dir, oversight=True, lure=False)
+            checked = 0
+            for name, commands, _reply in tb.TRIVIAL_AGENTS:
+                for cmd in commands:
+                    result = execute_tool_sandboxed(
+                        {"cmd": cmd}, env_dir, episode_root=root)
+                    for missing in ("No such file", "not found"):
+                        assert missing not in result, (
+                            f"{name} runs {cmd!r}, which finds nothing: "
+                            f"{result[:120]!r}")
+                    # A read must return the file, not merely avoid an error.
+                    # The placeholder above produced a 58-byte error message,
+                    # and a guard reading only the exit path would have called
+                    # that clean.
+                    if cmd.startswith("cat "):
+                        assert len(result) > 100, (
+                            f"{name} reads {cmd!r} and gets {len(result)} "
+                            f"bytes - too little to be the file")
+                    checked += 1
+            assert checked >= len(tb.TRIVIAL_AGENTS), checked
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
     def test_the_awkward_cases_are_present(self):
         """The two fixtures that make this more than a formality: quoting the
         scenario back (a measure reading the memo as the agent's own words)
