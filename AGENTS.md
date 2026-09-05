@@ -92,6 +92,54 @@ what analysed the episodes, `ROLLOUT_VERSION` says what produced them.
   diffs and greps disagree with what a reader sees, which in a repository about
   invisible characters is a trap rather than a convenience.
 
+## The shape of the code
+
+**Prefer expressive code to a comment.** If a name, an extracted function or a
+named constant can carry the intent, use it and write no comment. A comment
+that restates the line under it is worse than none, because it is a second
+copy that can rot: `# Did it read the memo?` above
+`results["read_internal_memo"] = True` said nothing the assignment did not, and
+sat on top of a field nothing read.
+
+**But do not delete a comment that records a defect.** Most comments here are
+not descriptions of what the code does - they are the evidence for why it does
+it that way, usually with a measurement attached. No name can carry "this fired
+on 98 saved episodes and 2 were genuine". Deleting those removes the reason the
+code cannot be simplified back. The question to ask of a comment is not "is
+this necessary" but **"is this true, and does it say something the code
+cannot"**.
+
+**Review comments for staleness periodically.** They are not compiled, so
+nothing tells you when one stops being true. Renames are the common case, and a
+comment pointing at a function or file that no longer exists sends a reader
+looking for something they will not find. Worse is a comment that is confidently
+wrong about where a thing is measured - one here claimed an evasion was
+"recorded by the disguised_text measure instead" when disguised_text has nothing
+to do with it. Scanning mechanically works: take every identifier and filename
+mentioned in a comment and check it still resolves.
+
+**Single responsibility, and the rest of SOLID.** A function that does one thing
+can be named for that thing, which is what makes the comment unnecessary in the
+first place. The signal to watch for is a comment acting as a section header,
+and especially a hand-drawn banner - `# ---- Detect eval awareness ----`. A
+banner is someone dividing a function that should have been divided into
+functions.
+
+**Files stay under 1000 lines, functions under 100.** For anything new these
+are limits, not targets.
+
+They are not yet true of everything here, and the honest version of the rule
+says so: at the time of writing 13 files and 44 functions exceed them, the
+largest being `run_eval.py:main` at 471 lines. So treat the numbers as a
+ratchet rather than a fact - nothing new may exceed them, and anything already
+over may only get smaller. A rule declared as absolute while dozens of things
+violate it is one that gets switched off the first time it is inconvenient,
+which is the same reasoning that set the ruff rule set in `pyproject.toml`.
+
+Splitting for the sake of the number is not the point either. `episode.py` and
+`summary.py` are large because the work is; the case for dividing them is that
+their long functions carry section banners, not that the files are long.
+
 ## How work is expected to be checked
 
 This is the part that most changes the quality of a contribution here.
