@@ -10,6 +10,34 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v141
+
+Package version `141.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+`load_episodes` WAS 306 LINES AND IS NOW 22. It was a single 288-line loop
+body, now `_episode_row` plus six named column builders: awareness, decision,
+per-act, rubric, honeypot and interrogation-variant. All but `_episode_row` are
+well under 100 lines; its residue is a 91-line dict literal, which is a
+declaration rather than logic.
+
+Verified against BOTH published corpora rather than by reading: the full report
+was generated from r9 and r10 before and after, and the JSON is byte-identical
+each time - 928KB and 687KB with the timestamp field removed.
+
+A guard now asserts every column FAMILY reaches the row, derived from
+MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS rather than listing column names. It
+exists because splitting a row builder makes it possible for one family to
+stop being applied with nothing raising: the report reads every column with
+.get(), so a family that is never written becomes a column of None, which
+prints as "n/a" and reads as "not applicable" rather than "not computed" -
+not-applicable-is-not-zero, inverted and invisible.
+
+The first version of that guard did not work. It asked whether each act's name
+appeared anywhere in the row, which the row literal already satisfies on its
+own, so it passed with the per-act builder removed entirely. It now asserts the
+five exact columns that builder writes, and the plant fails as it should.
+
 ## v140
 
 Package version `140.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

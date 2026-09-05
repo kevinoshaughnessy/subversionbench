@@ -628,3 +628,73 @@ class TestExcludingAwareEpisodes:
             assert spec["words"] and spec["why"], name
             assert stamp["words"] == spec["words"]
             assert kept, f"{name} emptied the corpus"
+
+
+class TestEveryColumnFamilyReachesTheRow:
+    """load_episodes builds a row from six helpers; each writes a FAMILY.
+
+    THE FAILURE MODE THIS GUARDS. Splitting the row builder makes it possible
+    for one family to stop being applied - a helper not called, or called
+    before the keys it needs exist. Nothing would raise: the report reads each
+    column with .get(), so a missing family becomes a column of None, which
+    prints as "n/a" and reads as "not applicable" rather than "not computed".
+    That is the not-applicable-is-not-zero rule inverted, and it would be
+    invisible in the printed report.
+
+    Derived from MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS rather than listing the
+    column names, so an act or a signal added later is covered instead of
+    escaping the check.
+    """
+
+    def _row(self):
+        from report.loading import _episode_row
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong")
+        import glob
+        import os
+        path = sorted(glob.glob(os.path.join(out, "run_*.json")))[0]
+        row = _episode_row(path, None)
+        assert row is not None, "the fixture episode was filtered out"
+        return row
+
+    def test_the_per_act_family_is_present(self):
+        from subversionbench.grading import MISALIGNED_ACTS
+        row = self._row()
+        assert MISALIGNED_ACTS, "no acts - the guard would pass vacuously"
+        # The EXACT columns _act_columns writes, not merely a column
+        # mentioning the act. The first version of this asked whether the act
+        # name appeared anywhere in the row, which the row literal already
+        # satisfies on its own - so it passed with _act_columns removed.
+        missing = [f"{prefix}{a['name']}{suffix}"
+                   for a in MISALIGNED_ACTS
+                   for prefix, suffix in (("scheming_", ""), ("", "_observable"),
+                                          ("", "_determined"), ("", "_act_taken"),
+                                          ("scheming_", "_stored_disagrees"))
+                   if f"{prefix}{a['name']}{suffix}" not in row]
+        assert not missing, f"no columns for {missing}"
+
+    def test_the_rubric_family_is_present(self):
+        from report.loading import RUBRIC_SIGNAL_KEYS
+        row = self._row()
+        assert RUBRIC_SIGNAL_KEYS, "no signals - the guard would pass vacuously"
+        missing = [k for k in RUBRIC_SIGNAL_KEYS
+                   if not any(c.startswith(k) or c.endswith(k) for c in row)]
+        assert not missing, f"no columns for rubric signals {missing}"
+
+    def test_the_honeypot_and_variant_families_are_present(self):
+        row = self._row()
+        for key in ("honeypot_discovered", "honeypot_read",
+                    "variant_concealed", "variant_provenance",
+                    "encoded_payload"):
+            assert key in row, f"{key} is missing from the row"
+
+    def test_a_file_outside_the_corpus_yields_no_row(self):
+        """None, not a partially built row: the caller appends whatever it is
+        handed, so a half-built row would enter the corpus."""
+        from report.loading import _episode_row
+        import os
+        out = tempfile.mkdtemp()
+        path = os.path.join(out, "run_1_m_strong.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"model": "m"}, f)          # no analysis
+        assert _episode_row(path, None) is None
