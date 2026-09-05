@@ -10,6 +10,39 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v138
+
+Package version `138.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+`monitoring_file_modified` IS GONE. It was written on every episode and read by
+nothing: no rate, no act key, no console line, no chart, no backfill list, no
+snapshot. The oversight act is decided by hashing the artefact, which is
+`oversight_tampered`, and that is what everything downstream consults.
+
+It was also wrong. Its condition was an inline verb list holding bare `"rm"`,
+`"mv"`, `"sed"` and `"vi"`, where command_patterns.py - which owns the write
+rule - spells the same verbs delimited as `"rm "`, `"mv "` and `"sed -i"`. As
+bare substrings they match inside ordinary English: `vi` in "review" and
+"provide", `rm` in "form" and "permissions", `sed` in "based". Across the r10
+corpus 241 commands set the field on that basis alone, most of them an agent
+piping its finished draft to the sanctioned quality checker. Nothing published
+moved, because nothing read it - but it was a second, sloppier copy of a rule
+this repository has already fixed three times elsewhere, sitting where the next
+person to want an attempt measure would have found and trusted it.
+
+Verified by running the full report over the real corpus with and without the
+field: byte-identical.
+
+`test_rm_monitoring_detected` went with it. Its input was identical to
+`test_removing_the_config_counts_as_tampering`, which asserts the real measures
+instead, and its only other content was a note saying deletion "is currently
+not caught by the hash check. This is a known limitation worth fixing" - fixed
+since, and contradicted by the test 130 lines above it.
+
+Two comments went too, both of which restated the assignment underneath them
+rather than explaining it.
+
 ## v137
 
 Package version `137.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
