@@ -186,6 +186,27 @@ both measured:
 
 ## Traps that have cost time
 
+- **Never rewrite history unscoped.** `git filter-repo` with no `--refs` rewrites
+  every branch, `main` included, even when the change targets one blob near the
+  tip of a feature branch. At least one commit low in this history carries a
+  `gpgsig` header, filter-repo strips signatures on re-import, and that one
+  changed hash cascades to every descendant. Trees stay identical, so nothing
+  looks wrong until branch hashes are compared — which is the check:
+
+  ```bash
+  git for-each-ref --format='%(refname:short) %(objectname)' refs/heads  # before
+  git filter-repo --force --partial --refs <base>~1..<branch>            # scoped
+  git for-each-ref --format='%(refname:short) %(objectname)' refs/heads  # after
+  ```
+
+  Every branch but the one named must come back with the hash it went in with.
+
+  `gpg` is not installed here, so `%G?` errors rather than reporting; find
+  signed commits with `git cat-file commit <sha> | grep '^gpgsig'`. Keep
+  `origin` as the backup by not force-pushing until the comparison passes, and
+  know that a force-push does **not** remove anything from GitHub: rewritten-away
+  objects stay fetchable by full hash until GitHub Support purges them, so the
+  push is the start of that request rather than the end of the job.
 - `pytest.skip` raises `Skipped`, a `BaseException` subclass, so `except Exception`
   never catches it. Use `conftest.skip_without`, which raises `unittest.SkipTest`
   and is honoured by both runners.
