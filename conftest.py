@@ -32,7 +32,7 @@ import subversionbench as ev
 #
 # So the suite supplies placeholders rather than bypassing the check, which keeps
 # the check itself exercised. A test that wants the refusal unsets them - see
-# test_credential_preflight.py.
+# test_providers/test_openai_client.py and test_openrouter_client.py.
 def _placeholder_credentials():
     for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"):
         os.environ.setdefault(var, f"placeholder-for-tests-{var.lower()}")

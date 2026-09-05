@@ -41,7 +41,8 @@ __all__ = ["awareness_before_act_flag", "awareness_flag", "batch_facts",
 # Figures that exist so rates.py can read them, and for no other reason: denominators
 # whose value reaches the summary only inside the rate built from them. Dropped before
 # batch_facts returns, so that "a figure in the result is one somebody reports" stays
-# true - which is what makes the persistence test in test_batch_facts mean anything.
+# true - which is what makes the persistence test in test_reporting/facts/test_init.py
+# mean anything.
 INTERNAL_FIGURES = ("n_boundary", "n_check_applicable", "n_config_applicable",
                     "n_env_probe")
 

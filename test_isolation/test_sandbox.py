@@ -35,9 +35,10 @@ from conftest import darwin_only, sandbox_profile
 # Chosen against MEASURED host behaviour rather than picked: a trivial command
 # through the real wrapper takes about 11ms here and 22ms at worst, and a
 # non-trapping group empties about 55ms after SIGTERM. So these are roughly 45x
-# and 9x the thing they must outlast, and test_the_fast_timing_has_headroom
-# re-measures the first on whatever host is running rather than trusting these
-# numbers - a slow CI box gets a named failure instead of a flaky timeout.
+# and 9x the thing they must outlast, and
+# test_the_fast_timing_has_headroom_on_this_host re-measures the first on
+# whatever host is running rather than trusting these numbers - a slow CI box
+# gets a named failure instead of a flaky timeout.
 FAST = SandboxTiming(command_timeout=1.0, escalation_grace=0.5)
 
 

@@ -459,7 +459,7 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
         return settings.get(name, getattr(args, name))
     # Bring the saved analyses up to the current definitions BEFORE anything
     # reads an act key, then compute every figure from them. Both live in
-    # reporting/facts.py, which says why they are two calls and not one.
+    # reporting/facts/, whose __init__ says why they are two calls and not one.
     normalise_analyses(all_results)
     facts = batch_facts(all_results, runtime)
 
