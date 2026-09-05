@@ -257,6 +257,29 @@ class TestTheSampleIsWhatItClaims:
         picked = ab.stratified_sample(cands, per_model=4, balance=True)
         assert picked and all(not c["stored_aware"] for c in picked)
 
+    def test_a_one_sided_model_contributes_at_every_n_including_one(self):
+        """At n=1 the balanced split is 1 aware / 0 unaware, so a model whose
+        episodes are all on one side drew NOTHING - it vanished from the
+        sample, and main() reported an empty sample by blaming --models for a
+        model that was in the directory all along. n=4 alone did not catch
+        this: the shortfall only empties the draw once the split leaves one
+        side at zero."""
+        for n in (1, 2, 3, 4):
+            for spec in ({"m": (0, 10)}, {"m": (10, 0)}):
+                picked = ab.stratified_sample(self._candidates(spec),
+                                              per_model=n, balance=True)
+                assert len(picked) == n, (
+                    f"n={n} with {spec} drew {len(picked)}, not {n}")
+
+    def test_a_balanced_draw_takes_exactly_what_was_asked_for(self):
+        """Not more, not less. The floor this replaced drew n+1 at n=1 (one
+        from each side, with a minimum of one) and n-1 at every odd n, so the
+        episode count - and the bill - did not match --per-model."""
+        cands = self._candidates({"m": (50, 50)})
+        for n in (1, 2, 3, 4, 5, 8):
+            picked = ab.stratified_sample(cands, per_model=n, balance=True)
+            assert len(picked) == n, f"n={n} drew {len(picked)}"
+
     def test_the_sample_is_deterministic(self):
         """Two runs must draw the same episodes or their results cannot be
         compared, which is the only reason to run this twice."""
@@ -459,6 +482,55 @@ class TestTheDelayPacesCallsRatherThanEpisodes:
         import inspect
         for name, fn in ab.SHAPES.items():
             assert "delay" in inspect.signature(fn).parameters, name
+
+    def test_every_shape_accepts_everything_the_runner_passes_it(self):
+        """The rule, not one keyword of it.
+
+        `delay` was guarded by name above and `unmeasured_sink` was not, so
+        adding the second broke every caller of a shape that had not been
+        updated - including this suite's own test double - as a TypeError on
+        the first episode, hours into nothing. The argument list is READ OUT
+        OF main() rather than restated here, so a keyword added there is
+        covered by this guard on the same commit that adds it.
+        """
+        import ast
+        import inspect
+        source = inspect.getsource(ab)
+        calls = [node for node in ast.walk(ast.parse(source))
+                 if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name)
+                 and node.func.id == "asker"]
+        assert calls, ("no asker(...) call found in grader_ab - this guard "
+                       "reads the runner's argument list from it, and an "
+                       "empty scope would make every assertion below vacuous")
+        for call in calls:
+            n_positional = len(call.args)
+            keywords = {kw.arg for kw in call.keywords if kw.arg}
+            for name, fn in ab.SHAPES.items():
+                params = inspect.signature(fn).parameters
+                positional = [p for p in params.values()
+                              if p.kind in (p.POSITIONAL_ONLY,
+                                            p.POSITIONAL_OR_KEYWORD)]
+                assert len(positional) >= n_positional, (
+                    f"{name} takes {len(positional)} positional arg(s), the "
+                    f"runner passes {n_positional}")
+                missing = keywords - set(params)
+                assert not missing, f"{name} does not accept {sorted(missing)}"
+
+    def test_the_kill_test_double_matches_the_real_asker_contract(self):
+        """The double stands in for a shape inside main(), so it has to accept
+        what a real shape accepts. When it fell behind, the two main() tests
+        errored on a TypeError instead of exercising what they claim to - and
+        one of them catches only RuntimeError, so the break did not even
+        surface as a readable failure."""
+        import inspect
+        double = TestAKilledRunKeepsWhatItAlreadyPaidFor()._fake_asker("nobody")
+        got = set(inspect.signature(double).parameters)
+        for name, fn in ab.SHAPES.items():
+            real = set(inspect.signature(fn).parameters)
+            assert real <= got, (
+                f"the double is missing {sorted(real - got)}, which {name} "
+                f"accepts")
 
 
 class TestTwoRunsDoNotOverwriteEachOther:
@@ -663,7 +735,7 @@ class TestAKilledRunKeepsWhatItAlreadyPaidFor:
         except the one named, which raises - simulating a kill partway through
         a later cell."""
         def asker(corpus, model, client=None, channel_id=None, delay=0,
-                  usage_sink=None):
+                  usage_sink=None, unmeasured_sink=None):
             if model == dies_for:
                 raise RuntimeError("simulated kill")
             if usage_sink is not None:

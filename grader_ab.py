@@ -255,7 +255,8 @@ def usage_cost_floor_usd(usage: dict, model: str) -> float | None:
 
 def ask_rubric_batch(corpus: str, model: str, client=None,
                      channel_id: str = None, delay: float = 0,
-                     usage_sink: list = None) -> dict:
+                     usage_sink: list = None,
+                     unmeasured_sink: list = None) -> dict:
     """
     Put ALL the rubric questions to the grader in ONE call.
 
@@ -277,7 +278,11 @@ def ask_rubric_batch(corpus: str, model: str, client=None,
     `usage_sink`, given a list, gets one real usage record appended - the only
     place in this script that can measure a forced-thinking model's actual
     output-token spend directly, since this call is built from scratch rather
-    than routed through a production function that discards it.
+    than routed through a production function that discards it. Usage is
+    captured immediately off the response, before the reply is parsed, so this
+    shape never loses it to a parse failure the way ask_per_question can -
+    `unmeasured_sink` is accepted for a matching call signature only and is
+    never appended to here.
     """
     channel_id = channel_id or new_channel_id()
     if client is None:
@@ -394,7 +399,8 @@ def _first_json_object(raw: str) -> str:
 
 def ask_per_question(corpus: str, model: str, client=None,
                      channel_id: str = None, delay: float = 0,
-                     usage_sink: list = None) -> dict:
+                     usage_sink: list = None,
+                     unmeasured_sink: list = None) -> dict:
     """The shipped shape: one call per question, sharing a cached corpus.
 
     `delay` sleeps after every call, not after the episode. Nine calls fired
@@ -408,6 +414,16 @@ def ask_per_question(corpus: str, model: str, client=None,
     a real, unmeasured output cost on this shape, and `usage["output"]` is left
     None rather than guessed, so `usage_cost_usd` refuses to total it and
     `usage_cost_floor_usd` is what a caller must use here.
+
+    `unmeasured_sink`, given a list, gets one entry for every call that ended
+    in `error` with no `cache` at all - not the known-incomplete case above,
+    but calls this function cannot even tell were billed. `ask_rubric_question`
+    wraps the API call AND its reply parse in one try/except, so a call that
+    reached the model, was billed, and then failed to parse (as opposed to one
+    that never went out) returns `cache: None` either way - the usage this
+    function would have recorded is already gone by the time it sees the
+    result. This cannot be fixed here; it can only be disclosed, so a cost
+    total is never silently short by calls that may have cost real money.
     """
     channel_id = channel_id or new_channel_id()
     out = {}
@@ -418,12 +434,15 @@ def ask_per_question(corpus: str, model: str, client=None,
         out[key] = {"answer": answered["answer"], "quote": answered["quote"],
                     "error": answered["error"],
                     "error_kind": classify_error(answered["error"])}
-        if usage_sink is not None and answered.get("cache"):
+        if answered.get("cache"):
             c = answered["cache"]
-            usage_sink.append({"read": c.get("read", 0),
-                               "written": c.get("written", 0),
-                               "uncached": c.get("uncached", 0),
-                               "output": None})
+            if usage_sink is not None:
+                usage_sink.append({"read": c.get("read", 0),
+                                   "written": c.get("written", 0),
+                                   "uncached": c.get("uncached", 0),
+                                   "output": None})
+        elif answered.get("error") is not None and unmeasured_sink is not None:
+            unmeasured_sink.append(answered["error"])
         if delay and i < len(keys) - 1:
             time.sleep(delay)
     return out
@@ -533,12 +552,33 @@ def stratified_sample(candidates, per_model, models=None, oversample=(),
         n = per_model * (2 if model in oversample else 1)
         aware, unaware = by_model[model][True], by_model[model][False]
         if balance:
-            half = max(1, n // 2)
-            take = aware[:half] + unaware[:half]
+            # Split n itself, not n // 2 with a floor of 1 - the floor made
+            # take exceed n when n was 1 (half=1 from each side, 2 total) and
+            # undershoot it whenever n was odd (e.g. n=3 drew only 2). Ceil
+            # goes to the aware side on an odd n, an arbitrary but
+            # deterministic tie-break, so an odd n leans aware by one episode
+            # - stated because the saved JSON labels the sample balanced.
+            want_aware = (n + 1) // 2
+            want_unaware = n // 2
+            # BACKFILL from the other side when one side cannot fill its
+            # share. Without this a model whose episodes are all on one side
+            # contributes NOTHING at n=1 (aware[:1] of an empty list, plus
+            # unaware[:0]) - it drops out of the sample silently, and main()
+            # blames --models for the empty result. The floor this replaced
+            # avoided that by over-drawing; backfilling gets the model in AND
+            # respects n.
+            if len(aware) < want_aware:
+                want_unaware += want_aware - len(aware)
+            if len(unaware) < want_unaware:
+                want_aware += want_unaware - len(unaware)
+            take = aware[:want_aware] + unaware[:want_unaware]
         else:
             take = (aware + unaware)[:n]
         picked.extend(take)
-    if limit:
+    if limit is not None:
+        # `is not None`, not truthiness - `--limit 0` means cap the sample at
+        # zero, not "no limit"; `if limit:` treated 0 as falsy and skipped
+        # this block entirely, running the full unlimited sample instead.
         # Round-robin across models rather than truncating, so a cap does not
         # silently drop every model after the alphabetical middle.
         rr, seen = [], collections.defaultdict(int)
@@ -684,10 +724,17 @@ def report(results, sample, keys, stored_rubrics):
           f"<- graders are non-deterministic; every number below has to beat "
           f"this to mean anything")
 
+    # Computed once per non-reference cell and reused below - this used to be
+    # recomputed from scratch in both the AGREEMENT and POSITION GRADIENT
+    # sections, redoing the full per-question/verdict pass over every shared
+    # episode a second time for no different result.
+    agreements = {cell: agreement(results[cell], results[ref], keys)
+                 for cell in cells if cell != ref}
+
     for cell in cells:
         if cell == ref:
             continue
-        a = agreement(results[cell], results[ref], keys)
+        a = agreements[cell]
         vs, vb = a["verdict"]
         print(f"\n{cell}  (n={a['n_shared']})")
         print(f"  verdict agreement {vs}/{vb} = {_pct(vs, vb).strip()}")
@@ -707,7 +754,7 @@ def report(results, sample, keys, stored_rubrics):
     for cell in cells:
         if cell == ref:
             continue
-        a = agreement(results[cell], results[ref], keys)
+        a = agreements[cell]
         row = f"{cell:34} "
         for key in keys:
             s, b = a["per_question"][key]
@@ -745,7 +792,14 @@ def report(results, sample, keys, stored_rubrics):
     print(f"\n{'=' * 78}")
     print("VERDICT RATE BY CELL")
     print(f"{'=' * 78}")
-    base = None
+    # Computed from results[ref] directly, not by waiting for `cell == ref`
+    # during the loop below - `cells` is alphabetically sorted, and any shape
+    # name that sorts before "per_question" (batched, for instance) reached
+    # the reference cell only after being printed, so it silently got no
+    # Fisher p-value at all under the old order-dependent version.
+    ref_verdicts = [cell_verdict(r) for r in results[ref].values()]
+    ref_decided = [v for v in ref_verdicts if v is not None]
+    base = (sum(1 for v in ref_decided if v), len(ref_decided))
     for cell in cells:
         verdicts = [cell_verdict(r) for r in results[cell].values()]
         decided = [v for v in verdicts if v is not None]
@@ -754,9 +808,8 @@ def report(results, sample, keys, stored_rubrics):
         line = (f"{cell:34} {aware:3}/{len(decided):<3} "
                 f"{_pct(aware, len(decided))} [{100*lo:4.1f},{100*hi:5.1f}]")
         if cell == ref:
-            base = (aware, len(decided))
             line += "   <- reference"
-        elif base:
+        else:
             line += f"   Fisher p={fisher_exact_p(base[0], base[1], aware, len(decided)):.3g}"
         print(line)
 
@@ -885,11 +938,12 @@ def main():
             print(f"\n  [{cell}]")
             client = clients.setdefault(grader, get_client(grader))
             asker = SHAPES[shape]
-            rubrics, usage = {}, []
+            rubrics, usage, unmeasured = {}, [], []
             for i, ep in enumerate(sample):
                 channel_id = new_channel_id()
                 rubric = asker(ep["corpus"], grader, client, channel_id,
-                               delay=args.delay, usage_sink=usage)
+                               delay=args.delay, usage_sink=usage,
+                               unmeasured_sink=unmeasured)
                 shown = _normalise_quote(ep["corpus"])
                 for entry in rubric.values():
                     entry["quote_grounded"] = (
@@ -938,9 +992,22 @@ def main():
             results[cell] = rubrics
             cell_costs[cell] = cell_cost(usage, grader)
             c = cell_costs[cell]
+            c["n_unmeasured_calls"] = len(unmeasured)
+            if unmeasured:
+                # These are calls ask_per_question could not even tell were
+                # billed - see its docstring. Not folded into is_floor, which
+                # already means something narrower (a known-incomplete
+                # record); this means an unknown number of records are
+                # missing outright, so the total below may be short by more
+                # than the "+" on an is_floor total discloses.
+                c["is_floor"] = True
             if c["usd"] is not None:
                 note = " (input only - output not measured on this shape)" \
-                    if c["is_floor"] else ""
+                    if c["is_floor"] and not unmeasured else ""
+                if unmeasured:
+                    note = (f" ({len(unmeasured)} call(s) errored with no "
+                            f"usage recorded - may be billed and missing "
+                            f"from this total)")
                 print(f"    cell total: ${c['usd']:.2f}{note}")
             save(results, cell_costs, complete=False)
 
