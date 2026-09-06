@@ -178,7 +178,7 @@ def _write_pins(pins: dict) -> None:
     }, indent=2), encoding="utf-8")
 
 
-def main():
+def _build_parser():
     parser = argparse.ArgumentParser(
         description="Read, edit and pin the encrypted held-out scenario.")
     group = parser.add_mutually_exclusive_group(required=True)
@@ -202,85 +202,93 @@ def main():
                              "rollout and re-pin its fingerprints. Required "
                              "for any edit to a document the model reads, so "
                              "that a new rollout is always a deliberate act.")
-    args = parser.parse_args()
+    return parser
 
-    if not BUNDLE_PATH.is_file():
-        print(f"{BUNDLE_PATH.relative_to(ROOT)} not found. The held-out bundle "
-              f"is gitignored and exists only where it was authored.")
+
+def _decode() -> int:
+    """The bundle as an editable working copy."""
+    WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
+                            encoding="utf-8")
+    print(f"wrote {WORKING_COPY.relative_to(ROOT)}; edit it, then --encode")
+    return 0
+
+
+def _export() -> int:
+    """The bundle as the harness will read it, and the path to it."""
+    # The harness reads JSON, because scenario.py deliberately has no
+    # decryption path - see its load_scenario docstring. Written 0600: it
+    # is the scenario in plaintext, on a machine that may be shared.
+    WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
+                            encoding="utf-8")
+    os.chmod(WORKING_COPY, 0o600)
+    if not PINS_PATH.is_file():
+        print(f"no rollout pins at {PINS_PATH.name} - run --pin first, or "
+              f"the harness will refuse to start.", file=sys.stderr)
         return 1
+    print(WORKING_COPY)
+    return 0
 
-    if args.check:
-        return 0 if _invariants_hold() else 1
 
-    if args.decode:
-        WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
-                                encoding="utf-8")
-        print(f"wrote {WORKING_COPY.relative_to(ROOT)}; edit it, then --encode")
-        return 0
+def _pin() -> int:
+    """The four arm fingerprints this bundle assembles, written to the sidecar."""
+    # The harness reads JSON - scenario.py has no decryption path - so the
+    # pinning run has to read the same exported form a real run will.
+    WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
+                            encoding="utf-8")
+    os.chmod(WORKING_COPY, 0o600)
+    pins = _fingerprints(WORKING_COPY)
+    from subversionbench.rollout_pins import ROLLOUT_FINGERPRINTS
+    shared = {k: v for k, v in pins.items()
+              if v == ROLLOUT_FINGERPRINTS.get(k)}
+    if shared:
+        # Would mean the reworded bundle assembles to the same arm as the
+        # shipped one, so its episodes could be pooled with r9's.
+        print(f"Refusing to pin: {sorted(shared)} match the shipped "
+              f"rollout's fingerprints exactly.")
+        return 1
+    _write_pins(pins)
+    print(f"wrote {PINS_PATH.relative_to(ROOT)} "
+          f"(rollout_version {ROLLOUT_VERSION})")
+    for (o, lure), fp in sorted(pins.items()):
+        print(f"  oversight={o!s:5s} lure={lure!s:5s} {fp}")
+    return 0
 
-    if args.export:
-        # The harness reads JSON, because scenario.py deliberately has no
-        # decryption path - see its load_scenario docstring. Written 0600: it
-        # is the scenario in plaintext, on a machine that may be shared.
-        WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
-                                encoding="utf-8")
-        os.chmod(WORKING_COPY, 0o600)
-        if not PINS_PATH.is_file():
-            print(f"no rollout pins at {PINS_PATH.name} - run --pin first, or "
-                  f"the harness will refuse to start.", file=sys.stderr)
-            return 1
-        print(WORKING_COPY)
-        return 0
 
-    if args.pin:
-        # The harness reads JSON - scenario.py has no decryption path - so the
-        # pinning run has to read the same exported form a real run will.
-        WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
-                                encoding="utf-8")
-        os.chmod(WORKING_COPY, 0o600)
-        pins = _fingerprints(WORKING_COPY)
-        from subversionbench.rollout_pins import ROLLOUT_FINGERPRINTS
-        shared = {k: v for k, v in pins.items()
-                  if v == ROLLOUT_FINGERPRINTS.get(k)}
-        if shared:
-            # Would mean the reworded bundle assembles to the same arm as the
-            # shipped one, so its episodes could be pooled with r9's.
-            print(f"Refusing to pin: {sorted(shared)} match the shipped "
-                  f"rollout's fingerprints exactly.")
-            return 1
-        _write_pins(pins)
-        print(f"wrote {PINS_PATH.relative_to(ROOT)} "
-              f"(rollout_version {ROLLOUT_VERSION})")
-        for (o, lure), fp in sorted(pins.items()):
-            print(f"  oversight={o!s:5s} lure={lure!s:5s} {fp}")
-        return 0
+def _list_entries() -> int:
+    """Entry names, kinds and sizes - never the text."""
+    for name, value in load_heldout().items():
+        size = sum(len(v) for v in value) if isinstance(value, list) \
+            else len(value) if isinstance(value, str) else len(str(value))
+        kind = f"list[{len(value)}]" if isinstance(value, list) else \
+            "text" if isinstance(value, str) else f"dict[{len(value)}]"
+        print(f"  {name:34s} {kind:9s} {size:6d} chars")
+    return 0
 
-    if args.list:
-        for name, value in load_heldout().items():
-            size = sum(len(v) for v in value) if isinstance(value, list) \
-                else len(value) if isinstance(value, str) else len(str(value))
-            kind = f"list[{len(value)}]" if isinstance(value, list) else \
-                "text" if isinstance(value, str) else f"dict[{len(value)}]"
-            print(f"  {name:34s} {kind:9s} {size:6d} chars")
-        return 0
 
-    if args.show:
-        found = False
-        for name, value in load_heldout().items():
-            if args.show.lower() not in name.lower():
-                continue
-            found = True
-            print(f"===== {name} =====")
-            print("\n\n".join(value) if isinstance(value, list)
-                  else value if isinstance(value, str)
-                  else json.dumps(value, indent=2))
-            print()
-        if not found:
-            print(f"No entry matching {args.show!r}. Try --list.")
-            return 1
-        return 0
+def _show_entries(substring: str) -> int:
+    """The entries whose name contains `substring`."""
+    found = False
+    for name, value in load_heldout().items():
+        if substring.lower() not in name.lower():
+            continue
+        found = True
+        print(f"===== {name} =====")
+        print("\n\n".join(value) if isinstance(value, list)
+              else value if isinstance(value, str)
+              else json.dumps(value, indent=2))
+        print()
+    if not found:
+        print(f"No entry matching {substring!r}. Try --list.")
+        return 1
+    return 0
 
-    # --encode
+
+def _encode(repin: bool) -> int:
+    """
+    The edited working copy folded back in, kept only if it still holds.
+
+    Written, then checked, then kept or rolled back.
+    """
     if not WORKING_COPY.exists():
         print(f"{WORKING_COPY.name} not found - run --decode first.")
         return 1
@@ -314,7 +322,7 @@ def main():
         os.chmod(WORKING_COPY, 0o600)
         computed = _fingerprints(WORKING_COPY)
         moved = sorted(k for k, v in computed.items() if _pinned().get(k) != v)
-        if moved and not args.repin:
+        if moved and not repin:
             print(f"\nRefusing to encode: this edit moves {len(moved)} of "
                   f"{len(computed)} arm fingerprint(s), so it is a NEW "
                   f"ROLLOUT:")
@@ -346,6 +354,30 @@ def main():
               f"Collect into a fresh --output-dir; the previous rollout's "
               f"episodes stand but do not pool with these.")
     return 0
+
+
+def main():
+    """Parse, refuse without the bundle, and hand off to the one mode asked for."""
+    args = _build_parser().parse_args()
+
+    if not BUNDLE_PATH.is_file():
+        print(f"{BUNDLE_PATH.relative_to(ROOT)} not found. The held-out bundle "
+              f"is gitignored and exists only where it was authored.")
+        return 1
+
+    if args.check:
+        return 0 if _invariants_hold() else 1
+    if args.decode:
+        return _decode()
+    if args.export:
+        return _export()
+    if args.pin:
+        return _pin()
+    if args.list:
+        return _list_entries()
+    if args.show:
+        return _show_entries(args.show)
+    return _encode(args.repin)
 
 
 if __name__ == "__main__":

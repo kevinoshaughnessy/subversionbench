@@ -24,7 +24,7 @@ from . import cost, readout, sampling, shapes
 from .prices import (HARD_PHRASING_MODELS, PRICES_PER_MTOK, REFERENCE)
 
 
-def main():
+def _build_parser():
     parser = argparse.ArgumentParser(
         description="Cross grader model against grader call shape.")
     parser.add_argument("--output-dir",
@@ -61,13 +61,21 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="print the sample and the call count, make no "
                              "API calls")
-    args = parser.parse_args()
+    return parser
 
+
+def _select_sample(args):
+    """
+    (candidates, sample), or None with the reason printed.
+
+    Both refusals run before a single grader call, which is the only reason
+    they are worth having: the experiment is graders x shapes x episodes.
+    """
     candidates = sampling.load_candidates(args.output_dir)
     if not candidates:
         print(f"No episodes with a stored grader verdict in "
               f"{redact_paths(args.output_dir)}/")
-        return 1
+        return None
     sample = sampling.stratified_sample(
         candidates, args.per_model, models=args.models,
         oversample=set(args.oversample), balance=not args.no_balance,
@@ -75,13 +83,12 @@ def main():
     if not sample:
         print("The sample is empty - check --models against what is in the "
               "directory.")
-        return 1
+        return None
+    return candidates, sample
 
-    keys = list(RUBRIC_QUESTIONS)
-    per_episode_calls = {"per_question": len(keys), "batched": 1}
-    total_calls = sum(per_episode_calls[s] for s in args.shapes) * \
-        len(args.graders) * len(sample)
 
+def _print_plan(args, candidates, sample, per_episode_calls, total_calls) -> bool:
+    """What this run will cost, before it costs it. False means stop."""
     by_model = collections.Counter(c["model"] for c in sample)
     aware = sum(1 for c in sample if c["stored_aware"])
     print(f"{len(candidates)} candidate episode(s) in "
@@ -100,44 +107,148 @@ def main():
     print(f"\n{total_calls} API calls in total")
     if args.dry_run:
         print("\n--dry-run: nothing was called. Drop the flag to run it.")
-        return 0
+        return False
+    return True
 
-    # Stamped with what varied and computed ONCE, before any call is made, so
-    # every cell in this run writes to the same file rather than each getting
-    # its own timestamp - which is what let the incremental save below cover
-    # the whole run rather than only its last cell.
-    graders_tag = "+".join(g.removeprefix("claude-") for g in sorted(args.graders))
-    shapes_tag = "+".join(sorted(args.shapes))
-    out_path = os.path.join(
-        args.output_dir,
-        f"grader_ab_{graders_tag}_{shapes_tag}_n{len(sample)}_"
-        f"{time.strftime('%Y%m%dT%H%M%S')}.json")
-    stored = {ep["run"]: ep["stored_rubric"] for ep in sample}
 
-    def save(results, cell_costs, complete):
+class _ResultFile:
+    """
+    Where this run's cells are written, and when.
+
+    The name is stamped with what varied and computed ONCE, before any call is
+    made, so every cell in this run writes to the same file rather than each
+    getting its own timestamp - which is what lets the incremental save cover
+    the whole run rather than only its last cell. A fixed name cost a full
+    145-episode 2x2 result the moment a one-episode probe of a different cell
+    ran against the same --output-dir: the probe's write silently replaced it.
+    """
+
+    def __init__(self, args, sample):
+        self._args = args
+        self._sample = sample
+        self.stored = {ep["run"]: ep["stored_rubric"] for ep in sample}
+        graders_tag = "+".join(g.removeprefix("claude-")
+                               for g in sorted(args.graders))
+        shapes_tag = "+".join(sorted(args.shapes))
+        self.path = os.path.join(
+            args.output_dir,
+            f"grader_ab_{graders_tag}_{shapes_tag}_n{len(sample)}_"
+            f"{time.strftime('%Y%m%dT%H%M%S')}.json")
+
+    def save(self, results, cell_costs, complete):
         # Called after every cell, not only at the end, so a killed run keeps
         # whatever it already paid for. The full 2x2 that preceded this run was
         # lost entirely to a kill with nothing on disk, because the old code
         # wrote once, at the very end.
-        with open(out_path, "w", encoding="utf-8") as f:
+        with open(self.path, "w", encoding="utf-8") as f:
             json.dump({
-                "output_dir": redact_paths(os.path.abspath(args.output_dir)),
+                "output_dir": redact_paths(os.path.abspath(self._args.output_dir)),
                 "reference_cell": "|".join(REFERENCE),
-                "graders": args.graders,
-                "shapes": args.shapes,
-                "balanced_on_stored_verdict": not args.no_balance,
-                "oversampled": sorted(set(args.oversample)),
+                "graders": self._args.graders,
+                "shapes": self._args.shapes,
+                "balanced_on_stored_verdict": not self._args.no_balance,
+                "oversampled": sorted(set(self._args.oversample)),
                 "sample": [{k: ep[k] for k in
                             ("run", "model", "nudge", "oversight", "lure",
-                             "stored_aware")} for ep in sample],
+                             "stored_aware")} for ep in self._sample],
                 "cells": results,
                 "cell_costs_usd": cell_costs,
                 "complete": complete,
-                "stored_rubrics": stored,
+                "stored_rubrics": self.stored,
             }, f, indent=2, default=str)
 
+
+def _run_cell(args, sample, grader, shape, client, out_path, cell):
+    """
+    One (grader, shape) cell: every episode of the sample, graded.
+
+    Returns (rubrics, usage, unmeasured), or None when a fatal error stopped it
+    partway - nothing is reported for such a cell, because a partial cell
+    cannot be compared against a full one.
+    """
+    asker = shapes.SHAPES[shape]
+    rubrics, usage, unmeasured = {}, [], []
+    for i, ep in enumerate(sample):
+        channel_id = new_channel_id()
+        rubric = asker(ep["corpus"], grader, client, channel_id,
+                       delay=args.delay, usage_sink=usage,
+                       unmeasured_sink=unmeasured)
+        shown = _normalise_quote(ep["corpus"])
+        for entry in rubric.values():
+            entry["quote_grounded"] = (
+                check_quote_grounding(entry.get("quote") or "", shown,
+                                      ep["scenario"])
+                if entry.get("answer") else None)
+        rubrics[ep["run"]] = rubric
+
+        # STOP rather than grind on. An auth failure or an exhausted
+        # usage limit fails every remaining call the same way, and the
+        # report renders perfectly from zero successful ones: every rate
+        # a dash, every verdict unanswered. That reads like a finding
+        # instead of like a run that never happened, which is exactly
+        # what the one-call smoke test of this script produced before
+        # this check existed.
+        fatal = shapes.fatal_error_kind(rubric)
+        if fatal:
+            first = next(v["error"] for v in rubric.values()
+                         if v.get("error"))
+            print(f"\n\n  ABORTING on a {fatal} error at episode "
+                  f"{i + 1}/{len(sample)} of cell {cell}:")
+            print(f"    {api_error_message(first)}")
+            print(f"\n  {sum(len(r) for r in rubrics.values())} answer("
+                  f"s) were attempted. Nothing is reported for this "
+                  f"cell, because a partial cell cannot be compared "
+                  f"against a full one - but every EARLIER cell is "
+                  f"saved, at {redact_paths(out_path)}.")
+            if fatal == "usage_limit":
+                reset = usage_limit_reset(first)
+                if reset:
+                    print(f"  The limit resets at {reset}.")
+            return None
+
+        fired = sum(1 for r in rubrics.values()
+                    if readout.cell_verdict(r) is True)
+        errs = sum(1 for r in rubrics.values()
+                   if any(v.get("answer") is None for v in r.values()))
+        spend = cost.cell_cost(usage, grader)
+        cost_str = (f"${spend['usd']:.2f}{'+' if spend['is_floor'] else ''}"
+                   if spend["usd"] is not None else "$?")
+        sys.stdout.write(f"\r    {i + 1}/{len(sample)} episodes  "
+                         f"aware={fired}  with-errors={errs}  "
+                         f"cost={cost_str}   ")
+        sys.stdout.flush()
+    print()
+    return rubrics, usage, unmeasured
+
+
+def _cell_spend(usage, grader, unmeasured) -> dict:
+    """What one cell cost, and what that total may be missing."""
+    c = cost.cell_cost(usage, grader)
+    c["n_unmeasured_calls"] = len(unmeasured)
+    if unmeasured:
+        # These are calls ask_per_question could not even tell were
+        # billed - see its docstring. Not folded into is_floor, which
+        # already means something narrower (a known-incomplete
+        # record); this means an unknown number of records are
+        # missing outright, so the total below may be short by more
+        # than the "+" on an is_floor total discloses.
+        c["is_floor"] = True
+    if c["usd"] is not None:
+        note = " (input only - output not measured on this shape)" \
+            if c["is_floor"] and not unmeasured else ""
+        if unmeasured:
+            note = (f" ({len(unmeasured)} call(s) errored with no "
+                    f"usage recorded - may be billed and missing "
+                    f"from this total)")
+        print(f"    cell total: ${c['usd']:.2f}{note}")
+    return c
+
+
+def _run_grid(args, sample, result_file):
+    """Every cell, saved as each finishes. (results, costs), or None if one died."""
     clients, results, cell_costs = {}, {}, {}
     for grader in args.graders:
+        priced = grader in PRICES_PER_MTOK
         priced = grader in PRICES_PER_MTOK
         if not priced:
             print(f"\n  ! no price entry for {grader!r} in PRICES_PER_MTOK - "
@@ -147,89 +258,29 @@ def main():
             cell = f"{grader}|{shape}"
             print(f"\n  [{cell}]")
             client = clients.setdefault(grader, llm_client.get_client(grader))
-            asker = shapes.SHAPES[shape]
-            rubrics, usage, unmeasured = {}, [], []
-            for i, ep in enumerate(sample):
-                channel_id = new_channel_id()
-                rubric = asker(ep["corpus"], grader, client, channel_id,
-                               delay=args.delay, usage_sink=usage,
-                               unmeasured_sink=unmeasured)
-                shown = _normalise_quote(ep["corpus"])
-                for entry in rubric.values():
-                    entry["quote_grounded"] = (
-                        check_quote_grounding(entry.get("quote") or "", shown,
-                                              ep["scenario"])
-                        if entry.get("answer") else None)
-                rubrics[ep["run"]] = rubric
-
-                # STOP rather than grind on. An auth failure or an exhausted
-                # usage limit fails every remaining call the same way, and the
-                # report renders perfectly from zero successful ones: every rate
-                # a dash, every verdict unanswered. That reads like a finding
-                # instead of like a run that never happened, which is exactly
-                # what the one-call smoke test of this script produced before
-                # this check existed.
-                fatal = shapes.fatal_error_kind(rubric)
-                if fatal:
-                    first = next(v["error"] for v in rubric.values()
-                                 if v.get("error"))
-                    print(f"\n\n  ABORTING on a {fatal} error at episode "
-                          f"{i + 1}/{len(sample)} of cell {cell}:")
-                    print(f"    {api_error_message(first)}")
-                    print(f"\n  {sum(len(r) for r in rubrics.values())} answer("
-                          f"s) were attempted. Nothing is reported for this "
-                          f"cell, because a partial cell cannot be compared "
-                          f"against a full one - but every EARLIER cell is "
-                          f"saved, at {redact_paths(out_path)}.")
-                    if fatal == "usage_limit":
-                        reset = usage_limit_reset(first)
-                        if reset:
-                            print(f"  The limit resets at {reset}.")
-                    return 1
-
-                fired = sum(1 for r in rubrics.values()
-                            if readout.cell_verdict(r) is True)
-                errs = sum(1 for r in rubrics.values()
-                           if any(v.get("answer") is None for v in r.values()))
-                spend = cost.cell_cost(usage, grader)
-                cost_str = (f"${spend['usd']:.2f}{'+' if spend['is_floor'] else ''}"
-                           if spend["usd"] is not None else "$?")
-                sys.stdout.write(f"\r    {i + 1}/{len(sample)} episodes  "
-                                 f"aware={fired}  with-errors={errs}  "
-                                 f"cost={cost_str}   ")
-                sys.stdout.flush()
-            print()
+            graded = _run_cell(args, sample, grader, shape, client,
+                               result_file.path, cell)
+            if graded is None:
+                return None
+            rubrics, usage, unmeasured = graded
             results[cell] = rubrics
-            cell_costs[cell] = cost.cell_cost(usage, grader)
-            c = cell_costs[cell]
-            c["n_unmeasured_calls"] = len(unmeasured)
-            if unmeasured:
-                # These are calls ask_per_question could not even tell were
-                # billed - see its docstring. Not folded into is_floor, which
-                # already means something narrower (a known-incomplete
-                # record); this means an unknown number of records are
-                # missing outright, so the total below may be short by more
-                # than the "+" on an is_floor total discloses.
-                c["is_floor"] = True
-            if c["usd"] is not None:
-                note = " (input only - output not measured on this shape)" \
-                    if c["is_floor"] and not unmeasured else ""
-                if unmeasured:
-                    note = (f" ({len(unmeasured)} call(s) errored with no "
-                            f"usage recorded - may be billed and missing "
-                            f"from this total)")
-                print(f"    cell total: ${c['usd']:.2f}{note}")
-            save(results, cell_costs, complete=False)
+            cell_costs[cell] = _cell_spend(usage, grader, unmeasured)
+            result_file.save(results, cell_costs, complete=False)
+    return results, cell_costs
 
-    readout.report(results, sample, keys, stored)
-    save(results, cell_costs, complete=True)
-    print(f"\nSaved to {redact_paths(out_path)}")
+
+def _print_spend(cell_costs) -> None:
+    """What the whole run cost, and whether that total is a floor."""
     total = sum(c["usd"] for c in cell_costs.values() if c["usd"] is not None)
     any_floor = any(c["is_floor"] for c in cell_costs.values())
     any_unpriced = any(c["usd"] is None for c in cell_costs.values())
     print(f"Total spend this run: ${total:.2f}"
           f"{'+' if any_floor else ''}"
           f"{'  (plus unpriced cells - see cell_costs_usd)' if any_unpriced else ''}")
+
+
+def _print_how_to_read_it(args, results) -> None:
+    """What each comparison would mean, named before anyone reads the numbers."""
     print("\nReading the result:")
     ref = "|".join(REFERENCE)
     other_graders = [g for g in args.graders if g != REFERENCE[0]]
@@ -261,4 +312,37 @@ def main():
         print(f"  One cell ({next(iter(results))}), nothing to compare it "
               f"against. Add a second --graders or --shapes value, or add "
               f"{REFERENCE[0]!r} for the reference.")
+    if not said_something:
+        print(f"  One cell ({next(iter(results))}), nothing to compare it "
+              f"against. Add a second --graders or --shapes value, or add "
+              f"{REFERENCE[0]!r} for the reference.")
+
+
+def main():
+    args = _build_parser().parse_args()
+
+    chosen = _select_sample(args)
+    if chosen is None:
+        return 1
+    candidates, sample = chosen
+
+    keys = list(RUBRIC_QUESTIONS)
+    per_episode_calls = {"per_question": len(keys), "batched": 1}
+    total_calls = sum(per_episode_calls[s] for s in args.shapes) * \
+        len(args.graders) * len(sample)
+    if not _print_plan(args, candidates, sample, per_episode_calls,
+                       total_calls):
+        return 0
+
+    result_file = _ResultFile(args, sample)
+    grid = _run_grid(args, sample, result_file)
+    if grid is None:
+        return 1
+    results, cell_costs = grid
+
+    readout.report(results, sample, keys, result_file.stored)
+    result_file.save(results, cell_costs, complete=True)
+    print(f"\nSaved to {redact_paths(result_file.path)}")
+    _print_spend(cell_costs)
+    _print_how_to_read_it(args, results)
     return 0

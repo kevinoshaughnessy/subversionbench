@@ -136,12 +136,22 @@ were over when the check was written and nothing said so - two of them created
 already over, which is what a rule with no check allows.
 
 THE FUNCTION LIMIT IS STILL A RATCHET, and the honest version of the rule says
-so: forty-five functions exceed it, the largest being
-`reporting/summary.py:summary_document` at 336 lines and `runner.py:run_batch`
-at 324. Nothing new may exceed it, and anything already over may only get
+so: forty functions exceed it, the largest being
+`reporting/summary.py:summary_document` at 336 lines and
+`episode.py:run_evaluation` at 317. Nothing new may exceed it, and anything already over may only get
 smaller. A rule declared as absolute while dozens of things violate it is one
 that gets switched off the first time it is inconvenient, which is the same
 reasoning that set the ruff rule set in `pyproject.toml`.
+
+**Length is a proxy; branching is the thing.** Rank by cyclomatic complexity
+rather than by line count before deciding what to divide - `ruff check --select
+C901 --config lint.mccabe.max-complexity=1 --output-format concise` prints a
+number per function, and the two orderings disagree. The longest function here,
+`summary.py:summary_document` at 336 lines, has a complexity of 1: it is a flat
+dict literal, and cutting it up would move text without making anything easier
+to reason about. The worst by branching was `facts/quality.py:quality_facts` at
+32, and it came apart into eight named producers because each of its eight loops
+already read the same list for a different reason.
 
 Splitting for the sake of the number is not the point either. The six source
 files that were over came apart along divisions they already carried - eighteen
@@ -173,6 +183,18 @@ still left 49 sites uncovered. For the second kind, take the file list from
 `conftest` (`source_python_files()`, `suite_python_files()`,
 `project_python_files()`) so a module added later inherits the rule instead of
 escaping it.
+
+**A search over a named function's source is a guard against a location.**
+Three checks here asserted that some call appeared in `inspect.getsource` of one
+named function - that `run_batch` contained `confinement_available()`, that
+`grader_ab.main` contained `graders_tag`. All three broke when the code they
+were about was given a function of its own, while the behaviour they existed to
+protect was untouched; and none of them would have noticed that same call being
+deleted from a callee. Assert the behaviour instead: run the thing and read what
+it did. `conftest.refused_rollout` returns the exit code, the output AND the
+number of episodes attempted - and that third value is the one that matters,
+because a refusal and a batch that starts and then fails both exit 1 and both
+print the refusal.
 
 The same applies to a hand-written list of what to iterate over. The grading
 package's guards enumerated their own submodules in a tuple; it fell two behind

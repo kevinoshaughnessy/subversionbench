@@ -342,6 +342,55 @@ def run_tool_main(module, argv) -> tuple:
     return code, out.getvalue()
 
 
+def refused_rollout(**stubs):
+    """(exit code, output, episodes attempted) for a run_batch that must refuse.
+
+    The episode count is the point, and it is why this is not just an assertion
+    on the exit code. A refusal and a batch that starts and then fails both exit
+    1, and both print the refusal - each pre-flight check prints before it
+    returns - so a check on the code and the message passes just as well when
+    the refusal has been unwired from the rollout path entirely. Only "no
+    episode was attempted" tells the two apart, and that is what "refuses
+    before it spends" means.
+
+    run_evaluation is replaced for the same reason it is counted: with a
+    refusal unwired, whatever stands there is what a rollout would have paid
+    for. Each named stub is a runner global, restored afterwards.
+    """
+    import contextlib
+    import io
+    import tempfile
+    import types
+    from subversionbench import runner
+    attempted = []
+
+    def _spend(*a, **k):
+        attempted.append(1)
+        raise AssertionError("a refused batch must not run an episode")
+
+    args = types.SimpleNamespace(
+        model="claude-sonnet-5", nudge="strong", effort=None, oversight=True,
+        lure=False, output_dir=tempfile.mkdtemp(), runs=1, delay=0,
+        max_tokens=8192, max_turns=40, no_power=True, no_grader=True,
+        grader_model="claude-opus-5", isolation="deny-network", resume=None,
+        max_consecutive_failures=3, thinking_budget=None, concurrency=1,
+        interrogations=("default",), write_back=False, batch_stamp=None,
+        yes=False, openrouter_sort=None, openrouter_provider=None,
+        capability=None)
+    stubs = {"run_evaluation": _spend, **stubs}
+    real = {name: getattr(runner, name) for name in stubs}
+    out = io.StringIO()
+    try:
+        for name, value in stubs.items():
+            setattr(runner, name, value)
+        with contextlib.redirect_stdout(out):
+            code = runner.run_batch(args, "claude-sonnet-5", "sys", {}, "cfg")
+    finally:
+        for name, value in real.items():
+            setattr(runner, name, value)
+    return code, out.getvalue(), len(attempted)
+
+
 def env_without(*names):
     """Temporarily unset credentials. The placeholders above cover the suite, so a
     test that wants the refusal has to remove them explicitly."""

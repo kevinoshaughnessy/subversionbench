@@ -463,7 +463,13 @@ def _print_multiplicity(mult: dict) -> None:
         print(f"    {label}: {', '.join(names) if names else 'none'}")
 
 
-def _print_question(section: dict) -> None:
+def _print_question_header(section: dict) -> bool:
+    """
+    The banner, and what the question's denominator was.
+
+    Returns whether there is anything below it worth printing: a question
+    collapsed by an exclusion says so and stops.
+    """
     print(f"\n{'=' * 78}")
     print(f"{section['question']}")
     print(f"{'=' * 78}")
@@ -474,7 +480,7 @@ def _print_question(section: dict) -> None:
     # reason in the corpus rather than in the exclusion that caused it.
     if section.get("collapsed_by_exclusion"):
         print(f"\n  !! {section['collapsed_by_exclusion'].upper()}")
-        return
+        return False
     if "n_episodes_not_applicable" in section:
         considered = section.get("n_episodes_observable",
                                  section.get("n_episodes_considered"))
@@ -485,16 +491,11 @@ def _print_question(section: dict) -> None:
         print(f"Note: {section['n_episodes_concealment_undetermined']} episode(s) "
               f"took an act whose concealment could not be determined - in the "
               f"denominator, unable to reach the numerator")
-    print(f"\nCRUDE POOLED: {_fmt_contrast_line(section['overall'])}")
-    print(f"  {section['finding']}")
+    return True
 
-    if "stratified" in section:
-        _print_stratified(section["stratified"])
 
-    divergence = section.get("crude_vs_stratified") or {}
-    if divergence.get("warning"):
-        print(f"\n  !! {divergence['warning']}")
-
+def _print_consistency(section: dict) -> None:
+    """How many models moved which way, and which did so significantly."""
     cons = section["consistency"]
     print(f"\nCONSISTENCY ACROSS MODELS ({cons['n_models_with_data']}/"
           f"{cons['n_models_total']} had data on both sides):")
@@ -510,6 +511,80 @@ def _print_question(section: dict) -> None:
     print("\n  per model:")
     _print_model_table(section["by_model"])
 
+
+_CONTRAST_BREAKDOWNS = (
+    # key in the section, heading, the label each row carries
+    ("by_nudge", "BY NUDGE", lambda c: f"nudge={c['nudge']:<7}"),
+    ("by_lure", "BY LURE", lambda c: f"lure={str(c['lure']):<6}"),
+    ("by_nudge_and_lure", "BY NUDGE x LURE",
+     lambda c: f"nudge={c['nudge']:<7} lure={str(c['lure']):<6}"),
+)
+
+
+def _print_contrast_breakdowns(section: dict) -> None:
+    """
+    The arm breakdowns that are a heading and one contrast line per row.
+
+    A table rather than three near-identical blocks: they differed only in the
+    label a row carries, so a fourth axis is a row here instead of a fourth
+    copy of the loop.
+    """
+    for key, heading, label in _CONTRAST_BREAKDOWNS:
+        if key not in section:
+            continue
+        print(f"\n{heading}:")
+        for c in section[key]:
+            print(f"    {label(c)} {_fmt_contrast_line(c)}")
+
+
+def _print_marginals_by_nudge(section: dict) -> None:
+    """The per-nudge rate, and the pairwise contrasts between the nudges."""
+    print("\nBY NUDGE (marginal awareness rate):")
+    for m in section["marginals_by_nudge"]:
+        rate = f"{m['rate']:.1%}" if m["rate"] is not None else "n/a"
+        print(f"    nudge={m['nudge']:<7} {m['n_aware']}/{m['n']} = {rate}")
+    print("  pairwise:")
+    for c in section["pairwise"]:
+        print(f"    {c['pair']:<16} {_fmt_contrast_line(c)}")
+
+
+def _print_conditional_on_the_act(cond: dict) -> None:
+    """The contrast over only the episodes where the act was actually taken."""
+    print(f"\nCONDITIONAL ON THE ACT ({cond['n_determined']} of "
+          f"{cond['n_acts_taken']} act(s) taken had a determined "
+          f"concealment verdict):")
+    print(f"    {_fmt_contrast_line(cond)}")
+    print(f"    denominator: {cond['denominator']}")
+    if cond["underpowered"]:
+        print(f"    ! below {MIN_INFORMATIVE_DENOMINATOR} determined acts - "
+              f"read the counts, not the rate")
+
+
+def _print_summary_derived_cross_check(cc: dict) -> None:
+    """The same question answered from the summaries, and why it differs."""
+    print(f"\nCROSS-CHECK against the summaries' own "
+          f"cross_analysis_awareness ({cc['n_arms_contributing']}/"
+          f"{cc['n_arms_total']} arms contribute):")
+    print(f"    {_fmt_contrast_line(cc)}")
+    print(f"    Differs because: {cc['why_it_differs']}")
+
+
+def _print_question(section: dict) -> None:
+    if not _print_question_header(section):
+        return
+
+    print(f"\nCRUDE POOLED: {_fmt_contrast_line(section['overall'])}")
+    print(f"  {section['finding']}")
+
+    if "stratified" in section:
+        _print_stratified(section["stratified"])
+
+    divergence = section.get("crude_vs_stratified") or {}
+    if divergence.get("warning"):
+        print(f"\n  !! {divergence['warning']}")
+
+    _print_consistency(section)
+
     if section.get("text_reachable"):
         _print_text_reachable(section["text_reachable"])
 
@@ -517,48 +592,16 @@ def _print_question(section: dict) -> None:
         _print_by_act(section["by_act"])
 
     if "marginals_by_nudge" in section:
-        print("\nBY NUDGE (marginal awareness rate):")
-        for m in section["marginals_by_nudge"]:
-            rate = f"{m['rate']:.1%}" if m["rate"] is not None else "n/a"
-            print(f"    nudge={m['nudge']:<7} {m['n_aware']}/{m['n']} = {rate}")
-        print("  pairwise:")
-        for c in section["pairwise"]:
-            print(f"    {c['pair']:<16} {_fmt_contrast_line(c)}")
+        _print_marginals_by_nudge(section)
 
-    if "by_nudge" in section:
-        print("\nBY NUDGE:")
-        for c in section["by_nudge"]:
-            print(f"    nudge={c['nudge']:<7} {_fmt_contrast_line(c)}")
-
-    if "by_lure" in section:
-        print("\nBY LURE:")
-        for c in section["by_lure"]:
-            print(f"    lure={str(c['lure']):<6} {_fmt_contrast_line(c)}")
-
-    if "by_nudge_and_lure" in section:
-        print("\nBY NUDGE x LURE:")
-        for c in section["by_nudge_and_lure"]:
-            print(f"    nudge={c['nudge']:<7} lure={str(c['lure']):<6} "
-                  f"{_fmt_contrast_line(c)}")
+    _print_contrast_breakdowns(section)
 
     if "conditional_on_the_act" in section:
-        cond = section["conditional_on_the_act"]
-        print(f"\nCONDITIONAL ON THE ACT ({cond['n_determined']} of "
-              f"{cond['n_acts_taken']} act(s) taken had a determined "
-              f"concealment verdict):")
-        print(f"    {_fmt_contrast_line(cond)}")
-        print(f"    denominator: {cond['denominator']}")
-        if cond["underpowered"]:
-            print(f"    ! below {MIN_INFORMATIVE_DENOMINATOR} determined acts - "
-                  f"read the counts, not the rate")
+        _print_conditional_on_the_act(section["conditional_on_the_act"])
 
     if "summary_derived_cross_check" in section:
-        cc = section["summary_derived_cross_check"]
-        print(f"\nCROSS-CHECK against the summaries' own "
-              f"cross_analysis_awareness ({cc['n_arms_contributing']}/"
-              f"{cc['n_arms_total']} arms contribute):")
-        print(f"    {_fmt_contrast_line(cc)}")
-        print(f"    Differs because: {cc['why_it_differs']}")
+        _print_summary_derived_cross_check(
+            section["summary_derived_cross_check"])
 
 
 def _print_variant_question(section: dict) -> None:

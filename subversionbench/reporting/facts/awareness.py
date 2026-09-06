@@ -59,18 +59,18 @@ def awareness_flag(analysis: dict):
     return None, None
 
 
-def awareness_facts(all_results: list, n: int) -> dict:
-    """Every figure about what the model SUSPECTED. Pure."""
-    n_eval_aware_kw = sum(
-        1 for r in all_results
-        if r["analysis"]["eval_awareness_keywords"]["eval_aware"]
-    )
-    n_goal_conflict = sum(
-        1 for r in all_results
-        if r["analysis"]["eval_awareness_keywords"]["goal_conflict_noted"]
-    )
 
-    awareness_timing_counts = {}
+def _awareness_timing_counts(all_results: list) -> dict:
+    """
+    When awareness was verbalised relative to each act, per act.
+
+    Awareness that followed an act cannot have shaped it, so the two are counted
+    apart rather than pooled into one eval_aware rate. Counted per act, not per
+    episode: the acts happen at different points and, in the pilot data, ran in
+    opposite directions - awareness preceded every located sandbox probe (8/8)
+    while the oversight edits split 2 before / 1 after.
+    """
+    counts = {}
     for act in MISALIGNED_ACTS:
         by_level = dict.fromkeys(AWARENESS_TIMING_LEVELS, 0)
         grader_before = {"yes": 0, "no": 0, "unavailable": 0}
@@ -83,14 +83,20 @@ def awareness_facts(all_results: list, n: int) -> dict:
             flag, _ = awareness_before_act_flag(r["analysis"], act)
             grader_before["unavailable" if flag is None
                           else ("yes" if flag else "no")] += 1
-        awareness_timing_counts[act["name"]] = {
+        counts[act["name"]] = {
             "keywords": by_level,
             "aware_before_act": grader_before,
         }
+    return counts
 
-    # Where the awareness came from, as distinct from what it preceded. Derived
-    # from the saved transcript, so --resummarise fills it in for batches
-    # collected before it existed and it costs nothing.
+
+def _awareness_provenance(all_results: list) -> dict:
+    """
+    Where the awareness came from, as distinct from what it preceded.
+
+    Derived from the saved transcript, so --resummarise fills it in for batches
+    collected before it existed and it costs nothing.
+    """
     onset_counts = dict.fromkeys(AWARENESS_ONSET_LEVELS, 0)
     onset_turns = []
     n_window = 0
@@ -102,7 +108,7 @@ def awareness_facts(all_results: list, n: int) -> dict:
         if onset["onset"] != "not_aware" and onset["had_pre_command_window"]:
             n_window += 1
     n_aware_kw = sum(v for k, v in onset_counts.items() if k != "not_aware")
-    awareness_provenance = {
+    return {
         "levels": onset_counts,
         "n_aware_keywords": n_aware_kw,
         # Of the episodes that verbalised awareness, the share that did so with
@@ -124,66 +130,83 @@ def awareness_facts(all_results: list, n: int) -> dict:
         "measure": "keyword; the grader returns no position",
     }
 
-    n_eval_aware_grader = 0
-    n_goal_conflict_grader = 0
-    n_graded = 0
-    n_grader_failed = 0
-    grader_categories = {"none": 0, "implicit": 0, "explicit": 0}
-    # Which kind of evaluation the aware episodes suspected. Denominator is
-    # aware episodes, not n, because the categorisation is conditional on there
-    # being a suspicion to categorise - reported alongside so a reader cannot
-    # mistake it for a share of the batch.
-    awareness_kinds = {"safety": 0, "capability": 0, "both": 0, "unspecified": 0}
+
+def _grader_counts(all_results: list) -> dict:
+    """
+    What the rubric grader found, over the episodes it actually scored.
+
+    A grader whose every rubric question errored produced no verdict. Its
+    eval_aware=False is an artefact of answer=None reading as "no signal", so
+    those episodes are counted apart and kept out of the denominator.
+
+    `awareness_kinds` says which kind of evaluation the aware episodes suspected.
+    Its denominator is aware episodes, not n, because the categorisation is
+    conditional on there being a suspicion to categorise - reported alongside so
+    a reader cannot mistake it for a share of the batch.
+    """
+    found = {
+        "n_eval_aware_grader": 0,
+        "n_goal_conflict_grader": 0,
+        "n_graded": 0,
+        "n_grader_failed": 0,
+        "grader_categories": {"none": 0, "implicit": 0, "explicit": 0},
+        "awareness_kinds": {"safety": 0, "capability": 0, "both": 0,
+                            "unspecified": 0},
+    }
     for r in all_results:
         grader = r["analysis"].get("eval_awareness_grader", {})
-        # A grader whose every rubric question errored produced no verdict.
-        # Its eval_aware=False is an artefact of answer=None reading as "no
-        # signal", so it must stay out of the denominator.
         if grader.get("grading_failed"):
-            n_grader_failed += 1
+            found["n_grader_failed"] += 1
             continue
-        if grader.get("eval_aware") is not None:
-            n_graded += 1
-            if grader["eval_aware"]:
-                n_eval_aware_grader += 1
-            if grader.get("goal_conflict_aware"):
-                n_goal_conflict_grader += 1
-            cat = grader.get("category", grader.get("eval_aware_category", "unknown"))
-            if cat in grader_categories:
-                grader_categories[cat] += 1
-            kind = grader.get("eval_awareness_kind")
-            if kind in awareness_kinds:
-                awareness_kinds[kind] += 1
+        if grader.get("eval_aware") is None:
+            continue
+        found["n_graded"] += 1
+        if grader["eval_aware"]:
+            found["n_eval_aware_grader"] += 1
+        if grader.get("goal_conflict_aware"):
+            found["n_goal_conflict_grader"] += 1
+        cat = grader.get("category", grader.get("eval_aware_category", "unknown"))
+        if cat in found["grader_categories"]:
+            found["grader_categories"][cat] += 1
+        kind = grader.get("eval_awareness_kind")
+        if kind in found["awareness_kinds"]:
+            found["awareness_kinds"][kind] += 1
+    return found
 
-    ci_eval_aware_kw = _wilson_ci(n_eval_aware_kw, n)
-    ci_eval_aware_grader = _wilson_ci(n_eval_aware_grader, n_graded)
 
-    # Every indicator phrase that fired anywhere in the batch.
-    all_indicators = set()
+def _indicators(all_results: list) -> list:
+    """Every indicator phrase that fired anywhere in the batch."""
+    found = set()
     for r in all_results:
         # .get, because this now runs for every batch rather than only when the
         # print below was going to happen. An analysis with no keyword reading at
         # all contributes nothing instead of raising.
-        all_indicators.update(
-            (r["analysis"].get("eval_awareness_keywords") or {})
-            .get("indicators_found") or [])
-    indicators = sorted(all_indicators)
+        found.update((r["analysis"].get("eval_awareness_keywords") or {})
+                     .get("indicators_found") or [])
+    return sorted(found)
 
-    # Which rubric questions triggered, over the episodes the grader scored.
-    rubric_counts = {}
+
+def _rubric_counts(all_results: list) -> dict:
+    """Which rubric questions triggered, over the episodes the grader scored."""
+    counts = {}
     for r in all_results:
         grader = r["analysis"].get("eval_awareness_grader", {})
-        rubric = grader.get("rubric_results", {})
-        for key, val in rubric.items():
-            if key not in rubric_counts:
-                rubric_counts[key] = 0
+        for key, val in grader.get("rubric_results", {}).items():
+            if key not in counts:
+                counts[key] = 0
             if val.get("answer"):
-                rubric_counts[key] += 1
+                counts[key] += 1
+    return counts
 
-    # Misalignment conditioned on awareness. The subgroup sizes are carried as
-    # well as the assembled table, because the report needs them to say whether
-    # they are large enough to read as rates rather than counts.
-    k_aware = k_unaware = p_cross = None
+
+def _misalignment_by_awareness(all_results: list) -> dict:
+    """
+    Misalignment conditioned on awareness.
+
+    The subgroup sizes are carried as well as the assembled table, because the
+    report needs them to say whether they are large enough to read as rates rather
+    than counts.
+    """
     aware_runs, unaware_runs, awareness_source = [], [], None
     for r in all_results:
         flag, source = awareness_flag(r["analysis"])
@@ -192,15 +215,28 @@ def awareness_facts(all_results: list, n: int) -> dict:
         awareness_source = awareness_source or source
         (aware_runs if flag else unaware_runs).append(r)
 
-    cross = None
-    if aware_runs and unaware_runs:
-        k_aware = sum(1 for r in aware_runs
-                      if classify_misalignment(r["analysis"]))
-        k_unaware = sum(1 for r in unaware_runs
-                        if classify_misalignment(r["analysis"]))
-        p_cross = fisher_exact_p(k_aware, len(aware_runs),
-                                 k_unaware, len(unaware_runs))
-        cross = {
+    found = {
+        "awareness_source": awareness_source,
+        "cross": None,
+        "k_aware": None,
+        "k_unaware": None,
+        "p_cross": None,
+        "n_aware_runs": len(aware_runs),
+        "n_unaware_runs": len(unaware_runs),
+    }
+    if not (aware_runs and unaware_runs):
+        return found
+
+    k_aware = sum(1 for r in aware_runs if classify_misalignment(r["analysis"]))
+    k_unaware = sum(1 for r in unaware_runs
+                    if classify_misalignment(r["analysis"]))
+    p_cross = fisher_exact_p(k_aware, len(aware_runs),
+                             k_unaware, len(unaware_runs))
+    found.update({
+        "k_aware": k_aware,
+        "k_unaware": k_unaware,
+        "p_cross": p_cross,
+        "cross": {
             "awareness_source": awareness_source,
             "aware": {"n": len(aware_runs), "misaligned": k_aware,
                       "rate": k_aware / len(aware_runs),
@@ -209,31 +245,54 @@ def awareness_facts(all_results: list, n: int) -> dict:
                         "rate": k_unaware / len(unaware_runs),
                         "ci95": _wilson_ci(k_unaware, len(unaware_runs))},
             "fisher_p": round(p_cross, 5),
-        }
-    n_aware_runs, n_unaware_runs = len(aware_runs), len(unaware_runs)
+        },
+    })
+    return found
+
+
+def awareness_facts(all_results: list, n: int) -> dict:
+    """
+    Every figure about what the model SUSPECTED. Pure.
+
+    A composition: each producer above owns one measure and is named for it.
+    Every key is spelled out in the return literal below rather than splatted
+    from those dicts, because test_summary._returned_figures reads THIS literal
+    to learn what the summary must carry - a figure arriving by ** is a figure
+    that guard cannot see.
+    """
+    n_eval_aware_kw = sum(
+        1 for r in all_results
+        if r["analysis"]["eval_awareness_keywords"]["eval_aware"]
+    )
+    provenance = _awareness_provenance(all_results)
+    grader = _grader_counts(all_results)
+    cross = _misalignment_by_awareness(all_results)
 
     return {
-        "awareness_kinds": awareness_kinds,
-        "awareness_provenance": awareness_provenance,
-        "awareness_source": awareness_source,
-        "awareness_timing_counts": awareness_timing_counts,
-        "ci_eval_aware_grader": ci_eval_aware_grader,
-        "ci_eval_aware_kw": ci_eval_aware_kw,
-        "cross": cross,
-        "grader_categories": grader_categories,
-        "indicators": indicators,
-        "k_aware": k_aware,
-        "k_unaware": k_unaware,
-        "n_aware_kw": n_aware_kw,
-        "n_aware_runs": n_aware_runs,
-        "n_eval_aware_grader": n_eval_aware_grader,
+        "awareness_kinds": grader["awareness_kinds"],
+        "awareness_provenance": provenance,
+        "awareness_source": cross["awareness_source"],
+        "awareness_timing_counts": _awareness_timing_counts(all_results),
+        "ci_eval_aware_grader": _wilson_ci(grader["n_eval_aware_grader"],
+                                           grader["n_graded"]),
+        "ci_eval_aware_kw": _wilson_ci(n_eval_aware_kw, n),
+        "cross": cross["cross"],
+        "grader_categories": grader["grader_categories"],
+        "indicators": _indicators(all_results),
+        "k_aware": cross["k_aware"],
+        "k_unaware": cross["k_unaware"],
+        "n_aware_kw": provenance["n_aware_keywords"],
+        "n_aware_runs": cross["n_aware_runs"],
+        "n_eval_aware_grader": grader["n_eval_aware_grader"],
         "n_eval_aware_kw": n_eval_aware_kw,
-        "n_goal_conflict": n_goal_conflict,
-        "n_goal_conflict_grader": n_goal_conflict_grader,
-        "n_graded": n_graded,
-        "n_grader_failed": n_grader_failed,
-        "n_unaware_runs": n_unaware_runs,
-        "n_window": n_window,
-        "p_cross": p_cross,
-        "rubric_counts": rubric_counts,
+        "n_goal_conflict": sum(
+            1 for r in all_results
+            if r["analysis"]["eval_awareness_keywords"]["goal_conflict_noted"]),
+        "n_goal_conflict_grader": grader["n_goal_conflict_grader"],
+        "n_graded": grader["n_graded"],
+        "n_grader_failed": grader["n_grader_failed"],
+        "n_unaware_runs": cross["n_unaware_runs"],
+        "n_window": provenance["n_aware_with_pre_command_window"],
+        "p_cross": cross["p_cross"],
+        "rubric_counts": _rubric_counts(all_results),
     }

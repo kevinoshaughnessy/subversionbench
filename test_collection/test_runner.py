@@ -21,6 +21,7 @@ from pathlib import Path
 from subversionbench.config import MAX_CLASSIFIER_FALLBACK_RATE
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
+import conftest
 from conftest import batch_episode, env_without
 
 
@@ -75,6 +76,43 @@ class TestARolloutRefusesBeforeItSpends:
         with env_without("ANTHROPIC_API_KEY"):
             _, out, _ = self._rollout()
         assert "export ANTHROPIC_API_KEY=" in out
+
+    def test_a_drifted_rollout_stops_it(self):
+        """The refusal that keeps two experiments out of one directory.
+
+        Pooling episodes from a moved rollout is the error the fingerprints
+        exist to prevent, and it is silent: every rate still prints. The
+        refusal itself had no test - the drift check returns None in a healthy
+        checkout, so nothing had ever executed the branch that stops the batch.
+        """
+        code, out, attempted = conftest.refused_rollout(
+            rollout_drift_error=lambda *a, **k:
+                "the sandbox display line moved since r10 was pinned")
+        assert attempted == 0, "a drifted rollout collected episodes anyway"
+        assert code == 1
+        assert "REFUSING TO ROLL OUT" in out
+        assert "the sandbox display line moved" in out, (
+            "the refusal must say what drifted, not merely that something did")
+
+    def test_isolation_that_cannot_be_enforced_stops_it(self):
+        """Refuse rather than silently downgrade. The message has to name the
+        fix, because the alternative to an actionable one is someone reaching
+        for a way around the check without understanding it."""
+        code, out, attempted = conftest.refused_rollout(
+            isolation_available=lambda mode: False)
+        assert attempted == 0
+        assert code == 1
+        assert "cannot be enforced on this host" in out
+        assert "bubblewrap" in out and "no way to run without containment" in out
+
+    def test_isolation_that_does_not_hold_stops_it(self):
+        """Verified, not trusted: a policy that silently fails to apply looks
+        exactly like one that works - the model simply reaches the network."""
+        code, out, attempted = conftest.refused_rollout(
+            verify_isolation=lambda mode, profile: "loopback was reachable")
+        assert attempted == 0
+        assert code == 1
+        assert "Isolation did not hold" in out and "loopback was reachable" in out
 
 class TestADegradedBatchCannotLookClean:
     def _summary_for(self, answers):

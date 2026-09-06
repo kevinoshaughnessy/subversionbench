@@ -127,14 +127,8 @@ class OpenRouterClient:
         # asking for one by name.
         self._provider_name = provider_name
 
-    def create(self, model, max_tokens, system=None, tools=None, messages=None,
-               thinking=None, output_config=None):
-        # `thinking` and `output_config` (Anthropic's reasoning controls) have
-        # no OpenRouter equivalent - accepted here only so callers can use one
-        # uniform interface across both clients. resolve_thinking_kwargs sends
-        # neither for an OpenRouter model; OpenRouter reasoning models surface
-        # their reasoning automatically via `message.reasoning`, captured
-        # below regardless of these arguments.
+    def _request_kwargs(self, model, max_tokens, system, tools, messages) -> dict:
+        """The Anthropic-shaped call, translated to an OpenAI-compatible one."""
         oa_messages = []
         if system:
             # `system` is usually a plain string, but callers may also pass
@@ -177,7 +171,10 @@ class OpenRouterClient:
             provider["allow_fallbacks"] = False
         if provider:
             kwargs["extra_body"] = {"provider": provider}
+        return kwargs
 
+    def _completion(self, model: str, kwargs: dict):
+        """The parsed completion, or a RuntimeError that says what came back."""
         # Use the raw-response API rather than the auto-parsing
         # convenience method: if the body isn't valid JSON (an upstream
         # error page, a streaming/SSE body served when we asked for a
@@ -189,10 +186,7 @@ class OpenRouterClient:
         try:
             completion = raw_response.parse()
         except json.JSONDecodeError:
-            status = getattr(raw_response, "status_code", "?")
-            body = getattr(raw_response, "text", None)
-            if body is None:
-                body = str(getattr(raw_response, "content", b""))
+            status, body = _status_and_body(raw_response)
             raise RuntimeError(
                 f"OpenRouter returned a non-JSON response for model "
                 f"'{model}' (HTTP {status}). This usually means the "
@@ -214,10 +208,7 @@ class OpenRouterClient:
         # status+body diagnostic as the non-JSON case above, since the raw
         # response is the only place an explanation might actually be.
         if not completion.choices:
-            status = getattr(raw_response, "status_code", "?")
-            body = getattr(raw_response, "text", None)
-            if body is None:
-                body = str(getattr(raw_response, "content", b""))
+            status, body = _status_and_body(raw_response)
             raise RuntimeError(
                 f"OpenRouter returned a response with no choices for model "
                 f"'{model}' (HTTP {status}). This usually means the "
@@ -226,7 +217,19 @@ class OpenRouterClient:
                 f"or a provider-side failure - rather than a completion. "
                 f"Response body (first 1000 chars):\n{body[:1000]}"
             ) from None
+        return completion
 
+    def create(self, model, max_tokens, system=None, tools=None, messages=None,
+               thinking=None, output_config=None):
+        # `thinking` and `output_config` (Anthropic's reasoning controls) have
+        # no OpenRouter equivalent - accepted here only so callers can use one
+        # uniform interface across both clients. resolve_thinking_kwargs sends
+        # neither for an OpenRouter model; OpenRouter reasoning models surface
+        # their reasoning automatically via `message.reasoning`, captured
+        # below regardless of these arguments.
+        completion = self._completion(
+            model, self._request_kwargs(model, max_tokens, system, tools,
+                                        messages))
         choice = completion.choices[0].message
         finish_reason = getattr(completion.choices[0], "finish_reason", None)
         reasoning = getattr(choice, "reasoning", None)
@@ -241,65 +244,95 @@ class OpenRouterClient:
         # records only what was asked for. See _Response.provider.
         served_by = getattr(completion, "provider", None)
 
-        blocks = []
-        if reasoning:
-            blocks.append(_Block("thinking", thinking=reasoning))
-
-        if not choice.tool_calls and choice.content:
-            if _RAW_TOOL_CALL_START in choice.content:
-                leading_text, raw_calls = _parse_raw_tool_call_text(choice.content)
-            else:
-                valid_names = {t["name"] for t in (tools or [])}
-                leading_text, raw_calls = _parse_bracket_tool_calls(
-                    choice.content, valid_names
-                )
-            if raw_calls:
-                if leading_text.strip():
-                    blocks.append(_Block("text", text=leading_text.strip()))
-                for name, args in raw_calls:
-                    blocks.append(_Block(
-                        "tool_use", id=f"call_{uuid.uuid4().hex[:8]}",
-                        name=name, input=args,
-                    ))
-                return _Response(blocks, _reasoning_usage(completion),
-                                 stop_reason=finish_reason,
-                                 reasoning_details=reasoning_details,
-                                 provider=served_by)
-
-        if choice.content:
-            blocks.append(_Block("text", text=choice.content))
-        for tc in (choice.tool_calls or []):
-            try:
-                args = json.loads(tc.function.arguments)
-            except (json.JSONDecodeError, TypeError):
-                args = {}
-            blocks.append(_Block("tool_use", id=tc.id, name=tc.function.name, input=args))
-
-        has_visible_output = any(b.type in ("text", "tool_use") for b in blocks)
-        if not has_visible_output:
-            # No visible text and no tool call. The most common cause is a
-            # reasoning model (e.g. DeepSeek R1) spending its entire
-            # max_tokens budget on internal reasoning before producing a
-            # visible answer or tool call - reasoning tokens count against
-            # max_tokens, so a small budget can be exhausted mid-thought.
-            # Surface this instead of returning silently empty, which would
-            # otherwise look to the caller like "the model is done".
-            detail = f"finish_reason={finish_reason}"
-            if reasoning:
-                detail += f", reasoning_chars={len(reasoning)}"
-            blocks.append(_Block(
-                "text",
-                text=(
-                    f"[No visible output from the model this turn ({detail}). "
-                    "If finish_reason is 'length', the model likely exhausted "
-                    "max_tokens on internal reasoning before producing an "
-                    "answer or tool call - try raising --max-tokens.]"
-                ),
-            ))
-
-        return _Response(blocks, _reasoning_usage(completion),
+        return _Response(_response_blocks(choice, tools, reasoning,
+                                          finish_reason),
+                         _reasoning_usage(completion),
                          stop_reason=finish_reason,
                          reasoning_details=reasoning_details,
                          provider=served_by)
+
+
+def _status_and_body(raw_response) -> tuple:
+    """
+    The HTTP status and body of a response that could not be used.
+
+    The raw response is the only place an explanation might actually be, and
+    both unusable-response cases need the same pair - it was written out twice,
+    which is two places to keep the fallback from `.text` to `.content` in step.
+    """
+    status = getattr(raw_response, "status_code", "?")
+    body = getattr(raw_response, "text", None)
+    if body is None:
+        body = str(getattr(raw_response, "content", b""))
+    return status, body
+
+
+def _response_blocks(choice, tools, reasoning, finish_reason) -> list:
+    """
+    One completion's message, as the content blocks the harness works in.
+
+    Three routes to a tool call: the SDK's own `tool_calls`, a backend that
+    ignored `tools` and emitted its native syntax as text, and one that wrote a
+    bracketed call. The last two are parsed here rather than upstream because
+    only this client can know the response did not come back structured.
+
+    The raw-call route used to return a _Response of its own. It returns the
+    blocks instead: it always appends at least one tool_use, so the
+    no-visible-output fallback below could never have fired for it, and one
+    return means one place that decides what a _Response carries.
+    """
+    blocks = []
+    if reasoning:
+        blocks.append(_Block("thinking", thinking=reasoning))
+
+    if not choice.tool_calls and choice.content:
+        if _RAW_TOOL_CALL_START in choice.content:
+            leading_text, raw_calls = _parse_raw_tool_call_text(choice.content)
+        else:
+            valid_names = {t["name"] for t in (tools or [])}
+            leading_text, raw_calls = _parse_bracket_tool_calls(
+                choice.content, valid_names
+            )
+        if raw_calls:
+            if leading_text.strip():
+                blocks.append(_Block("text", text=leading_text.strip()))
+            for name, args in raw_calls:
+                blocks.append(_Block(
+                    "tool_use", id=f"call_{uuid.uuid4().hex[:8]}",
+                    name=name, input=args,
+                ))
+            return blocks
+
+    if choice.content:
+        blocks.append(_Block("text", text=choice.content))
+    for tc in (choice.tool_calls or []):
+        try:
+            args = json.loads(tc.function.arguments)
+        except (json.JSONDecodeError, TypeError):
+            args = {}
+        blocks.append(_Block("tool_use", id=tc.id, name=tc.function.name, input=args))
+
+    has_visible_output = any(b.type in ("text", "tool_use") for b in blocks)
+    if not has_visible_output:
+        # No visible text and no tool call. The most common cause is a
+        # reasoning model (e.g. DeepSeek R1) spending its entire
+        # max_tokens budget on internal reasoning before producing a
+        # visible answer or tool call - reasoning tokens count against
+        # max_tokens, so a small budget can be exhausted mid-thought.
+        # Surface this instead of returning silently empty, which would
+        # otherwise look to the caller like "the model is done".
+        detail = f"finish_reason={finish_reason}"
+        if reasoning:
+            detail += f", reasoning_chars={len(reasoning)}"
+        blocks.append(_Block(
+            "text",
+            text=(
+                f"[No visible output from the model this turn ({detail}). "
+                "If finish_reason is 'length', the model likely exhausted "
+                "max_tokens on internal reasoning before producing an "
+                "answer or tool call - try raising --max-tokens.]"
+            ),
+        ))
+    return blocks
 
 

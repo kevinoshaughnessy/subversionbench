@@ -32,17 +32,40 @@ class TestTwoRunsDoNotOverwriteEachOther:
     the probe's write silently replaced it. The name now carries what varied,
     the same convention rubric_ab.py's own output already uses."""
 
-    def test_the_filename_carries_the_graders_and_shapes(self):
-        import inspect
-        src = inspect.getsource(ab.main)
-        assert "graders_tag" in src and "shapes_tag" in src, (
-            "the output filename must be derived from what was actually run, "
-            "not fixed - see grader_ab.json's collision with the 2x2 result")
+    def _two_runs(self, out) -> list:
+        """Two runs over one directory, differing only in the cell they ask for.
 
-    def test_it_does_not_regress_to_the_old_fixed_name(self):
-        import inspect
-        src = inspect.getsource(ab.main)
-        assert '"grader_ab.json"' not in src
+        Both are driven through main() rather than read out of its source. The
+        pair of assertions this replaced searched main() for the names of two
+        local variables, which said nothing about whether the two runs actually
+        landed in different files, and broke the moment the filename was given
+        an owner of its own while the behaviour it was about was unchanged.
+        """
+        _graded_episode(out, 1)
+        with _graders_stubbed(_stub_asker()):
+            for shape in ("per_question", "batched"):
+                code, _ = _run_main(["--output-dir", out,
+                                     "--graders", "claude-opus-5",
+                                     "--shapes", shape, "--per-model", "1",
+                                     "--limit", "1", "--no-balance"])
+                assert code == 0
+        return sorted(glob.glob(os.path.join(out, "grader_ab_*.json")))
+
+    def test_a_second_run_does_not_replace_the_first(self):
+        out = tempfile.mkdtemp()
+        saved = self._two_runs(out)
+        assert len(saved) == 2, (
+            f"one run overwrote the other: {[os.path.basename(p) for p in saved]}")
+
+    def test_the_filename_says_which_cell_produced_it(self):
+        """Two files are not enough on their own - a timestamp alone would give
+        two names for the same cell run twice, and leave a reader unable to
+        tell which result is which."""
+        out = tempfile.mkdtemp()
+        names = [os.path.basename(p) for p in self._two_runs(out)]
+        assert any("per_question" in n for n in names), names
+        assert any("batched" in n for n in names), names
+        assert all("opus-5" in n for n in names), names
 
 
 class TestAKilledRunKeepsWhatItAlreadyPaidFor:

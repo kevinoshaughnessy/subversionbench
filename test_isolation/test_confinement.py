@@ -17,6 +17,7 @@ import tempfile
 
 from pathlib import Path
 
+import conftest
 from conftest import darwin_only
 from subversionbench.isolation import (
     _looks_refused,
@@ -587,11 +588,31 @@ class TestTheHostMustBeAbleToEnforceIt:
             isolation.platform.system = real_platform
 
     def test_the_runner_refuses_when_it_cannot_be_enforced(self):
-        import inspect
-        from subversionbench import runner
-        src = inspect.getsource(runner.run_batch)
-        assert "confinement_available()" in src
-        assert "verify_confinement(" in src
+        """The rollout stops, rather than the check merely being written down.
+
+        This asserted that "confinement_available()" appeared in run_batch's
+        own source until the pre-flight refusals were given a function of their
+        own - at which point it failed while the refusal it was about still
+        worked perfectly. A text search over one named function is a guard
+        against a location; conftest.refused_rollout runs the batch and counts
+        the episodes attempted, so the check can live wherever it belongs.
+        """
+        code, out, attempted = conftest.refused_rollout(
+            confinement_available=lambda: False)
+        assert attempted == 0, "the batch started despite the refusal"
+        assert code == 1
+        assert "filesystem boundary cannot be enforced" in out
+
+    def test_the_runner_refuses_when_it_does_not_hold(self):
+        """Available is not the same as working: a profile built from an
+        unresolved temp path parses, loads, reports nothing and enforces
+        nothing, which is how this was nearly shipped inert."""
+        code, out, attempted = conftest.refused_rollout(
+            confinement_available=lambda: True,
+            verify_confinement=lambda isolation: "the shell read /var")
+        assert attempted == 0, "the batch started despite the refusal"
+        assert code == 1
+        assert "did not hold" in out and "the shell read /var" in out
 
     def test_confinement_is_available_here(self):
         assert confinement_available() is True

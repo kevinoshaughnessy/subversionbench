@@ -10,6 +10,66 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v143
+
+Package version `143.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE EIGHT MOST BRANCHED FUNCTIONS, REFACTORED. Ranked by cyclomatic complexity
+(`ruff --select C901` with the threshold at 1) rather than by length, because
+the two orderings disagree: the longest function in the repository has a
+complexity of 1. Every one below is behaviour-preserving, and each was checked
+against real output rather than against its unit tests alone.
+
+- `facts/quality.py:quality_facts` (32) - eight loops that each read the same
+  episode list for a different reason, now eight named producers. Its return
+  stayed one explicit dict literal rather than becoming `**` splats, because
+  `test_summary._returned_figures` reads that literal to learn what the summary
+  must carry; the first attempt hid `total_classified` from it.
+- `runner.py:run_batch` (28) - the five pre-flight refusals into `_preflight`
+  and one function each, and the sequential episode loop into
+  `_run_episodes_sequentially`, which now takes the arguments and returns the
+  six values `_run_episodes_concurrently` already did. The two are alternatives
+  at one call site and were a function and an inline loop.
+- `grading/transcript_analysis.py:analyze_misalignment` (25, nesting 7) - three
+  passes in the order their evidence arrives: what each transcript entry said,
+  what the whole episode adds up to, what the filesystem says now it is over.
+- `openrouter_client.py:create` (24) - request, send, translate. The
+  status-and-body diagnostic was written out twice and is now one function; the
+  raw-tool-call path returned a second `_Response`, and returns blocks instead.
+- `heldout_tool.py:main` (24) and `grader_ab/cli.py:main` (23) - one function
+  per mode. grader_ab's output filename moved to a `_ResultFile` that owns
+  where this run writes and when.
+- `facts/awareness.py:awareness_facts` (23) - one producer per measure. A
+  comment describing per-act awareness timing had been orphaned above the
+  quote-grounding loop and now sits with the code it is about.
+- `report/console.py:_print_question` (23 in 96 lines, the densest) - the three
+  arm breakdowns were near-identical loops differing only in a row label, and
+  are now a table of three entries.
+
+The maximum went 32 to 21; functions over a hundred lines went 45 to 40.
+`summary.py:summary_document` at 336 lines is deliberately untouched: its
+complexity is 1.
+
+Verified against the r10 corpus rather than against fixtures. The fact
+producers and `analyze_misalignment` were run over every saved episode in it,
+pooled and per model, before and after - byte-identical both times. The printed
+report is byte-identical over the same corpus.
+
+THREE GUARDS WERE ASSERTING ON THE TEXT OF A NAMED FUNCTION and broke while the
+behaviour they were about was untouched: one searched `run_batch` for
+`confinement_available()`, two searched `grader_ab.main` for the names of local
+variables. All three are now behavioural, and the confinement pair asserts
+something the text search could not - that NO EPISODE WAS ATTEMPTED. A refusal
+and a batch that starts and then fails both exit 1 and both print the refusal,
+so the episode count is the only thing that tells them apart.
+
+THE ROLLOUT-DRIFT REFUSAL NOW HAS A TEST. It is one of the hard invariants -
+the check that stops two incomparable experiments being pooled in one directory
+- and no test had ever executed the branch that stops the batch, because the
+check returns None in a healthy checkout. The two isolation refusals were in
+the same state. Nine planted defects, all caught.
+
 ## v142
 
 Package version `142.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
