@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 import sad_oversight as so
+from test_analysis.report_fixtures import write_awareness_episode
 from subversionbench import charting
 from subversionbench.power import spearman, spearman_leave_one_out
 
@@ -651,3 +652,70 @@ class TestTheRunWritesWhatItSays:
         what a model saw, so no episode may fail to pool because of it."""
         source = Path(so.__file__).read_text()
         assert "ROLLOUT_VERSION =" not in source
+
+
+class TestBothAwarenessRatesArePooledPerModel:
+    """awareness_by_model reads two different measures from two different
+    places, and the join between them was unrun.
+
+    `aware` comes from the summaries and covers reasoning AND visible
+    output; `text_reachable` exists per EPISODE only, so the arms are
+    rebuilt from run files for it. The two are carried side by side because
+    the first is not comparable across models whose routes return different
+    amounts of reasoning - and the models on this leaderboard differ there.
+    A correlation holding on one and not the other is a fact about the
+    instrument rather than about the models.
+    """
+
+    def _corpus(self, out, model="p/m", n_aware=3, n_runs=10, text_aware=2):
+        from test_analysis.report_fixtures import _write_summary
+        _write_summary(out, model, "strong", n_runs=n_runs, n_aware=n_aware,
+                       n_unaware=n_runs - n_aware)
+        for i in range(1, n_runs + 1):
+            write_awareness_episode(out, i, model, "strong",
+                                    where="text", aware=i <= text_aware,
+                                    stamp=f"2026010{i % 10}T00000{i % 10}")
+
+    def test_the_text_only_numerator_is_rebuilt_from_the_episodes(self):
+        """The summaries do not carry it. Without this pass the text rate
+        would be a flat zero for every model and the second measure would
+        silently be no measure at all."""
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out, text_aware=2)
+            pooled = so.awareness_by_model(out)
+        entry = pooled["p/m"]
+        assert entry["n_aware_text"] == 2, entry
+        assert entry["text_rate"] is not None and entry["text_rate"] > 0
+
+    def test_the_two_measures_are_kept_apart(self):
+        """Same denominator, different numerators. Collapsing them would
+        make the comparison the tool exists for impossible."""
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out, n_aware=3, text_aware=1)
+            entry = so.awareness_by_model(out)["p/m"]
+        assert entry["n_aware"] == 3 and entry["n_aware_text"] == 1
+        assert entry["aware_rate"] != entry["text_rate"]
+
+    def test_an_episode_for_a_model_with_no_summary_is_ignored(self):
+        """The pooled map is keyed off the SUMMARIES. An episode whose model
+        never got one has no denominator to join to, and adding a numerator
+        without one would produce a rate over nothing."""
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out, model="p/m")
+            write_awareness_episode(out, 99, "p/other", "strong",
+                                    where="text", aware=True,
+                                    stamp="20260202T000000")
+            pooled = so.awareness_by_model(out)
+        assert set(pooled) == {"p/m"}, "an episode created a model row"
+        assert pooled["p/m"]["n_aware_text"] == 2, "the stray episode counted"
+
+    def test_a_model_with_no_resolved_awareness_reports_no_rate(self):
+        """Not a rate of zero: nothing was measured. n=0 is what says so."""
+        from test_analysis.report_fixtures import _write_summary
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "p/m", "strong", n_runs=4, n_aware=0,
+                           n_unaware=0)
+            entry = so.awareness_by_model(out)["p/m"]
+        assert entry["n"] == 0
+        assert entry["aware_rate"] is None and entry["text_rate"] is None
+        assert entry["aware_ci95"] is None

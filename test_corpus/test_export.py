@@ -8,6 +8,8 @@ rather than on the staging copy, so it tests what is actually published.
 """
 
 import json
+import contextlib
+import io
 import inspect
 import os
 import sys
@@ -1093,3 +1095,71 @@ class TestTheIdentifierScanCannotReturnCleanForAFileItDidNotRead:
         p.write_bytes("café — ".encode() + b"tail")
         assert _read_for_scan(p)[1] == "café — tail"
         assert _read_for_scan(p)[2] is None
+
+
+class TestTheStagingRunReportsWhatItDid:
+    """--dir/--into is the half of the CLI that WRITES the archive, and its
+    success path had never run: nothing had asserted the counts it prints or
+    that it exits zero, which is what zip.sh reads."""
+
+    def test_a_successful_staging_exits_zero_and_counts_the_files(self):
+        src = _corpus()
+        into = tempfile.mkdtemp()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = main(["--dir", src, "--into", into])
+        text = buf.getvalue()
+        assert code == 0, text
+        assert "redacted" in text and "JSON file(s)" in text
+        assert os.listdir(into), "nothing reached the staging directory"
+
+    def test_other_files_are_reported_separately_from_json(self):
+        """A copied file was not redacted, so the two counts answer different
+        questions: how much was rewritten, and how much went through
+        untouched."""
+        src = _corpus()
+        Path(src, "notes.txt").write_text("nothing host-specific here\n")
+        into = tempfile.mkdtemp()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--dir", src, "--into", into])
+        assert "other file(s) copied" in buf.getvalue()
+
+    def test_a_refusal_while_staging_exits_non_zero(self):
+        """zip.sh keys off the exit code to delete the archive rather than
+        ship it, so a refusal that exited zero would publish the thing the
+        refusal exists to stop."""
+        import subversionbench.export as export
+        src = _corpus()
+        into = tempfile.mkdtemp()
+        real = export.redact_tree
+        try:
+            def _refuse(*a, **k):
+                raise export.ExportRefused("a field was not walked")
+            export.redact_tree = _refuse
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = export.main(["--dir", src, "--into", into])
+        finally:
+            export.redact_tree = real
+        assert code == 1
+        assert "REFUSING TO STAGE" in buf.getvalue()
+        assert "a field was not walked" in buf.getvalue()
+
+    def test_a_long_list_of_leaks_is_truncated_and_counted(self):
+        """Ten are shown and the rest are counted. Cutting the tail silently
+        would let an operator fix what is on screen and rebuild into the
+        same refusal, with no idea how much was left."""
+        src = _corpus()
+        for i in range(14):
+            Path(src, f"run_leak_{i}.json").write_text(
+                json.dumps({"result": f"{HOST_PATH}/leak{i}"}))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = main(["--verify", src])
+        text = buf.getvalue()
+        assert code == 1
+        assert "REFUSING TO PUBLISH" in text
+        assert "... and " in text and "more" in text
+        shown = [ln for ln in text.splitlines() if ln.strip().startswith("run_")]
+        assert len(shown) <= 10, f"{len(shown)} files listed, expected at most 10"
