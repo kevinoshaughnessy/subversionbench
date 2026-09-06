@@ -35,8 +35,8 @@ recorded all along.
 
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
-from .loading import (AWARENESS_REFUSAL_LEVELS, AWARENESS_REFUSAL_LOCATABLE,
-                      RUBRIC_SIGNAL_KEYS)
+from .episode_rows import (AWARENESS_REFUSAL_LEVELS,
+                           AWARENESS_REFUSAL_LOCATABLE, RUBRIC_SIGNAL_KEYS)
 from .pooling import _models
 
 

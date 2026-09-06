@@ -29,7 +29,7 @@ and measures agreement.
 """
 
 from .data_quality import _measure_agreement, _model_rate_pairs
-from .loading import MISALIGNED_ACTS, NUDGE_LEVELS
+from .episode_rows import MISALIGNED_ACTS, NUDGE_LEVELS
 from .pooling import (_by_model, _consistency, _contrast, _finding, _models,
                       _pool, _stratified)
 

@@ -51,7 +51,7 @@ with its own n.
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 from .data_quality import cross_analysis_rows
-from .loading import NUDGE_LEVELS
+from .episode_rows import NUDGE_LEVELS
 from .pooling import (_by_model, _consistency, _contrast, _finding,
                       _stratified)
 

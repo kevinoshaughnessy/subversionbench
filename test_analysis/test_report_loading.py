@@ -94,7 +94,7 @@ class TestLoadSummaries:
         _write_summary(out, "m", "strong", capability="oversight",
                        stamp="20260101T000009")
         propensity = rr.load_summaries(out)
-        from report.loading import ANY_CAPABILITY
+        from report.episode_rows import ANY_CAPABILITY
         capability = rr.load_summaries(out, capability=ANY_CAPABILITY)
         assert len(propensity) == 1 and len(capability) == 1
         assert propensity[0] != capability[0]
@@ -389,7 +389,7 @@ class TestWhetherAwarenessCameBeforeOrAfterTheRefusal:
         return {"type": "tool_call", "turn": turn, "cmd": cmd}
 
     def _level(self, transcript, persisted=False):
-        from report.loading import _awareness_vs_refusal, _first_refusal_index
+        from report.episode_rows import _awareness_vs_refusal, _first_refusal_index
         return _awareness_vs_refusal(
             transcript, _first_refusal_index(transcript), persisted)
 
@@ -458,7 +458,7 @@ class TestWhetherAwarenessCameBeforeOrAfterTheRefusal:
     def test_every_level_the_constant_names_is_reachable(self):
         """Derived from the constant rather than listed here, so a level added
         later without a way to reach it fails instead of sitting unused."""
-        from report.loading import AWARENESS_REFUSAL_LEVELS
+        from report.episode_rows import AWARENESS_REFUSAL_LEVELS
         from subversionbench.scenario import SANDBOX_REFUSAL
         seen = {
             self._level([]),
@@ -697,7 +697,7 @@ class TestEveryColumnFamilyReachesTheRow:
     """
 
     def _row(self):
-        from report.loading import _episode_row
+        from report.episode_rows import _episode_row
         out = tempfile.mkdtemp()
         _write_episode(out, 1, "m", "strong")
         import glob
@@ -724,7 +724,7 @@ class TestEveryColumnFamilyReachesTheRow:
         assert not missing, f"no columns for {missing}"
 
     def test_the_rubric_family_is_present(self):
-        from report.loading import RUBRIC_SIGNAL_KEYS
+        from report.episode_rows import RUBRIC_SIGNAL_KEYS
         row = self._row()
         assert RUBRIC_SIGNAL_KEYS, "no signals - the guard would pass vacuously"
         missing = [k for k in RUBRIC_SIGNAL_KEYS
@@ -741,7 +741,7 @@ class TestEveryColumnFamilyReachesTheRow:
     def test_a_file_outside_the_corpus_yields_no_row(self):
         """None, not a partially built row: the caller appends whatever it is
         handed, so a half-built row would enter the corpus."""
-        from report.loading import _episode_row
+        from report.episode_rows import _episode_row
         import os
         out = tempfile.mkdtemp()
         path = os.path.join(out, "run_1_m_strong.json")
@@ -758,7 +758,7 @@ class TestATruncatedRunFileIsNotACorpus:
     published rate."""
 
     def _row(self, text):
-        from report.loading import _episode_row
+        from report.episode_rows import _episode_row
         out = tempfile.mkdtemp()
         path = os.path.join(out, "run_1_m_strong_20260101T000000.json")
         Path(path).write_text(text, encoding="utf-8")
@@ -768,14 +768,14 @@ class TestATruncatedRunFileIsNotACorpus:
         assert self._row('{"model": "m", "analysis":') is None
 
     def test_a_file_that_does_not_exist_is_dropped(self):
-        from report.loading import _episode_row
+        from report.episode_rows import _episode_row
         missing = os.path.join(tempfile.mkdtemp(), "run_1_m_strong_S.json")
         assert _episode_row(missing, None) is None
 
     def test_a_well_formed_episode_is_kept(self):
         """The control: without it every test above would pass against a
         loader that dropped the whole corpus."""
-        from report.loading import _episode_row
+        from report.episode_rows import _episode_row
         out = tempfile.mkdtemp()
         _write_episode(out, 1, "m", "strong")
         path = sorted(glob.glob(os.path.join(out, "run_*.json")))[0]

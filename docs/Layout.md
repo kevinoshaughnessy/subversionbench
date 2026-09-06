@@ -213,8 +213,11 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,
                    override and escape; interrogation phrasing vs concealment)
                    answered across every model in a results directory
-  loading.py       the two loaders, the arms rebuilt from episodes, and the
-                   two narrowings, which are deliberately not one thing.
+  loading.py       the two loaders, and the arms rebuilt from episodes
+  exclusions.py    the two narrowings, which are deliberately not one thing,
+                   in one module because an exclusion applied to one source
+                   and not the other is a report whose questions disagree
+                   about what corpus they answered.
                    exclude_arm drops one arm from BOTH loaders at once, for
                    the --exclude-no-oversight sensitivity reading.
                    exclude_aware_episodes drops the eval-aware episodes from
@@ -226,6 +229,11 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    stricter union of both screens as a secondary. A
                    robustness reading against one named objection, not an
                    unbiased estimate: awareness is an outcome of the arm
+  episode_rows.py  one saved episode as one row, and the six column families
+                   that build it - each with its own helper, and each derived
+                   in the tests from MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS
+                   rather than listed, because a family that stopped being
+                   applied would print as n/a rather than raise
   capability.py    the ceiling, and the refusal to divide by one that
                    was never established. Published as a bracket -
                    lower counts every refusal as an incapability,

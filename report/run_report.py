@@ -30,12 +30,12 @@ from .console import (_print_arm_exclusion, _print_awareness_exclusion,
                       _print_variant_question)
 from .characteristics import characteristics
 from .data_quality import data_quality_facts
-from .loading import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
-                      EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
-                      EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
-                      NO_EXCLUSION,
-                      act_arm_rows, awareness_arm_rows, exclude_arm,
-                      exclude_aware_episodes, load_episodes, load_summaries)
+from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
+                         EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
+                         EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
+                         NO_EXCLUSION, exclude_arm, exclude_aware_episodes)
+from .loading import (act_arm_rows, awareness_arm_rows, load_episodes,
+                      load_summaries)
 from .pooling import _crude_vs_stratified, _models
 from .questions_arms import (question_nudge_vs_awareness,
                              question_oversight_vs_awareness,
