@@ -47,7 +47,8 @@ def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="2026010
 
 def _write_episode(out, n, model, nudge, oversight=True, lure=False,
                    stamp="20260101T000000", sort=None, provider=None,
-                   transcript=None, **episode_kwargs):
+                   transcript=None, served_by=None, served_by_changed=False,
+                   **episode_kwargs):
     # normalise_analyses first, exactly as a collected episode has already been
     # through: the sandbox act key (`out_of_scope_attempts`) is DERIVED there,
     # not set by batch_episode, and a fixture without it is not the shape any
@@ -73,7 +74,16 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
                   # every episode look like one that was never refused.
                   "transcript": transcript if transcript is not None else [],
                   "openrouter_sort": sort,
-                  "openrouter_provider": provider}, f)
+                  "openrouter_provider": provider,
+                  # What the router said ANSWERED each turn, as opposed to the
+                  # two keys above, which record what was asked for. Written
+                  # unconditionally for the same reason: every collected
+                  # episode carries both, so a fixture that omitted them would
+                  # exercise a corpus shape that does not exist - and would
+                  # leave the check that reads them permanently on its
+                  # nothing-recorded branch.
+                  "served_by_providers": list(served_by or []),
+                  "served_by_changed": served_by_changed}, f)
     return path
 
 

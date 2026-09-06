@@ -69,6 +69,94 @@ class TestResponsesTranslation:
         assert [b.type for b in blocks] == ["thinking", "text"]
         assert blocks[0].thinking == "I considered X."
 
+    def test_a_structured_tool_result_is_encoded_rather_than_stringified(self):
+        """The Responses API takes `output` as a string. A dict reaching it
+        raw is a request the API rejects, and repr() of one is not something
+        the model can read back - so it is JSON, chosen here rather than left
+        to whatever str() happens to produce."""
+        from subversionbench.openai_client import _to_responses_input
+        items = _to_responses_input({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "call_1",
+             "content": {"stdout": "ok", "exit_code": 0}},
+        ]})
+        assert items[0]["call_id"] == "call_1"
+        assert json.loads(items[0]["output"]) == {"stdout": "ok",
+                                                  "exit_code": 0}
+
+    def test_a_user_turn_of_text_blocks_becomes_one_user_message(self):
+        """The user side is not always a tool result: the opening prompt and
+        every follow-up arrive as text blocks. Dropping them would send the
+        model a turn with no instruction in it."""
+        from subversionbench.openai_client import _to_responses_input
+        items = _to_responses_input({"role": "user", "content": [
+            {"type": "text", "text": "First."},
+            {"type": "text", "text": "Second."},
+        ]})
+        assert items == [{"role": "user", "content": "First.\nSecond."}]
+
+    def test_a_user_turn_mixing_a_result_and_text_keeps_both(self):
+        """The result comes first, as its own item; the text follows as a
+        message. A tool result and the sentence that accompanies it are two
+        items to the Responses API, not one."""
+        from subversionbench.openai_client import _to_responses_input
+        items = _to_responses_input({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "c1", "content": "ok"},
+            {"type": "text", "text": "Now finish."},
+        ]})
+        assert [i.get("type") or i["role"] for i in items] == \
+            ["function_call_output", "user"]
+        assert items[1]["content"] == "Now finish."
+
+    def test_a_user_turn_of_whitespace_emits_no_message(self):
+        """Same rule the assistant side already follows: an empty turn is not
+        a turn. Sending one spends a request to say nothing."""
+        from subversionbench.openai_client import _to_responses_input
+        assert _to_responses_input(
+            {"role": "user", "content": [{"type": "text", "text": "   "}]}) == []
+
+    def test_a_function_call_comes_back_as_a_tool_use_block(self):
+        """The inbound half of the tool loop. Without it the harness sees a
+        turn with no tool call, ends the episode, and records the model as
+        having done nothing - on the route where it in fact acted."""
+        import types
+        from subversionbench.openai_client import _from_responses_output
+        response = types.SimpleNamespace(output=[
+            types.SimpleNamespace(type="function_call", call_id="call_7",
+                                  name="bash",
+                                  arguments='{"command": "ls -la"}')])
+        blocks = _from_responses_output(response)
+        assert [b.type for b in blocks] == ["tool_use"]
+        assert blocks[0].id == "call_7"
+        assert blocks[0].name == "bash"
+        assert blocks[0].input == {"command": "ls -la"}
+
+    def test_unparseable_arguments_give_an_empty_input_not_a_crash(self):
+        """A model that emits malformed JSON for its arguments is one bad
+        turn. Raising here would end the whole episode instead, and the
+        sandbox refuses an empty command on its own terms."""
+        import types
+        from subversionbench.openai_client import _from_responses_output
+        response = types.SimpleNamespace(output=[
+            types.SimpleNamespace(type="function_call", call_id="c",
+                                  name="bash", arguments="{not json")])
+        blocks = _from_responses_output(response)
+        assert blocks[0].type == "tool_use" and blocks[0].input == {}
+
+    def test_a_reasoned_tool_call_keeps_both_in_order(self):
+        """The shape a thinking model actually returns, and the one the
+        grader reads: the reasoning has to stay attached to the call it
+        preceded."""
+        import types
+        from subversionbench.openai_client import _from_responses_output
+        response = types.SimpleNamespace(output=[
+            types.SimpleNamespace(type="reasoning", summary=[
+                types.SimpleNamespace(text="I should look first.")]),
+            types.SimpleNamespace(type="function_call", call_id="c",
+                                  name="bash", arguments='{"command": "ls"}'),
+        ])
+        assert [b.type for b in _from_responses_output(response)] == \
+            ["thinking", "tool_use"]
+
     def test_an_empty_reasoning_summary_is_dropped(self):
         """The model reasoned but returned no summary. Recording an empty
         thinking block would make the transcript claim evidence it does not

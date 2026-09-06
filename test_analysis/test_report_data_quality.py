@@ -224,6 +224,107 @@ class TestTheAwarenessMeasureAgreement:
         assert a["code"] == "no_data" and a["direction_same"] is None
 
 
+class TestWhoActuallyAnsweredIsCheckedSeparatelyFromWhoWasAsked:
+    """mixed_served_provider_arms, the companion that can see what was served.
+
+    mixed_routing_arms reads what the operator ASKED for, which is None
+    wherever nothing was pinned - so on a corpus collected under default
+    routing it is silent by construction however many backends answered.
+    This one reads what the router said served each turn.
+
+    The whole point is that it fires where the other cannot, so every test
+    here asserts that pairing rather than this check alone. A check whose
+    only evidence is that it returned [] on a corpus it structurally cannot
+    see is not evidence of anything.
+    """
+
+    def test_an_arm_answered_by_two_backends_is_reported_with_the_split(self):
+        out = tempfile.mkdtemp()
+        for i in range(1, 4):
+            _write_episode(out, i, "m", "max", served_by=["deepinfra"])
+        for i in range(4, 6):
+            _write_episode(out, i, "m", "max", served_by=["together"])
+        found = rr.mixed_served_provider_arms(rr.load_episodes(out))
+        assert len(found) == 1, found
+        assert found[0]["model"] == "m"
+        assert found[0]["n_episodes"] == 5
+        assert [(p["provider"], p["n_episodes"]) for p in found[0]["providers"]] \
+            == [("deepinfra", 3), ("together", 2)]
+
+    def test_it_fires_where_the_requested_routing_check_is_blind(self):
+        """THE PAIR THAT MATTERS. Nothing was pinned, so every episode has
+        None for sort and provider and the within-arm routing check has
+        nothing to compare - while two backends in fact answered."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "max", served_by=["deepinfra"])
+        _write_episode(out, 2, "m", "max", served_by=["together"])
+        episodes = rr.load_episodes(out)
+        assert rr.mixed_routing_arms(episodes) == [], (
+            "the requested-routing check fired, so this fixture no longer "
+            "reproduces the gap the served-provider check exists for")
+        assert len(rr.mixed_served_provider_arms(episodes)) == 1
+
+    def test_an_arm_served_by_one_backend_is_not_reported(self):
+        out = tempfile.mkdtemp()
+        for i in range(1, 4):
+            _write_episode(out, i, "m", "max", served_by=["deepinfra"])
+        assert rr.mixed_served_provider_arms(rr.load_episodes(out)) == []
+
+    def test_an_arm_with_nothing_recorded_is_not_reported(self):
+        """An empty provider set is "not recorded", not "mixed". Every
+        non-OpenRouter route and everything collected before the field
+        existed looks like this, and reporting it would invent a finding out
+        of a missing field."""
+        out = tempfile.mkdtemp()
+        for i in range(1, 4):
+            _write_episode(out, i, "m", "max")
+        assert rr.mixed_served_provider_arms(rr.load_episodes(out)) == []
+
+    def test_an_episode_that_changed_backend_mid_run_is_reported_alone(self):
+        """A uniform arm can still contain such an episode, and it is a
+        different fact from the arm pooling two backends: there, not even a
+        single transcript is attributable to one backend. So it is counted
+        apart, and it fires on its own."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "max", served_by=["deepinfra"])
+        _write_episode(out, 2, "m", "max", served_by=["deepinfra"],
+                       served_by_changed=True)
+        found = rr.mixed_served_provider_arms(rr.load_episodes(out))
+        assert len(found) == 1, "one arm, one backend, and still not clean"
+        assert found[0]["episodes_changing_mid_run"] == 1
+        assert [p["provider"] for p in found[0]["providers"]] == ["deepinfra"]
+
+    def test_a_clean_arm_reports_no_mid_run_changes(self):
+        """The other direction, so the counter cannot simply always be set."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "max", served_by=["deepinfra"])
+        _write_episode(out, 2, "m", "max", served_by=["together"])
+        found = rr.mixed_served_provider_arms(rr.load_episodes(out))
+        assert found[0]["episodes_changing_mid_run"] == 0
+
+    def test_two_arms_each_served_by_one_backend_are_each_clean(self):
+        """The key is the arm a rate is published for. Two arms that each
+        used one backend are not a mix, even when the backends differ."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "max", oversight=True,
+                       served_by=["deepinfra"])
+        _write_episode(out, 2, "m", "max", oversight=False,
+                       served_by=["together"])
+        assert rr.mixed_served_provider_arms(rr.load_episodes(out)) == []
+
+    def test_the_arm_is_named_completely_enough_to_find(self):
+        """model, nudge, oversight and lure - the four that identify a
+        published rate. A report naming fewer cannot be acted on."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "max", oversight=False, lure=True,
+                       served_by=["deepinfra"])
+        _write_episode(out, 2, "m", "max", oversight=False, lure=True,
+                       served_by=["together"])
+        found = rr.mixed_served_provider_arms(rr.load_episodes(out))
+        assert (found[0]["model"], found[0]["nudge"], found[0]["oversight"],
+                found[0]["lure"]) == ("m", "max", False, True)
+
+
 class TestRoutingDiffersAcrossTheContrast:
     """The confound mixed_routing_arms is structurally blind to.
 

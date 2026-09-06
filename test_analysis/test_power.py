@@ -511,6 +511,56 @@ class TestBreslowDay:
         bd = breslow_day([(0, 60, 0, 60), (0, 60, 0, 60)], odds_ratio=None)
         assert bd["p"] is None
 
+    def test_an_odds_ratio_of_zero_is_declined_with_a_reason(self):
+        """There is nothing to test homogeneity AGAINST. Passing zero into
+        the fitted-count solve would divide the test's own null by nothing;
+        declining says which of the two questions failed."""
+        from subversionbench.power import breslow_day
+        strata = [(10, 100, 5, 100), (20, 200, 10, 200)]
+        bd = breslow_day(strata, odds_ratio=0.0)
+        assert bd["p"] is None and bd["statistic"] is None
+        assert "odds ratio" in bd["note"]
+
+    def test_a_negative_odds_ratio_is_declined_too(self):
+        """Not reachable from mantel_haenszel, which cannot produce one -
+        guarded rather than assumed, because the argument is also passed in
+        by callers that computed it their own way."""
+        from subversionbench.power import breslow_day
+        bd = breslow_day([(10, 100, 5, 100), (20, 200, 10, 200)],
+                         odds_ratio=-1.5)
+        assert bd["p"] is None and "odds ratio" in bd["note"]
+
+    def test_strata_that_fit_degenerately_leave_the_degrees_of_freedom(self):
+        """The count that survives is `contributing`, not `usable`.
+
+        A stratum can pass the has-both-outcomes screen and still yield a
+        fitted table with a zero cell, which has no variance and so carries
+        no evidence about heterogeneity. Counting it would give the chi2 a
+        degree of freedom nothing paid for - the same defect the all-zero
+        stratum test guards at the earlier screen, one stage later.
+
+        An implausible common odds ratio is what drives it here: it pushes
+        every fitted count to the edge of its margin-feasible range, which
+        is the general shape of the case rather than a contrived one.
+        """
+        from subversionbench.power import breslow_day
+        strata = [(10, 100, 5, 100), (20, 200, 10, 200)]
+        bd = breslow_day(strata, odds_ratio=1e12)
+        assert bd["p"] is None and bd["df"] is None
+        assert "non-degenerate" in bd["note"]
+        # Both strata passed the earlier screen, and neither survived the
+        # fit. The reported count is the one that carried evidence.
+        assert bd["n_strata_given"] == 2
+        assert bd["n_strata_used"] == 0
+
+    def test_the_reported_strata_count_is_the_one_the_df_came_from(self):
+        """n_strata_used and df have to agree, or a reader reconciling them
+        against the printed table finds a discrepancy with no explanation."""
+        from subversionbench.power import breslow_day
+        bd = breslow_day([(10, 100, 5, 100), (20, 200, 10, 200),
+                          (30, 300, 15, 300)])
+        assert bd["df"] == bd["n_strata_used"] - 1
+
 
 # =========================================================================
 # Tests: multiplicity

@@ -406,6 +406,71 @@ class TestSpearmanItself:
         assert out["max_rho"] == 1.0
 
 
+class TestSpearmanOnceThereAreTooManyModelsToEnumerate:
+    """The sampled-permutation branch, taken above _EXACT_PERMUTATION_MAX_N.
+
+    Every p-value this benchmark reports for a rank correlation comes from
+    the exact branch today, because the model set is small. The moment it
+    grows past the threshold the sampled branch produces all of them
+    instead - so it is worth having run before that happens rather than
+    after, which is what "n=9" means in these tests.
+    """
+
+    def test_the_threshold_is_where_the_method_changes(self):
+        """8! is 40,320 orderings and enumerable; 9! is 362,880 and not.
+        Asserted at the boundary rather than at a comfortable distance from
+        it, because a threshold is exactly where an off-by-one lives."""
+        from subversionbench.power import _EXACT_PERMUTATION_MAX_N
+        assert _EXACT_PERMUTATION_MAX_N == 8
+        exact = spearman(list(range(8)), list(range(8)))
+        sampled = spearman(list(range(9)), list(range(9)))
+        assert exact["method"] == "exact_permutation"
+        assert sampled["method"] == "sampled_permutation"
+
+    def test_the_sampled_p_is_never_zero(self):
+        """(hits + 1) / (draws + 1), not hits / draws. A perfect correlation
+        over nine points draws no counter-example, and reporting p = 0 for
+        that claims more than a sample can support - it says the null was
+        excluded rather than never observed."""
+        from subversionbench.power import _PERMUTATION_DRAWS
+        out = spearman(list(range(9)), list(range(9)))
+        assert out["rho"] == 1.0
+        assert out["p"] == pytest.approx(1 / (_PERMUTATION_DRAWS + 1))
+        assert out["p"] > 0
+
+    def test_it_reports_how_many_draws_stand_behind_the_p(self):
+        """The exact branch reports the orderings it enumerated. This one
+        has to report the draws instead, or a reader cannot tell a p that
+        was counted from one that was sampled."""
+        from subversionbench.power import _PERMUTATION_DRAWS
+        out = spearman(list(range(9)), list(range(9)))
+        assert out["n_permutations"] == _PERMUTATION_DRAWS
+
+    def test_the_same_pairing_gives_the_same_p_every_time(self):
+        """Seeded deliberately. A p-value that moved between two runs of the
+        same analysis would make a reported figure irreproducible, which
+        matters more here than the sampling error does."""
+        xs, ys = list(range(9)), [3, 1, 4, 1, 5, 9, 2, 6, 5]
+        assert spearman(xs, ys)["p"] == spearman(xs, ys)["p"]
+
+    def test_an_arbitrary_pairing_is_not_separated_from_chance(self):
+        """The other end of the range: the sampled branch has to be able to
+        return a large p, not only a small one. A near-zero rho over nine
+        points is what any pairing looks like."""
+        out = spearman(list(range(9)), [5, 1, 8, 2, 9, 3, 7, 4, 6])
+        assert out["method"] == "sampled_permutation"
+        assert out["p"] > 0.05
+        assert out["separated"] is False
+
+    def test_a_constant_side_is_declined_before_any_sampling(self):
+        """A variable that never varies is not a correlation of zero, and
+        the check has to come first - permuting a constant column would
+        otherwise spend 100,000 draws to discover the same thing."""
+        out = spearman(list(range(9)), [7] * 9)
+        assert out["rho"] is None and out["p"] is None
+        assert out["method"] is None
+
+
 class TestChartLabelsDoNotOverlap:
     """
     At seven or eight well-spread points a fixed offset above-right of each
