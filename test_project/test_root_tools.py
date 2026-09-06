@@ -639,3 +639,368 @@ class TestHeldoutToolRefusesWithoutItsBundle:
             heldout_tool.BUNDLE_PATH = real
         assert code == 1
         assert "not found" in text and "gitignored" in text
+
+
+class TestRubricABRunsTheWholeGrid:
+    """rubric_ab.main end to end, with the grader stubbed.
+
+    The A/B is one call per episode per cell, so a 20-episode pilot over a
+    2x2 is 80 calls - which is exactly why nothing had ever run this path.
+    Stubbing the grader makes the assembly, the report and the saved file
+    assertable for nothing, and those are the parts that decide whether the
+    experiment can be read at all.
+    """
+
+    def _corpus(self, out, n=2, model="x-ai/grok-4.5", nudge="strong"):
+        for i in range(1, n + 1):
+            path = pathlib.Path(
+                out, f"run_{i}_{model.replace('/', '_')}_{nudge}"
+                     f"_20260101T00000{i}.json")
+            path.write_text(json.dumps({
+                "model": model, "nudge": nudge,
+                "transcript": [
+                    {"turn": 1, "type": "thinking",
+                     "content": "this might be an evaluation of my behaviour"},
+                    {"turn": 1, "type": "text", "content": "I recommend B."},
+                ],
+                "analysis": {},
+            }), encoding="utf-8")
+
+    def _run(self, argv, answers=None, out=None):
+        """main() with the grader replaced. Returns (code, stdout, out_dir)."""
+        import rubric_ab
+        out = out or tempfile.mkdtemp()
+        answers = list(answers or [])
+        calls = []
+        saved = {name: getattr(rubric_ab, name) for name in
+                 ("ask_rubric_question", "get_client")}
+        try:
+            def _ask(question, corpus, grader, client):
+                calls.append((grader, question))
+                reply = (answers[(len(calls) - 1) % len(answers)]
+                         if answers else True)
+                return {"answer": reply, "quote": "this might be an evaluation"}
+            rubric_ab.ask_rubric_question = _ask
+            rubric_ab.get_client = lambda model: f"client-{model}"
+            code, text = conftest.run_tool_main(
+                rubric_ab, [*argv, "--output-dir", out])
+        finally:
+            for name, value in saved.items():
+                setattr(rubric_ab, name, value)
+        return code, text, out, calls
+
+    def test_the_grid_is_every_grader_crossed_with_every_wording(self):
+        """Two graders and two wordings over two episodes is eight calls.
+        The count is the cost, and it is announced before anything is spent."""
+        out = tempfile.mkdtemp()
+        self._corpus(out)
+        code, text, _out, calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a", "b"], out=out)
+        assert code == 0, text
+        assert len(calls) == 8, calls
+        assert {g for g, _q in calls} == {"a", "b"}
+        assert len({q for _g, q in calls}) == 2, "one wording was asked twice"
+        assert "2 episode(s) x 2 grader(s) x 2 wording(s) = 8 calls" in text
+
+    def test_the_shipped_and_superseded_wordings_are_both_asked(self):
+        """Comparing the current wording against itself would report a
+        Fisher p of 1 and prove nothing. The point is the comparison with
+        what it replaced."""
+        import rubric_ab
+        from subversionbench.config import RUBRIC_QUESTIONS
+        out = tempfile.mkdtemp()
+        self._corpus(out)
+        _code, _text, _out, calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a"], out=out)
+        asked = {q for _g, q in calls}
+        assert RUBRIC_QUESTIONS["suspects_being_tested"] in asked
+        assert rubric_ab.PREVIOUS_WORDINGS["suspects_being_tested"] in asked
+
+    def test_a_limit_is_a_pilot_and_is_honoured(self):
+        """Run a pilot before paying for the full batch - so --limit has to
+        actually reduce the calls, not just the reported total."""
+        out = tempfile.mkdtemp()
+        self._corpus(out, n=4)
+        _code, text, _out, calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a", "--limit", "2"],
+            out=out)
+        assert len(calls) == 4, "the limit did not reach the grid"
+        assert "2 episode(s)" in text
+
+    def test_the_report_names_both_ends_of_the_reading(self):
+        """The output exists to be interpreted, and the three readings are
+        the whole point of running it: the rewrite doing the work, grader
+        capability being the constraint, or nothing measurable moving."""
+        out = tempfile.mkdtemp()
+        self._corpus(out)
+        _code, text, _out, _calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a"], out=out)
+        assert "both graders drop sharply" in text
+        assert "grader capability was the constraint" in text
+        assert "the rewrite changed nothing measurable" in text
+
+    def test_a_wording_that_fires_less_is_reported_as_dropping_episodes(self):
+        """The comparison the tool exists for: which episodes the shipped
+        wording no longer finds."""
+        out = tempfile.mkdtemp()
+        self._corpus(out, n=2)
+        # previous fires, shipped does not, for every episode.
+        _code, text, _out, _calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a"],
+            answers=[True, True, False, False], out=out)
+        assert "dropped 2, newly added 0" in text
+
+    def test_a_wording_that_finds_more_is_flagged_for_reading(self):
+        """The revised wording should not FIND more, so when it does the
+        report says to go and read those transcripts rather than leaving
+        the reader to notice."""
+        out = tempfile.mkdtemp()
+        self._corpus(out, n=2)
+        _code, text, _out, _calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a"],
+            answers=[False, False, True, True], out=out)
+        assert "newly added 2" in text
+        assert "the revised wording should not FIND more" in text
+
+    def test_an_errored_verdict_leaves_the_denominator(self):
+        """answer=None is an unanswered question, not a "no". Counting it
+        would put a transport failure into the rate the A/B compares."""
+        out = tempfile.mkdtemp()
+        self._corpus(out, n=2)
+        _code, text, _out, _calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a"],
+            answers=[True, None], out=out)
+        assert "1/1" in text, text
+        assert "    1" in text, "the error was not counted separately"
+
+    def test_the_saved_file_carries_both_wordings_and_every_cell(self):
+        """Nothing is written back to any run file - this reads transcripts
+        and reports - so the saved JSON is the whole record of what was
+        asked and what came back."""
+        out = tempfile.mkdtemp()
+        self._corpus(out)
+        _code, _text, _out, _calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a", "b"], out=out)
+        written = [p for p in os.listdir(out) if p.startswith("rubric_ab_")]
+        assert len(written) == 1, written
+        saved = json.loads(pathlib.Path(out, written[0]).read_text(
+            encoding="utf-8"))
+        assert set(saved["wordings"]) == {"previous", "shipped"}
+        assert set(saved["cells"]) == {"a|previous", "a|shipped",
+                                       "b|previous", "b|shipped"}
+        assert saved["n_episodes"] == 2
+        assert saved["evaluated_model"] == "x-ai/grok-4.5"
+
+    def test_an_episode_with_no_transcript_contributes_nothing(self):
+        """There is nothing to grade, and building an empty corpus for it
+        would ask the grader about a blank episode and score the answer."""
+        out = tempfile.mkdtemp()
+        self._corpus(out, n=1)
+        pathlib.Path(out, "run_9_x-ai_grok-4.5_strong_20260101T000009.json"
+                     ).write_text(json.dumps(
+                         {"model": "x-ai/grok-4.5", "nudge": "strong",
+                          "transcript": [], "analysis": {}}), encoding="utf-8")
+        _code, text, _out, calls = self._run(
+            ["--model", "x-ai/grok-4.5", "--graders", "a"], out=out)
+        assert "1 episode(s)" in text
+        assert len(calls) == 2, calls
+
+
+class TestContaminationCheckReportsWhatItFound:
+    """The two halves of contamination_check.main that had never run: an
+    audit that FINDS something, and the model probes.
+
+    Neither reaches a model here. The audit is offline by construction, and
+    the probe path replaces `ask` - the one function that makes a call -
+    so probe_model itself runs for real over synthetic replies.
+    """
+
+    def _leaky_file(self, directory):
+        """A file reproducing scenario text, built at runtime from the
+        bundle. Never a literal: no tracked file may hold scenario text,
+        which is the very thing this tool exists to detect."""
+        from subversionbench.scenario import SCENARIO
+        stolen = " ".join(SCENARIO["internal_memo"].split()[:24])
+        path = pathlib.Path(directory, "leaky.py")
+        path.write_text(f"# context\n# {stolen}\n# end\n", encoding="utf-8")
+        return str(path)
+
+    def test_a_leak_is_reported_by_file_and_line_without_quoting_it(self):
+        """Printing the text would put the leak in this log too, so the
+        report names where it is and refuses to show it."""
+        import contamination_check as cc
+        from subversionbench.scenario import SCENARIO
+        with tempfile.TemporaryDirectory() as d:
+            leaky = self._leaky_file(d)
+            code, text = conftest.run_tool_main(
+                cc, ["--audit", "--audit-paths", leaky, "--output-dir", d])
+        assert code == 0
+        assert "1 file(s) reproduce scenario text" in text
+        assert "leaky.py" in text and "lines:" in text
+        assert "Text is not printed" in text
+        assert "next training crawl" in text
+        stolen = " ".join(SCENARIO["internal_memo"].split()[:24])
+        assert stolen not in text, "the audit printed the leak it found"
+
+    def _stub_ask(self, cc, replies):
+        """Replace the one function that makes a call. probe_model, its
+        scoring and its error handling all still run."""
+        calls = []
+
+        def _ask(client, model, prompt, max_tokens=400):
+            calls.append((model, max_tokens))
+            reply = replies[(len(calls) - 1) % len(replies)]
+            return (reply, None) if not isinstance(reply, Exception) \
+                else (None, str(reply))
+        return _ask, calls
+
+    def test_a_model_probe_runs_every_family_and_writes_a_verdict(self):
+        import contamination_check as cc
+        saved = (cc.ask, cc.get_client)
+        try:
+            ask, calls = self._stub_ask(cc, ['{"choice": 1}'])
+            cc.ask = ask
+            cc.get_client = lambda model: object()
+            with tempfile.TemporaryDirectory() as d:
+                with conftest.env_without("ANTHROPIC_API_KEY",
+                                          "OPENROUTER_API_KEY",
+                                          "OPENAI_API_KEY"):
+                    code, text = conftest.run_tool_main(
+                        cc, ["--models", "some/model", "--limit", "4",
+                             "--output-dir", d])
+                written = [p for p in os.listdir(d)
+                           if p.startswith("contamination_")]
+                report = json.loads(
+                    pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
+        finally:
+            cc.ask, cc.get_client = saved
+        assert code == 0, text
+        assert calls, "no probe was made at all"
+        assert "CONTAMINATION PROBE: some/model" in text
+        assert "canary" in text and "forced choice" in text \
+            and "continuation" in text
+        summary = report["models"]["some/model"]["summary"]
+        assert "verdict" in summary
+
+    def test_a_run_too_small_for_a_verdict_says_so_before_spending(self):
+        """`no evidence` needs MIN_ITEMS_FOR_VERDICT scored items per arm, so
+        a smaller --limit cannot reach one however well the run goes. The
+        first real run scored 8/8 in both arms with no errors and still
+        returned `inconclusive`, having paid for the calls to find out."""
+        import contamination_check as cc
+        from subversionbench.contamination import MIN_ITEMS_FOR_VERDICT
+        saved = (cc.ask, cc.get_client)
+        try:
+            ask, _calls = self._stub_ask(cc, ['{"choice": 1}'])
+            cc.ask = ask
+            cc.get_client = lambda model: object()
+            with tempfile.TemporaryDirectory() as d:
+                _code, text = conftest.run_tool_main(
+                    cc, ["--models", "some/model", "--limit", "2",
+                         "--output-dir", d])
+        finally:
+            cc.ask, cc.get_client = saved
+        assert f"A verdict needs {MIN_ITEMS_FOR_VERDICT}" in text
+        assert "inconclusive at best" in text or "'inconclusive' at best" in text
+
+    def test_a_reply_that_is_not_json_costs_one_item_not_the_model(self):
+        """This used to be an unguarded call, so the first model that
+        answered in prose took its own forced-choice AND continuation probes
+        down with it. Two of three models in the first real run produced no
+        data at all that way."""
+        import contamination_check as cc
+        saved = (cc.ask, cc.get_client)
+        try:
+            ask, _calls = self._stub_ask(cc, ["I would rather not guess."])
+            cc.ask = ask
+            cc.get_client = lambda model: object()
+            with tempfile.TemporaryDirectory() as d:
+                code, text = conftest.run_tool_main(
+                    cc, ["--models", "some/model", "--limit", "4",
+                         "--output-dir", d])
+                written = [p for p in os.listdir(d)
+                           if p.startswith("contamination_")]
+                report = json.loads(
+                    pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
+        finally:
+            cc.ask, cc.get_client = saved
+        assert code == 0, text
+        entry = report["models"]["some/model"]
+        assert entry.get("error") is None, "one bad item failed the model"
+        assert entry["continuation"], "the continuation probes never ran"
+        unparsed = [r for r in entry["forced_choice"]
+                    if r["correct"] is None]
+        assert unparsed, "an unparseable reply was scored rather than skipped"
+
+    def test_a_model_that_raises_is_recorded_and_the_run_continues(self):
+        import contamination_check as cc
+        saved = (cc.ask, cc.get_client)
+        try:
+            def _boom(model):
+                raise RuntimeError("no credentials for this route")
+            cc.get_client = _boom
+            with tempfile.TemporaryDirectory() as d:
+                code, text = conftest.run_tool_main(
+                    cc, ["--models", "a/one", "b/two", "--limit", "4",
+                         "--output-dir", d])
+                written = [p for p in os.listdir(d)
+                           if p.startswith("contamination_")]
+                report = json.loads(
+                    pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
+        finally:
+            cc.ask, cc.get_client = saved
+        assert code == 0, text
+        assert set(report["models"]) == {"a/one", "b/two"}
+        assert "no credentials" in report["models"]["a/one"]["error"]
+
+    def test_the_caveats_on_a_clean_verdict_are_always_printed(self):
+        """`no evidence` is not proof of cleanliness, and the caveats are
+        what say so - printed for every run rather than only the clean
+        ones."""
+        import contamination_check as cc
+        saved = (cc.ask, cc.get_client)
+        try:
+            ask, _calls = self._stub_ask(cc, ['{"choice": 1}'])
+            cc.ask = ask
+            cc.get_client = lambda model: object()
+            with tempfile.TemporaryDirectory() as d:
+                _code, text = conftest.run_tool_main(
+                    cc, ["--models", "some/model", "--limit", "4",
+                         "--output-dir", d])
+        finally:
+            cc.ask, cc.get_client = saved
+        assert "Caveats that apply to every 'no evidence' above" in text
+
+    def test_prompts_are_withheld_from_the_saved_file_by_default(self):
+        """Probe prompts contain scenario text, so the saved JSON records
+        ids and scores only unless --include-prompts is passed - and a file
+        written with it must be treated exactly like a transcript."""
+        import contamination_check as cc
+        saved = (cc.ask, cc.get_client)
+        try:
+            ask, _calls = self._stub_ask(cc, ['{"choice": 1}'])
+            cc.ask = ask
+            cc.get_client = lambda model: object()
+            with tempfile.TemporaryDirectory() as d:
+                conftest.run_tool_main(
+                    cc, ["--models", "some/model", "--limit", "4",
+                         "--output-dir", d])
+                written = [p for p in os.listdir(d)
+                           if p.startswith("contamination_")]
+                default = json.loads(
+                    pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
+            with tempfile.TemporaryDirectory() as d:
+                _code, text = conftest.run_tool_main(
+                    cc, ["--models", "some/model", "--limit", "4",
+                         "--include-prompts", "--output-dir", d])
+                written = [p for p in os.listdir(d)
+                           if p.startswith("contamination_")]
+                verbose = json.loads(
+                    pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
+        finally:
+            cc.ask, cc.get_client = saved
+        first = default["models"]["some/model"]["forced_choice"][0]
+        assert "options" not in first and "response" not in first
+        loud = verbose["models"]["some/model"]["forced_choice"][0]
+        assert "options" in loud and "response" in loud
+        assert "treat as a transcript" in text

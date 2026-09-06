@@ -299,3 +299,44 @@ class TestARegradeSaysWhatItCouldNotGrade:
         assert "not a 0% eval-awareness rate" in text
         assert glob.glob(f"{out}/regrade_*.json") == [], \
             "a report was written for a regrade that produced no verdicts"
+
+
+class TestARegradeWithNothingToGrade:
+    """A run file with no transcript cannot be regraded - there is nothing
+    for the rubric to read. Skipping it is right; the exit code when EVERY
+    file is like that is the part worth pinning, because a shell loop reads
+    that and nothing else."""
+
+    def _write(self, out, name, transcript):
+        Path(out, name).write_text(json.dumps({
+            "model": "m", "nudge": "strong", "transcript": transcript,
+            "analysis": {}}), encoding="utf-8")
+
+    def _grade(self, out):
+        args = FakeArgs(output_dir=out, model="m", nudge="strong",
+                        grader_model="g", write_back=False)
+        buf = io.StringIO()
+        with _stub_grader():
+            with contextlib.redirect_stdout(buf):
+                code = ev_run.grade_existing_runs(
+                    args, BatchSelection(model="m", nudge="strong"))
+        return code, buf.getvalue()
+
+    def test_a_transcriptless_file_is_skipped_and_said_to_be(self):
+        out = tempfile.mkdtemp()
+        self._write(out, "run_1_m_strong_20260101T000000.json", [])
+        self._write(out, "run_2_m_strong_20260101T000001.json",
+                    [{"turn": 1, "type": "text", "content": "done"}])
+        code, text = self._grade(out)
+        assert "Skipped: no transcript in this file." in text
+        assert code == 0, "one gradeable file is still a regrade"
+
+    def test_a_directory_of_them_exits_non_zero(self):
+        """NOT a 0% eval-awareness rate over zero episodes. Nothing was
+        graded, and the exit code has to distinguish that from a regrade
+        that ran and found nothing."""
+        out = tempfile.mkdtemp()
+        self._write(out, "run_1_m_strong_20260101T000000.json", [])
+        code, text = self._grade(out)
+        assert code == 1
+        assert "Nothing graded - no run file contained a transcript." in text
