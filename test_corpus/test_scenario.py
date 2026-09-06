@@ -334,3 +334,46 @@ class TestTheCheckNameIsReadFromTheConfig:
         assert QUALITY_METRIC_NAME in config
         assert "\n" not in QUALITY_METRIC_NAME
         assert QUALITY_METRIC_NAME == QUALITY_METRIC_NAME.strip()
+
+
+class TestAnUnknownInterrogationVariantIsRefused:
+    """The phrasing decides which questions an episode is asked, so a
+    misspelled `--interrogations` value must not fall back to the default:
+    that would collect a whole arm labelled as one phrasing and scored under
+    another, and nothing downstream could tell.
+    """
+
+    def test_a_variant_the_bundle_does_not_carry_raises(self):
+        try:
+            scenario_for(interrogation="notaphrasing")
+        except KeyError as e:
+            # Refused where the mistake was made, with a sentence saying so.
+            # Without the check the bundle lookup below raises a bare
+            # KeyError('notaphrasing') from inside scenario_for, which reads
+            # as a corrupt bundle rather than as a mistyped flag.
+            assert "unknown interrogation variant" in str(e)
+            assert "notaphrasing" in str(e)
+            return
+        raise AssertionError(
+            "an unknown phrasing was accepted, so the arm would be collected "
+            "under the default questions and labelled as something else")
+
+    def test_the_refusal_lists_what_it_would_have_accepted(self):
+        """An operator who mistyped one of these has no other way to find the
+        spelling: the variants are inside the encrypted bundle."""
+        try:
+            scenario_for(interrogation="notaphrasing")
+        except KeyError as e:
+            message = str(e)
+        assert cfg.DEFAULT_INTERROGATION in message
+        for variant in cfg.INTERROGATION_CHOICES:
+            assert variant in message, (
+                f"{variant} is offered on the command line and is not named "
+                f"in the refusal")
+
+    def test_every_offered_variant_is_accepted(self):
+        """Two-directional against both: the choices come from the config the
+        parser uses, so a variant added to one and not the other is caught
+        here rather than at collection time."""
+        for variant in cfg.INTERROGATION_CHOICES:
+            assert scenario_for(interrogation=variant), variant

@@ -377,3 +377,61 @@ class TestAwarenessTimingWiring:
         analysis = {act["timing_key"]: {"timing": "act_unlocatable"},
                     act["grader_before_key"]: {"skipped": True}}
         assert ev_report.awareness_before_act_flag(analysis, act) == (None, None)
+
+
+class TestTheGraderBuildsItsOwnClientWhenItIsGivenNone:
+    """The rubric harness passes one per episode so the cached corpus prefix
+    stays stable across the nine questions. Everything else that asks a single
+    question - a repair script, a one-off check - does not, so the no-client
+    entry is a supported path rather than dead code, and a caller taking it
+    must still reach the model it named."""
+
+    def _ask(self, client=None):
+        import subversionbench.llm_client as llm
+        asked = []
+        original = llm.get_client
+
+        class _Reply:
+            content = [type("B", (), {"type": "text",
+                                      "text": '{"answer": true, '
+                                              '"quote": "said so"}'})()]
+
+        class _Client:
+            class messages:
+                @staticmethod
+                def create(**kwargs):
+                    return _Reply()
+
+        llm.get_client = lambda model, **kw: (asked.append(model)
+                                              or _Client())
+        try:
+            got = ev_grade.ask_rubric_question(
+                "did it?", "the corpus", "vendor/grader-1", client=client)
+        finally:
+            llm.get_client = original
+        return got, asked
+
+    def test_it_asks_for_a_client_for_the_model_it_was_given(self):
+        got, asked = self._ask(client=None)
+        assert asked == ["vendor/grader-1"], (
+            "the grader either reached a real client or never built one")
+        assert got["answer"] is True and got["error"] is None
+
+    def test_a_client_that_was_handed_in_is_used_as_it_is(self):
+        """The control. A grader that rebuilt the client per question would
+        also lose the cached corpus prefix, which is nine times the cost."""
+
+        class _Reply:
+            content = [type("B", (), {"type": "text",
+                                      "text": '{"answer": false, '
+                                              '"quote": ""}'})()]
+
+        class _Given:
+            class messages:
+                @staticmethod
+                def create(**kwargs):
+                    return _Reply()
+
+        got, asked = self._ask(client=_Given())
+        assert asked == []
+        assert got["answer"] is False

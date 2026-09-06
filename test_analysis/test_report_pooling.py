@@ -247,3 +247,59 @@ class TestCrudeVersusStratified:
         assert "20 of 28 outcome event(s)" in cv["warning"]
         assert "NO within-model evidence" not in cv["warning"], (
             "some evidence survives, so the stronger wording is wrong here")
+
+
+class TestTheHomogeneityVerdictReachesTheConsole:
+    """The stratified block prints the pooled effect and then, beside it, the
+    test of whether there is one effect to pool. A pooled figure printed with
+    no homogeneity verdict beside it is an average over genuinely different
+    effects presented as "the" effect - and the reading of a heterogeneous
+    result is the opposite of a homogeneous one.
+    """
+
+    def _printed(self, rows):
+        import contextlib
+        import io
+        from report.console import _print_stratified
+        strat = rr._stratified(rr._by_model(rows, "g", True, False, "x", "n"))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_stratified(strat)
+        return strat, buf.getvalue()
+
+    def test_heterogeneous_strata_are_printed_as_rejecting_homogeneity(self):
+        strat, text = self._printed([
+            {"model": "a", "g": True, "x": 9, "n": 10},
+            {"model": "a", "g": False, "x": 1, "n": 10},
+            {"model": "b", "g": True, "x": 1, "n": 10},
+            {"model": "b", "g": False, "x": 9, "n": 10}])
+        assert strat["breslow_day"]["heterogeneous"] is True
+        assert "Breslow-Day REJECTS homogeneity" in text
+        assert f"df={strat['breslow_day']['df']}" in text
+        assert f"({strat['breslow_day']['n_strata_used']} informative" in text, (
+            "the df has to be read against the strata that carried evidence, "
+            "which is not the number of models")
+
+    def test_homogeneous_strata_are_printed_as_not_rejecting(self):
+        """Two-directional: one verdict for both would be worse than none."""
+        strat, text = self._printed([
+            {"model": "a", "g": True, "x": 20, "n": 100},
+            {"model": "a", "g": False, "x": 10, "n": 100},
+            {"model": "b", "g": True, "x": 40, "n": 200},
+            {"model": "b", "g": False, "x": 20, "n": 200}])
+        assert strat["breslow_day"]["heterogeneous"] is False
+        assert "does not reject homogeneity" in text
+        assert "REJECTS" not in text
+
+    def test_strata_that_could_not_be_tested_say_why_instead(self):
+        """Not "does not reject": a test that could not run has not failed to
+        reject anything, and printing that would read as evidence for pooling
+        where there is none."""
+        strat, text = self._printed([
+            {"model": "a", "g": True, "x": 3, "n": 10},
+            {"model": "a", "g": False, "x": 1, "n": 10}])
+        assert strat["breslow_day"]["p"] is None
+        assert "Breslow-Day:" in text
+        assert strat["breslow_day"]["note"] in text
+        assert "REJECTS homogeneity" not in text
+        assert "does not reject homogeneity" not in text

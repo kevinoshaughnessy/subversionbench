@@ -2609,3 +2609,140 @@ class TestACorpusWithNoFamilyIsReportedTwoDifferentWays:
         assert code == 0, text
         assert "No family with two or more members" not in text
         assert "Skipping" not in text
+
+
+class TestATokenTheParserCannotReadIsRecordedNotDiscarded:
+    """The family is derived from the ID, so a token nobody anticipated has
+    two wrong answers available: drop it and two different models collapse
+    into one family, or guess it is a version and order them wrongly. It joins
+    the stem - which keeps IDs that share it together - and is listed in
+    `unparsed`, which is what lets the parse be audited rather than trusted.
+    """
+
+    def test_an_unreadable_token_joins_the_stem_and_is_listed(self):
+        parsed = ft.parse_model_id("vendor/model-Beta9X")
+        assert "beta9x" in parsed.stem, (
+            "the token was dropped, so this ID now shares a family with "
+            "vendor/model")
+        assert parsed.unparsed == ("beta9x",)
+        assert parsed.version == (), "an unreadable token was read as a version"
+
+    def test_an_ordinary_token_is_not_listed_as_unparsed(self):
+        """Two-directional: a parser that listed everything would satisfy the
+        test above and tell a reader nothing."""
+        parsed = ft.parse_model_id("vendor/model-ABC")
+        assert parsed.unparsed == ()
+        assert "abc" in parsed.stem
+
+
+class TestAStepWithNothingOnOneSideIsNotAStepOfZero:
+    """A member with no episodes has no rate. The step into it and the step
+    out of it are not differences of zero - they are comparisons that did not
+    happen - and the first-versus-last contrast that spans them is not a null
+    result either."""
+
+    def _family(self, pairs):
+        models = [f"p/m-{i}" for i in range(1, len(pairs) + 1)]
+        parsed = [ft.parse_model_id(m) for m in models]
+        rates = {m: {"x": x, "n": n, "rate": x / n if n else None,
+                     "ci95": [0.0, 1.0], "underpowered": n < 20}
+                 for m, (x, n) in zip(models, pairs, strict=True)}
+        return ft.family_trend(parsed, rates, "misaligned", "component")
+
+    def test_a_step_into_an_empty_member_says_so(self):
+        out = self._family([(20, 100), (0, 0), (5, 100)])
+        notes = [s.get("note") for s in out["steps"]]
+        assert notes == ["one side has no data", "one side has no data"]
+        assert all(s["difference"] is None for s in out["steps"]), (
+            "a comparison that did not happen was reported as a difference")
+
+    def test_a_first_or_last_with_no_episodes_leaves_no_contrast(self):
+        out = self._family([(20, 100), (5, 100), (0, 0)])
+        assert out["first_vs_last"] is None, (
+            "the span contrast was computed against a member with nothing "
+            "in it")
+
+    def test_a_family_with_episodes_throughout_does_get_both(self):
+        """The control for both."""
+        out = self._family([(20, 100), (5, 100)])
+        assert out["first_vs_last"] is not None
+        assert all(s.get("note") != "one side has no data"
+                   for s in out["steps"])
+
+
+class TestTheReleaseFitPrintsItsAbsenceRatherThanNothing:
+    def _printed(self, fit):
+        import contextlib
+        import io
+        from trends.console import _print_release_fit
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_release_fit(fit)
+        return buf.getvalue()
+
+    def test_a_fit_with_no_slope_says_why_there_is_none(self):
+        """A family whose members share one release date, or has one dated
+        member. Printing nothing there is indistinguishable from a fit of
+        zero having been printed and missed."""
+        text = self._printed({"slope_per_month": None,
+                              "note": "every dated member shipped the same day"})
+        assert "release-date fit: none" in text
+        assert "every dated member shipped the same day" in text
+        assert "points/month" not in text
+
+    def test_a_real_fit_states_its_slope(self):
+        text = self._printed({"slope_per_month": 0.021, "span_days": 180,
+                              "n_points": 4, "note": None})
+        assert "+2.1 points/month" in text
+        assert "release-date fit: none" not in text
+
+    def test_no_fit_at_all_prints_nothing(self):
+        assert self._printed(None) == ""
+
+
+class TestTheChartWriterCollectsOnlyTheChartsThatExist:
+    """write_charts returns the paths the console then prints, so a path in
+    that list with no file behind it sends a reader to a chart that is not
+    there."""
+
+    def _plt_or_skip(self):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+
+    def test_a_report_whose_families_are_all_empty_writes_no_combined_chart(self):
+        """_plot_all_families returns None rather than an empty axis, and the
+        collector must not name a file it did not write."""
+        self._plt_or_skip()
+        report = {"metric": "misaligned", "metric_label": "rate",
+                  "metric_denominator_label": "episodes",
+                  "families": [{"family": "p/f", "n_members": 0,
+                                "ordering_ambiguous": False, "members": []}],
+                  "data_quality": {"plotted_models_without_release_date": []}}
+        with tempfile.TemporaryDirectory() as out:
+            written = ft.charts.write_charts(report, out)
+            assert not os.path.exists(
+                os.path.join(out, "family_misaligned_all.png"))
+        assert all(written), "a chart that was not drawn was still listed"
+        assert "family_misaligned_all.png" not in [
+            os.path.basename(path) for path in written]
+
+
+class TestTheCliRefusesADirectoryThatIsNotThere:
+    def test_a_missing_output_dir_exits_one_and_names_it(self):
+        import contextlib
+        import io
+        import sys
+        argv = sys.argv
+        with tempfile.TemporaryDirectory() as parent:
+            missing = os.path.join(parent, "not-a-directory")
+            sys.argv = ["family_trends.py", "--output-dir", missing,
+                        "--no-charts"]
+            buf = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(buf):
+                    code = ft.main()
+            finally:
+                sys.argv = argv
+        assert code == 1, buf.getvalue()
+        assert "No such directory" in buf.getvalue()
+        assert "not-a-directory" in buf.getvalue()

@@ -354,3 +354,29 @@ class TestTheFieldIsBackfilledRatherThanLost:
         normalise_analyses(episodes)
         assert episodes[0]["analysis"]["encoded_payload"] is True
         assert episodes[0]["analysis"]["encoded_payload_detail"]["n_candidates"] == 1
+
+
+class TestAVeryShortDecodeIsNotAPayload:
+    """Base64 with a plausible-looking alphabet is common in ordinary text -
+    a hash prefix, an identifier, a filename fragment - and some of it decodes
+    to two or three printable characters by chance. A detector that counted
+    those would report a concealment technique on episodes that used none, and
+    the rate this measure feeds is small enough that a handful of false
+    positives moves it.
+    """
+
+    def _run_for(self, text):
+        return base64.b64encode(text.encode()).decode()
+
+    def test_a_decode_below_the_floor_is_refused(self):
+        floor = ep._MIN_DECODED_LEN
+        assert floor >= 2, "the floor is too low for this test to say anything"
+        short = "a" * (floor - 1)
+        assert ep._decode_base64(self._run_for(short)) is None
+
+    def test_a_decode_at_the_floor_is_accepted(self):
+        """Two-directional, and derived from the constant rather than a
+        literal: a floor raised later moves both sides of this together."""
+        floor = ep._MIN_DECODED_LEN
+        exactly = "a" * floor
+        assert ep._decode_base64(self._run_for(exactly)) == exactly

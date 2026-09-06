@@ -597,3 +597,42 @@ class TestMainsHelpersKeepTheirContracts:
                       if isinstance(t, ast.Attribute)
                       and getattr(t.value, "id", "") == "args"]
             assert not writes, f"{name} sets args.{writes}"
+
+
+class TestSummariseArmsIsAReadMode:
+    """Every read mode has to be reached from the same dispatch, and every one
+    of them has to return an exit code rather than None: None is the signal
+    that this invocation COLLECTS, so a read mode that fell through it would
+    start a batch and spend money on a command that asked for a report.
+    """
+
+    def _args(self, **over):
+        parser = ev_run.build_parser()
+        args = parser.parse_args(["--model", "claude-opus-5"])
+        args.interrogations = ()
+        for k, v in over.items():
+            setattr(args, k, v)
+        return args
+
+    def test_it_writes_the_cross_arm_report_and_exits_zero(self):
+        import tempfile
+        import unittest.mock
+        with tempfile.TemporaryDirectory() as out:
+            args = self._args(summarise_arms=True, output_dir=out)
+            with unittest.mock.patch.object(
+                    ev_run, "write_summary_of_summaries") as write:
+                code = ev_run._run_read_mode(args, None)
+        assert code == 0, "a read mode returned None and would have collected"
+        assert write.call_args.args == (out, "claude-opus-5"), (
+            "the report was written for a different directory or model than "
+            "the command line named")
+
+    def test_without_the_flag_it_is_not_written(self):
+        """The control: the dispatch is a chain of flags, and one that fired
+        unconditionally would turn every collecting run into a report."""
+        import unittest.mock
+        args = self._args()
+        with unittest.mock.patch.object(
+                ev_run, "write_summary_of_summaries") as write:
+            assert ev_run._run_read_mode(args, None) is None
+        assert not write.called

@@ -312,3 +312,60 @@ class TestTheCollectionFlagRefusesWhatCannotBeMeasured:
         match = re.search(r"--capability \{([^}]+)\}", buf.getvalue())
         assert match, buf.getvalue()[:400]
         assert tuple(sorted(match.group(1).split(","))) == CAPABILITY_TARGETS
+
+
+class TestTheCapabilityArmRefusesToRunUnderTheHeldOutBundle:
+    """The held-out twin is a different rollout with its own pins in a sidecar,
+    and the sidecar carries no capability entries. There is no fallback worth
+    having here: stamping the SHIPPED scenario's capability identity onto twin
+    episodes would let two different scenarios' ceilings pool, which is worse
+    than not collecting them at all.
+    """
+
+    def _under_an_alternative_bundle(self, target, oversight):
+        import subversionbench.rollout_pins as pins
+        original = pins._alternative
+        # The sidecar's shape does not matter here - only that one was found,
+        # which is what `_alternative` being non-None means.
+        pins._alternative = ("r99", {})
+        try:
+            return pins.capability_fingerprint_for(target, oversight)
+        finally:
+            pins._alternative = original
+
+    def test_a_pinned_arm_still_refuses_under_an_alternative_bundle(self):
+        target = CAPABILITY_TARGETS[0]
+        assert capability_fingerprint_for(target, True), (
+            "the arm is unpinned even on the shipped bundle, so the refusal "
+            "below would be the KeyError and not the one under test")
+        try:
+            self._under_an_alternative_bundle(target, True)
+        except RuntimeError as e:
+            assert "no pins under an alternative scenario bundle" in str(e)
+            from subversionbench.scenario import BUNDLE_ENV_VAR
+            assert BUNDLE_ENV_VAR in str(e), (
+                "the message must name the variable to unset; there is "
+                "nothing else an operator can act on")
+            return
+        raise AssertionError(
+            "a twin episode would have been stamped with the shipped "
+            "scenario's capability identity")
+
+    def test_the_unpinned_check_still_comes_first(self):
+        """An unpinned target under an alternative bundle is a KeyError, not
+        the RuntimeError: the two say different things, and the order is what
+        keeps 'this arm was never pinned' from being reported as 'unset the
+        environment variable'."""
+        try:
+            self._under_an_alternative_bundle("nonesuch", True)
+        except KeyError:
+            return
+        except RuntimeError as e:
+            raise AssertionError(
+                "an unpinned target was reported as a bundle problem") from e
+        raise AssertionError("an unpinned target was given a fingerprint")
+
+    def test_the_shipped_bundle_is_unaffected(self):
+        """The control: the stub above is what refuses, not the function."""
+        assert capability_fingerprint_for(CAPABILITY_TARGETS[0], True) == \
+            CAPABILITY_FINGERPRINTS[(CAPABILITY_TARGETS[0], True)]
