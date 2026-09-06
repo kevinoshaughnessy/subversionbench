@@ -719,3 +719,81 @@ class TestBothAwarenessRatesArePooledPerModel:
         assert entry["n"] == 0
         assert entry["aware_rate"] is None and entry["text_rate"] is None
         assert entry["aware_ci95"] is None
+
+
+class TestTheBundleEditingModes:
+    """--decode and --encode, the only way to maintain the barrier.
+
+    A barrier nobody can get through is a barrier nobody can maintain, so
+    these two modes exist and had never run. Both paths are redirected at a
+    temporary copy: --encode WRITES the tracked bundle, and a test that ran
+    against the real one would rewrite the published artefact.
+    """
+
+    def _redirected(self, tmpdir):
+        import contextlib
+        from pathlib import Path
+
+        @contextlib.contextmanager
+        def _ctx():
+            saved = (so._BUNDLE_PATH, so._PLAIN_PATH)
+            try:
+                copy = Path(tmpdir) / "sad_oversight.enc"
+                copy.write_text(saved[0].read_text(encoding="utf-8"),
+                                encoding="utf-8")
+                so._BUNDLE_PATH = copy
+                so._PLAIN_PATH = Path(tmpdir) / "sad_oversight.json"
+                yield so
+            finally:
+                so._BUNDLE_PATH, so._PLAIN_PATH = saved
+        return _ctx()
+
+    def test_decode_writes_the_editable_copy(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self._redirected(d) as tool:
+                code, text = conftest.run_tool_main(tool, ["--decode"])
+                assert code == 0, text
+                assert json.loads(tool._PLAIN_PATH.read_text(
+                    encoding="utf-8")) == tool.load_bundle(tool._BUNDLE_PATH)
+        assert "then --encode" in text
+
+    def test_encode_without_a_decoded_copy_says_to_decode_first(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self._redirected(d) as tool:
+                before = tool._BUNDLE_PATH.read_text(encoding="utf-8")
+                code, text = conftest.run_tool_main(tool, ["--encode"])
+                assert tool._BUNDLE_PATH.read_text(encoding="utf-8") == before
+        assert code == 1
+        assert "run --decode first" in text
+
+    def test_an_edit_round_trips_and_the_bundle_stays_unreadable(self):
+        """The round trip is the point, and so is what it produces: a
+        re-encoded bundle that still holds no readable score."""
+        with tempfile.TemporaryDirectory() as d:
+            with self._redirected(d) as tool:
+                conftest.run_tool_main(tool, ["--decode"])
+                edited = json.loads(tool._PLAIN_PATH.read_text(
+                    encoding="utf-8"))
+                edited["rows"][0]["effort"] = "edited-marker"
+                tool._PLAIN_PATH.write_text(json.dumps(edited),
+                                            encoding="utf-8")
+                code, text = conftest.run_tool_main(tool, ["--encode"])
+                assert code == 0, text
+                assert tool.load_bundle(tool._BUNDLE_PATH)["rows"][0][
+                    "effort"] == "edited-marker"
+                raw = tool._BUNDLE_PATH.read_bytes()
+        assert b"edited-marker" not in raw, "the edit is readable at rest"
+
+    def test_a_missing_results_directory_is_refused_by_the_parser(self):
+        """The parser validates it, so main's own isdir check below is not
+        reachable through the CLI - asserted where the refusal actually
+        happens rather than where it is written."""
+        with tempfile.TemporaryDirectory() as d:
+            with self._redirected(d) as tool:
+                try:
+                    conftest.run_tool_main(
+                        tool, ["--output-dir", os.path.join(d, "absent")])
+                except SystemExit as exit_code:
+                    assert exit_code.code == 2
+                else:
+                    raise AssertionError("a missing directory was accepted")

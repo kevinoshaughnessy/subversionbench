@@ -23,6 +23,7 @@ measuring precision, and it is silent when wrong.
 import contextlib
 import glob
 import io
+from pathlib import Path
 import json
 import os
 import sys
@@ -887,3 +888,83 @@ class TestTheShapesAreBothOffered:
         assert grader == DEFAULT_GRADER_MODEL, (
             "the reference cell must be what the corpus was actually graded "
             "with, or the comparison has no baseline")
+
+
+class TestTheCliRefusesBeforeItSpends:
+    """grader_ab.main's guard paths and --dry-run.
+
+    Every one of these is reached before a single grader call, which is the
+    only reason they are worth having: the experiment is graders x shapes x
+    episodes, so an unguarded run against the wrong directory spends real
+    money to discover there was nothing there.
+    """
+
+    def _episode(self, out, n, model="p/m", aware=True, stamp="20260101T000000"):
+        path = Path(out, f"run_{n}_{model.replace('/', '_')}_strong_{stamp}.json")
+        path.write_text(json.dumps({
+            "model": model, "nudge": "strong",
+            "transcript": [{"turn": 1, "type": "text", "content": "I recommend B."}],
+            "analysis": {"eval_awareness_grader": {"eval_aware": aware,
+                                                   "rubric_results": {}}},
+        }), encoding="utf-8")
+        return path
+
+    def _main(self, argv):
+        buf = io.StringIO()
+        saved = sys.argv
+        sys.argv = ["grader_ab.py", *argv]
+        try:
+            with contextlib.redirect_stdout(buf):
+                code = ab.main()
+        finally:
+            sys.argv = saved
+        return code, buf.getvalue()
+
+    def test_a_directory_with_no_graded_episode_is_a_refusal(self):
+        """load_candidates requires a STORED verdict, because the sample is
+        balanced on it - an episode whose grading failed has no side to
+        balance into. An empty candidate list is therefore not an empty
+        directory, and the message has to say which."""
+        with tempfile.TemporaryDirectory() as out:
+            Path(out, "run_1_p_m_strong_20260101T000000.json").write_text(
+                json.dumps({"model": "p/m", "nudge": "strong",
+                            "transcript": [{"turn": 1, "type": "text",
+                                            "content": "hi"}],
+                            "analysis": {}}), encoding="utf-8")
+            code, text = self._main(["--output-dir", out])
+        assert code == 1
+        assert "no episodes with a stored grader verdict" in text.lower()
+
+    def test_a_models_filter_matching_nothing_blames_the_filter(self):
+        """A separate message from the one above, because the fix differs:
+        there the directory is wrong, here the --models spelling is."""
+        with tempfile.TemporaryDirectory() as out:
+            for i in range(1, 5):
+                self._episode(out, i, aware=i % 2 == 0)
+            code, text = self._main(["--output-dir", out,
+                                     "--models", "not/a-model"])
+        assert code == 1
+        assert "sample is empty" in text
+        assert "--models" in text
+
+    def test_a_dry_run_costs_nothing_and_says_so(self):
+        """The rehearsal an operator runs first. It has to exit zero - a
+        non-zero dry run reads as "there is nothing to do"."""
+        with tempfile.TemporaryDirectory() as out:
+            for i in range(1, 5):
+                self._episode(out, i, aware=i % 2 == 0)
+            code, text = self._main(["--output-dir", out, "--dry-run"])
+        assert code == 0, text
+        assert "nothing was called" in text
+        assert "Drop the flag to run it" in text
+
+    def test_a_dry_run_still_reports_the_sample_it_would_use(self):
+        """Otherwise it rehearses nothing worth rehearsing: the sample is
+        the decision the operator is checking before paying for it."""
+        with tempfile.TemporaryDirectory() as out:
+            for i in range(1, 7):
+                self._episode(out, i, aware=i % 2 == 0)
+            _code, text = self._main(["--output-dir", out, "--dry-run",
+                                      "--per-model", "2"])
+        assert "episode" in text.lower()
+        assert "p/m" in text

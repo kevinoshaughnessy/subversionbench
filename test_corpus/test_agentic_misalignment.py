@@ -1257,3 +1257,75 @@ class TestTheCLIWritesTheChart:
         assert self._run(out, "--chart-dir", chart_dir) == 0
         assert (Path(chart_dir) /
                "agentic_misalignment_correlation.png").exists()
+
+
+class TestTheBundleEditingModes:
+    """--decode and --encode. Both paths are redirected at a temporary copy,
+    because --encode WRITES the tracked bundle and a test against the real
+    one would rewrite the published artefact."""
+
+    def _redirected(self, tmpdir):
+        import contextlib
+        from pathlib import Path
+        import agentic_misalignment as am
+
+        @contextlib.contextmanager
+        def _ctx():
+            saved = (am._BUNDLE_PATH, am._PLAIN_PATH)
+            try:
+                copy = Path(tmpdir) / "agentic_misalignment.enc"
+                copy.write_text(saved[0].read_text(encoding="utf-8"),
+                                encoding="utf-8")
+                am._BUNDLE_PATH = copy
+                am._PLAIN_PATH = Path(tmpdir) / "agentic_misalignment.json"
+                yield am
+            finally:
+                am._BUNDLE_PATH, am._PLAIN_PATH = saved
+        return _ctx()
+
+    def test_decode_and_encode_are_refused_together(self):
+        """Opposites. Accepting both would run whichever the code checks
+        first and silently ignore the other."""
+        import agentic_misalignment as am
+        with tempfile.TemporaryDirectory() as d:
+            with self._redirected(d):
+                try:
+                    conftest.run_tool_main(am, ["--decode", "--encode"])
+                except SystemExit as exit_code:
+                    assert exit_code.code == 2
+                else:
+                    raise AssertionError("both flags were accepted")
+
+    def test_decode_writes_a_gitignored_copy_and_says_so(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self._redirected(d) as am:
+                code, text = conftest.run_tool_main(am, ["--decode"])
+                assert code == 0, text
+                assert am._PLAIN_PATH.is_file()
+        assert "gitignored" in text
+
+    def test_encode_without_a_decoded_copy_exits_two(self):
+        """Distinct from the exit code a bad results directory gives, so a
+        caller can tell "you skipped a step" from "that path is wrong"."""
+        import agentic_misalignment as am
+        with tempfile.TemporaryDirectory() as d:
+            with self._redirected(d):
+                before = am._BUNDLE_PATH.read_text(encoding="utf-8")
+                code, _text = conftest.run_tool_main(am, ["--encode"])
+                assert am._BUNDLE_PATH.read_text(encoding="utf-8") == before
+        assert code == 2
+
+    def test_an_edit_round_trips_without_becoming_readable(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self._redirected(d) as am:
+                conftest.run_tool_main(am, ["--decode"])
+                edited = json.loads(am._PLAIN_PATH.read_text(encoding="utf-8"))
+                edited["_edit_marker"] = "round-tripped"
+                am._PLAIN_PATH.write_text(json.dumps(edited), encoding="utf-8")
+                code, text = conftest.run_tool_main(am, ["--encode"])
+                assert code == 0, text
+                assert am.load_bundle(am._BUNDLE_PATH)["_edit_marker"] == \
+                    "round-tripped"
+                raw = am._BUNDLE_PATH.read_bytes()
+        assert b"round-tripped" not in raw
+        assert "folded" in text
