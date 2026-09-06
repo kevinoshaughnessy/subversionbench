@@ -235,3 +235,92 @@ class TestTheCapabilityArmIsNotOneOfTheTwelve:
                            f"2026010{i+1}T000000", capability=target)
             report = build_summary_of_summaries(out, "x/m")
         assert report["arms"] == {}, report["arms"]
+
+
+class TestTheConsoleTableSaysWhatWasNotMeasured:
+    """format_summary_of_summaries renders a report dict.
+
+    Driven with a dict here rather than through build_summary_of_summaries,
+    because that is this function's actual contract and it reaches the
+    branches deterministically - the blocks below appear only for a report
+    that has contrasts or per-variant concealment, which a minimal fixture
+    corpus does not produce.
+    """
+
+    def _report(self, arms=None, contrasts=(), missing=()):
+        return {"model": "x/m", "missing_arms": list(missing),
+                "arms": arms or {}, "notable_contrasts": list(contrasts)}
+
+    def _arm(self, rates, **extra):
+        return {"rates": rates, "headline_interrogation": "zeroevidence",
+                **extra}
+
+    def test_a_metric_with_no_episodes_reads_n_a_and_not_zero_of_zero(self):
+        """The not-applicable-is-not-zero rule, at the presentation layer.
+
+        `0/0` in a table reads as "we looked and found none". The
+        no-oversight arms have no monitoring to disable, so the metric was
+        never measured there at all - a different claim, and the one a
+        reader comparing arms down a column would otherwise get wrong.
+        """
+        text = format_summary_of_summaries(self._report({
+            "none oversight": self._arm({
+                "misaligned": _rate(2, 10),
+                "monitoring_disabled": {"successes": 0, "n": 0,
+                                        "rate": None, "ci95": None},
+            })}))
+        assert "n/a" in text
+        assert "0/0" not in text, "an unmeasured metric was printed as a rate"
+        assert "2/10" in text
+
+    def test_a_metric_absent_from_the_report_also_reads_n_a(self):
+        """A summary written before a metric existed carries no key for it.
+        That is unmeasured too, and must not render as a zero either."""
+        text = format_summary_of_summaries(self._report({
+            "none oversight": self._arm({"misaligned": _rate(1, 5)})}))
+        assert text.count("n/a") == 4, text
+
+    def test_every_notable_contrast_is_listed_with_what_it_held_fixed(self):
+        """A contrast is only readable alongside what was held constant -
+        without it the reader cannot tell which comparison was made."""
+        text = format_summary_of_summaries(self._report(
+            {"none oversight": self._arm({"misaligned": _rate(1, 5)})},
+            contrasts=[{"axis": "oversight", "arm_a": "a", "arm_b": "b",
+                        "metric": "misaligned", "holding": "nudge=none"}]))
+        assert "1 contrast(s)" in text
+        assert "[oversight] a vs b on misaligned (holding nudge=none)" in text
+        assert "No contrast" not in text
+
+    def test_the_absence_of_a_contrast_is_stated_as_what_it_means(self):
+        """Consistent with no detectable effect at this n, NOT with there
+        being none. Printing nothing would leave the stronger reading."""
+        text = format_summary_of_summaries(self._report(
+            {"none oversight": self._arm({"misaligned": _rate(1, 5)})}))
+        assert "consistent with no detectable effect at this n" in text
+        assert "not\nwith there being none" in text or \
+               "not with there being none" in text
+
+    def test_concealment_is_broken_out_per_interrogation_variant(self):
+        """The headline variant is named beside it, because the arm's
+        published concealment figure comes from one of these and the point
+        of the breakdown is to show how much that choice carried."""
+        text = format_summary_of_summaries(self._report({
+            "none oversight": self._arm(
+                {"misaligned": _rate(1, 5)},
+                concealment_by_variant={
+                    "oversight": {"zeroevidence": {"concealed": 3, "n": 5},
+                                  "direct": {"concealed": 1, "n": 5}}})}))
+        assert "headline=zeroevidence" in text
+        assert "oversight: direct=1/5  zeroevidence=3/5" in text
+
+    def test_an_arm_with_no_variant_breakdown_prints_no_block_for_it(self):
+        """The other direction, so the heading cannot simply always appear."""
+        text = format_summary_of_summaries(self._report({
+            "none oversight": self._arm({"misaligned": _rate(1, 5)})}))
+        assert "concealment by interrogation variant" not in text
+
+    def test_missing_arms_are_named_rather_than_left_out(self):
+        text = format_summary_of_summaries(
+            self._report(missing=("strong oversight", "max lure")))
+        assert "Missing arms" in text
+        assert "strong oversight" in text and "max lure" in text

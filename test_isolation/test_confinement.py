@@ -408,6 +408,136 @@ class TestTheFingerprintDoesNotDependOnTheHost:
                         (oversight, lure)
 
 
+class TestTheArgvALinuxHostWouldRun:
+    """What bwrap is actually told to do, asserted from macOS.
+
+    CI runs Linux and this checkout does not, so these branches are the ones
+    AGENTS.md means by "a green local run is half the evidence" - four
+    defects in recent versions were invisible here and real there. Simulating
+    the host is weaker than running on it, and it is what makes the argv
+    reviewable at all from this side; the mechanism probe is faked at the
+    capability, the same seam the tests below already use.
+    """
+
+    def _linux(self, works=("bwrap", "unshare"), roots=("/tmp",)):
+        import contextlib
+        from unittest import mock
+        from subversionbench import isolation
+
+        @contextlib.contextmanager
+        def _ctx():
+            real_works = isolation._mechanism_works
+            real_platform = isolation.platform.system
+            try:
+                isolation._mechanism_works = lambda name: name in works
+                isolation.platform.system = lambda: "Linux"
+                with mock.patch.object(isolation, "_temp_roots",
+                                       return_value=roots), \
+                        mock.patch.object(isolation.os.path, "isdir",
+                                          return_value=True):
+                    yield isolation
+            finally:
+                isolation._mechanism_works = real_works
+                isolation.platform.system = real_platform
+        return _ctx()
+
+    def test_every_temp_root_is_mounted_execute_only(self):
+        """0111 IS LOAD-BEARING, and the reason is the rollout identity.
+
+        A bare tmpfs is world-readable, so `ls ../..` SUCCEEDS and returns an
+        empty listing - which hides the machine's temp contents but is not
+        the observation the seatbelt policy produces, "Operation not
+        permitted". That difference reaches the model and its next move
+        depends on it. The fingerprint deliberately does not hash the
+        mechanism, on the grounds that what the model can and cannot do is
+        the same on both; a readable tmpfs makes that untrue, and a Linux
+        batch would pool with a macOS one while presenting a different world.
+        """
+        with self._linux(roots=("/tmp", "/var/tmp")) as iso:
+            argv = iso.wrap_command("ls", "deny-network", confine_to="/x")
+        mounts = [argv[i:i + 5] for i, tok in enumerate(argv)
+                  if tok == "--tmpfs"]
+        assert mounts == [["--tmpfs", "/tmp", "--chmod", "0111", "/tmp"],
+                          ["--tmpfs", "/var/tmp", "--chmod", "0111",
+                           "/var/tmp"]], argv
+
+    def test_the_episode_tree_is_bound_back_after_the_mounts(self):
+        """Ordering, not merely presence. The episode directory lives UNDER a
+        temp root, so a bind that came first would be covered by the tmpfs
+        laid over it and the shell could not reach its own files."""
+        with self._linux() as iso:
+            argv = iso.wrap_command("ls", "deny-network", confine_to="/tmp/ep")
+        assert argv.index("--bind") > argv.index("--tmpfs")
+        allow = argv[argv.index("--bind") + 1]
+        assert argv[argv.index("--bind") + 2] == allow
+
+    def test_the_network_is_unshared_and_the_command_still_goes_via_a_shell(self):
+        """The scenario's commands are shell text - pipelines, heredocs,
+        redirections - and the isolation is applied to the shell so that
+        everything it spawns inherits it."""
+        with self._linux() as iso:
+            argv = iso.wrap_command("a | b", "deny-network", confine_to="/tmp/e")
+        assert argv[0] == "bwrap" and "--unshare-net" in argv
+        assert argv[-3:] == ["/bin/sh", "-c", "a | b"]
+
+    def test_a_root_that_is_not_a_directory_is_not_mounted(self):
+        """_temp_roots names the candidates; only the ones present on this
+        host can be covered. Mounting over a path that is not there would
+        fail the whole command rather than tightening anything."""
+        from unittest import mock
+        from subversionbench import isolation
+        with self._linux(roots=("/tmp", "/nonexistent")) as iso:
+            with mock.patch.object(isolation.os.path, "isdir",
+                                   side_effect=lambda p: p == "/tmp"):
+                argv = iso.wrap_command("ls", "deny-network", confine_to="/x")
+        assert "/nonexistent" not in argv
+        assert argv.count("--tmpfs") == 1
+
+    def test_an_unconfined_command_prefers_unshare(self):
+        """No filesystem confinement was asked for, so the lighter mechanism
+        is enough - and it is chosen on whether it WORKS, not on presence:
+        Ubuntu 23.10 ships unshare and refuses unprivileged use, so selecting
+        on presence sent every command through a wrapper that failed."""
+        with self._linux(works=("bwrap", "unshare")) as iso:
+            assert iso.wrap_command("ls", "deny-network")[0] == "unshare"
+
+    def test_bwrap_carries_an_unconfined_command_where_unshare_cannot(self):
+        """The fallback that keeps an apparmor-restricted host usable."""
+        with self._linux(works=("bwrap",)) as iso:
+            argv = iso.wrap_command("ls", "deny-network")
+        assert argv[0] == "bwrap" and "--unshare-net" in argv
+        assert "--tmpfs" not in argv, "confinement was not asked for"
+
+    def test_a_host_with_no_mechanism_refuses_rather_than_runs(self):
+        """There is deliberately no unprotected path: the sandbox's blocklist
+        is not a boundary, and a model with shell access could reach the
+        network."""
+        import pytest
+        with self._linux(works=()) as iso:
+            with pytest.raises(RuntimeError, match="no mechanism is available"):
+                iso.wrap_command("ls", "deny-network")
+
+    def test_the_mechanism_reported_is_the_one_that_would_be_used(self):
+        """active_mechanism mirrors wrap_command's selection rather than
+        restating it as a rule. Asserted as a pair, so the description and
+        the behaviour cannot drift apart - the episode records this string
+        and cross-platform comparisons are read off it."""
+        with self._linux(works=("bwrap", "unshare")) as iso:
+            assert iso.active_mechanism() == "bwrap"
+        with self._linux(works=("unshare",)) as iso:
+            assert iso.active_mechanism() == "unshare"
+            assert iso.wrap_command("ls", "deny-network")[0] == "unshare"
+        with self._linux(works=()) as iso:
+            assert iso.active_mechanism() == "unavailable"
+
+    def test_bwrap_is_preferred_because_it_is_the_one_that_can_confine(self):
+        """Both work, and the choice is not arbitrary: unshare --net cannot
+        mount anything, so it cannot hide the temp roots."""
+        with self._linux(works=("bwrap", "unshare")) as iso:
+            assert iso.active_mechanism() == "bwrap"
+            assert iso.confinement_available() is True
+
+
 class TestTheHostMustBeAbleToEnforceIt:
     def test_an_unshare_only_linux_host_can_isolate_but_not_confine(self):
         """`unshare --net` can enforce the network policy and cannot enforce this
@@ -465,3 +595,147 @@ class TestTheHostMustBeAbleToEnforceIt:
 
     def test_confinement_is_available_here(self):
         assert confinement_available() is True
+
+
+class TestTheConfinementVerdictNamesWhatFailed:
+    """The messages an operator sees when the boundary does not hold.
+
+    Every one of these branches was unrun, because in a working checkout the
+    policy holds and verify_confinement returns None. They are exactly the
+    code that only ever executes on the bad day - and a batch is refused or
+    allowed to start on what they say, so a message that misidentifies the
+    failure sends the operator to the wrong problem while the run is blocked.
+
+    The probe is faked rather than broken on purpose: taking the sandbox
+    apart to observe each failure would be a different test, and could not
+    reach several of these at all on this platform.
+    """
+
+    HEALTHY = {
+        "interpreter": "Python 3.12.13",
+        "own_file": "own file is readable",
+        "neighbour": "neighbour_engagement",
+        "write_inside": "confirmed",
+        "shell_escape": "ls: ..: Operation not permitted",
+        "shell_glob": "../../*",
+        "shell_find": "find: ../..: Operation not permitted",
+        "interpreter_escape": "PermissionError",
+        "absolute_temp": "PermissionError",
+        "absolute_scandir": "PermissionError",
+        "write_escape": "Operation not permitted",
+        "write_absolute": "PermissionError",
+    }
+
+    def _verdict(self, **broken):
+        from unittest import mock
+        from subversionbench import isolation
+        out = {**self.HEALTHY, **broken}
+        with mock.patch.object(isolation, "probe_confinement",
+                               return_value=out):
+            return isolation.verify_confinement()
+
+    def test_a_holding_policy_returns_no_complaint(self):
+        """The control. Without it every test below would pass against a
+        function that always reported a failure."""
+        assert self._verdict() is None
+
+    def test_an_interpreter_that_did_not_run_is_caught_first(self):
+        """Checked before the escape probes because every one of them would
+        otherwise fail for the wrong reason and read as a holding policy."""
+        got = self._verdict(interpreter="sh: python3: not found",
+                            shell_escape="", interpreter_escape="")
+        assert got is not None
+        assert "did not run under the policy" in got
+
+    def test_an_interpreter_that_could_not_cache_is_its_own_failure(self):
+        """python3 ran, so the probes are valid, but it leaked the
+        operator's real temp path into stderr - which the model would see
+        whenever a command produced no stdout."""
+        from subversionbench.isolation import _XCRUN_CACHE_PREFIX
+        got = self._verdict(
+            interpreter=f"Python 3.12.13\n{_XCRUN_CACHE_PREFIX}: permission denied")
+        assert got is not None and "cache file" in got
+
+    def test_a_policy_stricter_than_intended_is_a_failure_too(self):
+        """BOTH DIRECTIONS. An episode that cannot read its own directory,
+        or cannot see the neighbours the lure arm depends on, has had the
+        scenario silently changed - which ruins a batch as surely as an
+        escape that succeeds, and looks nothing like one."""
+        assert "stricter than intended" in self._verdict(own_file="")
+        assert "lure" in self._verdict(neighbour="")
+        assert "deliverable" in self._verdict(write_inside="")
+
+    def test_each_escape_probe_that_succeeds_is_named(self):
+        """The probe's own name reaches the message. A shared wording would
+        say the boundary failed without saying which way out was open."""
+        for probe in ("shell_escape", "shell_find", "interpreter_escape",
+                      "absolute_temp", "absolute_scandir"):
+            got = self._verdict(**{probe: "engagement_a\nengagement_b"})
+            assert got is not None and probe in got, probe
+            assert "temp directory is reachable" in got
+
+    def test_an_expanded_glob_is_caught_though_it_carries_no_refusal(self):
+        """Checked apart from the others: a glob that matches nothing is
+        left unexpanded, so the literal pattern coming back IS the refusal,
+        and "../../*" contains no refusal wording of its own."""
+        got = self._verdict(shell_glob="../../engagement_a ../../engagement_b")
+        assert got is not None and "glob enumerated" in got
+
+    def test_a_write_that_escapes_is_reported_as_a_sample_independence_problem(self):
+        """Not merely a disclosure. A note left above the episode tree is
+        readable by every later episode, so the rates stop being built on
+        independent samples."""
+        for probe in ("write_escape", "write_absolute"):
+            got = self._verdict(**{probe: "wrote it"})
+            assert got is not None and probe in got, probe
+            assert "independent samples" in got
+
+    def test_an_empty_probe_result_counts_as_refused(self):
+        """A bwrap tmpfs is not an error at all - the directory is simply
+        empty, so there is no marker to match. Reading that as an escape
+        would refuse every correctly confined Linux host."""
+        assert self._verdict(shell_escape="", shell_find="",
+                             interpreter_escape="") is None
+
+
+class TestTheNetworkVerdictNamesWhatFailed:
+    """verify_isolation, judged on outcomes rather than on an errno.
+
+    The mechanisms differ - macOS refuses with EPERM, `unshare --net` gives
+    an empty namespace where the attempt fails as unreachable instead. An
+    errno-exact check passed here and would have refused to start on a
+    correctly isolated Linux host.
+    """
+
+    def _verdict(self, mode, loopback, external):
+        from unittest import mock
+        from subversionbench import isolation
+        with mock.patch.object(isolation, "probe_isolation",
+                               return_value={"loopback": loopback,
+                                             "external": external}):
+            return isolation.verify_isolation(mode)
+
+    def test_a_connection_that_succeeds_disqualifies_every_mode(self):
+        """The one outcome that is never acceptable, whatever was asked for."""
+        for mode in ("deny-network", "deny-external"):
+            got = self._verdict(mode, loopback="refused", external="connected")
+            assert got is not None and "NOT blocked" in got, mode
+
+    def test_deny_network_also_requires_loopback_to_be_gone(self):
+        assert self._verdict("deny-network", "connected", "refused") is not None
+        assert self._verdict("deny-network", "refused", "refused") is None
+
+    def test_deny_external_keeps_loopback_usable_either_way(self):
+        """"refused" is a closed port handled normally and "connected" means
+        something was listening. Both mean loopback still works, which is
+        what the mode needs for an escalation to stay observable."""
+        for loop in ("refused", "connected"):
+            assert self._verdict("deny-external", loop, "unreachable") is None
+
+    def test_a_mode_that_took_loopback_away_is_refused_not_downgraded(self):
+        """The message has to name the alternative, because the operator's
+        next step is a different --isolation flag and the consequence of
+        taking it is that off-host escalation stops being observable."""
+        got = self._verdict("deny-external", "unreachable", "unreachable")
+        assert got is not None
+        assert "deny-network" in got and "not be observable" in got
