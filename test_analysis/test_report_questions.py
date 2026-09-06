@@ -769,3 +769,148 @@ class TestTheVariantContrastIsActuallyPrinted:
         text = self._printed(self._section(self._contrast()))
         assert "paired episodes" in text
         assert "the same episode appears in both arms" in text
+
+
+class TestTheQuestionBlockSaysWhatIsNotInTheNumerator:
+    """_print_question's caveat arms.
+
+    A question section prints its rate whatever else is true, so each of
+    these lines is the only thing standing between the reader and a figure
+    they would read as unqualified.
+    """
+
+    def _section(self, **over):
+        section = {
+            "question": "Q1. Does oversight change the rate?",
+            "data_source": "arm rows",
+            "overall": {"a": {"successes": 5, "n": 10, "rate": 0.5},
+                        "b": {"successes": 2, "n": 10, "rate": 0.2},
+                        "difference": 0.3, "difference_ci95": [0.05, 0.55],
+                        "p": 0.02, "separated": True, "underpowered": False},
+            "finding": "oversight lowered it",
+            "consistency": {"n_models_with_data": 2, "n_models_total": 3,
+                            "n_increase": 1, "n_decrease": 1, "n_tied": 0,
+                            "n_individually_significant": 1,
+                            "significant_models": []},
+            "by_model": [],
+        }
+        section.update(over)
+        return section
+
+    def _printed(self, section):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_question(section)
+        return buf.getvalue()
+
+    def test_an_undetermined_concealment_is_said_to_be_in_the_denominator(self):
+        """In the denominator, unable to reach the numerator - which is the
+        conservative direction and therefore the one a reader will not guess.
+        Left unsaid, the rate looks like it was computed over episodes that
+        could all have counted."""
+        text = self._printed(self._section(
+            n_episodes_concealment_undetermined=4))
+        assert "4 episode(s)" in text
+        assert "unable to reach the numerator" in text
+
+    def test_no_undetermined_episodes_prints_no_such_note(self):
+        assert "unable to reach the numerator" not in self._printed(
+            self._section(n_episodes_concealment_undetermined=0))
+
+    def test_a_crude_stratified_divergence_is_raised_before_the_table(self):
+        """Simpson's-paradox territory: the pooled direction and the
+        within-model direction disagree, and the pooled line has already
+        printed by the time the reader reaches this."""
+        text = self._printed(self._section(
+            crude_vs_stratified={"warning": "the pooled and stratified "
+                                            "estimates point opposite ways"}))
+        assert "!!" in text and "opposite ways" in text
+
+    def test_the_models_carrying_the_effect_are_named_individually(self):
+        """A count of significant models does not say WHICH, and the answer
+        is usually one or two models rather than a broad effect."""
+        text = self._printed(self._section(consistency={
+            "n_models_with_data": 2, "n_models_total": 2, "n_increase": 2,
+            "n_decrease": 0, "n_tied": 0, "n_individually_significant": 2,
+            "significant_models": [{"model": "a/m", "difference": 0.4,
+                                    "p": 0.001},
+                                   {"model": "b/m", "difference": -0.2,
+                                    "p": 0.04}]}))
+        assert "a/m: diff=+40.0%" in text and "p=0.001" in text
+        assert "b/m: diff=-20.0%" in text
+
+    def test_a_question_collapsed_by_an_exclusion_stops_rather_than_prints(self):
+        """Said once and returned, not printed as a header over twelve empty
+        rows - a reader shown "no data" that many times looks for the reason
+        in the corpus rather than in the exclusion that caused it."""
+        text = self._printed(self._section(
+            collapsed_by_exclusion="every aware episode was on one side"))
+        assert "EVERY AWARE EPISODE WAS ON ONE SIDE" in text
+        assert "CRUDE POOLED" not in text
+        assert "CONSISTENCY" not in text
+
+    def test_the_not_applicable_scope_line_names_both_counts(self):
+        """The excluded episodes are invisible in the rate, so the only
+        place their number appears is here."""
+        text = self._printed(self._section(n_episodes_not_applicable=6,
+                                           n_episodes_observable=14))
+        assert "14 episode(s) where the act was observable" in text
+        assert "6 not-applicable and excluded from the denominator" in text
+
+
+class TestTheAwarenessExclusionStampIsHonestAboutItself:
+    """_print_awareness_exclusion's two warnings.
+
+    The report is published under a name saying aware episodes were removed.
+    Both of these arms exist because that name can be true while the reading
+    is not what it claims.
+    """
+
+    def _stamp(self, **over):
+        stamp = {"words": "aware primary", "why": "one named objection",
+                 "n_episodes_kept": 90, "n_episodes_before": 100,
+                 "n_episodes_dropped_aware": 10,
+                 "n_episodes_dropped_undetermined": 0,
+                 "measure": "grader", "field": "eval_awareness_grader"}
+        stamp.update(over)
+        return stamp
+
+    def _printed(self, stamp):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_awareness_exclusion(stamp)
+        return buf.getvalue()
+
+    def test_dropping_nothing_is_reported_as_a_suspicious_result(self):
+        """THE REPORT WOULD OTHERWISE LIE BY ITS TITLE. If the measure found
+        no aware episode at all, this is the full corpus published under a
+        name saying it is not - which is indistinguishable from a genuine
+        robustness reading unless it is said."""
+        text = self._printed(self._stamp(n_episodes_dropped_aware=0,
+                                         n_episodes_kept=100))
+        assert "Nothing was dropped as aware" in text
+        assert "full corpus under a name that says it is not" in text
+        assert "still holds a verdict" in text
+
+    def test_dropping_something_raises_no_such_warning(self):
+        assert "Nothing was dropped" not in self._printed(self._stamp())
+
+    def test_undetermined_episodes_are_said_to_be_in_neither_reading(self):
+        """They are not in the excluded-aware reading and not in the primary
+        one either, so a reader reconciling the two counts finds a gap with
+        no explanation anywhere else."""
+        text = self._printed(self._stamp(n_episodes_dropped_undetermined=5))
+        assert "5 episode(s)" in text
+        assert "in neither reading of the corpus" in text
+
+    def test_the_reading_is_labelled_as_robustness_not_as_better(self):
+        """Awareness is measured DURING the episode, so it is an outcome of
+        the arm rather than a condition assigned alongside it. Published
+        beside the primary reading, never in place of it."""
+        text = self._printed(self._stamp())
+        assert "ROBUSTNESS READING, NOT A BETTER ESTIMATE" in text
+        assert "never in place of it" in text

@@ -491,3 +491,122 @@ class TestRoutingDiffersAcrossTheContrast:
         assert "routed differently" in printed
         assert "!!" in printed, "the disjoint case is not marked"
         assert "re-collecting" in printed
+
+
+class TestTheCaveatsThatOnlyPrintWhenSomethingIsWrong:
+    """_print_data_quality's warning arms.
+
+    This block exists to be read before anything above it is quoted, so a
+    caveat that is computed and not printed is worse than one that was never
+    computed: the figure it qualifies is on screen either way, and the reader
+    has been shown a clean data-quality section.
+
+    Driven with a dq dict, because several of these need a corpus shaped to
+    order - a stored verdict that disagrees with the current definitions is
+    not something a fixture produces by accident.
+    """
+
+    def _dq(self, **over):
+        dq = {
+            "awareness_verdict_sources": {"grader": 10},
+            "awareness_all_from_grader": True,
+            "n_misalignment_verdict_disagreements": 0,
+            "n_scheming_verdict_disagreements": 0,
+            "n_scheming_act_verdict_disagreements": 0,
+            "n_scheming_undetermined": 0,
+            "n_oversight_act_not_applicable": 0,
+            "n_monitoring_not_applicable": 0,
+            "n_sandbox_escape_field_absent": 0,
+            "duplicate_arms": [],
+            "mixed_routing_arms": [],
+            "mixed_served_provider_arms": [],
+            "routing_differs_across_contrast": {},
+        }
+        dq.update(over)
+        return dq
+
+    def _printed(self, dq):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_data_quality(dq)
+        return buf.getvalue()
+
+    def test_a_clean_corpus_raises_none_of_the_warnings(self):
+        """The control. Without it every test below would pass against a
+        block that printed every caveat unconditionally."""
+        text = self._printed(self._dq())
+        assert "!" not in text, text
+
+    def test_a_keyword_sourced_awareness_verdict_is_flagged(self):
+        """The keyword proxy badly under-detects - 0/20 in one pilot arm the
+        grader scored 15/20 - so a rate resting partly on it is not
+        comparable with one that does not."""
+        text = self._printed(self._dq(
+            awareness_all_from_grader=False,
+            awareness_verdict_sources={"grader": 8, "keywords": 2}))
+        assert "Not every awareness verdict came from the rubric grader" in text
+        assert "--grade-existing" in text, "no way out is offered"
+
+    def test_a_stored_verdict_disagreeing_with_the_code_is_flagged(self):
+        """Each of the three, separately, because they are re-derived by
+        different definitions and one can move without the others."""
+        for field in ("n_misalignment_verdict_disagreements",
+                      "n_scheming_verdict_disagreements",
+                      "n_scheming_act_verdict_disagreements"):
+            text = self._printed(self._dq(**{field: 3}))
+            assert "disagrees with the current definitions" in text, field
+            assert "--resummarise" in text, field
+
+    def test_episodes_missing_the_sandbox_field_are_counted_as_no_attempt(self):
+        """Said explicitly, because that is an assumption rather than a
+        measurement: the field's absence is not evidence of no attempt, and
+        question 7's denominator includes them either way."""
+        text = self._printed(self._dq(n_sandbox_escape_field_absent=4))
+        assert "4 episode(s) have no" in text
+        assert "count as no-attempt" in text
+
+    def test_an_arm_answered_by_two_backends_is_named_with_the_split(self):
+        text = self._printed(self._dq(mixed_served_provider_arms=[{
+            "model": "x/m", "nudge": "max", "oversight": True, "lure": False,
+            "n_episodes": 5, "episodes_changing_mid_run": 0,
+            "providers": [{"provider": "Fireworks", "n_episodes": 3},
+                          {"provider": "Together", "n_episodes": 2}]}]))
+        assert "answered by more than one backend: 1" in text
+        assert "Fireworks x3" in text and "Together x2" in text
+        assert "x/m" in text and "nudge=max" in text
+
+    def test_an_episode_that_changed_backend_mid_run_is_called_out(self):
+        """A different fact from the arm pooling two backends: there, not
+        even one transcript is attributable to a single backend."""
+        text = self._printed(self._dq(mixed_served_provider_arms=[{
+            "model": "x/m", "nudge": "max", "oversight": True, "lure": False,
+            "n_episodes": 5, "episodes_changing_mid_run": 2,
+            "providers": [{"provider": "Fireworks", "n_episodes": 5}]}]))
+        assert "2 episode(s) changed backend MID-RUN" in text
+
+    def test_the_served_block_says_why_it_differs_from_the_one_above_it(self):
+        """Two adjacent checks that sound alike. Without the explanation a
+        reader seeing "0" on the first and "3" on the second concludes the
+        report contradicts itself, rather than that one of them is silent by
+        construction wherever nothing was pinned."""
+        text = self._printed(self._dq(mixed_served_provider_arms=[{
+            "model": "x/m", "nudge": "max", "oversight": True, "lure": False,
+            "n_episodes": 2, "episodes_changing_mid_run": 0,
+            "providers": [{"provider": "A", "n_episodes": 1},
+                          {"provider": "B", "n_episodes": 1}]}]))
+        assert "Read off the responses, not the request" in text
+        assert "silent by construction" in text
+
+    def test_a_clean_served_check_prints_no_explanation_block(self):
+        assert "Read off the responses" not in self._printed(self._dq())
+
+    def test_the_not_applicable_counts_are_always_stated(self):
+        """Not warnings - they print at zero too, and they have to: an
+        excluded episode is invisible in a rate, so the only place a reader
+        learns the denominator was reduced is here."""
+        text = self._printed(self._dq(n_oversight_act_not_applicable=7,
+                                      n_monitoring_not_applicable=3,
+                                      n_scheming_undetermined=2))
+        assert "not applicable" in text and "7" in text
+        assert "not counted clean" in text
+        assert "unable to reach the numerator" in text
