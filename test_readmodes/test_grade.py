@@ -340,3 +340,61 @@ class TestARegradeWithNothingToGrade:
         code, text = self._grade(out)
         assert code == 1
         assert "Nothing graded - no run file contained a transcript." in text
+
+
+class TestTheDelayPacesTheFilesAndNotTheLastOne:
+    """Regrading a whole corpus is one grader call per file, fired as fast as
+    the loop runs, and a throttled call is recorded as a rubric question that
+    failed to answer - which reads as the model giving no signal rather than
+    as the connection refusing to carry one. `--delay` is the only lever, and
+    it must not sleep after the final file, where it paces nothing and simply
+    delays the summary.
+
+    Counted rather than timed: an absolute wall-clock assertion here would be
+    tuned to one machine and flake on a slower one.
+    """
+
+    def _sleeps(self, n_files, delay):
+        import subversionbench.readmodes.grade as grade_mode
+        out = tempfile.mkdtemp()
+        writer = TestGradeExistingRuns()
+        for i in range(1, n_files + 1):
+            writer._write_run(
+                out, f"run_{i}_x-ai_grok-4.5_strong_20260727T100000.json")
+        # Only `sleep` is replaced: the mode also calls time.time() to report
+        # how long the regrade took, and a namespace carrying one function
+        # would fail there instead of measuring the pacing.
+        slept = []
+        original = grade_mode.time.sleep
+        grade_mode.time.sleep = slept.append
+        args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
+                        nudge="strong", grader_model="claude-opus-5",
+                        delay=delay)
+        try:
+            with _stub_grader(answer=True), \
+                    contextlib.redirect_stdout(io.StringIO()) as buf:
+                code = ev_run.grade_existing_runs(
+                    args, BatchSelection.typed(args))
+        finally:
+            grade_mode.time.sleep = original
+        return slept, code, buf.getvalue()
+
+    def test_three_files_sleep_twice(self):
+        slept, code, text = self._sleeps(3, 0.5)
+        assert code == 0, text
+        assert slept == [0.5, 0.5], (
+            "the loop slept after the last file, which paces nothing")
+        assert text.count("Waiting 0.5s") == 2
+
+    def test_one_file_sleeps_not_at_all(self):
+        slept, code, _text = self._sleeps(1, 0.5)
+        assert code == 0
+        assert slept == []
+
+    def test_no_delay_means_no_sleeping(self):
+        """The control: without it a count of two could come from a loop that
+        slept on a schedule of its own."""
+        slept, code, text = self._sleeps(3, 0)
+        assert code == 0
+        assert slept == []
+        assert "Waiting" not in text

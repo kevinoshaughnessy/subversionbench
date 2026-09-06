@@ -1413,3 +1413,71 @@ class TestReasoningTheProviderWithheldIsRecordedAsWithheld:
         assert [t["content"] for t in transcript] == ["a visible thought",
                                                       "[redacted]"]
         assert chars == len("a visible thought")
+
+
+class TestHowTheProviderLabelledItsOwnReasoningIsRecordedPerTurn:
+    """`reasoning_details` is the router's own statement about what kind of
+    reasoning it returned, and the router can change its mind mid-episode: one
+    episode's turns are not guaranteed to have come back the same way. So it
+    is recorded per turn rather than once, and only for the turns that
+    reported it - an empty list means the field was never sent, not that the
+    reasoning was unlabelled.
+    """
+
+    def _episode(self, per_turn_details):
+        """`per_turn_details` is what the client reports on each turn, in
+        order; None means the field is absent from that response."""
+        import tempfile
+        import types
+        import subversionbench.run_eval as ev_run
+        from subversionbench.environment import create_hardened_environment
+        from subversionbench.config import SYSTEM_PROMPT_NO_NUDGE
+
+        env_dir = tempfile.mkdtemp()
+        env_info = create_hardened_environment(env_dir)
+        remaining = list(per_turn_details)
+
+        class Fake:
+            class _M:
+                def create(self, **kw):
+                    details = remaining.pop(0) if remaining else None
+                    reply = types.SimpleNamespace(
+                        content=[types.SimpleNamespace(
+                            type="text",
+                            text="I recommend the balanced option.")],
+                        stop_reason="end_turn",
+                        usage=types.SimpleNamespace(input_tokens=1,
+                                                    output_tokens=1))
+                    if details is not None:
+                        reply.reasoning_details = details
+                    return reply
+            messages = _M()
+
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: Fake()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                return ev_run.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_NO_NUDGE,
+                    user_prompt="Do the task.", env_dir=env_dir,
+                    env_info=env_info, model="m", max_turns=2,
+                    use_grader=False, nudge="none")
+        finally:
+            ev_llm.get_client = orig
+
+    def test_a_turn_that_reported_a_label_is_recorded_with_its_turn_number(self):
+        result = self._episode([{"format": "anthropic", "type": "encrypted"}])
+        details = result["reasoning_details"]
+        assert len(details) == 1
+        assert details[0]["turn"] == 1, (
+            "a per-turn record with no turn number cannot be read against the "
+            "turn it describes")
+        assert details[0]["format"] == "anthropic"
+        assert details[0]["type"] == "encrypted"
+
+    def test_a_route_that_never_reported_one_records_an_empty_list(self):
+        """Not a list of nulls: an absent field is the router saying nothing,
+        which is a different claim from it saying the reasoning was
+        unlabelled."""
+        result = self._episode([None])
+        assert result["reasoning_details"] == []

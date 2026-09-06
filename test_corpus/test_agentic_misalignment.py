@@ -1666,3 +1666,64 @@ class TestTheScenarioActCaptionOnlyClaimsWhatItHas:
         assert "leave-one-out" not in captions
         assert "independent measurements" in captions, (
             "no caption at all was drawn, so the absence above proves nothing")
+
+
+class TestAScenarioChartOnlyTicksTheAwarenessSidesItHas:
+    """The dot is the overall rate; the two ticks are the unaware/aware split
+    that feeds the suppression-gap correlation elsewhere. A side with no
+    trajectories has no rate, and a tick drawn at zero for it would claim the
+    model was measured as never harmful when aware - the opposite reading from
+    "not measured".
+    """
+
+    def _plt_or_skip(self):
+        from subversionbench import charting
+        if charting.import_pyplot() is None:
+            import unittest
+            raise unittest.SkipTest("matplotlib not installed")
+        return charting.import_pyplot()
+
+    def _bundle(self, aware_n, unaware_n):
+        return {"source": "fixture", "rows": [
+            {"model": "Ext A", "scenario": "one",
+             "buckets": {"unaware": {"harmful": 3, "n": unaware_n},
+                         "safety_aware": {"harmful": 1, "n": aware_n},
+                         "capability_aware": {"harmful": 0, "n": 0}}}]}
+
+    def _ticks(self, bundle):
+        """The (x, y) of every tick marker the scenario charts draw."""
+        import unittest.mock
+        plt = self._plt_or_skip()
+        calls = []
+        original = plt.Axes.scatter
+
+        def spy(self, x, y, *a, **k):
+            calls.append((x, y, k.get("label")))
+            return original(self, x, y, *a, **k)
+
+        with unittest.mock.patch.object(plt.Axes, "scatter", spy), \
+                tempfile.TemporaryDirectory() as out:
+            paths = am.write_scenario_charts(bundle, out)
+        assert paths, "no chart was drawn, so no tick could have been"
+        return calls
+
+    def test_both_sides_measured_gets_both_ticks(self):
+        labels = {label for _x, _y, label in
+                  self._ticks(self._bundle(aware_n=40, unaware_n=40))}
+        assert labels == {"unaware", "aware"}
+
+    def test_a_side_with_no_trajectories_gets_no_tick(self):
+        stats = am.external_rates_by_scenario(
+            self._bundle(aware_n=0, unaware_n=40))["one"]["Ext A"]
+        assert stats["aware"]["rate"] is None, (
+            "the fixture still measures the aware side, so this would pass "
+            "however the chart handled an unmeasured one")
+        labels = {label for _x, _y, label in
+                  self._ticks(self._bundle(aware_n=0, unaware_n=40))}
+        assert labels == {"unaware"}, (
+            "a tick was drawn for a side with no trajectories in it")
+
+    def test_the_other_side_missing_drops_the_other_tick(self):
+        labels = {label for _x, _y, label in
+                  self._ticks(self._bundle(aware_n=40, unaware_n=0))}
+        assert labels == {"aware"}

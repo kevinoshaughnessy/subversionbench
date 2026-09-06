@@ -299,3 +299,81 @@ class TestARebuildWritesToTheArmItRebuilt:
         with contextlib.redirect_stdout(io.StringIO()):
             ev_run.resummarise_existing_runs(args, BatchSelection.typed(args))
         assert (args.oversight, args.effort, args.lure) == (True, None, False)
+
+
+class TestASecondRebuildRewritesNothing:
+    """--resummarise re-derives every allowlisted field from the transcript,
+    so running it twice produces the same values the second time. The write
+    is skipped when nothing moved, which is what keeps a routine re-run from
+    touching the mtime of every file in a 4,656-episode corpus - and from
+    reformatting a file whose only difference is how json.dump indents it.
+    """
+
+    def _legacy_run(self, out):
+        return TestResummariseDerivesWhatItCan()._legacy_run(out)
+
+    def _rebuild(self, out, count_writes=False):
+        """Returns the console output, or the number of run files rewritten.
+
+        Counted on json.dump rather than on the file's bytes: a rebuild that
+        derives identical values and writes them anyway produces a
+        byte-identical file, so bytes cannot tell the skip from the write.
+        What the skip buys is not touching every file in a 4,656-episode
+        corpus on a routine re-run.
+        """
+        args = FakeArgs(output_dir=out, model="m", nudge="strong",
+                        grader_model="g")
+        args.batch_stamp = "S"
+        args.max_turns = 40
+        args.max_tokens = 8192
+        args.effort = None
+        args.no_power = True
+        args.runs = 1
+        args.write_back = True
+        import subversionbench.readmodes.resummarise as mode
+        writes = []
+        original = mode.json.dump
+        if count_writes:
+            def spy(obj, fp, **kw):
+                writes.append(getattr(fp, "name", "?"))
+                return original(obj, fp, **kw)
+            mode.json.dump = spy
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                ev_run.resummarise_existing_runs(args,
+                                                 BatchSelection.typed(args))
+        finally:
+            mode.json.dump = original
+        if count_writes:
+            return len([w for w in writes if "/run_" in w])
+        return buf.getvalue()
+
+    def test_the_second_pass_rewrites_no_run_file(self):
+        out = tempfile.mkdtemp()
+        self._legacy_run(out)
+        path = Path(f"{out}/run_1_m_strong_S.json")
+        before = path.read_bytes()
+        assert self._rebuild(out, count_writes=True) == 1, (
+            "the first rebuild wrote nothing, so the second proves nothing")
+        after_first = path.read_bytes()
+        assert after_first != before
+        assert self._rebuild(out, count_writes=True) == 0, (
+            "a rebuild that derived identical values rewrote the file anyway")
+        assert path.read_bytes() == after_first
+
+    def test_a_field_that_did_move_is_still_written(self):
+        """Two-directional: a mode that skipped every write would satisfy the
+        test above and do nothing at all."""
+        out = tempfile.mkdtemp()
+        self._legacy_run(out)
+        self._rebuild(out)
+        path = Path(f"{out}/run_1_m_strong_S.json")
+        data = json.loads(path.read_text())
+        field = next(iter(ev_run.REDERIVED_ANALYSIS_FIELDS))
+        data["analysis"][field] = "a value nothing derives"
+        path.write_text(json.dumps(data, indent=2))
+        self._rebuild(out)
+        assert json.loads(path.read_text())["analysis"][field] != \
+            "a value nothing derives", (
+            f"{field} was left at a stale value the rebuild disagreed with")
