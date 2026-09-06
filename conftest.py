@@ -320,6 +320,28 @@ def write_run_file(d, n, model, nudge, effort=None, stamp="20260101T000000"):
     return name
 
 
+def run_tool_main(module, argv) -> tuple:
+    """Run a root script's main() in-process on `argv`. Returns (code, stdout).
+
+    In-process rather than as a subprocess because a subprocess can only be
+    asked what it printed, and the contract worth guarding on these tools is
+    the exit code: one that prints a refusal and returns 0 reports success to
+    the shell loop that called it.
+    """
+    import contextlib
+    import io
+    import sys
+    out = io.StringIO()
+    saved = sys.argv
+    sys.argv = [module.__file__, *argv]
+    try:
+        with contextlib.redirect_stdout(out):
+            code = module.main()
+    finally:
+        sys.argv = saved
+    return code, out.getvalue()
+
+
 def env_without(*names):
     """Temporarily unset credentials. The placeholders above cover the suite, so a
     test that wants the refusal has to remove them explicitly."""

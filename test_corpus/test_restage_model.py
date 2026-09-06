@@ -23,6 +23,7 @@ import json
 import os
 import tempfile
 
+import conftest
 import restage_model as rm
 from subversionbench.rollout import rollout_fingerprint
 
@@ -256,3 +257,82 @@ class TestTheCLIRefusesRatherThanGuesses:
             result = rm.stage("totally-different-model", src, dst)
             assert result["n_run_files_poolable"] == 0
             assert result["n_summary_files_poolable"] == 0
+
+
+class TestTheExitCodeTheShellLoopReads:
+    """main()'s own contract, which stage() cannot express.
+
+    The usage this script documents is a `for m in ...` loop over models, so
+    the exit code is the only thing distinguishing a model that staged from
+    one whose name was mistyped - both print, and both leave the destination
+    looking plausible.
+    """
+
+    def test_a_typo_in_the_model_name_exits_non_zero(self):
+        """Silent success on an unknown model is the failure this guards:
+        the loop moves on, the destination gains nothing, and the arms it
+        was supposed to gain are reported missing much later."""
+        with tempfile.TemporaryDirectory() as src, \
+                tempfile.TemporaryDirectory() as dst:
+            _run_file(src, "run_1_m_strong_20260101T000000.json", "m",
+                     "strong", True, False)
+            code, text = conftest.run_tool_main(rm, [
+                "--model", "typo", "--source-dir", src, "--dest-dir", dst])
+            assert code == 1
+            assert "nothing poolable" in text
+
+    def test_a_source_directory_that_is_not_there_stops_the_run(self):
+        """Asserting only on the exit code would not discriminate here: a
+        missing source directory globs to nothing, so the "nothing poolable"
+        branch downstream returns 1 as well. What separates them is that
+        this one never reaches the staging report at all."""
+        with tempfile.TemporaryDirectory() as dst:
+            code, text = conftest.run_tool_main(rm, [
+                "--model", "m", "--source-dir", os.path.join(dst, "absent"),
+                "--dest-dir", dst])
+            assert code == 1
+            assert "not a directory" in text
+            assert "poolable run file(s)" not in text, \
+                "the guard printed and then carried on anyway"
+
+    def test_a_destination_that_is_not_there_stops_the_run(self):
+        """Checked before anything is read, so a mistyped destination costs
+        a message rather than a walk of thousands of files - which is the
+        part worth asserting, since the walk would find nothing and return
+        the same 1 either way."""
+        with tempfile.TemporaryDirectory() as src:
+            _run_file(src, "run_1_m_strong_20260101T000000.json", "m",
+                     "strong", True, False)
+            code, text = conftest.run_tool_main(rm, [
+                "--model", "m", "--source-dir", src,
+                "--dest-dir", os.path.join(src, "absent")])
+            assert code == 1
+            assert "not a directory" in text
+            assert "poolable run file(s)" not in text, \
+                "the guard printed and then walked the corpus anyway"
+
+    def test_a_successful_staging_exits_zero_and_leaves_the_file_there(self):
+        with tempfile.TemporaryDirectory() as src, \
+                tempfile.TemporaryDirectory() as dst:
+            _run_file(src, "run_1_m_strong_20260101T000000.json", "m",
+                     "strong", True, False)
+            code, _text = conftest.run_tool_main(rm, [
+                "--model", "m", "--source-dir", src, "--dest-dir", dst])
+            assert code == 0
+            assert os.listdir(dst) == ["run_1_m_strong_20260101T000000.json"]
+
+    def test_a_dry_run_exits_zero_and_copies_nothing(self):
+        """--dry-run is what an operator runs first, so it has to report the
+        same selection while leaving the destination untouched. A dry run
+        that exited non-zero would read as "nothing to stage"."""
+        with tempfile.TemporaryDirectory() as src, \
+                tempfile.TemporaryDirectory() as dst:
+            _run_file(src, "run_1_m_strong_20260101T000000.json", "m",
+                     "strong", True, False)
+            code, text = conftest.run_tool_main(rm, [
+                "--model", "m", "--source-dir", src, "--dest-dir", dst,
+                "--dry-run"])
+            assert code == 0
+            assert os.listdir(dst) == [], "a dry run copied a file"
+            assert "would stage 1" in text
+            assert "nothing was copied" in text

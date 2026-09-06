@@ -85,27 +85,19 @@ omit = [
 ]
 
 [tool.coverage.report]
-# THE FLOOR IS MEASURED, NOT ASPIRED TO. macOS reports 91.0435% (804 of 15,017
-# statements and branches missed), so 91 passes with about 6 units to spare.
+# THE FLOOR IS MEASURED, NOT ASPIRED TO. Raise it to what a local run actually
+# reports, rounded down; no figure is quoted here because a measurement written
+# beside the thing it measures goes stale the first time anyone adds a test.
 #
-# RAISED FROM 90, AND THE HEADROOM IS NOW THIN. The previous floor sat a full
-# point below the measurement for two reasons. One of them is gone: the 24
-# macOS-only sandbox tests were suspected of covering lines Linux would miss,
-# and forcing them all to skip moves the total not at all - 91.0435% and the
-# same 804 missing lines either way. They cover nothing that other tests do not.
-#
-# The other reason stands and was NOT re-measured, because it cannot be from a
-# macOS checkout: isolation.py takes different branches on Linux, and the last
-# time both platforms were compared they differed by two statements. Six units
-# of headroom against a two-unit historical spread is a real margin but a small
-# one, and the codebase has grown by half since that comparison.
-#
-# So if CI goes red on coverage alone, this line is the first suspect, and the
-# fix is to read the Linux figure from the failing job rather than to lower the
-# floor by reflex - a floor that moves down whenever it is inconvenient is not
-# a floor. `coverage json` on that runner gives the exact percentage and the
-# per-file missing lines to compare against a local run.
-fail_under = 91
+# The floor is set from macOS and enforced on Linux, which is the one thing
+# worth knowing before changing it: isolation.py takes different branches
+# there, so the two platforms do not report the same total. If CI goes red on
+# coverage alone, read the Linux figure from the failing job - `coverage json`
+# gives the percentage and the per-file missing lines - and compare it against
+# a local run, rather than lowering this by reflex. A floor that moves down
+# whenever it is inconvenient is not a floor, which is the same reasoning that
+# set the ruff rule set below.
+fail_under = 92
 skip_covered = true
 show_missing = true
 exclude_also = [
