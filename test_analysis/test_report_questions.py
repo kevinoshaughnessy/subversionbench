@@ -522,6 +522,33 @@ class TestInterrogationPhrasingQuestions:
                                         "zeroevidence", "partevidence")
         assert sum(table) == 9
 
+    def test_every_cell_of_the_paired_table_is_reachable(self):
+        """The 2x2 is what mcnemar reads, and its two DISCORDANT cells are the
+        whole test: n10 and n01 are "concealed under A only" and "under B
+        only", and swapping them inverts the finding. The corpus above
+        produces three of the four cells, so the fourth is planted here rather
+        than left to whichever way the fixture happens to lean."""
+        eps = self._corpus()
+        levels = eps[0]["variant_concealed"]["oversight"]
+        levels["zeroevidence"], levels["partevidence"] = False, True
+        levels = eps[1]["variant_concealed"]["oversight"]
+        levels["zeroevidence"], levels["partevidence"] = False, False
+        n11, n10, n01, n00 = rr._paired_variant_table(
+            eps, "oversight", "zeroevidence", "partevidence")
+        assert (n01, n00) == (1, 1), (n11, n10, n01, n00)
+        assert n11 and n10, "the other two cells emptied, so this proves less"
+        assert n11 + n10 + n01 + n00 == len(eps)
+
+    def test_the_two_discordant_cells_are_not_the_same_cell(self):
+        """Two-directional against the test above: a table that put both
+        discordant acts in one cell would still sum correctly."""
+        eps = self._corpus()[:2]
+        a, b = (e["variant_concealed"]["oversight"] for e in eps)
+        a["zeroevidence"], a["partevidence"] = True, False
+        b["zeroevidence"], b["partevidence"] = False, True
+        assert rr._paired_variant_table(
+            eps, "oversight", "zeroevidence", "partevidence") == (0, 1, 1, 0)
+
     def test_the_evidence_question_finds_the_planted_effect(self):
         q = rr.question_evidence_vs_concealment(self._corpus())
         ref = next(c for c in q["contrasts"] if c["act"] == "oversight"
@@ -914,3 +941,41 @@ class TestTheAwarenessExclusionStampIsHonestAboutItself:
         text = self._printed(self._stamp())
         assert "ROBUSTNESS READING, NOT A BETTER ESTIMATE" in text
         assert "never in place of it" in text
+
+
+class TestTheCompositeCheckSaysWhenThereIsNothingToCheckAgainst:
+    """`no_common_support` and `no_data` are different findings with the same
+    consequence, and collapsing them would leave a reader unable to tell "no
+    act was available in both arms" - a fact about the scenario - from "the
+    estimate did not compute" - a fact about this corpus's size.
+    """
+
+    def _component(self, name, difference):
+        return {"act": name, "available_in_both_arms": True,
+                "overall": {"difference": difference}}
+
+    def _agreement(self, composite_difference, component_difference):
+        return qa._component_agreement(
+            {"difference": composite_difference},
+            [self._component(MISALIGNED_ACTS[0]["name"],
+                             component_difference)])
+
+    def test_a_composite_with_no_estimate_has_nothing_to_compare(self):
+        got = self._agreement(None, -0.04)
+        assert got["code"] == "no_data"
+        assert got["composite_is_checkable"] is False
+
+    def test_a_shared_act_with_no_estimate_is_the_same_answer(self):
+        """The component is available in both arms and still has no
+        difference - a denominator too thin to estimate one. Counting it as
+        agreement would report the composite as checked against nothing."""
+        got = self._agreement(-0.04, None)
+        assert got["code"] == "no_data"
+        assert got["composite_is_checkable"] is False
+
+    def test_two_real_estimates_are_compared_rather_than_refused(self):
+        """The control for both, and the reason `no_data` is not the safe
+        default: a check that always refuses says nothing about the corpus."""
+        got = self._agreement(-0.04, -0.05)
+        assert got["code"] != "no_data"
+        assert got["composite_is_checkable"] is True

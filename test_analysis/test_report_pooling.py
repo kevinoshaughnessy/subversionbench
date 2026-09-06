@@ -303,3 +303,27 @@ class TestTheHomogeneityVerdictReachesTheConsole:
         assert strat["breslow_day"]["note"] in text
         assert "REJECTS homogeneity" not in text
         assert "does not reject homogeneity" not in text
+
+
+class TestARateThatCouldNotBeComputedPrintsItsCountsAnyway:
+    """_fmt_rate is on every per-model row and every contrast line. A side
+    with no episodes has no rate, and the two wrong answers are to print 0.0%
+    - which claims a measurement - and to print nothing, which loses the count
+    that says why the rate is absent. The counts alone are the honest form:
+    0/0 says what happened."""
+
+    def test_a_side_with_no_denominator_shows_its_counts_and_no_percentage(self):
+        from report.console import _fmt_rate
+        assert _fmt_rate({"successes": 0, "n": 0, "rate": None}) == "0/0"
+
+    def test_a_measured_side_shows_the_percentage_too(self):
+        """The control: a formatter that never printed a percentage would
+        satisfy the test above and lose every rate in the report."""
+        from report.console import _fmt_rate
+        assert _fmt_rate({"successes": 3, "n": 10, "rate": 0.3}) == "3/10=30.0%"
+
+    def test_a_zero_rate_over_real_episodes_is_still_a_rate(self):
+        """The distinction the whole thing is for: 0/40 is a measured zero and
+        must not be formatted like 0/0."""
+        from report.console import _fmt_rate
+        assert _fmt_rate({"successes": 0, "n": 40, "rate": 0.0}) == "0/40=0.0%"

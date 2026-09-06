@@ -8,8 +8,11 @@ loader that quietly disagreed with the harness would move every rate downstream
 of it without failing anything here.
 """
 
+import glob
 import json
+import os
 import tempfile
+from pathlib import Path
 
 import report as rr
 from conftest import batch_episode
@@ -745,3 +748,35 @@ class TestEveryColumnFamilyReachesTheRow:
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"model": "m"}, f)          # no analysis
         assert _episode_row(path, None) is None
+
+
+class TestATruncatedRunFileIsNotACorpus:
+    """A results directory holds a run file that was being written when a
+    batch was killed often enough that raising here would make a whole report
+    unbuildable. Dropped rather than raised, and dropped for the right reason:
+    an over-broad skip narrows the corpus without saying so, which moves every
+    published rate."""
+
+    def _row(self, text):
+        from report.loading import _episode_row
+        out = tempfile.mkdtemp()
+        path = os.path.join(out, "run_1_m_strong_20260101T000000.json")
+        Path(path).write_text(text, encoding="utf-8")
+        return _episode_row(path, None)
+
+    def test_a_file_that_is_not_json_is_dropped(self):
+        assert self._row('{"model": "m", "analysis":') is None
+
+    def test_a_file_that_does_not_exist_is_dropped(self):
+        from report.loading import _episode_row
+        missing = os.path.join(tempfile.mkdtemp(), "run_1_m_strong_S.json")
+        assert _episode_row(missing, None) is None
+
+    def test_a_well_formed_episode_is_kept(self):
+        """The control: without it every test above would pass against a
+        loader that dropped the whole corpus."""
+        from report.loading import _episode_row
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong")
+        path = sorted(glob.glob(os.path.join(out, "run_*.json")))[0]
+        assert _episode_row(path, None) is not None

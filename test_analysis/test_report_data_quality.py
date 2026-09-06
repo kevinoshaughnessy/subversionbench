@@ -610,3 +610,63 @@ class TestTheCaveatsThatOnlyPrintWhenSomethingIsWrong:
         assert "not applicable" in text and "7" in text
         assert "not counted clean" in text
         assert "unable to reach the numerator" in text
+
+
+class TestTheAwarenessGapTableSkipsWhatItCannotDivide:
+    def test_a_model_with_no_resolved_awareness_episode_is_left_out(self):
+        """A rate over zero resolved episodes is not a rate of zero, and the
+        gap column is the difference of two of them."""
+        rows = [{"model": "unresolved/m", "nudge": "strong", "oversight": True,
+                 "lure": False, "n_awareness_resolved": 0, "n_aware": 0,
+                 "n_aware_text": 0, "n_text_undetermined": 0,
+                 "n_reasoning_only": 0, "n_bounded": 0},
+                {"model": "measured/m", "nudge": "strong", "oversight": True,
+                 "lure": False, "n_awareness_resolved": 10, "n_aware": 8,
+                 "n_aware_text": 3, "n_text_undetermined": 0,
+                 "n_reasoning_only": 5, "n_bounded": 10}]
+        assert [p["model"] for p in rr._model_rate_pairs(rows)] == \
+            ["measured/m"]
+
+    def test_a_models_arms_are_pooled_before_the_check(self):
+        """Two-directional against the skip: an arm with nothing resolved must
+        not remove a model whose other arm has plenty."""
+        rows = [{"model": "m", "nudge": "strong", "oversight": True,
+                 "lure": False, "n_awareness_resolved": 0, "n_aware": 0,
+                 "n_aware_text": 0, "n_text_undetermined": 0,
+                 "n_reasoning_only": 0, "n_bounded": 0},
+                {"model": "m", "nudge": "strong", "oversight": False,
+                 "lure": False, "n_awareness_resolved": 10, "n_aware": 8,
+                 "n_aware_text": 3, "n_text_undetermined": 0,
+                 "n_reasoning_only": 5, "n_bounded": 10}]
+        pairs = rr._model_rate_pairs(rows)
+        assert [p["model"] for p in pairs] == ["m"]
+        assert pairs[0]["mixed_rate"] == 0.8
+
+
+class TestAnEpisodeOffTheAxisIsNotOnEitherSideOfIt:
+    """routing_differs_across_contrast compares the two sides of a contrast.
+    An episode whose level on that axis was never recorded belongs to neither,
+    and folding it into one would report a routing difference between the arms
+    that is really a difference between recorded and unrecorded episodes."""
+
+    def _episodes(self, *levels):
+        return [{"model": "m", "oversight": level,
+                 "openrouter_sort": sort, "openrouter_provider": None}
+                for level, sort in levels]
+
+    def test_an_episode_with_no_level_is_skipped(self):
+        found = rr.routing_differs_across_contrast(
+            self._episodes((True, "throughput"), (False, "throughput"),
+                           (None, "price")),
+            "oversight")
+        assert found == [], (
+            "an episode off the axis was counted onto one side of it")
+
+    def test_a_real_difference_is_still_reported(self):
+        """The control: without it the skip above could be a check that never
+        reports anything."""
+        found = rr.routing_differs_across_contrast(
+            self._episodes((True, "throughput"), (False, "price")),
+            "oversight")
+        assert [f["model"] for f in found] == ["m"]
+        assert found[0]["disjoint"] is True
