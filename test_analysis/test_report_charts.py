@@ -1793,3 +1793,64 @@ class TestWriteChartsCollectsEveryFileItActuallyWrote:
                        "lure_misalignment.png",
                        "lure_misalignment_no_oversight.png"):
             assert absent not in names
+
+
+class TestTheOverviewMarksTheQuestionsWhoseTwoEstimatesDisagree:
+    """The overview draws the STRATIFIED estimate, because that is the figure
+    the report treats as defensible. Where the crude one disagrees with it,
+    the row is marked and a caption in the divergence colour says what the
+    mark means. Without it a reader sees one number per question and no sign
+    that the question's own chart carries a second one that does not agree.
+    """
+
+    def _rows_and_captions(self, sections):
+        plt = _plt()
+        captured = {}
+        original = rc._draw_forest
+
+        def capture(plt_, rows, title, captions, path, *a, **kw):
+            captured["rows"] = rows
+            captured["captions"] = [text for text, _colour in captions]
+            return path
+
+        rc._draw_forest = capture
+        try:
+            rc.plot_overview(plt, {"questions": sections},
+                             os.path.join(tempfile.mkdtemp(), "o.png"))
+        finally:
+            rc._draw_forest = original
+        return captured["rows"], captured["captions"]
+
+    def test_a_diverging_question_gets_a_marked_row_and_the_caption(self):
+        diverging = _section(
+            id="oversight_vs_scheming",
+            crude_vs_stratified={"warning": "CONFOUNDED: the crude estimate "
+                                           "runs the other way"})
+        assert rc._divergence_caption(diverging), (
+            "the fixture carries no warning, so nothing below is about one")
+        rows, captions = self._rows_and_captions([diverging])
+        assert any(r.label.endswith("*") for r in rows)
+        assert any("crude and stratified estimates diverge" in c
+                   for c in captions)
+
+    def test_a_question_whose_estimates_agree_is_not_marked(self):
+        """Two-directional: a mark on every row says nothing, and the caption
+        would then send every reader to every question's own chart."""
+        rows, captions = self._rows_and_captions([_section()])
+        assert not any(r.label.endswith("*") for r in rows)
+        assert not any("crude and stratified estimates diverge" in c
+                       for c in captions)
+
+    def test_one_diverging_question_among_several_marks_only_itself(self):
+        """The mark is per row; the caption is per chart. Both matter - a
+        caption with no marked row is unreadable, and a marked row with no
+        caption is unexplained."""
+        rows, captions = self._rows_and_captions([
+            _section(id="oversight_vs_scheming",
+                     crude_vs_stratified={"warning": "CONFOUNDED"}),
+            _section(id="awareness_vs_scheming")])
+        marked = [r.label for r in rows if r.label.endswith("*")]
+        assert len(marked) == 1, [r.label for r in rows]
+        assert marked[0].startswith("Q1.")
+        assert any("crude and stratified estimates diverge" in c
+                   for c in captions)

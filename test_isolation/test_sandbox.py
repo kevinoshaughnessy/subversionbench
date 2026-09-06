@@ -701,6 +701,24 @@ class TestSpanDetectionEdgeCases:
         assert spans == [(10, 19)]
         assert text[10:19] == "line one\n"
 
+    def test_a_heredoc_opened_at_the_very_end_of_a_command_has_no_body(self):
+        """The delimiter is named and the command ends before the newline
+        that would start the body. There is nothing to protect, and
+        returning a span running off the end of the string would have the
+        rewriter skip text that is not there - or, on a command built by
+        joining two, skip the next command entirely."""
+        from subversionbench.sandbox import _heredoc_body_spans
+        assert _heredoc_body_spans("cat << EOF") == []
+        assert _heredoc_body_spans("echo hi && cat <<'EOF'") == []
+
+    def test_one_newline_is_the_difference(self):
+        """The contrast: the same command with a body does protect it, so
+        what the test above catches is the missing newline and not the
+        heredoc."""
+        from subversionbench.sandbox import _heredoc_body_spans
+        assert _heredoc_body_spans("cat << EOF\n") == [(11, 11)]
+        assert _heredoc_body_spans("cat << EOF\nbody\n") == [(11, 16)]
+
     def test_an_escaped_quote_survives_end_to_end_through_the_sandbox(
             self, env_dir_only):
         """Not just the helper in isolation: a draft containing an escaped

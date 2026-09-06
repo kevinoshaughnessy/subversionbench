@@ -1087,6 +1087,32 @@ class TestTheHeldOutToolsModes:
         assert code == 1
         assert "Try --list" in text
 
+    def test_check_reports_the_invariant_suites_verdict_as_its_exit_code(self):
+        """--check is what CI and a pre-collection rehearsal run, so its exit
+        code IS its answer. _invariants_hold runs pytest in a subprocess and
+        is tested in its own right; what is unrun here is main passing its
+        verdict through rather than reporting its own."""
+        import conftest
+        def verdict(holds):
+            return lambda: holds
+
+        for holds, expected in ((True, 0), (False, 1)):
+            with self._workspace() as d:
+                with self._tool(d, stub_invariants=verdict(holds)) as tool:
+                    code, _text = conftest.run_tool_main(tool, ["--check"])
+            assert code == expected, holds
+
+    def test_check_does_not_touch_the_bundle_or_write_a_working_copy(self):
+        """It is the read-only mode. A --check that decoded would leave the
+        scenario in plaintext on any machine that ran CI."""
+        import conftest
+        with self._workspace() as d:
+            with self._tool(d, stub_invariants=lambda: True) as tool:
+                before = tool.BUNDLE_PATH.read_bytes()
+                conftest.run_tool_main(tool, ["--check"])
+                assert tool.BUNDLE_PATH.read_bytes() == before
+                assert not tool.WORKING_COPY.exists()
+
     def test_decode_writes_the_working_copy_for_editing(self):
         import conftest
         with self._workspace() as d:

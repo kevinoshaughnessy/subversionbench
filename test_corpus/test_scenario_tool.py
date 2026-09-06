@@ -260,3 +260,50 @@ class TestTheWorkingCopyCannotBeCommitted:
         assert scenario_tool.WORKING_COPY.name == "scenario.json"
         assert (scenario_tool.WORKING_COPY.parent
                 == Path(scenario_tool.__file__).parent)
+
+
+class TestItRefusesWhenAnotherBundleIsSelected:
+    """Two scenarios ship with two tools, and the environment variable that
+    selects the twin is read by `load_scenario` itself. Without this check
+    --show would print the TWIN's entries while naming this file's paths, and
+    --encode would write the twin's text into the shipped bundle. Refused
+    rather than silently retargeted, so which scenario is being read is always
+    stated rather than inferred.
+    """
+
+    def _under_override(self, tool, *argv):
+        import subversionbench.scenario as scenario
+        original = scenario_tool.bundle_is_overridden
+        scenario_tool.bundle_is_overridden = lambda: True
+        try:
+            return tool.run(*argv), scenario.BUNDLE_ENV_VAR
+        finally:
+            scenario_tool.bundle_is_overridden = original
+
+    def test_every_mode_is_refused_while_an_override_is_in_force(self):
+        """Checked before the mode is dispatched, so --list is refused for the
+        same reason --encode is: neither can say which bundle it read."""
+        for argv in (["--list"], ["--decode"], ["--encode"], ["--show", "a"]):
+            with _Tool() as tool:
+                code, _var = self._under_override(tool, *argv)
+            assert code == 1, argv
+
+    def test_the_refusal_names_the_variable_and_the_other_tool(self):
+        """The only two things an operator can act on."""
+        with _Tool() as tool:
+            _code, env_var = self._under_override(tool, "--list")
+            text = tool.out
+        assert env_var in text
+        assert "heldout_tool.py" in text
+
+    def test_nothing_is_written_while_it_is_refused(self):
+        with _Tool() as tool:
+            self._under_override(tool, "--decode")
+            assert not tool.working.exists()
+            assert tool.encoded == []
+
+    def test_without_the_override_the_mode_runs(self):
+        """The control: without it every test above would pass against a tool
+        that refused unconditionally."""
+        with _Tool() as tool:
+            assert tool.run("--list") == 0

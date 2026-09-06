@@ -1163,3 +1163,94 @@ class TestTheStagingRunReportsWhatItDid:
         assert "... and " in text and "more" in text
         shown = [ln for ln in text.splitlines() if ln.strip().startswith("run_")]
         assert len(shown) <= 10, f"{len(shown)} files listed, expected at most 10"
+
+
+class TestALongListOfFindingsSaysHowManyItDidNotShow:
+    """Both refusal lists print the first ten and then a count. Truncating
+    without the count is the failure: an operator who fixes the ten named
+    files and re-runs the build hits the same refusal with no idea there were
+    more, and the natural reading of ten findings is that ten is all there
+    were.
+    """
+
+    def _unreadable_tree(self, n):
+        d = tempfile.mkdtemp(prefix="eval_results_manybad_")
+        made = []
+        for i in range(1, n + 1):
+            path = Path(d, f"run_{i}.json")
+            path.write_text('{"ok": true}', encoding="utf-8")
+            os.chmod(path, 0)
+            made.append(path)
+        return d, made
+
+    def _verify(self, root):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = main(["--verify", root])
+        return code, buf.getvalue()
+
+    def test_more_unreadable_files_than_it_lists_are_counted(self):
+        d, made = self._unreadable_tree(13)
+        try:
+            code, text = self._verify(d)
+        finally:
+            for path in made:
+                os.chmod(path, 0o644)
+        assert code == 1
+        assert "13 file(s) could not be read" in text
+        assert "... and 3 more" in text
+        assert text.count("run_") >= 10
+
+    def test_a_short_list_is_not_given_a_count_of_none(self):
+        """Two-directional: "... and 0 more" under a complete list is worse
+        than nothing, because it reads as a truncation that happened."""
+        d, made = self._unreadable_tree(3)
+        try:
+            code, text = self._verify(d)
+        finally:
+            for path in made:
+                os.chmod(path, 0o644)
+        assert code == 1
+        assert "3 file(s) could not be read" in text
+        assert "more" not in text.split("could not be read")[1]
+
+
+class TestAHostFindingIsSampledNotDumped:
+    """The review list prints the value so an operator can decide whether it
+    identifies the machine. A path can be arbitrarily long, and one that fills
+    the terminal buries the findings under it - so it is cut, and the cut is
+    marked so nobody reviews a truncated string believing it is the whole
+    value."""
+
+    def _shown(self, value):
+        from subversionbench.export import _printable
+        import contextlib
+        import io
+        from subversionbench import export
+        risk = {"name": "home directory", "value": value, "count": 1,
+                "files": {"run_1.json"}, "fingerprint": "abc123",
+                "severity": "host"}
+        original = export.find_content_risks
+        export.find_content_risks = lambda root: [risk]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                export.main(["--verify", tempfile.mkdtemp()])
+        finally:
+            export.find_content_risks = original
+        return buf.getvalue(), _printable(value)
+
+    def test_a_long_value_is_cut_and_the_cut_is_marked(self):
+        long_value = "/Users/j.mackenzie-04/" + "deep/" * 40 + "notes.md"
+        text, printable = self._shown(long_value)
+        assert len(printable) > 60, "the fixture is not long enough to be cut"
+        assert printable[:60] + "..." in text
+        assert printable not in text, "the whole value was printed after all"
+
+    def test_a_short_value_is_shown_in_full_and_unmarked(self):
+        text, printable = self._shown("/Users/j.mackenzie-04/notes.md")
+        assert len(printable) <= 60
+        assert printable in text
+        assert printable + "..." not in text
