@@ -54,10 +54,30 @@ subversionbench/
   redaction.py     strips host paths and usernames from output and artifacts
   export.py        redacting a results directory for publication, and
                    verifying that an archive identifies nobody
-  power.py         interval estimation, detectable effect sizes, precision
+  power/           the statistics, one module per kind of comparison. Was one
+                   file divided by nine section banners, which is the signal
+                   that the divisions were there and only the file was missing
+                   them; __init__.py re-exports every name so no caller has to
+                   know which submodule owns one
+    constants.py     the shared numbers, below every other module here so a
+                     submodule can read them without importing the package
+    intervals.py     what one rate, or a difference of two, is known to within
+    exact.py         Fisher's test, and the power and detectable-effect
+                     calculations built on enumerating it
+    chi2.py          the chi-square upper tail - a distribution rather than a
+                     comparison, which is why two tests here share it
+    paired.py        the same episodes measured twice
+    stratified.py    holding a nuisance variable constant: Mantel-Haenszel,
+                     and Breslow-Day on whether there is one effect to pool
+    trend.py         trend across ordered groups, and the two descriptive
+                     summaries of a sequence of rates beside it
+    correlation.py   rank correlation, its permutation p-value, and the
+                     leave-one-out range that at this n is the headline
+    multiplicity.py  Holm and Benjamini-Hochberg over a family of p-values
+    batch_report.py  the precision block a finished batch carries
   charting.py      where pyplot comes from, for everything here that draws:
                    one headless-backend import site, shared by trends/,
-                   report_charts.py and sad_oversight.py
+                   report_charts/ and sad_oversight.py
   contamination.py leak audit, canary/forced-choice/continuation probes
   grading/         scoring an episode; __init__.py is the scoring API
     acts.py                the misaligned acts and their per-act keys
@@ -219,13 +239,38 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
   console.py       the report as a table on a terminal. Computes nothing
   run_report.py    the CLI, and which questions the report holds
   __main__.py      `python3 -m report`, so the CLI is never run twice
-report_charts.py   a forest plot per research question with the `charts` extra:
-                   every model's effect and interval, then the crude pooled and
-                   model-stratified estimates, so a crude result resting on one
-                   model is visible rather than inferable; plus one overview.
-                   Every chart names the excluded arm in its own title and
-                   caption, because the two readings share filenames and
-                   differ only by directory
+report_charts/     the charts the report draws with the `charts` extra: a
+                   forest plot per research question - every model's effect and
+                   interval, then the crude pooled and model-stratified
+                   estimates, so a crude result resting on one model is visible
+                   rather than inferable - plus one overview, and one chart per
+                   corpus characteristic. Every chart names the excluded arm in
+                   its own title and caption, because the two readings share
+                   filenames and differ only by directory. One module per thing
+                   a chart is about; __init__.py re-exports every name
+  style.py         sizes, colours, markers, and the notes a figure is not
+                   readable without
+  labels.py        a question id and its levels, as the words a reader sees
+  rows.py          a report dict becomes something with a position on an axis
+  captions.py      the sentences under a chart, quoted from the report so a
+                   chart cannot say what the printed report does not
+  exclusion.py     what the arm-exclusion stamp does to a title, a caption, and
+                   which panels are drawn at all
+  draw.py          HOW a chart is drawn: forest, rate, slope and signal-cluster
+                   shapes. Every plot module calls these through `draw.`, so a
+                   test that wants the rows without the rendering has one patch
+                   point rather than one per caller
+  questions.py     the twelve research questions, and the overview holding all
+                   twelve on one axis
+  characteristics.py  one chart per characteristic block: persistence after
+                   refusal, the rubric signals, encoded payloads, and when
+                   awareness arrived relative to the refusal
+  lure.py          the lure arm as two readings - what it did to misalignment,
+                   and how far the episode got with the file. Its own module
+                   because these are the only charts split by oversight
+                   stratum, which is what makes the exclusion apply to a PANEL
+  write.py         the entry point: every chart into one directory, and the
+                   paths it actually wrote
 sad_oversight.py   an external situational-awareness leaderboard, encrypted at
                    rest with the published passphrase for the same reason the
                    scenario is, and its rank correlation with the awareness

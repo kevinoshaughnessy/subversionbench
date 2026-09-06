@@ -228,7 +228,7 @@ class TestTheArmsAreNamedInWords:
             "awareness_vs_oversight_scheming", "awareness_vs_sandbox_scheming",
         ]
         for question_id in ids:
-            assert rc.exposure_of(question_id) in rc._LEVEL_WORDS, question_id
+            assert rc.exposure_of(question_id) in rc.labels._LEVEL_WORDS, question_id
 
     def test_the_question_ids_here_are_the_ones_run_report_builds(self):
         """Pins the list above against the source rather than against a memory
@@ -290,7 +290,7 @@ class TestCaptionsDoNotWidenTheFigure:
 
     def test_no_wrapped_line_exceeds_the_width(self):
         text = "word " * 80
-        assert all(len(line) <= rc._CAPTION_WRAP
+        assert all(len(line) <= rc.captions._CAPTION_WRAP
                    for line in rc._wrap(text).split("\n"))
 
     def test_a_model_id_is_never_folded_at_a_hyphen(self):
@@ -353,18 +353,18 @@ class TestTheChartsRender:
         _plt()
         report = {"questions": [_section(), _paired_section()]}
         rows = []
-        original = rc._draw_forest
+        original = rc.draw._draw_forest
 
         def capture(plot, drawn, *args, **kwargs):
             rows.append(drawn)
             return original(plot, drawn, *args, **kwargs)
 
-        rc._draw_forest = capture
+        rc.draw._draw_forest = capture
         try:
             with tempfile.TemporaryDirectory() as out:
                 rc.write_charts(report, out)
         finally:
-            rc._draw_forest = original
+            rc.draw._draw_forest = original
         overview = rows[-1]
         assert [r.label for r in overview] == [
             "Q1. oversight -> scheming",
@@ -634,16 +634,16 @@ class TestPersistenceChartsRender:
         _plt()
         plt = rc.charting.import_pyplot()
         captured = []
-        original = rc._draw_rate_chart
+        original = rc.draw._draw_rate_chart
         def capture(plot, rows, title, captions, *a, **k):
             captured.append(captions)
             return original(plot, rows, title, captions, *a, **k)
-        rc._draw_rate_chart = capture
+        rc.draw._draw_rate_chart = capture
         try:
             with tempfile.TemporaryDirectory() as out:
                 rc.plot_persistence_rate(plt, report, os.path.join(out, "r.png"))
         finally:
-            rc._draw_rate_chart = original
+            rc.draw._draw_rate_chart = original
         assert any("3361" in c for c, _ in captured[0])
 
     def test_the_caption_names_wilson_only_not_newcombe(self):
@@ -653,17 +653,17 @@ class TestPersistenceChartsRender:
         _plt()
         plt = rc.charting.import_pyplot()
         captured = []
-        original = rc._draw_rate_chart
+        original = rc.draw._draw_rate_chart
         def capture(plot, rows, title, captions, *a, **k):
             captured.append(captions)
             return original(plot, rows, title, captions, *a, **k)
-        rc._draw_rate_chart = capture
+        rc.draw._draw_rate_chart = capture
         try:
             with tempfile.TemporaryDirectory() as out:
                 rc.plot_persistence_rate(plt, self._report(),
                                          os.path.join(out, "r.png"))
         finally:
-            rc._draw_rate_chart = original
+            rc.draw._draw_rate_chart = original
         texts = [c for c, _ in captured[0]]
         assert any("Wilson" in t for t in texts)
         assert not any("Newcombe" in t for t in texts)
@@ -673,17 +673,17 @@ class TestPersistenceChartsRender:
         _plt()
         plt = rc.charting.import_pyplot()
         captured = []
-        original = rc._draw_slope_chart
+        original = rc.draw._draw_slope_chart
         def capture(plot, rows, title, captions, *a, **k):
             captured.append(captions)
             return original(plot, rows, title, captions, *a, **k)
-        rc._draw_slope_chart = capture
+        rc.draw._draw_slope_chart = capture
         try:
             with tempfile.TemporaryDirectory() as out:
                 rc.plot_persistence_within_model(
                     plt, report, os.path.join(out, "s.png"))
         finally:
-            rc._draw_slope_chart = original
+            rc.draw._draw_slope_chart = original
         profile = report["characteristics"]["persistence_after_refusal"]
         n_worse = profile["n_models_persisted_more_misaligned"]
         n_both = profile["n_models_comparable_within_model"]
@@ -904,20 +904,20 @@ class TestTheRateAxisNarrowsButNeverClips:
     def _drawn_xlim(self, rows, xmax_pp):
         plt = _plt()
         captured = {}
-        real = rc._BelowAxes
+        real = rc.draw._BelowAxes
 
         class Spy(real):
             def __init__(self, fig, ax, height):
                 captured["xlim"] = ax.get_xlim()
                 super().__init__(fig, ax, height)
 
-        rc._BelowAxes = Spy
+        rc.draw._BelowAxes = Spy
         try:
             with tempfile.TemporaryDirectory() as out:
-                rc._draw_rate_chart(plt, rows, "t", [], os.path.join(out, "x.png"),
+                rc.draw._draw_rate_chart(plt, rows, "t", [], os.path.join(out, "x.png"),
                                     "x", xmax_pp=xmax_pp)
         finally:
-            rc._BelowAxes = real
+            rc.draw._BelowAxes = real
         return captured["xlim"]
 
     def test_a_narrow_axis_is_honoured_when_the_data_fits(self):
@@ -970,17 +970,17 @@ class TestEncodedPayloadChartRenders:
         _plt()
         plt = rc.charting.import_pyplot()
         captured = []
-        original = rc._draw_rate_chart
+        original = rc.draw._draw_rate_chart
         def capture(plot, rows, title, captions, *a, **k):
             captured.append(captions)
             return original(plot, rows, title, captions, *a, **k)
-        rc._draw_rate_chart = capture
+        rc.draw._draw_rate_chart = capture
         try:
             with tempfile.TemporaryDirectory() as out:
                 rc.plot_encoded_payload_rate(
                     plt, self._report(), os.path.join(out, "e.png"))
         finally:
-            rc._draw_rate_chart = original
+            rc.draw._draw_rate_chart = original
         texts = [c for c, _ in captured[0]]
         assert any("base64-alphabet run" in t for t in texts)
 
@@ -1124,10 +1124,10 @@ class TestSignalChartsRender:
         with tempfile.TemporaryDirectory() as out, \
                 unittest.mock.patch.object(plt.Axes, "plot", spy):
             rc.plot_eval_signal_rates(plt, report, os.path.join(out, "s.png"))
-        markers = [c for c in calls if c.get("marker") == rc._MODEL_MARKER]
+        markers = [c for c in calls if c.get("marker") == rc.style._MODEL_MARKER]
         assert len(markers) == 2, "expected one marker per model"
         colours = {c["color"] for c in markers}
-        assert colours == {rc._SIGNAL_COLOURS["mentioned_test"]}, (
+        assert colours == {rc.style._SIGNAL_COLOURS["mentioned_test"]}, (
             "the same signal drew in two different colours across models")
 
     def test_an_underpowered_point_is_drawn_hollow(self):
@@ -1146,7 +1146,7 @@ class TestSignalChartsRender:
         with tempfile.TemporaryDirectory() as out, \
                 unittest.mock.patch.object(plt.Axes, "plot", spy):
             rc.plot_eval_signal_rates(plt, report, os.path.join(out, "s.png"))
-        markers = [c for c in calls if c.get("marker") == rc._MODEL_MARKER]
+        markers = [c for c in calls if c.get("marker") == rc.style._MODEL_MARKER]
         assert markers, "no marker was drawn at all"
         assert any(c.get("markerfacecolor") == "white" for c in markers)
 
@@ -1352,9 +1352,14 @@ class TestEveryChartSaysWhichArmsItCovers:
         passes, so the count is checked before it is used.
         """
         import inspect
+        # `startswith`, not `==`: the charts live in submodules of the
+        # package and the facade re-exports them, so a function's __module__ is
+        # `report_charts.questions` rather than `report_charts`. Comparing for
+        # equality emptied this scope the moment the file became a package,
+        # which is the failure this assertion's own docstring warns about.
         found = {name: obj for name, obj in vars(rc).items()
                  if name.startswith("plot_") and inspect.isfunction(obj)
-                 and obj.__module__ == rc.__name__}
+                 and obj.__module__.startswith(rc.__name__)}
         assert len(found) >= 7, (
             f"only found {sorted(found)} - the enumeration is broken, and an "
             f"empty scope makes every assertion below vacuous")
@@ -1435,18 +1440,18 @@ class TestEveryChartSaysWhichArmsItCovers:
                                 _section(id="awareness_vs_scheming")],
                   "arm_exclusion": _excluded_stamp()}
         captured = {}
-        original = rc._draw_forest
+        original = rc.draw._draw_forest
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
             captured["rows"] = rows
             captured["title"] = title
             return path
 
-        rc._draw_forest = capture
+        rc.draw._draw_forest = capture
         try:
             rc.plot_overview(plt, report, os.path.join(tempfile.mkdtemp(), "o.png"))
         finally:
-            rc._draw_forest = original
+            rc.draw._draw_forest = original
         labels = [r.label for r in captured["rows"]]
         assert len(labels) == 2, labels
         gap = [r for r in captured["rows"] if r.diff is None]
@@ -1551,18 +1556,18 @@ class TestTheForestSaysHowManyModelsItIsOver:
         plt = _plt()
         section = _section(consistency=self._consistency(37, 28))
         captured = {}
-        original = rc._draw_forest
+        original = rc.draw._draw_forest
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
             captured["captions"] = [c for c, _ in captions]
             return path
 
-        rc._draw_forest = capture
+        rc.draw._draw_forest = capture
         try:
             rc.plot_question(plt, 1, section,
                              os.path.join(tempfile.mkdtemp(), "q.png"), {})
         finally:
-            rc._draw_forest = original
+            rc.draw._draw_forest = original
         assert any("37 models in total" in c for c in captured["captions"]), \
             captured["captions"]
 
@@ -1572,18 +1577,18 @@ class TestTheForestSaysHowManyModelsItIsOver:
         model count would be."""
         plt = _plt()
         captured = {}
-        original = rc._draw_forest
+        original = rc.draw._draw_forest
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
             captured["captions"] = [c for c, _ in captions]
             return path
 
-        rc._draw_forest = capture
+        rc.draw._draw_forest = capture
         try:
             rc.plot_question(plt, 11, _paired_section(),
                              os.path.join(tempfile.mkdtemp(), "q.png"), {})
         finally:
-            rc._draw_forest = original
+            rc.draw._draw_forest = original
         assert not any("models" in c and "total" in c
                        for c in captured["captions"])
 
@@ -1662,7 +1667,7 @@ class TestTheAwarenessRefusalTimingChart:
         together."""
         plt = _plt()
         captured = {}
-        original = rc._draw_rate_chart
+        original = rc.draw._draw_rate_chart
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
             captured["captions"] = [c for c, _ in captions]
@@ -1670,12 +1675,12 @@ class TestTheAwarenessRefusalTimingChart:
             captured["title"] = title
             return path
 
-        rc._draw_rate_chart = capture
+        rc.draw._draw_rate_chart = capture
         try:
             rc.plot_awareness_refusal_timing(
                 plt, self._report(), os.path.join(tempfile.mkdtemp(), "t.png"))
         finally:
-            rc._draw_rate_chart = original
+            rc.draw._draw_rate_chart = original
         text = " ".join(captured["captions"])
         assert "NOT a thirteenth research question" in text
         assert "question 7" in text
@@ -1689,18 +1694,18 @@ class TestTheAwarenessRefusalTimingChart:
         refusal explains nothing". The arms disagree and that is the finding."""
         plt = _plt()
         captured = {}
-        original = rc._draw_rate_chart
+        original = rc.draw._draw_rate_chart
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
             captured["captions"] = [c for c, _ in captions]
             return path
 
-        rc._draw_rate_chart = capture
+        rc.draw._draw_rate_chart = capture
         try:
             rc.plot_awareness_refusal_timing(
                 plt, self._report(), os.path.join(tempfile.mkdtemp(), "t.png"))
         finally:
-            rc._draw_rate_chart = original
+            rc.draw._draw_rate_chart = original
         text = " ".join(captured["captions"])
         assert "oversight present 9%" in text
         assert "oversight absent 78%" in text
@@ -1806,19 +1811,19 @@ class TestTheOverviewMarksTheQuestionsWhoseTwoEstimatesDisagree:
     def _rows_and_captions(self, sections):
         plt = _plt()
         captured = {}
-        original = rc._draw_forest
+        original = rc.draw._draw_forest
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
             captured["rows"] = rows
             captured["captions"] = [text for text, _colour in captions]
             return path
 
-        rc._draw_forest = capture
+        rc.draw._draw_forest = capture
         try:
             rc.plot_overview(plt, {"questions": sections},
                              os.path.join(tempfile.mkdtemp(), "o.png"))
         finally:
-            rc._draw_forest = original
+            rc.draw._draw_forest = original
         return captured["rows"], captured["captions"]
 
     def test_a_diverging_question_gets_a_marked_row_and_the_caption(self):
