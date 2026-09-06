@@ -180,10 +180,11 @@ select = [
 #   EM, TRY, TID, PT style preferences that would fight the existing code.
 
 [tool.setuptools.packages.find]
-# `trends` and `report` are deliberately NOT included, even though both are
-# packages rather than root scripts. `report` imports report_charts and `trends`
-# imports model_releases, which ARE root scripts and are not installed, so
-# shipping either would install something that cannot import. Like the other
-# analysis entry points they run from a checkout: `python3 -m report`,
-# `python3 -m trends`.
+# Only `subversionbench` ships. `trends`, `report`, `report_charts`,
+# `agentic_misalignment` and `grader_ab` are packages too, and are deliberately
+# NOT included: each reaches something at the repository root that is not
+# installed - `trends` imports model_releases, `agentic_misalignment` imports
+# sad_oversight - so shipping one would install something that cannot import.
+# Like the other analysis entry points they run from a checkout:
+# `python3 -m report`, `python3 -m trends`.
 include = ["subversionbench*"]

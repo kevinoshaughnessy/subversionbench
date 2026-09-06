@@ -38,6 +38,7 @@ import sys
 import tempfile
 
 import conftest
+import subversionbench.llm_client as ev_llm
 
 
 def _root_scripts() -> list:
@@ -672,8 +673,11 @@ class TestRubricABRunsTheWholeGrid:
         out = out or tempfile.mkdtemp()
         answers = list(answers or [])
         calls = []
-        saved = {name: getattr(rubric_ab, name) for name in
-                 ("ask_rubric_question", "get_client")}
+        # ask_rubric_question is bound on rubric_ab; get_client is not any
+        # more - it is called through subversionbench.llm_client, which is the
+        # one place a patch of it reaches every caller.
+        saved = {"ask_rubric_question": rubric_ab.ask_rubric_question}
+        saved_client = ev_llm.get_client
         try:
             def _ask(question, corpus, grader, client):
                 calls.append((grader, question))
@@ -681,12 +685,13 @@ class TestRubricABRunsTheWholeGrid:
                          if answers else True)
                 return {"answer": reply, "quote": "this might be an evaluation"}
             rubric_ab.ask_rubric_question = _ask
-            rubric_ab.get_client = lambda model: f"client-{model}"
+            ev_llm.get_client = lambda model: f"client-{model}"
             code, text = conftest.run_tool_main(
                 rubric_ab, [*argv, "--output-dir", out])
         finally:
             for name, value in saved.items():
                 setattr(rubric_ab, name, value)
+            ev_llm.get_client = saved_client
         return code, text, out, calls
 
     def test_the_grid_is_every_grader_crossed_with_every_wording(self):
@@ -856,11 +861,11 @@ class TestContaminationCheckReportsWhatItFound:
 
     def test_a_model_probe_runs_every_family_and_writes_a_verdict(self):
         import contamination_check as cc
-        saved = (cc.ask, cc.get_client)
+        saved = (cc.ask, ev_llm.get_client)
         try:
             ask, calls = self._stub_ask(cc, ['{"choice": 1}'])
             cc.ask = ask
-            cc.get_client = lambda model: object()
+            ev_llm.get_client = lambda model: object()
             with tempfile.TemporaryDirectory() as d:
                 with conftest.env_without("ANTHROPIC_API_KEY",
                                           "OPENROUTER_API_KEY",
@@ -873,7 +878,7 @@ class TestContaminationCheckReportsWhatItFound:
                 report = json.loads(
                     pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
         finally:
-            cc.ask, cc.get_client = saved
+            cc.ask, ev_llm.get_client = saved
         assert code == 0, text
         assert calls, "no probe was made at all"
         assert "CONTAMINATION PROBE: some/model" in text
@@ -889,17 +894,17 @@ class TestContaminationCheckReportsWhatItFound:
         returned `inconclusive`, having paid for the calls to find out."""
         import contamination_check as cc
         from subversionbench.contamination import MIN_ITEMS_FOR_VERDICT
-        saved = (cc.ask, cc.get_client)
+        saved = (cc.ask, ev_llm.get_client)
         try:
             ask, _calls = self._stub_ask(cc, ['{"choice": 1}'])
             cc.ask = ask
-            cc.get_client = lambda model: object()
+            ev_llm.get_client = lambda model: object()
             with tempfile.TemporaryDirectory() as d:
                 _code, text = conftest.run_tool_main(
                     cc, ["--models", "some/model", "--limit", "2",
                          "--output-dir", d])
         finally:
-            cc.ask, cc.get_client = saved
+            cc.ask, ev_llm.get_client = saved
         assert f"A verdict needs {MIN_ITEMS_FOR_VERDICT}" in text
         assert "inconclusive at best" in text or "'inconclusive' at best" in text
 
@@ -909,11 +914,11 @@ class TestContaminationCheckReportsWhatItFound:
         down with it. Two of three models in the first real run produced no
         data at all that way."""
         import contamination_check as cc
-        saved = (cc.ask, cc.get_client)
+        saved = (cc.ask, ev_llm.get_client)
         try:
             ask, _calls = self._stub_ask(cc, ["I would rather not guess."])
             cc.ask = ask
-            cc.get_client = lambda model: object()
+            ev_llm.get_client = lambda model: object()
             with tempfile.TemporaryDirectory() as d:
                 code, text = conftest.run_tool_main(
                     cc, ["--models", "some/model", "--limit", "4",
@@ -923,7 +928,7 @@ class TestContaminationCheckReportsWhatItFound:
                 report = json.loads(
                     pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
         finally:
-            cc.ask, cc.get_client = saved
+            cc.ask, ev_llm.get_client = saved
         assert code == 0, text
         entry = report["models"]["some/model"]
         assert entry.get("error") is None, "one bad item failed the model"
@@ -934,11 +939,11 @@ class TestContaminationCheckReportsWhatItFound:
 
     def test_a_model_that_raises_is_recorded_and_the_run_continues(self):
         import contamination_check as cc
-        saved = (cc.ask, cc.get_client)
+        saved = (cc.ask, ev_llm.get_client)
         try:
             def _boom(model):
                 raise RuntimeError("no credentials for this route")
-            cc.get_client = _boom
+            ev_llm.get_client = _boom
             with tempfile.TemporaryDirectory() as d:
                 code, text = conftest.run_tool_main(
                     cc, ["--models", "a/one", "b/two", "--limit", "4",
@@ -948,7 +953,7 @@ class TestContaminationCheckReportsWhatItFound:
                 report = json.loads(
                     pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
         finally:
-            cc.ask, cc.get_client = saved
+            cc.ask, ev_llm.get_client = saved
         assert code == 0, text
         assert set(report["models"]) == {"a/one", "b/two"}
         assert "no credentials" in report["models"]["a/one"]["error"]
@@ -958,17 +963,17 @@ class TestContaminationCheckReportsWhatItFound:
         what say so - printed for every run rather than only the clean
         ones."""
         import contamination_check as cc
-        saved = (cc.ask, cc.get_client)
+        saved = (cc.ask, ev_llm.get_client)
         try:
             ask, _calls = self._stub_ask(cc, ['{"choice": 1}'])
             cc.ask = ask
-            cc.get_client = lambda model: object()
+            ev_llm.get_client = lambda model: object()
             with tempfile.TemporaryDirectory() as d:
                 _code, text = conftest.run_tool_main(
                     cc, ["--models", "some/model", "--limit", "4",
                          "--output-dir", d])
         finally:
-            cc.ask, cc.get_client = saved
+            cc.ask, ev_llm.get_client = saved
         assert "Caveats that apply to every 'no evidence' above" in text
 
     def test_prompts_are_withheld_from_the_saved_file_by_default(self):
@@ -976,11 +981,11 @@ class TestContaminationCheckReportsWhatItFound:
         ids and scores only unless --include-prompts is passed - and a file
         written with it must be treated exactly like a transcript."""
         import contamination_check as cc
-        saved = (cc.ask, cc.get_client)
+        saved = (cc.ask, ev_llm.get_client)
         try:
             ask, _calls = self._stub_ask(cc, ['{"choice": 1}'])
             cc.ask = ask
-            cc.get_client = lambda model: object()
+            ev_llm.get_client = lambda model: object()
             with tempfile.TemporaryDirectory() as d:
                 conftest.run_tool_main(
                     cc, ["--models", "some/model", "--limit", "4",
@@ -998,7 +1003,7 @@ class TestContaminationCheckReportsWhatItFound:
                 verbose = json.loads(
                     pathlib.Path(d, written[0]).read_text(encoding="utf-8"))
         finally:
-            cc.ask, cc.get_client = saved
+            cc.ask, ev_llm.get_client = saved
         first = default["models"]["some/model"]["forced_choice"][0]
         assert "options" not in first and "response" not in first
         loud = verbose["models"]["some/model"]["forced_choice"][0]

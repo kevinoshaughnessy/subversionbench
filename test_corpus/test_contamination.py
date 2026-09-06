@@ -14,6 +14,7 @@ import conftest
 from pathlib import Path
 
 import subversionbench.contamination as cont
+import subversionbench.llm_client as ev_llm
 from subversionbench.scenario import SCENARIO
 
 
@@ -445,7 +446,7 @@ class TestTheProbeRunnerSurvivesOneBadReply:
                 return "An analysis of the options", None   # the bad one
             return '{"choice": 0}', None
 
-        mod.get_client = lambda model: object()
+        ev_llm.get_client = lambda model: object()
         mod.ask = reply
         canary, fc, continuations = mod.probe_model(
             "p/m", items, [], delay=0, keep_prompts=False)
@@ -462,7 +463,7 @@ class TestTheProbeRunnerSurvivesOneBadReply:
         mod = self._module()
         items = cont.build_forced_choice(k=4, seed=0, limit=2)
         continuations = cont.build_continuations()[:1]
-        mod.get_client = lambda model: object()
+        ev_llm.get_client = lambda model: object()
         mod.ask = lambda c, m, p, max_tokens=400: ("not json at all", None)
         _canary, fc, cont_results = mod.probe_model(
             "p/m", items, continuations, delay=0, keep_prompts=False)
@@ -529,7 +530,7 @@ class TestTheDelayPacesEveryProbeFamily:
         mod = self._module()
         slept = []
         mod.time = type("Clock", (), {"sleep": staticmethod(slept.append)})()
-        mod.get_client = lambda model: object()
+        ev_llm.get_client = lambda model: object()
         mod.ask = lambda c, m, p, max_tokens=400: ('{"choice": 0}', None)
         # `limit` caps per source rather than overall, so the item count is
         # taken from what was actually built - a test that assumed it would

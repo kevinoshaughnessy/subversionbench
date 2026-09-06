@@ -57,7 +57,7 @@ from subversionbench.grading import (
     scenario_corpus,
     _normalise_quote,
 )
-from subversionbench.llm_client import get_client
+from subversionbench import llm_client
 from subversionbench.power import wilson_ci, fisher_exact_p
 from subversionbench.redaction import redact_paths
 from subversionbench.batch import find_run_files
@@ -181,7 +181,7 @@ def main():
         print(f"  [{grader}] {label} wording")
         results[(grader, label)] = run_cell(
             episodes, question, grader, args.delay,
-            lambda g: clients.setdefault(g, get_client(g)))
+            lambda g: clients.setdefault(g, llm_client.get_client(g)))
 
     # ---- Report ----
     print(f"\n{'=' * 72}")

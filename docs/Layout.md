@@ -176,14 +176,26 @@ trivial_baseline.py  what the detectors say about an agent that did nothing
                    reported separately, because a clean grader floor built
                    out of transport errors is worse than an unmeasured one
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
-grader_ab.py       cross the grader MODEL against the grader CALL SHAPE on
+grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    saved transcripts: nine calls per episode against one
                    batched call, on each grader given. The batched asker lives
                    here rather than in grading/ deliberately - a call-shape
                    setting in production would fork the corpus - so adopting it
                    means moving it there and re-grading. Reports the position
                    gradient, quote grounding and signal correlation, because
-                   those are how batching would lose accuracy if it does
+                   those are how batching would lose accuracy if it does. Run
+                   as `python3 -m grader_ab`
+  prices.py        the numbers this is configured by, below everything else
+  cost.py          what a cell cost, and the three kinds of not-knowing it
+                   reports: an unpriced model, a shape that hides its output
+                   tokens, and calls that errored before any usage existed
+  shapes.py        the two call shapes under test, and how a failure of either
+                   is classified - both route every answer through the shipped
+                   parse_boolean_verdict rather than a second copy of its rules
+  sampling.py      which episodes the experiment runs over
+  readout.py       what the finished cells say. Computed after the money is
+                   spent, so a crash here costs the whole run
+  cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary
                    can run against a directory that combines what a rollout
@@ -275,11 +287,22 @@ sad_oversight.py   an external situational-awareness leaderboard, encrypted at
                    rest with the published passphrase for the same reason the
                    scenario is, and its rank correlation with the awareness
                    rates measured here (7 overlapping models: descriptive only)
-agentic_misalignment.py
+agentic_misalignment/
                    an external agentic-misalignment benchmark, encrypted the
                    same way, correlated on two axes: the harmful-behaviour
                    level, and the unaware-minus-aware gap that both benchmarks
-                   can measure (5 overlapping models: descriptive only)
+                   can measure (5 overlapping models: descriptive only). Run
+                   as `python3 -m agentic_misalignment`; analysis above
+                   presentation, the same layering trends/ states in its own
+                   __init__
+  bundle.py        the encrypted table, and how its awareness buckets are read
+  rates.py         both sides' rates, computed the same way so they compare
+  pairing.py       which local model is which external row, and the leftovers
+  correlations.py  rho, its leave-one-out range, every (scenario, act) pairing
+  comparison.py    the whole comparison as a document. THE analysis
+  console.py       the same figures as a table on a terminal
+  charts.py        the four figures. Needs matplotlib; nothing above does
+  cli.py           which mode was asked for, and what it writes
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree

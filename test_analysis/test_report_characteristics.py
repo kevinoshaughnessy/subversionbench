@@ -666,7 +666,7 @@ class TestEvalSignalRatesPooledSumsBeforeDividing:
         """1/1 for model b and 1/10 for model a average to 55%; pooling the raw
         counts first gives 2/11, the same distinction
         TestTheRatesArePooledNotAveraged makes for the external side of
-        agentic_misalignment.py."""
+        agentic_misalignment/."""
         eps = ([_sep("a", broke_character=True)]
               + [_sep("a", broke_character=False) for _ in range(9)]
               + [_sep("b", broke_character=True)])

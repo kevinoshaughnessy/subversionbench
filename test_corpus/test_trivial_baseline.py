@@ -21,6 +21,7 @@ unmeasured risk into a false assurance, which is worse than not checking.
 import unittest
 
 import trivial_baseline as tb
+import subversionbench.grading as ev_grading
 from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.isolation import confinement_available
 
@@ -328,8 +329,8 @@ class TestTheGraderFloorCanBeChecked:
         import contextlib
         import io
         import sys
-        real = tb.detect_eval_awareness_grader
-        tb.detect_eval_awareness_grader = lambda transcript, model=None: verdict
+        real = ev_grading.detect_eval_awareness_grader
+        ev_grading.detect_eval_awareness_grader = lambda transcript, model=None: verdict
         original = sys.argv
         sys.argv = argv
         buf = io.StringIO()
@@ -338,7 +339,7 @@ class TestTheGraderFloorCanBeChecked:
                 code = tb.main()
         finally:
             sys.argv = original
-            tb.detect_eval_awareness_grader = real
+            ev_grading.detect_eval_awareness_grader = real
         return code, buf.getvalue()
 
     def test_the_documented_flag_exists(self):

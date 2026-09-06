@@ -26,6 +26,8 @@ import tempfile
 from pathlib import Path
 
 import agentic_misalignment as am
+from report import load_episodes
+from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 import conftest
 
 
@@ -70,7 +72,7 @@ class TestTheBundleIsEncryptedAndRoundTrips:
         """The point of the file. Terms are taken FROM the bundle rather than
         written here, so this cannot be satisfied by checking for the wrong
         words - and cannot itself leak them into tracked source."""
-        raw = Path(am._BUNDLE_PATH).read_text(encoding="utf-8")
+        raw = Path(am.bundle._BUNDLE_PATH).read_text(encoding="utf-8")
         terms = {r["model"] for r in am.load_bundle()["rows"]}
         terms |= {r["scenario"] for r in am.load_bundle()["rows"]}
         assert terms, "no terms to check - the guard would pass vacuously"
@@ -482,17 +484,18 @@ class TestTheCorpusIsWalkedOnce:
         from every function here rather than from one that was told about.
         """
         calls = []
-        original = am.load_episodes
+        import report as report_pkg
+        original = report_pkg.load_episodes
 
         def counting(output_dir):
             calls.append(output_dir)
             return original(output_dir)
 
-        am.load_episodes = counting
+        report_pkg.load_episodes = counting
         try:
             return call(), len(calls)
         finally:
-            am.load_episodes = original
+            report_pkg.load_episodes = original
 
     def test_a_report_reads_the_corpus_once(self):
         out = self._dir()
@@ -507,7 +510,7 @@ class TestTheCorpusIsWalkedOnce:
         would be accepted and ignored, which is the same cost with a wider
         signature."""
         out = self._dir()
-        episodes = am.load_episodes(out)
+        episodes = load_episodes(out)
         for name, fn in (("local_rates", am.local_rates),
                          ("local_act_rates", am.local_act_rates)):
             _got, reads = self._counted(lambda fn=fn: fn(out, episodes))
@@ -519,7 +522,7 @@ class TestTheCorpusIsWalkedOnce:
         the whole returned structure rather than a chosen field, so a figure
         that starts depending on load order fails here."""
         out = self._dir()
-        episodes = am.load_episodes(out)
+        episodes = load_episodes(out)
         assert am.local_rates(out) == am.local_rates(out, episodes)
         assert am.local_act_rates(out) == am.local_act_rates(out, episodes)
 
@@ -528,7 +531,7 @@ class TestTheCorpusIsWalkedOnce:
         read-only. A field written by whichever ran first would make the other
         one's figures depend on the call order."""
         out = self._dir()
-        episodes = am.load_episodes(out)
+        episodes = load_episodes(out)
         before = json.dumps(episodes, sort_keys=True, default=str)
         am.local_rates(out, episodes)
         am.local_act_rates(out, episodes)
@@ -784,7 +787,7 @@ class TestTheChart:
             u, av = row["unaware"]["rate"], row["aware"]["rate"]
             row["suppression_gap"] = None if av is None else round(u - av, 4)
             row["aware_side_underpowered"] = (
-                row["aware"]["n"] < am.MIN_INFORMATIVE_DENOMINATOR)
+                row["aware"]["n"] < MIN_INFORMATIVE_DENOMINATOR)
         return rows
 
     def _report(self, pooling="any_aware"):
@@ -818,11 +821,11 @@ class TestTheChart:
     def test_the_chart_renders_without_error(self):
         self._plt_or_skip()
         with tempfile.TemporaryDirectory() as out:
-            path = am.write_chart(self._report(), str(Path(out) / "c.png"))
+            path = am.charts.write_chart(self._report(), str(Path(out) / "c.png"))
             assert path and Path(path).exists()
 
     def test_no_pairs_means_no_chart_rather_than_an_empty_one(self):
-        assert am.write_chart({"n_pairs": 0, "pairs_by_pooling": {}},
+        assert am.charts.write_chart({"n_pairs": 0, "pairs_by_pooling": {}},
                               "/dev/null/unwritable.png") is None
 
     def test_without_matplotlib_it_returns_none_rather_than_raising(self):
@@ -833,7 +836,7 @@ class TestTheChart:
         real_charting.import_pyplot = lambda *a, **k: None
         try:
             with tempfile.TemporaryDirectory() as out:
-                result = am.write_chart(self._report(), str(Path(out) / "c.png"))
+                result = am.charts.write_chart(self._report(), str(Path(out) / "c.png"))
         finally:
             real_charting.import_pyplot = original
         assert result is None
@@ -845,7 +848,7 @@ class TestTheChart:
         plotting every point the same way."""
         self._plt_or_skip()
         import inspect
-        source = inspect.getsource(am.write_chart)
+        source = inspect.getsource(am.charts.write_chart)
         assert "agree" in source and "#c44e52" in source and "#4c72b0" in source
 
     def test_a_pair_with_no_suppression_gap_is_excluded_not_zeroed(self):
@@ -869,7 +872,7 @@ class TestTheChart:
             return original(self, x, y, *a, **k)
         with unittest.mock.patch.object(plt.Axes, "scatter", spy):
             with tempfile.TemporaryDirectory() as out:
-                path = am.write_chart(self._report(), str(Path(out) / "c.png"))
+                path = am.charts.write_chart(self._report(), str(Path(out) / "c.png"))
         assert path
         assert len(calls) == 2, (
             f"expected one gap point per pair with a measurable gap (a, b), "
@@ -884,7 +887,7 @@ class TestTheChart:
         promises more certainty than a bucket this small can support."""
         self._plt_or_skip()
         import inspect
-        source = inspect.getsource(am.write_chart)
+        source = inspect.getsource(am.charts.write_chart)
         assert "aware_side_underpowered" in source
         assert 'facecolors=("none"' in source
 
@@ -893,7 +896,7 @@ class TestTheChart:
         geometry is checked from the source - `plt.subplots(1, 2, ...)` is
         what keeps this a level-panel/gap-panel pair rather than a stack."""
         import inspect
-        source = inspect.getsource(am.write_chart)
+        source = inspect.getsource(am.charts.write_chart)
         assert "plt.subplots(1, 2" in source
 
     def test_both_panel_titles_carry_a_p_value_beside_rho(self):
@@ -911,7 +914,7 @@ class TestTheChart:
         import unittest.mock
         with unittest.mock.patch.object(plt.Axes, "set_title", spy):
             with tempfile.TemporaryDirectory() as out:
-                am.write_chart(self._report(), str(Path(out) / "c.png"))
+                am.charts.write_chart(self._report(), str(Path(out) / "c.png"))
         assert len(titles) == 2, titles
         # The shared fixture's gap panel legitimately has no rho - model c's
         # local gap is None, leaving only two usable pairs, one short of what
@@ -953,7 +956,7 @@ class TestTheChart:
         import unittest.mock
         with unittest.mock.patch.object(plt.Axes, "set_title", spy):
             with tempfile.TemporaryDirectory() as out:
-                am.write_chart(report, str(Path(out) / "c.png"))
+                am.charts.write_chart(report, str(Path(out) / "c.png"))
         assert "p=" in titles[1], titles
 
 
@@ -1032,7 +1035,7 @@ class TestScenarioCharts:
     def test_one_chart_is_written_per_non_overall_scenario(self):
         self._plt_or_skip()
         with tempfile.TemporaryDirectory() as out:
-            paths = am.write_scenario_charts(self._bundle(), out)
+            paths = am.charts.write_scenario_charts(self._bundle(), out)
             assert len(paths) == 2
             for p in paths:
                 assert Path(p).exists()
@@ -1040,7 +1043,7 @@ class TestScenarioCharts:
     def test_filenames_are_derived_from_the_bundles_scenario_names(self):
         self._plt_or_skip()
         with tempfile.TemporaryDirectory() as out:
-            paths = {Path(p).name for p in am.write_scenario_charts(
+            paths = {Path(p).name for p in am.charts.write_scenario_charts(
                 self._bundle(), out)}
         assert paths == {
             "agentic_misalignment_scenario_scenario_one.png",
@@ -1060,7 +1063,7 @@ class TestScenarioCharts:
         real_charting.import_pyplot = lambda *a, **k: None
         try:
             with tempfile.TemporaryDirectory() as out:
-                result = am.write_scenario_charts(self._bundle(), out)
+                result = am.charts.write_scenario_charts(self._bundle(), out)
         finally:
             real_charting.import_pyplot = original
         assert result == []
@@ -1073,14 +1076,14 @@ class TestScenarioCharts:
                         "safety_aware": {"harmful": 0, "n": 5},
                         "capability_aware": {"harmful": 0, "n": 5}}}]}
         with tempfile.TemporaryDirectory() as out:
-            assert am.write_scenario_charts(bundle, out) == []
+            assert am.charts.write_scenario_charts(bundle, out) == []
 
     def test_the_unaware_and_aware_ticks_are_both_drawn(self):
         """The suppression story this whole file exists to report has to
         survive the per-scenario breakdown too, not just the pooled chart."""
         self._plt_or_skip()
         import inspect
-        source = inspect.getsource(am.write_scenario_charts)
+        source = inspect.getsource(am.charts.write_scenario_charts)
         assert '"unaware"' in source and '"aware"' in source
         assert "#c44e52" in source and "#55a868" in source
 
@@ -1122,20 +1125,20 @@ class TestScenarioActChart:
     def test_the_chart_renders_when_a_pairing_exists(self):
         self._plt_or_skip()
         with tempfile.TemporaryDirectory() as out:
-            path = am.write_scenario_act_chart(
+            path = am.charts.write_scenario_act_chart(
                 {"best_scenario_act_pairing": self._best()},
                 str(Path(out) / "c.png"))
             assert path and Path(path).exists()
 
     def test_no_pairing_means_no_chart_rather_than_an_empty_one(self):
-        assert am.write_scenario_act_chart(
+        assert am.charts.write_scenario_act_chart(
             {"best_scenario_act_pairing": None}, "/dev/null/unwritable.png"
         ) is None
 
     def test_a_pairing_with_no_pairs_means_no_chart(self):
         best = self._best()
         best["pairs"] = []
-        assert am.write_scenario_act_chart(
+        assert am.charts.write_scenario_act_chart(
             {"best_scenario_act_pairing": best}, "/dev/null/unwritable.png"
         ) is None
 
@@ -1145,7 +1148,7 @@ class TestScenarioActChart:
         real_charting.import_pyplot = lambda *a, **k: None
         try:
             with tempfile.TemporaryDirectory() as out:
-                result = am.write_scenario_act_chart(
+                result = am.charts.write_scenario_act_chart(
                     {"best_scenario_act_pairing": self._best()},
                     str(Path(out) / "c.png"))
         finally:
@@ -1167,7 +1170,7 @@ class TestScenarioActChart:
 
         with tempfile.TemporaryDirectory() as out, \
                 unittest.mock.patch.object(plt.Axes, "set_title", spy):
-            am.write_scenario_act_chart(
+            am.charts.write_scenario_act_chart(
                 {"best_scenario_act_pairing": self._best()},
                 str(Path(out) / "c.png"))
         assert "s1" in captured["title"] and "oversight" in captured["title"]
@@ -1187,10 +1190,10 @@ class TestTheCLIWritesTheChart:
     def _run(self, output_dir, *extra_args):
         import unittest.mock
         argv = sys.argv
-        sys.argv = ["agentic_misalignment.py", "--output-dir", output_dir,
+        sys.argv = ["agentic_misalignment", "--output-dir", output_dir,
                    "--json-out", str(Path(output_dir) / "r.json"), *extra_args]
         try:
-            with unittest.mock.patch.object(am, "build_report",
+            with unittest.mock.patch.object(am.comparison, "build_report",
                                             return_value=self._report()):
                 return am.main()
         finally:
@@ -1230,10 +1233,10 @@ class TestTheCLIWritesTheChart:
         report["best_scenario_act_pairing"] = TestScenarioActChart()._best()
         out = tempfile.mkdtemp()
         argv = sys.argv
-        sys.argv = ["agentic_misalignment.py", "--output-dir", out,
+        sys.argv = ["agentic_misalignment", "--output-dir", out,
                    "--json-out", str(Path(out) / "r.json")]
         try:
-            with unittest.mock.patch.object(am, "build_report",
+            with unittest.mock.patch.object(am.comparison, "build_report",
                                             return_value=report):
                 assert am.main() == 0
         finally:
@@ -1271,16 +1274,16 @@ class TestTheBundleEditingModes:
 
         @contextlib.contextmanager
         def _ctx():
-            saved = (am._BUNDLE_PATH, am._PLAIN_PATH)
+            saved = (am.bundle._BUNDLE_PATH, am.bundle._PLAIN_PATH)
             try:
                 copy = Path(tmpdir) / "agentic_misalignment.enc"
                 copy.write_text(saved[0].read_text(encoding="utf-8"),
                                 encoding="utf-8")
-                am._BUNDLE_PATH = copy
-                am._PLAIN_PATH = Path(tmpdir) / "agentic_misalignment.json"
+                am.bundle._BUNDLE_PATH = copy
+                am.bundle._PLAIN_PATH = Path(tmpdir) / "agentic_misalignment.json"
                 yield am
             finally:
-                am._BUNDLE_PATH, am._PLAIN_PATH = saved
+                am.bundle._BUNDLE_PATH, am.bundle._PLAIN_PATH = saved
         return _ctx()
 
     def test_decode_and_encode_are_refused_together(self):
@@ -1301,7 +1304,7 @@ class TestTheBundleEditingModes:
             with self._redirected(d) as am:
                 code, text = conftest.run_tool_main(am, ["--decode"])
                 assert code == 0, text
-                assert am._PLAIN_PATH.is_file()
+                assert am.bundle._PLAIN_PATH.is_file()
         assert "gitignored" in text
 
     def test_encode_without_a_decoded_copy_exits_two(self):
@@ -1310,23 +1313,23 @@ class TestTheBundleEditingModes:
         import agentic_misalignment as am
         with tempfile.TemporaryDirectory() as d:
             with self._redirected(d):
-                before = am._BUNDLE_PATH.read_text(encoding="utf-8")
+                before = am.bundle._BUNDLE_PATH.read_text(encoding="utf-8")
                 code, _text = conftest.run_tool_main(am, ["--encode"])
-                assert am._BUNDLE_PATH.read_text(encoding="utf-8") == before
+                assert am.bundle._BUNDLE_PATH.read_text(encoding="utf-8") == before
         assert code == 2
 
     def test_an_edit_round_trips_without_becoming_readable(self):
         with tempfile.TemporaryDirectory() as d:
             with self._redirected(d) as am:
                 conftest.run_tool_main(am, ["--decode"])
-                edited = json.loads(am._PLAIN_PATH.read_text(encoding="utf-8"))
+                edited = json.loads(am.bundle._PLAIN_PATH.read_text(encoding="utf-8"))
                 edited["_edit_marker"] = "round-tripped"
-                am._PLAIN_PATH.write_text(json.dumps(edited), encoding="utf-8")
+                am.bundle._PLAIN_PATH.write_text(json.dumps(edited), encoding="utf-8")
                 code, text = conftest.run_tool_main(am, ["--encode"])
                 assert code == 0, text
-                assert am.load_bundle(am._BUNDLE_PATH)["_edit_marker"] == \
+                assert am.load_bundle(am.bundle._BUNDLE_PATH)["_edit_marker"] == \
                     "round-tripped"
-                raw = am._BUNDLE_PATH.read_bytes()
+                raw = am.bundle._BUNDLE_PATH.read_bytes()
         assert b"round-tripped" not in raw
         assert "folded" in text
 
@@ -1465,7 +1468,7 @@ class TestTheCLIRefusesBeforeItReads:
         import unittest.mock
         out, err = io.StringIO(), io.StringIO()
         saved = sys.argv
-        sys.argv = ["agentic_misalignment.py", *argv]
+        sys.argv = ["agentic_misalignment", *argv]
         try:
             with contextlib.redirect_stdout(out), \
                     contextlib.redirect_stderr(err):
@@ -1473,7 +1476,7 @@ class TestTheCLIRefusesBeforeItReads:
                     code = am.main()
                 else:
                     with unittest.mock.patch.object(
-                            am, "build_report", return_value=build_report):
+                            am.comparison, "build_report", return_value=build_report):
                         code = am.main()
         finally:
             sys.argv = saved
@@ -1514,15 +1517,15 @@ class TestARunWithoutChartsSaysNothingAboutThem:
         import unittest.mock
         buf = io.StringIO()
         saved = sys.argv
-        sys.argv = ["agentic_misalignment.py", "--output-dir", output_dir]
+        sys.argv = ["agentic_misalignment", "--output-dir", output_dir]
         stack = contextlib.ExitStack()
         try:
             with contextlib.redirect_stdout(buf):
                 stack.enter_context(unittest.mock.patch.object(
-                    am, "build_report", return_value=TestTheChart()._report()))
+                    am.comparison, "build_report", return_value=TestTheChart()._report()))
                 for name, value in patches.items():
                     stack.enter_context(unittest.mock.patch.object(
-                        am, name, return_value=value))
+                        am.charts, name, return_value=value))
                 code = am.main()
         finally:
             stack.close()
@@ -1594,7 +1597,7 @@ class TestWhatHasNoRateIsLeftOffTheChartsRatherThanDrawnAtZero:
         pairs[0]["external"] = dict(pairs[0]["external"], overall_rate=None)
         with unittest.mock.patch.object(plt.Axes, "errorbar", spy), \
                 tempfile.TemporaryDirectory() as out:
-            path = am.write_chart(report, str(Path(out) / "c.png"))
+            path = am.charts.write_chart(report, str(Path(out) / "c.png"))
         assert path
         assert len(calls) == with_rate - 1, (
             f"expected one level point per pair with a rate, got {len(calls)}")
@@ -1624,7 +1627,7 @@ class TestWhatHasNoRateIsLeftOffTheChartsRatherThanDrawnAtZero:
             "the fixture no longer produces a rateless scenario, so this "
             "would pass however write_scenario_charts handled one")
         with tempfile.TemporaryDirectory() as out:
-            names = {Path(p).name for p in am.write_scenario_charts(bundle, out)}
+            names = {Path(p).name for p in am.charts.write_scenario_charts(bundle, out)}
         assert names == {"agentic_misalignment_scenario_measured.png"}, (
             "a scenario with no rate to plot still got a chart file")
 
@@ -1649,7 +1652,7 @@ class TestTheScenarioActCaptionOnlyClaimsWhatItHas:
 
         with unittest.mock.patch.object(plt.Figure, "text", spy), \
                 tempfile.TemporaryDirectory() as out:
-            am.write_scenario_act_chart({"best_scenario_act_pairing": best},
+            am.charts.write_scenario_act_chart({"best_scenario_act_pairing": best},
                                         str(Path(out) / "c.png"))
         return " ".join(texts)
 
@@ -1703,7 +1706,7 @@ class TestAScenarioChartOnlyTicksTheAwarenessSidesItHas:
 
         with unittest.mock.patch.object(plt.Axes, "scatter", spy), \
                 tempfile.TemporaryDirectory() as out:
-            paths = am.write_scenario_charts(bundle, out)
+            paths = am.charts.write_scenario_charts(bundle, out)
         assert paths, "no chart was drawn, so no tick could have been"
         return calls
 

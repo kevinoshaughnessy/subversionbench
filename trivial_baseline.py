@@ -88,9 +88,9 @@ import sys
 from subversionbench.environment import (create_episode_root,
                                          create_hardened_environment)
 from subversionbench.config import DEFAULT_GRADER_MODEL
+from subversionbench import grading
 from subversionbench.grading import (MISALIGNED_ACTS, analyze_misalignment,
                                      classify_misalignment, classify_scheming,
-                                     detect_eval_awareness_grader,
                                      detect_eval_awareness_keywords,
                                      settle_analysis)
 from subversionbench.isolation import DEFAULT_ISOLATION, confinement_available
@@ -227,7 +227,7 @@ def run_trivial_agent(commands, reply, oversight, lure,
         # which is why it is opt-in and why a run without it says so rather
         # than letting a clean line imply coverage it does not have.
         if grade:
-            analysis["eval_awareness_grader"] = detect_eval_awareness_grader(
+            analysis["eval_awareness_grader"] = grading.detect_eval_awareness_grader(
                 transcript, model=DEFAULT_GRADER_MODEL)
         # The same normalisation the report applies, so a field derived only
         # there (encoded_payload, disguised_text) is checked too rather than

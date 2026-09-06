@@ -31,6 +31,8 @@ import sys
 import tempfile
 
 import grader_ab as ab
+import subversionbench.llm_client as ev_llm
+from subversionbench.config import RUBRIC_QUESTIONS
 
 
 def _rubric(keys, answers, quotes=None):
@@ -76,7 +78,7 @@ class TestTheBatchedReplyIsParsedStrictly:
                                    client=self._client(text))
 
     def test_a_well_formed_reply_is_read(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         body = {k: {"answer": k == keys[0], "quote": "q" if k == keys[0] else ""}
                 for k in keys}
         got = self._ask(json.dumps(body))
@@ -87,7 +89,7 @@ class TestTheBatchedReplyIsParsedStrictly:
     def test_every_question_is_present_even_when_the_reply_omits_one(self):
         """Absence must be visible as an error, not as a missing key a caller
         could mistake for a question that was never asked."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         body = {k: {"answer": False, "quote": ""} for k in keys[1:]}
         got = self._ask(json.dumps(body))
         assert set(got) == set(keys)
@@ -95,7 +97,7 @@ class TestTheBatchedReplyIsParsedStrictly:
         assert keys[0] in got[keys[0]]["error"]
 
     def test_a_missing_answer_field_is_an_error_not_a_false(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         body = {k: {"quote": "no answer field"} for k in keys}
         got = self._ask(json.dumps(body))
         assert all(v["answer"] is None for v in got.values())
@@ -103,19 +105,19 @@ class TestTheBatchedReplyIsParsedStrictly:
     def test_the_string_false_is_not_read_as_true(self):
         """bool("false") is True. The shipped parser handles the word forms and
         this path must inherit that rather than coerce."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         got = self._ask(json.dumps({k: {"answer": "false", "quote": ""}
                                     for k in keys}))
         assert all(v["answer"] is False for v in got.values())
 
     def test_a_non_string_quote_is_refused(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         got = self._ask(json.dumps({k: {"answer": True, "quote": ["a", "b"]}
                                     for k in keys}))
         assert all(v["answer"] is None for v in got.values())
 
     def test_prose_around_the_json_is_tolerated(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         body = json.dumps({k: {"answer": False, "quote": ""} for k in keys})
         got = self._ask(f"Here is my assessment:\n{body}\nLet me know.")
         assert all(v["answer"] is False for v in got.values())
@@ -123,7 +125,7 @@ class TestTheBatchedReplyIsParsedStrictly:
     def test_a_brace_inside_a_quote_does_not_truncate_the_object(self):
         """Brace counting rather than a regex, because a cited quote can contain
         one - and a truncated parse would score every answer as an error."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         body = {k: {"answer": True, "quote": 'the dict {"a": 1} appeared'}
                 for k in keys}
         got = self._ask(json.dumps(body))
@@ -135,7 +137,7 @@ class TestTheBatchedReplyIsParsedStrictly:
         experiment measures - so it must be recorded on all nine keys rather
         than raising."""
         got = self._ask("I would rather not answer in JSON.")
-        assert len(got) == len(ab.RUBRIC_QUESTIONS)
+        assert len(got) == len(RUBRIC_QUESTIONS)
         assert all(v["answer"] is None for v in got.values())
 
     def test_an_api_exception_is_reported_not_raised(self):
@@ -154,13 +156,13 @@ class TestTheVerdictComesFromTheRealClassifier:
         """Not a False. A cell that answered nothing has not measured the
         episode, and scoring it as not-aware is the absence-is-a-no error the
         rubric parser exists to prevent."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         assert ab.cell_verdict(_rubric(keys, [None] * len(keys))) is None
 
     def test_a_partly_failed_rubric_still_gets_one(self):
         """Nine independent questions, so eight answers are still evidence -
         which is exactly what the batched shape gives up."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         answers = [None] + [False] * (len(keys) - 1)
         assert ab.cell_verdict(_rubric(keys, answers)) is False
 
@@ -170,7 +172,7 @@ class TestTheVerdictComesFromTheRealClassifier:
         means."""
         from subversionbench.grading.grader import (
             _EVAL_SIGNAL_KEYS, classify_awareness_from_rubric)
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         rubric = _rubric(keys, [False] * len(keys))
         for k in list(_EVAL_SIGNAL_KEYS)[:2]:
             rubric[k] = {"answer": True, "quote": f"distinct span for {k}",
@@ -183,7 +185,7 @@ class TestTheContaminationProxyMeasuresWhatItSays:
     def test_answers_that_move_together_score_higher(self):
         """The whole point: batching should raise this if it makes the five
         eval-signal questions agree with each other more."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         from subversionbench.grading.grader import _EVAL_SIGNAL_KEYS
         together, split = _rubric(keys, [False] * len(keys)), \
             _rubric(keys, [False] * len(keys))
@@ -196,7 +198,7 @@ class TestTheContaminationProxyMeasuresWhatItSays:
 
     def test_unanswered_questions_are_left_out_of_the_pairs(self):
         """A failed answer is not agreement with anything."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         from subversionbench.grading.grader import _EVAL_SIGNAL_KEYS
         rubric = _rubric(keys, [False] * len(keys))
         for k in _EVAL_SIGNAL_KEYS:
@@ -297,7 +299,7 @@ class TestTheReportRunsWithoutAnApi:
     another, because a partial 2x2 is a normal thing to ask for."""
 
     def _results(self, cells):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         out = {}
         for cell, per_run in cells.items():
             out[cell] = {run: _rubric(keys, answers)
@@ -305,14 +307,14 @@ class TestTheReportRunsWithoutAnApi:
         return out
 
     def _render(self, results, stored=None):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             ab.report(results, [], keys, stored if stored is not None else {})
         return buf.getvalue()
 
     def _two_cells(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         ref = "|".join(ab.REFERENCE)
         yes = [True] * len(keys)
         no = [False] * len(keys)
@@ -333,7 +335,7 @@ class TestTheReportRunsWithoutAnApi:
     def test_it_reports_the_noise_floor_against_the_stored_labels(self):
         """Without it every other number is uninterpretable, because graders are
         non-deterministic and some disagreement is expected for free."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         results = self._two_cells()
         stored = {"r1": _rubric(keys, [True] * len(keys)),
                   "r2": _rubric(keys, [True] * len(keys))}
@@ -343,13 +345,13 @@ class TestTheReportRunsWithoutAnApi:
         assert "1/2" in out
 
     def test_it_says_so_rather_than_crashing_when_the_reference_is_absent(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         out = self._render(self._results(
             {"claude-sonnet-5|batched": {"r1": [True] * len(keys)}}))
         assert "reference cell" in out and "absent" in out
 
     def test_a_cell_that_failed_everywhere_does_not_divide_by_zero(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         ref = "|".join(ab.REFERENCE)
         out = self._render(self._results({
             ref: {"r1": [False] * len(keys)},
@@ -360,7 +362,7 @@ class TestTheReportRunsWithoutAnApi:
     def test_the_position_row_carries_one_number_per_question(self):
         """The pre-registered read-out: a slope across these is what says
         batching lost the late answers."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         out = self._render(self._two_cells())
         # Scoped to the section, because the cell name heads a line in the
         # agreement section too - which is what an earlier version of this test
@@ -399,7 +401,7 @@ class TestAThrottledCallCannotBeMistakenForAFragileShape:
         assert ab.classify_error(None) is None
 
     def test_a_fatal_kind_is_recognised_from_a_whole_rubric(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         auth = {k: {"answer": None, "quote": "", "error": "401 unauthorized",
                     "error_kind": "auth"} for k in keys}
         assert ab.fatal_error_kind(auth) == "auth"
@@ -407,13 +409,13 @@ class TestAThrottledCallCannotBeMistakenForAFragileShape:
     def test_an_ordinary_reply_failure_is_not_fatal(self):
         """A grader that could not produce readable JSON for one episode is a
         measurement, not a reason to stop the run."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         bad = {k: {"answer": None, "quote": "", "error": "did not parse",
                    "error_kind": "reply"} for k in keys}
         assert ab.fatal_error_kind(bad) is None
 
     def test_a_clean_rubric_is_not_fatal(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         assert ab.fatal_error_kind(_rubric(keys, [True] * len(keys))) is None
 
     def test_the_batched_asker_labels_an_auth_failure_as_auth(self):
@@ -452,30 +454,30 @@ class TestTheDelayPacesCallsRatherThanEpisodes:
     the limit."""
 
     def test_the_per_question_shape_sleeps_between_its_calls(self):
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         slept, asked = [], []
-        original_sleep, original_ask = ab.time.sleep, ab.ask_rubric_question
-        ab.time.sleep = slept.append
-        ab.ask_rubric_question = lambda q, c, m, cl, channel_id=None: (
+        original_sleep, original_ask = ab.shapes.time.sleep, ab.shapes.ask_rubric_question
+        ab.shapes.time.sleep = slept.append
+        ab.shapes.ask_rubric_question = lambda q, c, m, cl, channel_id=None: (
             asked.append(q), {"answer": False, "quote": "", "error": None})[1]
         try:
             ab.ask_per_question("corpus", "m", client=object(), delay=0.25)
         finally:
-            ab.time.sleep, ab.ask_rubric_question = original_sleep, original_ask
+            ab.shapes.time.sleep, ab.shapes.ask_rubric_question = original_sleep, original_ask
         assert len(asked) == len(keys)
         # One sleep BETWEEN each pair, not after the last.
         assert slept == [0.25] * (len(keys) - 1)
 
     def test_no_delay_means_no_sleeping(self):
-        original_sleep, original_ask = ab.time.sleep, ab.ask_rubric_question
+        original_sleep, original_ask = ab.shapes.time.sleep, ab.shapes.ask_rubric_question
         slept = []
-        ab.time.sleep = slept.append
-        ab.ask_rubric_question = lambda *a, **k: {
+        ab.shapes.time.sleep = slept.append
+        ab.shapes.ask_rubric_question = lambda *a, **k: {
             "answer": False, "quote": "", "error": None}
         try:
             ab.ask_per_question("corpus", "m", client=object(), delay=0)
         finally:
-            ab.time.sleep, ab.ask_rubric_question = original_sleep, original_ask
+            ab.shapes.time.sleep, ab.shapes.ask_rubric_question = original_sleep, original_ask
         assert slept == []
 
     def test_both_shapes_accept_the_delay(self):
@@ -564,12 +566,16 @@ class TestTheDelayPacesCallsRatherThanEpisodes:
         """
         import ast
         import inspect
-        source = inspect.getsource(ab)
+        # cli, not the package: `inspect.getsource` of a package returns only
+        # its __init__, so reading the argument list off `ab` stopped finding
+        # anything the moment the script became one - the empty scope this
+        # assertion's own message warns about.
+        source = inspect.getsource(ab.cli)
         calls = [node for node in ast.walk(ast.parse(source))
                  if isinstance(node, ast.Call)
                  and isinstance(node.func, ast.Name)
                  and node.func.id == "asker"]
-        assert calls, ("no asker(...) call found in grader_ab - this guard "
+        assert calls, ("no asker(...) call found in grader_ab.cli - this guard "
                        "reads the runner's argument list from it, and an "
                        "empty scope would make every assertion below vacuous")
         for call in calls:
@@ -709,7 +715,7 @@ class TestTheAskersRecordUsageWhenGivenAPlaceToPutIt:
         class Block:
             type = "text"
             text = json.dumps({k: {"answer": False, "quote": ""}
-                               for k in ab.RUBRIC_QUESTIONS})
+                               for k in RUBRIC_QUESTIONS})
 
         class Client:
             class messages:
@@ -740,44 +746,44 @@ class TestTheAskersRecordUsageWhenGivenAPlaceToPutIt:
 
     def test_the_per_question_asker_records_input_only_per_call(self):
         """Nine calls, nine records, each with output=None - the shipped
-        ask_rubric_question does not expose output_tokens, and this must not
+        ab.shapes.ask_rubric_question does not expose output_tokens, and this must not
         paper over that with a guess."""
-        keys = list(ab.RUBRIC_QUESTIONS)
-        original = ab.ask_rubric_question
-        ab.ask_rubric_question = lambda q, c, m, cl, channel_id=None: {
+        keys = list(RUBRIC_QUESTIONS)
+        original = ab.shapes.ask_rubric_question
+        ab.shapes.ask_rubric_question = lambda q, c, m, cl, channel_id=None: {
             "answer": False, "quote": "", "error": None,
             "cache": {"read": 10, "written": 0, "uncached": 5}}
         try:
             sink = []
             ab.ask_per_question("corpus", "m", client=object(), usage_sink=sink)
         finally:
-            ab.ask_rubric_question = original
+            ab.shapes.ask_rubric_question = original
         assert len(sink) == len(keys)
         assert all(r["output"] is None for r in sink)
         assert all(r["read"] == 10 and r["uncached"] == 5 for r in sink)
 
     def test_a_failed_per_question_call_records_no_usage_for_that_question(self):
-        original = ab.ask_rubric_question
-        ab.ask_rubric_question = lambda q, c, m, cl, channel_id=None: {
+        original = ab.shapes.ask_rubric_question
+        ab.shapes.ask_rubric_question = lambda q, c, m, cl, channel_id=None: {
             "answer": None, "quote": "", "error": "boom", "cache": None}
         try:
             sink = []
             ab.ask_per_question("corpus", "m", client=object(), usage_sink=sink)
         finally:
-            ab.ask_rubric_question = original
+            ab.shapes.ask_rubric_question = original
         assert sink == []
 
     def test_neither_asker_requires_a_sink(self):
         """usage_sink is optional - a caller that does not care about cost must
         not be forced to pass one."""
-        keys = list(ab.RUBRIC_QUESTIONS)
-        original = ab.ask_rubric_question
-        ab.ask_rubric_question = lambda q, c, m, cl, channel_id=None: {
+        keys = list(RUBRIC_QUESTIONS)
+        original = ab.shapes.ask_rubric_question
+        ab.shapes.ask_rubric_question = lambda q, c, m, cl, channel_id=None: {
             "answer": False, "quote": "", "error": None, "cache": None}
         try:
             got = ab.ask_per_question("corpus", "m", client=object())
         finally:
-            ab.ask_rubric_question = original
+            ab.shapes.ask_rubric_question = original
         assert set(got) == set(keys)
 
 
@@ -794,7 +800,7 @@ class TestAKilledRunKeepsWhatItAlreadyPaidFor:
             "analysis": {"eval_awareness_grader": {
                 "eval_aware": True, "rubric_results": {
                     k: {"answer": False, "quote": ""}
-                    for k in ab.RUBRIC_QUESTIONS}}},
+                    for k in RUBRIC_QUESTIONS}}},
         }
         with open(os.path.join(out_dir, run_name), "w", encoding="utf-8") as f:
             json.dump(data, f)
@@ -811,7 +817,7 @@ class TestAKilledRunKeepsWhatItAlreadyPaidFor:
                 usage_sink.append({"read": 0, "written": 0, "uncached": 1000,
                                    "output": None})
             return {k: {"answer": False, "quote": "", "error": None,
-                       "error_kind": None} for k in ab.RUBRIC_QUESTIONS}
+                       "error_kind": None} for k in RUBRIC_QUESTIONS}
         return asker
 
     def test_the_earlier_cell_is_saved_when_a_later_one_dies(self):
@@ -819,9 +825,9 @@ class TestAKilledRunKeepsWhatItAlreadyPaidFor:
         self._write_candidate(out_dir)
         original_shapes = dict(ab.SHAPES)
         original_argv = sys.argv
-        original_get_client = ab.get_client
+        original_get_client = ev_llm.get_client
         ab.SHAPES["per_question"] = self._fake_asker(dies_for="claude-fable-5")
-        ab.get_client = lambda model, **kw: object()
+        ev_llm.get_client = lambda model, **kw: object()
         sys.argv = ["grader_ab.py", "--output-dir", out_dir,
                     "--graders", "claude-opus-5", "claude-fable-5",
                     "--shapes", "per_question", "--per-model", "1",
@@ -835,7 +841,7 @@ class TestAKilledRunKeepsWhatItAlreadyPaidFor:
         finally:
             ab.SHAPES.clear()
             ab.SHAPES.update(original_shapes)
-            ab.get_client = original_get_client
+            ev_llm.get_client = original_get_client
             sys.argv = original_argv
 
         saved = glob.glob(os.path.join(out_dir, "grader_ab_*.json"))
@@ -853,9 +859,9 @@ class TestAKilledRunKeepsWhatItAlreadyPaidFor:
         self._write_candidate(out_dir)
         original_shapes = dict(ab.SHAPES)
         original_argv = sys.argv
-        original_get_client = ab.get_client
+        original_get_client = ev_llm.get_client
         ab.SHAPES["per_question"] = self._fake_asker(dies_for="nobody")
-        ab.get_client = lambda model, **kw: object()
+        ev_llm.get_client = lambda model, **kw: object()
         sys.argv = ["grader_ab.py", "--output-dir", out_dir,
                     "--graders", "claude-opus-5",
                     "--shapes", "per_question", "--per-model", "1",
@@ -866,7 +872,7 @@ class TestAKilledRunKeepsWhatItAlreadyPaidFor:
         finally:
             ab.SHAPES.clear()
             ab.SHAPES.update(original_shapes)
-            ab.get_client = original_get_client
+            ev_llm.get_client = original_get_client
             sys.argv = original_argv
 
         assert rc == 0
@@ -981,16 +987,16 @@ class TestTheCliRefusesBeforeItSpends:
 
 @contextlib.contextmanager
 def _graders_stubbed(asker):
-    shapes, client_factory = dict(ab.SHAPES), ab.get_client
+    shapes, client_factory = dict(ab.SHAPES), ev_llm.get_client
     for shape in ab.SHAPES:
         ab.SHAPES[shape] = asker
-    ab.get_client = lambda model, **kw: object()
+    ev_llm.get_client = lambda model, **kw: object()
     try:
         yield
     finally:
         ab.SHAPES.clear()
         ab.SHAPES.update(shapes)
-        ab.get_client = client_factory
+        ev_llm.get_client = client_factory
 
 
 _INPUT_ONLY_USAGE = {"read": 0, "written": 0, "uncached": 1000, "output": None}
@@ -1014,9 +1020,9 @@ def _stub_asker(usage=_INPUT_ONLY_USAGE, error_for=(), error=None,
         if model in error_for:
             return {k: {"answer": None, "quote": "", "error": error,
                         "error_kind": error_kind}
-                    for k in ab.RUBRIC_QUESTIONS}
+                    for k in RUBRIC_QUESTIONS}
         return {k: {"answer": False, "quote": "", "error": None,
-                    "error_kind": None} for k in ab.RUBRIC_QUESTIONS}
+                    "error_kind": None} for k in RUBRIC_QUESTIONS}
     return asker
 
 
@@ -1026,7 +1032,7 @@ def _graded_episode(out, n, model="p/m", aware=True, failed=False,
     verdict, which is what the sample is balanced on."""
     grader = {"eval_aware": aware,
               "rubric_results": {k: {"answer": False, "quote": ""}
-                                 for k in ab.RUBRIC_QUESTIONS}}
+                                 for k in RUBRIC_QUESTIONS}}
     if failed:
         grader["grading_failed"] = True
     path = Path(out, f"run_{n}_{model.replace('/', '_')}_strong_{stamp}.json")
@@ -1427,7 +1433,7 @@ class TestTheBatchedCallRefusesAReplyItCannotRead:
         off. Reported as a parse failure rather than as nine omitted questions,
         because those say different things about the grader: one ignored the
         keys, this one ignored the shape entirely."""
-        keys = list(ab.RUBRIC_QUESTIONS)
+        keys = list(RUBRIC_QUESTIONS)
         got = ab.ask_rubric_batch(
             "text", "m", client=self._client([self._block("[true, false]")]))
         assert set(got) == set(keys), (
@@ -1439,12 +1445,12 @@ class TestTheBatchedCallRefusesAReplyItCannotRead:
         """main always passes one. The rubric harness and rubric_ab do not, so
         the no-client path is a supported entry rather than dead code."""
         asked = []
-        original = ab.get_client
-        ab.get_client = lambda model, **kw: asked.append(model) or self._client(
+        original = ev_llm.get_client
+        ev_llm.get_client = lambda model, **kw: asked.append(model) or self._client(
             [self._block('{"x": 1}')])
         try:
             ab.ask_rubric_batch("text", "grader/xyz", client=None)
         finally:
-            ab.get_client = original
+            ev_llm.get_client = original
         assert asked == ["grader/xyz"], (
             "the asker either reached a real client or never built one")
