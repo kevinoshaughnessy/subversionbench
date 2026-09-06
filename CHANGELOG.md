@@ -51,6 +51,23 @@ catching a planted binding rather than asserted about the repository, where
 every module now satisfies the rule and an empty result would be
 indistinguishable from a broken scan.
 
+NO TEST FILE IS OVER IT EITHER. Fourteen were, the largest at 2,748 lines, and
+each was cut where its subject changes - the trends tests along the same
+analysis/presentation line the package itself draws, the chart tests along the
+modules they cover, the rest along what each part is about. Ten shared-fixture
+modules were extracted on the way, named without a `test_` prefix so neither
+runner collects them, which is what the split was actually for: a builder read
+by classes now in three files is a builder that would otherwise have been
+copied three times.
+
+THE LIMIT IS NOW CHECKED RATHER THAN WRITTEN DOWN. `TestNoFileIsOverTheLimit`
+holds source and suite to a thousand lines with no baseline and no exemption,
+because nothing is over it. It exists because two of the twenty files that were
+over had been created already over - which is what a rule living only in
+AGENTS.md allows. The function limit stays a ratchet and the guard says why:
+forty-five functions exceed it, and a rule declared as absolute while
+forty-five things violate it is one that gets switched off.
+
 ## v141
 
 Package version `141.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
