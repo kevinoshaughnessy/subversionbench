@@ -85,14 +85,27 @@ omit = [
 ]
 
 [tool.coverage.report]
-# THE FLOOR IS MEASURED, NOT ASPIRED TO. Both platforms report 91% at the time
-# it was set - macOS 616 statements missed, Linux 618, a two-statement spread -
-# so 90 leaves about a point of headroom and cannot flake between the runners.
+# THE FLOOR IS MEASURED, NOT ASPIRED TO. macOS reports 91.0435% (804 of 15,017
+# statements and branches missed), so 91 passes with about 6 units to spare.
 #
-# Set it higher only after measuring, and on both platforms: 24 of the sandbox
-# tests are macOS-only and the isolation module's branches divide the other way
-# on Linux, so a floor tuned to one platform is a floor that fails on the other.
-fail_under = 90
+# RAISED FROM 90, AND THE HEADROOM IS NOW THIN. The previous floor sat a full
+# point below the measurement for two reasons. One of them is gone: the 24
+# macOS-only sandbox tests were suspected of covering lines Linux would miss,
+# and forcing them all to skip moves the total not at all - 91.0435% and the
+# same 804 missing lines either way. They cover nothing that other tests do not.
+#
+# The other reason stands and was NOT re-measured, because it cannot be from a
+# macOS checkout: isolation.py takes different branches on Linux, and the last
+# time both platforms were compared they differed by two statements. Six units
+# of headroom against a two-unit historical spread is a real margin but a small
+# one, and the codebase has grown by half since that comparison.
+#
+# So if CI goes red on coverage alone, this line is the first suspect, and the
+# fix is to read the Linux figure from the failing job rather than to lower the
+# floor by reflex - a floor that moves down whenever it is inconvenient is not
+# a floor. `coverage json` on that runner gives the exact percentage and the
+# per-file missing lines to compare against a local run.
+fail_under = 91
 skip_covered = true
 show_missing = true
 exclude_also = [
