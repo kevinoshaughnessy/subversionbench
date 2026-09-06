@@ -136,9 +136,9 @@ were over when the check was written and nothing said so - two of them created
 already over, which is what a rule with no check allows.
 
 THE FUNCTION LIMIT IS STILL A RATCHET, and the honest version of the rule says
-so: thirty-seven functions exceed it, the largest being
+so: thirty-five functions exceed it, the largest being
 `reporting/summary.py:summary_document` at 336 lines and
-`readmodes/reclassify.py:reclassify_existing_runs` at 209. Nothing new may exceed it, and anything already over may only get
+`reporting/facts/rates.py:rate_table` at 179. Nothing new may exceed it, and anything already over may only get
 smaller. A rule declared as absolute while dozens of things violate it is one
 that gets switched off the first time it is inconvenient, which is the same
 reasoning that set the ruff rule set in `pyproject.toml`.
@@ -185,7 +185,7 @@ still left 49 sites uncovered. For the second kind, take the file list from
 escaping it.
 
 **A search over a named function's source is a guard against a location.**
-Seven checks here asserted that some call appeared in `inspect.getsource` of one
+Eleven checks here asserted that some call appeared in `inspect.getsource` of one
 named function - that `run_batch` contained `confinement_available()`, that
 `grader_ab.main` contained `graders_tag`, that `run_evaluation` contained `if
 capability is None:`. Every one of them broke when the code it was about was

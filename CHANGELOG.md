@@ -10,6 +10,57 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v145
+
+Package version `145.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE LAST TWO FUNCTIONS THAT BOTH COMPUTED AND PRINTED.
+
+`export.py:main` was two modes sharing a body, and the verify mode was itself
+two questions - does anything under the root still name the host, and does it
+hold a finding redaction cannot rewrite. It is now `_verify` over
+`_report_leaks`, a pure `_partition_risks`, and `_report_risks`; the staging
+mode is `_stage`.
+
+`readmodes/reclassify.py:reclassify_existing_runs` threaded five counters
+through a loop that also made the calls, decided the abort, and printed. The
+counters travel in one accumulator now, because every one of them is read by
+the fail-closed gate and a counter the loop updates that the gate does not know
+about is a pass that writes when it should have refused.
+
+NO FUNCTION IN THE PACKAGE STILL CARRIES A SECTION BANNER IN ITS BODY. There
+were four at the start of this work and the rule that a banner is someone
+dividing a function that should have been divided into functions has held in
+every case.
+
+Both refactors were checked against real output rather than fixtures, with
+harnesses that drive each mode offline: export over four trees built to reach
+every refusal it can print, and reclassify over real saved episodes with the
+grader stubbed, across a clean pass, a partial failure under the limit, one
+over it, a total failure and an auth abort. Byte-identical each time.
+
+FOUR MORE TEXT-SEARCH GUARDS REPLACED, and two of the replacements found that
+the guard had been weaker than it looked.
+
+The export gate's "an unscanned file is never counted as reviewed" searched
+main's source for `- len(unscanned)`, which says nothing about whether the
+arithmetic is right. It now calls the grouping and reads what came back - and
+alongside it, a check that every severity the scanner can emit is one the gate
+names, derived from the scanner's own ordering table. `n_reviewed` is
+everything left after subtracting the named groups, so a severity added to the
+scan and not to the gate would publish quietly.
+
+The read modes' write-back policy guard searched for
+`MAX_CLASSIFIER_FALLBACK_RATE` in each mode's source. That constant also
+appears in an unrelated docstring in the same module, so the check passed with
+the fail-closed gate deleted outright. The behavioural tests that own that rule
+already existed and catch it; the shape comparison stays, for the argument it
+is actually making - four distinct policies is the case against a shared
+writer, and it stops being a case the day they converge.
+
+Nine planted defects, all caught.
+
 ## v144
 
 Package version `144.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

@@ -574,11 +574,59 @@ class TestAnUnscannedFileCannotBePublished:
     def test_an_unscanned_file_is_never_counted_as_reviewed(self):
         """The bug this shape invites: `reviewed` was everything left after
         subtracting secrets and unreviewed hosts, so a severity the gate did not
-        name arrived as an accepted finding and the build passed."""
-        src = inspect.getsource(
-            __import__("subversionbench.export", fromlist=["main"]).main)
-        assert 'r["severity"] == "unscanned"' in src
-        assert "- len(unscanned)" in src
+        name arrived as an accepted finding and the build passed.
+
+        Asserted on the grouping itself rather than on the text of the function
+        that used to hold it. The search this replaced looked for
+        `- len(unscanned)` in main's source, which said nothing about whether
+        the arithmetic was right and broke the moment the grouping was given a
+        function of its own.
+        """
+        from subversionbench.export import _partition_risks
+        risks = [
+            {"severity": "unscanned", "name": "unscanned", "fingerprint": "u1"},
+            {"severity": "host", "name": "path", "fingerprint": "h1"},
+            {"severity": "host", "name": "path", "fingerprint": "h2"},
+            {"severity": "secret", "name": "api key", "fingerprint": "s1"},
+        ]
+        groups = _partition_risks(risks, accepted={"h2", "u1", "s1"})
+        assert [r["fingerprint"] for r in groups["unscanned"]] == ["u1"], (
+            "an unscanned finding was accepted by fingerprint; nothing about "
+            "the file was read, so there is nothing to have reviewed")
+        assert [r["fingerprint"] for r in groups["secrets"]] == ["s1"], (
+            "a credential was accepted by fingerprint")
+        assert [r["fingerprint"] for r in groups["unreviewed"]] == ["h1"]
+        # Only h2 - the one host finding whose fingerprint was accepted.
+        assert groups["n_reviewed"] == 1
+
+    def test_every_severity_the_scan_emits_is_one_the_gate_names(self):
+        """`n_reviewed` is everything left after subtracting the three named
+        groups, so a severity the gate does not name would arrive as an
+        accepted finding and the build would pass.
+
+        That is safe only while the scan emits exactly those three. Read off
+        the scanner's own ordering table rather than restated here, so a fourth
+        severity added to it fails this instead of publishing quietly.
+        """
+        import ast
+        from subversionbench import export
+        emitted = set()
+        for node in ast.walk(ast.parse(
+                inspect.getsource(export.find_content_risks))):
+            if isinstance(node, ast.Dict):
+                keys = [k.value for k in node.keys
+                        if isinstance(k, ast.Constant)]
+                if set(keys) == {"unscanned", "secret", "host"}:
+                    emitted = set(keys)
+        assert emitted, "the severity ordering table is no longer readable here"
+        assert emitted == {"unscanned", "secret", "host"}, emitted
+
+        groups = export._partition_risks(
+            [{"severity": s, "name": s, "fingerprint": s} for s in emitted],
+            accepted=set())
+        assert groups["n_reviewed"] == 0, (
+            "a severity the scan emits is not named by the gate, so it counts "
+            "as reviewed and the archive publishes with it")
 
 
 class TestTheIdentifierScanCannotReturnCleanForAFileItDidNotRead:

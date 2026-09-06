@@ -669,7 +669,7 @@ def find_leaks(root: str) -> list:
     return found
 
 
-def main(argv=None) -> int:
+def _build_parser():
     parser = argparse.ArgumentParser(
         description="Redact a results directory for publication, or verify one.")
     parser.add_argument("--dir", help="results directory to redact")
@@ -680,119 +680,170 @@ def main(argv=None) -> int:
     parser.add_argument("--accepted", metavar="FILE", default=ACCEPTED_FILE,
                         help=f"fingerprints already reviewed and approved for "
                              f"publication (default: {ACCEPTED_FILE})")
-    args = parser.parse_args(argv)
+    return parser
 
-    if args.verify:
-        leaks = find_leaks(args.verify)
-        # Reported apart because they are different claims: one says a file names
-        # the host, the other says the file could not be read, so whether it names
-        # the host is unknown. Both refuse.
-        unreadable = [f for f in leaks if f[1] == "unreadable"]
-        identifying = [f for f in leaks if f[1] != "unreadable"]
-        if identifying:
-            print(f"\n  REFUSING TO PUBLISH: {len(identifying)} file(s) still "
-                  f"identify the host.\n")
-            for path, what, sample in identifying[:10]:
-                print(f"    {os.path.basename(path)}  [{what}]")
-                print(f"      ...{sample.strip()[:88]}...")
-            if len(identifying) > 10:
-                print(f"    ... and {len(identifying) - 10} more")
-            print("\n  redaction.path_substitutions() decides what is rewritten; "
-                  "a field\n  reaching the archive unredacted means export.py did "
-                  "not walk it.")
-        if unreadable:
-            print(f"\n  REFUSING TO PUBLISH: {len(unreadable)} file(s) could not be "
-                  f"read, so\n  whether they identify the host is unknown.\n")
-            for path, _, why in unreadable[:10]:
-                print(f"    {os.path.basename(path)}  [{why}]")
-            if len(unreadable) > 10:
-                print(f"    ... and {len(unreadable) - 10} more")
-            print("\n  Nothing was read, so there is nothing to review. Drop the "
-                  "file from the\n  results directory or fix what makes it "
-                  "unreadable, then build again.")
-        if leaks:
-            return 1
 
-        risks = find_content_risks(args.verify)
-        accepted = accepted_fingerprints(args.accepted)
-        secrets = [r for r in risks if r["severity"] == "secret"]
-        # Deliberately NOT acceptable by fingerprint. Every other finding is a
-        # value a human can look at and judge; this one says the value was never
-        # read, so there is nothing to judge and a fingerprint of the path would
-        # accept whatever the file holds next time too.
-        unscanned = [r for r in risks if r["severity"] == "unscanned"]
-        unreviewed = [r for r in risks if r["severity"] == "host"
-                      and r["fingerprint"] not in accepted]
-        # Subtracting the three named groups, so a severity added later cannot
-        # arrive here as an accepted finding by default - which is exactly what
-        # `unscanned` would have done before this line named it.
-        reviewed = (len(risks) - len(secrets) - len(unscanned)
-                    - len(unreviewed))
+def _report_leaks(leaks: list) -> None:
+    """What under the root still names the host, and what could not be read."""
+    # Reported apart because they are different claims: one says a file names
+    # the host, the other says the file could not be read, so whether it names
+    # the host is unknown. Both refuse.
+    unreadable = [f for f in leaks if f[1] == "unreadable"]
+    identifying = [f for f in leaks if f[1] != "unreadable"]
 
-        if not secrets and not unreviewed and not unscanned:
-            print(f"  verified clean: nothing under {os.path.basename(args.verify)} "
-                  f"identifies this host"
-                  + (f" ({reviewed} reviewed finding(s) accepted)"
-                     if reviewed else ""))
-            return 0
+    if identifying:
+        print(f"\n  REFUSING TO PUBLISH: {len(identifying)} file(s) still "
+              f"identify the host.\n")
+        for path, what, sample in identifying[:10]:
+            print(f"    {os.path.basename(path)}  [{what}]")
+            print(f"      ...{sample.strip()[:88]}...")
+        if len(identifying) > 10:
+            print(f"    ... and {len(identifying) - 10} more")
+        print("\n  redaction.path_substitutions() decides what is rewritten; "
+              "a field\n  reaching the archive unredacted means export.py did "
+              "not walk it.")
 
-        print(f"\n  REFUSING TO PUBLISH: "
-              f"{len(secrets) + len(unreviewed) + len(unscanned)} "
-              f"finding(s) in {os.path.basename(args.verify)} that redaction "
-              f"cannot rewrite.\n")
-        for risk in unscanned:
-            # First, because it says the rest of this list is incomplete.
-            for name in sorted(risk["files"]):
-                print(f"    [UNSCANNED] {name}: {risk['value']}")
-        for risk in secrets:
-            # Never echoed. A credential printed to a terminal is in the scrollback,
-            # and from there in whatever the operator pastes next.
-            print(f"    [CREDENTIAL] {risk['name']} in "
-                  f"{len(risk['files'])} file(s), {risk['count']} occurrence(s)")
-            print("                 not shown, and not acceptable - remove it")
+    if unreadable:
+        print(f"\n  REFUSING TO PUBLISH: {len(unreadable)} file(s) could not be "
+              f"read, so\n  whether they identify the host is unknown.\n")
+        for path, _, why in unreadable[:10]:
+            print(f"    {os.path.basename(path)}  [{why}]")
+        if len(unreadable) > 10:
+            print(f"    ... and {len(unreadable) - 10} more")
+        print("\n  Nothing was read, so there is nothing to review. Drop the "
+              "file from the\n  results directory or fix what makes it "
+              "unreadable, then build again.")
+
+
+def _partition_risks(risks: list, accepted: set) -> dict:
+    """
+    The findings grouped by what an operator can do about each. Pure.
+
+    Separated from the report below because the grouping decides whether the
+    archive can be published and the report only says why not - and only the
+    first of those is worth checking without capturing stdout.
+    """
+    secrets = [r for r in risks if r["severity"] == "secret"]
+    # Deliberately NOT acceptable by fingerprint. Every other finding is a
+    # value a human can look at and judge; this one says the value was never
+    # read, so there is nothing to judge and a fingerprint of the path would
+    # accept whatever the file holds next time too.
+    unscanned = [r for r in risks if r["severity"] == "unscanned"]
+    unreviewed = [r for r in risks if r["severity"] == "host"
+                  and r["fingerprint"] not in accepted]
+    # Subtracting the three named groups, so a severity added later cannot
+    # arrive here as an accepted finding by default - which is exactly what
+    # `unscanned` would have done before this line named it.
+    reviewed = (len(risks) - len(secrets) - len(unscanned)
+                - len(unreviewed))
+    return {
+        "secrets": secrets,
+        "unscanned": unscanned,
+        "unreviewed": unreviewed,
+        "n_reviewed": reviewed,
+    }
+
+
+def _report_risks(root: str, groups: dict, accepted_file: str) -> None:
+    """The findings redaction cannot rewrite, and what to do about each."""
+    secrets, unscanned = groups["secrets"], groups["unscanned"]
+    unreviewed = groups["unreviewed"]
+    print(f"\n  REFUSING TO PUBLISH: "
+          f"{len(secrets) + len(unreviewed) + len(unscanned)} "
+          f"finding(s) in {os.path.basename(root)} that redaction "
+          f"cannot rewrite.\n")
+    for risk in unscanned:
+        # First, because it says the rest of this list is incomplete.
+        for name in sorted(risk["files"]):
+            print(f"    [UNSCANNED] {name}: {risk['value']}")
+    for risk in secrets:
+        # Never echoed. A credential printed to a terminal is in the scrollback,
+        # and from there in whatever the operator pastes next.
+        print(f"    [CREDENTIAL] {risk['name']} in "
+              f"{len(risk['files'])} file(s), {risk['count']} occurrence(s)")
+        print("                 not shown, and not acceptable - remove it")
+    for risk in unreviewed:
+        sample = _printable(risk["value"])
+        if len(sample) > 60:
+            sample = sample[:60] + "..."
+        print(f"    [HOST] {risk['name']}: {sample}")
+        print(f"           {risk['count']} occurrence(s) in "
+              f"{len(risk['files'])} file(s)   {risk['fingerprint']}")
+    if unscanned:
+        print(f"\n  {len(unscanned)} file(s) could not be fully examined, so "
+              f"'no findings' below\n  does not cover them. This is not "
+              f"acceptable by fingerprint: nothing was read,\n  so there is "
+              f"nothing to review. Drop the file from the results directory "
+              f"or\n  fix what makes it unreadable, then build again.")
+    if secrets:
+        print("\n  A credential cannot be accepted. Find it, and drop or "
+              "rewrite the episode\n  holding it before building the archive "
+              "again.")
+    if unreviewed and not secrets:
+        print(f"\n  These are reviewable rather than credentials: they identify "
+              f"the machine, they\n  render as nothing and so cannot be judged "
+              f"by reading the archive, or they are a\n  command that read a "
+              f"passthrough path's CONTENTS - go check the transcript for what "
+              f"it\n  actually returned, since this tool cannot see that. If "
+              f"you have and it is\n  publishable, append to {accepted_file}:\n")
         for risk in unreviewed:
-            sample = _printable(risk["value"])
-            if len(sample) > 60:
-                sample = sample[:60] + "..."
-            print(f"    [HOST] {risk['name']}: {sample}")
-            print(f"           {risk['count']} occurrence(s) in "
-                  f"{len(risk['files'])} file(s)   {risk['fingerprint']}")
-        if unscanned:
-            print(f"\n  {len(unscanned)} file(s) could not be fully examined, so "
-                  f"'no findings' below\n  does not cover them. This is not "
-                  f"acceptable by fingerprint: nothing was read,\n  so there is "
-                  f"nothing to review. Drop the file from the results directory "
-                  f"or\n  fix what makes it unreadable, then build again.")
-        if secrets:
-            print("\n  A credential cannot be accepted. Find it, and drop or "
-                  "rewrite the episode\n  holding it before building the archive "
-                  "again.")
-        if unreviewed and not secrets:
-            print(f"\n  These are reviewable rather than credentials: they identify "
-                  f"the machine, they\n  render as nothing and so cannot be judged "
-                  f"by reading the archive, or they are a\n  command that read a "
-                  f"passthrough path's CONTENTS - go check the transcript for what "
-                  f"it\n  actually returned, since this tool cannot see that. If "
-                  f"you have and it is\n  publishable, append to {args.accepted}:\n")
-            for risk in unreviewed:
-                print(f"    {risk['fingerprint']}  # {risk['name']}")
-            print("\n  Otherwise drop the episodes holding them. Accepting one "
-                  "fingerprint accepts\n  that exact value and nothing else.")
+            print(f"    {risk['fingerprint']}  # {risk['name']}")
+        print("\n  Otherwise drop the episodes holding them. Accepting one "
+              "fingerprint accepts\n  that exact value and nothing else.")
+
+
+def _verify(root: str, accepted_file: str) -> int:
+    """
+    Whether an unpacked archive can be published. Nonzero means it cannot.
+
+    Two questions in order, and the first is the stricter: does anything under
+    it still identify the host, and then does it hold a finding that redaction
+    cannot rewrite.
+    """
+    leaks = find_leaks(root)
+    if leaks:
+        _report_leaks(leaks)
         return 1
 
-    if not (args.dir and args.into):
-        parser.error("--dir and --into are both required unless --verify is given")
+    groups = _partition_risks(find_content_risks(root),
+                              accepted_fingerprints(accepted_file))
+    if not (groups["secrets"] or groups["unreviewed"] or groups["unscanned"]):
+        reviewed = groups["n_reviewed"]
+        print(f"  verified clean: nothing under {os.path.basename(root)} "
+              f"identifies this host"
+              + (f" ({reviewed} reviewed finding(s) accepted)"
+                 if reviewed else ""))
+        return 0
+
+    _report_risks(root, groups, accepted_file)
+    return 1
+
+
+def _stage(source: str, into: str) -> int:
+    """A redacted copy of a results directory, or a refusal."""
     try:
-        counts = redact_tree(args.dir, args.into)
+        counts = redact_tree(source, into)
     except ExportRefused as refused:
         print(f"\n  REFUSING TO STAGE: {refused}")
         return 1
     print(f"  redacted {counts['changed']}/{counts['json']} JSON file(s) from "
-          f"{os.path.basename(str(args.dir).rstrip('/'))}"
+          f"{os.path.basename(str(source).rstrip('/'))}"
           + (f", {counts['copied']} other file(s) copied" if counts["copied"] else "")
           + (f", {counts['unreadable']} unparseable file(s) redacted as text"
              if counts["unreadable"] else ""))
     return 0
+
+
+def main(argv=None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    if args.verify:
+        return _verify(args.verify, args.accepted)
+
+    if not (args.dir and args.into):
+        parser.error("--dir and --into are both required unless --verify is given")
+    return _stage(args.dir, args.into)
 
 
 if __name__ == "__main__":
