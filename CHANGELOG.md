@@ -10,6 +10,47 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v142
+
+Package version `142.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+NO SOURCE FILE IS OVER A THOUSAND LINES ANY MORE. Six were, and each was cut
+along divisions it already carried: eighteen section banners between
+`power.py` and `report_charts.py`, two of them stale. AGENTS.md's test for
+whether to divide a long file is whether its long functions carry banners
+rather than whether the file is long, and these had them.
+
+- `subversionbench/power/` - one module per kind of comparison, with the
+  shared constants below all of them so a submodule can read them without
+  importing the package that imports it.
+- `report_charts/` - one module per thing a chart is ABOUT, with `draw`
+  owning HOW one is drawn. The four drawing primitives had been spread across
+  three sections, which is why two of them had grown their own copy of the
+  caption-placement arithmetic.
+- `agentic_misalignment/` and `grader_ab/` - promoted to packages run with
+  `-m`, the same move `python3 -m report` and `python3 -m trends` already
+  made. The first splits on the analysis/presentation seam `trends/` states in
+  its own `__init__`; the second on the one its banners did not mark, that the
+  two call SHAPES under test sat beside the cost accounting and the CLI.
+- `report/loading.py` - three ways: what it excludes, what it reads, and the
+  row it builds.
+- `subversionbench/episode.py` - four ways, by each part's relationship to an
+  API call: the turn bookkeeping that makes none, the arm record, the loop
+  that pays, and what happens after the loop ends.
+
+THE PATCH POINT LIST WAS TWO SHORT AND IS NOW CHECKED BOTH WAYS.
+`test_project/test_init.py` names the modules that call a stubbed function, so
+a test patching the wrong module fails there rather than silently stubbing
+nothing. It was a hand-written tuple; `contamination_check`, `rubric_ab` and
+`grader_ab` bound a stubbed name and were not on it. All three now call
+through the owning module, and a derivation asserts every module that binds or
+bare-calls one is reached by the list. The derivation cannot replace the list -
+a caller written correctly leaves no trace of the name - so it is shown
+catching a planted binding rather than asserted about the repository, where
+every module now satisfies the rule and an empty result would be
+indistinguishable from a broken scan.
+
 ## v141
 
 Package version `141.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
