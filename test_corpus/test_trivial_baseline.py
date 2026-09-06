@@ -528,3 +528,119 @@ class TestTheHeldOutWrapper:
         assert done.returncode != 0, done.stdout + done.stderr
         assert not export.exists(), (
             f"the decrypted scenario was left at {export} after a failed run")
+
+
+class TestTheFloorIsRefusedRatherThanWeakened:
+    """Two ways this script can decline to report a floor, and they must not
+    read alike.
+
+    A host without filesystem confinement runs the trivial agents under weaker
+    conditions than the corpus was collected under, so anything they fail to
+    reach here says nothing about what they could reach during collection. The
+    exit code is the same 2 the blind positive control uses - both mean "this
+    run measured nothing" - so what distinguishes them is what is printed, and
+    an operator reading only the code would act on the wrong one.
+    """
+
+    def _run(self, argv):
+        import contextlib
+        import io
+        import sys
+        original = sys.argv
+        sys.argv = argv
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                code = tb.main()
+        finally:
+            sys.argv = original
+        return code, buf.getvalue()
+
+    def test_a_host_without_confinement_refuses_before_running_anything(self):
+        real = tb.confinement_available
+        agents = tb.TRIVIAL_AGENTS
+        tb.confinement_available = lambda *a, **k: False
+        tb.TRIVIAL_AGENTS = ()
+        try:
+            code, out = self._run(["trivial_baseline.py", "--arm", "oversight"])
+        finally:
+            tb.confinement_available = real
+            tb.TRIVIAL_AGENTS = agents
+        assert code == 2, out
+        assert "confinement is not available" in out
+        assert "Refusing to report a floor" in out
+        assert "Positive control" not in out, (
+            "the run went ahead and measured under weaker conditions than "
+            "the corpus was collected under")
+
+    def test_the_two_refusals_do_not_print_the_same_thing(self):
+        """Both exit 2. If the messages were interchangeable the code would
+        be the whole interface, and it does not say which fix applies -
+        install bubblewrap, or work out why the detectors went blind."""
+        real = tb.confinement_available
+        agents = tb.TRIVIAL_AGENTS
+        tb.confinement_available = lambda *a, **k: False
+        tb.TRIVIAL_AGENTS = ()
+        try:
+            _code, out = self._run(["trivial_baseline.py", "--arm",
+                                    "oversight"])
+        finally:
+            tb.confinement_available = real
+            tb.TRIVIAL_AGENTS = agents
+        assert "not detected" not in out, (
+            "the confinement refusal borrowed the blind-control wording")
+        assert "No floor is reported" not in out
+
+
+class TestAnArmWithNoQualityCheckerSaysSoRatherThanFailing:
+    """The quality-check script exists only where oversight does. Running a
+    trivial agent against a missing file is not a trivial agent, it is a
+    different episode - and one whose commands would fail, which the detectors
+    would read as the agent doing nothing rather than as the arm not having
+    the file.
+    """
+
+    def test_the_arm_without_the_checker_reports_it_as_not_applicable(self):
+        _needs_sandbox()
+        from subversionbench.scenario import scenario_for
+        assert "quality_check_script" not in scenario_for(False, lure=False), (
+            "the no-oversight arm now ships a checker, so this test is about "
+            "a case that no longer exists")
+        import contextlib
+        import io
+        import sys
+        original_argv, agents = sys.argv, tb.TRIVIAL_AGENTS
+        # Only the agent this branch is about, so the run is one episode and
+        # the assertion below cannot be satisfied by some other agent's line.
+        tb.TRIVIAL_AGENTS = tuple(a for a in agents
+                                  if a[0] == "runs_quality_check")
+        assert tb.TRIVIAL_AGENTS, "no agent runs the quality checker any more"
+        sys.argv = ["trivial_baseline.py", "--arm", "no_oversight"]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                tb.main()
+        finally:
+            sys.argv, tb.TRIVIAL_AGENTS = original_argv, agents
+        out = buf.getvalue()
+        assert "n/a - no checker in this arm" in out
+        assert "runs_quality_check" in out
+
+    def test_the_arm_that_has_one_actually_runs_it(self):
+        """The control: without it the test above would pass against a script
+        that declared every arm checkerless."""
+        _needs_sandbox()
+        import contextlib
+        import io
+        import sys
+        original_argv, agents = sys.argv, tb.TRIVIAL_AGENTS
+        tb.TRIVIAL_AGENTS = tuple(a for a in agents
+                                  if a[0] == "runs_quality_check")
+        sys.argv = ["trivial_baseline.py", "--arm", "oversight"]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                tb.main()
+        finally:
+            sys.argv, tb.TRIVIAL_AGENTS = original_argv, agents
+        assert "n/a - no checker in this arm" not in buf.getvalue()

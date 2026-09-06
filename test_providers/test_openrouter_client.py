@@ -847,3 +847,177 @@ class TestAToolCallLeakedAsPlainText:
         blocks = self._create(client).content
         assert [b.type for b in blocks] == ["tool_use"]
         assert blocks[0].input == {}
+
+
+class TestASystemPromptGivenAsBlocksReachesAnOpenAiEndpointAsText:
+    """The harness builds its system prompt as Anthropic content blocks so it
+    can attach `cache_control`, which has no OpenRouter equivalent. Forwarding
+    that block list to an OpenAI-compatible endpoint sends a `content` of
+    unknown shape: some providers reject it, and at least as bad, some accept
+    it and drop it - which runs the whole episode with no system prompt at all
+    and reports nothing.
+    """
+
+    def setup_method(self, method):
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+    def _sent(self, system):
+        """The messages create() actually put on the wire."""
+        from unittest.mock import MagicMock
+        import os
+        from subversionbench.openrouter_client import OpenRouterClient
+
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = OpenRouterClient()
+        client._client = MagicMock()
+        message = MagicMock()
+        message.content = "ok"
+        message.tool_calls = None
+        message.reasoning = None
+        choice = MagicMock()
+        choice.message = message
+        choice.finish_reason = "stop"
+        completion = MagicMock()
+        completion.choices = [choice]
+        raw = MagicMock()
+        raw.parse.return_value = completion
+        create = client._client.chat.completions.with_raw_response.create
+        create.return_value = raw
+        client.create(model="p/m", max_tokens=64, system=system,
+                      messages=[{"role": "user", "content": "hi"}])
+        return create.call_args.kwargs["messages"]
+
+    def test_a_block_list_is_collapsed_into_one_string(self):
+        sent = self._sent([
+            {"type": "text", "text": "first line",
+             "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": "second line"}])
+        system = [m for m in sent if m["role"] == "system"]
+        assert len(system) == 1
+        assert isinstance(system[0]["content"], str), (
+            "a block list reached an OpenAI-compatible endpoint unchanged")
+        assert system[0]["content"] == "first line\nsecond line"
+
+    def test_a_non_text_block_is_dropped_rather_than_stringified(self):
+        """An image or a cache marker has no place in a chat-completions
+        system string, and str() of it would be sent to the model as prose."""
+        sent = self._sent([
+            {"type": "text", "text": "keep me"},
+            {"type": "image", "source": {"data": "..."}}])
+        system = next(m for m in sent if m["role"] == "system")
+        assert system["content"] == "keep me"
+
+    def test_a_plain_string_still_passes_through(self):
+        """The control: without it the two tests above would pass against a
+        client that rebuilt every system prompt from scratch."""
+        sent = self._sent("just a string")
+        system = next(m for m in sent if m["role"] == "system")
+        assert system["content"] == "just a string"
+
+
+class TestADiagnosticWithNoTextBodyStillSaysWhatCameBack:
+    """Both failure diagnostics quote the response body, because the body is
+    the only place an explanation might be. `raw_response.text` decodes bytes
+    for a known charset and is None when it cannot - which is precisely the
+    case where the body is a binary error page and most needs quoting. Falling
+    through to nothing there would leave the operator the HTTP status alone.
+    """
+
+    def setup_method(self, method):
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+    def _client(self):
+        from unittest.mock import MagicMock
+        import os
+        from subversionbench.openrouter_client import OpenRouterClient
+
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = OpenRouterClient()
+        client._client = MagicMock()
+        return client
+
+    def _raise(self, raw):
+        client = self._client()
+        client._client.chat.completions.with_raw_response.create.return_value = raw
+        try:
+            client.create(model="p/m", max_tokens=64,
+                          messages=[{"role": "user", "content": "hi"}])
+        except RuntimeError as e:
+            return str(e)
+        raise AssertionError("create() did not refuse the response")
+
+    def test_an_undecodable_non_json_body_is_quoted_from_its_bytes(self):
+        from unittest.mock import MagicMock
+        import json
+        raw = MagicMock()
+        raw.status_code = 503
+        raw.text = None
+        raw.content = b"<html>upstream unavailable</html>"
+        raw.parse.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+        message = self._raise(raw)
+        assert "503" in message
+        assert "upstream unavailable" in message, (
+            "the body was dropped, leaving the status code as the only clue")
+
+    def test_an_undecodable_no_choices_body_is_quoted_from_its_bytes(self):
+        """The same fallback on the other diagnostic. Two call sites, so two
+        chances to have written it only once."""
+        from unittest.mock import MagicMock
+        raw = MagicMock()
+        raw.status_code = 200
+        raw.text = None
+        raw.content = b'{"error": {"message": "moderation block"}}'
+        completion = MagicMock()
+        completion.choices = None
+        raw.parse.return_value = completion
+        message = self._raise(raw)
+        assert "no choices" in message
+        assert "moderation block" in message
+
+
+class TestAnEmptyTurnOnlyClaimsTheThinkingItCanSee:
+    """The diagnostic names the reasoning length because on this route that is
+    usually where the whole budget went. A route that returns no reasoning
+    field at all is a different situation, and reporting `reasoning_chars=0`
+    for it would say the model thought nothing when what happened is that
+    nobody was told."""
+
+    def setup_method(self, method):
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+    def _diagnostic(self, reasoning):
+        from unittest.mock import MagicMock
+        import os
+        from subversionbench.openrouter_client import OpenRouterClient
+
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = OpenRouterClient()
+        client._client = MagicMock()
+        message = MagicMock()
+        message.content = None
+        message.tool_calls = None
+        message.reasoning = reasoning
+        choice = MagicMock()
+        choice.message = message
+        choice.finish_reason = "length"
+        completion = MagicMock()
+        completion.choices = [choice]
+        raw = MagicMock()
+        raw.parse.return_value = completion
+        client._client.chat.completions.with_raw_response.create.return_value = raw
+        response = client.create(model="p/m", max_tokens=64,
+                                 messages=[{"role": "user", "content": "hi"}])
+        return next(b.text for b in response.content if b.type == "text")
+
+    def test_a_route_that_reported_no_reasoning_is_not_credited_with_zero(self):
+        text = self._diagnostic(None)
+        assert "finish_reason=length" in text
+        assert "reasoning_chars" not in text
+
+    def test_a_route_that_did_report_it_has_the_count_named(self):
+        """The control, and the reason the branch above is worth having."""
+        text = self._diagnostic("x" * 42)
+        assert "reasoning_chars=42" in text

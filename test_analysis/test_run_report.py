@@ -839,3 +839,101 @@ class TestTheUnawareCorpusReading:
         with redirect_stdout(buf):
             rr._print_awareness_exclusion(report["awareness_exclusion"])
         assert buf.getvalue() == ""
+
+
+class TestTheConsoleAccountsForEveryChartItDidNotWrite:
+    """A chart missing because the excluded arm was one side of its contrast
+    is indistinguishable, on the console, from one that failed to render -
+    unless the run says which. Both branches here are about a reader's next
+    move: chase a broken chart, or read the question's collapse as the finding
+    it is."""
+
+    def _oversight_only_dir(self):
+        """Only oversight-present summaries, so dropping the no-oversight arm
+        leaves every question that splits on oversight with one side."""
+        out = tempfile.mkdtemp()
+        for model in ("p/a", "p/b"):
+            for nudge in ("none", "strong"):
+                _write_summary(out, model, nudge, oversight=True,
+                               stamp=f"2026010100000{len(nudge)}",
+                               n_runs=6, n_scheming=2, n_misaligned=3,
+                               n_aware=2, n_unaware=4)
+        return out
+
+    def _run(self, argv, charts=None):
+        import sys
+        import unittest.mock
+        saved = sys.argv
+        sys.argv = ["run_report.py", *argv]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                if charts is None:
+                    code = rr.main()
+                else:
+                    import report_charts
+                    with unittest.mock.patch.object(
+                            report_charts, "write_charts",
+                            return_value=charts):
+                        code = rr.main()
+        finally:
+            sys.argv = saved
+        return code, buf.getvalue()
+
+    def test_a_question_that_lost_a_side_to_the_exclusion_is_named(self):
+        out = self._oversight_only_dir()
+        code, text = self._run(
+            ["--output-dir", out, "--exclude-no-oversight"], charts=[])
+        assert code == 0, text
+        assert "question(s) have no chart here" in text
+        assert "the excluded arm was one side of the contrast" in text
+        collapsed = [s["id"] for s in
+                     rr.build_report(out, exclusion=rr.EXCLUDE_NO_OVERSIGHT)
+                     ["questions"] if s.get("collapsed_by_exclusion")]
+        assert collapsed, (
+            "the fixture no longer collapses any question, so this would pass "
+            "however the console reported one")
+        for question_id in collapsed:
+            assert question_id in text, (
+                "the count was printed without the ids behind it, which is "
+                "the half a reader can act on")
+
+    def test_the_collapsed_ids_are_recorded_in_the_json_too(self):
+        """The console is read once; the JSON is what a later reader has."""
+        out = self._oversight_only_dir()
+        json_out = f"{out}/report.json"
+        code, _text = self._run(
+            ["--output-dir", out, "--exclude-no-oversight",
+             "--json-out", json_out], charts=[])
+        assert code == 0
+        with open(json_out, encoding="utf-8") as f:
+            saved = json.load(f)
+        assert saved["charts_omitted_by_exclusion"]
+
+    def test_an_ordinary_run_says_nothing_about_omitted_charts(self):
+        """Two-directional: without the exclusion nothing collapses, and a
+        line explaining an absence that is not there would send a reader
+        looking for a missing figure."""
+        out = self._oversight_only_dir()
+        code, text = self._run(["--output-dir", out], charts=[])
+        assert code == 0, text
+        assert "have no chart here" not in text
+
+    def test_a_run_that_drew_no_charts_announces_none(self):
+        """write_charts returns [] on a machine without matplotlib. The run
+        must still complete and write its JSON without naming a directory it
+        put nothing in."""
+        out = self._oversight_only_dir()
+        code, text = self._run(["--output-dir", out], charts=[])
+        assert code == 0, text
+        assert "chart(s) written to" not in text
+
+    def test_a_run_that_did_draw_them_lists_them(self):
+        """The control for the test above."""
+        out = self._oversight_only_dir()
+        chart = f"{out}/pretend_chart.png"
+        open(chart, "wb").close()
+        code, text = self._run(["--output-dir", out], charts=[chart])
+        assert code == 0, text
+        assert "1 chart(s) written to" in text
+        assert "pretend_chart.png" in text

@@ -797,3 +797,228 @@ class TestTheBundleEditingModes:
                     assert exit_code.code == 2
                 else:
                     raise AssertionError("a missing directory was accepted")
+
+
+# ---------------------------------------------------------------------------
+# What the printed report says about the matches it made
+# ---------------------------------------------------------------------------
+
+def _synthetic_report(pairs=None, correlations=None, sensitivity=None,
+                      deliberately_unmatched=None, unmatched_rows=None):
+    """A report shaped like build_report's, assembled here rather than run off
+    the shipped bundle: what that bundle happens to carry today (which rows are
+    unmatched, which matches are inexact) is a fact about the corpus that moves
+    as models are evaluated, and pinning it in a test would make the printer's
+    guards untestable in whichever direction the bundle currently sits."""
+    return {
+        "n_pairs": len(pairs or []), "n_leaderboard_rows": 12,
+        "n_local_models": 9, "pairs": pairs or [],
+        "correlations": correlations or [],
+        "correlations_exact_matches_only": sensitivity or [],
+        "effort_agreement": {"n_pairs": 0, "n_local_effort_unset": 0,
+                             "note": "fixture effort note"},
+        "unmatched_leaderboard_rows": unmatched_rows or [],
+        "unmatched_local_models": [],
+        "deliberately_unmatched": deliberately_unmatched or [],
+    }
+
+
+def _synthetic_pair(sad_model="Ext A", confidence="exact", local_models=("a",),
+                    n_aware=6, n_aware_text=3, n=60, score=41.5):
+    return {
+        "sad_model": sad_model, "sad_effort": "high",
+        "confidence": confidence, "match_note": None,
+        "scores": {v: {"rank": 1, "score": score, "se": 2.0, "invalid": 0}
+                   for v in so.VARIANTS},
+        "local_models": list(local_models),
+        "n_aware": n_aware, "n_aware_text": n_aware_text, "n": n,
+        "n_episodes": n, "episodes_with_reasoning": n,
+        "aware_rate": round(n_aware / n, 4),
+        "text_rate": round(n_aware_text / n, 4),
+        "pooled_routes": len(local_models) > 1,
+    }
+
+
+def _print(report):
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        so.print_report(report)
+    return buf.getvalue()
+
+
+class TestAPairThatIsNotOneCleanMatchSaysSo:
+    """Eight points is few enough that one wrong match changes the sign of the
+    answer, so the two ways a row can be less than a clean match - two local
+    routes pooled into one point, and a name matched on a stem rather than
+    exactly - are flagged on the row itself rather than left in the JSON."""
+
+    def test_a_pooled_pair_says_how_many_routes_went_into_it(self):
+        printed = _print(_synthetic_report(
+            [_synthetic_pair(local_models=("a", "b"))]))
+        assert "2 routes pooled" in printed
+
+    def test_an_inexactly_matched_pair_says_so(self):
+        printed = _print(_synthetic_report(
+            [_synthetic_pair(confidence="name stem")]))
+        assert "name stem match" in printed
+
+    def test_a_clean_exact_pair_carries_no_flags(self):
+        """Two-directional against both tests above: a flag on every row is a
+        flag on none, since the reader stops seeing it."""
+        printed = _print(_synthetic_report([_synthetic_pair()]))
+        assert "Ext A" in printed, "the fixture printed no row at all"
+        assert "pooled" not in printed
+        assert "match]" not in printed and "[" not in printed
+
+
+class TestACorrelationRowCarriesItsOwnFragility:
+    """rho over eight models is one model away from a different answer, so the
+    leave-one-out range is not decoration - it is the number that says how
+    much of the coefficient rests on any single point."""
+
+    def _correlation(self, rho=0.71, loo=(0.44, 0.88), note=None):
+        return {"measure": "aware", "variant": "plain", "n_models": 8,
+                "spearman_rho": rho, "p": 0.0312,
+                "leave_one_out_rho_range": list(loo) if loo else None,
+                "note": note}
+
+    def test_a_coefficient_is_printed_with_its_leave_one_out_range(self):
+        printed = _print(_synthetic_report(
+            correlations=[self._correlation()]))
+        assert "rho=+0.710" in printed
+        assert "p=0.0312" in printed
+        assert "n=8" in printed
+        assert "leave-one-out +0.440..+0.880" in printed
+
+    def test_a_coefficient_with_no_range_still_prints_its_rho(self):
+        printed = _print(_synthetic_report(
+            correlations=[self._correlation(loo=None)]))
+        assert "rho=+0.710" in printed
+        assert "leave-one-out" not in printed
+
+    def test_the_sensitivity_block_is_titled_apart_from_the_main_one(self):
+        """Exact matches only is a different population from all pairs, and a
+        reader comparing two rhos has to be able to tell which is which."""
+        printed = _print(_synthetic_report(
+            correlations=[self._correlation()],
+            sensitivity=[self._correlation(rho=0.55, loo=None)]))
+        assert "CORRELATIONS" in printed
+        assert "EXACT MATCHES ONLY" in printed
+        assert "rho=+0.550" in printed
+
+    def test_an_absent_block_is_not_given_an_empty_heading(self):
+        printed = _print(_synthetic_report(
+            correlations=[self._correlation()]))
+        assert "EXACT MATCHES ONLY" not in printed
+
+
+class TestTheReportNamesWhatItDidNotCompare:
+    def test_a_deliberate_non_match_is_printed_with_its_reason(self):
+        printed = _print(_synthetic_report(deliberately_unmatched=[
+            {"local_model": "vendor/small", "reason": "not the row's model"}]))
+        assert "NOT matched, on purpose" in printed
+        assert "vendor/small: not the row's model" in printed
+
+    def test_nothing_deliberately_unmatched_prints_no_heading(self):
+        printed = _print(_synthetic_report())
+        assert "NOT matched, on purpose" not in printed
+
+    def test_leaderboard_rows_with_no_local_run_are_listed(self):
+        printed = _print(_synthetic_report(
+            unmatched_rows=[f"Row {i}" for i in range(1, 4)]))
+        assert "3 leaderboard row(s) not evaluated here" in printed
+        assert "Row 1, Row 2, Row 3" in printed
+        assert "more" not in printed
+
+    def test_a_long_list_is_truncated_and_says_how_many_it_hid(self):
+        printed = _print(_synthetic_report(
+            unmatched_rows=[f"Row {i}" for i in range(1, 11)]))
+        assert "Row 6" in printed
+        assert "Row 7" not in printed
+        assert "and 4 more" in printed
+
+    def test_no_unmatched_rows_prints_no_line_about_them(self):
+        printed = _print(_synthetic_report())
+        assert "not evaluated here" not in printed
+
+
+class TestAnAliasWithNoLeaderboardRowIsNotAMatch:
+    """The alias table is written by hand against a bundle that is edited
+    separately. An alias naming a row that is not there must drop out, not
+    index its local models onto whatever row happens to sort nearby."""
+
+    def _bundle(self, alias_effort):
+        return {
+            "rows": [{"model": "Ext A", "effort": "high",
+                      **{v: {"rank": 1, "score": 40.0, "se": 2.0, "invalid": 0}
+                         for v in so.VARIANTS}}],
+            "aliases": [
+                {"sad_model": "Ext A", "sad_effort": "high",
+                 "local_models": ["vendor/a"]},
+                {"sad_model": "Ext A", "sad_effort": alias_effort,
+                 "local_models": ["vendor/ghost"]},
+            ],
+        }
+
+    def test_the_alias_is_dropped_rather_than_matched_to_another_row(self):
+        index = so.local_index(self._bundle("low"))
+        assert set(index) == {"vendor/a"}, (
+            "an alias naming an effort level no row carries was still indexed")
+
+    def test_the_same_alias_indexes_once_its_row_exists(self):
+        """The control - without it the test above would pass against a
+        local_index that indexed nothing at all."""
+        index = so.local_index(self._bundle("high"))
+        assert set(index) == {"vendor/a", "vendor/ghost"}
+
+
+class TestTheChartDegradesRatherThanFailing:
+    def test_without_matplotlib_it_returns_none(self):
+        original = charting.import_pyplot
+        charting.import_pyplot = lambda *a, **k: None
+        try:
+            result = so.write_chart(_synthetic_report([_synthetic_pair()]),
+                                    "/dev/null/unwritable.png")
+        finally:
+            charting.import_pyplot = original
+        assert result is None
+
+    def test_no_pairs_means_no_chart_rather_than_an_empty_one(self):
+        """An empty three-panel figure is worse than no file: it reads as a
+        correlation that was measured and found to be nothing."""
+        if charting.import_pyplot() is None:
+            from conftest import skip_without
+            skip_without("matplotlib", "charts are an optional extra")
+        assert so.write_chart(_synthetic_report([]),
+                              "/dev/null/unwritable.png") is None
+
+    def test_a_run_whose_chart_was_not_drawn_announces_no_file(self):
+        """main asks for a chart and gets None back on a machine without
+        matplotlib. It must still exit zero and write the JSON, without
+        naming a png that is not there."""
+        import contextlib
+        import io
+        import sys as _sys
+        import unittest.mock
+        bundle = _bundle()
+        locals_ = [m for a in bundle["aliases"] for m in a["local_models"]]
+        buf = io.StringIO()
+        saved = _sys.argv
+        with tempfile.TemporaryDirectory() as out:
+            for model in locals_[:4]:
+                TestTheRunWritesWhatItSays()._corpus(out, model)
+            _sys.argv = ["sad_oversight.py", "--output-dir", out]
+            try:
+                with contextlib.redirect_stdout(buf), \
+                        unittest.mock.patch.object(so, "write_chart",
+                                                   return_value=None):
+                    code = so.main()
+            finally:
+                _sys.argv = saved
+            written = [f for f in os.listdir(out)
+                       if f.startswith("sad_oversight_correlation")]
+        assert code == 0, buf.getvalue()
+        assert written, "the JSON report was not written"
+        assert "Chart written to" not in buf.getvalue()

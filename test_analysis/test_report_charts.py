@@ -1712,3 +1712,84 @@ class TestTheAwarenessRefusalTimingChart:
         written = rc.write_charts(report, out)
         assert any(os.path.basename(p) == "awareness_refusal_timing.png"
                    for p in written), [os.path.basename(p) for p in written]
+
+
+class TestWriteChartsCollectsEveryFileItActuallyWrote:
+    """write_charts returns the list the report then names in its JSON and the
+    console prints. A chart drawn and left out of that list is a file nobody
+    is told about; a name in the list with no file behind it sends a reader to
+    a path that does not exist. Both are silent, so each chart the collector
+    handles is asserted against the control that must NOT produce it.
+
+    The lure entry is the one with a rule rather than a name: it writes one
+    file per oversight stratum and returns only the first, so the second is
+    collected by asking the filesystem. Testing it means running it with two
+    strata and with one.
+    """
+
+    def _characteristics(self):
+        rows = [_lure_model_row("p/busy", 30, 30, 24, 24),
+                _lure_model_row("p/moved", 40, 40, 20, 0)]
+        rows[0]["n_discovered"], rows[0]["n_read"] = 7, 3
+        return {
+            "encoded_payload_rate": _epr_profile(
+                [_epr_row("p/a", 61, 1, underpowered=False),
+                 _epr_row("p/b", 60, 12, underpowered=False)]),
+            "lure_effect": {
+                "by_model": rows,
+                "pooled": {"n_lure_resolved": 70, "n_discovered": 7,
+                           "n_read": 3,
+                           "oversight": {"diff": 0.01},
+                           "no_oversight": {"diff": 0.02}},
+            },
+        }
+
+    def _written(self, report):
+        _plt()
+        with tempfile.TemporaryDirectory() as out:
+            written = rc.write_charts(report, out)
+            on_disk = set(os.listdir(out))
+        names = [os.path.basename(p) for p in written]
+        assert len(names) == len(set(names)), f"a chart was listed twice: {names}"
+        for name in names:
+            assert name in on_disk, (
+                f"{name} was returned but never written to disk")
+        return names
+
+    def test_the_encoded_payload_chart_is_collected(self):
+        names = self._written({"questions": [],
+                               "characteristics": self._characteristics()})
+        assert "encoded_payload_rate.png" in names
+
+    def test_the_honeypot_chart_is_collected(self):
+        names = self._written({"questions": [],
+                               "characteristics": self._characteristics()})
+        assert "honeypot_access.png" in names
+
+    def test_both_lure_strata_are_collected_not_just_the_returned_one(self):
+        """plot_lure_misalignment writes a file per stratum and returns the
+        first. The second exists on disk either way - the failure this catches
+        is it going unmentioned, so the report's own list of charts is short
+        by a figure a reader is meant to read alongside the other."""
+        names = self._written({"questions": [],
+                               "characteristics": self._characteristics()})
+        assert "lure_misalignment.png" in names
+        assert "lure_misalignment_no_oversight.png" in names
+
+    def test_an_excluded_stratum_contributes_no_second_file(self):
+        """Two-directional against the test above: the second file is
+        collected because it was written, not because its name was assumed."""
+        names = self._written({
+            "questions": [], "characteristics": self._characteristics(),
+            "arm_exclusion": _excluded_stamp()})
+        assert "lure_misalignment.png" in names
+        assert "lure_misalignment_no_oversight.png" not in names
+
+    def test_none_of_them_appear_without_the_characteristics_behind_them(self):
+        """The control for all four. Without it every assertion above would
+        pass against a write_charts that returned every name unconditionally."""
+        names = self._written({"questions": [_section()]})
+        for absent in ("encoded_payload_rate.png", "honeypot_access.png",
+                       "lure_misalignment.png",
+                       "lure_misalignment_no_oversight.png"):
+            assert absent not in names

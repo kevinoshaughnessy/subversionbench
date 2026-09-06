@@ -1329,3 +1329,340 @@ class TestTheBundleEditingModes:
                 raw = am._BUNDLE_PATH.read_bytes()
         assert b"round-tripped" not in raw
         assert "folded" in text
+
+
+class TestTheUnpairedExternalRowsAreNamedInTheOutput:
+    """An external model with no local counterpart is either a decision
+    somebody made or a gap nobody has looked at, and the printed report has to
+    say which. Collapsing the two would let a model quietly drop out of the
+    comparison and read as deliberate.
+    """
+
+    def _report(self, unmatched):
+        return {"version": "fixture", "rollout_version": "fixture",
+                "source": "fixture", "n_pairs": 0,
+                "interpretation": "fixture",
+                "unmatched_external_models": unmatched,
+                "unmatched_local_models": [],
+                "pairs_by_pooling": {"any_aware": []},
+                "correlations": []}
+
+    def _printed(self, unmatched):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            am.print_report(self._report(unmatched))
+        return buf.getvalue()
+
+    def test_a_decided_exclusion_is_marked_decided_and_gives_its_reason(self):
+        printed = self._printed([
+            {"external_model": "Ext Gone", "decided": True,
+             "reason": "withdrawn from the external table"}])
+        assert "[DECIDED]" in printed
+        assert "Ext Gone" in printed
+        assert "withdrawn from the external table" in printed
+
+    def test_a_row_nobody_decided_about_is_marked_as_a_gap(self):
+        """Two-directional against the test above: the marker has to change
+        with `decided`, not be printed the same way for both."""
+        printed = self._printed([
+            {"external_model": "Ext Unknown", "decided": False,
+             "reason": None}])
+        assert "[GAP" in printed
+        assert "[DECIDED]" not in printed
+        assert "Ext Unknown" in printed
+        assert "None" not in printed, (
+            "an absent reason was printed as the string None")
+
+
+class TestACorrelationPrintsItsCaveatBesideItsCoefficient:
+    """`note` is not only the reason a coefficient is absent - a correlation
+    that HAS a rho can carry one too, and that is when it matters most: a
+    caveat dropped beside a number that looks solid is the one a reader will
+    act on without."""
+
+    def _report(self, note):
+        return {"version": "fixture", "rollout_version": "fixture",
+                "source": "fixture", "n_pairs": 0,
+                "interpretation": "fixture",
+                "unmatched_external_models": [], "unmatched_local_models": [],
+                "pairs_by_pooling": {"any_aware": []},
+                "correlations": [
+                    {"measure": "level", "measure_label": "l",
+                     "aware_pooling": None, "n_models": 6,
+                     "spearman_rho": 0.42, "p": 0.03,
+                     "p_method": "exact_permutation", "separated": True,
+                     "note": note, "leave_one_out_rho_range": None,
+                     "n_underpowered_aware_sides": 0}]}
+
+    def _printed(self, note):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            am.print_report(self._report(note))
+        return buf.getvalue()
+
+    def test_a_note_is_printed_beside_the_coefficient_that_carries_it(self):
+        printed = self._printed("two models share a rank, so p is approximate")
+        assert "rho=+0.420" in printed, (
+            "the fixture no longer prints a coefficient, so this says nothing "
+            "about a note printed ALONGSIDE one")
+        assert "two models share a rank, so p is approximate" in printed
+
+    def test_a_correlation_with_no_note_prints_no_stray_line(self):
+        printed = self._printed(None)
+        assert "rho=+0.420" in printed
+        assert "None" not in printed
+
+
+class TestTheScenarioActTableShowsHowMuchOneModelCouldMoveIt:
+    """n is three to six models here, so a single model can swing the whole
+    coefficient. The leave-one-out range is the only thing on the row that
+    says by how much."""
+
+    def _report(self, loo):
+        return {"version": "fixture", "rollout_version": "fixture",
+                "source": "fixture", "n_pairs": 0,
+                "interpretation": "fixture",
+                "unmatched_external_models": [], "unmatched_local_models": [],
+                "pairs_by_pooling": {"any_aware": []}, "correlations": [],
+                "scenario_act_correlations": [
+                    {"scenario": "s1", "act": "oversight", "n_models": 4,
+                     "spearman_rho": 0.8, "p": 0.02,
+                     "leave_one_out_rho_range": loo, "note": None}],
+                "best_scenario_act_pairing": None}
+
+    def _printed(self, loo):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            am.print_report(self._report(loo))
+        return buf.getvalue()
+
+    def test_a_row_with_a_range_shows_both_ends_of_it(self):
+        printed = self._printed([0.55, 0.93])
+        assert "rho=+0.800" in printed
+        assert "loo +0.550 to +0.930" in printed
+
+    def test_a_row_without_a_range_prints_the_rho_and_no_empty_column(self):
+        printed = self._printed(None)
+        assert "rho=+0.800" in printed
+        assert "loo" not in printed
+
+
+class TestTheCLIRefusesBeforeItReads:
+    """Both refusals are before load_bundle, which is the point: a mistyped
+    --output-dir and a corpus that pairs with nothing produce different exit
+    codes because the operator's next move differs - fix the path, or collect
+    the models the external table names."""
+
+    def _run(self, argv, build_report=None):
+        import contextlib
+        import io
+        import unittest.mock
+        out, err = io.StringIO(), io.StringIO()
+        saved = sys.argv
+        sys.argv = ["agentic_misalignment.py", *argv]
+        try:
+            with contextlib.redirect_stdout(out), \
+                    contextlib.redirect_stderr(err):
+                if build_report is None:
+                    code = am.main()
+                else:
+                    with unittest.mock.patch.object(
+                            am, "build_report", return_value=build_report):
+                        code = am.main()
+        finally:
+            sys.argv = saved
+        return code, out.getvalue() + err.getvalue()
+
+    def test_a_missing_output_directory_exits_two_and_names_it(self):
+        with tempfile.TemporaryDirectory() as parent:
+            missing = str(Path(parent) / "not-a-directory")
+            code, text = self._run(["--output-dir", missing, "--no-charts"])
+        assert code == 2, text
+        assert "no such results directory" in text
+        assert missing in text, (
+            "the operator has to be told which path was wrong; there are two "
+            "directory arguments on this command line")
+
+    def test_a_corpus_that_pairs_with_nothing_exits_one(self):
+        """A different code from the one above, and deliberately so: the
+        directory was found and read, and what is missing is the models. An
+        exit code shared with the path error would send an operator looking at
+        the wrong thing."""
+        with tempfile.TemporaryDirectory() as out:
+            code, text = self._run(
+                ["--output-dir", out, "--no-charts"],
+                build_report={"n_pairs": 0})
+        assert code == 1, text
+        assert "matches a row in the external table" in text
+
+
+class TestARunWithoutChartsSaysNothingAboutThem:
+    """Every chart in this file degrades to None or [] rather than raising -
+    matplotlib is optional and a pair can be unplottable - so main has to be
+    able to finish having drawn nothing, without announcing files it did not
+    write."""
+
+    def _run(self, output_dir, patches):
+        import contextlib
+        import io
+        import unittest.mock
+        buf = io.StringIO()
+        saved = sys.argv
+        sys.argv = ["agentic_misalignment.py", "--output-dir", output_dir]
+        stack = contextlib.ExitStack()
+        try:
+            with contextlib.redirect_stdout(buf):
+                stack.enter_context(unittest.mock.patch.object(
+                    am, "build_report", return_value=TestTheChart()._report()))
+                for name, value in patches.items():
+                    stack.enter_context(unittest.mock.patch.object(
+                        am, name, return_value=value))
+                code = am.main()
+        finally:
+            stack.close()
+            sys.argv = saved
+        return code, buf.getvalue()
+
+    def test_a_chart_that_could_not_be_drawn_is_not_announced(self):
+        with tempfile.TemporaryDirectory() as out:
+            code, text = self._run(out, {"write_chart": None})
+        assert code == 0, text
+        assert "Chart written to" not in text
+        assert "agentic_misalignment_correlation.png" not in text
+
+    def test_scenario_charts_that_were_not_written_are_not_counted(self):
+        with tempfile.TemporaryDirectory() as out:
+            code, text = self._run(out, {"write_scenario_charts": []})
+        assert code == 0, text
+        assert "scenario chart(s) written" not in text
+
+    def test_a_run_that_does_draw_them_does_announce_them(self):
+        """The control. Without it both tests above would pass against a main
+        that announced nothing at all."""
+        self._plt_or_skip()
+        with tempfile.TemporaryDirectory() as out:
+            code, text = self._run(out, {})
+        assert code == 0, text
+        assert "Chart written to" in text
+        assert "scenario chart(s) written" in text
+
+    def _plt_or_skip(self):
+        from subversionbench import charting
+        if charting.import_pyplot() is None:
+            import unittest
+            raise unittest.SkipTest("matplotlib not installed")
+
+
+class TestWhatHasNoRateIsLeftOffTheChartsRatherThanDrawnAtZero:
+    """The same rule the gap panel already follows, applied to the two places
+    it was not measured: a level point with no external rate, and a whole
+    scenario in which no model has one."""
+
+    def _plt_or_skip(self):
+        from subversionbench import charting
+        if charting.import_pyplot() is None:
+            import unittest
+            raise unittest.SkipTest("matplotlib not installed")
+        return charting.import_pyplot()
+
+    def test_a_pair_with_no_external_rate_is_left_off_the_level_panel(self):
+        """Checked on the errorbar calls rather than on write_chart merely
+        surviving: a version that plots the pair at zero also returns a
+        path."""
+        plt = self._plt_or_skip()
+        import unittest.mock
+        report = TestTheChart()._report()
+        pairs = report["pairs_by_pooling"]["any_aware"]
+        assert len(pairs) >= 2
+        with_rate = sum(1 for p in pairs
+                        if p["external"]["overall_rate"] is not None
+                        and p["local"]["misaligned_rate"] is not None)
+
+        calls = []
+        original = plt.Axes.errorbar
+
+        def spy(self, x, y, *a, **k):
+            calls.append((x, y))
+            return original(self, x, y, *a, **k)
+
+        pairs[0]["external"] = dict(pairs[0]["external"], overall_rate=None)
+        with unittest.mock.patch.object(plt.Axes, "errorbar", spy), \
+                tempfile.TemporaryDirectory() as out:
+            path = am.write_chart(report, str(Path(out) / "c.png"))
+        assert path
+        assert len(calls) == with_rate - 1, (
+            f"expected one level point per pair with a rate, got {len(calls)}")
+        assert not any(x is None or y is None for x, y in calls)
+
+    def test_a_scenario_in_which_no_model_has_a_rate_gets_no_chart(self):
+        """An external scenario every model has a row for and none has a
+        trajectory in. An empty chart file is worse than none: it looks like a
+        measured zero."""
+        self._plt_or_skip()
+        empty_buckets = {"unaware": {"harmful": 0, "n": 0},
+                         "safety_aware": {"harmful": 0, "n": 0},
+                         "capability_aware": {"harmful": 0, "n": 0}}
+        bundle = {"source": "fixture", "rows": [
+            {"model": "Ext A", "scenario": "measured",
+             "buckets": {"unaware": {"harmful": 5, "n": 10},
+                         "safety_aware": {"harmful": 1, "n": 10},
+                         "capability_aware": {"harmful": 0, "n": 10}}},
+            {"model": "Ext A", "scenario": "unmeasured",
+             "buckets": dict(empty_buckets)},
+            {"model": "Ext B", "scenario": "unmeasured",
+             "buckets": dict(empty_buckets)},
+        ]}
+        by_scenario = am.external_rates_by_scenario(bundle)
+        assert all(s["overall_rate"] is None
+                   for s in by_scenario["unmeasured"].values()), (
+            "the fixture no longer produces a rateless scenario, so this "
+            "would pass however write_scenario_charts handled one")
+        with tempfile.TemporaryDirectory() as out:
+            names = {Path(p).name for p in am.write_scenario_charts(bundle, out)}
+        assert names == {"agentic_misalignment_scenario_measured.png"}, (
+            "a scenario with no rate to plot still got a chart file")
+
+
+class TestTheScenarioActCaptionOnlyClaimsWhatItHas:
+    def _plt_or_skip(self):
+        from subversionbench import charting
+        if charting.import_pyplot() is None:
+            import unittest
+            raise unittest.SkipTest("matplotlib not installed")
+        return charting.import_pyplot()
+
+    def _captions(self, best):
+        plt = self._plt_or_skip()
+        import unittest.mock
+        texts = []
+        original = plt.Figure.text
+
+        def spy(self, x, y, s, *a, **k):
+            texts.append(s)
+            return original(self, x, y, s, *a, **k)
+
+        with unittest.mock.patch.object(plt.Figure, "text", spy), \
+                tempfile.TemporaryDirectory() as out:
+            am.write_scenario_act_chart({"best_scenario_act_pairing": best},
+                                        str(Path(out) / "c.png"))
+        return " ".join(texts)
+
+    def test_a_pairing_with_a_leave_one_out_range_states_it(self):
+        captions = self._captions(TestScenarioActChart()._best(loo=(0.7, 0.95)))
+        assert "leave-one-out rho ranges +0.700 to +0.950" in captions
+        assert "dropping any single model" in captions
+
+    def test_a_pairing_without_one_does_not_claim_a_range(self):
+        """Two-directional. n is small enough here that a leave-one-out range
+        is the caption a reader leans on, so printing one that was not
+        computed would be worse than omitting it."""
+        captions = self._captions(TestScenarioActChart()._best(loo=None))
+        assert "leave-one-out" not in captions
+        assert "independent measurements" in captions, (
+            "no caption at all was drawn, so the absence above proves nothing")

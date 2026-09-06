@@ -2396,3 +2396,150 @@ class TestTheTrendsDataQualityBlock:
 
     def test_a_fully_dated_corpus_prints_no_release_date_error(self):
         assert "no release date recorded" not in self._printed(self._dq())
+
+
+class TestTheReleaseChartsSayWhichInstrumentEachPointWasMeasuredWith:
+    """The exposure caption is on the version charts and was checked there.
+    The two RELEASE charts take the same figures through their own call sites,
+    and those were only ever checked by reading the source for the word
+    `metric` - which proves the argument is passed, not that anything is drawn.
+
+    A release chart without it is the worse of the two omissions: it puts
+    models from different routes on one calendar, which is exactly the reading
+    a difference in reasoning exposure can invent.
+    """
+
+    METRIC_WITH_NOTE = "aware"
+    METRIC_WITHOUT = "misaligned"
+
+    def _report(self, metric):
+        """A corpus of real IDs, because the dates come from the real table
+        and _dated_members drops anything with no recorded release."""
+        out = tempfile.mkdtemp()
+        for i, model in enumerate(("x-ai/grok-4.20", "x-ai/grok-4.3",
+                                   "x-ai/grok-4.5", "moonshotai/kimi-k2.5",
+                                   "moonshotai/kimi-k2.6")):
+            _write_summary(out, model, "strong", n_runs=10, n_misaligned=i,
+                           n_scheming=1, n_aware=i, n_unaware=10 - i)
+        report = ft.build_report(out, metric=metric)
+        assert any(ft.date_charts._dated_members(f)
+                   for f in report["families"]), (
+            "no family in this fixture has a release date, so nothing below "
+            "would be drawn on a calendar at all")
+        return report, out
+
+    def _drawn_text(self, draw):
+        """Every string one chart writes onto its axes.
+
+        Each release chart is driven on its own rather than through
+        write_charts: both write an exposure caption, so a check over their
+        combined output would pass with either one of them silent.
+        """
+        import unittest.mock
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        plt = charting.import_pyplot()
+        texts = []
+        original = plt.Axes.text
+
+        def spy(self, x, y, s, *a, **k):
+            texts.append(s)
+            return original(self, x, y, s, *a, **k)
+
+        with unittest.mock.patch.object(plt.Axes, "text", spy):
+            assert draw(plt), "the chart was not drawn at all"
+        return " ".join(t.replace("\n", " ") for t in texts)
+
+    def _per_family(self, metric):
+        report, out = self._report(metric)
+        family = next(f for f in report["families"]
+                      if ft.date_charts._dated_members(f))
+        path = os.path.join(out, "release.png")
+        return self._drawn_text(
+            lambda plt: ft.date_charts._plot_family_dates(
+                plt, family, report["metric_label"],
+                report["metric_denominator_label"], "#4c72b0",
+                ft.chart_geometry.release_span(report), path, metric))
+
+    def _combined(self, metric):
+        report, out = self._report(metric)
+        path = os.path.join(out, "release_all.png")
+        return self._drawn_text(
+            lambda plt: ft.date_charts._plot_all_family_dates(
+                plt, report, ["#4c72b0", "#c44e52"],
+                ft.chart_geometry.release_span(report), path))
+
+    def test_a_per_family_awareness_chart_names_each_models_exposure(self):
+        captions = self._per_family(self.METRIC_WITH_NOTE)
+        assert "separate reasoning trace returned in" in captions
+
+    def test_a_per_family_chart_of_another_metric_does_not_carry_it(self):
+        """Two-directional. The caption is about how an AWARENESS rate was
+        measured; under a misalignment rate it answers a question nobody
+        asked, and every caption a reader learns to skip costs the ones that
+        matter."""
+        captions = self._per_family(self.METRIC_WITHOUT)
+        assert "separate reasoning trace" not in captions
+        assert captions.strip(), (
+            "no caption at all was drawn, so the absence above proves nothing")
+
+    def test_the_combined_awareness_chart_gives_the_range_of_exposures(self):
+        """Naming every model would not fit across five families, so the
+        combined chart states the spread instead - and that is a different
+        caption builder from the per-family one, with its own call site."""
+        captions = self._combined(self.METRIC_WITH_NOTE)
+        assert "separate reasoning trace" in captions
+
+    def test_the_combined_chart_of_another_metric_does_not_carry_it(self):
+        captions = self._combined(self.METRIC_WITHOUT)
+        assert "separate reasoning trace" not in captions
+        assert captions.strip(), (
+            "no caption at all was drawn, so the absence above proves nothing")
+
+
+class TestTheReleaseChartsDrawNothingRatherThanAnEmptyCalendar:
+    """A family with no recorded release date has no position on a calendar.
+    An empty axis with a title is worse than no file: it reads as a family
+    that was measured and found flat."""
+
+    def _plt(self):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        return charting.import_pyplot()
+
+    def _undated_family(self):
+        return {"family": "nobody/none", "n_members": 2, "members": [
+            {"model": "nobody/none-1", "version": "1", "position": 1,
+             "released": None, "date": None, "tags": [], "rate": 0.1,
+             "n": 30, "successes": 3, "ci95": [0.0, 0.3],
+             "underpowered": False, "reasoning_exposure": None},
+            {"model": "nobody/none-2", "version": "2", "position": 2,
+             "released": None, "date": None, "tags": [], "rate": 0.2,
+             "n": 30, "successes": 6, "ci95": [0.1, 0.4],
+             "underpowered": False, "reasoning_exposure": None},
+        ]}
+
+    def test_a_family_with_no_dated_member_writes_no_per_family_chart(self):
+        plt = self._plt()
+        family = self._undated_family()
+        assert ft.date_charts._dated_members(family) == [], (
+            "the fixture has a dated member, so this would pass however "
+            "_plot_family_dates handled one that did not")
+        path = os.path.join(tempfile.mkdtemp(), "release.png")
+        assert ft.date_charts._plot_family_dates(
+            plt, family, "rate", "episodes", "#4c72b0",
+            (date(2025, 1, 1), date(2026, 1, 1)), path, "misaligned") is None
+        assert not os.path.exists(path), (
+            "a file was written for a family with nothing to place on it")
+
+    def test_no_dated_family_at_all_writes_no_combined_chart(self):
+        plt = self._plt()
+        report = {"metric": "misaligned", "metric_label": "rate",
+                  "metric_denominator_label": "episodes",
+                  "families": [self._undated_family()],
+                  "data_quality": {"plotted_models_without_release_date": []}}
+        path = os.path.join(tempfile.mkdtemp(), "release_all.png")
+        assert ft.date_charts._plot_all_family_dates(
+            plt, report, ["#4c72b0"],
+            (date(2025, 1, 1), date(2026, 1, 1)), path) is None
+        assert not os.path.exists(path)

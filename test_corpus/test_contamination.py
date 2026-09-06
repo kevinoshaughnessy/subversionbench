@@ -497,3 +497,75 @@ class TestTheItemFloorIsAnnouncedBeforeSpending:
         per_arm = min(sum(1 for i in items if i["source"] == s)
                       for s in ("scenario", "control"))
         assert per_arm >= cont.MIN_ITEMS_FOR_VERDICT
+
+
+class TestTheDelayPacesEveryProbeFamily:
+    """`--delay` exists because these probes fire back to back against one
+    model, and a throttled call is recorded as an error - which in this script
+    reads as the model declining to continue a document, i.e. as evidence
+    about contamination rather than about the connection.
+
+    Three loops, so three sleeps, and each is isolated here by running the
+    other two empty: a single total would be satisfied by any redistribution
+    of the same number of sleeps across the families.
+
+    Counted rather than timed. An absolute wall-clock assertion would have to
+    be tuned to one machine and would flake on a slower one.
+    """
+
+    def _module(self):
+        import importlib.util
+        path = conftest.PROJECT_ROOT / "contamination_check.py"
+        spec = importlib.util.spec_from_file_location("contamination_check",
+                                                      path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def _run(self, delay, limit=0, n_continuations=0):
+        """(what was slept, how many canary probes ran, how many items)."""
+        import contextlib
+        import io
+        mod = self._module()
+        slept = []
+        mod.time = type("Clock", (), {"sleep": staticmethod(slept.append)})()
+        mod.get_client = lambda model: object()
+        mod.ask = lambda c, m, p, max_tokens=400: ('{"choice": 0}', None)
+        # `limit` caps per source rather than overall, so the item count is
+        # taken from what was actually built - a test that assumed it would
+        # be measuring its own arithmetic instead of the pacing.
+        items = cont.build_forced_choice(k=4, seed=0, limit=limit) if limit else []
+        continuations = cont.build_continuations()[:n_continuations]
+        with contextlib.redirect_stdout(io.StringIO()):
+            canary, fc, cont_results = mod.probe_model(
+                "p/m", items, continuations, delay=delay, keep_prompts=False)
+        assert len(cont_results) == n_continuations
+        return slept, len(canary), len(fc)
+
+    def test_no_delay_means_no_sleeping(self):
+        """The control for everything below: without it a count assertion
+        could pass against a script that slept on a schedule of its own."""
+        slept, n_canary, n_items = self._run(0, limit=2, n_continuations=1)
+        assert n_canary and n_items, "no probe ran, so nothing was measured"
+        assert slept == []
+
+    def test_every_canary_probe_is_paced(self):
+        slept, n_canary, n_items = self._run(0.25)
+        assert n_canary and not n_items
+        assert slept == [0.25] * n_canary
+
+    def test_every_forced_choice_item_but_the_last_is_paced(self):
+        """The one place the pacing is asymmetric, and deliberately: a sleep
+        after the final item paces nothing, since the next call belongs to the
+        continuation probe and carries its own delay."""
+        slept, n_canary, n_items = self._run(0.25, limit=3)
+        assert n_items > 1, "one item cannot show an off-by-one"
+        assert len(slept) == n_canary + n_items - 1
+        assert set(slept) == {0.25}
+
+    def test_every_continuation_document_is_paced(self):
+        one, n_canary, _ = self._run(0.25, n_continuations=1)
+        two, n_canary_2, _ = self._run(0.25, n_continuations=2)
+        assert n_canary == n_canary_2
+        assert len(one) == n_canary + 1
+        assert len(two) == n_canary + 2

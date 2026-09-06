@@ -958,3 +958,90 @@ class TestWeightedLeastSquares:
         out = weighted_least_squares([0, 1, 2], [0.1, 0.2, 0.3])
         assert "p" not in out and "separated" not in out
         assert not any(k.startswith("ci") for k in out)
+
+
+class TestWhereAFigureCannotBeComputedItIsAbsentRatherThanZero:
+    """The rule this module is built on, applied to the guards that had no
+    test. Every one of these returns None or a note instead of a number, and
+    every one of them would be a plausible-looking figure if it returned 0.0
+    or 1.0 by accident."""
+
+    def test_a_precision_target_no_sample_size_reaches_is_none(self):
+        """n_for_precision walks n upward to a cap. Hitting the cap means the
+        target is not achievable, which is a different answer from the cap
+        itself - a caller that read the cap as the answer would report a
+        reachable sample size for an unreachable interval."""
+        from subversionbench.power import n_for_precision
+        assert n_for_precision(0.5, 20.0, cap=50) is None
+        assert n_for_precision(0.5, 40.0, cap=50) is not None, (
+            "the cap now defeats every target, so the None above says "
+            "nothing about the target")
+
+    def test_a_trend_across_groups_that_share_one_score_is_undefined(self):
+        """Scores can be supplied rather than defaulting to rank position -
+        the reason the release charts can trend against a calendar. Supplying
+        one score for every group leaves nothing to order along, which is not
+        a trend of zero."""
+        from subversionbench.power import cochran_armitage
+        out = cochran_armitage([(2, 10), (5, 10)], scores=[3, 3])
+        assert out["z"] is None
+        assert out["p"] is None
+        assert out["direction"] is None
+        assert "no ordering" in out["note"]
+
+    def test_two_distinct_scores_over_the_same_groups_do_trend(self):
+        """The control: the groups are informative, so what the test above
+        catches is the scores and not the counts."""
+        from subversionbench.power import cochran_armitage
+        out = cochran_armitage([(2, 10), (5, 10)], scores=[0, 1])
+        assert out["z"] is not None and out["direction"] == "rising"
+
+
+class TestThePowerApproximationHandlesTheDegenerateArms:
+    """Above EXACT_MAX_N the exact grid is abandoned for the normal
+    approximation, whose standard error is zero when neither arm can vary.
+    Dividing by it would raise; the two cases either side of that division
+    are opposite answers and must not be collapsed."""
+
+    def _big(self):
+        return EXACT_MAX_N + 1
+
+    def test_two_arms_that_cannot_differ_have_only_the_false_positive_rate(self):
+        """Both rates zero: the test can only reject by chance, so the power
+        of the design against this alternative IS alpha."""
+        assert two_arm_power(0.0, 0.0, self._big(), alpha=0.05) == 0.05
+
+    def test_two_arms_that_always_differ_are_always_caught(self):
+        assert two_arm_power(0.0, 1.0, self._big()) == 1.0
+
+    def test_the_exact_path_is_not_what_answered_either(self):
+        """Both above use the approximation only because n exceeds the exact
+        cap. Stated as an assertion so a change to EXACT_MAX_N shows up here
+        rather than silently moving both tests onto the other branch."""
+        assert method_for_n(self._big()) != method_for_n(EXACT_MAX_N)
+
+
+class TestTheReportRendersAnEntryWrittenBeforeAFigureExisted:
+    """analyse_batch's output is stored in every summary and re-rendered
+    later, so format_report reads its entries with .get - a report written by
+    an earlier analysis version does not carry every key this one emits. It
+    has to render what is there rather than raise on what is not."""
+
+    def _power(self):
+        return analyse_batch([("misaligned", 12, 60, None, None)])
+
+    def test_a_metric_with_no_required_sample_size_still_renders(self):
+        power = self._power()
+        entry = next(iter(power["metrics"].values()))
+        assert entry.pop("n_for_10pp_precision") is not None, (
+            "the fixture never carried the key, so removing it proves "
+            "nothing about a report that lacks it")
+        text = format_report(power)
+        assert "misaligned" in text
+        assert "12/60" in text
+        assert "10pp wide" not in text
+
+    def test_the_same_metric_with_it_does_state_it(self):
+        """The control."""
+        text = format_report(self._power())
+        assert "10pp wide" in text
