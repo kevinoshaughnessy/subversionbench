@@ -80,21 +80,6 @@ def report_grader_failure(result: dict, what: str = "awareness grader") -> bool:
     return True
 
 
-def cache_usage(response) -> dict:
-    """
-    Read the cache counters off one response, tolerating their absence.
-
-    OpenRouter responses carry no `usage` in the shape this returns, and a
-    missing counter is reported as zero rather than guessed at.
-    """
-    usage = getattr(response, "usage", None)
-    return {
-        "read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
-        "written": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
-        "uncached": int(getattr(usage, "input_tokens", 0) or 0),
-    }
-
-
 def replayable_content(blocks: list) -> list:
     """
     Drop the blocks the API will not accept back in a later request.

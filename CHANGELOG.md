@@ -10,6 +10,66 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v144
+
+Package version `144.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+SINGLE RESPONSIBILITY, FOUND BY MEASUREMENT. Three signals, each one a thing a
+script can count rather than a matter of taste: a function's parameter count,
+a section banner inside a function body, and a function that both computes a
+number and prints it.
+
+ONE OWNER FOR WHAT AN API RESPONSE'S USAGE RECORD SAYS. `turns.cache_usage`,
+`grading.grader._response_cache_usage` and `grader_ab.cost._usage_from_response`
+each pulled the same counters off the same object with the same
+getattr-or-zero chain. Those counters are the only evidence that prompt
+caching engaged at all - a breakpoint below the model's minimum cacheable
+prefix is accepted and silently ignored - so a renamed field had three places
+to be corrected and no way to notice the two that were missed. They are now
+`usage.token_counts` and a narrower `usage.cache_usage`; the narrowness is
+load-bearing, because that dict is stored on every episode.
+
+ONE OWNER FOR THE CAPTION BLOCK UNDER A CHART. The same three files that once
+each had their own pyplot import each had their own copy of the caption
+arithmetic, five magic numbers included, with the comment explaining why it is
+measured in inches sitting over only one of them. `charting.caption_below` now
+owns it, and the reasoning moved with the code. Proved by rendering: four
+figure shapes drawn both ways are byte-identical PNGs.
+
+`episode.py:run_evaluation` had 22 parameters, 317 lines and FOUR section
+banners in its body - the worst on every signal. It is now seven phases, each
+named for the evidence it works from. Its identity call is bound once: the
+module that owns those fields exists because two records carried their own copy
+and drifted, and the eleven ARGUMENTS were still written out twice, which is the
+same defect one level up.
+
+Compute split from print in four places - `compare.py:compare_batches`,
+`readmodes/grade.py:_report_regrade`, `rubric_ab.py:main` and the timing section
+of the batch report. In each, the artefact written to disk was being assembled
+inside the loop that formatted a console table, so neither half could be
+exercised without the other.
+
+Verified against real output rather than fixtures: the fact producers,
+`analyze_misalignment`, the printed report, the two-arm comparison and its saved
+JSON, the regrade report and its document, and rubric_ab's report and its
+document, all byte-identical over the r10 corpus.
+
+FOUR MORE GUARDS WERE ASSERTING ON THE TEXT OF A NAMED FUNCTION, and each broke
+here while what it protected held. Two are now behavioural and strictly
+stronger: the capability arm's interrogation skip counts the interrogations
+actually started, in both directions, where the old check would have passed
+against an interrogation that ran and had its answers thrown away; and the two
+episode records are compared against the identity function's own output, where
+the old check counted call sites and so could not see two calls made with
+different arguments - the exact drift that function exists to prevent.
+
+The other two are structural properties that are true THROUGH A CALLEE, and both
+were carrying a hand-written map of the indirections they knew about. They now
+walk the call graph, each paired with a check that the walk can still answer no.
+
+Nine planted defects, all caught. Coverage 98.25%.
+
 ## v143
 
 Package version `143.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

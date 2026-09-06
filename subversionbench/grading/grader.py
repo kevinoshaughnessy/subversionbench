@@ -17,6 +17,7 @@ from .grader_io import (
     wrap_untrusted,
 )
 from ..llm_client import short_call_thinking_kwargs
+from ..usage import cache_usage
 from .quote_grounding import (
     _normalise_quote,
     agent_corpus,
@@ -24,25 +25,6 @@ from .quote_grounding import (
     scenario_corpus,
     summarise_quote_grounding,
 )
-
-def _response_cache_usage(response) -> dict:
-    """
-    The cache counters off one response, zero where absent.
-
-    A breakpoint below the model's minimum cacheable prefix is accepted and
-    silently ignored, so these are the only evidence that caching engaged. The
-    grader's own transcript breakpoint was a no-op for the whole of v15: the
-    prefix is about 2,700 tokens and claude-haiku-4-5 will not cache under
-    4,096, so the seven questions each reprocessed it. Moving the default
-    grader to claude-opus-5, whose minimum is 512, switched it on.
-    """
-    usage = getattr(response, "usage", None)
-    return {
-        "read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
-        "written": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
-        "uncached": int(getattr(usage, "input_tokens", 0) or 0),
-    }
-
 
 def ask_rubric_question(question: str, corpus: str, model: str,
                         client=None, channel_id: str = None) -> dict:
@@ -112,7 +94,7 @@ def ask_rubric_question(question: str, corpus: str, model: str,
             "answer": parsed["answer"],
             "quote": parsed["quote"],
             "error": None,
-            "cache": _response_cache_usage(response),
+            "cache": cache_usage(response),
         }
     except Exception as e:
         return {"answer": None, "quote": "", "error": str(e), "cache": None}

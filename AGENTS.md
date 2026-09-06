@@ -136,9 +136,9 @@ were over when the check was written and nothing said so - two of them created
 already over, which is what a rule with no check allows.
 
 THE FUNCTION LIMIT IS STILL A RATCHET, and the honest version of the rule says
-so: forty functions exceed it, the largest being
+so: thirty-seven functions exceed it, the largest being
 `reporting/summary.py:summary_document` at 336 lines and
-`episode.py:run_evaluation` at 317. Nothing new may exceed it, and anything already over may only get
+`readmodes/reclassify.py:reclassify_existing_runs` at 209. Nothing new may exceed it, and anything already over may only get
 smaller. A rule declared as absolute while dozens of things violate it is one
 that gets switched off the first time it is inconvenient, which is the same
 reasoning that set the ruff rule set in `pyproject.toml`.
@@ -185,16 +185,25 @@ still left 49 sites uncovered. For the second kind, take the file list from
 escaping it.
 
 **A search over a named function's source is a guard against a location.**
-Three checks here asserted that some call appeared in `inspect.getsource` of one
+Seven checks here asserted that some call appeared in `inspect.getsource` of one
 named function - that `run_batch` contained `confinement_available()`, that
-`grader_ab.main` contained `graders_tag`. All three broke when the code they
-were about was given a function of its own, while the behaviour they existed to
-protect was untouched; and none of them would have noticed that same call being
-deleted from a callee. Assert the behaviour instead: run the thing and read what
-it did. `conftest.refused_rollout` returns the exit code, the output AND the
-number of episodes attempted - and that third value is the one that matters,
-because a refusal and a batch that starts and then fails both exit 1 and both
-print the refusal.
+`grader_ab.main` contained `graders_tag`, that `run_evaluation` contained `if
+capability is None:`. Every one of them broke when the code it was about was
+given a function of its own, while the behaviour it existed to protect was
+untouched; and none of them would have noticed that same call being deleted from
+a callee. Assert the behaviour instead: run the thing and read what it did.
+`conftest.refused_rollout` returns the exit code, the output AND the number of
+episodes attempted - and that third value is the one that matters, because a
+refusal and a batch that starts and then fails both exit 1 and both print the
+refusal.
+
+Where the property really is structural, **walk the call graph rather than one
+function's body**. "Every read mode reaches `settle_analysis`" and "no report
+section is defined and never called" are both true through a callee, and both
+guards were carrying a hand-written map of the indirections they knew about -
+which is the same defect as a hand-written module list. Derive the reachable
+set, and pair it with a check that the walk can still answer no: a reachability
+test that always returns True passes with everything broken.
 
 The same applies to a hand-written list of what to iterate over. The grading
 package's guards enumerated their own submodules in a tuple; it fell two behind

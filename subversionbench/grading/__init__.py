@@ -61,7 +61,6 @@ from .concealment import (
 from .grader import (
     ask_rubric_question,
     detect_eval_awareness_grader,
-    _response_cache_usage,
 )
 # From the leaf itself, not through grader.py. contamination_check.py reads the
 # parser off the package surface, and routing that through the module grader_io

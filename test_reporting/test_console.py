@@ -37,6 +37,7 @@ import ast
 import contextlib
 import difflib
 import inspect
+import textwrap
 import io
 import os
 import types
@@ -291,15 +292,52 @@ class TestItRenders:
 
 class TestItOnlyRenders:
     def test_no_section_is_defined_but_never_called(self):
-        """With nineteen sections, one that is defined and not called is a silently
-        missing block of the report - no error, no failing test, just a heading
-        nobody notices is gone."""
-        called = set()
-        for node in ast.walk(ast.parse(inspect.getsource(console.render_report))):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-                called.add(node.func.id)
-        orphaned = [s for s in _sections() if s not in called]
-        assert not orphaned, f"defined but never called: {orphaned}"
+        """With nineteen sections, one that is defined and not called is a
+        silently missing block of the report - no error, no failing test, just
+        a heading nobody notices is gone.
+
+        REACHED, not called directly. A section may be printed by another
+        section rather than by render_report itself, which is what happens when
+        one of them turns out to answer two questions and is divided: the times
+        a batch took, and what those times imply for a larger n. A check that
+        only read render_report's own body would report the new half as
+        orphaned while it printed perfectly.
+        """
+        reached, frontier = set(), ["render_report"]
+        while frontier:
+            name = frontier.pop()
+            fn = getattr(console, name, None)
+            if fn is None or not inspect.isfunction(fn):
+                continue
+            for node in ast.walk(ast.parse(
+                    textwrap.dedent(inspect.getsource(fn)))):
+                if (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name)
+                        and node.func.id not in reached):
+                    reached.add(node.func.id)
+                    frontier.append(node.func.id)
+        orphaned = [s for s in _sections() if s not in reached]
+        assert not orphaned, f"defined but never reached: {orphaned}"
+
+    def test_the_walk_notices_a_section_nothing_reaches(self):
+        """The check above passes vacuously if the walk simply collects every
+        function in the module. A name no section calls must come back
+        unreached."""
+        reached, frontier = set(), ["render_report"]
+        while frontier:
+            name = frontier.pop()
+            fn = getattr(console, name, None)
+            if fn is None or not inspect.isfunction(fn):
+                continue
+            for node in ast.walk(ast.parse(
+                    textwrap.dedent(inspect.getsource(fn)))):
+                if (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name)
+                        and node.func.id not in reached):
+                    reached.add(node.func.id)
+                    frontier.append(node.func.id)
+        assert "render_report" not in reached, "the walk counted its own root"
+        assert "_no_such_section" not in reached
 
     def test_render_report_takes_no_episodes(self):
         """If it could see the episodes it could compute from them, and the

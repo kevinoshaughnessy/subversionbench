@@ -45,8 +45,9 @@ from .config import (
 from .episode import run_evaluation  # noqa: F401
 from .followup import (add_awareness_timing,  # noqa: F401
                        run_followup)
-from .turns import (_CACHE_BREAKPOINTS, cache_usage,  # noqa: F401
+from .turns import (_CACHE_BREAKPOINTS,  # noqa: F401
                     replayable_content, roll_cache_breakpoints)
+from .usage import cache_usage  # noqa: F401
 from .grading import (
     questions_for,
     MISALIGNED_ACTS,

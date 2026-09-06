@@ -24,6 +24,8 @@ from subversionbench.grading.concealment import (
 from subversionbench.grading.interrogation import NO_ANSWER
 import ast
 import inspect
+import sys
+import textwrap
 from subversionbench.config import DEFAULT_INTERROGATION
 from subversionbench.grading.concealment import settle_analysis
 
@@ -484,25 +486,56 @@ class TestNoSiteReimplementsIt:
                     f"{marker!r} is back in {name}; it belongs to "
                     f"settle_analysis")
 
+    def _reaches_settle(self, fn, seen=None) -> bool:
+        """Whether `fn` settles, directly or through a function it calls.
+
+        THE CALL GRAPH IS WALKED, not a map of known indirections consulted.
+        This test used to hold one hand-written entry - summarise_batch reaches
+        settle_analysis through normalise_analyses - and needed a second the
+        moment run_evaluation's interrogation step was given a name of its own.
+        A guard whose scope is a hand-written list falls behind the code it
+        guards; the reachable set derives itself.
+
+        Reachability is enough because it is not the whole rule.
+        test_no_module_has_a_second_copy is what forbids a mode deriving the
+        verdicts itself, and that one reads every line of the module.
+        """
+        seen = seen if seen is not None else set()
+        if fn in seen:
+            return False
+        seen.add(fn)
+        module = sys.modules.get(getattr(fn, "__module__", None))
+        try:
+            tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+        except (OSError, TypeError, SyntaxError):
+            return False
+        called = {node.func.id for node in ast.walk(tree)
+                  if isinstance(node, ast.Call)
+                  and isinstance(node.func, ast.Name)}
+        if "settle_analysis" in called:
+            return True
+        for name in sorted(called):
+            helper = getattr(module, name, None)
+            if inspect.isfunction(helper) and self._reaches_settle(helper, seen):
+                return True
+        return False
+
     def test_every_mode_that_settles_calls_it(self):
         """Four modes re-derive verdicts, and each must route through the one
-        function that owns them.
-
-        summarise_batch reaches it through normalise_analyses, so this follows one
-        level of indirection rather than demanding a literal call. That is not a
-        loosening: what would actually be a regression is a mode deriving the
-        verdicts itself, and test_no_module_has_a_second_copy is what pins that."""
+        function that owns them."""
         import subversionbench.run_eval as ev
-        from subversionbench.reporting.facts import normalise_analyses
-        indirect = {"normalise_analyses": inspect.getsource(normalise_analyses)}
         names = ("run_evaluation", "reclassify_existing_runs",
                  "resummarise_existing_runs", "summarise_batch")
-        for name in names:
-            src = inspect.getsource(getattr(ev, name))
-            reaches = "settle_analysis(" in src or any(
-                f"{fn}(" in src and "settle_analysis(" in body
-                for fn, body in indirect.items())
-            assert reaches, f"{name} does not settle"
+        missing = [name for name in names
+                   if not self._reaches_settle(getattr(ev, name))]
+        assert not missing, f"{missing} do not reach settle_analysis"
+
+    def test_the_walk_does_not_simply_say_yes(self):
+        """A reachability check that always returns True would pass the test
+        above with every mode broken. A function that plainly does not settle
+        has to come back False."""
+        assert not self._reaches_settle(settle_analysis)
+        assert not self._reaches_settle(self._reaches_settle)
 
     def test_it_calls_no_model(self):
         """Deterministic only. If this ever spends, --resummarise stops being free

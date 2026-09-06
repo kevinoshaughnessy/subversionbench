@@ -53,3 +53,59 @@ def import_pyplot(what: str = "Charts"):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     return plt
+
+
+# The caption block under a chart.
+#
+# Space is reserved for the captions FIRST, then they are laid into it from the
+# top down. Writing them at a fixed y and then calling tight_layout with a
+# reserved fraction leaves the axes floating well above the text, because the
+# two numbers are computed independently and neither knows the other.
+#
+# MEASURED IN INCHES, NOT IN FIGURE FRACTION
+# -------------------------------------------
+# tight_layout's rect is a fraction of the whole figure, and a figure's height
+# is not fixed - three stacked panels are 2.7x the height of the three-across
+# layout this reservation was first tuned against. A caption written to occupy
+# a FRACTION of the figure grows with it: the panels went from 5.4in tall to
+# 14.5in and the same fraction opened a gap of dead space between the last
+# x-axis label and the first line of text. A line of 7.5pt caption text is the
+# same physical height regardless of how tall the figure around it is, so the
+# reservation is sized in inches and only converted to a fraction at the end,
+# against this figure's ACTUAL height.
+_CAPTION_LINE_IN = 0.16
+_CAPTION_GAP_IN = 0.19
+_CAPTION_TOP_IN = 0.11
+_CAPTION_POINTS = 7.5
+_CAPTION_COLOUR = "#555555"
+
+
+def caption_below(fig, captions, wrap) -> None:
+    """
+    Reserve room under the axes for `captions`, and write them there.
+
+    THREE COPIES BEFORE THIS FUNCTION EXISTED, and this module's docstring
+    above describes the same defect one layer down: the same three places that
+    each had their own pyplot import each had their own copy of this
+    arithmetic, five magic numbers included, and the comment explaining why it
+    is measured in inches sat over only one of them. A figure whose captions
+    are placed by a fourth copy of these numbers is a figure that will drift
+    away from the others the first time one of them is tuned.
+
+    `wrap` is the caller's own folding function: the wrap width and the
+    hyphen rules differ by package and are not this function's business.
+    Empty captions are dropped rather than reserved for - a blank line of
+    reserved space is dead space no reader can see the purpose of.
+    """
+    height_in = fig.get_size_inches()[1]
+    wrapped = [wrap(c) for c in captions if c]
+    lines = sum(w.count("\n") + 1 for w in wrapped)
+    reserved = ((_CAPTION_LINE_IN * lines + _CAPTION_GAP_IN * len(wrapped))
+                / height_in)
+    fig.tight_layout(rect=(0, reserved, 1, 1))
+    y = reserved - _CAPTION_TOP_IN / height_in
+    for text in wrapped:
+        fig.text(0.01, y, text, fontsize=_CAPTION_POINTS, va="top",
+                 color=_CAPTION_COLOUR)
+        y -= (_CAPTION_LINE_IN * (text.count("\n") + 1)
+              + _CAPTION_GAP_IN * 0.6) / height_in

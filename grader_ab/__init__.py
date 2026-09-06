@@ -124,7 +124,7 @@ agentic_misalignment/ carry the same __main__.py.
 from . import cli, cost, prices, readout, sampling, shapes
 from .prices import (HARD_PHRASING_MODELS, PRICES_PER_MTOK, REFERENCE,
                      _TOKENS_PER_ANSWER)
-from .cost import (_usage_from_response, cell_cost, usage_cost_floor_usd,
+from .cost import (cell_cost, usage_cost_floor_usd,
                    usage_cost_usd)
 from .shapes import (SHAPES, _batched_rubric_call, _first_json_object,
                      ask_per_question, ask_rubric_batch, classify_error,
@@ -137,7 +137,7 @@ from .cli import main
 __all__ = [
     "HARD_PHRASING_MODELS", "PRICES_PER_MTOK", "REFERENCE", "SHAPES",
     "_TOKENS_PER_ANSWER", "_batched_rubric_call", "_first_json_object", "_pct",
-    "_short_cell", "_usage_from_response", "agreement", "ask_per_question",
+    "_short_cell", "agreement", "ask_per_question",
     "ask_rubric_batch", "cell_cost", "cell_verdict", "classify_error", "cli",
     "cost", "fatal_error_kind", "load_candidates", "main", "per_question_table",
     "prices", "readout", "report", "sampling", "shapes", "signal_correlation",

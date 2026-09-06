@@ -152,16 +152,7 @@ def write_chart(report: dict, path: str) -> str:
            "side." if any_underpowered else ""),
         report["interpretation"] + ".",
     ]
-    height_in = fig.get_size_inches()[1]
-    line_in, gap_in, top_in = 0.16, 0.19, 0.11
-    wrapped = [_wrap(c) for c in captions if c]
-    lines = sum(w.count("\n") + 1 for w in wrapped)
-    reserved = (line_in * lines + gap_in * len(wrapped)) / height_in
-    fig.tight_layout(rect=(0, reserved, 1, 1))
-    y = reserved - top_in / height_in
-    for text in wrapped:
-        fig.text(0.01, y, text, fontsize=7.5, va="top", color="#555555")
-        y -= (line_in * (text.count("\n") + 1) + gap_in * 0.6) / height_in
+    charting.caption_below(fig, captions, _wrap)
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -304,16 +295,7 @@ def write_scenario_act_chart(report: dict, path: str) -> str:
         captions.append(
             f"leave-one-out rho ranges {lo:+.3f} to {hi:+.3f}: how far "
             f"dropping any single model could move this correlation.")
-    wrapped = [_wrap(c) for c in captions]
-    height_in = fig.get_size_inches()[1]
-    line_in, gap_in, top_in = 0.16, 0.19, 0.11
-    lines = sum(w.count("\n") + 1 for w in wrapped)
-    reserved = (line_in * lines + gap_in * len(wrapped)) / height_in
-    fig.tight_layout(rect=(0, reserved, 1, 1))
-    y = reserved - top_in / height_in
-    for text in wrapped:
-        fig.text(0.01, y, text, fontsize=7.5, va="top", color="#555555")
-        y -= (line_in * (text.count("\n") + 1) + gap_in * 0.6) / height_in
+    charting.caption_below(fig, captions, _wrap)
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
     return path

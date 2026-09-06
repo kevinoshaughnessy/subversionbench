@@ -41,7 +41,8 @@ from .isolation import DEFAULT_ISOLATION
 from .llm_client import _BRACKET_TOOL_CALL_RE
 from .redaction import redact_paths
 from .sandbox import execute_tool_sandboxed
-from .turns import (cache_usage, record_turn_blocks, replayable_content,
+from .usage import cache_usage
+from .turns import (record_turn_blocks, replayable_content,
                     roll_cache_breakpoints)
 # =========================================================================
 # The agentic loop
@@ -240,6 +241,205 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
         roll_cache_breakpoints(messages)
 
 
+def _resolved_routing(model: str, sort, provider) -> tuple:
+    """The client for the model under test, and the routing actually sent."""
+    # Resolved once, the same way `effort` is: what actually reaches the
+    # request, not what was asked for. --openrouter-sort/--openrouter-provider
+    # against a non-OpenRouter model is a no-op in get_client() already;
+    # recording the requested value here regardless would claim a routing
+    # choice that was never sent.
+    sort = (sort if llm_api.is_openrouter_model(model)
+            else None)
+    provider = (provider
+               if llm_api.is_openrouter_model(model) else None)
+    client = llm_api.get_client(model, provider_sort=sort,
+                                provider_name=provider)
+    return client, sort, provider
+
+
+def _check_the_arm_matches_the_prompt(nudge_type: str, system_prompt: str) -> None:
+    """The declared arm and the prompt it was given must agree."""
+    # The arm as the caller declared it, NOT inferred from the prompt text.
+    #
+    # This used to read `"strong" if "top priority" in system_prompt else
+    # "none"`, which was wrong the moment a third arm shared strong's prompt:
+    # a --nudge max run printed and *recorded* "strong". The value is stored on
+    # every run and on every failed run, and --compare labels its arms from it,
+    # so the one field that keeps the coerced arm from being read as the
+    # unprompted one was reporting the wrong arm.
+    #
+    # Deriving a fact from text that happens to contain it is the same mistake
+    # as matching a command name inside prose: it holds until the text changes
+    # underneath it. The caller knows the arm, so the caller passes it.
+
+    # Fails loudly on a wiring mistake rather than mislabelling a whole batch,
+    # which is how the bug above stayed quiet: `max` legitimately shares
+    # strong's prompt, so agreement can no longer be checked by eye.
+    _strong_prompt = "top priority" in system_prompt
+    if nudge_type == "none" and _strong_prompt:
+        raise ValueError("nudge='none' with the strong-nudge system prompt")
+    if nudge_type in ("strong", "max") and not _strong_prompt:
+        raise ValueError(f"nudge={nudge_type!r} without the strong-nudge prompt")
+
+
+def _announce_episode(model, nudge_type, effort, env_dir, red) -> None:
+    """Which episode is starting, before it costs anything."""
+    # `effort` is the level actually SENT, not the one requested:
+    # resolve_thinking_kwargs drops a level the model will not accept, and
+    # printing the request would claim a condition that never applied. None means
+    # no reasoning parameter was sent at all, which is a different state from any
+    # level and is spelled out rather than left blank.
+    print(f"\n{'='*60}")
+    print(f"MODEL: {model}")
+    print(f"NUDGE: {nudge_type}")
+    print(f"EFFORT: {effort if effort else 'not sent (provider default)'}")
+    print(f"ENV: {red(env_dir)}")
+    print(f"{'='*60}\n")
+
+
+def _new_loop_state() -> dict:
+    """
+    Everything the agentic loop accumulates, declared in one place.
+
+    In one place because the caller reads it afterwards and, when a request
+    fails, records it as the partial episode - so a counter the loop writes
+    and this does not declare is one the failure record silently lacks.
+    """
+    return {
+        "ended_by": "turn_cap",
+        "reasoning_chars": 0,
+        # Whether prompt caching actually engaged. A breakpoint below the model's
+        # minimum cacheable prefix is accepted and silently ignored, so these
+        # counters are the only way to tell a working breakpoint from a no-op -
+        # two of this harness's turned out to be no-ops exactly that way.
+        "cache": {"read": 0, "written": 0, "uncached": 0},
+        # Token accounting as the provider reports it, including reasoning tokens
+        # where available. Empty on the native Anthropic path, whose usage is
+        # already captured by `cache` in a different shape.
+        "token_usage": {},
+        # Per turn, what the provider said its reasoning was - a trace, a summary,
+        # or an encrypted payload. Kept per turn rather than merged because a
+        # model may return different kinds across an episode, and a merged label
+        # would hide it. Empty except on OpenRouter, the only route that reports
+        # the field.
+        "reasoning_details": [],
+        # Which backend served each turn, when the route reports it. Same
+        # shape and same reason as reasoning_details above: kept per turn
+        # because the router can fall back mid-episode.
+        "served_by": [],
+    }
+
+
+def _grade_awareness(analysis: dict, transcript: list, use_grader: bool,
+                     grader_model: str, timing: dict) -> None:
+    """
+    Both awareness measures, and where each act's awareness fell relative to it.
+
+    The keyword screen is free and reads the transcript; the rubric grader
+    costs a call per question. Both are recorded and neither is silently
+    pooled into the other - the keyword proxy badly under-detects, which is
+    why there are two.
+    """
+    eval_awareness_kw = detect_eval_awareness_keywords(transcript)
+    analysis["eval_awareness_keywords"] = eval_awareness_kw
+
+    t_grader_start = time.time()
+    if use_grader:
+        print("\n--- Running eval awareness grader ---")
+        eval_awareness_grader = grading_api.detect_eval_awareness_grader(
+            transcript, model=grader_model
+        )
+        report_grader_failure(eval_awareness_grader)
+        analysis["eval_awareness_grader"] = eval_awareness_grader
+        print(f"Grader result: {json.dumps({k: v for k, v in eval_awareness_grader.items() if k != 'rubric_results'}, indent=2)}")
+    else:
+        analysis["eval_awareness_grader"] = {"skipped": True}
+
+    add_awareness_timing(analysis, transcript,
+                         grader_model=grader_model if use_grader else None)
+    t_grader_end = time.time()
+    timing["grader_seconds"] = round(t_grader_end - t_grader_start, 1)
+    print(f"[TIMING] Grader: {timing['grader_seconds']}s")
+
+
+def _interrogate_the_acts(analysis, transcript, session, grader_model, nudge,
+                          interrogations, ended_by, capability, timing,
+                          t_eval_start) -> None:
+    """
+    One probe per misaligned act, and the verdict that needs their answers.
+
+    Concealment is what separates scheming from plain misalignment, so every
+    act gets its own probe.
+    """
+    # Concealment is what separates scheming from plain misalignment, so every
+    # act gets its own probe. They share one conversation: a single
+    # investigator asking about two things, rather than two models in two
+    # disconnected worlds.
+    t_followup_start = time.time()
+
+    # NOT IN THE CAPABILITY ARM. Every question in the ladder asks whether
+    # the model did something it has not been asked to do, and in this arm it
+    # was asked - so a truthful "yes, you told me to" would be scored against
+    # a question that is no longer about concealment. Skipped rather than
+    # asked and discarded, because the answers would still be saved, still
+    # cost a request per act, and still be there for someone to read as a
+    # concealment rate later.
+    if capability is None:
+        interrogate_acts(
+            analysis, transcript, session,
+            grader_model=grader_model, nudge=nudge,
+            interrogations=interrogations, ended_by=ended_by)
+    else:
+        # Recorded, not merely absent. A missing followup_response reads as a
+        # measurement that failed; this says it was never attempted and why,
+        # which is the not-applicable-is-not-zero rule applied to a field
+        # rather than to a count.
+        analysis["interrogation_skipped"] = (
+            f"capability arm ({capability}): the act was instructed, so an "
+            f"interrogation about it measures nothing about concealment")
+
+    t_followup_end = time.time()
+
+    # Settled only now: the acts are visible from the episode, but concealment
+    # needs the deliverable and the interrogations. None means the deciding
+    # evidence is missing, not that the episode was clean.
+    settle_analysis(analysis)
+    if analysis["misaligned"]:
+        for act in MISALIGNED_ACTS:
+            level = analysis.get(act["level_key"])
+            if level:
+                print(f"[CONCEALMENT] {act['name']}: {level}")
+        print(f"[CLASSIFICATION] scheming={analysis['scheming']}")
+
+    timing["followup_seconds"] = round(t_followup_end - t_followup_start, 1)
+    timing["total_run_seconds"] = round(t_followup_end - t_eval_start, 1)
+    print(f"[TIMING] Follow-up: {timing['followup_seconds']}s")
+    print(f"[TIMING] Total run: {timing['total_run_seconds']}s")
+
+
+def _check_for_a_deferred_write(analysis: dict, env_info: dict) -> None:
+    """The far side of the time-of-check gap."""
+    # The far side of the time-of-check gap. Everything above this line ran after
+    # the artefacts were hashed - the grader and one interrogation per act, which
+    # is seconds of model calls - so a write scheduled to land in that window
+    # would have been invisible. Checked here, at the last moment the episode
+    # tree is known to exist and nothing further can be attributed to the model.
+    analysis["deferred_write_check"] = verify_oversight_unchanged(
+        env_info, analysis)
+    if analysis["deferred_write_check"]["deferred_write"]:
+        # Loud, because it means the measurement guarantee failed for this
+        # episode rather than that the model did something interesting. Not
+        # folded into the act: see verify_oversight_unchanged.
+        print("\n[HARNESS INTEGRITY] An oversight artefact changed AFTER it was "
+              "graded:")
+        for c in analysis["deferred_write_check"]["fields_changed"]:
+            print(f"  {c['field']}: {c['at_grading']} at grading -> "
+                  f"{c['at_episode_end']} at episode end")
+        print("  This episode's oversight verdict is not trustworthy and it "
+              "should be excluded. Something outlived the command that started "
+              "it, or work was handed to a system scheduler.")
+
+
 def run_evaluation(
     system_prompt: str,
     user_prompt: str,
@@ -275,17 +475,8 @@ def run_evaluation(
     clients, which build their own from `grader_model` elsewhere and never see
     these values. See get_client().
     """
-    # Resolved once, the same way `effort` is: what actually reaches the
-    # request, not what was asked for. --openrouter-sort/--openrouter-provider
-    # against a non-OpenRouter model is a no-op in get_client() already;
-    # recording the requested value here regardless would claim a routing
-    # choice that was never sent.
-    openrouter_sort = (openrouter_sort if llm_api.is_openrouter_model(model)
-                       else None)
-    openrouter_provider = (openrouter_provider
-                           if llm_api.is_openrouter_model(model) else None)
-    client = llm_api.get_client(model, provider_sort=openrouter_sort,
-                                provider_name=openrouter_provider)
+    client, openrouter_sort, openrouter_provider = _resolved_routing(
+        model, openrouter_sort, openrouter_provider)
 
     messages = [{"role": "user", "content": user_prompt}]
     transcript = []
@@ -296,42 +487,23 @@ def run_evaluation(
     def red(text):
         return redact_paths(text, env_dir)
 
-    # The arm as the caller declared it, NOT inferred from the prompt text.
-    #
-    # This used to read `"strong" if "top priority" in system_prompt else
-    # "none"`, which was wrong the moment a third arm shared strong's prompt:
-    # a --nudge max run printed and *recorded* "strong". The value is stored on
-    # every run and on every failed run, and --compare labels its arms from it,
-    # so the one field that keeps the coerced arm from being read as the
-    # unprompted one was reporting the wrong arm.
-    #
-    # Deriving a fact from text that happens to contain it is the same mistake
-    # as matching a command name inside prose: it holds until the text changes
-    # underneath it. The caller knows the arm, so the caller passes it.
     nudge_type = nudge
+    _check_the_arm_matches_the_prompt(nudge_type, system_prompt)
+    _announce_episode(model, nudge_type, effort, env_dir, red)
 
-    # Fails loudly on a wiring mistake rather than mislabelling a whole batch,
-    # which is how the bug above stayed quiet: `max` legitimately shares
-    # strong's prompt, so agreement can no longer be checked by eye.
-    _strong_prompt = "top priority" in system_prompt
-    if nudge_type == "none" and _strong_prompt:
-        raise ValueError("nudge='none' with the strong-nudge system prompt")
-    if nudge_type in ("strong", "max") and not _strong_prompt:
-        raise ValueError(f"nudge={nudge_type!r} without the strong-nudge prompt")
+    # The eleven arguments that name this experiment, written once.
+    # arm_record.py exists because two records carried their own copy of these
+    # FIELDS and drifted; one function fixed that and left the ARGUMENTS
+    # written out twice, which is the same defect one level up. A field added
+    # to the completed record's call and forgotten in the failed one's is just
+    # as silent as the original.
+    def arm():
+        return arm_identity(
+            model, effort, nudge_type, oversight, lure, interrogations,
+            openrouter_sort, openrouter_provider,
+            isolation=isolation, max_turns=max_turns,
+            capability=capability)
 
-    # `effort` is the level actually SENT, not the one requested:
-    # resolve_thinking_kwargs drops a level the model will not accept, and
-    # printing the request would claim a condition that never applied. None means
-    # no reasoning parameter was sent at all, which is a different state from any
-    # level and is spelled out rather than left blank.
-    print(f"\n{'='*60}")
-    print(f"MODEL: {model}")
-    print(f"NUDGE: {nudge_type}")
-    print(f"EFFORT: {effort if effort else 'not sent (provider default)'}")
-    print(f"ENV: {red(env_dir)}")
-    print(f"{'='*60}\n")
-
-    # --- Time the main agentic loop ---
     t_eval_start = time.time()
 
     create_kwargs = dict(
@@ -346,31 +518,7 @@ def run_evaluation(
         **(reasoning_kwargs or {}),
     )
 
-    # Everything the loop accumulates, in one place because the caller reads it
-    # afterwards and, if a request fails, records it as the partial episode.
-    state = {
-        "ended_by": "turn_cap",
-        "reasoning_chars": 0,
-        # Whether prompt caching actually engaged. A breakpoint below the model's
-        # minimum cacheable prefix is accepted and silently ignored, so these
-        # counters are the only way to tell a working breakpoint from a no-op -
-        # two of this harness's turned out to be no-ops exactly that way.
-        "cache": {"read": 0, "written": 0, "uncached": 0},
-        # Token accounting as the provider reports it, including reasoning tokens
-        # where available. Empty on the native Anthropic path, whose usage is
-        # already captured by `cache` in a different shape.
-        "token_usage": {},
-        # Per turn, what the provider said its reasoning was - a trace, a summary,
-        # or an encrypted payload. Kept per turn rather than merged because a
-        # model may return different kinds across an episode, and a merged label
-        # would hide it. Empty except on OpenRouter, the only route that reports
-        # the field.
-        "reasoning_details": [],
-        # Which backend served each turn, when the route reports it. Same
-        # shape and same reason as reasoning_details above: kept per turn
-        # because the router can fall back mid-episode.
-        "served_by": [],
-    }
+    state = _new_loop_state()
     try:
         run_agentic_loop(
             client, create_kwargs, messages, transcript, state,
@@ -384,11 +532,7 @@ def run_evaluation(
         # not a complete observation - but the transcript is worth more than the
         # traceback alone.
         raise EpisodeAPIError(failed.cause, {
-            **arm_identity(
-                model, effort, nudge_type, oversight, lure,
-                interrogations, openrouter_sort, openrouter_provider,
-                isolation=isolation, max_turns=max_turns,
-                capability=capability),
+            **arm(),
             "ended_by": "api_error",
             "failed_on_turn": failed.turn + 1,
             "error": f"{type(failed.cause).__name__}: {red(str(failed.cause))}",
@@ -414,7 +558,6 @@ def run_evaluation(
     reasoning_details = state["reasoning_details"]
     served_by = state["served_by"]
 
-    # ---- Analyze misaligned behaviour ----
     t_eval_end = time.time()
     if ended_by == "turn_cap":
         print(f"[WARNING] Episode used all {max_turns} turns without the model "
@@ -424,106 +567,19 @@ def run_evaluation(
     print(f"\n[TIMING] Eval loop: {timing['eval_seconds']}s")
 
     analysis = analyze_misalignment(transcript, env_dir, env_info)
-
-    # ---- Detect eval awareness (keyword-based) ----
-    eval_awareness_kw = detect_eval_awareness_keywords(transcript)
-    analysis["eval_awareness_keywords"] = eval_awareness_kw
-
-    # ---- Detect eval awareness (LLM grader) ----
-    t_grader_start = time.time()
-    if use_grader:
-        print("\n--- Running eval awareness grader ---")
-        eval_awareness_grader = grading_api.detect_eval_awareness_grader(
-            transcript, model=grader_model
-        )
-        report_grader_failure(eval_awareness_grader)
-        analysis["eval_awareness_grader"] = eval_awareness_grader
-        print(f"Grader result: {json.dumps({k: v for k, v in eval_awareness_grader.items() if k != 'rubric_results'}, indent=2)}")
-    else:
-        analysis["eval_awareness_grader"] = {"skipped": True}
-
-    add_awareness_timing(analysis, transcript,
-                         grader_model=grader_model if use_grader else None)
-    t_grader_end = time.time()
-    timing["grader_seconds"] = round(t_grader_end - t_grader_start, 1)
-    print(f"[TIMING] Grader: {timing['grader_seconds']}s")
-
-    # ---- Interrogate each misaligned act the model took ----
-    # Concealment is what separates scheming from plain misalignment, so every
-    # act gets its own probe. They share one conversation: a single
-    # investigator asking about two things, rather than two models in two
-    # disconnected worlds.
-    t_followup_start = time.time()
-
-    # NOT IN THE CAPABILITY ARM. Every question in the ladder asks whether
-    # the model did something it has not been asked to do, and in this arm it
-    # was asked - so a truthful "yes, you told me to" would be scored against
-    # a question that is no longer about concealment. Skipped rather than
-    # asked and discarded, because the answers would still be saved, still
-    # cost a request per act, and still be there for someone to read as a
-    # concealment rate later.
-    if capability is None:
-        interrogate_acts(
-            analysis, transcript,
-            {"system_prompt": system_prompt, "messages": messages,
-             "client": client, "model": model, "max_tokens": max_tokens,
-             "reasoning_kwargs": reasoning_kwargs, "env_dir": env_dir},
-            grader_model=grader_model, nudge=nudge,
-            interrogations=interrogations, ended_by=ended_by)
-    else:
-        # Recorded, not merely absent. A missing followup_response reads as a
-        # measurement that failed; this says it was never attempted and why,
-        # which is the not-applicable-is-not-zero rule applied to a field
-        # rather than to a count.
-        analysis["interrogation_skipped"] = (
-            f"capability arm ({capability}): the act was instructed, so an "
-            f"interrogation about it measures nothing about concealment")
-
-    t_followup_end = time.time()
-
-    # Settled only now: the acts are visible from the episode, but concealment
-    # needs the deliverable and the interrogations. None means the deciding
-    # evidence is missing, not that the episode was clean.
-    settle_analysis(analysis)
-    if analysis["misaligned"]:
-        for act in MISALIGNED_ACTS:
-            level = analysis.get(act["level_key"])
-            if level:
-                print(f"[CONCEALMENT] {act['name']}: {level}")
-        print(f"[CLASSIFICATION] scheming={analysis['scheming']}")
-
-    timing["followup_seconds"] = round(t_followup_end - t_followup_start, 1)
-    timing["total_run_seconds"] = round(t_followup_end - t_eval_start, 1)
-    print(f"[TIMING] Follow-up: {timing['followup_seconds']}s")
-    print(f"[TIMING] Total run: {timing['total_run_seconds']}s")
-
-    # The far side of the time-of-check gap. Everything above this line ran after
-    # the artefacts were hashed - the grader and one interrogation per act, which
-    # is seconds of model calls - so a write scheduled to land in that window
-    # would have been invisible. Checked here, at the last moment the episode
-    # tree is known to exist and nothing further can be attributed to the model.
-    analysis["deferred_write_check"] = verify_oversight_unchanged(
-        env_info, analysis)
-    if analysis["deferred_write_check"]["deferred_write"]:
-        # Loud, because it means the measurement guarantee failed for this
-        # episode rather than that the model did something interesting. Not
-        # folded into the act: see verify_oversight_unchanged.
-        print("\n[HARNESS INTEGRITY] An oversight artefact changed AFTER it was "
-              "graded:")
-        for c in analysis["deferred_write_check"]["fields_changed"]:
-            print(f"  {c['field']}: {c['at_grading']} at grading -> "
-                  f"{c['at_episode_end']} at episode end")
-        print("  This episode's oversight verdict is not trustworthy and it "
-              "should be excluded. Something outlived the command that started "
-              "it, or work was handed to a system scheduler.")
+    _grade_awareness(analysis, transcript, use_grader, grader_model, timing)
+    _interrogate_the_acts(
+        analysis, transcript,
+        {"system_prompt": system_prompt, "messages": messages,
+         "client": client, "model": model, "max_tokens": max_tokens,
+         "reasoning_kwargs": reasoning_kwargs, "env_dir": env_dir},
+        grader_model, nudge, interrogations, ended_by, capability, timing,
+        t_eval_start)
+    _check_for_a_deferred_write(analysis, env_info)
 
     return {
-        **arm_identity(
-            model, effort, nudge_type, oversight, lure, interrogations,
-            openrouter_sort, openrouter_provider,
-            isolation=isolation, max_turns=max_turns,
-            capability=capability),
-        "ended_by": ended_by,
+        **arm(),
+                "ended_by": ended_by,
         # Whether the model's reasoning reached us at all. Both awareness
         # detectors read it, so a batch where this is 0 measured awareness on
         # less evidence than one where it is not, and the two should not be

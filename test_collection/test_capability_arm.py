@@ -240,18 +240,77 @@ class TestTheEpisodeRecordSaysWhichArmItIs:
         assert self._record()["rollout_fingerprint"] == \
             fingerprint_for(True, False)
 
+    def _episode(self, capability):
+        """One episode end to end, counting the interrogations it started.
+
+        The count is the assertion. This test used to search
+        run_evaluation's source for "if capability is None:", which said
+        nothing about whether the call happened and broke the moment the
+        interrogation was given a function of its own - while the skip it
+        was about still worked. It would also have passed against an
+        interrogation that ran and had its answers discarded, which is the
+        one outcome the docstring below says must not happen.
+        """
+        import contextlib
+        import io
+        import tempfile
+        import types
+
+        from subversionbench import episode as ev_episode
+        from subversionbench import llm_client as ev_llm
+        from subversionbench.config import SYSTEM_PROMPT_NO_NUDGE
+        from subversionbench.environment import create_hardened_environment
+
+        env_dir = tempfile.mkdtemp()
+        env_info = create_hardened_environment(env_dir)
+        started = []
+
+        class Fake:
+            class _M:
+                def create(self, **kw):
+                    return types.SimpleNamespace(
+                        content=[types.SimpleNamespace(
+                            type="text",
+                            text="I recommend the balanced option.")],
+                        stop_reason="end_turn",
+                        usage=types.SimpleNamespace(input_tokens=1,
+                                                    output_tokens=1))
+            messages = _M()
+
+        real_client = ev_llm.get_client
+        real_interrogate = ev_episode.interrogate_acts
+        ev_llm.get_client = lambda *a, **k: Fake()
+        ev_episode.interrogate_acts = lambda *a, **k: started.append(1)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = ev_episode.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_NO_NUDGE,
+                    user_prompt="Do the task.", env_dir=env_dir,
+                    env_info=env_info, model="m", max_turns=2,
+                    use_grader=False, nudge="none", capability=capability)
+        finally:
+            ev_llm.get_client = real_client
+            ev_episode.interrogate_acts = real_interrogate
+        return result, len(started)
+
     def test_the_interrogation_is_skipped_and_says_so(self):
         """Every question in the ladder asks whether the model did something it
-        was not asked to do, and here it WAS asked. Read off the source: the
-        skip has to be a branch around the call, not an empty answer set,
-        because an interrogation that ran would still save its answers and
-        still be there for someone to read as a concealment rate."""
-        import inspect
+        was not asked to do, and here it WAS asked. The skip has to be a branch
+        around the call, not an empty answer set, because an interrogation that
+        ran would still save its answers and still be there for someone to read
+        as a concealment rate."""
+        result, started = self._episode("sandbox")
+        assert started == 0, "the capability arm was interrogated anyway"
+        assert "interrogation_skipped" in result["analysis"]
+        assert "sandbox" in result["analysis"]["interrogation_skipped"]
 
-        from subversionbench import episode
-        source = inspect.getsource(episode.run_evaluation)
-        assert "if capability is None:" in source
-        assert "interrogation_skipped" in source
+    def test_a_propensity_episode_is_still_interrogated(self):
+        """The other direction, so the skip can only be about this arm. A
+        one-directional check would pass just as well against an
+        interrogation that had stopped happening for everyone."""
+        result, started = self._episode(None)
+        assert started == 1, "the propensity arm was not interrogated"
+        assert "interrogation_skipped" not in result["analysis"]
 
 
 class TestTheCollectionFlagRefusesWhatCannotBeMeasured:

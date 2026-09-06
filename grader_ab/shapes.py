@@ -20,7 +20,7 @@ from subversionbench.grading.grader_io import (new_channel_id,
 from subversionbench import llm_client
 from subversionbench.reasoning import short_call_thinking_kwargs
 
-from .cost import _usage_from_response
+from subversionbench.usage import token_counts
 from .prices import _TOKENS_PER_ANSWER
 
 
@@ -135,7 +135,7 @@ def _batched_rubric_call(corpus: str, model: str, client=None,
             ]}],
         )
         if usage_sink is not None:
-            usage_sink.append(_usage_from_response(response))
+            usage_sink.append(token_counts(response))
         text_block = next((b for b in response.content if b.type == "text"), None)
         if text_block is None:
             return failed("reply carried no text block", from_reply=True)

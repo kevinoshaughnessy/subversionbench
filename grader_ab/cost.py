@@ -21,25 +21,6 @@ PRICES_PER_MTOK = {
 }
 
 
-def _usage_from_response(response) -> dict:
-    """Real token counts off one response: cache read/written/uncached input,
-    and OUTPUT.
-
-    Output is the number this experiment exists to stop guessing at. A model
-    that cannot disable thinking (claude-fable-5) bills its reasoning as part
-    of output_tokens on Anthropic's own API - there is no separate field for
-    it - so capturing this one number is the actual measurement, not the price
-    table above, which only turns it into dollars.
-    """
-    usage = getattr(response, "usage", None)
-    return {
-        "read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
-        "written": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
-        "uncached": int(getattr(usage, "input_tokens", 0) or 0),
-        "output": int(getattr(usage, "output_tokens", 0) or 0),
-    }
-
-
 def usage_cost_usd(usage: dict, model: str) -> float | None:
     """Dollars for one call's usage record, or None when the model has no
     entry in PRICES_PER_MTOK.

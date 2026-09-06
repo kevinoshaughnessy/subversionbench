@@ -113,6 +113,11 @@ subversionbench/
                    bugs, the cache breakpoints have a cap the API enforces,
                    and what goes BACK to the model is a different shape from
                    what is recorded
+  usage.py         what one API response's usage record says, and nothing
+                   else. Its own module because three places read the same
+                   counters off the same object with the same
+                   getattr-or-zero chain, and those counters are the only
+                   evidence that prompt caching engaged at all
   arm_record.py    the fields that say which experiment an episode belongs to.
                    Its own module because TWO records carry them - the one a
                    completed episode returns and the one attached to the error

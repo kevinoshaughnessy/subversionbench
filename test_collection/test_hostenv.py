@@ -26,6 +26,7 @@ import platform
 
 from subversionbench import hostenv
 from subversionbench.arm_record import arm_identity
+from subversionbench.config import DEFAULT_INTERROGATION
 from subversionbench.isolation import DEFAULT_ISOLATION, active_mechanism
 
 
@@ -123,19 +124,85 @@ class TestTheEpisodeRecordCarriesTheScaffold:
         record = self._record(max_turns=40)
         assert record["toolchain"]["platform"] == platform.system()
 
+    ARM = {"model": "m", "nudge": "strong", "lure": True, "max_turns": 2,
+           "use_grader": False}
+
+    def _two_episode_records(self) -> tuple:
+        """The record a completed episode returns, and the one a died one raises.
+
+        Both from the same arm, so the two are directly comparable. This test
+        counted "**arm_identity(" in episode.py's source until the identity's
+        eleven arguments were bound once and both call sites became "**arm()",
+        at which point it failed while the property held better than before.
+        And a count of call sites was never the property anyway: two calls to
+        one function with DIFFERENT arguments produce exactly the drift the
+        function exists to prevent, and would have counted as two.
+        """
+        import contextlib
+        import io
+        import tempfile
+        import types
+
+        import subversionbench.llm_client as ev_llm
+        from subversionbench.environment import create_hardened_environment
+        from subversionbench.episode import EpisodeAPIError, run_evaluation
+        from subversionbench.config import SYSTEM_PROMPT_STRONG_NUDGE
+
+        def episode(client):
+            env_dir = tempfile.mkdtemp()
+            env_info = create_hardened_environment(env_dir)
+            real = ev_llm.get_client
+            ev_llm.get_client = lambda *a, **k: client
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    return run_evaluation(
+                        system_prompt=SYSTEM_PROMPT_STRONG_NUDGE,
+                        user_prompt="Do it.", env_dir=env_dir,
+                        env_info=env_info, **self.ARM)
+            finally:
+                ev_llm.get_client = real
+
+        class Answers:
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    return types.SimpleNamespace(
+                        content=[types.SimpleNamespace(
+                            type="text", text="I recommend the balanced one.")],
+                        stop_reason="end_turn",
+                        usage=types.SimpleNamespace(input_tokens=1,
+                                                    output_tokens=1))
+
+        class Dies:
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    raise RuntimeError("429 rate limited")
+
+        complete = episode(Answers())
+        try:
+            episode(Dies())
+        except EpisodeAPIError as died:
+            return complete, died.partial
+        raise AssertionError("the failing client did not fail the episode")
+
     def test_both_episode_records_are_built_from_this_one_function(self):
         """The drift these fields would otherwise repeat: arm_identity exists
         because the completed and failed records each carried their own copy of
-        these keys and the copies diverged. Read off the source rather than
-        asserted about one record, so a third record added later cannot quietly
-        assemble its own."""
-        import inspect
-
-        from subversionbench import episode
-        source = inspect.getsource(episode)
-        assert source.count("**arm_identity(") == 2, (
-            "a record is being assembled without arm_identity, which is how "
-            "isolation went missing from the failed record before")
+        these keys and the copies diverged - `isolation` was on one and not the
+        other. Asserted against the function's own output rather than against
+        each other, so a third record added later cannot quietly assemble its
+        own, and so a field wrong in the SAME way on both is still caught."""
+        complete, partial = self._two_episode_records()
+        expected = arm_identity(
+            "m", None, "strong", True, True, (DEFAULT_INTERROGATION,),
+            None, None, max_turns=2)
+        assert expected, "the identity is empty - nothing below is being checked"
+        wrong = [key for key, value in expected.items()
+                 if (complete.get(key), partial.get(key)) != (value, value)]
+        assert not wrong, (
+            f"{wrong} differ from arm_identity on one record or the other, "
+            f"which is how isolation went missing from the failed one before")
 
 
 class TestTheProbesCannotHangOnStdin:
