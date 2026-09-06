@@ -329,3 +329,87 @@ class TestTheVersionIsNotCopiedIntoSource:
             f"a release number is written into source at {offenders}. "
             f"VERSION in version.py is the one copy; anything else rots "
             f"silently because nothing executes a docstring.")
+
+
+# ---------------------------------------------------------------------------
+# The file-length ratchet
+# ---------------------------------------------------------------------------
+#
+# AGENTS.md sets 1,000 lines per file and 100 per function, and says to treat
+# them as a ratchet rather than a fact: nothing new may exceed them, and
+# anything already over may only get smaller. For the file limit there is now
+# nothing over, so the ratchet is a plain rule with no exemptions - which is the
+# strongest form it can take and the reason it is written as one here.
+#
+# The FUNCTION limit is a separate matter and deliberately not asserted below.
+# Forty-five functions exceed it, the largest being summary_document at 336
+# lines and run_batch at 324, and both are on the deferred list in AGENTS.md.
+# A rule declared as absolute while forty-five things violate it is one that
+# gets switched off the first time it is inconvenient.
+
+MAX_FILE_LINES = 1000
+
+
+def _too_long(paths) -> list:
+    """`path:lines` for every file over the limit, longest first."""
+    counts = [(len((PROJECT_ROOT / rel).read_text(encoding="utf-8").splitlines()),
+               str(rel)) for rel in paths]
+    return [f"{name}: {n} lines" for n, name in sorted(counts, reverse=True)
+            if n > MAX_FILE_LINES]
+
+
+class TestNoFileIsOverTheLimit:
+    """1,000 lines, source and suite alike.
+
+    WHY THIS IS CHECKED RATHER THAN REMEMBERED. Twenty files were over when
+    this was written, six of them source, and nothing said so: the limit lived
+    in AGENTS.md, which is read by whoever thinks to read it. Two of the twenty
+    were files created ALREADY over - a rule with no check is a rule a new file
+    can be born violating.
+
+    Scope comes from conftest, so a file added later inherits the rule instead
+    of escaping it, and there is no baseline to add an entry to. The suite is
+    held to the same number as the source: a three-thousand-line test file costs
+    a reader the same thing, and thirteen of the twenty were tests.
+    """
+
+    def test_no_source_file_is_over_the_limit(self):
+        files = source_python_files()
+        assert files, "no source files - the guard would pass vacuously"
+        assert not _too_long(files), (
+            f"over {MAX_FILE_LINES} lines. AGENTS.md's limit is a ratchet: "
+            f"split on a division the file already has - a section banner, or "
+            f"a group of functions with one relationship to the rest:\n  "
+            + "\n  ".join(_too_long(files)))
+
+    def test_no_suite_file_is_over_the_limit(self):
+        files = suite_python_files()
+        assert files, "no suite files - the guard would pass vacuously"
+        assert not _too_long(files), (
+            f"over {MAX_FILE_LINES} lines:\n  " + "\n  ".join(_too_long(files)))
+
+    def test_the_check_fires_on_a_file_that_is_over(self):
+        """The half that stops an empty result reading as a clean repository.
+
+        Every file satisfies the rule today, so both checks above find nothing -
+        which is the same answer a broken scan gives. Measured against a real
+        file of a known length rather than a synthetic string, because what the
+        check reads is a path.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory(dir=PROJECT_ROOT) as tmp:
+            long_file = Path(tmp) / "far_too_long.py"
+            long_file.write_text("x = 1\n" * (MAX_FILE_LINES + 1),
+                                 encoding="utf-8")
+            found = _too_long([long_file.relative_to(PROJECT_ROOT)])
+        assert len(found) == 1, found
+        assert f"{MAX_FILE_LINES + 1} lines" in found[0]
+
+    def test_the_check_passes_a_file_exactly_at_the_limit(self):
+        """Two-directional on the boundary: the limit is what a file may BE,
+        not what it must stay under."""
+        import tempfile
+        with tempfile.TemporaryDirectory(dir=PROJECT_ROOT) as tmp:
+            at_limit = Path(tmp) / "exactly_at_the_limit.py"
+            at_limit.write_text("x = 1\n" * MAX_FILE_LINES, encoding="utf-8")
+            assert _too_long([at_limit.relative_to(PROJECT_ROOT)]) == []

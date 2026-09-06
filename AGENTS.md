@@ -128,17 +128,29 @@ functions.
 **Files stay under 1000 lines, functions under 100.** For anything new these
 are limits, not targets.
 
-They are not yet true of everything here, and the honest version of the rule
-says so: at the time of writing 13 files and 44 functions exceed them, the
-largest being `run_eval.py:main` at 471 lines. So treat the numbers as a
-ratchet rather than a fact - nothing new may exceed them, and anything already
-over may only get smaller. A rule declared as absolute while dozens of things
-violate it is one that gets switched off the first time it is inconvenient,
-which is the same reasoning that set the ruff rule set in `pyproject.toml`.
+THE FILE LIMIT IS NOW A PLAIN RULE, checked by
+`TestNoFileIsOverTheLimit` in `test_project/test_project_files.py` over source
+and suite alike. Nothing is over it, so there is no baseline and no exemption
+to add an entry to. It is checked rather than remembered because twenty files
+were over when the check was written and nothing said so - two of them created
+already over, which is what a rule with no check allows.
 
-Splitting for the sake of the number is not the point either. `episode.py` and
-`summary.py` are large because the work is; the case for dividing them is that
-their long functions carry section banners, not that the files are long.
+THE FUNCTION LIMIT IS STILL A RATCHET, and the honest version of the rule says
+so: forty-five functions exceed it, the largest being
+`reporting/summary.py:summary_document` at 336 lines and `runner.py:run_batch`
+at 324. Nothing new may exceed it, and anything already over may only get
+smaller. A rule declared as absolute while dozens of things violate it is one
+that gets switched off the first time it is inconvenient, which is the same
+reasoning that set the ruff rule set in `pyproject.toml`.
+
+Splitting for the sake of the number is not the point either. The six source
+files that were over came apart along divisions they already carried - eighteen
+section banners between `power.py` and `report_charts.py`, two of them stale -
+and that is the test to apply: a file is ready to divide when its own comments
+have already divided it, or when a group of its functions has one relationship
+to the rest that the others do not share. `episode.py` came apart on the second
+of those: four different relationships to an API call, only one of which makes
+one.
 
 ## How work is expected to be checked
 
