@@ -686,3 +686,164 @@ class TestWhichBackendActuallyAnswered:
         self._set_completion(client, self._completion(provider="Fireworks"))
         assert self._create(client).provider == "Fireworks", (
             "the response's provider was overwritten by the requested one")
+
+
+class TestAToolCallLeakedAsPlainText:
+    """Some backends emit a model's native tool-call tokens as CONTENT
+    instead of populating the structured `tool_calls` field - seen with
+    DeepSeek R1, which was not trained with clean function-calling support.
+
+    The recovery has to happen, because the alternative is an episode that
+    ends early: the harness sees a turn with text and no tool call, concludes
+    the model is done, and records it as having taken no action on a turn
+    where it asked to run a command. tool_parsing.py is tested on its own;
+    what is asserted here is that create() actually routes through it and
+    turns the result into blocks.
+    """
+
+    def setup_method(self, method):
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+    def _client(self):
+        from unittest.mock import MagicMock
+        import os
+        from subversionbench.openrouter_client import OpenRouterClient
+        os.environ.setdefault("OPENROUTER_API_KEY", "dummy")
+        client = OpenRouterClient()
+        client._client = MagicMock()
+        return client
+
+    def _reply(self, client, content, tool_calls=None, provider=None):
+        from unittest.mock import MagicMock
+        message = MagicMock()
+        message.content = content
+        message.tool_calls = tool_calls
+        message.reasoning = None
+        message.reasoning_details = None
+        choice = MagicMock()
+        choice.message = message
+        choice.finish_reason = "stop"
+        completion = MagicMock()
+        completion.choices = [choice]
+        completion.provider = provider
+        raw = MagicMock()
+        raw.parse.return_value = completion
+        client._client.chat.completions.with_raw_response.create.return_value = raw
+
+    def _raw_text(self, name="bash", args='{"cmd": "ls -la"}'):
+        """The token syntax those backends emit.
+
+        Assembled from the module's own start marker rather than restated.
+        The tokens are built from two full-width characters that are easy to
+        mistype and impossible to tell apart from their ASCII lookalikes in
+        a diff - and a fixture that failed to match would leave every test
+        below passing against a recovery path that never ran.
+        """
+        from subversionbench.tool_parsing import _RAW_TOOL_CALL_START
+        bar, low = _RAW_TOOL_CALL_START[1], _RAW_TOOL_CALL_START[6]
+
+        def token(*parts):
+            return "<" + bar + low.join(parts) + bar + ">"
+
+        return (_RAW_TOOL_CALL_START
+                + token("tool", "call", "begin") + "function"
+                + token("tool", "sep") + f"{name}\n```json\n{args}\n```"
+                + token("tool", "call", "end")
+                + token("tool", "calls", "end"))
+
+    def _create(self, client):
+        return client.create(
+            model="deepseek/deepseek-r1", max_tokens=4096,
+            tools=[{"name": "bash", "description": "d",
+                    "input_schema": {"type": "object"}}],
+            messages=[{"role": "user", "content": "hi"}])
+
+    def test_the_leaked_call_becomes_a_real_tool_use_block(self):
+        client = self._client()
+        self._reply(client, self._raw_text())
+        blocks = self._create(client).content
+        assert [b.type for b in blocks] == ["tool_use"]
+        assert blocks[0].name == "bash"
+        assert blocks[0].input == {"cmd": "ls -la"}
+
+    def test_the_recovered_call_is_given_an_id_the_loop_can_match(self):
+        """The tool result is matched back to its call by id, so a recovered
+        call with none would break the pairing on the next turn."""
+        client = self._client()
+        self._reply(client, self._raw_text())
+        block = self._create(client).content[0]
+        assert block.id and isinstance(block.id, str)
+
+    def test_two_leaked_calls_both_survive(self):
+        client = self._client()
+        self._reply(client, self._raw_text() + self._raw_text(args='{"cmd": "id"}'))
+        blocks = self._create(client).content
+        assert [b.type for b in blocks] == ["tool_use", "tool_use"]
+        assert [b.input["cmd"] for b in blocks] == ["ls -la", "id"]
+
+    def test_text_written_before_the_call_is_kept_and_kept_first(self):
+        """That text is the model's own reasoning about what it is about to
+        do, and the graders read it. Dropping it would remove evidence from
+        the transcript; putting it after the call would misreport the order
+        in which the model said and did things."""
+        client = self._client()
+        self._reply(client, "Let me look at the directory.\n" + self._raw_text())
+        blocks = self._create(client).content
+        assert [b.type for b in blocks] == ["text", "tool_use"]
+        assert blocks[0].text == "Let me look at the directory."
+
+    def test_whitespace_before_the_call_does_not_become_a_block(self):
+        client = self._client()
+        self._reply(client, "   \n" + self._raw_text())
+        assert [b.type for b in self._create(client).content] == ["tool_use"]
+
+    def test_the_recovered_turn_still_records_which_backend_answered(self):
+        """This path returns EARLY, before the ordinary assembly below it, so
+        every field carried on the response has to be carried here too - and
+        the serving backend is the one a later reader cannot recover from
+        anywhere else."""
+        client = self._client()
+        self._reply(client, self._raw_text(), provider="Fireworks")
+        response = self._create(client)
+        assert [b.type for b in response.content] == ["tool_use"]
+        assert response.provider == "Fireworks"
+        assert response.stop_reason == "stop"
+
+    def test_content_with_no_call_in_it_is_left_alone(self):
+        """The other direction. Ordinary prose must not be routed through the
+        recovery and come back as an empty tool call."""
+        client = self._client()
+        self._reply(client, "I have finished the recommendation.")
+        blocks = self._create(client).content
+        assert [b.type for b in blocks] == ["text"]
+        assert blocks[0].text == "I have finished the recommendation."
+
+    def test_a_structured_call_is_not_second_guessed(self):
+        """The recovery only runs when `tool_calls` is empty. A backend that
+        populated it properly must be taken at its word."""
+        from unittest.mock import MagicMock
+        client = self._client()
+        call = MagicMock()
+        call.id = "call_real"
+        call.function.name = "bash"
+        call.function.arguments = '{"cmd": "pwd"}'
+        self._reply(client, self._raw_text(), tool_calls=[call])
+        blocks = self._create(client).content
+        ids = [b.id for b in blocks if b.type == "tool_use"]
+        assert ids == ["call_real"]
+
+    def test_unparseable_structured_arguments_give_an_empty_input(self):
+        """A model that emits malformed JSON for its arguments is one bad
+        turn, not a failed episode - and the sandbox refuses an empty command
+        on its own terms."""
+        from unittest.mock import MagicMock
+        client = self._client()
+        call = MagicMock()
+        call.id = "call_1"
+        call.function.name = "bash"
+        call.function.arguments = "{not json"
+        self._reply(client, None, tool_calls=[call])
+        blocks = self._create(client).content
+        assert [b.type for b in blocks] == ["tool_use"]
+        assert blocks[0].input == {}

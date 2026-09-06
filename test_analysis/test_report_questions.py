@@ -595,3 +595,177 @@ class TestInterrogationPhrasingQuestions:
         assert eps[0]["variant_concealed"] == {}
         q = rr.question_evidence_vs_concealment(eps)
         assert all(c["overall"]["n_pairs"] == 0 for c in q["contrasts"])
+
+
+class TestTheVariantContrastIsActuallyPrinted:
+    """_print_variant_question, driven with a section dict.
+
+    Only the "no paired data" arm of this printer had ever run, so every
+    line that reports an actual result was unexecuted - which for a printer
+    means the analysis is computed, written to the JSON, and never seen by
+    anyone reading the console. A KeyError here does not corrupt a figure;
+    it ends the report part-way through, after the questions above it have
+    already printed and while the ones below it never do.
+
+    Built from a dict rather than a corpus because that is the function's
+    contract, and because several of these branches - an underpowered
+    contrast, a provenance warning, more than six movers - need a corpus
+    shaped to order rather than a fixture that happens to produce them.
+    """
+
+    def _model_row(self, model, difference=0.1, separated=False, **over):
+        row = {"model": model, "a": {"successes": 5, "n": 10, "rate": 0.5},
+               "b": {"successes": 4, "n": 10, "rate": 0.4},
+               "difference": difference, "p": 0.3, "separated": separated,
+               "holm_rejected": False, "bh_rejected": False}
+        row.update(over)
+        return row
+
+    def _contrast(self, by_model=(), **over):
+        contrast = {
+            "act": "oversight", "variant_a": "zeroevidence",
+            "variant_b": "direct",
+            "overall": {
+                "a": {"successes": 5, "n": 10, "rate": 0.5},
+                "b": {"successes": 3, "n": 10, "rate": 0.3},
+                "difference": 0.2, "difference_ci95": [0.01, 0.39],
+                "exact_p": 0.031, "separated": True, "underpowered": False,
+                "n_pairs": 10, "discordant": {"a_only": 4, "b_only": 1},
+            },
+            "finding": "the phrasing moved the rate",
+            "provenance_warning": None,
+            "by_model": list(by_model),
+            "consistency": {
+                "n_increase": 2, "n_decrease": 1, "n_tied": 0,
+                "n_models_no_data": 1, "n_individually_significant": 1,
+                "multiplicity": {"n_rejected_holm": 1,
+                                 "n_rejected_benjamini_hochberg": 2},
+            },
+        }
+        contrast.update(over)
+        return contrast
+
+    def _section(self, *contrasts):
+        return {"question": "Q9. Does the phrasing move it?",
+                "data_source": "paired episodes",
+                "axis_note": "interrogation variant",
+                "not_pooled_because": "the same episode appears in both arms",
+                "contrasts": list(contrasts)}
+
+    def _printed(self, section):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rr._print_variant_question(section)
+        return buf.getvalue()
+
+    def test_the_result_reaches_the_console_at_all(self):
+        text = self._printed(self._section(self._contrast()))
+        assert "zeroevidence" in text and "direct" in text
+        assert "diff=+20.0%" in text
+        assert "exact McNemar p=0.031" in text
+        assert "SEPARATED" in text
+
+    def test_the_discordant_pairs_are_named_by_the_variant_they_fell_under(self):
+        """The counts are the evidence a McNemar p rests on, and which side
+        each fell on is the direction of the effect. "4 and 1" without the
+        variant names cannot be read."""
+        text = self._printed(self._section(self._contrast()))
+        assert "10 paired act(s)" in text
+        assert "4 only under zeroevidence" in text
+        assert "1 only under direct" in text
+
+    def test_an_underpowered_contrast_says_to_read_the_counts(self):
+        """A rate over a handful of pairs is a count wearing a percent sign,
+        and the difference still prints - so the warning is the only thing
+        stopping it being read as a measurement."""
+        contrast = self._contrast()
+        contrast["overall"]["underpowered"] = True
+        text = self._printed(self._section(contrast))
+        assert "read" in text and "not the rate" in text
+
+    def test_a_well_powered_contrast_carries_no_such_warning(self):
+        assert "not the rate" not in self._printed(
+            self._section(self._contrast()))
+
+    def test_a_provenance_warning_is_shown_where_there_is_one(self):
+        """Two variants scored by different graders is a comparison between
+        scorers as much as between phrasings, and the reader has to be told
+        before they read the difference."""
+        text = self._printed(self._section(self._contrast(
+            provenance_warning="the two variants were scored by different graders")))
+        assert "different graders" in text
+
+    def test_a_contrast_with_no_pairs_says_so_and_prints_no_numbers(self):
+        """NOT-APPLICABLE-IS-NOT-ZERO at the console. No paired episodes
+        means the comparison was never made; printing a 0.0% difference
+        would report it as made and found nothing."""
+        contrast = self._contrast()
+        contrast["overall"] = {"difference": None, "note": "no paired acts"}
+        text = self._printed(self._section(contrast))
+        assert "no paired data" in text and "no paired acts" in text
+        assert "diff=" not in text and "McNemar" not in text
+
+    def test_the_per_model_rows_are_ordered_by_how_far_they_moved(self):
+        """The reader is looking for the models that carry the effect."""
+        text = self._printed(self._section(self._contrast(by_model=[
+            self._model_row("small/mover", difference=0.05),
+            self._model_row("big/mover", difference=-0.40),
+            self._model_row("mid/mover", difference=0.20)])))
+        order = [text.index(m) for m in ("big/mover", "mid/mover", "small/mover")]
+        assert order == sorted(order), text
+
+    def test_a_model_that_did_not_move_is_not_listed_as_one_that_did(self):
+        text = self._printed(self._section(self._contrast(by_model=[
+            self._model_row("moved/it", difference=0.3),
+            self._model_row("tied/it", difference=0.0),
+            self._model_row("nodata/it", difference=None)])))
+        assert "moved/it" in text
+        assert "tied/it" not in text and "nodata/it" not in text
+
+    def test_the_significance_marks_say_which_correction_a_model_survived(self):
+        """Three positions, so "individually significant" and "survives Holm"
+        cannot be confused - the whole point of printing both."""
+        text = self._printed(self._section(self._contrast(by_model=[
+            self._model_row("a/m", difference=0.3, separated=True,
+                            holm_rejected=True, bh_rejected=True),
+            self._model_row("b/m", difference=0.2, separated=True)])))
+        assert "*HB" in text and "*--" in text
+
+    def test_a_long_list_is_truncated_and_says_how_much_it_dropped(self):
+        """Six rows, then a count of what is not shown and where to find it.
+        Silently cutting the tail would hide models that moved."""
+        text = self._printed(self._section(self._contrast(by_model=[
+            self._model_row(f"m{i}/x", difference=0.5 - i / 100)
+            for i in range(9)])))
+        assert "... 3 more model(s) moved; all in the JSON" in text
+        assert "m8/x" not in text
+
+    def test_a_list_of_exactly_six_is_not_truncated(self):
+        """The boundary, since an off-by-one here either hides a row or
+        claims zero more were dropped."""
+        text = self._printed(self._section(self._contrast(by_model=[
+            self._model_row(f"m{i}/x", difference=0.5 - i / 100)
+            for i in range(6)])))
+        assert "more model(s) moved" not in text
+        assert "m5/x" in text
+
+    def test_no_model_moving_at_all_is_stated_rather_than_left_blank(self):
+        """An empty space under a heading reads as a rendering failure. The
+        finding here is that the rephrasing changed nothing anywhere, which
+        is a result and has to be printed as one."""
+        text = self._printed(self._section(self._contrast(by_model=[
+            self._model_row("tied/it", difference=0.0)])))
+        assert "no model moved at all under this rephrasing" in text
+
+    def test_the_consistency_line_carries_every_count_it_promises(self):
+        text = self._printed(self._section(self._contrast()))
+        for fragment in ("increase 2", "decrease 1", "tied 0", "no data 1",
+                         "individually significant 1", "Holm 1", "BH 2"):
+            assert fragment in text, fragment
+
+    def test_the_section_header_says_what_the_numbers_are_and_are_not(self):
+        text = self._printed(self._section(self._contrast()))
+        assert "paired episodes" in text
+        assert "the same episode appears in both arms" in text
