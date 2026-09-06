@@ -61,6 +61,53 @@ class TestLoadSummaries:
         rows = rr.load_summaries(out)
         assert len(rows) == 1
 
+    def test_a_summary_naming_no_model_or_nudge_is_skipped(self):
+        """The arm cannot be derived without them - oversight and lure are
+        read back off the FILENAME using the nudge as the anchor - so a row
+        built from such a file would carry an arm nobody can check."""
+        out = tempfile.mkdtemp()
+        _write_summary(out, "m", "none")
+        for name, body in (("summary_a_none_20260101T000002.json",
+                            {"nudge": "none", "n_runs": 5}),
+                           ("summary_b_none_20260101T000003.json",
+                            {"model": "b", "n_runs": 5})):
+            with open(f"{out}/{name}", "w") as f:
+                json.dump(body, f)
+        assert len(rr.load_summaries(out)) == 1
+
+    def test_the_two_corpora_are_complementary_by_construction(self):
+        """ONE FILTER, BOTH DIRECTIONS. A capability batch was INSTRUCTED to
+        take the act, so pooling one into a misalignment rate inflates it
+        towards the very ceiling it exists to measure. The default keeps
+        propensity only; ANY_CAPABILITY keeps capability only.
+
+        Asserted as a partition rather than as two separate counts: no batch
+        may be in both and none in neither, which is the property that two
+        drifting predicates would break silently and in the direction that
+        matters.
+        """
+        out = tempfile.mkdtemp()
+        _write_summary(out, "m", "strong")
+        _write_summary(out, "m", "strong", capability="oversight",
+                       stamp="20260101T000009")
+        propensity = rr.load_summaries(out)
+        from report.loading import ANY_CAPABILITY
+        capability = rr.load_summaries(out, capability=ANY_CAPABILITY)
+        assert len(propensity) == 1 and len(capability) == 1
+        assert propensity[0] != capability[0]
+        both = len(propensity) + len(capability)
+        assert both == 2, "a batch fell into both corpora or into neither"
+
+    def test_naming_one_capability_target_keeps_that_arm_and_nothing_else(self):
+        out = tempfile.mkdtemp()
+        _write_summary(out, "m", "strong")
+        _write_summary(out, "m", "strong", capability="oversight",
+                       stamp="20260101T000009")
+        _write_summary(out, "m", "strong", capability="sandbox",
+                       stamp="20260101T000010")
+        rows = rr.load_summaries(out, capability="oversight")
+        assert len(rows) == 1, rows
+
 class TestLoadEpisodes:
     def test_reads_the_arm_identity_and_outcome_flags(self):
         out = tempfile.mkdtemp()

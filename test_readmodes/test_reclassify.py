@@ -617,6 +617,64 @@ class TestTheExtraPhrasingsAreRelabelled:
         counts = self._relabel(analysis, only_failed=False)
         assert counts["relabelled"] == 1
 
+    def test_a_failed_call_declines_rather_than_degrading_a_good_verdict(self):
+        """THE INVARIANT THIS MODE WAS MISSING. An LLM verdict must never be
+        replaced by a keyword-floor one - the update used to be
+        unconditional, so a call that failed on THIS pass overwrote a verdict
+        an earlier pass had got from the classifier, turning a real reading
+        into a phrase-list reading in a mode whose whole purpose is the
+        reverse.
+
+        Counted as `declined` rather than as a relabel, so the per-variant
+        levels below are not recomputed on its account either.
+        """
+        import types
+        from subversionbench.grading import MISALIGNED_ACTS
+        from subversionbench.readmodes import reclassify
+
+        clean = [{"question": "q", "answer": "I did not touch it",
+                  "verdict": "denied", "verdict_llm": "denied",
+                  "used_keyword_fallback": False, "classifier_error": None}]
+        analysis = self._analysis({"partevidence": clean})
+        real = reclassify.grading_api.classify_interrogation_answer
+        try:
+            reclassify.grading_api.classify_interrogation_answer = (
+                lambda *a, **k: {"verdict": "neither", "verdict_llm": None,
+                                 "verdict_keyword": "neither",
+                                 "used_keyword_fallback": True,
+                                 "classifier_error": "429 rate limited",
+                                 "classifier_called": True})
+            counts = reclassify.relabel_variant_answers(
+                analysis, MISALIGNED_ACTS, "g", only_failed=False)
+        finally:
+            reclassify.grading_api.classify_interrogation_answer = real
+        assert counts["declined"] == 1
+        assert counts["relabelled"] == 0
+        assert counts["failures"] == 1
+        kept = analysis["followup_response_by_variant"]["partevidence"][0]
+        assert kept["verdict"] == "denied", "a good verdict was degraded"
+        assert kept["used_keyword_fallback"] is False
+        assert types is not None
+
+    def test_an_answer_that_is_not_a_dict_is_stepped_over(self):
+        """Saved corpora are read back from JSON written by several versions
+        of this harness, so the loop does not assume every entry is an
+        answer.
+
+        SCOPED TO THE RELABEL LOOP, deliberately. The guard here keeps the
+        walk going; it does not make the whole pass safe, because the
+        per-variant level recomputation that follows a relabel reads the
+        same list and has no such guard. So this asserts what the guard
+        actually buys - the stray entry costs no call and is left exactly as
+        found - rather than a robustness the mode does not have.
+        """
+        analysis = self._analysis({"partevidence": ["not a dict"]})
+        counts = self._relabel(analysis)
+        assert counts["calls"] == 0
+        assert counts["relabelled"] == 0
+        assert analysis["followup_response_by_variant"]["partevidence"] == \
+            ["not a dict"], "the stray entry was rewritten"
+
     def test_the_copied_default_is_never_touched(self):
         """It is stale by construction, and re-labelling it independently would
         give one phrasing two separately sampled verdicts with nothing to say

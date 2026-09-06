@@ -223,3 +223,27 @@ class TestCrudeVersusStratified:
             {"mantel_haenszel": {"risk_difference": None}}, [])
         assert cv["diverges"] is False
         assert cv["warning"] is None
+
+    def test_some_events_outside_the_strata_are_quantified(self):
+        """Between "all of them" and "none of them" there is a third case,
+        and it is the common one: part of the evidence sits in models the
+        stratified estimate had to drop for having an empty arm.
+
+        The count is what makes the warning actionable - "24 of 30" tells a
+        reader how much of the crude finding survives holding model constant,
+        which neither the crude line nor the stratified line says on its own.
+        """
+        rows = [{"model": "empty_arm", "g": False, "x": 20, "n": 60},
+                {"model": "empty_arm", "g": True, "x": 0, "n": 0},
+                {"model": "both_arms", "g": True, "x": 4, "n": 200},
+                {"model": "both_arms", "g": False, "x": 4, "n": 200},
+                {"model": "clean_b", "g": True, "x": 0, "n": 250},
+                {"model": "clean_b", "g": False, "x": 0, "n": 250}]
+        overall, strat, by_model = self._sections(rows)
+        cv = rr._crude_vs_stratified(overall, strat, by_model)
+        assert cv["diverges"] is True, cv
+        assert cv["n_outcome_events_total"] == 28
+        assert cv["n_outcome_events_outside_strata"] == 20
+        assert "20 of 28 outcome event(s)" in cv["warning"]
+        assert "NO within-model evidence" not in cv["warning"], (
+            "some evidence survives, so the stronger wording is wrong here")

@@ -29,10 +29,13 @@ def _single(report):
 
 def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="20260101T000000",
                    n_runs=10, n_scheming=0, n_misaligned=0, n_aware=0,
-                   n_unaware=0, cross=None, model_slug=None):
+                   n_unaware=0, cross=None, model_slug=None, capability=None):
+    # `capability` reaches the FILENAME, which is where the corpus is recorded
+    # - a summary carries no top-level field for it. A fixture that could not
+    # produce one left the capability half of load_summaries' filter untested.
     ident = BatchIdentity(model=model, model_slug=model_slug or model.replace("/", "_"),
                           nudge=nudge, effort=None, oversight=oversight, lure=lure,
-                          stamp=stamp)
+                          stamp=stamp, capability=capability)
     path = ident.filename(out, prefix="summary")
     d = {
         "model": model, "nudge": nudge, "n_runs": n_runs,
