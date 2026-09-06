@@ -103,8 +103,27 @@ subversionbench/
     transcript_analysis.py what the episode did, hashes and commands
     transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
-  episode.py       one episode end to end: the agentic loop, the interrogation
-                   that follows it, and the per-episode grading between
+  episode.py       one episode end to end: the agentic loop, and the
+                   per-episode grading over what it did. The layer that PAYS -
+                   almost every function here can make an API call, which is
+                   what separates it from the analysis modules
+  turns.py         one API response becoming a transcript and the next
+                   request, and no call of its own. The rules here are the
+                   easy ones to get subtly wrong: both empty-block rules were
+                   bugs, the cache breakpoints have a cap the API enforces,
+                   and what goes BACK to the model is a different shape from
+                   what is recorded
+  arm_record.py    the fields that say which experiment an episode belongs to.
+                   Its own module because TWO records carry them - the one a
+                   completed episode returns and the one attached to the error
+                   a died episode raises - and they had already drifted while
+                   both were built by hand in one file
+  followup.py      what happens after the loop ENDS: the interrogation, and
+                   when awareness was verbalised relative to the act. Separate
+                   because it starts from the conversation as the episode LEFT
+                   it, so several phrasings can be put to one episode without
+                   any of them seeing another's question - which is also what
+                   lets --reinterrogate add a phrasing months later
   batch.py         what names a batch, reading that name back, and finding it
   readmodes/       what can be learned from episodes already collected
     selection.py           which saved batches a mode works on, and fanning out

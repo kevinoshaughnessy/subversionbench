@@ -32,7 +32,7 @@ import re
 
 from subversionbench.batch import (CAPABILITY_TAG, BatchIdentity, batch_stem,
                                    parse_batch_filename)
-from subversionbench.episode import arm_identity
+from subversionbench.arm_record import arm_identity
 from subversionbench.rollout import rollout_fingerprint
 from subversionbench.rollout_pins import (CAPABILITY_FINGERPRINTS,
                                           CAPABILITY_TARGETS,

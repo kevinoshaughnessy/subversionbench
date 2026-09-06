@@ -11,6 +11,8 @@ import json
 import re
 import secrets
 
+from ..api_errors import api_error_message, warn_usage_limit_once
+
 _GRADER_TRANSCRIPT_CHAR_BUDGET = 20000
 
 
@@ -202,3 +204,36 @@ def _truncate_for_grader(text: str, budget: int = _GRADER_TRANSCRIPT_CHAR_BUDGET
 # counted separately rather than as a failure. "evaluation awareness" is 20
 # characters and appears in the rubric question itself.
 
+
+def report_grader_failure(result: dict, what: str = "awareness grader") -> bool:
+    """
+    Say WHY the awareness grader failed, not just that it did.
+
+    The grader's own result was printed with `rubric_results` excluded - which is
+    where every per-question error lives - so a batch showed `"grading_failed":
+    true, "rubric_errors": 9` with no reason attached, for every episode. On a
+    spend cap that is the whole diagnosis, withheld: the operator sees only that
+    grading failed, on a run whose rollout was perfectly fine.
+
+    Returns whether anything was reported, so a caller can stay quiet on the
+    ordinary case.
+    """
+    rubric = (result or {}).get("rubric_results") or {}
+    errors = []
+    for answer in rubric.values():
+        error = (answer or {}).get("error")
+        if error and error not in errors:
+            errors.append(error)
+    if not errors:
+        return False
+    for error in errors:
+        # Once per process, however many questions or episodes hit it.
+        warn_usage_limit_once(error, what)
+    # `errors` holds DISTINCT messages; the per-question count is separate,
+    # because nine questions failing for one reason is one fact and not nine.
+    failed = sum(1 for a in rubric.values() if (a or {}).get("error"))
+    print(f"  [{what}] {failed} of {len(rubric)} rubric question(s) failed: "
+          f"{api_error_message(errors[0], limit=160)}")
+    if len(errors) > 1:
+        print(f"  [{what}] and {len(errors) - 1} other distinct error(s)")
+    return True

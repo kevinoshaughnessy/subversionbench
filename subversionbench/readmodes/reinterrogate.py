@@ -19,7 +19,7 @@ import os
 from .. import llm_client as llm_api
 from ..blocks import reconstruct_messages
 from ..config import DEFAULT_INTERROGATION, INTERROGATION_CHOICES
-from ..episode import run_followup
+from ..followup import run_followup
 from ..grading import MISALIGNED_ACTS, questions_for, settle_analysis
 from ..llm_client import resolve_thinking_kwargs
 from ..reasoning import same_reasoning_config

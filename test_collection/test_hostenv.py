@@ -25,7 +25,7 @@ import os
 import platform
 
 from subversionbench import hostenv
-from subversionbench.episode import arm_identity
+from subversionbench.arm_record import arm_identity
 from subversionbench.isolation import DEFAULT_ISOLATION, active_mechanism
 
 

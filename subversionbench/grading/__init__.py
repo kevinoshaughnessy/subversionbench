@@ -66,7 +66,8 @@ from .grader import (
 # From the leaf itself, not through grader.py. contamination_check.py reads the
 # parser off the package surface, and routing that through the module grader_io
 # was extracted to decouple from is what the leaf test now forbids.
-from .grader_io import _parse_first_json, _truncate_for_grader
+from .grader_io import (_parse_first_json, _truncate_for_grader,
+                        report_grader_failure)
 from .interrogation import (
     classify_answer,
     classify_answer_llm,

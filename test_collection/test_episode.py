@@ -894,7 +894,7 @@ class TestWhyTheGraderFailedIsSaidOutLoud:
     def _report(self, result):
         import contextlib
         import io
-        from subversionbench.episode import report_grader_failure
+        from subversionbench.grading.grader_io import report_grader_failure
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             reported = report_grader_failure(result)
@@ -958,8 +958,8 @@ class TestTheClassifierLineNamesTheCause:
         "You have " - the operator saw a truncated 400 and reasonably read it as
         a harness fault."""
         import inspect
-        from subversionbench import episode as ep
-        src = inspect.getsource(ep.run_followup)
+        from subversionbench import followup
+        src = inspect.getsource(followup.run_followup)
         assert "api_error_message(error" in src
         assert "warn_usage_limit_once(error" in src
         assert "str(labelled['classifier_error'])[:100]" not in src
@@ -989,7 +989,7 @@ class TestBothEpisodeRecordsCarryTheSameArm:
                 "isolation", "max_turns", "toolchain", "capability")
 
     def _built(self, **kw):
-        from subversionbench.episode import arm_identity
+        from subversionbench.arm_record import arm_identity
         args = {"model": "m", "effort": None, "nudge": "strong", "oversight": True,
                     "lure": False, "interrogations": ("zeroevidence",),
                     "openrouter_sort": None, "openrouter_provider": None}
@@ -1384,7 +1384,7 @@ class TestReasoningTheProviderWithheldIsRecordedAsWithheld:
         transcript = []
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            from subversionbench.episode import record_turn_blocks
+            from subversionbench.turns import record_turn_blocks
             _calls, chars = record_turn_blocks(
                 blocks, 0, transcript, lambda s: s)
         return transcript, chars, buf.getvalue()

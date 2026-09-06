@@ -15,7 +15,7 @@ import json
 import os
 
 from ..batch import BatchIdentity, parse_batch_filename
-from ..episode import add_awareness_timing
+from ..followup import add_awareness_timing
 from ..grading import (detect_strategy_recommendation, recheck_quote_grounding,
                        settle_analysis)
 from ..redaction import redact_paths

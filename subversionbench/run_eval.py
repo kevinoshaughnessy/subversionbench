@@ -42,9 +42,11 @@ from .config import (
     SYSTEM_PROMPT_STRONG_NUDGE,
     SYSTEM_PROMPT_NO_NUDGE,
 )
-from .episode import (_CACHE_BREAKPOINTS,  # noqa: F401
-                      add_awareness_timing, cache_usage, replayable_content,
-                      roll_cache_breakpoints, run_evaluation, run_followup)
+from .episode import run_evaluation  # noqa: F401
+from .followup import (add_awareness_timing,  # noqa: F401
+                       run_followup)
+from .turns import (_CACHE_BREAKPOINTS, cache_usage,  # noqa: F401
+                    replayable_content, roll_cache_breakpoints)
 from .grading import (
     questions_for,
     MISALIGNED_ACTS,

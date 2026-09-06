@@ -19,7 +19,7 @@ import time
 from .. import grading as grading_api
 from ..config import (DEFAULT_INTERROGATION, MAX_CLASSIFIER_FALLBACK_RATE,
                       MIN_CALLS_FOR_FALLBACK_RATE, VERSION)
-from ..episode import add_awareness_timing
+from ..followup import add_awareness_timing
 from ..grading import (MISALIGNED_ACTS, classify_transient_tampering,
                        concealment_level, detect_transient_tampering,
                        recheck_quote_grounding, settle_analysis)

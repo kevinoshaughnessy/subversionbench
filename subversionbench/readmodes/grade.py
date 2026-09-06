@@ -19,7 +19,7 @@ import time
 from .. import grading as grading_api
 from ..config import CANARY, VERSION
 from ..batch import unique_batch_stamp
-from ..episode import add_awareness_timing
+from ..followup import add_awareness_timing
 from ..grading import MISALIGNED_ACTS
 from ..power import wilson_ci
 from ..redaction import redact_paths
