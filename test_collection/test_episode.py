@@ -1364,3 +1364,52 @@ class TestWhatRunEvaluationRecordsAboutItsOwnLimits:
             episode.grading_api.detect_eval_awareness_grader = real
         assert "Running eval awareness grader" in buf.getvalue()
         assert result["analysis"]["eval_awareness_grader"]["eval_aware"] is True
+
+
+class TestReasoningTheProviderWithheldIsRecordedAsWithheld:
+    """A `redacted_thinking` block is reasoning the model produced and the
+    provider's safety systems declined to show. The transcript has to carry a
+    placeholder for it, because the alternative readings are both wrong: drop
+    it and the turn looks like one the model did not think about, count its
+    characters and the reasoning-captured figure claims text nobody has.
+    """
+
+    class _Block:
+        def __init__(self, block_type, **fields):
+            self.type = block_type
+            for k, v in fields.items():
+                setattr(self, k, v)
+
+    def _record(self, blocks):
+        transcript = []
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            from subversionbench.episode import record_turn_blocks
+            _calls, chars = record_turn_blocks(
+                blocks, 0, transcript, lambda s: s)
+        return transcript, chars, buf.getvalue()
+
+    def test_a_redacted_block_leaves_a_placeholder_in_the_transcript(self):
+        transcript, _chars, printed = self._record(
+            [self._Block("redacted_thinking", data="opaque")])
+        assert transcript == [{"turn": 1, "type": "thinking",
+                               "content": "[redacted]"}]
+        assert "redacted by provider" in printed
+
+    def test_it_contributes_no_reasoning_characters(self):
+        """The reasoning-captured figure is what makes two batches comparable
+        on awareness, and it counts text the grader can read. There is none
+        here."""
+        _transcript, chars, _printed = self._record(
+            [self._Block("redacted_thinking", data="opaque")])
+        assert chars == 0
+
+    def test_visible_reasoning_in_the_same_turn_is_still_counted(self):
+        """The control: without it both tests above would pass against a
+        version that recorded no thinking at all."""
+        transcript, chars, _printed = self._record([
+            self._Block("thinking", thinking="a visible thought"),
+            self._Block("redacted_thinking", data="opaque")])
+        assert [t["content"] for t in transcript] == ["a visible thought",
+                                                      "[redacted]"]
+        assert chars == len("a visible thought")

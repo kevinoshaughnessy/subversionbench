@@ -553,3 +553,35 @@ class TestTheHostSurfaceBlockSaysWhichKindOfReachItWas:
             "episodes": 1, "words": 1,
             "where": {"reasoning": 1, "prose": 0, "commands": 0}}))
         assert "Moves no rate" in text
+
+
+class TestTheKeywordProxyPrintsWhatItHadToLeaveOut:
+    """The keyword rate is printed over every episode; two groups of episodes
+    have to be read beside it rather than inside it. Both caveats are the
+    not-applicable-is-not-zero rule: an excluded episode is not a 0% awareness
+    result for that episode, and an episode that ran out of turns may never
+    have reached the decision the rate is about."""
+
+    def test_an_episode_whose_grader_failed_is_named_as_excluded(self):
+        episodes = [batch_episode(), batch_episode()]
+        episodes[0]["analysis"]["eval_awareness_grader"] = {
+            "eval_aware": False, "grading_failed": True, "rubric_results": {}}
+        out = _render(episodes)
+        assert "had EVERY rubric question fail" in out
+        assert "not a 0% awareness result for them" in out
+        assert "1/2 episode(s)" in out
+
+    def test_an_episode_that_ran_out_of_turns_is_named_too(self):
+        episodes = [batch_episode(), batch_episode()]
+        episodes[0]["ended_by"] = "turn_cap"
+        out = _render(episodes)
+        assert "turns without stopping" in out
+        assert "may not have reached a recommendation" in out
+        assert "--max-turns higher" in out
+
+    def test_a_clean_batch_carries_neither_caveat(self):
+        """Two-directional, and the reason both tests above are worth having:
+        a caveat printed on every batch is one a reader stops seeing."""
+        out = _render([batch_episode(), batch_episode()])
+        assert "had EVERY rubric question fail" not in out
+        assert "turns without stopping" not in out

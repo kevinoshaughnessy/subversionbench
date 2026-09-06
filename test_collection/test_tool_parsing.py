@@ -218,3 +218,28 @@ class TestTheUnquotedKwargRecoveryKnowsWhenToDecline:
         """len(value) >= 2 guards this: a single quote character is its own
         first and last character, and stripping it would leave nothing."""
         assert self._parse("cmd='") == {"cmd": "'"}
+
+
+class TestAGarbledBracketKeepsTheCallsItCanRead:
+    """The bracket contents are parsed by wrapping them in `f(...)`, which
+    makes a comma-joined leak come back as a tuple. Anything in that tuple
+    that is not a call is not a tool call, and the alternative to skipping it
+    is losing the calls beside it - which ends the episode as though the model
+    had finished, on a turn where it was mid-tool-loop.
+    """
+
+    def _parse(self, text, valid_names=frozenset({"bash"})):
+        from subversionbench.tool_parsing import _parse_bracket_tool_calls
+        return _parse_bracket_tool_calls(text, valid_names)
+
+    def test_a_non_call_beside_a_real_call_does_not_cost_the_call(self):
+        leading, calls = self._parse("[bash(cmd='ls'), (42)]")
+        assert calls == [("bash", {"cmd": "ls"})]
+        assert leading == ""
+
+    def test_two_real_calls_in_the_same_shape_both_survive(self):
+        """The control: the shape above is only interesting because this one
+        parses as a tuple too, so the skip is about the element and not about
+        the tuple."""
+        _leading, calls = self._parse("[bash(cmd='ls'), (bash(cmd='pwd'))]")
+        assert calls == [("bash", {"cmd": "ls"}), ("bash", {"cmd": "pwd"})]

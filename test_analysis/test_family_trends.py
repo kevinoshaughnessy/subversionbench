@@ -2543,3 +2543,69 @@ class TestTheReleaseChartsDrawNothingRatherThanAnEmptyCalendar:
             plt, report, ["#4c72b0"],
             (date(2025, 1, 1), date(2026, 1, 1)), path) is None
         assert not os.path.exists(path)
+
+
+class TestACorpusWithNoFamilyIsReportedTwoDifferentWays:
+    """Both are "no families found", and they mean opposite things about the
+    run. A summary-only corpus genuinely cannot answer an episode-derived
+    metric, so `--metric all` must keep going and exit zero; a corpus whose
+    models simply share no family is a real empty result and exits one. One
+    message for both would tell an operator to go looking for run files that
+    were never needed."""
+
+    def _run(self, out, *extra):
+        import contextlib
+        import io
+        import sys
+        argv = sys.argv
+        sys.argv = ["family_trends.py", "--output-dir", out, "--no-charts",
+                    *extra]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as buf:
+                code = ft.main()
+        finally:
+            sys.argv = argv
+        return code, buf.getvalue()
+
+    def _a_summary_only_metric(self):
+        """A metric this corpus's summaries can answer, taken from METRICS
+        rather than named, so one added later is covered by these tests."""
+        return next(m for m, spec in ft.METRICS.items()
+                    if not spec.get("from_episodes"))
+
+    def _an_episode_derived_metric(self):
+        return next(m for m, spec in ft.METRICS.items()
+                    if spec.get("from_episodes"))
+
+    def test_models_that_share_no_family_are_an_empty_result(self):
+        with tempfile.TemporaryDirectory() as out:
+            for model in ("alpha/one-1", "beta/two-1", "gamma/three-1"):
+                _write_summary(out, model, "strong", n_runs=10,
+                               n_misaligned=2, n_scheming=1)
+            code, text = self._run(out, "--metric", self._a_summary_only_metric())
+        assert code == 1, text
+        assert "No family with two or more members" in text
+        assert "Skipping" not in text
+
+    def test_a_summary_only_corpus_skips_an_episode_metric_without_failing(self):
+        with tempfile.TemporaryDirectory() as out:
+            for model, misaligned in (("p/fall-1", 8), ("p/fall-2", 5)):
+                _write_summary(out, model, "strong", n_runs=10,
+                               n_misaligned=misaligned, n_scheming=1)
+            code, text = self._run(out, "--metric",
+                                   self._an_episode_derived_metric())
+        assert code == 0, text
+        assert "holds no run files" in text
+        assert "No family with two or more members" not in text
+
+    def test_a_real_family_reports_rather_than_taking_either_branch(self):
+        """The control for both."""
+        with tempfile.TemporaryDirectory() as out:
+            for model, misaligned in (("p/fall-1", 8), ("p/fall-2", 5)):
+                _write_summary(out, model, "strong", n_runs=10,
+                               n_misaligned=misaligned, n_scheming=1)
+            code, text = self._run(out, "--metric",
+                                   self._a_summary_only_metric())
+        assert code == 0, text
+        assert "No family with two or more members" not in text
+        assert "Skipping" not in text

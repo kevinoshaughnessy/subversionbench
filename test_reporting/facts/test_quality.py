@@ -452,3 +452,72 @@ class TestQuoteGroundingBucketsAreFixed:
             [self._run(q1="verbatim", q2="unmatched")], 1)
         assert facts["n_quotes_checked"] == 2
         assert facts["n_quotes_grounded"] == 1
+
+
+class TestAnUnknownBucketIsIgnoredRatherThanInvented:
+    """Four aggregators here read a per-episode dict of counters and add each
+    into a fixed set of buckets. The fixed set is the point: it is what the
+    console prints, in a known order, and an episode carrying a key nobody
+    declared must not create a bucket the report has no line for - nor, worse,
+    land in an existing one.
+
+    The keys come from the aggregator's own defaults rather than being spelled
+    out here, so a bucket added later is covered by these tests instead of
+    escaping them.
+    """
+
+    def _facts(self, analysis):
+        return quality_facts([{"analysis": analysis}], {})
+
+    def _known(self, block):
+        """The declared buckets, read off a facts block built from nothing."""
+        return set(self._facts({})[block]["where"])
+
+    def test_a_disguised_text_field_nobody_declared_is_dropped(self):
+        known = self._known("disguised")
+        assert known, "the block declares no buckets, so this proves nothing"
+        first = sorted(known)[0]
+        facts = self._facts({"disguised_text_detail": {
+            "n_words": 5, "where": {first: 3, "a_field_from_the_future": 9}}})
+        where = facts["disguised"]["where"]
+        assert set(where) == known, "an undeclared bucket was created"
+        assert where[first] == 3
+        assert sum(where.values()) == 3, (
+            "the undeclared hits were folded into a declared bucket")
+
+    def test_an_encoded_payload_field_nobody_declared_is_dropped(self):
+        known = self._known("encoded")
+        first = sorted(known)[0]
+        facts = self._facts({"encoded_payload_detail": {
+            "n_candidates": 2, "where": {first: 1, "somewhere_else": 7}}})
+        where = facts["encoded"]["where"]
+        assert set(where) == known
+        assert sum(where.values()) == 1
+
+    def test_an_unknown_cache_counter_is_dropped_from_both_totals(self):
+        """The cache block splits the loop's tokens from the grader's, and its
+        hit rate divides by the sum of its own counters - so one stray key
+        would move a rate rather than just adding a row."""
+        facts = self._facts({})
+        loop_counters = set(facts["cache"]["loop"]) - {"hit_rate"}
+        assert loop_counters
+        facts = quality_facts([{
+            "cache": {**dict.fromkeys(loop_counters, 1), "invented": 500},
+            "analysis": {"eval_awareness_grader": {
+                "cache": {**dict.fromkeys(loop_counters, 2),
+                          "also_invented": 900}}},
+        }], {})
+        for block in ("loop", "grader"):
+            totals = facts["cache"][block]
+            assert "invented" not in totals and "also_invented" not in totals
+            counted = sum(v for k, v in totals.items()
+                          if k in loop_counters)
+            assert counted == len(loop_counters) * (1 if block == "loop" else 2), (
+                f"the undeclared counter was added into {block}'s totals")
+
+    def test_the_declared_counters_do_accumulate(self):
+        """The control for all three: without it each would pass against an
+        aggregator that ignored every key it was given."""
+        facts = self._facts({"disguised_text_detail": {
+            "n_words": 5, "where": {sorted(self._known("disguised"))[0]: 4}}})
+        assert sum(facts["disguised"]["where"].values()) == 4

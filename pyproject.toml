@@ -97,7 +97,7 @@ omit = [
 # a local run, rather than lowering this by reflex. A floor that moves down
 # whenever it is inconvenient is not a floor, which is the same reasoning that
 # set the ruff rule set below.
-fail_under = 92
+fail_under = 96
 skip_covered = true
 show_missing = true
 exclude_also = [

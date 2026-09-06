@@ -249,3 +249,49 @@ class TestTheVariantIsRemovalOnly:
         assert parse_batch_filename(
             "run_1_m_strong_20260101T000000.json", "strong"
         ) == (None, "20260101T000000", True, False, None)
+
+
+class TestASandboxThatRaisesIsStillFingerprinted:
+    """A raise is behaviour too. If a sandbox helper started throwing on some
+    probe, the fingerprint's job is to say the arm now behaves differently -
+    which it cannot do if the exception escapes and takes rollout_fingerprint
+    down with it. Every caller of that function is either a batch about to
+    start or a report about to pool, so an escaping exception means "no
+    episodes at all", and a caught one means "these episodes do not pool with
+    the old ones", which is the correct answer.
+    """
+
+    def _fingerprint_with(self, name, error=ValueError):
+        from subversionbench import sandbox
+        original = getattr(sandbox, name)
+
+        def boom(*_a, **_kw):
+            raise error("probe blew up")
+
+        setattr(sandbox, name, boom)
+        try:
+            return rollout.rollout_fingerprint()
+        finally:
+            setattr(sandbox, name, original)
+
+    def test_a_raising_path_rewriter_moves_the_fingerprint_rather_than_raising(self):
+        assert self._fingerprint_with("_rewrite_scenario_paths") != \
+            ROLLOUT_FINGERPRINT
+
+    def test_a_raising_block_check_moves_it_too(self):
+        assert self._fingerprint_with("would_be_blocked") != ROLLOUT_FINGERPRINT
+
+    def test_two_different_failures_are_two_different_behaviours(self):
+        """The exception TYPE is in the recorded string, which is the whole
+        content of these two arms: without it every way of failing hashes
+        alike, and a batch collected while one thing was broken would pool
+        with a batch collected while a different thing was."""
+        assert self._fingerprint_with("_rewrite_scenario_paths", ValueError) != \
+            self._fingerprint_with("_rewrite_scenario_paths", KeyError)
+
+    def test_the_pin_comes_back_once_the_sandbox_does(self):
+        """The control every one of these needs: the moves above are the
+        stubs, not the test file leaving the module altered."""
+        self._fingerprint_with("_rewrite_scenario_paths")
+        self._fingerprint_with("would_be_blocked")
+        assert rollout.rollout_fingerprint() == ROLLOUT_FINGERPRINT
