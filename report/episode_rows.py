@@ -430,6 +430,13 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
         # borrowed from whatever the rest of the directory carries, which would
         # assert a cap for a batch that may have run under another.
         "max_turns": _max_turns(path, d, scaffold),
+        # WHAT THE PROVIDER SAID ENDED THE LAST TURN, which is what separates
+        # a model that stopped without acting from one truncated at max_tokens
+        # or refused by the provider's filter. `ended_by` cannot: it reads
+        # "model_stopped" for all three. None on everything collected before
+        # the field existed - "not recorded", never "ended normally".
+        "ended_by_provider": d.get("ended_by_provider"),
+        "ended_by": d.get("ended_by"),
         "aware": aware, "aware_source": aware_source,
         # Secondary: aware if EITHER screen says so - see above. Carried
         # beside the primary rather than replacing it, because the

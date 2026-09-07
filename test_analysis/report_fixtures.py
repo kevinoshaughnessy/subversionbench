@@ -58,7 +58,8 @@ def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="2026010
 def _write_episode(out, n, model, nudge, oversight=True, lure=False,
                    stamp="20260101T000000", sort=None, provider=None,
                    transcript=None, served_by=None, served_by_changed=False,
-                   max_turns=None, **episode_kwargs):
+                   max_turns=None, ended_by=None,
+                   ended_by_provider=None, **episode_kwargs):
     # normalise_analyses first, exactly as a collected episode has already been
     # through: the sandbox act key (`out_of_scope_attempts`) is DERIVED there,
     # not set by batch_episode, and a fixture without it is not the shape any
@@ -98,7 +99,13 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
                   # every episode in both published corpora lacks this key,
                   # and that is the case the summary join exists to cover.
                   **({"max_turns": max_turns} if max_turns is not None
-                     else {})}, f)
+                     else {}),
+                  # Both omitted when None, because that is the shape of every
+                  # episode in both published corpora - and "not recorded" is
+                  # the case the truncation check has to stay silent on.
+                  **({"ended_by": ended_by} if ended_by is not None else {}),
+                  **({"ended_by_provider": ended_by_provider}
+                     if ended_by_provider is not None else {})}, f)
     return path
 
 

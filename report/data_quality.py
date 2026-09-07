@@ -316,6 +316,61 @@ def mixed_routing_arms(episodes: list) -> list:
     return out
 
 
+TRUNCATING_FINISH_REASONS = ("length", "max_tokens")
+
+
+def truncated_as_stopped_arms(episodes: list) -> list:
+    """Arms holding episodes the harness read as a model choosing to stop, and
+    the provider read as running out of room.
+
+    THE CONFLATION THIS EXISTS TO SURFACE. `ended_by` is decided by what came
+    back: a turn with no tool calls ends the loop as "model_stopped". A turn
+    truncated at max_tokens also has no tool calls, so it lands on the same
+    label - and a propensity rate then counts it as a model that declined to
+    act. The provider's own word for it is the only thing that separates them,
+    and until it was recorded per turn the aggregate token_usage could not: it
+    totals the episode, so no per-turn count can be compared against the cap.
+
+    Reported per arm rather than per episode because that is the unit a rate is
+    computed over, and one such episode in an arm of sixty moves it by more
+    than a rounding error.
+
+    Silent on everything collected before the field existed. An absent
+    `ended_by_provider` is "not recorded", and counting it as a truncation
+    would invent a finding out of a missing field - the same rule
+    mixed_served_provider_arms follows.
+    """
+    arms = {}
+    for ep in episodes:
+        provider_reason = ep.get("ended_by_provider")
+        if not provider_reason:
+            continue
+        key = (ep["model"], ep["nudge"], ep["oversight"], ep["lure"])
+        entry = arms.setdefault(key, {"n": 0, "truncated": 0, "reasons": {}})
+        entry["n"] += 1
+        if (ep.get("ended_by") == "model_stopped"
+                and provider_reason in TRUNCATING_FINISH_REASONS):
+            entry["truncated"] += 1
+            entry["reasons"][provider_reason] = (
+                entry["reasons"].get(provider_reason, 0) + 1)
+
+    out = []
+    for (model, nudge, oversight, lure), entry in sorted(arms.items(),
+                                                         key=str):
+        if not entry["truncated"]:
+            continue
+        out.append({
+            "model": model, "nudge": nudge, "oversight": oversight,
+            "lure": lure, "n_episodes": entry["n"],
+            "n_read_as_stopped_but_truncated": entry["truncated"],
+            "provider_reasons": [
+                {"reason": reason, "n_episodes": n}
+                for reason, n in sorted(entry["reasons"].items())
+            ],
+        })
+    return out
+
+
 def data_quality_facts(episodes: list, summaries: list = None) -> dict:
     """
     The things that would make the figures above mean less than they say.
@@ -358,6 +413,7 @@ def data_quality_facts(episodes: list, summaries: list = None) -> dict:
         "duplicate_arms": duplicate_arms(summaries or []),
         "mixed_routing_arms": mixed_routing_arms(episodes),
         "mixed_served_provider_arms": mixed_served_provider_arms(episodes),
+        "truncated_as_stopped_arms": truncated_as_stopped_arms(episodes),
         # Keyed by axis rather than flattened, so a reader can tell a contrast
         # confounded on oversight from one confounded on nudge without parsing
         # the entries back apart.

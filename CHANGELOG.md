@@ -10,6 +10,64 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v154
+
+Package version `154.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE PROVIDER'S OWN REASON FOR ENDING EACH TURN IS NOW RECORDED.
+
+`ended_by` is this harness's account of why the LOOP stopped, and it is decided
+by what came back: a turn with no tool calls ends it as `model_stopped`. Three
+different events produce a turn with no tool calls - the model choosing to
+stop, the turn being truncated at `max_tokens`, and the provider's own filter
+refusing - and all three were recorded as the same thing. A propensity rate
+then counts a truncated episode as a model that declined to act, which is the
+measure this benchmark exists to report.
+
+The provider says which it was, in `finish_reason` on the OpenAI-shaped routes
+and `stop_reason` natively. The harness already read it - it reached a local
+variable, fed control flow, and appeared in one warning string - and then threw
+it away. Nothing persisted it, and it is not recoverable from what was saved:
+`token_usage` is an episode-level aggregate, so with a single cap across up to
+forty turns no per-turn count survives to compare against it.
+
+This is the same lesson the interrogation path paid for once already. Empty
+answers there were unexplainable after the fact until `stop_reason` was
+recorded beside them - see `response_meta` in `followup.py`. This is that fix
+applied to the turn loop, where it bears on a published rate rather than on a
+diagnostic.
+
+Recorded per turn, on the same terms as `served_by` and `reasoning_details`
+beside it: only turns that reported one, so an empty list means the field never
+arrived rather than that every turn ended alike. `_finish_reason_block` derives
+the other two fields from that list and feeds BOTH the completed record and the
+one a died episode raises, which is the drift `arm_record.py` and
+`_served_by_block` exist to stop - and a plant confirms adding it to one record
+only is caught. `ended_by_provider` is the LAST turn's reason, because that is
+the turn that ended the episode and so the one that disambiguates `ended_by`.
+
+READ, NOT MERELY RECORDED. `served_by_providers` was recorded for several
+versions with nothing downstream reading it, so a rate could pool episodes
+answered by different backends with nothing saying so - the comment in
+`episode_rows.py` still says as much. Rather than repeat that, the field
+reaches the episode row and `truncated_as_stopped_arms` in
+`report/data_quality.py` reports the arms where the harness read `model_stopped`
+and the provider said the turn ran out of room. Per arm, because that is the
+unit a rate is computed over. It prints beside the routing checks rather than
+living only in the JSON, since a silent data-quality fact is the failure mode
+that module names.
+
+Silent on everything collected before the field existed: an absent
+`ended_by_provider` is "not recorded", never a truncation. Both halves are
+planted - the check flagging every episode that merely carries the field, and
+the check inventing a finding from a missing one.
+
+The r10 report gains exactly one printed line, the new check's zero count, and
+exactly one JSON key holding an empty list. No pre-existing data-quality value
+moves and nothing outside `data_quality` changes at all, which is what must
+happen on a corpus that predates the field.
+
 ## v153
 
 Package version `153.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

@@ -830,6 +830,22 @@ def _print_data_quality(dq: dict) -> None:
               "wherever nothing was pinned. An episode that changed backend "
               "mid-run is not attributable to one at all. Pin with "
               "--openrouter-provider to make this reproducible.")
+    truncated = dq.get("truncated_as_stopped_arms") or []
+    print(f"  arms holding episodes read as stopped but truncated: "
+          f"{len(truncated)}")
+    for m in truncated:
+        split = ", ".join(f"{r['reason']} x{r['n_episodes']}"
+                          for r in m["provider_reasons"])
+        print(f"    ! {m['model']} nudge={m['nudge']} "
+              f"oversight={m['oversight']} lure={m['lure']}: "
+              f"{m['n_read_as_stopped_but_truncated']}/{m['n_episodes']} "
+              f"({split})")
+    if truncated:
+        print("      These ended the loop as \"model_stopped\" - no tool "
+              "call came back - while the provider said the turn ran out of "
+              "room. A propensity rate counts them as a model that declined "
+              "to act. Raise --max-tokens and re-collect the arm, or quote it "
+              "knowing what it contains.")
     across = dq.get("routing_differs_across_contrast") or {}
     n_across = sum(len(v) for v in across.values())
     print(f"  models whose two sides of a contrast were routed differently: "

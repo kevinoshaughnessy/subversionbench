@@ -154,6 +154,17 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
         if served_by:
             state["served_by"].append({"turn": turn + 1, "provider": served_by})
 
+        # Appended on the same terms as the two above: only turns that
+        # reported one, so an empty list means the field never arrived rather
+        # than that every turn ended the same way. Read here rather than in the
+        # no-content branch below, which is where it used to be looked at - a
+        # turn that returned content perfectly well can still have been cut
+        # off, and that is the case the branch below never saw.
+        finish_reason = getattr(response, "stop_reason", None)
+        if finish_reason:
+            state["finish_reasons"].append({"turn": turn + 1,
+                                            "reason": finish_reason})
+
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
         # conversation; see replayable_content.
@@ -324,6 +335,30 @@ def _served_by_block(served_by: list) -> dict:
     }
 
 
+def _finish_reason_block(finish_reasons: list) -> dict:
+    """What the provider said about how each turn ended, per turn and pooled.
+
+    `ended_by_provider` is the LAST turn's reason, because that is the turn
+    that ended the episode and so the one that disambiguates `ended_by`. An
+    episode whose `ended_by` is "model_stopped" and whose `ended_by_provider`
+    is "length" was cut off at max_tokens rather than having declined to act -
+    which is a different observation about the same model, and the one a
+    propensity rate must not silently count as the first.
+
+    ITS OWN FUNCTION for the reason _served_by_block above is: two records have
+    to carry the same field group, and the failed one has already been caught
+    once lacking a group that was assembled key by key beside the completed
+    one.
+    """
+    reasons = {entry["reason"] for entry in finish_reasons}
+    return {
+        "finish_reasons": finish_reasons,
+        "finish_reasons_seen": sorted(reasons),
+        "ended_by_provider": (finish_reasons[-1]["reason"]
+                              if finish_reasons else None),
+    }
+
+
 def _new_loop_state() -> dict:
     """
     Everything the agentic loop accumulates, declared in one place.
@@ -354,6 +389,20 @@ def _new_loop_state() -> dict:
         # shape and same reason as reasoning_details above: kept per turn
         # because the router can fall back mid-episode.
         "served_by": [],
+        # WHY THE PROVIDER SAID EACH TURN ENDED, in its own word for it.
+        # `ended_by` is this harness's account of why the LOOP stopped and is
+        # decided by what came back - no tool calls means "model_stopped" - so
+        # it cannot separate a model that chose to stop from one truncated at
+        # max_tokens or refused by the provider's own filter. All three
+        # arrived here as "model_stopped", and the aggregate token_usage
+        # cannot tell them apart either: it totals the episode, so no per-turn
+        # count can be compared against the cap.
+        #
+        # The same ambiguity was already paid for once on the interrogation
+        # path, where 42 empty answers were unexplainable after the fact until
+        # `stop_reason` was recorded beside them - see followup.py's
+        # response_meta. This is that fix applied to the turn loop.
+        "finish_reasons": [],
     }
 
 
@@ -573,6 +622,7 @@ def run_evaluation(
             # a died episode is exactly when someone asks whether the spend
             # was cached.
             **_served_by_block(state["served_by"]),
+            **_finish_reason_block(state["finish_reasons"]),
             "cache": state["cache"],
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
@@ -625,6 +675,7 @@ def run_evaluation(
         # awareness measures read the difference. See _reasoning_detail_summary.
         "reasoning_details": reasoning_details,
         **_served_by_block(served_by),
+        **_finish_reason_block(state["finish_reasons"]),
         "token_usage": token_totals,
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": cache_totals,

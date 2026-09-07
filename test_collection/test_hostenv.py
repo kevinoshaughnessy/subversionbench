@@ -134,7 +134,7 @@ class TestTheEpisodeRecordCarriesTheScaffold:
     ARM = {"model": "m", "nudge": "strong", "lure": True, "max_turns": 2,
            "use_grader": False}
 
-    def _two_episode_records(self) -> tuple:
+    def _two_episode_records(self, stop_reason="end_turn") -> tuple:
         """The record a completed episode returns, and the one a died one raises.
 
         Both from the same arm, so the two are directly comparable. This test
@@ -173,7 +173,12 @@ class TestTheEpisodeRecordCarriesTheScaffold:
             """One reply, from a named backend.
 
             `provider` is what episode.py reads off the response to build
-            `served_by`. The stub returned none, so both records came back with
+            `served_by`, and `stop_reason` what it reads to build
+            `finish_reasons`. The latter is a parameter with the normal value
+            as its default, so the callers that do not care are unaffected and
+            the one case that needs a response WITHOUT it - a route that never
+            sends the field - can ask for it. The stub returned no provider, so
+            both records came back with
             an empty served-by block - and a hand-rolled block asserting
             "no providers, nothing changed" was indistinguishable from the
             right answer. A fixture that cannot tell them apart is a fixture
@@ -182,7 +187,7 @@ class TestTheEpisodeRecordCarriesTheScaffold:
             return types.SimpleNamespace(
                 content=[types.SimpleNamespace(
                     type="text", text="I recommend the balanced one.")],
-                stop_reason="end_turn", provider=provider,
+                stop_reason=stop_reason, provider=provider,
                 usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
 
         class Answers:
@@ -367,3 +372,82 @@ class TestTheProbesCannotHangOnStdin:
             f"a stdin-reading probe took {elapsed:.1f}s against a "
             f"{hostenv._PROBE_TIMEOUT}s timeout - stdin is still inherited")
         assert got is None or isinstance(got, str)
+
+
+def _finish_keys(record: dict) -> dict:
+    return {k: record[k] for k in
+            ("finish_reasons", "finish_reasons_seen", "ended_by_provider")
+            if k in record}
+
+
+class TestWhatTheProviderSaidEndedEachTurn:
+    """`ended_by` is this harness's account of why the LOOP stopped; these are
+    the provider's account of each turn.
+
+    They are not the same fact and neither derives from the other. A turn
+    truncated at max_tokens returns no tool call, so the loop ends it as
+    "model_stopped" - the same label a model that chose to stop gets. The
+    aggregate token_usage cannot separate them either: it totals the episode,
+    so no per-turn count survives to compare against the cap.
+
+    The two records come from TestTheEpisodeRecordCarriesTheScaffold's helper
+    rather than a second stub client - it already builds a completed record and
+    the record a died episode raises from one arm, which is the same pair the
+    served-by block beside this is checked against. Called on an instance
+    rather than inherited, because subclassing would re-run that class's whole
+    suite under this name.
+    """
+
+    def _records(self):
+        return TestTheEpisodeRecordCarriesTheScaffold()._two_episode_records()
+
+    def test_the_last_turns_reason_is_the_one_that_ended_the_episode(self):
+        """`ended_by_provider` is the disambiguator, so it has to name the turn
+        that actually ended the run - not the first, and not a pooled value."""
+        block = episode_mod._finish_reason_block(
+            [{"turn": 1, "reason": "tool_calls"},
+             {"turn": 2, "reason": "length"}])
+        assert block == {
+            "finish_reasons": [{"turn": 1, "reason": "tool_calls"},
+                               {"turn": 2, "reason": "length"}],
+            "finish_reasons_seen": ["length", "tool_calls"],
+            "ended_by_provider": "length",
+        }
+
+    def test_no_reasons_reported_reads_as_not_recorded(self):
+        """An empty list means the route never sent the field - not that every
+        turn ended normally. None, so nothing can read it as a verdict."""
+        assert episode_mod._finish_reason_block([]) == {
+            "finish_reasons": [], "finish_reasons_seen": [],
+            "ended_by_provider": None}
+
+    def test_both_records_derive_these_the_same_way(self):
+        """Same rule as the served-by block beside it: one expression feeds the
+        completed record and the record attached to a died episode, so a
+        hand-rolled copy on either side is what this catches."""
+        complete, partial = self._records()
+        for record in (complete, partial):
+            assert (_finish_keys(record)
+                    == _finish_keys(episode_mod._finish_reason_block(
+                        record["finish_reasons"]))), (
+                "a record's finish-reason fields disagree with what the one "
+                "owner produces from its own `finish_reasons`")
+
+    def test_a_route_that_never_sends_one_records_not_recorded(self):
+        """The other direction, through the loop rather than the block alone.
+
+        A response with no `stop_reason` must leave the list EMPTY and
+        `ended_by_provider` None - "the route never sent it" - rather than
+        inventing a reason. Read through a real episode because the append is
+        guarded in the loop, and that guard is the thing being checked."""
+        complete, _partial = TestTheEpisodeRecordCarriesTheScaffold() \
+            ._two_episode_records(stop_reason=None)
+        assert complete["finish_reasons"] == []
+        assert complete["finish_reasons_seen"] == []
+        assert complete["ended_by_provider"] is None
+        # The control: with a reason the same path records one, so the
+        # assertion above is about the absent field and not about the loop
+        # never recording anything.
+        with_reason, _ = TestTheEpisodeRecordCarriesTheScaffold() \
+            ._two_episode_records()
+        assert with_reason["ended_by_provider"] == "end_turn"

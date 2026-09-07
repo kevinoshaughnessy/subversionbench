@@ -670,3 +670,78 @@ class TestAnEpisodeOffTheAxisIsNotOnEitherSideOfIt:
             "oversight")
         assert [f["model"] for f in found] == ["m"]
         assert found[0]["disjoint"] is True
+
+
+class TestATruncatedTurnIsNotReadAsAModelThatStopped:
+    """The conflation `ended_by` cannot resolve on its own.
+
+    A turn with no tool calls ends the loop as "model_stopped" whether the
+    model chose to stop, ran out of room, or was refused by the provider's
+    filter. Only the provider's own word separates them, so this reports the
+    arms where the two disagree - and stays silent where the field was never
+    recorded, which is every episode in both published corpora.
+    """
+
+    def _flagged(self, out):
+        eps = rr.load_episodes(out)
+        return rr.data_quality_facts(eps)["truncated_as_stopped_arms"]
+
+    def test_an_episode_the_provider_truncated_is_flagged(self):
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
+                       ended_by_provider="length")
+        flagged = self._flagged(out)
+        assert len(flagged) == 1, flagged
+        assert flagged[0]["n_read_as_stopped_but_truncated"] == 1
+        assert flagged[0]["provider_reasons"] == [{"reason": "length",
+                                                   "n_episodes": 1}]
+
+    def test_an_episode_the_provider_says_stopped_normally_is_not(self):
+        """The discriminating half. Without it the check passes by flagging
+        every episode that carries the field at all."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
+                       ended_by_provider="stop")
+        assert self._flagged(out) == []
+
+    def test_a_turn_capped_episode_is_not_flagged(self):
+        """`ended_by` already says the loop ran out of turns, so nothing was
+        misread as the model stopping - the label is not in dispute."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="turn_cap",
+                       ended_by_provider="length")
+        assert self._flagged(out) == []
+
+    def test_an_episode_without_the_field_is_silent_not_counted(self):
+        """Every published episode is this shape. Reporting it as a truncation
+        would invent a finding out of a missing field."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped")
+        assert self._flagged(out) == []
+
+    def test_the_count_is_over_the_arm_not_the_flagged_episodes_alone(self):
+        """`n_episodes` is the arm's size, so a reader can see one truncation
+        in sixty as one in sixty rather than as one in one."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
+                       ended_by_provider="length")
+        for i in (2, 3):
+            _write_episode(out, i, "m", "strong", ended_by="model_stopped",
+                           ended_by_provider="stop")
+        flagged = self._flagged(out)
+        assert len(flagged) == 1
+        assert flagged[0]["n_episodes"] == 3
+        assert flagged[0]["n_read_as_stopped_but_truncated"] == 1
+
+    def test_the_finding_reaches_the_printed_report_not_only_the_json(self):
+        """A silent data-quality fact is the failure mode this module names."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
+                       ended_by_provider="length")
+        from report.console import _print_data_quality
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_data_quality(rr.build_report(out)["data_quality"])
+        text = buf.getvalue()
+        assert "read as stopped but truncated" in text, text[-2000:]
+        assert "length" in text
