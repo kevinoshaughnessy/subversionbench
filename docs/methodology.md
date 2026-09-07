@@ -598,15 +598,26 @@ So the honest statement of the subject is:
 > regime, inside this harness's fixed scaffold and toolchain.**
 
 The harness records every qualifier in that sentence per episode, which is what makes it
-checkable rather than a disclaimer — but **the published corpora predate three of the four
-fields**, so the statement is weaker for r9 and r10 than for anything collected now:
+checkable rather than a disclaimer — but **the published corpora predate two of the
+fields that carry it**, so the statement is weaker for r9 and r10 than for anything
+collected now:
 
 | qualifier | recorded as | in r9 / r10 |
 |---|---|---|
 | which model was asked | the arm identity, in the filename and in every record | yes |
 | which reasoning regime applied | `reasoning_config`, plus `reasoning_chars` per turn and `token_usage.reasoning_tokens` where the provider reports it | yes; `reasoning_details` on part of each |
 | which backend answered | `served_by` per turn, with `served_by_providers` and `served_by_changed` across the episode | **no** — added in v129, about an hour after the last r10 episode was stamped |
-| what scaffold ran it | `max_turns`, `isolation`, and the host toolchain in `toolchain` | `isolation` only; the other two added in v131, hours later |
+| what scaffold ran it | `max_turns`, `isolation`, and the host toolchain in `toolchain` | `isolation` on every episode; `max_turns` on every summary document and nowhere else; `toolchain` **not at all** — added in v131, hours after the last episode |
+
+The `max_turns` row is the one qualifier a later pass can repair. The episode records do
+not carry it, but the summary document each batch writes beside them does, and it carries the
+same value on every one of them; the episodes that ended `turn_cap` corroborate it
+independently, because such an episode's turn count IS the cap. So the scaffold's turn limit
+is recoverable for the published corpora by re-analysis, whereas `served_by` and `toolchain`
+are not recoverable at all: the first is a field of the HTTP response and no completion id
+was saved to look it up by, and the second is a live probe of a host that no longer answers
+for the batch it ran. Re-grading cannot help with either, because a re-grade reads the
+transcript, and neither field was ever written into one.
 
 That timing is not a rounding error in the argument, and two consequences follow.
 
