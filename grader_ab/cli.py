@@ -311,10 +311,6 @@ def _print_how_to_read_it(args, results) -> None:
         print(f"  One cell ({next(iter(results))}), nothing to compare it "
               f"against. Add a second --graders or --shapes value, or add "
               f"{REFERENCE[0]!r} for the reference.")
-    if not said_something:
-        print(f"  One cell ({next(iter(results))}), nothing to compare it "
-              f"against. Add a second --graders or --shapes value, or add "
-              f"{REFERENCE[0]!r} for the reference.")
 
 
 def main():

@@ -37,7 +37,9 @@ from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
 from .loading import (act_arm_rows, awareness_arm_rows, load_episodes,
                       load_summaries)
 from .pooling import _crude_vs_stratified, _models
-from .questions_arms import (question_nudge_vs_awareness,
+from .questions_arms import (POOLED_FROM_REBUILT_ARM_ROWS,
+                             POOLED_FROM_SUMMARIES,
+                             question_nudge_vs_awareness,
                              question_oversight_vs_awareness,
                              question_oversight_vs_misalignment,
                              question_oversight_vs_scheming)
@@ -201,11 +203,20 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     on_awareness_reading = awareness_exclusion_stamp["field"] is not None
     act_source = act_rows if on_awareness_reading else summaries
     aware_source = arm_rows if on_awareness_reading else summaries
+    # The LABEL comes off the same conditional as the source, so the two cannot
+    # disagree. They did: `data_source` was a literal beginning "summary
+    # files:" inside each builder, so this reading printed
+    # "Source: summary files: ..." over counts pooled from rebuilt rows, while
+    # `questions_pooled_from` below said "rebuilt_arm_rows" in the same
+    # document. Deriving both from one expression is the fix; passing the
+    # source and describing it separately is what made it possible.
+    pooled_from = (POOLED_FROM_REBUILT_ARM_ROWS if on_awareness_reading
+                   else POOLED_FROM_SUMMARIES)
     questions = [
-        question_oversight_vs_scheming(act_source, act_rows),
-        question_oversight_vs_awareness(aware_source, arm_rows),
-        question_oversight_vs_misalignment(act_source, act_rows),
-        question_nudge_vs_awareness(aware_source, arm_rows),
+        question_oversight_vs_scheming(act_source, act_rows, pooled_from),
+        question_oversight_vs_awareness(aware_source, arm_rows, pooled_from),
+        question_oversight_vs_misalignment(act_source, act_rows, pooled_from),
+        question_nudge_vs_awareness(aware_source, arm_rows, pooled_from),
         question_awareness_vs_misalignment(episodes, summaries),
         question_awareness_vs_monitoring_disabled(episodes),
         question_awareness_vs_sandbox_escape(episodes),

@@ -18,6 +18,7 @@ therefore cannot drift in step with a mistake in the derivation.
 
 import ast
 import subprocess
+import tempfile
 from pathlib import Path
 
 from conftest import (PROJECT_ROOT, is_test_file, project_packages,
@@ -533,3 +534,81 @@ class TestNoTwoModulesDefineTheSameThing:
             assert len(duplicated.get(name, [])) > 1, (
                 f"{name} is in the baseline but the scan does not see it "
                 f"duplicated, so neither direction above is checking anything")
+
+
+def _repeated_statement_runs(relative) -> list:
+    """Lines where a run of statements is immediately followed by its own copy.
+
+    A RUN, not a single statement: the shape this keeps appearing as is two
+    unpacking lines pasted twice, which a scan for adjacent identical
+    statements walks straight past because neither line equals its neighbour.
+    """
+    # Accepts a repo-relative path or an absolute one, so the tests below can
+    # hand it a file in a temp directory to prove the scan can answer both ways.
+    src = Path(PROJECT_ROOT / relative).read_text(encoding="utf-8")
+    found = []
+    for node in ast.walk(ast.parse(src)):
+        body = getattr(node, "body", None)
+        if not isinstance(body, list) or len(body) < 2:
+            continue
+        dumps = [ast.dump(st) for st in body]
+        for k in range(1, len(dumps) // 2 + 1):
+            for i in range(len(dumps) - 2 * k + 1):
+                if dumps[i:i + k] == dumps[i + k:i + 2 * k]:
+                    found.append(body[i + k].lineno)
+    return sorted(set(found))
+
+
+class TestNoStatementRunIsPastedTwice:
+    """Copy-paste residue inside a body, which ruff cannot see.
+
+    Every instance found was dead rather than wrong - a second `return 1` after
+    the first, an assignment recomputing the value it just computed, two tally
+    unpacking lines pasted twice - except one that printed a paragraph of
+    operator advice twice. So the cost is a reader trusting that a line repeated
+    on purpose means something.
+
+    It recurs. Two separate instances were removed from grader_ab/cli.py in
+    consecutive versions, and the guard added with the first one only compared
+    top-level DEFINITIONS, so it could not see either. Whole-repo scope from
+    conftest, and statements rather than definitions, is what covers both.
+
+    Identical AST, so a run that differs by a single argument is not reported -
+    two similar-looking blocks are usually two different jobs.
+    """
+
+    def test_no_body_repeats_a_run_of_statements(self):
+        offenders = []
+        for relative in project_python_files():
+            lines = _repeated_statement_runs(relative)
+            if lines:
+                offenders.append(f"{relative}:{','.join(map(str, lines))}")
+        assert not offenders, (
+            "a run of statements is immediately followed by an identical copy "
+            "of itself. Delete the second one:\n  " + "\n  ".join(offenders))
+
+    def test_the_scan_finds_a_planted_repeat(self):
+        """A scan that always returned nothing would pass the test above with
+        every duplication in place.
+
+        Both shapes, because the single-statement one is the easy case and the
+        two-statement run is the one the first version of this scan missed.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            one = Path(d) / "one.py"
+            one.write_text("def f():\n    x = 1\n    x = 1\n",
+                           encoding="utf-8")
+            assert _repeated_statement_runs(one) == [3]
+
+            run = Path(d) / "run.py"
+            run.write_text("def f(t):\n    a = t[0]\n    b = t[1]\n"
+                           "    a = t[0]\n    b = t[1]\n", encoding="utf-8")
+            assert _repeated_statement_runs(run) == [4]
+
+    def test_the_scan_does_not_simply_say_yes(self):
+        """Two statements that merely look alike are two different jobs."""
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "distinct.py"
+            path.write_text("def f(t):\n    a = t[0]\n    b = t[1]\n",
+                            encoding="utf-8")
+            assert _repeated_statement_runs(path) == []

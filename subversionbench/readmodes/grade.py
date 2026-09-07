@@ -171,7 +171,6 @@ def _report_nothing_was_scored(graded: list) -> int:
     print("\nNo results written - grading produced no verdicts. "
           "Nothing was graded, so this is not a 0% eval-awareness rate.")
     return 1
-    return 1
 
 
 def _regrade_figures(scored: list) -> dict:

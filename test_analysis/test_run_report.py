@@ -703,6 +703,55 @@ class TestTheUnawareCorpusReading:
     shown "0.0% vs 0.0%" has been given a definition dressed as a measurement.
     """
 
+    def test_every_arm_question_says_which_source_it_pooled_from(self):
+        """The printed Source line and `questions_pooled_from` describe the
+        same fact, so they must not be able to disagree.
+
+        They did. Each builder held a `data_source` literal beginning "summary
+        files:", so under this reading the console printed
+        "Source: summary files: n_scheming / n_runs" over counts pooled from
+        rebuilt arm rows, while the same document said
+        `questions_pooled_from: "rebuilt_arm_rows"`. Questions 1 and 3 are the
+        two that survive here, so they are the two a reader actually sees it on.
+
+        Checked on the DOCUMENT rather than on the printed text, because the
+        console prints `section["data_source"]` verbatim - so this is what the
+        report carries, and the print follows from it.
+        """
+        out = _two_arm_dir()
+        full = rr.build_report(out)
+        cut = rr.build_report(out, rr.NO_EXCLUSION, rr.EXCLUDE_AWARE_PRIMARY)
+        arm_questions = ("oversight_vs_scheming", "oversight_vs_awareness",
+                         "oversight_vs_misalignment", "nudge_vs_awareness")
+
+        def source_of(report, qid):
+            return next(q for q in report["questions"]
+                        if q["id"] == qid)["data_source"]
+
+        for qid in arm_questions:
+            assert source_of(full, qid).startswith("summary files"), qid
+            assert "summary files" not in source_of(cut, qid), (
+                f"{qid} still says it pooled from the summary files on the "
+                f"awareness reading, where it pooled from rebuilt arm rows")
+            assert "rebuilt" in source_of(cut, qid), qid
+
+    def test_the_source_line_agrees_with_the_documents_own_stamp(self):
+        """Both descriptions come off one conditional, so assert they agree
+        rather than asserting each separately - two independent assertions
+        would both pass if the pair were computed in two places that drifted."""
+        out = _two_arm_dir()
+        for report in (rr.build_report(out),
+                       rr.build_report(out, rr.NO_EXCLUSION,
+                                       rr.EXCLUDE_AWARE_PRIMARY)):
+            rebuilt = report["questions_pooled_from"] == "rebuilt_arm_rows"
+            for qid in ("oversight_vs_scheming", "oversight_vs_misalignment"):
+                source = next(q for q in report["questions"]
+                              if q["id"] == qid)["data_source"]
+                assert (source.startswith("summary files")) is not rebuilt, (
+                    f"{qid} says {source[:40]!r} while the document says "
+                    f"questions_pooled_from="
+                    f"{report['questions_pooled_from']!r}")
+
     def test_the_arm_questions_stop_pooling_from_the_summaries(self):
         """THE ONE THAT MATTERS. The summaries still describe every episode in
         each arm, so pooling them here would answer questions 1-4 on the full

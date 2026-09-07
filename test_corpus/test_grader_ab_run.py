@@ -442,6 +442,32 @@ class TestTheRunSaysHowToReadItsOwnResult:
             "only one shape was run, so the batching advice is about a "
             "comparison this run did not make")
 
+    def test_the_one_cell_advice_is_printed_once(self):
+        """It was printed twice: the `if not said_something` block appeared
+        verbatim on two consecutive lines, so the single-cell run told the
+        operator the same thing about the same cell in successive paragraphs.
+
+        Counted rather than searched for, because `in` is satisfied by one
+        occurrence and by five.
+        """
+        with tempfile.TemporaryDirectory() as out:
+            self._episodes(out)
+            advice = self._read_out(out, ["--graders", ab.REFERENCE[0],
+                                          "--shapes", "per_question"])
+        assert advice.count("nothing to compare it") == 1, (
+            f"the one-cell advice appears "
+            f"{advice.count('nothing to compare it')} time(s):\n{advice}")
+
+    def test_a_run_that_can_be_compared_does_not_get_the_one_cell_advice(self):
+        """The other direction: the guard above would pass with the whole block
+        deleted, and then a genuinely uncomparable run would say nothing."""
+        with tempfile.TemporaryDirectory() as out:
+            self._episodes(out)
+            advice = self._read_out(out, ["--graders", ab.REFERENCE[0],
+                                          "claude-sonnet-5",
+                                          "--shapes", "per_question"])
+        assert "nothing to compare it" not in advice
+
     def test_both_shapes_together_get_the_batching_read_out(self):
         with tempfile.TemporaryDirectory() as out:
             self._episodes(out)

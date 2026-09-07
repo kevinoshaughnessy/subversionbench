@@ -382,8 +382,6 @@ def _report_repairs(tally: dict, pending: list) -> None:
     """What this pass repaired, what failed, and what it declined to overwrite."""
     classifier_calls, classifier_failures = tally["calls"], tally["failures"]
     relabelled_variants, declined = tally["relabelled"], tally["declined"]
-    classifier_calls, classifier_failures = tally["calls"], tally["failures"]
-    relabelled_variants, declined = tally["relabelled"], tally["declined"]
     if relabelled_variants:
         # Reported separately from the headline count because it is a different
         # repair: these answers had a verdict no classifier ever supplied, and

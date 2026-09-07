@@ -10,6 +10,46 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v148
+
+Package version `148.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+TWO FINDINGS FROM A REVIEW OF v143-v147.
+
+THE SOURCE LINE CONTRADICTED THE DOCUMENT IT WAS PRINTED FROM. Questions 1-4
+read their headline counts out of whichever source `run_report` hands them -
+summary files on the primary reading, arm rows rebuilt from the surviving
+episodes under `--exclude-aware`, because a summary row still counts the aware
+episodes that reading has just removed. Their `data_source` string did not
+follow: it was a literal beginning "summary files:" inside each builder. So on
+the awareness reading the console printed "Source: summary files: n_scheming /
+n_runs" over counts pooled from rebuilt rows, while `questions_pooled_from` in
+the same document said `"rebuilt_arm_rows"`. Questions 1 and 3 are the two that
+survive that reading, so they are the two a reader sees it on.
+
+The label now comes off the same conditional as the source, in `run_report`,
+and is passed to the builders - one expression producing both, rather than a
+source passed one way and described another.
+
+AN ADVICE PARAGRAPH PRINTED TWICE. `grader_ab/cli.py`'s
+`if not said_something:` block appeared verbatim on two consecutive lines, so a
+single-cell run told the operator the same thing about the same cell in
+successive paragraphs.
+
+THREE MORE OF THAT SHAPE, all dead rather than wrong, all removed: a second
+`return 1` after the first in `readmodes/grade.py`, an assignment recomputing
+the value it had just computed in `facts/scheming.py`, and two tally-unpacking
+lines pasted twice in `readmodes/reclassify.py` - the last introduced by v145.
+
+`TestNoStatementRunIsPastedTwice` now checks every file `conftest` yields for a
+run of statements immediately followed by an identical copy. A RUN, not a single
+statement: the reclassify instance was two lines pasted twice, which a scan for
+adjacent identical statements walks straight past because neither line equals
+its neighbour. The v147 guard could see neither, because it compared top-level
+definitions only - and two separate instances have now been removed from
+`grader_ab/cli.py` in consecutive versions.
+
 ## v147
 
 Package version `147.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
