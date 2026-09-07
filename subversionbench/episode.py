@@ -297,6 +297,33 @@ def _announce_episode(model, nudge_type, effort, env_dir, red) -> None:
     print(f"{'='*60}\n")
 
 
+def _served_by_block(served_by: list) -> dict:
+    """
+    Which backend actually answered, per turn and as a set.
+
+    `openrouter_provider` on the arm is the REQUEST; this is the response.
+    `served_by_changed` is the fact a single value cannot carry - the router
+    fell back mid-episode, so this episode's turns did not all come from one
+    backend, and report/data_quality.py's mixed_served_provider_arms is the
+    only check that can see it.
+
+    ITS OWN FUNCTION so both episode records get the same three fields from one
+    expression. The failed record carried none of them: it was assembled key by
+    key beside the completed one, and these three were simply not among the
+    keys it listed. That is the drift arm_record.py was created to stop, one
+    field group further along - and `_new_loop_state` below already says the
+    rule it broke, that "a counter the loop writes and this does not declare is
+    one the failure record silently lacks". Declaring it there is necessary and
+    was not sufficient, because the record still had to read it.
+    """
+    providers = {turn["provider"] for turn in served_by}
+    return {
+        "served_by": served_by,
+        "served_by_providers": sorted(providers),
+        "served_by_changed": len(providers) > 1,
+    }
+
+
 def _new_loop_state() -> dict:
     """
     Everything the agentic loop accumulates, declared in one place.
@@ -540,6 +567,13 @@ def run_evaluation(
             "reasoning_chars": state["reasoning_chars"],
             "reasoning_details": state["reasoning_details"],
             "token_usage": state["token_usage"],
+            # Both of these the completed record carried and this one did not,
+            # while the loop had been writing them right up to the failure.
+            # `cache` is the only evidence prompt caching engaged at all, and
+            # a died episode is exactly when someone asks whether the spend
+            # was cached.
+            **_served_by_block(state["served_by"]),
+            "cache": state["cache"],
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
             "transcript": transcript,
@@ -590,14 +624,7 @@ def run_evaluation(
         # difference between a full trace and a compressed summary - and both
         # awareness measures read the difference. See _reasoning_detail_summary.
         "reasoning_details": reasoning_details,
-        # WHICH BACKEND ACTUALLY ANSWERED, per turn, and the distinct set
-        # across the episode. `openrouter_provider` above is the REQUEST;
-        # this is the response. `served_by_changed` is the fact a single
-        # value could not carry - the router fell back mid-episode, so this
-        # episode's turns did not all come from one backend.
-        "served_by": served_by,
-        "served_by_providers": sorted({t["provider"] for t in served_by}),
-        "served_by_changed": len({t["provider"] for t in served_by}) > 1,
+        **_served_by_block(served_by),
         "token_usage": token_totals,
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": cache_totals,

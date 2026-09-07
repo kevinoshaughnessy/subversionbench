@@ -10,6 +10,45 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v150
+
+Package version `150.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE FAILED EPISODE RECORD DROPPED FOUR FIELDS THE LOOP HAD BEEN WRITING.
+
+`EpisodeAPIError`'s partial record was assembled key by key beside the
+completed one, and `served_by`, `served_by_providers`, `served_by_changed` and
+`cache` were simply not among the keys it listed. Every one of them was on
+`state` at the point of the raise. So a batch killed by a rate limit saved no
+evidence of which backend had been answering it, or whether the prompt cache
+had engaged - and the backend is what `mixed_served_provider_arms` exists to
+check, while the cache counters are the only evidence caching worked at all.
+
+This is the drift `arm_record.py` was created to stop, one field group further
+along. `_new_loop_state` already stated the rule it broke - "a counter the loop
+writes and this does not declare is one the failure record silently lacks" -
+which was necessary and not sufficient, because the record still had to read
+what the state declared.
+
+The three served-by fields now come from one function used by both records, so
+they cannot be assembled differently; that also removed the completed record's
+duplicated provider-set comprehension, which it computed twice inline.
+
+CHECKED AS A WHOLE-RECORD PROPERTY, not field by field. The two records' key
+sets may now differ only on five keys, each with its reason recorded, checked
+in both directions so the list can only shrink: `analysis`, `messages` and
+`timing` on the completed one, `error` and `failed_on_turn` on the failed one.
+The existing test compared the eleven arm-identity fields, which is what
+drifted first; this compares every other key, which is where the second drift
+was.
+
+A FIXTURE THAT COULD NOT TELL RIGHT FROM WRONG. The stubbed client returned no
+`provider`, so both records came back with an empty served-by block and a
+hand-rolled "no providers, nothing changed" was indistinguishable from the
+correct answer - a plant proved the guard passed with the block hand-rolled.
+The succeeding stub now answers from a named backend.
+
 ## v149
 
 Package version `149.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

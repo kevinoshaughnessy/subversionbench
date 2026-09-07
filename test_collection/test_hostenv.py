@@ -24,10 +24,17 @@ import json
 import os
 import platform
 
+from subversionbench import episode as episode_mod
 from subversionbench import hostenv
 from subversionbench.arm_record import arm_identity
 from subversionbench.config import DEFAULT_INTERROGATION
 from subversionbench.isolation import DEFAULT_ISOLATION, active_mechanism
+
+
+def _served_keys(record: dict) -> dict:
+    """Just the three served-by fields, for comparing a record against the
+    owner's output without dragging the other thirty keys in."""
+    return {k: v for k, v in record.items() if k.startswith("served_by")}
 
 
 class TestNothingIdentifyingIsRecorded:
@@ -162,18 +169,41 @@ class TestTheEpisodeRecordCarriesTheScaffold:
             finally:
                 ev_llm.get_client = real
 
+        def answer(provider):
+            """One reply, from a named backend.
+
+            `provider` is what episode.py reads off the response to build
+            `served_by`. The stub returned none, so both records came back with
+            an empty served-by block - and a hand-rolled block asserting
+            "no providers, nothing changed" was indistinguishable from the
+            right answer. A fixture that cannot tell them apart is a fixture
+            that cannot catch the drift this file is about.
+            """
+            return types.SimpleNamespace(
+                content=[types.SimpleNamespace(
+                    type="text", text="I recommend the balanced one.")],
+                stop_reason="end_turn", provider=provider,
+                usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
+
         class Answers:
             class messages:
                 @staticmethod
                 def create(**kw):
-                    return types.SimpleNamespace(
-                        content=[types.SimpleNamespace(
-                            type="text", text="I recommend the balanced one.")],
-                        stop_reason="end_turn",
-                        usage=types.SimpleNamespace(input_tokens=1,
-                                                    output_tokens=1))
+                    return answer("first-backend")
 
         class Dies:
+            """Fails on the first request, so `served_by` is legitimately empty.
+
+            A stub that answered once and then died would give the failed
+            record a backend to have kept, which is the more interesting case -
+            but the loop only makes a second request after executing a tool
+            call, so that fixture needs a real tool_use block through the
+            sandbox. What is checked instead is that the failed record derives
+            the block AT ALL and derives it the same way: the completed record
+            below has a provider, so a hand-rolled "no providers, nothing
+            changed" is wrong there even though it is right here.
+            """
+
             class messages:
                 @staticmethod
                 def create(**kw):
@@ -185,6 +215,102 @@ class TestTheEpisodeRecordCarriesTheScaffold:
         except EpisodeAPIError as died:
             return complete, died.partial
         raise AssertionError("the failing client did not fail the episode")
+
+    # The keys the two records are ALLOWED to differ on, with the reason for
+    # each. Checked in both directions below: nothing outside this map may
+    # differ, and everything in it must still differ - so a field added to one
+    # record and not the other is caught, and a field that later reaches both
+    # tells you to delete its entry rather than sitting here as an exemption.
+    #
+    # It was written after four keys turned out to be missing from the failed
+    # record for no reason at all: `served_by`, `served_by_providers`,
+    # `served_by_changed` and `cache`. The loop had been writing every one of
+    # them right up to the failure.
+    RECORD_DIFFERENCES = {
+        "analysis": "a died episode has no settled act to analyse",
+        "messages": ("deliberate, and episode.py says why: the field exists so "
+                     "a saved episode can be asked another question, and a "
+                     "died one has an incomplete conversation to ask it in"),
+        "timing": ("the completed record's timing carries eval, followup and "
+                   "total seconds; a died episode never reaches the "
+                   "interrogation, so the same key would hold a different "
+                   "shape - which is worse than its absence"),
+        "error": "the failure itself, so only the failed record has it",
+        "failed_on_turn": "same",
+    }
+
+    def test_the_two_records_differ_only_where_they_are_meant_to(self):
+        """THE WHOLE-RECORD VERSION of the test below.
+
+        That one checks the arm identity's own eleven fields, which is what
+        drifted first. This checks every OTHER key, because the second drift
+        was not in the identity: the failed record simply never listed
+        `served_by`, its two derived fields, or `cache`, so a batch that died
+        on a rate limit saved no evidence of which backend had been answering
+        or whether the prompt cache had engaged - both available on `state` at
+        the point of the raise.
+
+        `_new_loop_state` already carried the rule this broke, that "a counter
+        the loop writes and this does not declare is one the failure record
+        silently lacks". Declaring it there was necessary and not sufficient,
+        because the record still had to read it - which is why this is asserted
+        on the records rather than on the state.
+        """
+        complete, partial = self._two_episode_records()
+        differing = set(complete) ^ set(partial)
+        unexplained = sorted(differing - set(self.RECORD_DIFFERENCES))
+        assert not unexplained, (
+            f"these keys are on one episode record and not the other, with no "
+            f"reason recorded: {unexplained}. Either add them to the record "
+            f"that lacks them, or name them in RECORD_DIFFERENCES")
+
+    def test_every_named_difference_is_still_a_difference(self):
+        """The half that makes the list shrink."""
+        complete, partial = self._two_episode_records()
+        differing = set(complete) ^ set(partial)
+        fixed = [key for key in sorted(self.RECORD_DIFFERENCES)
+                 if key not in differing]
+        assert not fixed, (
+            f"these now appear on both records, so remove them from "
+            f"RECORD_DIFFERENCES - a baseline that outlives the difference it "
+            f"records is an exemption: {fixed}")
+
+    def test_the_failed_record_carries_what_the_loop_measured(self):
+        """Behaviourally, not by key presence: a record carrying `served_by: []`
+        and an empty cache would satisfy the key-set checks above while
+        recording nothing.
+
+        The stub client dies on the FIRST request, so there is no served-by
+        entry to find - what must survive is the shape, and the arithmetic that
+        derives the other two fields from it.
+        """
+        complete, partial = self._two_episode_records()
+        # The completed record answered from a named backend, so this is the
+        # side where an empty block would be wrong.
+        assert complete["served_by_providers"] == ["first-backend"]
+        assert complete["served_by"] == [{"turn": 1,
+                                          "provider": "first-backend"}]
+        assert partial["served_by_providers"] == []
+        assert partial["served_by_changed"] is False
+        assert set(partial["cache"]) == {"read", "written", "uncached"}
+
+    def test_both_records_derive_served_by_the_same_way(self):
+        """One expression feeds both, so a hand-rolled second copy on either
+        side is what this catches - the completed record used to compute the
+        provider set twice inline."""
+        block = episode_mod._served_by_block(
+            [{"turn": 1, "provider": "a"}, {"turn": 2, "provider": "b"}])
+        assert block == {"served_by": [{"turn": 1, "provider": "a"},
+                                       {"turn": 2, "provider": "b"}],
+                         "served_by_providers": ["a", "b"],
+                         "served_by_changed": True}
+        complete, partial = self._two_episode_records()
+        for record in (complete, partial):
+            assert (_served_keys(record)
+                    == _served_keys(episode_mod._served_by_block(
+                        record["served_by"]))), (
+                "a record's served-by fields disagree with what the one owner "
+                "produces from its own `served_by`")
 
     def test_both_episode_records_are_built_from_this_one_function(self):
         """The drift these fields would otherwise repeat: arm_identity exists
