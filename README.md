@@ -317,7 +317,10 @@ like one against a good ceiling, and would sit in the same column of the same ta
 
 This is item T.9 of the Agentic Benchmark Checklist in Zhu et al., *Establishing Best
 Practices for Building Rigorous Agentic Benchmarks* ([arXiv 2507.02825](https://arxiv.org/abs/2507.02825)),
-which asks a benchmark to demonstrate that its tasks are performable at all. There the
+which asks a benchmark to demonstrate that its tasks are performable at all. The paper's
+prose numbers the checklist `T.`/`O.`/`R.` and the [standalone checklist](https://github.com/uiuc-kang-lab/agentic-benchmarks/blob/main/ABC.md)
+the authors publish numbers the same items `II.`/`I.`/`III.`, so every citation here gives
+both: this one is T.9 and II.8. There the
 demonstration is an oracle solver; here the propensity *is* the thing under test, so the
 oracle has to be the same model with the act requested.
 

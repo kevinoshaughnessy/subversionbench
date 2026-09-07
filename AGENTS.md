@@ -91,6 +91,20 @@ what analysed the episodes, `ROLLOUT_VERSION` says what produced them.
   applies in source and tests: a tracked file holding a real U+200B is one whose
   diffs and greps disagree with what a reader sees, which in a repository about
   invisible characters is a trap rather than a convenience.
+- **Cite the Agentic Benchmark Checklist by BOTH of its numberings.** Zhu et al.,
+  *Establishing Best Practices for Building Rigorous Agentic Benchmarks*
+  (arXiv 2507.02825), numbers the checklist twice: the paper's prose uses
+  `T.`/`O.`/`R.` and the standalone checklist the authors publish at
+  `github.com/uiuc-kang-lab/agentic-benchmarks` uses `II.`/`I.`/`III.` for the
+  same items. Give both — "item T.9, numbered II.8 in the standalone checklist"
+  — and give them at every site rather than once with pointers to it, because a
+  citation whose meaning depends on having read another file is not a citation.
+  Six sites here cited the paper form alone, which is correct against the paper
+  and absent from the checklist, so anyone cross-referencing the published list
+  found no such item. `TestEveryChecklistCitationGivesBothNumberings` in
+  `test_project/test_project_files.py` derives the citing files rather than
+  listing them and holds the correspondence, which cannot be derived; a citation
+  of an item that map does not know fails rather than being skipped.
 
 ## The shape of the code
 

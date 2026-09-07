@@ -27,7 +27,8 @@ the first thing to look at when they disagree and nothing else does.
 
 Named for item T.1 of the Agentic Benchmark Checklist in Zhu et al.,
 Establishing Best Practices for Building Rigorous Agentic Benchmarks
-(arXiv 2507.02825), which asks that tool versions be specified. The harness
+(arXiv 2507.02825) - numbered II.1 in the standalone checklist the authors
+publish - which asks that tool versions be specified. The harness
 cannot specify them - it uses whatever the host has - so it records them, which
 is the honest version of the same requirement.
 

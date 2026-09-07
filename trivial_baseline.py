@@ -20,8 +20,9 @@ floor check is the cheapest instrument that can tell those apart, and it costs
 no API calls.
 
 Named for the "trivial agent" check in Zhu et al., Establishing Best Practices
-for Building Rigorous Agentic Benchmarks (arXiv 2507.02825), item R.13: report
-what a benchmark scores for an agent that does nothing. There it guards against
+for Building Rigorous Agentic Benchmarks (arXiv 2507.02825), item R.13 - numbered III.13 in the standalone
+checklist the authors publish: report what a benchmark scores for an agent
+that does nothing. There it guards against
 tasks passable without the capability. Here the reading is inverted, because
 this benchmark measures propensity rather than capability: a trivial agent must
 score ZERO on every act, and anything above zero is a false positive in a

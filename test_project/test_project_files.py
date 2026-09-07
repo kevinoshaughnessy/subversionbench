@@ -17,6 +17,7 @@ therefore cannot drift in step with a mistake in the derivation.
 """
 
 import ast
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -612,3 +613,103 @@ class TestNoStatementRunIsPastedTwice:
             path.write_text("def f(t):\n    a = t[0]\n    b = t[1]\n",
                             encoding="utf-8")
             assert _repeated_statement_runs(path) == []
+
+
+# The Agentic Benchmark Checklist is numbered TWICE by its own authors: the
+# paper's prose uses T./O./R. and the standalone checklist they publish at
+# github.com/uiuc-kang-lab/agentic-benchmarks uses II./I./III. for the same
+# items. A citation giving only one form sends half its readers to a checklist
+# that has no such item.
+#
+# The correspondence is an external fact and cannot be derived, so it is
+# written here - but which FILES cite the checklist is derived, so a seventh
+# citation added later inherits the rule instead of escaping it.
+ABC_ITEM_NUMBERING = {
+    "T.1": "II.1",    # tool versions are specified
+    "T.9": "II.8",    # an oracle solver demonstrates the tasks are performable
+    "R.13": "III.13",  # results for a trivial agent
+}
+
+ABC_DOI = "2507.02825"
+
+
+def _abc_item_re(item: str) -> str:
+    r"""`item` as a whole reference, not as the start of a longer one.
+
+    "T.1" is a prefix of "T.10" and "III.1" of "III.13", so a plain `in` reads
+    one as the other. The second lookahead is `(?!\.\d)` and NOT `(?![\d.])`,
+    which is what this first was: a citation ending a sentence is followed by a
+    full stop, so "II.8." failed to match and the guard reported a file that
+    was in fact correct.
+    """
+    return rf"\b{re.escape(item)}(?!\d)(?!\.\d)"
+
+
+def _abc_citing_files() -> list:
+    """Files that cite the checklist, EXCLUDING the one defining the map.
+
+    This module names every item number as data - in ABC_ITEM_NUMBERING and in
+    the docstrings explaining it - so scanning it finds citations that are not
+    citations. It reported its own comment's "T.10" as an unmapped item, which
+    is a checker failing its own check by reading itself.
+    """
+    here = Path(__file__).resolve().relative_to(PROJECT_ROOT)
+    return [relative for relative in project_python_files()
+            if Path(relative) != here
+            and ABC_DOI in (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            ] + [Path("README.md")]
+
+
+class TestEveryChecklistCitationGivesBothNumberings:
+    """One item, two numbers, and a reader lands on one file.
+
+    The repository cited the paper's prose numbering only - "item T.9" - which
+    is correct against the paper and absent from the checklist the authors
+    publish separately, where the same item is II.8. Anyone cross-referencing
+    the published checklist finds nothing under T.9.
+
+    Each citation carries both rather than pointing at one explanation of the
+    mismatch, because a citation whose meaning depends on having read another
+    file is not a citation.
+    """
+
+    def test_the_scan_finds_the_citations(self):
+        """Without this, every test below passes on an empty list."""
+        citing = _abc_citing_files()
+        assert len(citing) >= 5, citing
+
+    def test_every_paper_form_item_is_accompanied_by_its_other_number(self):
+        offenders = []
+        for relative in _abc_citing_files():
+            body = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            for paper, repo in ABC_ITEM_NUMBERING.items():
+                if not re.search(_abc_item_re(paper), body):
+                    continue
+                if not re.search(_abc_item_re(repo), body):
+                    offenders.append(f"{relative} cites {paper} without {repo}")
+        assert not offenders, (
+            "these cite the checklist by the paper's numbering only, so a "
+            "reader checking the authors' published checklist finds no such "
+            "item:\n  " + "\n  ".join(offenders))
+
+    def test_no_citation_uses_an_unmapped_item(self):
+        """The half that keeps the map from falling behind. A file citing an
+        item this map does not know is a file the test above skips silently."""
+        cited = set()
+        for relative in _abc_citing_files():
+            body = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            cited |= set(re.findall(r"\b((?:T|R)\.\d{1,2})(?!\d)(?!\.\d)",
+                                    body))
+            cited |= set(re.findall(r"\b(O\.[a-i]\.\d)(?!\d)", body))
+        unmapped = sorted(cited - set(ABC_ITEM_NUMBERING))
+        assert not unmapped, (
+            f"these checklist items are cited but not in ABC_ITEM_NUMBERING, "
+            f"so nothing checks that their other number is given: {unmapped}")
+
+    def test_the_two_numberings_are_never_confused_for_each_other(self):
+        """T. and R. are the paper's, II. and III. the checklist's. A mapping
+        row pointing a paper number at another paper number would satisfy the
+        test above while citing nothing new."""
+        for paper, repo in ABC_ITEM_NUMBERING.items():
+            assert paper[0] in "TOR", paper
+            assert repo.split(".")[0] in ("I", "II", "III"), repo

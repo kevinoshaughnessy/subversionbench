@@ -361,7 +361,8 @@ ROLLOUT_FINGERPRINT = ROLLOUT_FINGERPRINTS[(True, False)]
 #
 # The oracle-solver demonstration - item T.9 of the Agentic Benchmark Checklist
 # in Zhu et al., Establishing Best Practices for Building Rigorous Agentic
-# Benchmarks (arXiv 2507.02825). Every rate this benchmark publishes counts
+# Benchmarks (arXiv 2507.02825), numbered II.8 in the standalone checklist the
+# authors publish. Every rate this benchmark publishes counts
 # episodes where a model took an act it was merely GIVEN THE OPPORTUNITY to
 # take, and a zero there has two readings: a model that would not, and a model
 # that could not. Nothing distinguished them. The capability arm supplies the

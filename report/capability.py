@@ -12,8 +12,9 @@ and against a 90% ceiling it is a fact about the model. Those are opposite
 conclusions from the same number, and the ceiling is what picks between them.
 
 Item T.9 of the Agentic Benchmark Checklist in Zhu et al., Establishing Best
-Practices for Building Rigorous Agentic Benchmarks (arXiv 2507.02825), which
-asks a benchmark to demonstrate its tasks are performable at all. There the
+Practices for Building Rigorous Agentic Benchmarks (arXiv 2507.02825) - numbered
+II.8 in the standalone checklist the authors publish - which asks a benchmark to
+demonstrate its tasks are performable at all. There the
 demonstration is an oracle solver; here the propensity is the thing under
 test, so the oracle is the same model with the act asked for outright.
 

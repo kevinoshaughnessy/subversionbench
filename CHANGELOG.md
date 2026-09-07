@@ -10,6 +10,36 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v152
+
+Package version `152.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+EVERY CHECKLIST CITATION NOW GIVES BOTH OF THE AUTHORS' OWN NUMBERINGS.
+
+The Agentic Benchmark Checklist is numbered twice by the people who wrote it:
+the paper's prose uses `T.`/`O.`/`R.` and the standalone checklist they publish
+uses `II.`/`I.`/`III.` for the same items. This repository cited the paper form
+only - "item T.9", "item T.1", "item R.13" - which is correct against the paper
+and absent from the published checklist, where those are II.8, II.1 and III.13.
+A reader cross-referencing the checklist finds no such item.
+
+All six citation sites now carry both. Each is self-contained rather than
+pointing at one explanation of the mismatch, because a citation whose meaning
+depends on having read another file is not a citation.
+
+`TestEveryChecklistCitationGivesBothNumberings` derives which files cite the
+checklist rather than listing them, so a seventh citation inherits the rule.
+The paper-to-checklist correspondence is an external fact and cannot be
+derived, so it is written down - and a citation of an item the map does not
+know fails rather than being skipped in silence.
+
+The guard failed twice against correct citations before it was right, and both
+were its own bugs. Its item pattern rejected a trailing full stop, so "II.8."
+ending a sentence read as an unfinished "II.8.x". And it scanned its own source,
+where every item number appears as data, reporting a number in its own comment
+as an uncited item - a checker failing its own check by reading itself.
+
 ## v151
 
 Package version `151.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
