@@ -780,3 +780,192 @@ class TestATruncatedRunFileIsNotACorpus:
         _write_episode(out, 1, "m", "strong")
         path = sorted(glob.glob(os.path.join(out, "run_*.json")))[0]
         assert _episode_row(path, None) is not None
+
+
+class TestEachEpisodeGetsItsOwnBatchsTurnCap:
+    """`max_turns` on an episode row, joined from the batch's own summary.
+
+    WHY THIS IS NOT A TEST THAT THE FIELD IS 40
+    -------------------------------------------
+    Every batch in both published corpora ran at 40, so a guard asserting 40
+    against the corpus passes with the lookup replaced by `return 40` - which
+    is precisely the defect it would exist to catch, and the reason the rule
+    here is stated over two batches that disagree instead. A constant cannot
+    satisfy that, and neither can a join key that collides across batches.
+
+    The absent cases matter as much as the present one. None means "this batch
+    did not record it", which is a different fact from any particular cap, and
+    the cost of getting it wrong is that a batch collected under another
+    scaffold silently reports this directory's.
+    """
+
+    def _rows(self, out):
+        return {ep["model"]: ep["max_turns"]
+                for ep in rr.load_episodes(out)}
+
+    def test_two_batches_that_disagree_each_keep_their_own(self):
+        out = tempfile.mkdtemp()
+        _write_summary(out, "slow", "strong", stamp="20260101T000000",
+                       max_turns=40)
+        _write_episode(out, 1, "slow", "strong", stamp="20260101T000000")
+        _write_summary(out, "quick", "strong", stamp="20260102T000000",
+                       max_turns=12)
+        _write_episode(out, 1, "quick", "strong", stamp="20260102T000000")
+        rows = self._rows(out)
+        assert rows == {"slow": 40, "quick": 12}, rows
+
+    def test_a_batch_with_no_summary_gets_none_not_a_neighbours_value(self):
+        """The borrowed-default defect, which is the one a single-batch
+        directory cannot expose."""
+        out = tempfile.mkdtemp()
+        _write_summary(out, "described", "strong", stamp="20260101T000000",
+                       max_turns=40)
+        _write_episode(out, 1, "described", "strong", stamp="20260101T000000")
+        _write_episode(out, 1, "orphan", "strong", stamp="20260103T000000")
+        rows = self._rows(out)
+        assert rows == {"described": 40, "orphan": None}, rows
+
+    def test_a_summary_without_the_field_gives_none(self):
+        """A summary from before v41 has no such key. Its episodes are not
+        entitled to a cap read off a different batch."""
+        out = tempfile.mkdtemp()
+        _write_summary(out, "old", "strong", stamp="20260101T000000")
+        _write_episode(out, 1, "old", "strong", stamp="20260101T000000")
+        assert self._rows(out) == {"old": None}
+
+    def test_the_records_own_field_wins_over_the_summarys(self):
+        """An episode collected since v131 carries its own, and that is what
+        the harness observed. The summary is a second file joined by name, so
+        it stands in rather than overriding."""
+        out = tempfile.mkdtemp()
+        _write_summary(out, "m", "strong", stamp="20260101T000000",
+                       max_turns=40)
+        _write_episode(out, 1, "m", "strong", stamp="20260101T000000",
+                       max_turns=25)
+        assert self._rows(out) == {"m": 25}
+
+    def test_the_join_separates_two_arms_of_one_model_and_stamp(self):
+        """Two arms of the same model collected in the same batch stamp differ
+        only by the `nooversight` token in both filenames. A key built from the
+        model and stamp alone would collide and hand both arms one cap."""
+        out = tempfile.mkdtemp()
+        _write_summary(out, "m", "strong", oversight=True,
+                       stamp="20260101T000000", max_turns=40)
+        _write_episode(out, 1, "m", "strong", oversight=True,
+                       stamp="20260101T000000")
+        _write_summary(out, "m", "strong", oversight=False,
+                       stamp="20260101T000000", max_turns=9)
+        _write_episode(out, 1, "m", "strong", oversight=False,
+                       stamp="20260101T000000")
+        rows = {ep["oversight"]: ep["max_turns"]
+                for ep in rr.load_episodes(out)}
+        assert rows == {True: 40, False: 9}, rows
+
+    def test_no_summary_at_all_leaves_every_row_none(self):
+        """The control. Without it the tests above pass against a loader that
+        attached None to everything."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong")
+        assert self._rows(out) == {"m": None}
+        _write_summary(out, "m", "strong", max_turns=40)
+        assert self._rows(out) == {"m": 40}
+
+
+class TestTheJoinedCapIsConsistentWithTheTranscripts:
+    """The join, checked against the collected corpus rather than a fixture.
+
+    A wrong join produces a plausible number rather than an error, which is
+    what makes it worth a check that reads real data: a mismapped stamp hands
+    an episode another batch's cap, and nothing downstream would object.
+
+    The transcripts can refute it. An episode cannot have taken more turns than
+    its cap allowed, so `max(turn) <= max_turns` is a property the corpus must
+    satisfy under any correct join - and the episodes that ended `turn_cap` sit
+    exactly AT the cap, which is what stops this passing vacuously against a
+    join that returned something far too large.
+    """
+
+    def _episodes(self, out_dir):
+        import unittest
+        if not os.path.isdir(out_dir):
+            raise unittest.SkipTest(f"{out_dir} not present")
+        from report.episode_rows import _batch_key
+        from report.loading import load_scaffold
+        scaffold = load_scaffold(out_dir)
+        found = []
+        for path in sorted(glob.glob(os.path.join(out_dir, "run_*.json"))):
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+            if not d.get("nudge"):
+                continue
+            turns = [e.get("turn") for e in (d.get("transcript") or [])
+                     if isinstance(e, dict) and isinstance(e.get("turn"), int)]
+            cap = (d.get("max_turns")
+                   or (scaffold.get(_batch_key(path, d["nudge"])) or {})
+                   .get("max_turns"))
+            found.append((os.path.basename(path), max(turns, default=0), cap,
+                          d.get("ended_by")))
+        return found
+
+    def test_no_r10_episode_exceeds_the_cap_it_was_joined_to(self):
+        found = self._episodes("eval_results_r10")
+        assert found, "no episodes read - the check would pass vacuously"
+        unjoined = [name for name, _, cap, _ in found if cap is None]
+        assert not unjoined, (
+            f"{len(unjoined)} episode(s) reached no summary: {unjoined[:3]}")
+        over = [(name, seen, cap) for name, seen, cap, _ in found
+                if seen > cap]
+        assert not over, f"turns beyond the joined cap: {over[:3]}"
+
+    def test_the_turn_capped_episodes_sit_exactly_at_the_joined_cap(self):
+        """The non-vacuity leg. Without it the check above is satisfied by any
+        join returning a number larger than every transcript."""
+        found = self._episodes("eval_results_r10")
+        at_cap = [(name, seen, cap) for name, seen, cap, ended in found
+                  if ended == "turn_cap"]
+        assert at_cap, "no turn_cap episodes - nothing pins the cap from below"
+        wrong = [row for row in at_cap if row[1] != row[2]]
+        assert not wrong, (
+            f"ended at the cap but not at the joined value: {wrong[:3]}")
+
+
+class TestTheCapLookupsTwoGuardArms:
+    """The two branches that decide an episode gets NO cap rather than a wrong
+    one. Both are the arms taken when the join's inputs are unusable, and an
+    unusable input silently reading as some other batch's cap is the failure
+    worth guarding.
+    """
+
+    def test_a_half_written_summary_does_not_take_its_batch_down_with_it(self):
+        """A batch interrupted mid-write leaves a truncated summary. Its own
+        episodes get None; every other batch in the directory is unaffected,
+        which is the half a bare try/except would not establish."""
+        out = tempfile.mkdtemp()
+        _write_summary(out, "intact", "strong", stamp="20260101T000000",
+                       max_turns=40)
+        _write_episode(out, 1, "intact", "strong", stamp="20260101T000000")
+        truncated = _write_summary(out, "cut", "strong",
+                                   stamp="20260102T000000", max_turns=40)
+        Path(truncated).write_text('{"model": "cut", "max_turns":',
+                                   encoding="utf-8")
+        _write_episode(out, 1, "cut", "strong", stamp="20260102T000000")
+        rows = {ep["model"]: ep["max_turns"] for ep in rr.load_episodes(out)}
+        assert rows == {"intact": 40, "cut": None}, rows
+
+    def test_an_episode_with_no_nudge_gets_none_rather_than_raising(self):
+        """A record without a nudge cannot be keyed, so it must miss the index
+        - not raise. Keyed with `d["nudge"]` instead of `d.get("nudge")` this
+        is a KeyError that ends the load of every episode after it, which is
+        the defect this pins; there is no branch of its own to catch, because
+        parse_batch_filename tolerates a None nudge and the miss then happens
+        on the key."""
+        out = tempfile.mkdtemp()
+        _write_summary(out, "m", "strong", max_turns=40)
+        path = _write_episode(out, 1, "m", "strong")
+        d = json.load(open(path, encoding="utf-8"))
+        del d["nudge"]
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        eps = rr.load_episodes(out)
+        assert len(eps) == 1, eps
+        assert eps[0]["max_turns"] is None

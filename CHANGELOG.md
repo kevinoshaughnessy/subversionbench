@@ -10,6 +10,74 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v153
+
+Package version `153.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE SCAFFOLD'S TURN LIMIT REACHES AN EPISODE ROW WITHOUT REWRITING THE CORPUS.
+
+`max_turns` says what an episode's turn cap was, which is what separates an
+episode that ended because the model stopped from one that ended because it ran
+out of turns. It has been written into every batch summary since v41 and onto
+each episode record only since v131 - hours after the last r10 episode was
+collected - so no published episode carries it, and a batch collected now was
+not comparable with the published ones on the scaffold they ran under.
+
+The value was never lost, only stored somewhere nobody looked: the batch's
+summary sits in the same directory under a name sharing the batch's stamp. So
+`report/loading.py` gained `load_scaffold`, which indexes the summaries by batch
+and hands the index to `_episode_row`, which attaches the cap to the row it
+already builds. The record's own field wins where it exists; the summary only
+stands in where it does not.
+
+NOTHING IS WRITTEN. The alternative was to backfill the field onto every saved
+run file, and it was rejected: the summary is the one owner of this value, and a
+copy on every episode would be one more thing to keep in step in the single
+place where a consistency fix cannot be re-run cheaply. It would also make each
+record assert a fact the harness did not observe. The corpus is byte-identical
+after a full report run, checked by checksum rather than by inspection.
+
+A batch whose summary is missing, or whose summary predates the field, gets
+None. Never a value borrowed from elsewhere in the directory - that would assert
+a scaffold for a batch that may have run under another, which is the same
+not-applicable-is-not-zero rule the awareness denominator follows.
+
+WHY THE OBVIOUS GUARD WOULD HAVE BEEN WORTHLESS. Every batch in both published
+corpora ran at the same cap, so a check asserting that value against the corpus
+passes with the whole lookup replaced by a constant - which is exactly the
+defect it would exist to catch. Planting that constant confirmed it: the corpus
+check cannot see it, and the plant is kept as a recorded expected miss. The rule
+is therefore stated over two batches whose summaries disagree, which no constant
+and no colliding join key can satisfy, plus the arm-collision case where two
+arms share one stamp and differ only by a filename token.
+
+The corpus check earns its place on the other axis: it reads the transcripts and
+asserts no episode took more turns than the cap it was joined to, with the
+episodes that ended at the cap pinning it from below so the assertion cannot
+pass vacuously. A mismapped stamp yields a plausible number rather than an
+error, and that is the leg that would catch it.
+
+The report's printed and JSON output on r10 are unchanged, as they must be while
+nothing consumes the field yet - a moved figure would have meant something reads
+it that the search for consumers missed.
+
+A BRANCH THIS ADDED AND THEN REMOVED, because planting found nothing could
+tell it apart. The lookup guarded a record with no nudge with an early return,
+on the reasoning that the batch parser needs the nudge to tell a `--nudge max`
+batch from an `--effort max` one. It does - but it tolerates a None nudge
+rather than raising, so the key simply misses the index and the result was
+already None. The plant against that branch could not fail, which is the
+signal: the test asserted an outcome the code reached two ways. The branch is
+gone and the property is pinned where a real defect exists instead - keying by
+subscript rather than `.get`, which turns one odd record into a KeyError that
+ends the load of every episode after it.
+
+The other two arms - a summary truncated by an interrupted batch, and the
+directory holding none at all - are covered, both planted, and both check that
+one unusable file costs its own batch a cap without costing any other batch
+one.
+
 ## v152
 
 Package version `152.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

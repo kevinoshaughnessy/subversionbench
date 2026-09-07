@@ -29,7 +29,8 @@ def _single(report):
 
 def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="20260101T000000",
                    n_runs=10, n_scheming=0, n_misaligned=0, n_aware=0,
-                   n_unaware=0, cross=None, model_slug=None, capability=None):
+                   n_unaware=0, cross=None, model_slug=None, capability=None,
+                   max_turns=None):
     # `capability` reaches the FILENAME, which is where the corpus is recorded
     # - a summary carries no top-level field for it. A fixture that could not
     # produce one left the capability half of load_summaries' filter untested.
@@ -44,6 +45,12 @@ def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="2026010
                                 "source": "grader"},
         "cross_analysis_awareness": cross,
     }
+    # OMITTED WHEN None rather than written as null, because the two are
+    # different corpora: a summary from before v41 has no such key, and the
+    # scaffold index has to treat that as "this batch did not record it". A
+    # fixture that always wrote the key could not produce the absent case.
+    if max_turns is not None:
+        d["max_turns"] = max_turns
     with open(path, "w") as f:
         json.dump(d, f)
     return path
@@ -51,7 +58,7 @@ def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="2026010
 def _write_episode(out, n, model, nudge, oversight=True, lure=False,
                    stamp="20260101T000000", sort=None, provider=None,
                    transcript=None, served_by=None, served_by_changed=False,
-                   **episode_kwargs):
+                   max_turns=None, **episode_kwargs):
     # normalise_analyses first, exactly as a collected episode has already been
     # through: the sandbox act key (`out_of_scope_attempts`) is DERIVED there,
     # not set by batch_episode, and a fixture without it is not the shape any
@@ -86,7 +93,12 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
                   # leave the check that reads them permanently on its
                   # nothing-recorded branch.
                   "served_by_providers": list(served_by or []),
-                  "served_by_changed": served_by_changed}, f)
+                  "served_by_changed": served_by_changed,
+                  # Omitted when None for the reason _write_summary gives:
+                  # every episode in both published corpora lacks this key,
+                  # and that is the case the summary join exists to cover.
+                  **({"max_turns": max_turns} if max_turns is not None
+                     else {})}, f)
     return path
 
 

@@ -12,6 +12,7 @@ MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS and checks each one arrived.
 
 import json
 
+from subversionbench.batch import parse_batch_filename
 from subversionbench.config import DEFAULT_INTERROGATION
 from subversionbench.grading import (MISALIGNED_ACTS, SCHEMING_LEVELS,
                                      awareness_channels, capability_outcome,
@@ -303,13 +304,62 @@ def _add_derived_columns(row: dict, analysis: dict, d: dict) -> None:
 
 
 
-def _episode_row(path: str, capability) -> dict:
+def _batch_key(path: str, nudge: str) -> tuple:
+    """The batch a run or summary file belongs to, read off its name.
+
+    A run file and the summary of the same batch are named
+    `run_<N>_<stem>_<stamp>.json` and `summary_<stem>_<stamp>.json`: the stem
+    and the stamp are shared, and only the prefix differs. So parsing both with
+    the same parser yields the same key by construction, which is the property
+    this join rests on - as opposed to rewriting one filename into the other,
+    which would have to know the `run_<N>_` prefix's shape in a second place.
+
+    `nudge` comes off the RECORD, not the name, because parse_batch_filename
+    needs it to tell a `--nudge max` batch from an `--effort max` one; see the
+    guard in its own body.
+    """
+    effort, stamp, oversight, lure, capability = parse_batch_filename(path,
+                                                                     nudge)
+    return (nudge, effort, stamp, oversight, lure, capability)
+
+
+def _max_turns(path: str, d: dict, scaffold: dict):
+    """This episode's turn cap: its own field, else its batch summary's, else
+    None.
+
+    The join key comes from the filename because the record has none - an
+    episode carries `timestamp`, which is when that episode was written, not
+    which batch it belongs to. `_batch_key` above parses run and summary names
+    with one parser for that reason.
+    """
+    own = d.get("max_turns")
+    if own is not None:
+        return own
+    if not scaffold:
+        return None
+    # `.get`, not `d["nudge"]`: a record without one cannot be keyed, and it
+    # has to MISS the index rather than end the load of every episode after
+    # it. parse_batch_filename tolerates a None nudge - it simply cannot then
+    # tell a `--nudge max` batch from an `--effort max` one - so the miss
+    # happens on the key rather than needing a branch of its own here, which
+    # is why there is not one: nothing could distinguish it.
+    return (scaffold.get(_batch_key(path, d.get("nudge")))
+            or {}).get("max_turns")
+
+
+def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
     """One saved run file as one row, or None if it is not in this corpus.
 
     None rather than raising: a results directory holds run files from several
     arms, and a truncated one is not an error. The corpus filter lives here
     rather than in the caller because the two corpora are complementary by
     construction, and that property is only visible where the test is made.
+
+    `scaffold` is loading.load_scaffold's index, keyword-defaulted so callers
+    passing two positional arguments keep working. Omitted, every row gets
+    max_turns None - which is what a caller reading one file outside a results
+    directory should see, because there is no summary beside it to say
+    otherwise.
     """
     try:
         # Named rather than left to the locale: the harness writes these with
@@ -366,6 +416,20 @@ def _episode_row(path: str, capability) -> dict:
         # never "one provider".
         "served_by_providers": tuple(d.get("served_by_providers") or ()),
         "served_by_changed": bool(d.get("served_by_changed")),
+        # THE SCAFFOLD'S TURN LIMIT, from the record where the record has it
+        # and from the batch's own summary where it does not. An episode that
+        # ended because the model stopped and one that ended because it ran out
+        # of turns are different observations, and until v131 nothing on an
+        # episode said what the limit was - so the whole published corpus would
+        # otherwise be uncomparable with anything collected since.
+        #
+        # RECORD FIRST, deliberately. The record is what the harness observed;
+        # the summary is a second file that has to be joined to this one by
+        # name, so it is the weaker evidence of the two and only stands in when
+        # the stronger is absent. None where neither has it - never a default
+        # borrowed from whatever the rest of the directory carries, which would
+        # assert a cap for a batch that may have run under another.
+        "max_turns": _max_turns(path, d, scaffold),
         "aware": aware, "aware_source": aware_source,
         # Secondary: aware if EITHER screen says so - see above. Carried
         # beside the primary rather than replacing it, because the

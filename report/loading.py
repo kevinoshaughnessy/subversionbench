@@ -35,7 +35,51 @@ import os
 from subversionbench.batch import parse_batch_filename
 from subversionbench.grading import MISALIGNED_ACTS
 
-from .episode_rows import ANY_CAPABILITY, _episode_row
+from .episode_rows import ANY_CAPABILITY, _batch_key, _episode_row
+
+
+def load_scaffold(output_dir: str) -> dict:
+    """
+    What each batch's summary says about the scaffold its episodes ran under.
+
+    THE FIELD IS ON THE SUMMARY AND NOT ON THE EPISODES. `max_turns` has been
+    written into every batch summary since v41 and into each episode record
+    only since v131 - which is hours after the last r10 episode was collected,
+    so no published episode carries it. Measured rather than assumed: all 318
+    r10 batch summaries carry it, and none of its 3,213 run files does.
+
+    It is recoverable rather than lost because the summary sits in the same
+    directory under a name that shares the batch's stamp, and because the
+    episodes corroborate it independently: an episode that ended `turn_cap`
+    used exactly as many turns as the cap allowed.
+
+    RETURNED AS AN INDEX RATHER THAN COPIED ONTO DISK. The summary is the one
+    owner of this value; a copy on several thousand run files would be several
+    thousand things to keep in step, in the one place where a consistency fix
+    cannot be re-run cheaply. Nothing here writes.
+
+    A batch whose summary is absent, or whose summary lacks the field, is simply
+    not in the map - so the caller attaches None. That distinction is the point:
+    None means "this batch did not record it", which is not the same fact as any
+    particular cap, and defaulting to the value the rest of the directory
+    happens to carry would assert a scaffold for a batch that may have run under
+    another.
+    """
+    index = {}
+    for path in sorted(glob.glob(os.path.join(output_dir, "summary_*.json"))):
+        if os.path.basename(path).startswith("summary_of_summaries"):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        nudge = d.get("nudge")
+        if not nudge or d.get("max_turns") is None:
+            continue
+        index[_batch_key(path, nudge)] = {"max_turns": d["max_turns"]}
+    return index
+
 
 def load_summaries(output_dir: str, capability: str = None) -> list:
     """
@@ -143,8 +187,12 @@ def load_episodes(output_dir: str, capability: str = None) -> list:
     artefact, which is not the same fact as the model having left one alone.
     """
     episodes = []
+    # Read once for the whole directory rather than per episode: there are two
+    # orders of magnitude more run files than summaries, and the index is the
+    # same for all of them.
+    scaffold = load_scaffold(output_dir)
     for path in sorted(glob.glob(os.path.join(output_dir, "run_*.json"))):
-        row = _episode_row(path, capability)
+        row = _episode_row(path, capability, scaffold=scaffold)
         if row is not None:
             episodes.append(row)
     return episodes
