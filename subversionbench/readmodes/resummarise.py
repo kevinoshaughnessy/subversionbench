@@ -15,9 +15,6 @@ import json
 import os
 
 from ..batch import BatchIdentity, parse_batch_filename
-from ..followup import add_awareness_timing
-from ..grading import (detect_strategy_recommendation, recheck_quote_grounding,
-                       settle_analysis)
 from ..redaction import redact_paths
 from ..reporting.summary import runtime_from_existing_summary, summarise_batch
 from .selection import find_run_files_or_explain
@@ -171,68 +168,14 @@ def resummarise_existing_runs(args, selection) -> int:
         for path in batch_paths:
             with open(path) as f:
                 run = json.load(f)
-            # Everything below is derivable from the saved run with no API call,
-            # so a batch collected before these measures existed should not have
-            # to pay for a --reclassify to be summarised correctly - and
-            # --reclassify would resample the LLM verdicts as a side effect,
-            # perturbing figures that are already final. Filled in memory only,
-            # and only when absent: a value already recorded stays as recorded,
-            # since it was produced under whatever rules were in force then.
-            analysis = run.get("analysis") or {}
-            transcript = run.get("transcript") or []
-
-            # Unconditional, and one call rather than a partial copy of the
-            # settling logic. This site used to re-derive only the per-act scheming
-            # verdicts, which is how it came to disagree with the summary builder
-            # it hands off to.
-            if analysis:
-                settle_analysis(analysis)
-
-            if analysis:
-                # UNCONDITIONAL, not fill-when-absent.
-                #
-                # This was gated on the field being absent, so a change to how the
-                # ordering is derived could never reach a run that already had one.
-                # That is exactly what happened: when the awareness matcher and
-                # the read/write verb lists were corrected, 14 episodes kept their
-                # old ordering and no amount of --resummarise would refresh them.
-                # The field is in REDERIVED_ANALYSIS_FIELDS, so write-back was
-                # willing to save a new value; nothing ever computed one.
-                #
-                # Recomputing is safe despite grader_model=None. add_awareness_timing
-                # sets the ordering before it touches anything paid, and it already
-                # refuses to overwrite a real pre-act grader reading with a skip
-                # marker - a guard that exists because that clobbering once cost a
-                # 100-run batch. So the free half refreshes and the paid half is
-                # preserved, which is the same split --resummarise is built on.
-                #
-                # Fifth instance of the fill-when-absent class, after the four in
-                # v23-v25. The general lesson: a deterministic field must be
-                # re-derived every time, or the guard silently pins it to whatever
-                # rule was in force when it was first written.
-                add_awareness_timing(analysis, transcript, grader_model=None)
-
-                # Sixth instance of the same class. `_detect_strategy_recommendation`
-                # had a negation blind spot - "### What I am not recommending:
-                # Strategy B" tied against a genuine "Recommendation: Strategy A"
-                # header and abstained - and this field was never in
-                # REDERIVED_ANALYSIS_FIELDS at all, so fixing the matcher would
-                # have silently done nothing for every episode already on disk.
-                # Free and fully deterministic: no API, a pure scan of the saved
-                # transcript, so recomputing here costs nothing and cannot lose
-                # a sampled judgement, because it never held one.
-                analysis["strategy_recommended"] = detect_strategy_recommendation(
-                    transcript)
-
-            # Third of the three, same class. Whether the grader's citations
-            # trace back to the agent's own words is a string comparison against
-            # the saved transcript - no API, fully deterministic - so it must be
-            # re-derived rather than filled in once. Gated only on there being
-            # citations to check.
-            grader = analysis.get("eval_awareness_grader") or {}
-            if grader.get("rubric_results"):
-                recheck_quote_grounding(analysis, transcript)
-
+            # NOTHING is re-derived here. summarise_batch calls
+            # rederive_free_measures on every run before it builds a figure, so
+            # a copy at this call site would be a second implementation of the
+            # free measures - which is exactly what this site was: it settled,
+            # ordered awareness and rescanned for a strategy recommendation,
+            # while --reclassify's copy did transient tampering and this one did
+            # not. See subversionbench/rederive.py for what each of the three
+            # partial copies held.
             all_results.append(run)
 
         # The arm these runs were made under is whatever their FILENAMES say, not

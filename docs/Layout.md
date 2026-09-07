@@ -130,6 +130,11 @@ subversionbench/
                    any of them seeing another's question - which is also what
                    lets --reinterrogate add a phrasing months later
   batch.py         what names a batch, reading that name back, and finding it
+  rederive.py      every measure a saved episode can regain for free, and the
+                   order they depend on. Its own module because there were
+                   three partial copies of it - the report path and two read
+                   modes - each deriving a different subset, so which measures
+                   an episode regained depended on which mode was run
   readmodes/       what can be learned from episodes already collected
     selection.py           which saved batches a mode works on, and fanning out
     grade.py               re-running the awareness grader
@@ -141,7 +146,7 @@ subversionbench/
                    that hold up across nudge/oversight/lure/interrogation
   reporting/       a batch of episodes to figures, a report and a summary
     facts/                 every figure, grouped the way the claims are grouped
-      normalise.py           bringing saved analyses up to the current definitions
+      normalise.py           the report path's loop over rederive.py
       misalignment.py        what the model did
       scheming.py            what it hid
       awareness.py           what it suspected

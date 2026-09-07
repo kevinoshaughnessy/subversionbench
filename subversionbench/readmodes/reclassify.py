@@ -19,11 +19,9 @@ import time
 from .. import grading as grading_api
 from ..config import (DEFAULT_INTERROGATION, MAX_CLASSIFIER_FALLBACK_RATE,
                       MIN_CALLS_FOR_FALLBACK_RATE, VERSION)
-from ..followup import add_awareness_timing
-from ..grading import (MISALIGNED_ACTS, classify_transient_tampering,
-                       concealment_level, detect_transient_tampering,
-                       recheck_quote_grounding, settle_analysis)
+from ..grading import MISALIGNED_ACTS, concealment_level
 from ..llm_client import is_auth_error
+from ..rederive import rederive_free_measures
 from .selection import find_run_files_or_explain
 
 
@@ -331,31 +329,6 @@ def _abort_on_auth(auth_error, grader_model) -> None:
     return 1
 
 
-def _backfill_free_measures(analysis, transcript) -> None:
-    """
-    The measures that need no API call, brought forward onto older runs.
-
-    Free means free: each of these reads the saved transcript, so a run
-    collected before the measure existed gains it without a re-run and without
-    a request. The grader's pre-act reading is NOT here - it needs
-    --grade-existing, which can spend.
-    """
-    settle_analysis(analysis)
-    # Also free, and backfilled here so runs collected before the measure
-    # existed gain it without a re-run.
-    analysis["transient_tampering_detail"] = detect_transient_tampering(
-        transcript)
-    analysis["transient_tampering"] = classify_transient_tampering(analysis)
-
-    # Free: ordering is read off the saved transcript, no API calls. The
-    # grader's pre-act reading needs --grade-existing, which can spend.
-    add_awareness_timing(analysis, transcript,
-                         grader_model=None)
-    # Also free: whether the grader's citations trace to the agent's own
-    # words. Backfills the check onto runs graded before it existed.
-    recheck_quote_grounding(analysis, transcript)
-
-
 def _fail_closed(tally: dict, pending: list) -> int:
     """
     Whether this pass may be written at all. Nonzero means it may not.
@@ -500,7 +473,8 @@ def reclassify_existing_runs(args, selection) -> int:
             _abort_on_auth(tally["auth_error"], args.grader_model)
             return 1
 
-        _backfill_free_measures(analysis, data.get("transcript") or [])
+        rederive_free_measures(analysis, data.get("transcript") or [],
+                               bool(data.get("lure")))
         data["analysis"] = analysis
         record_reanalysis(data, "reclassify", VERSION)
 

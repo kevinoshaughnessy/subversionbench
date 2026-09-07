@@ -10,6 +10,66 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v146
+
+Package version `146.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+ONE OWNER FOR THE MEASURES A SAVED EPISODE CAN REGAIN FOR FREE.
+
+There were three. `normalise_analyses` on the report path did the escape
+nesting, the keyword measure, transient tampering and the verdicts;
+`--reclassify` did the verdicts, transient tampering, awareness ordering and
+quote grounding; `--resummarise` did the verdicts, awareness ordering, quote
+grounding and `strategy_recommended`. No two agreed, so which free measures a
+saved episode regained depended on which mode the operator happened to run, and
+`--reclassify --write-back` persisted a file with `strategy_recommended` and
+`eval_awareness_keywords` exactly as they were.
+
+They are now one module, `subversionbench/rederive.py`, in four dependency-ordered
+steps. `normalise_analyses` is a loop over it, `--reclassify` calls it, and
+`--resummarise` derives nothing of its own because the summary builder it hands
+off to already does.
+
+`settle_analysis` records the same lesson one level down - it used to be four
+copies - and its answer was to scope itself to the analysis alone and leave the
+transcript-reading derivations "explicit at their call sites". Explicit at their
+call sites is what produced the three subsets.
+
+NOTHING WAS WRONG WHEN THIS WAS FOUND, WHICH IS WHY IT WAS WORTH FIXING. Every
+saved r9 and r10 episode already agreed, because `--resummarise` had been run
+over them. The measurement is in the commit message; the point is that the next
+detector correction would have reached only whichever modes happened to hold
+that derivation.
+
+A FREE RE-DERIVATION THAT OVERWRITES THE RECORD OF A PAID ONE IS NOT FREE.
+Routing the free path through `add_awareness_timing(grader_model=None)` - which
+is what both read modes did - stamps a "no grader" skip marker over each act's
+pre-act grader record, replacing an "act not located" that a grading run had
+actually written. `--reclassify --write-back` wrote the replacement to disk.
+That function is now split: `awareness_ordering` is the free half, and it is
+what the owner calls.
+
+TWO FIXTURES WERE ASSERTING STATES THE CODE CANNOT PRODUCE, and only stayed
+green because the path they ran on was the one that did not re-derive the field.
+A reclassify fixture set `out_of_scope_attempts` by hand from a command that
+`refusal_kind` calls a system-path refusal, so it claimed a sandbox act the
+report would never have counted. The console snapshot fixture set all four
+`quote_grounded` outcomes directly, with quotes under the length floor that
+makes a citation verifiable, and put `too_short` on a negative verdict, which
+scores `None`. Both now build the inputs and let the matcher reach the outcome.
+
+THE GUARD THAT SHOULD HAVE CAUGHT ALL OF THIS READ ASSIGNMENTS OUT OF ONE
+FUNCTION'S SOURCE, which cannot see through a call, and carried an eight-name
+exemption whose stated reason - that the read modes "pass a transcript this
+function does not take" - was false about a function that has taken a transcript
+since it was written. Three of the eight were the real hole; the other five were
+not in the write-back allowlist at all, so exempting them subtracted nothing and
+made the list look considered. It now plants a stale value in each of the 38
+allowlisted fields and reads back whether it survived, which needs no exemption
+- plus one named test for quote grounding, which the allowlist cannot reach
+because it lives inside a sampled field that `--write-back` must never rewrite.
+
 ## v145
 
 Package version `145.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

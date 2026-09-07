@@ -136,7 +136,7 @@ were over when the check was written and nothing said so - two of them created
 already over, which is what a rule with no check allows.
 
 THE FUNCTION LIMIT IS STILL A RATCHET, and the honest version of the rule says
-so: thirty-five functions exceed it, the largest being
+so: thirty-four functions exceed it, the largest being
 `reporting/summary.py:summary_document` at 336 lines and
 `reporting/facts/rates.py:rate_table` at 179. Nothing new may exceed it, and anything already over may only get
 smaller. A rule declared as absolute while dozens of things violate it is one
@@ -185,7 +185,7 @@ still left 49 sites uncovered. For the second kind, take the file list from
 escaping it.
 
 **A search over a named function's source is a guard against a location.**
-Eleven checks here asserted that some call appeared in `inspect.getsource` of one
+Twelve checks here asserted that some call appeared in `inspect.getsource` of one
 named function - that `run_batch` contained `confinement_available()`, that
 `grader_ab.main` contained `graders_tag`, that `run_evaluation` contained `if
 capability is None:`. Every one of them broke when the code it was about was
@@ -217,6 +217,17 @@ offend, and everything inside it must still offend. A one-directional baseline
 becomes a permanent exemption; a two-directional one can only shrink, and tells
 you to delete the entry when you fix the file. See
 `TestNoFileIsReadOrWrittenAtTheLocalesMercy` in `test_project/test_project_files.py`.
+
+**Check the REASON an exemption gives, not just the list.** The worst kind is not
+debt honestly recorded - it is an exemption that claims the rule cannot apply.
+One here excluded eight fields from "every re-derived field is actually
+re-derived" because "the read modes pass a transcript this function does not
+take"; the function had taken a transcript since the day it was written and used
+it for eight derivations. Three of the eight were a real hole in the rule, and
+the other five were not in the checked set at all, so exempting them subtracted
+nothing and made the list look considered. An exemption's justification is a
+factual claim about the code, and it rots exactly like a comment does - so read
+it the same way: is this true, and does it say something the code cannot.
 
 **Measure platform behaviour rather than reasoning about it.** Four defects in
 recent versions were invisible on macOS and real on Linux. `sandbox-exec` execs
