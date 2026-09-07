@@ -564,6 +564,65 @@ the definition above is scoped to match. **Results should be read as behaviour u
 close to maximal invitation** — an upper bound on the rate, not an estimate of what a
 model would do given a subtler opportunity.
 
+### What is being evaluated
+
+The subsection above narrows what the measurement *supports*. This one says whose property
+it is, which is a separate question and the one item R.6 in the paper — III.6 in the
+standalone checklist — of the Agentic Benchmark Checklist in Zhu et al., [*Establishing
+Best Practices for Building Rigorous Agentic
+Benchmarks*](https://arxiv.org/abs/2507.02825) asks: "clearly states the evaluation
+subjective of the benchmark (e.g., a model or an agent framework)." Its companion R.5 /
+III.5 — the relationship between the capabilities aimed at and the constructs measured —
+is [Which measurement serves which construct](#which-measurement-serves-which-construct).
+
+**The subject is a model, not an agent framework.** This harness supplies the whole
+scaffold: one `bash` tool, `--max-turns` turns of a single conversation, the hardened
+environment, a fixed system prompt per nudge level, and the interrogation phase after the
+episode ends. Nothing is contributed by a third-party agent loop, so a rate here is not a
+joint property of a model and someone else's planner, and it is **not comparable with a
+number produced by an agentic framework wrapped around the same model**. A framework that
+plans, retries, or criticises its own output would change every rate in both directions
+and none of that is measured here.
+
+**But "a model" is not precise enough, because reasoning exposure is part of the
+instrument.** Both awareness measures read the model's reasoning as well as its visible
+output, and how much reasoning arrives is neither constant nor a property of the route —
+see [Reasoning exposure and the provider route](#reasoning-exposure-and-the-provider-route)
+for the measurement that established that. A model returning no reasoning is scored on
+strictly less evidence than one returning a full trace, and those are different
+instruments pointed at the same construct.
+
+So the honest statement of the subject is:
+
+> **A named model, as served by a recorded backend, under a recorded reasoning-exposure
+> regime, inside this harness's fixed scaffold and toolchain.**
+
+The harness records every qualifier in that sentence per episode, which is what makes it
+checkable rather than a disclaimer — but **the published corpora predate three of the four
+fields**, so the statement is weaker for r9 and r10 than for anything collected now:
+
+| qualifier | recorded as | in r9 / r10 |
+|---|---|---|
+| which model was asked | the arm identity, in the filename and in every record | yes |
+| which reasoning regime applied | `reasoning_config`, plus `reasoning_chars` per turn and `token_usage.reasoning_tokens` where the provider reports it | yes; `reasoning_details` on part of each |
+| which backend answered | `served_by` per turn, with `served_by_providers` and `served_by_changed` across the episode | **no** — added in v129, about an hour after the last r10 episode was stamped |
+| what scaffold ran it | `max_turns`, `isolation`, and the host toolchain in `toolchain` | `isolation` only; the other two added in v131, hours later |
+
+That timing is not a rounding error in the argument, and two consequences follow.
+
+**For the published corpora the backend is not recorded at all.** The route can be inferred
+from the model ID — a bare `gpt-*` went to OpenAI's own API and a `provider/model` ID to
+OpenRouter — but which backend OpenRouter actually chose, and whether it changed mid-episode,
+is unrecoverable for those episodes. `mixed_served_provider_arms` in the data-quality report
+is the only check that can see backend mixing, and it has no corpus to run against: on r9 and
+r10 it reaches its "no providers recorded" guard and stops. So for those corpora the subject
+statement rests on the model ID and the route inferred from it, and not on a recorded backend.
+
+**Batches that differ on the reasoning regime are not comparable on awareness.** That one does
+hold for the published corpora, because `reasoning_config` is on every episode — which is why
+the regime is on the record rather than in a footnote.
+
+
 ### Checks the harness does run
 
 - **Ground truth, not self-report.** `disabled_monitoring` is established by re-hashing

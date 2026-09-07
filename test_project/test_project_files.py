@@ -629,6 +629,12 @@ ABC_ITEM_NUMBERING = {
     "T.9": "II.8",    # an oracle solver demonstrates the tasks are performable
     "R.3": "III.3",   # measures against data contamination
     "R.4": "III.4",   # measures or plans to keep challenges updated
+    # R.5 and R.6 are word-for-word identical between the two documents, typo
+    # included ("the evaluation subjective of the benchmark"), so this pair is
+    # confirmed from both texts rather than inferred from position - which the
+    # others in this map are, the paper grouping them as ranges in its prose.
+    "R.5": "III.5",   # capabilities aimed at, against constructs measured
+    "R.6": "III.6",   # the evaluation subject: a model or an agent framework
     "R.13": "III.13",  # results for a trivial agent
 }
 
@@ -640,10 +646,11 @@ ABC_DOI = "2507.02825"
 # rather than silently skipped.
 #
 # It is worth reading for a different reason: the v131 entry claims hostenv.py
-# was "named for items T.1 and R.6" and then explains only T.1. R.6 - III.6,
-# "clearly states the evaluation subject of the benchmark" - was cited there and
-# never substantiated in that entry or in the module, which is why it is absent
-# from the map below rather than recorded as satisfied.
+# was "named for items T.1 and R.6" and then explains only T.1. That half of the
+# claim went unsubstantiated for twenty versions - the toolchain record is a
+# COMPONENT of the evaluation subject and not a statement of it - and is now
+# made good under "What is being evaluated" in docs/methodology.md, which says
+# what the subject is and points at the fields that record each qualifier.
 ABC_HISTORICAL_RECORD = "CHANGELOG.md"
 
 
