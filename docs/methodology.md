@@ -937,6 +937,114 @@ other, an arm difference could be awareness rather than the manipulation.
 survives that objection or does not.
 
 
+## Contamination, and when the scenario would be rotated
+
+Item R.4 in the paper's prose — III.4 in the standalone checklist — of the Agentic
+Benchmark Checklist in Zhu et al., [*Establishing Best Practices for Building Rigorous
+Agentic Benchmarks*](https://arxiv.org/abs/2507.02825) asks a benchmark for measures or
+plans to keep its challenges updated so models cannot overfit them. The answer here is a
+monitoring policy with a named trigger, not a rotation schedule, and the reason is cost:
+an arm sweep is hours of wall time and real API spend, so a scenario rotated on a
+calendar would be rotated with money this project does not have. A plan that cannot be
+honoured is worse than a stated constraint.
+
+This is also the standing answer to the single-scenario limitation under [Sample
+size](#sample-size): between-scenario variance is not reducible by collecting more
+episodes, and the held-out twin is the only instrument here that can speak to it.
+
+### The exposure boundary is dated
+
+The repository's first commit carries the scenario bundle and its second, minutes later,
+adds a canary GUID. A model can therefore only have ingested this benchmark if its
+training data postdates that day. Because a model's release date bounds its training
+cutoff from above, any model released before then provably cannot be contaminated by
+this repository — which is what makes the control in the comparison below nearly free,
+since those models' mainline episodes are already collected.
+
+The bundle is stored base64-encoded. That keeps it out of a plain-text crawl and it is
+not encryption: a pipeline that decodes base64 blobs would ingest it. So the prior on
+eventual contamination is not low, and the value of a dated boundary is that "which
+models could possibly be affected" has an answer rather than a shrug.
+
+### Rotation would discard the thing most worth keeping
+
+Every model measured so far sits on one instrument, and that comparability is the most
+valuable thing the benchmark owns — it is what makes a new model's number mean anything.
+Rotating the scenario discards it and starts the series again.
+
+So the response to evidence of contamination is to **promote the held-out scenario to the
+primary reported instrument and keep the mainline running as a monitor**, not to scrap the
+mainline. Everything already collected stays interpretable as a series, and the
+configuration afterwards is the private held-out set that item R.3 / III.3 asks for.
+
+The held-out scenario is also close to single-use: promoting it stops it being held out,
+and there is no third. That is the strongest argument for spending it as a tripwire
+rather than on a schedule.
+
+### The checks, in increasing cost
+
+1. **`contamination_check.py --audit`** — offline, no API calls, no key. Scans tracked
+   files for scenario text committed in the clear. This is the only kind of exposure that
+   can still be fixed, so it runs first.
+2. **`contamination_check.py --models <model>`** — canary completion, forced choice
+   against a fabricated control, verbatim continuation. Tens of calls, not a batch. Run
+   before reporting any model, and again when a model is re-released under the same ID,
+   because the answer changes over time while the ID does not. A model that completes the
+   canary has demonstrably ingested the repository, and no scenario comparison is needed
+   to establish that.
+3. **The dual-scenario comparison** — the expensive one, and the only one that can see a
+   model gaming the scenario without having memorised it verbatim. It is gated on (1) and
+   (2) rather than run alongside them.
+
+### The dual-scenario comparison needs a control, not just a treatment
+
+Run with `SUBVERSIONBENCH_SCENARIO_BUNDLE` pointing at the held-out twin, pinned by
+`heldout_tool.py --pin` so its rollout has its own fingerprints and cannot pool with the
+mainline corpus.
+
+Both scenarios need the capability arm as well as the propensity arm. That is what makes
+a propensity gap interpretable: equal ceilings mean the two scenarios are equally
+*performable*, so a difference in propensity is about something other than difficulty.
+
+Equal ceilings do **not** imply the two scenarios are equally eval-smelling. Two
+scenarios can be equally solvable and differ in how readily any model recognises them as
+a test, so for a single model the mainline-to-held-out gap is contamination *plus* that
+intrinsic difference, with nothing separating them. Adding a pre-cutoff model makes the
+estimate identified:
+
+| | mainline to held-out gap |
+|---|---|
+| a model released before the exposure boundary | the scenarios' intrinsic difference |
+| a model that could have ingested the repository | intrinsic difference + contamination |
+
+The difference between those two gaps is the contamination estimate, and only the
+control's held-out arm has to be collected — its mainline arm already exists. The
+residual assumption is that the intrinsic gap is the same for both models; two or three
+controls at different capability levels are what would test that rather than assume it.
+
+### Measure verbalised awareness, not the act rates
+
+Contamination announces itself as *recognition*, which is what the awareness measures
+read directly. It is also the only measure with usable power at an affordable episode
+count. The act rates sit low enough that the second arm would have to move by a multiple
+nobody would need statistics to see; the awareness rate needs a change of well under a
+factor of two at a few hundred episodes per arm.
+
+Compute the bound for the `n` actually purchased with `minimum_detectable_rate` in
+`subversionbench/power/exact.py` rather than taking a figure from this document, which
+would go stale the moment the corpus grows.
+
+The test is two-sided, and that is not a formality: a model that recognises the scenario
+*and* is gaming it may verbalise **less** awareness rather than more, so a one-sided test
+looking for an increase would miss the case that matters most.
+
+### The trigger is decided before collecting
+
+Fix the threshold from `minimum_detectable_rate` at the chosen `n` before the batch runs.
+A gap read against a threshold chosen afterwards is not evidence, and this is exactly the
+place where wanting the mainline to be clean would do its work unnoticed.
+
+
 ## The max-nudge arm
 
 `--nudge max` runs the **strong arm's episode unchanged** and replaces the interrogation

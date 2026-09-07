@@ -627,10 +627,24 @@ class TestNoStatementRunIsPastedTwice:
 ABC_ITEM_NUMBERING = {
     "T.1": "II.1",    # tool versions are specified
     "T.9": "II.8",    # an oracle solver demonstrates the tasks are performable
+    "R.3": "III.3",   # measures against data contamination
+    "R.4": "III.4",   # measures or plans to keep challenges updated
     "R.13": "III.13",  # results for a trivial agent
 }
 
 ABC_DOI = "2507.02825"
+
+# CHANGELOG.md is a historical record: each entry describes what a past version
+# said, and back-filling a numbering into an old entry would misrepresent it.
+# Excluded by name because the category has exactly one member, and stated
+# rather than silently skipped.
+#
+# It is worth reading for a different reason: the v131 entry claims hostenv.py
+# was "named for items T.1 and R.6" and then explains only T.1. R.6 - III.6,
+# "clearly states the evaluation subject of the benchmark" - was cited there and
+# never substantiated in that entry or in the module, which is why it is absent
+# from the map below rather than recorded as satisfied.
+ABC_HISTORICAL_RECORD = "CHANGELOG.md"
 
 
 def _abc_item_re(item: str) -> str:
@@ -646,18 +660,27 @@ def _abc_item_re(item: str) -> str:
 
 
 def _abc_citing_files() -> list:
-    """Files that cite the checklist, EXCLUDING the one defining the map.
+    """Every tracked file citing the checklist, EXCLUDING the one holding the map.
 
-    This module names every item number as data - in ABC_ITEM_NUMBERING and in
-    the docstrings explaining it - so scanning it finds citations that are not
-    citations. It reported its own comment's "T.10" as an unmapped item, which
-    is a checker failing its own check by reading itself.
+    Source AND prose, from `git ls-files`, because the citations are in both and
+    the first version of this listed `README.md` by name - which would have gone
+    on passing while a citation added anywhere else in docs/ escaped it. That is
+    the hand-written-list defect the rest of this file exists to avoid.
+
+    This module is excluded because it names every item number as data, in
+    ABC_ITEM_NUMBERING and in the docstrings explaining it. Scanning it found
+    citations that are not citations: it reported the "T.10" in its own comment
+    as an unmapped item, which is a checker failing its own check by reading
+    itself.
     """
-    here = Path(__file__).resolve().relative_to(PROJECT_ROOT)
-    return [relative for relative in project_python_files()
-            if Path(relative) != here
-            and ABC_DOI in (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            ] + [Path("README.md")]
+    tracked = subprocess.run(
+        ["git", "ls-files", "*.py", "*.md"], cwd=PROJECT_ROOT,
+        capture_output=True, text=True, check=True).stdout.split()
+    assert tracked, "git ls-files matched nothing, so the scope is empty"
+    here = str(Path(__file__).resolve().relative_to(PROJECT_ROOT))
+    return [Path(name) for name in tracked
+            if name not in (here, ABC_HISTORICAL_RECORD)
+            and ABC_DOI in (PROJECT_ROOT / name).read_text(encoding="utf-8")]
 
 
 class TestEveryChecklistCitationGivesBothNumberings:
@@ -673,10 +696,23 @@ class TestEveryChecklistCitationGivesBothNumberings:
     file is not a citation.
     """
 
-    def test_the_scan_finds_the_citations(self):
-        """Without this, every test below passes on an empty list."""
+    def test_the_scan_reaches_both_source_and_prose(self):
+        """Without this, every test below passes on a narrowed list.
+
+        A count alone is not enough, and that is measured rather than assumed:
+        narrowing the scan to `*.py` leaves exactly five citing modules, so a
+        `len(citing) >= 5` assertion passed while every prose citation in
+        docs/ went unchecked - which is the state that let one sit there.
+        The citations live in source AND in prose, so the scope has to reach
+        both kinds or it is not the scope this rule needs.
+        """
         citing = _abc_citing_files()
-        assert len(citing) >= 5, citing
+        suffixes = {path.suffix for path in citing}
+        assert ".py" in suffixes, citing
+        assert ".md" in suffixes, (
+            f"the scan reaches no prose, so a citation in docs/ or the README "
+            f"is unchecked: {citing}")
+        assert len(citing) >= 6, citing
 
     def test_every_paper_form_item_is_accompanied_by_its_other_number(self):
         offenders = []
