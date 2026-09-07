@@ -243,7 +243,15 @@ class TestEveryChartSaysWhichArmsItCovers:
         labels = [r.label for r in captured["rows"]]
         assert len(labels) == 2, labels
         gap = [r for r in captured["rows"] if r.diff is None]
-        assert len(gap) == 1 and "excluded arm" in gap[0].missing
+        assert len(gap) == 1
+        # THE SECTION'S OWN REASON, which is what the fixture above attaches.
+        # This asserted `"excluded arm" in gap[0].missing` - text that appeared
+        # in no reason build_report emits, because the row was ignoring the
+        # attached reason and printing a hardcoded one. So the guard was
+        # pinning the defect: under --exclude-aware, where no arm is excluded,
+        # 8 of 12 rows named a cause that had not occurred and this test
+        # required them to. See _missing_label.
+        assert gap[0].missing == "no comparator", gap[0].missing
         assert "no-oversight arm excluded" in captured["title"]
 
     def test_the_excluded_arms_own_lure_panel_is_not_drawn(self):

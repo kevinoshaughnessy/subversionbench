@@ -10,6 +10,50 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v149
+
+Package version `149.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE OVERVIEW CHART NAMED A CAUSE THAT HAD NOT OCCURRED.
+
+`collapsed_by_exclusion` is attached by two different narrowings - dropping an
+arm, and the awareness reading - and `build_report` puts both on the one field,
+justified in as many words: "the two consumers of it - the console banner and
+the chart layer's skip - already do the right thing with whatever reason is
+attached".
+
+The banner does. The overview chart read the field as a boolean, discarded the
+reason and printed "no comparator - the excluded arm was one side of this
+contrast". Under `--exclude-aware` no arm is excluded and 8 of the 12 questions
+collapse, so 8 rows told the reader the cause was something that had not
+happened. Half of that justification was true and nothing checked the other
+half - the same shape as the v146 exemption whose stated reason was false, and
+as `cost.py`'s comment claiming no other pricing table existed.
+
+The row now carries the section's own reason, shortened to the headline before
+its colon, because the full reasons are sentences of 145 to 205 characters and
+this is drawn at fontsize 7 beside a row. Both producers already write
+`headline: detail` for that division to be available, and a reason with no
+colon is used whole rather than guessed at.
+
+THE GUARD THAT EXISTED WAS PINNING THE DEFECT.
+`test_the_overview_keeps_a_row_for_a_collapsed_question` asserted
+`"excluded arm" in row.missing` - text that appears in no reason
+`build_report` emits, and which could only be there because the row ignored
+what was attached. Its real subject, that a collapsed question keeps a row
+rather than being dropped, is unchanged; the incidental assertion required the
+wrong string.
+
+Replaced by checks that run `plot_overview` and read what it handed the drawing
+layer: the drawn text must be the start of that section's own reason, must not
+mention an arm on the awareness reading, and must be short enough to draw. The
+tests that call the shortening helper directly are recorded as NOT catching a
+reverted call site, which is why the end-to-end one exists.
+
+The per-question chart's skip was already right for both narrowings; only its
+docstring said "the arm exclusion", so it is reworded rather than changed.
+
 ## v148
 
 Package version `148.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

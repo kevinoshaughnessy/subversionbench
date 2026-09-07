@@ -15,8 +15,11 @@ import os
 import tempfile
 
 import report as run_report
+import report.run_report as rr
 import report_charts as rc
+import report_charts.questions  # noqa: F401
 from subversionbench import charting
+from test_analysis.test_run_report import _two_arm_dir
 from test_analysis.chart_fixtures import (
     _contrast, _paired_section, _plt, _section)
 
@@ -498,3 +501,143 @@ class TestTheOverviewMarksTheQuestionsWhoseTwoEstimatesDisagree:
         assert marked[0].startswith("Q1.")
         assert any("crude and stratified estimates diverge" in c
                    for c in captions)
+
+
+class TestACollapsedRowSaysWhyTheSectionSaysItCollapsed:
+    """The overview must not invent a cause.
+
+    `collapsed_by_exclusion` is attached by TWO different narrowings - dropping
+    an arm, and the awareness reading - and build_report puts both on that one
+    field, justified in as many words by "the two consumers of it - the console
+    banner and the chart layer's skip - already do the right thing with
+    whatever reason is attached".
+
+    The banner did. This layer read the field as a boolean and printed
+    "no comparator - the excluded arm was one side of this contrast", which
+    names an arm exclusion; under --exclude-aware no arm is excluded and 8 of
+    the 12 questions collapse, so 8 rows named a cause that had not occurred.
+    The claim was half true and nothing checked the other half.
+
+    Reasons come from real reports under both readings rather than from a list
+    written here, so a third narrowing - or a reworded reason - inherits these
+    checks instead of escaping them.
+    """
+
+    def _collapsed_reasons(self):
+        """Every reason build_report actually attaches, both readings."""
+        out = _two_arm_dir()
+        reasons = {}
+        for exclusion, awareness in ((rr.EXCLUDE_NO_OVERSIGHT,
+                                      rr.NO_AWARENESS_EXCLUSION),
+                                     (rr.NO_EXCLUSION,
+                                      rr.EXCLUDE_AWARE_PRIMARY)):
+            report = rr.build_report(out, exclusion, awareness)
+            for section in report["questions"]:
+                if section.get("collapsed_by_exclusion"):
+                    reasons[section["id"]] = section["collapsed_by_exclusion"]
+        return reasons
+
+    def test_both_narrowings_actually_collapse_something(self):
+        """Without this the three tests below pass on an empty set."""
+        out = _two_arm_dir()
+        by_reading = {}
+        for name, (exclusion, awareness) in (
+                ("arm", (rr.EXCLUDE_NO_OVERSIGHT, rr.NO_AWARENESS_EXCLUSION)),
+                ("awareness", (rr.NO_EXCLUSION, rr.EXCLUDE_AWARE_PRIMARY))):
+            report = rr.build_report(out, exclusion, awareness)
+            by_reading[name] = [s["id"] for s in report["questions"]
+                                if s.get("collapsed_by_exclusion")]
+        assert by_reading["arm"], "the arm reading collapsed nothing"
+        assert by_reading["awareness"], "the awareness reading collapsed nothing"
+
+    def test_the_row_label_is_the_sections_own_reason(self):
+        """A prefix, not merely non-empty: the label has to be shortened to
+        render at fontsize 7, and shortening is the only liberty it may take."""
+        for qid, reason in self._collapsed_reasons().items():
+            label = rc.questions._missing_label(reason)
+            assert reason.startswith(label), (
+                f"{qid}: the row says {label!r}, which is not what the "
+                f"section says: {reason!r}")
+            assert label, f"{qid}: the row says nothing"
+
+    def test_no_row_blames_an_arm_exclusion_on_the_awareness_reading(self):
+        """The defect itself, stated as the thing a reader would be told."""
+        out = _two_arm_dir()
+        report = rr.build_report(out, rr.NO_EXCLUSION,
+                                 rr.EXCLUDE_AWARE_PRIMARY)
+        collapsed = [s for s in report["questions"]
+                     if s.get("collapsed_by_exclusion")]
+        assert collapsed, "nothing collapsed, so this checks nothing"
+        for section in collapsed:
+            label = rc.questions._missing_label(
+                section["collapsed_by_exclusion"])
+            assert "arm" not in label, (
+                f"{section['id']} tells the reader an arm was excluded, and "
+                f"none was: {label!r}")
+            assert "unaware corpus" in label, label
+
+    def _overview_rows(self, report):
+        """The rows plot_overview actually hands the drawing layer."""
+        captured = {}
+        original = rc.draw._draw_forest
+
+        def capture(plt_, rows, *a, **kw):
+            captured["rows"] = rows
+            return a[2] if len(a) > 2 else "p.png"
+
+        rc.draw._draw_forest = capture
+        try:
+            rc.plot_overview(_plt(), report,
+                             os.path.join(tempfile.mkdtemp(), "o.png"))
+        finally:
+            rc.draw._draw_forest = original
+        return captured["rows"]
+
+    def test_the_drawn_row_carries_it_end_to_end(self):
+        """THE DISCRIMINATING ONE. Every test above calls `_missing_label`
+        directly, so all of them pass with the call site reverted to a
+        hardcoded string - which is the defect. This runs plot_overview and
+        reads what it handed the drawing layer.
+        """
+        out = _two_arm_dir()
+        report = rr.build_report(out, rr.NO_EXCLUSION,
+                                 rr.EXCLUDE_AWARE_PRIMARY)
+        # Keyed by the row prefix plot_overview builds, so the collapsed rows
+        # can be told from the paired questions' own "no paired units" rows -
+        # 11 and 12 name awareness on neither side and fall out on their own,
+        # which is a different fact and legitimately worded differently.
+        reasons = {f"Q{i}.": section["collapsed_by_exclusion"]
+                   for i, section in enumerate(report["questions"], start=1)
+                   if section.get("collapsed_by_exclusion")}
+        assert reasons, "nothing collapsed, so this checks nothing"
+
+        checked = 0
+        for row in self._overview_rows(report):
+            prefix = row.label.split(" ", 1)[0]
+            if prefix not in reasons:
+                continue
+            checked += 1
+            reason = reasons[prefix]
+            assert row.missing, f"{row.label} was drawn with no reason on it"
+            assert reason.startswith(row.missing), (
+                f"{row.label} was drawn saying {row.missing!r}, which is not "
+                f"the start of what its section says: {reason!r}")
+            assert "excluded arm" not in row.missing, (
+                f"{row.label} still blames an arm exclusion: {row.missing!r}")
+        assert checked == len(reasons), (
+            f"{checked} of {len(reasons)} collapsed questions reached a row")
+
+    def test_the_label_is_short_enough_to_draw(self):
+        """Why the full reason cannot simply be passed through: it is a
+        sentence of 145 characters or more, drawn beside a row at fontsize 7."""
+        for qid, reason in self._collapsed_reasons().items():
+            assert len(reason) > 60, (
+                f"{qid}: this reason is short enough to pass whole, so the "
+                f"shortening below is not being exercised")
+            assert len(rc.questions._missing_label(reason)) <= 60, qid
+
+    def test_a_reason_with_no_colon_is_passed_through_whole(self):
+        """The headline split is a convention the producers keep, not a
+        guarantee. A reason that does not follow it must not become empty."""
+        assert rc.questions._missing_label("nothing to compare") == (
+            "nothing to compare")

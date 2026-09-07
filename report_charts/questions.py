@@ -25,11 +25,17 @@ def plot_question(plt, index: int, section: dict, path: str,
     _exclusion_captions gives: a parameter a caller may omit is a chart that can
     silently be drawn without the words saying which arms it covers.
 
-    Draws NOTHING for a question the arm exclusion collapsed. Those sections
-    still hold a full set of per-model rows, every one of them "no data on one
-    side", and a forest of thirty such lines under the question's own title
-    reads as a measured null rather than as an absent comparison. The console
-    says the same thing in words, and write_charts reports the omission.
+    Draws NOTHING for a question EITHER narrowing collapsed - the arm exclusion
+    or the awareness reading, both of which attach `collapsed_by_exclusion`.
+    Those sections still hold a full set of per-model rows, every one of them
+    "no data on one side", and a forest of thirty such lines under the
+    question's own title reads as a measured null rather than as an absent
+    comparison. The console says the same thing in words, and write_charts
+    reports the omission.
+
+    This said "the arm exclusion" while skipping for both, which is the same
+    false specificity the overview row carried - see `_missing_label`. The skip
+    was right; only the sentence describing it was narrow.
     """
     if section.get("collapsed_by_exclusion"):
         return None
@@ -71,6 +77,32 @@ def plot_question(plt, index: int, section: dict, path: str,
                         captions, path, xlabel, legend=not paired)
 
 
+def _missing_label(reason: str) -> str:
+    """The row label for a question that has no effect to plot.
+
+    THE SECTION'S OWN REASON, SHORTENED - not a reason of this layer's own.
+    This read `collapsed_by_exclusion` as a boolean and printed
+    "no comparator - the excluded arm was one side of this contrast", which
+    names an arm exclusion. Two different narrowings attach that field, and
+    under `--exclude-aware` NO arm is excluded: 8 of the 12 questions collapse
+    because awareness is one side of them, so 8 rows gave the reader a cause
+    that had not occurred.
+
+    It also falsified the reason build_report gives for putting both narrowings
+    on one field - that "the two consumers of it - the console banner and the
+    chart layer's skip - already do the right thing with whatever reason is
+    attached". The banner does; this did not, which is exactly the half of that
+    claim nothing checked.
+
+    THE HEADLINE, because the full reason is a sentence of 145 to 205
+    characters and this is drawn at fontsize 7 beside a row. Both producers
+    write it as `headline: detail` for that division to be available - the
+    console prints the whole thing, and a reason with no colon is used whole
+    rather than guessed at.
+    """
+    return reason.split(":", 1)[0].strip() or reason
+
+
 def plot_overview(plt, report: dict, path: str) -> str:
     """
     Every question on one axis.
@@ -97,8 +129,8 @@ def plot_overview(plt, report: dict, path: str) -> str:
         if section.get("collapsed_by_exclusion"):
             rows.append(Row(f"Q{i}. {short_label(section['id'])}",
                             None, None, None, "stratified",
-                            missing="no comparator - the excluded arm was one "
-                                    "side of this contrast"))
+                            missing=_missing_label(
+                                section["collapsed_by_exclusion"])))
             continue
         mh = ((section.get("stratified") or {}).get("mantel_haenszel") or {})
         overall = section.get("overall") or {}
