@@ -138,6 +138,19 @@ def _reasoning_usage(completion) -> dict:
     tokens = getattr(details, "reasoning_tokens", None) if details else None
     if tokens is not None:
         out["reasoning_tokens"] = tokens
+    # THE CACHE COUNTERS, which this dropped entirely. Chat completions nest
+    # them under prompt_tokens_details and the Responses API under
+    # input_tokens_details, and both carry the same two names. Without them
+    # `cache` was zero on every non-Anthropic episode - not because caching
+    # failed, but because nothing read the numbers - so the field that exists
+    # to tell a working breakpoint from a no-op was blind on the route
+    # carrying most of the corpus.
+    prompt_details = (getattr(usage, "prompt_tokens_details", None)
+                      or getattr(usage, "input_tokens_details", None))
+    for field in ("cached_tokens", "cache_write_tokens"):
+        value = getattr(prompt_details, field, None) if prompt_details else None
+        if value is not None:
+            out[field] = value
     return out
 
 

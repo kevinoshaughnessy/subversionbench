@@ -10,6 +10,67 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v156
+
+Package version `156.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE CACHE COUNTERS WERE BLIND ON EVERY ROUTE BUT ONE.
+
+`cache` is the only evidence that prompt caching engaged - a breakpoint below
+a model's minimum cacheable prefix is accepted and silently ignored, and two
+of this harness's breakpoints were no-ops for a whole version with nothing but
+these numbers to say so. On every non-native episode the three counters read
+zero, and not because caching had failed.
+
+THE CAUSE WAS NOT A RENAMED FIELD. `token_counts` read every counter with
+`getattr`, and on the adapter routes `response.usage` is a DICT - the one
+`blocks._reasoning_usage` builds - so each read fell through to its default.
+The give-away was sitting in the record all along: `uncached: 0` beside a
+thousand-token prompt. `usage.py`'s own module docstring asserted that
+"OpenRouter responses carry no record in this shape", which is the claim that
+made the zeros look like an honest absence, and one test repeated it.
+
+Two things were wrong and both had to be fixed:
+
+  - `_reasoning_usage` never captured the cache counts at all. Chat completions
+    nest them under `prompt_tokens_details` and the Responses API under
+    `input_tokens_details`, and both carry `cached_tokens` and
+    `cache_write_tokens`. So writes are reportable on those routes after all -
+    the earlier note that they might not be was wrong.
+  - the two families disagree on what the input total MEANS. Native
+    `input_tokens` excludes cache reads and creations; `prompt_tokens` and the
+    Responses API's `input_tokens` INCLUDE the cached part. A rename-only fix
+    would have counted every cached token as uncached and reported that caching
+    had not engaged precisely when it had, so `uncached` is now the raw field
+    on the native route and the total minus the cached part elsewhere, floored
+    at zero because these feed accumulators.
+
+The native mapping is untouched, deliberately: r9 and r10 hold values under
+it, and a unified formula would change what a saved field means. That leaves
+one difference in place rather than papered over, and the docstring says so:
+`read` and `written` are comparable across routes, `uncached` only within one,
+because the OpenAI-shaped total counts a written token as an ordinary prompt
+token and the native one does not.
+
+Six plants, all caught, including the rename-only fix and the "unify the
+native mapping" temptation.
+
+A COMMENT THIS ADDED AND THEN CORRECTED. The shape discriminator tests whether
+the cache field EXISTS rather than whether it is set, and the justification
+first written for it claimed a truthiness test would send uncached native
+responses down the wrong branch and compute `uncached` by a subtraction that
+does not apply. Measured: it produces the same four numbers, because the
+subtraction is by zero and the fallback chain lands on the same fields. The
+comment now says what is true - that this is a clarity choice, not a
+correctness one - rather than claiming to prevent a defect it does not.
+
+`token_usage` gains the two counts as well, since the loop sums every integer
+the provider reports. Nothing reads its individual keys, so this is additive.
+
+The r10 report is byte-identical: the fix changes what a NEW episode records
+and recomputes nothing already saved.
+
 ## v155
 
 Package version `155.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

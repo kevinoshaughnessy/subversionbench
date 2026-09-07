@@ -19,6 +19,7 @@ import types
 
 from pathlib import Path
 from subversionbench.config import (SYSTEM_PROMPT_STRONG_NUDGE)
+import subversionbench.blocks as ev_blocks
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
 
@@ -208,8 +209,14 @@ class TestPromptCacheBreakpoints:
         assert messages[0]["content"] == "a string, not blocks"
 
     def test_counters_are_zero_when_the_backend_reports_none(self):
-        """OpenRouter responses carry no usage in this shape, and a missing
-        counter must read as zero rather than be guessed at."""
+        """A response with no usage record at all reports zeros rather than
+        guesses.
+
+        This used to say "OpenRouter responses carry no usage in this shape",
+        which was the belief that let the cache counters read zero on every
+        non-native episode for versions. They do carry one - as a dict, under
+        other names - see TestTheCacheCountersAreReadOnEveryRoute below.
+        """
         assert ev_run.cache_usage(types.SimpleNamespace()) == {
             "read": 0, "written": 0, "uncached": 0}
         assert ev_run.cache_usage(types.SimpleNamespace(usage=None)) == {
@@ -581,3 +588,81 @@ class TestHowAnEpisodeEndsIsRecorded:
         usage = result.get("token_usage") or {}
         assert usage.get("prompt_tokens") == 7
         assert "note" not in usage, "a non-integer field was accumulated"
+
+
+class TestTheCacheCountersAreReadOnEveryRoute:
+    """`cache` is the only evidence that prompt caching engaged, and it was
+    blind everywhere except the native route.
+
+    The adapters build their usage record with `blocks._reasoning_usage`, which
+    returns a DICT under the OpenAI family's names, so `token_counts`'
+    getattr-or-zero chain fell through on every one of them. Measured on r10:
+    the `cache` counters were populated on all 120 native-Anthropic episodes
+    and on none of the 3,093 others.
+
+    `uncached: 0` beside a thousand-token prompt is the tell, and it is why a
+    rename-only fix would not have been enough: the two families disagree on
+    whether the input total already excludes the cached part.
+    """
+
+    def _chat(self, prompt, cached, written, completion):
+        """A chat-completions response, as OpenRouter returns one."""
+        usage = types.SimpleNamespace(
+            prompt_tokens=prompt, completion_tokens=completion,
+            total_tokens=prompt + completion,
+            prompt_tokens_details=types.SimpleNamespace(
+                cached_tokens=cached, cache_write_tokens=written))
+        return ev_blocks._Response(
+            [], ev_blocks._reasoning_usage(
+                types.SimpleNamespace(usage=usage)))
+
+    def _responses(self, inp, cached, written, out):
+        """A Responses API response, as a bare `gpt-*` model returns one."""
+        usage = types.SimpleNamespace(
+            input_tokens=inp, output_tokens=out, total_tokens=inp + out,
+            input_tokens_details=types.SimpleNamespace(
+                cached_tokens=cached, cache_write_tokens=written))
+        return ev_blocks._Response(
+            [], ev_blocks._reasoning_usage(
+                types.SimpleNamespace(usage=usage)))
+
+    def test_chat_completions_counters_are_found(self):
+        assert ev_run.cache_usage(self._chat(1000, 900, 100, 7)) == {
+            "read": 900, "written": 100, "uncached": 100}
+
+    def test_responses_api_counters_are_found(self):
+        """The route a bare `gpt-*` model takes, which nests the same two
+        counts under a different parent."""
+        assert ev_run.cache_usage(self._responses(1000, 900, 100, 7)) == {
+            "read": 900, "written": 100, "uncached": 100}
+
+    def test_the_cached_part_is_subtracted_from_the_input_total(self):
+        """THE HALF A RENAME WOULD HAVE MISSED. On these routes the input total
+        INCLUDES the cached tokens, so reading it raw would report a fully
+        cached prompt as entirely uncached - caching's own signal inverted."""
+        counts = ev_run.cache_usage(self._chat(1000, 1000, 0, 7))
+        assert counts == {"read": 1000, "written": 0, "uncached": 0}, counts
+
+    def test_a_prompt_with_no_cache_reports_all_of_it_uncached(self):
+        """The control, and the number the old code got wrong in the other
+        direction: it reported zero uncached tokens for every such prompt."""
+        assert ev_run.cache_usage(self._chat(1000, 0, 0, 7)) == {
+            "read": 0, "written": 0, "uncached": 1000}
+
+    def test_the_native_mapping_is_unchanged(self):
+        """r9 and r10 hold values under this mapping, so it must not move.
+        Its `uncached` is the raw field, because that route reports it already
+        net of both cache counters."""
+        native = types.SimpleNamespace(usage=types.SimpleNamespace(
+            cache_read_input_tokens=900, cache_creation_input_tokens=100,
+            input_tokens=20, output_tokens=7))
+        assert ev_run.cache_usage(native) == {
+            "read": 900, "written": 100, "uncached": 20}
+        from subversionbench.usage import token_counts
+        assert token_counts(native)["output"] == 7
+
+    def test_more_cached_than_prompt_tokens_cannot_go_negative(self):
+        """These feed `+=` accumulators over a whole episode, so one
+        inconsistent provider report must not push a negative into them."""
+        counts = ev_run.cache_usage(self._chat(100, 900, 0, 7))
+        assert counts["uncached"] == 0, counts
