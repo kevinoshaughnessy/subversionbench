@@ -10,6 +10,55 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v147
+
+Package version `147.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+TWO DEFINITIONS THAT EXISTED TWICE, AND A CHECK SO A THIRD CANNOT.
+
+`report_grader_failure` was defined byte for byte in both `turns.py` and
+`grading/grader_io.py`. Every caller imported it from `grading/`, so the
+`turns.py` copy was unreachable - a leftover from the split that gave it an
+owner and did not delete the original. Removing it also emptied `turns.py`'s
+only import of `api_errors`.
+
+`PRICES_PER_MTOK` was defined in both `grader_ab/cost.py` and
+`grader_ab/prices.py`, and the two copies were read by different callers:
+`__init__` and `cli.py` asked prices.py whether a grader was priced at all,
+while the arithmetic read cost.py's own copy. So the check and the thing
+checked could disagree - a model added to one and not the other reports as
+priced with a cost of None, or the reverse. Both copies also carried a comment
+asserting that no other pricing table existed, which the second copy had made
+false. `cli.py` additionally computed `priced` twice on consecutive lines.
+
+`TestNoTwoModulesDefineTheSameThing` now derives the offenders from
+`conftest.source_python_files()` and holds a two-directional baseline of the
+six that remain, so the list can only shrink. Identical source only: two
+modules defining the same NAME differently are doing different jobs, and
+`main`, `_run` and `_episode` legitimately recur.
+
+THE COVERAGE FLOOR IS 98, up from 96, measured at 98.43% and rounded down.
+Removing the two duplications is part of why it moved.
+
+A GUARD THAT PASSED ON TWO PYTHON VERSIONS AND FAILED ON THE THIRD. The v146
+fill-when-absent check stripped docstrings by matching `__doc__` against the
+module source. Python 3.13 strips a docstring's common leading whitespace at
+compile time, so `__doc__` no longer equals the indented text in the file and
+the replacement matched nothing, leaving the pattern the docstring names in
+order to explain that it is gone. It now takes docstring line ranges from
+`ast`, which is version-independent.
+
+WHAT CI HAS NOT BEEN CHECKING. The workflow triggers on pushes to `main`, so
+work on a feature branch is unverified until it merges. Dispatched by hand at
+v146 it reported 16 failures invisible on macOS, none of them caused by v143 to
+v146 and none yet fixed: fourteen in `test_heldout_tool.py`, which raises
+FileNotFoundError rather than skipping when the gitignored held-out bundle is
+absent; one comparing against a shell error message that differs under Ubuntu's
+`dash`; and one expecting a macOS sandbox denial where Linux reports a network
+error. They are recorded here because a floor enforced on a platform whose
+suite does not pass is a floor nothing is checking.
+
 ## v146
 
 Package version `146.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

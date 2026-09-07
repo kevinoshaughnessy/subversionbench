@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "146.0.0"
+version = "147.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -97,7 +97,23 @@ omit = [
 # a local run, rather than lowering this by reflex. A floor that moves down
 # whenever it is inconvenient is not a floor, which is the same reasoning that
 # set the ruff rule set below.
-fail_under = 96
+#
+# WHAT 98 RESTS ON, AND WHAT IS NOT YET VERIFIED
+# ----------------------------------------------
+# Measured 98.43% on macOS at v147: 247 of 15,698 statement-and-branch units
+# missed, which leaves 67 units of headroom before this floor is breached.
+#
+# It has NOT been confirmed on Linux, and the reason is worth knowing rather
+# than discovering. The workflow only triggers on pushes to `main`, so a
+# feature branch is unverified until it is merged or dispatched by hand
+# (`gh workflow run tests.yml --ref <branch>`). Dispatched at v146 it found 16
+# failures that no macOS run can see, 14 of them in test_heldout_tool.py, which
+# needs the gitignored held-out bundle and raises FileNotFoundError instead of
+# skipping when it is absent. Those 14 cover heldout_tool.py, which is 225
+# units on its own - more than the headroom above - so the Linux total is
+# probably UNDER this floor until they are fixed. The suite job fails first, so
+# the coverage job has not reported a Linux figure at all.
+fail_under = 98
 skip_covered = true
 show_missing = true
 exclude_also = [

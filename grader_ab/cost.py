@@ -6,19 +6,17 @@ with no price entry (unknown), a shape that does not report output tokens
 unknown NUMBER of records missing). None is ever reported as zero.
 """
 
-
-# table current when this script was written, not derived from any API - no
-# pricing table exists elsewhere in this repository (grep confirms it; cost is
-# estimated in a prose comment in config.py and nowhere computed). Re-check
-# before trusting a run made long after this file was last touched, and treat
-# an unpriced model as a real unknown, not a $0.
-PRICES_PER_MTOK = {
-    "claude-opus-5": (5.0, 25.0),
-    "claude-sonnet-5": (3.0, 15.0),
-    "claude-fable-5": (10.0, 50.0),
-    "claude-haiku-4-5": (1.0, 5.0),
-    "claude-haiku-4-5-20251001": (1.0, 5.0),
-}
+# READ from prices.py, not restated. This module held a second copy of the
+# table, and the two were read by different callers: `__init__` and cli.py
+# resolve PRICES_PER_MTOK from prices.py to decide whether a grader is priced
+# at all, while the arithmetic below read this file's own copy. So the check
+# and the thing checked could disagree - add a model to one and the CLI reports
+# it as priced while the cost comes back None, or the reverse.
+#
+# Both copies also carried a comment asserting that "no pricing table exists
+# elsewhere in this repository (grep confirms it)", which the second copy had
+# made false. The surviving one is in prices.py, where the table is.
+from .prices import PRICES_PER_MTOK
 
 
 def usage_cost_usd(usage: dict, model: str) -> float | None:

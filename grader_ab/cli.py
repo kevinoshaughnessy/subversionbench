@@ -249,7 +249,6 @@ def _run_grid(args, sample, result_file):
     clients, results, cell_costs = {}, {}, {}
     for grader in args.graders:
         priced = grader in PRICES_PER_MTOK
-        priced = grader in PRICES_PER_MTOK
         if not priced:
             print(f"\n  ! no price entry for {grader!r} in PRICES_PER_MTOK - "
                   f"cost will show as unknown, not zero. Add it if you want "

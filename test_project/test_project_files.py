@@ -413,3 +413,123 @@ class TestNoFileIsOverTheLimit:
             at_limit = Path(tmp) / "exactly_at_the_limit.py"
             at_limit.write_text("x = 1\n" * MAX_FILE_LINES, encoding="utf-8")
             assert _too_long([at_limit.relative_to(PROJECT_ROOT)]) == []
+
+
+# Names defined identically in two or more source modules, with the reason each
+# is still here. Checked in BOTH directions below: nothing outside this list may
+# duplicate a definition, and everything in it must still be duplicated - so it
+# can only shrink, and it tells you to delete the entry when you give the name
+# an owner.
+#
+# The entry that started this was PRICES_PER_MTOK, defined in grader_ab/cost.py
+# and grader_ab/prices.py, where the two copies were read by DIFFERENT callers:
+# cli.py asked prices.py whether a grader was priced, and the arithmetic read
+# cost.py's own copy, so the check and the thing checked could disagree. Beside
+# it, a byte-identical `report_grader_failure` in turns.py that nothing imported
+# - every caller resolved it from grading/. Both are fixed; these are what is
+# left.
+DUPLICATED_DEFINITIONS = {
+    # A DPI and a text-wrapper shared by four chart modules in packages that
+    # deliberately do not import each other - see the setuptools note in
+    # pyproject.toml for why they are separate. A drift here is cosmetic.
+    "CHART_DPI": "four chart modules in packages that cannot import each other",
+    "_wrap": "same",
+    # These two are the ones worth fixing next, and for the same reason: a
+    # detector and the thing it detects reading separate copies of the rule.
+    # sandbox.py BLOCKS wrapped commands and grading/command_patterns.py
+    # DETECTS them, so a drift means the two disagree about what a wrapper is.
+    "_COMMAND_WRAPPERS": "sandbox.py blocks them, command_patterns.py detects them",
+    "AWARENESS_TIMING_LEVELS": "two modules in grading/ enumerating the same levels",
+    # One-line probe root and channel map in two sibling detectors.
+    "_PROBE_ROOT": "disguised_text.py and encoded_payload.py",
+    "_WHERE": "same",
+}
+
+
+def _top_level_definitions(relative) -> dict:
+    """Every top-level def/class/UPPER-or-underscore constant, to its source."""
+    src = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+    lines = src.split("\n")
+    found = {}
+    for node in ast.parse(src).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names = [node.name]
+        elif isinstance(node, ast.Assign):
+            # `X = some_imported_name` is an ALIAS, not a definition, and the
+            # owner is the name on the right. Six modules write
+            # `_wilson_ci = wilson_ci` after importing it, which this scan
+            # first reported as a six-way duplication - the exact opposite of
+            # what it was looking for, since that line exists BECAUSE there is
+            # one owner.
+            if isinstance(node.value, ast.Name):
+                continue
+            names = [t.id for t in node.targets
+                     if isinstance(t, ast.Name)
+                     and (t.id.isupper() or t.id.startswith("_"))]
+        else:
+            continue
+        for name in names:
+            found[name] = "\n".join(lines[node.lineno - 1:node.end_lineno])
+    return found
+
+
+def _identical_across_modules() -> dict:
+    """Name -> the modules defining it with byte-identical source."""
+    by_name = {}
+    for relative in source_python_files():
+        for name, body in _top_level_definitions(relative).items():
+            by_name.setdefault(name, []).append((str(relative), body))
+    duplicated = {}
+    for name, entries in by_name.items():
+        bodies = {}
+        for path, body in entries:
+            bodies.setdefault(body, []).append(path)
+        shared = sorted(p for paths in bodies.values() if len(paths) > 1
+                        for p in paths)
+        if shared:
+            duplicated[name] = shared
+    return duplicated
+
+
+class TestNoTwoModulesDefineTheSameThing:
+    """A second copy of a definition is a second thing to keep in step.
+
+    Not a style rule. Both instances that prompted this were live: two price
+    tables whose readers disagreed about which one was authoritative, and a
+    33-line function duplicated byte for byte in a module nothing imported it
+    from. The failure mode is never the duplication itself - it is the day one
+    copy is corrected and the other is not, and every caller of the second one
+    keeps the old answer without an error.
+
+    Identical source only. Two modules defining the same NAME differently are
+    doing different jobs and are not the target - `main`, `_run`, `_episode`
+    and a dozen others legitimately recur.
+    """
+
+    def test_no_definition_outside_the_baseline_is_duplicated(self):
+        offenders = [f"{name}: {', '.join(paths)}"
+                     for name, paths in sorted(_identical_across_modules().items())
+                     if name not in DUPLICATED_DEFINITIONS]
+        assert not offenders, (
+            "these are defined identically in more than one module. Give the "
+            "name one owner and import it:\n  " + "\n  ".join(offenders))
+
+    def test_the_baseline_holds_nothing_already_fixed(self):
+        """The half that makes the list shrink."""
+        duplicated = _identical_across_modules()
+        fixed = [name for name in sorted(DUPLICATED_DEFINITIONS)
+                 if name not in duplicated]
+        assert not fixed, (
+            "these now have one owner, so remove them from "
+            "DUPLICATED_DEFINITIONS - a baseline that outlives the debt it "
+            "records is an exemption:\n  " + "\n  ".join(fixed))
+
+    def test_the_scan_can_still_answer_no(self):
+        """A scan that found nothing would pass both tests above with every
+        duplication in place. Prove it finds the ones the baseline names."""
+        duplicated = _identical_across_modules()
+        assert duplicated, "the scan found no duplication at all"
+        for name in DUPLICATED_DEFINITIONS:
+            assert len(duplicated.get(name, [])) > 1, (
+                f"{name} is in the baseline but the scan does not see it "
+                f"duplicated, so neither direction above is checking anything")

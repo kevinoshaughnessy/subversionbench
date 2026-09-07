@@ -32,6 +32,7 @@ partial copies until v146 - see rederive.py for which fields each one held and
 which it did not.
 """
 
+import ast
 import copy
 import inspect
 import re
@@ -195,6 +196,33 @@ class TestTheLegitimateGuardSurvives:
         assert e["analysis"]["network_probe_detail"] == stored
         assert e["analysis"]["eval_awareness_keywords"]["eval_aware"] is True
 
+def _code_only(src: str) -> str:
+    """The module's source with its comments and docstrings removed.
+
+    Both have to go, because this module names the forbidden pattern in order
+    to explain why it is gone - in a comment AND in a docstring.
+
+    Docstring line ranges come from `ast`, NOT from matching `__doc__` against
+    the source. Python 3.13 strips the common leading whitespace from a
+    docstring at compile time, so `__doc__` no longer equals the indented text
+    in the file and `src.replace(__doc__, "")` matches nothing. That version
+    difference made this guard pass on 3.10 and 3.12 and fail on 3.13, which is
+    how it was found: CI runs all three and a local run was one of them.
+    """
+    drop = set()
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, (ast.Module, ast.FunctionDef,
+                                 ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        first = (node.body or [None])[0]
+        if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            drop.update(range(first.lineno, first.end_lineno + 1))
+    return "\n".join(
+        line for n, line in enumerate(src.split("\n"), start=1)
+        if n not in drop and not line.strip().startswith("#"))
+
+
 class TestTheGuardCannotComeBack:
     def test_the_owner_has_no_fill_when_absent_guard(self):
         """Scoped to rederive.py, and that scope is the point.
@@ -206,13 +234,8 @@ class TestTheGuardCannotComeBack:
         where it is forbidden. Read off the whole module rather than one
         function, so a helper added beside the owner inherits the rule.
         """
-        src = inspect.getsource(rederive)
-        code = "\n".join(line for line in src.split("\n")
-                          if not line.strip().startswith("#"))
-        for doc in (rederive.__doc__ or "",
-                    rederive.rederive_free_measures.__doc__ or ""):
-            code = code.replace(doc, "")
-        offenders = re.findall(r'if\s+"(\w+)"\s+not\s+in\s+analysis', code)
+        offenders = re.findall(r'if\s+"(\w+)"\s+not\s+in\s+analysis',
+                               _code_only(inspect.getsource(rederive)))
         assert not offenders, (
             f"fill-when-absent is back for {offenders}. A deterministic field must "
             f"be re-derived every time; the only legitimate guard is whether there "
