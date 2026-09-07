@@ -316,7 +316,35 @@ def mixed_routing_arms(episodes: list) -> list:
     return out
 
 
-TRUNCATING_FINISH_REASONS = ("length", "max_tokens")
+# EVERY ROUTE'S WORD FOR "the output was cut off", because this codebase has
+# three and they do not share a vocabulary. The first version of this held
+# ("length", "max_tokens") - the chat-completions and native-Anthropic words -
+# and was therefore silent on the whole OpenAI Responses route, which is where
+# a bare `gpt-*` model goes. r10 contains no episode from that route, so no
+# corpus could have refuted it.
+#
+#   length                          OpenAI chat completions, hence OpenRouter
+#   max_tokens                      native Anthropic
+#   model_context_window_exceeded   native Anthropic, the context-window case
+#   max_output_tokens               OpenAI Responses
+#
+# Taken from the installed SDKs' own Literal types rather than from memory:
+# anthropic.types.StopReason and openai's finish_reason / incomplete_details.
+TRUNCATING_FINISH_REASONS = frozenset({
+    "length", "max_tokens", "model_context_window_exceeded",
+    "max_output_tokens",
+})
+
+
+def _is_truncation(provider_reason: str) -> bool:
+    """Whether the provider's word for how a turn ended means "cut off".
+
+    Matched on the LAST colon-separated segment because the Responses adapter
+    prefixes the status - `_stop_reason` there returns
+    "incomplete:max_output_tokens" - while the other two routes report a bare
+    token. Comparing the whole string missed that route entirely.
+    """
+    return provider_reason.rsplit(":", 1)[-1] in TRUNCATING_FINISH_REASONS
 
 
 def truncated_as_stopped_arms(episodes: list) -> list:
@@ -339,6 +367,15 @@ def truncated_as_stopped_arms(episodes: list) -> list:
     `ended_by_provider` is "not recorded", and counting it as a truncation
     would invent a finding out of a missing field - the same rule
     mixed_served_provider_arms follows.
+
+    NOT YET REPORTED, and deliberately: a provider REFUSAL also arrives as
+    "model_stopped" and is also not the model declining on its own -
+    `content_filter` on the chat-completions routes, `refusal` natively,
+    `incomplete:content_filter` through the Responses API. It belongs in a
+    check of its own rather than pooled in here, because the remedy differs:
+    a truncation says raise the cap and re-collect, a refusal says the
+    provider blocked the turn and the episode cannot be repaired by
+    re-collecting it the same way.
     """
     arms = {}
     for ep in episodes:
@@ -349,7 +386,7 @@ def truncated_as_stopped_arms(episodes: list) -> list:
         entry = arms.setdefault(key, {"n": 0, "truncated": 0, "reasons": {}})
         entry["n"] += 1
         if (ep.get("ended_by") == "model_stopped"
-                and provider_reason in TRUNCATING_FINISH_REASONS):
+                and _is_truncation(provider_reason)):
             entry["truncated"] += 1
             entry["reasons"][provider_reason] = (
                 entry["reasons"].get(provider_reason, 0) + 1)

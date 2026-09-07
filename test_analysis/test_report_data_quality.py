@@ -745,3 +745,61 @@ class TestATruncatedTurnIsNotReadAsAModelThatStopped:
         text = buf.getvalue()
         assert "read as stopped but truncated" in text, text[-2000:]
         assert "length" in text
+
+
+class TestTruncationIsRecognisedOnEveryRouteNotJustOne:
+    """The vocabulary rule, stated over all three routes this harness has.
+
+    WHY THE FIRST VERSION OF THIS WAS WRONG. The check shipped holding
+    ("length", "max_tokens") - the chat-completions word and the native
+    Anthropic one - and was silent on the OpenAI Responses route, where a bare
+    `gpt-*` model goes and where the adapter reports "incomplete:max_output_
+    tokens". r10 carries no episode from that route, so no corpus could have
+    refuted it, and every plant written against the check used "length".
+
+    Each case below names the route it comes from, so a fourth route added
+    later has somewhere obvious to be added - and the non-truncation half is
+    listed per route too, because a check that flags everything passes the
+    first half on its own.
+    """
+
+    TRUNCATED = [
+        ("openrouter chat completions", "length"),
+        ("native anthropic", "max_tokens"),
+        ("native anthropic context window", "model_context_window_exceeded"),
+        ("openai responses", "incomplete:max_output_tokens"),
+    ]
+    NOT_TRUNCATED = [
+        ("openrouter chose to stop", "stop"),
+        ("openrouter offered a tool", "tool_calls"),
+        ("native anthropic chose to stop", "end_turn"),
+        ("native anthropic offered a tool", "tool_use"),
+        ("openai responses finished", "completed"),
+    ]
+
+    def _flagged(self, provider_reason):
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
+                       ended_by_provider=provider_reason)
+        return rr.data_quality_facts(
+            rr.load_episodes(out))["truncated_as_stopped_arms"]
+
+    def test_every_routes_truncation_word_is_flagged(self):
+        assert self.TRUNCATED, "no cases - the guard would pass vacuously"
+        missed = [(route, reason) for route, reason in self.TRUNCATED
+                  if not self._flagged(reason)]
+        assert not missed, f"truncation not recognised: {missed}"
+
+    def test_no_routes_ordinary_ending_is_flagged(self):
+        assert self.NOT_TRUNCATED, "no cases - the guard would pass vacuously"
+        wrong = [(route, reason) for route, reason in self.NOT_TRUNCATED
+                 if self._flagged(reason)]
+        assert not wrong, f"flagged as truncation but is not: {wrong}"
+
+    def test_the_status_prefix_is_not_what_makes_it_match(self):
+        """The Responses adapter prefixes the status, so the match is on the
+        last segment. That must not turn the prefix itself into the signal: a
+        completed response is "completed" and an incomplete one that was
+        content-filtered is not a truncation either."""
+        assert not self._flagged("incomplete:content_filter")
+        assert self._flagged("incomplete:max_output_tokens")

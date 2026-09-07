@@ -10,6 +10,66 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v155
+
+Package version `155.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE TRUNCATION CHECK KNEW ONE ROUTE'S VOCABULARY OUT OF THREE.
+
+`truncated_as_stopped_arms` shipped in v154 holding `("length", "max_tokens")`
+and comparing the whole string. Those are the chat-completions word and the
+native Anthropic one. This harness has a third route - a bare `gpt-*` model
+goes to the OpenAI Responses API, whose adapter flattens `status` and
+`incomplete_details.reason` into one string, so a turn cut off there reports
+`incomplete:max_output_tokens` and matched nothing. The check was silent on
+that entire route, which is the one a planned gpt-* evaluation will use.
+
+Nothing could have caught it. r10 contains episodes from two routes -
+native Anthropic and OpenRouter - and none from the Responses API, so no
+corpus could refute the set; and every plant written against the check in v154
+used "length", which the set did contain. That is the guard-against-a-path
+defect in its usual shape: correct for the case in front of it, silent on the
+rest of the rule.
+
+The set now names every route's word, `model_context_window_exceeded`
+included, and the comparison is on the LAST colon-separated segment so the
+Responses adapter's status prefix does not defeat it. The tokens come from the
+installed SDKs' own `Literal` types - `anthropic.types.StopReason`, and
+openai's `finish_reason` and `incomplete_details` - rather than from memory.
+
+The guard is now stated over the routes: each truncation word is listed beside
+the route it comes from and asserted to be flagged, and each route's ORDINARY
+endings are listed and asserted not to be, because a check that flags
+everything satisfies the first half alone. Four plants, all caught, and the
+first of them is the v154 set verbatim.
+
+WHAT THE REST OF THE SWEEP FOUND. Every attribute this codebase reads off a
+response object was traced to see whether it reaches a saved record. `status`
+and `incomplete_details` on the Responses route are not discarded after all -
+`_stop_reason` folds them into the field v154 began persisting. Token
+accounting reads both naming conventions and the nested reasoning count, and
+its comment already records the batch that motivated that.
+
+One gap is left unfixed and recorded here rather than silently: the `cache`
+counters read Anthropic's names only, so on every other route they stay zero
+whether caching engaged or not. Measured on r10 - the two fields are mutually
+exclusive by route, `cache` populated on every native-Anthropic episode and no
+other, `token_usage` the reverse. The field exists to tell a working cache
+breakpoint from a no-op, and it cannot do that on the route carrying most of
+the corpus. It is a cost diagnostic rather than an input to any published
+rate, which is why it is recorded and not fixed in the same pass.
+
+Also deferred deliberately, and said so in the check's own docstring: a
+provider REFUSAL arrives as "model_stopped" too and is equally not the model
+declining on its own. It belongs in its own check because the remedy differs -
+a truncation says raise the cap and re-collect, a refusal says the provider
+blocked the turn and re-collecting it the same way will not repair it.
+
+The r10 report is byte-identical to v154's, which it must be: that corpus
+carries no `ended_by_provider` at all, so widening what counts as a truncation
+cannot change what it finds.
+
 ## v154
 
 Package version `154.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
