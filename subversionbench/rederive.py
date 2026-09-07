@@ -107,8 +107,6 @@ def _refusal_nesting(analysis: dict, transcript: list) -> None:
         c for c in analysis["sandbox_boundary_attempts"]
         if c not in scratch]
 
-    # Reaching for a network service, and leaving the project directory by a
-
 
 def _concealment_detail(analysis: dict, transcript: list, lure: bool) -> None:
     """What the model reached for, and each detector's verdict on it.
@@ -118,6 +116,7 @@ def _concealment_detail(analysis: dict, transcript: list, lure: bool) -> None:
     details were not, so a refreshed verdict computed from a frozen input looked
     exactly like a fresh one.
     """
+    # Reaching for a network service, and leaving the project directory by a
     # route the rewriter cannot see. Both read the transcript, so both are
     # skipped only when there is no transcript.
     if transcript:

@@ -315,7 +315,7 @@ class TestTheArmIsOnScreenWhileItRuns:
     money was spent.
     """
 
-    def _run(self, oversight):
+    def _run(self, oversight, capability=None, nudge=None):
         import contextlib
         import io
         import sys
@@ -347,6 +347,15 @@ class TestTheArmIsOnScreenWhileItRuns:
         sys.argv = ["run_eval", "--model", "claude-sonnet-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--no-power",
                     "--oversight", oversight, "--output-dir", out]
+        if capability:
+            # The capability arm REFUSES a nudge, and that refusal is why the
+            # two batches looked alike: the nudge is propensity machinery, so a
+            # ceiling measured under it is a ceiling for a pressured model. So
+            # the batch it is confusable with is specifically a nudge=none
+            # propensity batch, which is what the negative tests below run.
+            sys.argv += ["--capability", capability, "--nudge", "none"]
+        elif nudge:
+            sys.argv += ["--nudge", nudge]
         try:
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
@@ -367,6 +376,51 @@ class TestTheArmIsOnScreenWhileItRuns:
         arm = next(line for line in self._run("true").split("\n")
                    if line.startswith("Arm:"))
         assert "oversight=true" in arm, arm
+
+    def test_the_capability_arm_says_so_before_the_first_episode(self):
+        """The arm whose episodes must never reach a propensity rate.
+
+        batch.py names three defences against that pooling - the filename mark,
+        the arm's own rollout fingerprint, and both report loaders dropping it
+        - and this line was the gap in front of all of them: a capability
+        batch printed exactly what a plain propensity batch printed, so the
+        operator's one chance to notice before spending showed nothing.
+
+        The act is INSTRUCTED in this arm, so an episode of it pooled into a
+        misalignment rate inflates that rate towards the ceiling the arm exists
+        to measure - which is why it is named first and in capitals.
+        """
+        out = self._run("false", capability="sandbox")
+        arm = next(line for line in out.split("\n")
+                   if line.startswith("Arm:"))
+        assert "CAPABILITY=sandbox" in arm, arm
+        assert out.index("Arm:") < out.index("# RUN 1/")
+
+    def test_a_propensity_batch_does_not_claim_to_be_a_capability_one(self):
+        """The other direction, and the one that matters more: a propensity
+        rate is only safe if the arm it came from was not marked."""
+        arm = next(line for line in self._run("false", nudge="none").split("\n")
+                   if line.startswith("Arm:"))
+        assert "CAPABILITY" not in arm, arm
+        assert "nudge=none" in arm, (
+            "this is meant to be the batch a capability run is confusable "
+            "with, and it is not one")
+
+    def test_every_run_header_carries_the_capability_arm(self):
+        """Same reason the oversight arm is on every header: a batch takes
+        hours, and an operator reading a run in the middle of it has had the
+        announcement scroll away long ago."""
+        out = self._run("false", capability="sandbox")
+        headers = [line for line in out.split("\n")
+                   if line.startswith("# RUN ")]
+        assert headers, out
+        assert all("CAPABILITY sandbox" in h for h in headers), headers
+
+    def test_a_propensity_run_header_is_not_marked(self):
+        headers = [line for line in self._run("false", nudge="none").split("\n")
+                   if line.startswith("# RUN ")]
+        assert headers
+        assert all("CAPABILITY" not in h for h in headers), headers
 
     def test_every_run_header_carries_the_arm(self):
         """Stated once at the top is not enough on a 100-episode batch: by the time

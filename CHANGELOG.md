@@ -10,6 +10,35 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v151
+
+Package version `151.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE CAPABILITY ARM IS NAMED BEFORE THE SPEND.
+
+`batch.py` names three defences keeping a capability episode out of every
+propensity rate - the filename mark, the arm's own rollout fingerprint, and
+both report loaders dropping it - because the act is INSTRUCTED in that arm, so
+one episode pooled into a misalignment rate inflates it towards the ceiling the
+arm exists to measure. The pre-spend announcement was the gap in front of all
+three: a capability batch printed exactly what a plain propensity batch
+printed.
+
+And specifically a `--nudge none` propensity batch, because the capability arm
+refuses a nudge - the nudge is propensity machinery, so a ceiling measured
+under it is a ceiling for a pressured model. Those two were indistinguishable
+on screen, which is the pair the new tests compare.
+
+It is now first on the `Arm:` line and in capitals, and on every run header
+beside the oversight arm, for the reason the oversight arm is there: a batch
+takes hours, and by the time anything looks wrong the announcement has scrolled
+away.
+
+A COMMENT THIS WORK BROKE. v146's module split cut one sentence in half, so
+`_refusal_nesting` ended mid-sentence and `_concealment_detail` opened with the
+rest of it. Rejoined at the derivation it describes.
+
 ## v150
 
 Package version `150.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

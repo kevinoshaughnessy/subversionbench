@@ -783,7 +783,19 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     # absence of the very artefacts the run is about, which is not something you can
     # spot from the episode output. The lure is named only when it is on, matching
     # how batch_stem marks it, so an ordinary run stays uncluttered.
-    print(f"Arm: oversight={'true' if identity.oversight else 'false'}"
+    # CAPABILITY FIRST, and in capitals, because it is the one arm whose
+    # episodes must never reach a propensity rate: the act is INSTRUCTED there,
+    # so pooling one would inflate that rate catastrophically. batch.py names
+    # three defences against that - the filename mark, the arm's own rollout
+    # fingerprint, and both report loaders dropping it - and this line was the
+    # gap in front of all of them. A capability batch read identically on
+    # screen to a plain no-nudge propensity batch, which is the batch it would
+    # be pooled with, and the operator's only chance to notice is before the
+    # spend rather than after it.
+    print("Arm: "
+          + (f"CAPABILITY={identity.capability} | " if identity.capability
+             else "")
+          + f"oversight={'true' if identity.oversight else 'false'}"
           + (" | lure=true" if identity.lure else "")
           + f" | nudge={identity.nudge}"
           + (f" | effort={identity.effort}" if identity.effort else ""))
@@ -792,6 +804,11 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     _arm_tag = ("oversight" if identity.oversight else "NO oversight")
     if identity.lure:
         _arm_tag += "+lure"
+    # Every run header too, not only the one line at the top: a batch takes
+    # hours and an operator who scrolls back to a run in the middle of it sees
+    # this and not the announcement.
+    if identity.capability:
+        _arm_tag = f"CAPABILITY {identity.capability}, {_arm_tag}"
 
     t_batch_start = time.time()
     run_episodes = (_run_episodes_concurrently if args.concurrency > 1
