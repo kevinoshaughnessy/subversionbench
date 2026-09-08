@@ -62,6 +62,62 @@ class TestNothingIdentifyingIsRecorded:
         assert platform.node() not in facts.values()
         assert not any("node" in k or "host" in k for k in facts)
 
+    def test_a_probe_that_echoes_its_own_argv_is_stripped(self):
+        """The Linux failure this class could not see from macOS.
+
+        macOS /bin/sh is bash and answers --version with a banner, so the
+        integration test below passes here whatever the stripping does.
+        Ubuntu /bin/sh is dash, which REFUSES and prefixes its diagnostic with
+        the program name - the exact string CI recorded is asserted, so this
+        does not depend on having a dash to run.
+
+        The refusal is kept rather than discarded: it identifies dash the way
+        BSD ls printing usage identifies BSD. Only the leading path goes, being
+        the probe's own argument echoed back.
+        """
+        strip = hostenv._without_the_programs_own_name
+        assert strip("/bin/sh: 0: Illegal option --", "/bin/sh") == (
+            "0: Illegal option --")
+        assert not strip("/bin/sh: 0: Illegal option --",
+                         "/bin/sh").startswith("/")
+
+    def test_the_probe_itself_applies_the_stripping(self):
+        """The wiring, which testing the helper alone leaves unguarded.
+
+        A probe that computed the right answer and then returned the raw line
+        would satisfy every assertion above. subprocess.run is stubbed with
+        dash's reply so this needs no dash to run.
+        """
+        import subprocess
+        import types
+        saved = subprocess.run
+        subprocess.run = lambda *a, **k: types.SimpleNamespace(
+            stdout="", stderr="/bin/sh: 0: Illegal option --\n", returncode=2)
+        try:
+            line = hostenv._first_line(["/bin/sh", "--version"])
+        finally:
+            subprocess.run = saved
+        assert line == "0: Illegal option --", line
+        assert not line.startswith("/"), line
+
+    def test_a_real_banner_is_left_alone(self):
+        """The other direction. A version string that merely CONTAINS the
+        program name, or begins with something else entirely, must survive - a
+        strip that took the first colon-separated token would eat these."""
+        strip = hostenv._without_the_programs_own_name
+        for banner, program in (
+                ("GNU bash, version 5.2.21(1)-release", "/bin/sh"),
+                ("ls (GNU coreutils) 9.4", "ls"),
+                ("zsh 5.9 (arm64-apple-darwin24.0)", "/bin/sh"),
+                # THE CASE THAT DISCRIMINATES. Every line above lacks a
+                # colon-space, so a strip that took everything before the
+                # first one would leave them untouched and look correct. This
+                # one has a colon-space whose prefix is NOT the program - a
+                # shell warning names itself by basename while argv[0] is the
+                # full path - so only a prefix-anchored strip survives it.
+                ("bash: warning: setlocale failed", "/bin/sh")):
+            assert strip(banner, program) == banner
+
     def test_no_value_looks_like_a_filesystem_path(self):
         """A version banner that embedded a build path would carry the
         builder's directory layout into every run file."""

@@ -10,6 +10,77 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v158
+
+Package version `158.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+SEVENTEEN TESTS FAILED ON LINUX FOR TWELVE VERSIONS AND NOTHING SAID SO.
+
+The workflow triggered on pushes to `main` only, so everything since v146 was
+verified on one developer machine and one OS. Dispatching it by hand against
+the branch found three defects, none of them visible from macOS. `main` and
+the feature branch are both named in the trigger now; a short-lived branch is
+still covered by `pull_request` when it is proposed.
+
+FIFTEEN OF THEM WERE ONE ORDERING BUG, not a platform difference. Every test
+in `TestTheHeldOutToolsModes` opens a scratch directory inside `heldout/`,
+deliberately - several of the tool's messages report a path relative to the
+repository root, and asking for that relation on a path outside it raises. But
+`heldout/` is gitignored, so on a runner it does not exist and
+`TemporaryDirectory(dir=...)` raises FileNotFoundError. The skip was there and
+correct; it sat in `_tool`, which every test reaches only AFTER `_workspace`.
+One guard, called by both, and it now runs before the directory is needed.
+
+That is the same shape as the defect the AGENTS.md note about corpus-absent
+skips exists to prevent, arriving one step earlier than expected: the condition
+was right and the placement was not.
+
+UBUNTU'S /bin/sh IS DASH, which does not take --version and answers
+"/bin/sh: 0: Illegal option --". The recorded shell "version" therefore began
+with a filesystem path and tripped the guard that keeps a builder's directory
+layout out of every run file. The refusal is worth keeping - it identifies dash
+the way BSD `ls` printing usage identifies BSD - so what goes is the leading
+program name, which is the probe's own argument echoed back and carries nothing
+the caller does not already have. Stripped generally rather than special-cased,
+because any probe can do this.
+
+TWO PLATFORMS DENY AN EXTERNAL REACH BY DIFFERENT MECHANISMS:
+
+  macOS   sandbox-exec denies the connect syscall     PermissionError, EPERM
+  Linux   bwrap unshares the network namespace        Errno 101, unreachable
+
+The test asserted the macOS pair alone. Both strings are now accepted - and a
+TIMEOUT is explicitly refused, which is the part that keeps the test worth
+having: 192.0.2.1 is unroutable by design, so an unconfined run does not raise
+at all, it sits until the socket's own timeout. A predicate that accepted any
+failure would pass with isolation completely broken, which is a worse test than
+the macOS-only one it replaces rather than a more portable one.
+
+The Linux half is asserted from a Mac by testing the predicate against the
+exact strings a real run on each platform produced, which is the only way this
+class could cover the other platform at all.
+
+THREE PLANTS HAD TO BE RE-AIMED OR THE FIXTURE STRENGTHENED, and the reasons
+are worth keeping:
+
+  - A plant removing the strip from the PROBE left the helper's own test
+    passing, because that test called the helper directly. The wiring was
+    unguarded, and now has its own test with subprocess stubbed to dash's reply
+    so it needs no dash to run.
+  - A plant replacing the prefix-anchored strip with "everything before the
+    first colon" was invisible, because not one of the three real banners in
+    the fixture contained a colon-space. A fourth case was added whose
+    colon-space prefix is NOT the program name, which only a prefix-anchored
+    strip survives.
+  - The earlier version of this entry's ordering plant was aimed at a test
+    that returns before reaching the code it broke.
+
+Also confirmed by the same dispatch: the Python 3.13 docstring failure recorded
+earlier is gone, its fix having landed after the run that found it. Eighteen
+distinct failures were counted then; seventeen remained, and all seventeen are
+these three causes.
+
 ## Changes after v157
 
 No version bump. `grader_ab/` is not one of the trees the versioning rule

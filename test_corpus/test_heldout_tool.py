@@ -103,6 +103,62 @@ class TestTheToolsTwoSubprocessBoundaries:
             ht.subprocess.run = real
 
 
+def _skip_without_the_bundle():
+    """Skip unless the held-out bundle is on this machine.
+
+    ONE OWNER, because two call sites need it and the earlier of them is the
+    one that matters: see `_workspace`. A corpus-absent skip, which
+    SUBVERSIONBENCH_NO_SKIPS deliberately still allows, and unittest.SkipTest
+    rather than pytest.skip so run_tests.py honours it too.
+    """
+    import heldout_tool
+    if not heldout_tool.BUNDLE_PATH.is_file():
+        raise unittest.SkipTest("the held-out bundle is not on this machine")
+
+
+class TestTheSkipHappensBeforeTheDirectoryIsNeeded:
+    """The ordering, which is what was wrong rather than the condition.
+
+    On a machine without the bundle, `heldout/` does not exist either - it is
+    gitignored - so a scratch directory created inside it raises
+    FileNotFoundError. Fifteen tests errored that way on Linux CI while their
+    own guard said they should skip, because the guard sat one step too late.
+
+    Asserted against BOTH paths being absent, which is the state CI is in, and
+    on the EXCEPTION TYPE: a FileNotFoundError here reads as a broken test run
+    and a SkipTest reads as a machine without the corpus, and telling those
+    apart is the whole point.
+    """
+
+    def test_an_absent_bundle_skips_rather_than_erroring(self):
+        import heldout_tool
+        from pathlib import Path
+        missing = Path(tempfile.mkdtemp()) / "gone"
+        saved = (heldout_tool.BUNDLE_PATH, heldout_tool.HELDOUT_DIR)
+        heldout_tool.BUNDLE_PATH = missing / "scenario_heldout.enc"
+        heldout_tool.HELDOUT_DIR = missing
+        try:
+            raised = None
+            try:
+                TestTheHeldOutToolsModes()._workspace()
+            except BaseException as exc:      # SkipTest is a BaseException
+                raised = exc
+            assert isinstance(raised, unittest.SkipTest), (
+                f"expected a corpus-absent skip, got {raised!r}")
+        finally:
+            heldout_tool.BUNDLE_PATH, heldout_tool.HELDOUT_DIR = saved
+
+    def test_the_bundle_is_what_the_skip_reads(self):
+        """The control: with the real paths restored, no skip is raised on a
+        machine that has the bundle - so the test above is about the absence
+        and not about the guard always firing."""
+        import heldout_tool
+        if not heldout_tool.BUNDLE_PATH.is_file():
+            raise unittest.SkipTest("the held-out bundle is not on this machine")
+        with TestTheHeldOutToolsModes()._workspace() as d:
+            assert Path(d).is_dir()
+
+
 class TestTheHeldOutToolsModes:
     """heldout_tool.main, run against a COPY of the bundle.
 
@@ -126,8 +182,17 @@ class TestTheHeldOutToolsModes:
         path relative to ROOT, and asking for that relation on a path
         outside it raises. `heldout/` is gitignored, so a copy of the bundle
         there cannot be committed by accident.
+
+        THE SKIP IS HERE AND NOT ONLY IN `_tool`, because this is what every
+        test in this class calls FIRST. `heldout/` is gitignored, so on any
+        machine without the bundle the directory does not exist at all and
+        TemporaryDirectory(dir=...) raises FileNotFoundError before the skip
+        in `_tool` is ever reached. Fifteen tests errored that way on Linux CI
+        for twelve versions while intending to skip - the guard was right and
+        guarded the second thing the test does rather than the first.
         """
         import heldout_tool
+        _skip_without_the_bundle()
         return tempfile.TemporaryDirectory(dir=str(heldout_tool.HELDOUT_DIR),
                                            prefix="tooltest_")
 
@@ -138,8 +203,7 @@ class TestTheHeldOutToolsModes:
         import shutil
         import heldout_tool
 
-        if not heldout_tool.BUNDLE_PATH.is_file():
-            raise unittest.SkipTest("the held-out bundle is not on this machine")
+        _skip_without_the_bundle()
 
         @contextlib.contextmanager
         def _ctx():

@@ -81,7 +81,31 @@ def _first_line(argv: list) -> str:
     # so neither the stream nor the exit code can be used to decide this.
     text = (done.stdout or "") + (done.stderr or "")
     line = text.strip().splitlines()
-    return line[0].strip() if line else None
+    if not line:
+        return None
+    return _without_the_programs_own_name(line[0].strip(), argv[0])
+
+
+def _without_the_programs_own_name(first_line: str, program: str) -> str:
+    """`first_line` with a leading "<program>: " prefix removed.
+
+    A tool that does not recognise --version may DIAGNOSE rather than answer,
+    and a diagnostic conventionally begins with the program's own name. Ubuntu's
+    /bin/sh is dash, which replies "/bin/sh: 0: Illegal option --", so the
+    recorded "shell version" began with a filesystem path and tripped the guard
+    that keeps build paths out of run files. The refusal itself is worth
+    keeping - it says dash, the way BSD ls printing usage says BSD - but the
+    path is this probe's own argument echoed back, which is noise the caller
+    already has.
+
+    Stripped generally rather than special-cased for dash: any probe can echo
+    its argv, and the next one to do it would be a second defect of the same
+    shape. Measured on Linux CI rather than reasoned about - see the v158
+    entry.
+    """
+    prefix = f"{program}: "
+    return (first_line[len(prefix):].strip() if first_line.startswith(prefix)
+            else first_line)
 
 
 def shell_version() -> str:

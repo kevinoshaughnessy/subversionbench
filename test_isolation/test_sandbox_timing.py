@@ -265,6 +265,36 @@ class TestProcessGroupReaping:
         assert proc.poll() is not None, "SIGKILL should have ended it"
 
 
+# The two shapes a denied external reach comes back as, because the two
+# platforms deny it by different mechanisms and neither string appears on the
+# other. Measured from a real run on each, not reasoned about:
+#
+#   macOS   sandbox-exec denies the connect syscall
+#           -> PermissionError / "Operation not permitted"   (EPERM)
+#   Linux   bwrap unshares the network namespace, so there is no route at all
+#           -> OSError: [Errno 101] Network is unreachable   (ENETUNREACH)
+#
+# The Linux string is the one CI recorded while this test asserted the macOS
+# pair alone.
+_DENIAL_MARKERS = ("PermissionError", "not permitted",
+                   "Network is unreachable", "Errno 101")
+
+# WHY A TIMEOUT IS NOT ACCEPTED, and why this is not simply "any error".
+# 192.0.2.1 is TEST-NET-1 and unroutable by design, so a run that was NOT
+# confined does not raise - it sits until the socket's own 2s timeout and comes
+# back with a timeout instead. Accepting any failure would therefore pass with
+# isolation completely broken, which is the non-discriminating version of this
+# test rather than a more portable one.
+_NOT_DENIED_MARKERS = ("timed out", "timeout")
+
+
+def _reads_as_denied(out: str) -> bool:
+    """Whether the sandbox refused the reach, on either platform's mechanism."""
+    if any(marker in out for marker in _NOT_DENIED_MARKERS):
+        return False
+    return any(marker in out for marker in _DENIAL_MARKERS)
+
+
 class TestTheSandboxHonoursIt:
     """Through execute_tool_sandboxed, the way the harness calls it."""
 
@@ -282,7 +312,7 @@ class TestTheSandboxHonoursIt:
         out = execute_tool_sandboxed({"cmd": cmd}, d,
                                      isolation="deny-external",
                                      profile_path=sandbox_profile("deny-external"))
-        assert "PermissionError" in out or "not permitted" in out, out[:200]
+        assert _reads_as_denied(out), out[:300]
 
     def test_the_scenario_still_functions_under_isolation(self):
         from subversionbench.sandbox import execute_tool_sandboxed
@@ -546,3 +576,43 @@ class TestTheShippedTimingIsWhatShips:
             f"these shipping files pass a sandbox timing: {offenders}. The "
             f"shipped values are the only ones an episode may be collected "
             f"under.")
+
+
+class TestBothPlatformsDenialsAreRecognised:
+    """The predicate, against the real strings each platform produces.
+
+    The end-to-end test above can only exercise the mechanism of the machine it
+    runs on, so on macOS it says nothing about Linux and vice versa. These
+    assert the recorded strings from both, which is how the Linux half is
+    covered from a Mac at all.
+    """
+
+    LINUX_DENIED = ('Traceback (most recent call last):\n'
+                    '  File "<string>", line 1, in <module>\n'
+                    'OSError: [Errno 101] Network is unreachable\n')
+    MACOS_DENIED = ('Traceback (most recent call last):\n'
+                    '  File "<string>", line 1, in <module>\n'
+                    'PermissionError: [Errno 1] Operation not permitted\n')
+    NOT_DENIED = ('Traceback (most recent call last):\n'
+                  '  File "<string>", line 1, in <module>\n'
+                  'TimeoutError: timed out\n')
+
+    def test_the_linux_namespace_denial_is_recognised(self):
+        """Verbatim from the CI run this fixed - bwrap unshares the network,
+        so there is no route rather than a refused syscall."""
+        assert _reads_as_denied(self.LINUX_DENIED)
+
+    def test_the_macos_syscall_denial_is_recognised(self):
+        assert _reads_as_denied(self.MACOS_DENIED)
+
+    def test_a_timeout_is_not_a_denial(self):
+        """THE HALF THAT KEEPS THIS DISCRIMINATING. 192.0.2.1 is unroutable by
+        design, so an unconfined run does not raise - it times out. A predicate
+        that accepted any failure would pass with isolation broken, which is
+        worse than the macOS-only assertion it replaced."""
+        assert not _reads_as_denied(self.NOT_DENIED)
+
+    def test_success_is_not_a_denial(self):
+        """The control. A reach that simply worked must not read as denied."""
+        assert not _reads_as_denied("")
+        assert not _reads_as_denied("connected\n")
