@@ -82,6 +82,21 @@ omit = [
     "run_tests.py",
     ".venv/*",
     "*/site-packages/*",
+    # THE HELD-OUT TOOL AND ITS FIXTURE, which no runner can exercise. Both
+    # need the held-out bundle, and that bundle is gitignored on purpose: a
+    # held-out control is worth having only for as long as it has never been
+    # published. So their tests correctly skip wherever it is absent, which is
+    # everywhere except the machine it was authored on - and on any other
+    # machine heldout_tool.py measured 40%, 91 statements short, which is more
+    # than the whole floor's headroom.
+    #
+    # Omitted rather than the floor lowered: 91 units of unmeasurable code
+    # should not set the standard for the 15,900 that are measurable. The cost
+    # is that this file's real coverage is not enforced anywhere, and the check
+    # that stands in for it is that its tests exist and run wherever the bundle
+    # does.
+    "heldout_tool.py",
+    "*/heldout_fixtures.py",
 ]
 
 [tool.coverage.report]
@@ -98,21 +113,22 @@ omit = [
 # whenever it is inconvenient is not a floor, which is the same reasoning that
 # set the ruff rule set below.
 #
-# WHAT 98 RESTS ON, AND WHAT IS NOT YET VERIFIED
-# ----------------------------------------------
-# Measured 98.43% on macOS at v147: 247 of 15,698 statement-and-branch units
-# missed, which leaves 67 units of headroom before this floor is breached.
+# WHAT 98 RESTS ON
+# ----------------
+# For most of this project's life it was a macOS figure only: the workflow
+# triggered on pushes to `main` alone, so a feature branch went unverified. A
+# dispatch against the branch found seventeen Linux failures no local run could
+# see - fifteen of them tests that meant to skip without the held-out bundle
+# and errored instead, having created a scratch directory inside a gitignored
+# one. With those fixed at v158 the suite went green on Linux and the coverage
+# job reported a real figure for the first time: 97%, under this floor, because
+# heldout_tool.py cannot be exercised without a bundle that must never be
+# published. It is omitted above for that reason.
 #
-# It has NOT been confirmed on Linux, and the reason is worth knowing rather
-# than discovering. The workflow only triggers on pushes to `main`, so a
-# feature branch is unverified until it is merged or dispatched by hand
-# (`gh workflow run tests.yml --ref <branch>`). Dispatched at v146 it found 16
-# failures that no macOS run can see, 14 of them in test_heldout_tool.py, which
-# needs the gitignored held-out bundle and raises FileNotFoundError instead of
-# skipping when it is absent. Those 14 cover heldout_tool.py, which is 225
-# units on its own - more than the headroom above - so the Linux total is
-# probably UNDER this floor until they are fixed. The suite job fails first, so
-# the coverage job has not reported a Linux figure at all.
+# What remains platform-dependent is isolation.py, which takes different
+# branches on each - roughly eighteen units - so the two totals still differ and
+# Linux is the tighter of the two. If CI goes red on coverage alone, read the
+# Linux figure from the failing job rather than lowering this by reflex.
 fail_under = 98
 skip_covered = true
 show_missing = true

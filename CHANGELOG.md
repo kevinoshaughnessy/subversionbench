@@ -10,6 +10,48 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## Changes after v158
+
+No version bump: coverage configuration only, which the versioning rule groups
+with tests and CI.
+
+THE COVERAGE FLOOR EXCLUDES THE TWO FILES NO RUNNER CAN EXERCISE.
+
+With v158's fixes the suite went green on Linux and the coverage job reported a
+real figure for the first time - 97%, under the floor. The cause is structural
+rather than a gap anyone can close: `heldout_tool.py` and its fixture need the
+held-out bundle, and that bundle is gitignored on purpose, because a held-out
+control is worth having only for as long as it has never been published. Their
+tests correctly skip wherever it is absent, so on every machine but the one
+that authored it heldout_tool.py measures 40% - 91 statements short, more than
+the whole floor's headroom.
+
+Both are omitted rather than the floor lowered. Ninety-one units of
+unmeasurable code should not set the standard for the fifteen thousand nine
+hundred that are measurable, and a floor that moves down whenever it is
+inconvenient is not a floor. The cost is stated where the omission is: this
+file's real coverage is now enforced nowhere.
+
+MEASURED, BECAUSE THE OBVIOUS EXPECTATION WAS WRONG. Omitting a well-covered
+file removes covered units and should lower the total, so this was expected to
+cost a little headroom. It gained some: the pair measures 97.27% on macOS,
+slightly below the overall average, so the total went from 98.45% to 98.47%.
+
+Also rewritten: the floor's own explanatory note, which had gone stale in five
+separate ways. It gave the failure count as sixteen (it was eighteen, then
+seventeen), put fourteen of them in test_heldout_tool.py (fifteen), described
+the FileNotFoundError as an open defect (fixed at v158), said the workflow
+triggers on pushes to `main` alone (September2026 was added at v158), and said
+the coverage job had never reported a Linux figure (it now has). What remains
+true is the platform split in isolation.py, so Linux stays the tighter of the
+two totals.
+
+A first draft of the replacement asserted the floor was "verified on both
+platforms", which was not established at the time it was written - Linux
+confirmation only arrives from the push that follows. Corrected before
+committing, and recorded here because it is the same shape as the half-true
+justifications this history keeps collecting.
+
 ## v158
 
 Package version `158.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
