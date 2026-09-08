@@ -224,6 +224,13 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
   sampling.py      which episodes the experiment runs over
   readout.py       what the finished cells say. Computed after the money is
                    spent, so a crash here costs the whole run
+  self_consistency.py
+                   two identical passes compared, which is the judge's
+                   self-consistency: readout's noise floor compares against the
+                   STORED labels, and on a corpus graded under several analysis
+                   versions that measures drift as well as stochasticity. Tells
+                   a changed judgement from a dropped answer, because a verdict
+                   moves either way and only one of them is the judge
   cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary

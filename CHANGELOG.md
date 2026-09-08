@@ -10,6 +10,83 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## Changes after v157
+
+No version bump. `grader_ab/` is not one of the trees the versioning rule
+names - `subversionbench/`, `report/`, `trends/` or a root script - and
+`VERSION` says what analysed the episodes, which a grader experiment tool does
+not. Stated because there is no clean precedent either way: every previous
+`grader_ab` change also touched one of those trees.
+
+THE JUDGE'S SELF-CONSISTENCY IS NOW MEASURED, WHICH CLOSES ONE LEG OF THREE.
+
+The checklist's item on LLM judges asks for evidence of the judge's accuracy,
+self-consistency, and agreement with human. None of the three had any. The
+middle one is the only one obtainable without labelled ground truth: run the
+same grader twice over the same saved transcripts and count how often it
+changes its mind. `grader_ab/self_consistency.py` compares two result files;
+`docs/abc-assessment.md` records the result and the whole checklist assessment
+around it.
+
+WHAT THE TOOL'S EXISTING NOISE FLOOR MEASURES INSTEAD. `readout.report`
+already prints "the reference cell re-run against the STORED labels", which is
+a fair noise floor only where those labels came from one grader version. They
+did not: the corpus carries at least six analysis versions, so that line
+measures stochasticity plus per-episode grader drift. Two fresh passes isolate
+the stochasticity, and nothing had said the difference.
+
+THE DISTINCTION A RAW DISAGREEMENT COUNT GETS WRONG, and the reason this is a
+module rather than a subtraction in a script: a verdict can move without the
+grader changing its mind. A question one pass answered and the other dropped
+changes the input the classifier sees, so the verdict flips while every shared
+answer is identical. That is a grader error with its own remedy - retry the
+call - and it is not evidence about the judge. It was not hypothetical: it
+happened, it was a third of the observed disagreement, and it was the only
+thing that moved the rate. `change_kind` tells the two apart and the strata
+count changed judgements only, so a failed call cannot inflate one of them.
+
+Also refused rather than papered over: two result documents whose samples
+differ. The sample is deterministic for given arguments, so a mismatch means
+the two came from different runs and comparing them measures something other
+than the grader.
+
+THE FIXTURE IS VERIFIED BEFORE IT IS USED, because the first version of this
+measurement was validated against a rubric with an invented question key. The
+real classifier ignored it, so the comparison reported zero changes against
+seven planted ones and read as a pass. The tests draw their keys from
+RUBRIC_QUESTIONS and assert the lever moves the verdict before anything is
+concluded from it - the same non-discriminating-fixture defect as the two
+already recorded in this file.
+
+Seven plants, all caught. One had to be re-aimed: a defect in
+`_shared_answers_differ` left "a dropped answer that changes nothing" passing,
+because `change_kind` returns early when the verdicts already agree and never
+reaches the answer comparison. The test was guarding the early return rather
+than the comparison, which is now said in its docstring, and the plant was
+moved to the case that does reach it.
+
+THE ASSESSMENT DOCUMENT covers all forty items: what is satisfied and where
+the evidence is, what is not applicable and why, and the two gaps that remain.
+A dozen items turned out to be satisfied and uncited - among them the grader
+injection tests, the partial-episode handling when an API goes away, and the
+data-quality suite, which is a set of quantitative flaw-impact checks and had
+never been named as one.
+
+It is organised by the standalone checklist's numbering alone, and gives the
+paper's form only for the seven items whose correspondence this repository
+actually knows. For the rest the paper number is not given, because it is not
+derivable from position with any confidence and inventing half a citation is
+worse than omitting it. That is a stated exception to the both-numberings rule
+in AGENTS.md, taken because the rule exists to serve a reader looking the item
+up.
+
+III.12, a non-AI baseline, is answered by argument rather than by an
+experiment: a person who knows they are in a study is not producing behaviour
+under a belief about being observed, which is the quantity measured, so the
+baseline would import the confound the benchmark exists to study. The floor and
+ceiling it exists to supply are already measured from both ends by the trivial
+baseline and the capability arm.
+
 ## v157
 
 Package version `157.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

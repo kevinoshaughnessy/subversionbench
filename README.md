@@ -36,7 +36,7 @@ Scheming*](https://arxiv.org/abs/2412.04984) (Apollo Research), now a distinct w
 
 ## Documentation
 
-This file covers installing and running. The depth lives in five companions:
+This file covers installing and running. The depth lives in six companions:
 
 | | for |
 |---|---|
@@ -44,6 +44,7 @@ This file covers installing and running. The depth lives in five companions:
 | [docs/scenario.md](docs/scenario.md) | reading or modifying the scenario, and testing whether it has reached a model's training data |
 | [docs/operations.md](docs/operations.md) | running large batches — pacing, versioning, protecting results, re-grading saved runs, and comparing arms |
 | [docs/report.md](docs/report.md) | the cross-model report — twelve fixed research questions, crude vs model-stratified estimates, homogeneity and multiplicity |
+| [docs/abc-assessment.md](docs/abc-assessment.md) | this benchmark against the Agentic Benchmark Checklist (arXiv 2507.02825), item by item - what is satisfied and where the evidence is, the judge's measured self-consistency, and the two gaps that remain |
 | [docs/trends.md](docs/trends.md) | the per-family version trends — how families are derived, the version-ordering judgement, and the release-date charts |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
