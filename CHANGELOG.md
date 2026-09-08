@@ -52,6 +52,22 @@ confirmation only arrives from the push that follows. Corrected before
 committing, and recorded here because it is the same shape as the half-true
 justifications this history keeps collecting.
 
+IT IS ESTABLISHED NOW. The push ran the whole workflow on the branch and every
+job passed, coverage included: 133 statements missed on Linux against the 227
+before these omissions, which is the 94 the two files accounted for and not one
+unit more. The suite reconciles too - 3,463 passed and 75 skipped on Linux
+against 3,538 passed on macOS - so nothing opts out beyond the corpus-absent
+skips SUBVERSIONBENCH_NO_SKIPS is there to expose.
+
+AND THE NOTE STILL QUOTED FIGURES IT DID NOT NEED. Rewriting it a second time
+was the honest completion: the section opens by saying that a measurement
+written beside the thing it measures goes stale, and then quoted percentages
+anyway - which is exactly what had rotted in five ways. So the durable facts
+stay in the file (Linux is the tighter total because isolation.py splits by
+platform; the two held-out files are unreachable rather than merely uncovered)
+and the counts live here, where a dated entry is what they are for. Adding the
+new Linux percentage would have been the same mistake with a fresher number.
+
 ## v158
 
 Package version `158.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned

@@ -104,26 +104,29 @@ omit = [
 # reports, rounded down; no figure is quoted here because a measurement written
 # beside the thing it measures goes stale the first time anyone adds a test.
 #
-# The floor is set from macOS and enforced on Linux, which is the one thing
-# worth knowing before changing it: isolation.py takes different branches
-# there, so the two platforms do not report the same total. If CI goes red on
-# coverage alone, read the Linux figure from the failing job - `coverage json`
-# gives the percentage and the per-file missing lines - and compare it against
-# a local run, rather than lowering this by reflex. A floor that moves down
-# whenever it is inconvenient is not a floor, which is the same reasoning that
-# set the ruff rule set below.
+# BOTH PLATFORMS CLEAR IT, and CI enforces it on Linux on every push to `main`
+# and to the working branch. That was not true until v158: the workflow
+# triggered on `main` alone, so twelve versions of branch work were checked on
+# one machine and one OS, and a hand dispatch found Linux failures no local run
+# could see. The counts and causes are in the CHANGELOG rather than here, for
+# the reason above - a measurement written beside the thing it measures rots,
+# and this note had gone stale in five separate ways before it was rewritten.
 #
-# WHAT 98 RESTS ON
-# ----------------
-# For most of this project's life it was a macOS figure only: the workflow
-# triggered on pushes to `main` alone, so a feature branch went unverified. A
-# dispatch against the branch found seventeen Linux failures no local run could
-# see - fifteen of them tests that meant to skip without the held-out bundle
-# and errored instead, having created a scratch directory inside a gitignored
-# one. With those fixed at v158 the suite went green on Linux and the coverage
-# job reported a real figure for the first time: 97%, under this floor, because
-# heldout_tool.py cannot be exercised without a bundle that must never be
-# published. It is omitted above for that reason.
+# TWO THINGS STAY TRUE and are worth knowing before changing this number.
+#
+# Linux is the tighter of the two totals, because isolation.py takes different
+# branches on each platform and neither can cover both. A local run is
+# therefore the looser check, and green locally is not green.
+#
+# heldout_tool.py and its fixture are omitted above, not merely uncovered: they
+# need a bundle that must never be published, so no runner can reach them.
+# Every other omission in this file is the suite measuring itself.
+#
+# If CI goes red on coverage alone, read the Linux figure from the failing job -
+# `coverage json` gives the percentage and the per-file missing lines - and
+# compare it against a local run rather than lowering this by reflex. A floor
+# that moves down whenever it is inconvenient is not a floor, which is the same
+# reasoning that set the ruff rule set below.
 #
 # What remains platform-dependent is isolation.py, which takes different
 # branches on each - roughly eighteen units - so the two totals still differ and
