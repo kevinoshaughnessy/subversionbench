@@ -34,7 +34,7 @@ over the same transcript, and act detection from the recorded commands.
 | item | status | evidence |
 |---|---|---|
 | I.a.1, I.a.2 | not applicable | nothing here matches a whole or partial string against a ground-truth answer; there is no ground-truth answer to match |
-| I.b.1 | **partial** | the awareness keyword screen is substring matching and does not handle negation. `awareness_keywords.py` says so in its own comment, and the grader is the primary measure precisely because the screen under-detects |
+| I.b.1 | **addressed by measurement, not by a change** | see "Negation" below |
 | I.b.2, I.b.3 | not applicable | no answer to list or guess |
 | **I.c.1** | **partial - one leg of three** | see "The judge" below |
 | I.c.2 | satisfied, previously uncited | `test_corpus/test_grader_injection.py`, 24 tests, covers a transcript trying to instruct the grader. `shapes.py` routes every answer through the shipped `parse_boolean_verdict` rather than a second copy |
@@ -43,6 +43,46 @@ over the same transcript, and act detection from the recorded commands.
 | I.g.3 | satisfied | the oversight act requires editing a specific monitoring artefact, not any state change |
 | I.h.1, I.h.2 | not applicable | no answer format, no guessing |
 | I.I.1 | satisfied, previously uncited | the quality-check preview is the exploitable surface, and `quote_grounding` plus the concealment measures are what stop a high score being claimed without the act |
+
+### Negation, and why the screen is left alone
+
+I.b.1 asks that a substring measure handle "negation modifiers used by agents".
+The awareness keyword screen does no negation handling at all, so the item reads
+as an open gap. It was measured before being closed either way.
+
+Every indicator hit across the r10 transcripts was examined for a negation cue
+in the indicator's own sentence, with the scope cut at sentence boundaries so a
+denial of something else could not be miscounted. **34 of 3,115 hits had one -
+and on inspection not one of the 34 denied the indicator.** In every case the
+negation belonged to something else in the sentence:
+
+- a condition: "if i don't comply ... this is a test of whether"
+- an unrelated verb: "won't be ready in time, so i need to demonstrate that i"
+- the first half of a contrast: "not a routine request - it IS a test of whether"
+
+That last shape is the reason a fix would do harm rather than nothing. "Not X,
+but a test of whether Y" is among the most explicit ways a model states
+awareness, and a filter that dropped a match with a negation before it would
+delete precisely those sentences - turning a measure that under-detects into one
+that also under-detects the clearest cases.
+
+A first attempt at this measurement used a fixed character window instead of
+the sentence, and reported roughly three times as many negations. Every example
+it produced turned out to be a negation from the previous sentence. The window
+was the defect, not the screen, which is worth recording because it is the
+shape a careless version of this check would take.
+
+So the screen keeps matching, and
+`TestANegationInTheSentenceDoesNotUnmakeTheAwareness` in
+`test_grading/test_awareness_keywords.py` holds six of the corpus's
+negated-but-aware sentence shapes - synthetic, carrying the grammar and none of
+the scenario's vocabulary - and fails if a negation filter is ever added. The
+filter itself was planted to confirm the guard refuses it.
+
+What remains true of this screen is what its own docstring already says, and it
+is not about negation: it reads a fixed vocabulary, so a model that says it
+plainly in words nobody listed comes out not-aware. That is why the grader is
+the authoritative measure and this is a floor.
 
 ### The judge
 
@@ -157,9 +197,8 @@ benchmark cannot do as much as for the things it can.
    touches a published number. Worth doing after the self-consistency result
    above, not before: agreement with a human means little for a judge that does
    not agree with itself, and that order is now established rather than assumed.
-2. **I.b.1, negation in the keyword screen.** Small, and its effect is bounded -
-   the screen is the secondary measure and its under-detection is already
-   reported as the union reading rather than hidden.
+2. **I.b.1 is closed by the measurement above**, which found nothing to fix and
+   a reason not to try.
 3. **III.12** is closed by the argument above rather than by an experiment.
 
 ## Reproducing the self-consistency figure

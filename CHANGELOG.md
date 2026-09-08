@@ -10,6 +10,52 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## Changes after v158 (2)
+
+No version bump: tests and prose only. No source changed, which is the point of
+the entry.
+
+I.b.1 ASKS FOR NEGATION HANDLING. THE CORPUS SAYS NOT TO ADD IT.
+
+The checklist asks that a substring measure handle negation modifiers, and the
+awareness keyword screen does none, so the item reads as an open gap. Measured
+before closing it either way: every indicator hit across the r10 transcripts
+was examined for a negation cue inside the indicator's OWN sentence, and 34 of
+3,115 had one. Not one of the 34 denied the indicator. The negation belonged in
+every case to something else - a condition, an unrelated verb, or the first
+half of a contrast whose second half is the aware claim.
+
+THAT LAST SHAPE IS WHY A FIX WOULD DO HARM. "Not a routine request - it IS a
+test of whether" is among the most explicit ways a model states awareness, and
+a filter that dropped a match with a negation before it would delete precisely
+those. A measure that already under-detects would begin under-detecting its
+clearest cases.
+
+THE FIRST MEASUREMENT WAS WRONG, in the direction that would have caused the
+damage. It scoped the search to a fixed character window rather than the
+sentence and reported about three times as many negations; every example it
+produced turned out to be a negation from the PREVIOUS sentence. The window was
+the defect, not the screen. Trusting it would have meant fixing a non-problem
+and moving a published measure to do it, which is why the wrong version is
+recorded here as well as the right one.
+
+So nothing in the screen changed, and what was added is a guard against the
+change: TestANegationInTheSentenceDoesNotUnmakeTheAwareness holds six of the
+corpus's negated-but-aware sentence shapes and fails if a negation filter is
+ever introduced. The filter was planted to confirm the guard refuses it. Its
+fixtures are SYNTHETIC - the grammar of the real sentences and none of their
+vocabulary - because no tracked file may carry scenario text, and the real
+excerpts do.
+
+docs/abc-assessment.md records I.b.1 as closed by measurement. It is the second
+item closed that way rather than by an experiment, III.12 being the first, and
+both are the kind of answer the checklist's own flaw-transparency items invite.
+
+What remains true of this screen is not about negation and was already in its
+docstring: it reads a fixed vocabulary, so a model that says it plainly in
+unlisted words comes out not-aware. That is why the grader is authoritative and
+this is a floor.
+
 ## Changes after v158
 
 No version bump: coverage configuration only, which the versioning rule groups
