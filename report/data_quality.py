@@ -335,16 +335,80 @@ TRUNCATING_FINISH_REASONS = frozenset({
     "max_output_tokens",
 })
 
+# The other way a turn ends without the model having decided anything: the
+# provider stopped it. Same three vocabularies as above - `content_filter` on
+# the chat-completions routes, `refusal` natively, and `content_filter` again
+# behind the Responses API's status prefix.
+REFUSING_FINISH_REASONS = frozenset({"content_filter", "refusal"})
+
+
+def _provider_word(provider_reason: str) -> str:
+    """The provider's own token, with the Responses adapter's status prefix off.
+
+    `_stop_reason` there returns "incomplete:max_output_tokens" while the other
+    two routes report a bare token, so comparing whole strings missed that
+    route entirely - see the v155 entry.
+    """
+    return provider_reason.rsplit(":", 1)[-1]
+
 
 def _is_truncation(provider_reason: str) -> bool:
-    """Whether the provider's word for how a turn ended means "cut off".
+    """Whether the provider's word for how a turn ended means "cut off"."""
+    return _provider_word(provider_reason) in TRUNCATING_FINISH_REASONS
 
-    Matched on the LAST colon-separated segment because the Responses adapter
-    prefixes the status - `_stop_reason` there returns
-    "incomplete:max_output_tokens" - while the other two routes report a bare
-    token. Comparing the whole string missed that route entirely.
+
+def _is_refusal(provider_reason: str) -> bool:
+    """Whether it means the provider blocked the turn."""
+    return _provider_word(provider_reason) in REFUSING_FINISH_REASONS
+
+
+def _arms_the_provider_contradicts(episodes: list, matches, count_key: str
+                                   ) -> list:
+    """Arms holding episodes the harness read as the model choosing to stop
+    while the provider's own word says something else happened.
+
+    ONE SHAPE, TWO FINDINGS. Truncation and refusal are different facts with
+    different remedies, so they are separate checks and separate keys - but
+    the counting is identical, and a second copy of it is a second place for
+    the "absent means not recorded" rule to be got wrong.
+
+    Reported per arm rather than per episode because that is the unit a rate is
+    computed over, and one such episode in an arm of sixty moves it by more
+    than a rounding error.
+
+    Silent on everything collected before `ended_by_provider` existed. An
+    absent value is "not recorded", and counting it as either finding would
+    invent one out of a missing field - the same rule
+    mixed_served_provider_arms follows.
     """
-    return provider_reason.rsplit(":", 1)[-1] in TRUNCATING_FINISH_REASONS
+    arms = {}
+    for ep in episodes:
+        provider_reason = ep.get("ended_by_provider")
+        if not provider_reason:
+            continue
+        key = (ep["model"], ep["nudge"], ep["oversight"], ep["lure"])
+        entry = arms.setdefault(key, {"n": 0, "hit": 0, "reasons": {}})
+        entry["n"] += 1
+        if ep.get("ended_by") == "model_stopped" and matches(provider_reason):
+            entry["hit"] += 1
+            entry["reasons"][provider_reason] = (
+                entry["reasons"].get(provider_reason, 0) + 1)
+
+    out = []
+    for (model, nudge, oversight, lure), entry in sorted(arms.items(),
+                                                         key=str):
+        if not entry["hit"]:
+            continue
+        out.append({
+            "model": model, "nudge": nudge, "oversight": oversight,
+            "lure": lure, "n_episodes": entry["n"],
+            count_key: entry["hit"],
+            "provider_reasons": [
+                {"reason": reason, "n_episodes": n}
+                for reason, n in sorted(entry["reasons"].items())
+            ],
+        })
+    return out
 
 
 def truncated_as_stopped_arms(episodes: list) -> list:
@@ -359,53 +423,38 @@ def truncated_as_stopped_arms(episodes: list) -> list:
     and until it was recorded per turn the aggregate token_usage could not: it
     totals the episode, so no per-turn count can be compared against the cap.
 
-    Reported per arm rather than per episode because that is the unit a rate is
-    computed over, and one such episode in an arm of sixty moves it by more
-    than a rounding error.
-
-    Silent on everything collected before the field existed. An absent
-    `ended_by_provider` is "not recorded", and counting it as a truncation
-    would invent a finding out of a missing field - the same rule
-    mixed_served_provider_arms follows.
-
-    NOT YET REPORTED, and deliberately: a provider REFUSAL also arrives as
-    "model_stopped" and is also not the model declining on its own -
-    `content_filter` on the chat-completions routes, `refusal` natively,
-    `incomplete:content_filter` through the Responses API. It belongs in a
-    check of its own rather than pooled in here, because the remedy differs:
-    a truncation says raise the cap and re-collect, a refusal says the
-    provider blocked the turn and the episode cannot be repaired by
-    re-collecting it the same way.
+    The remedy is to raise the cap and re-collect the arm, which is what makes
+    this a different finding from refused_as_stopped_arms below rather than
+    one pooled with it.
     """
-    arms = {}
-    for ep in episodes:
-        provider_reason = ep.get("ended_by_provider")
-        if not provider_reason:
-            continue
-        key = (ep["model"], ep["nudge"], ep["oversight"], ep["lure"])
-        entry = arms.setdefault(key, {"n": 0, "truncated": 0, "reasons": {}})
-        entry["n"] += 1
-        if (ep.get("ended_by") == "model_stopped"
-                and _is_truncation(provider_reason)):
-            entry["truncated"] += 1
-            entry["reasons"][provider_reason] = (
-                entry["reasons"].get(provider_reason, 0) + 1)
+    return _arms_the_provider_contradicts(
+        episodes, _is_truncation, "n_read_as_stopped_but_truncated")
 
-    out = []
-    for (model, nudge, oversight, lure), entry in sorted(arms.items(),
-                                                         key=str):
-        if not entry["truncated"]:
-            continue
-        out.append({
-            "model": model, "nudge": nudge, "oversight": oversight,
-            "lure": lure, "n_episodes": entry["n"],
-            "n_read_as_stopped_but_truncated": entry["truncated"],
-            "provider_reasons": [
-                {"reason": reason, "n_episodes": n}
-                for reason, n in sorted(entry["reasons"].items())
-            ],
-        })
-    return out
+
+def refused_as_stopped_arms(episodes: list) -> list:
+    """Arms holding episodes the harness read as a model choosing to stop, and
+    the provider read as blocked.
+
+    The same conflation truncated_as_stopped_arms describes, arriving by the
+    other route. A filtered turn returns no tool call, so the loop ends it as
+    "model_stopped" and a propensity rate counts it as a model that declined to
+    act - when what happened is that the provider would not let it answer.
+
+    KEPT SEPARATE because the remedy differs, and that is the whole reason this
+    is not one check with a wider set. A truncation says the cap was too low:
+    raise it, re-collect, and the arm is repaired. A refusal says the provider
+    blocked the turn, so re-collecting it the same way gets the same block -
+    the arm has to move to another route, or be reported as an arm the provider
+    would not serve. Pooling them would hand a reader one number with two
+    incompatible remedies.
+
+    It is also the more corrosive of the two for a misalignment rate, because a
+    filter fires on exactly the content this benchmark measures. An arm losing
+    its most misaligned turns to a content filter reports a LOWER rate than the
+    model's behaviour, and reports it as though the model had declined.
+    """
+    return _arms_the_provider_contradicts(
+        episodes, _is_refusal, "n_read_as_stopped_but_refused")
 
 
 def data_quality_facts(episodes: list, summaries: list = None) -> dict:
@@ -451,6 +500,7 @@ def data_quality_facts(episodes: list, summaries: list = None) -> dict:
         "mixed_routing_arms": mixed_routing_arms(episodes),
         "mixed_served_provider_arms": mixed_served_provider_arms(episodes),
         "truncated_as_stopped_arms": truncated_as_stopped_arms(episodes),
+        "refused_as_stopped_arms": refused_as_stopped_arms(episodes),
         # Keyed by axis rather than flattened, so a reader can tell a contrast
         # confounded on oversight from one confounded on nudge without parsing
         # the entries back apart.

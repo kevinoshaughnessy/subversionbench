@@ -803,3 +803,107 @@ class TestTruncationIsRecognisedOnEveryRouteNotJustOne:
         content-filtered is not a truncation either."""
         assert not self._flagged("incomplete:content_filter")
         assert self._flagged("incomplete:max_output_tokens")
+
+
+class TestATurnTheProviderBlockedIsNotAModelThatStopped:
+    """The other way an episode ends without the model deciding anything.
+
+    A filtered turn returns no tool call, so the loop ends it as
+    "model_stopped" exactly as a truncated one does, and a propensity rate
+    counts it as a model that declined to act.
+
+    Kept as its own finding rather than pooled with truncation because the
+    remedy differs, and the separation is the point: a truncation is repaired
+    by raising the cap and re-collecting, a refusal is not repaired by
+    re-collecting at all.
+    """
+
+    REFUSED = [
+        ("openrouter chat completions", "content_filter"),
+        ("native anthropic", "refusal"),
+        ("openai responses", "incomplete:content_filter"),
+    ]
+    NOT_REFUSED = [
+        ("chose to stop", "stop"),
+        ("chose to stop, natively", "end_turn"),
+        ("offered a tool", "tool_calls"),
+        ("ran out of room", "length"),
+        ("ran out of room, via the Responses API",
+         "incomplete:max_output_tokens"),
+    ]
+
+    def _facts(self, provider_reason, ended_by="model_stopped"):
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by=ended_by,
+                       ended_by_provider=provider_reason)
+        return rr.data_quality_facts(rr.load_episodes(out))
+
+    def _refused(self, provider_reason, ended_by="model_stopped"):
+        return self._facts(provider_reason, ended_by)["refused_as_stopped_arms"]
+
+    def test_every_routes_refusal_word_is_flagged(self):
+        assert self.REFUSED, "no cases - the guard would pass vacuously"
+        missed = [(route, reason) for route, reason in self.REFUSED
+                  if not self._refused(reason)]
+        assert not missed, f"refusal not recognised: {missed}"
+
+    def test_no_other_ending_is_flagged_as_a_refusal(self):
+        assert self.NOT_REFUSED, "no cases - the guard would pass vacuously"
+        wrong = [(route, reason) for route, reason in self.NOT_REFUSED
+                 if self._refused(reason)]
+        assert not wrong, f"flagged as a refusal but is not: {wrong}"
+
+    def test_the_two_findings_do_not_claim_each_others_episodes(self):
+        """THE SEPARATION, asserted in both directions. Pooling them would give
+        one number carrying two incompatible remedies, so a truncation must not
+        appear as a refusal and a refusal must not appear as a truncation."""
+        facts = self._facts("content_filter")
+        assert facts["refused_as_stopped_arms"], facts
+        assert facts["truncated_as_stopped_arms"] == [], facts
+
+        facts = self._facts("length")
+        assert facts["truncated_as_stopped_arms"], facts
+        assert facts["refused_as_stopped_arms"] == [], facts
+
+    def test_a_turn_capped_episode_is_not_flagged(self):
+        """`ended_by` already says the loop ran out of turns, so nothing was
+        misread as the model stopping."""
+        assert self._refused("content_filter", ended_by="turn_cap") == []
+
+    def test_an_episode_without_the_field_is_silent(self):
+        """Every published episode is this shape."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped")
+        facts = rr.data_quality_facts(rr.load_episodes(out))
+        assert facts["refused_as_stopped_arms"] == []
+
+    def test_the_count_is_over_the_arm(self):
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
+                       ended_by_provider="content_filter")
+        for i in (2, 3):
+            _write_episode(out, i, "m", "strong", ended_by="model_stopped",
+                           ended_by_provider="stop")
+        rows = rr.data_quality_facts(
+            rr.load_episodes(out))["refused_as_stopped_arms"]
+        assert len(rows) == 1
+        assert rows[0]["n_episodes"] == 3
+        assert rows[0]["n_read_as_stopped_but_refused"] == 1
+
+    def test_the_finding_reaches_the_printed_report(self):
+        """A silent data-quality fact is the failure mode this module names,
+        and the remedy has to be the refusal one rather than the truncation
+        one - they are printed by the same helper."""
+        from report.console import _print_data_quality
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
+                       ended_by_provider="content_filter")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_data_quality(rr.build_report(out)["data_quality"])
+        text = buf.getvalue()
+        assert "read as stopped but refused by the provider" in text, text
+        assert "blocked the turn" in text
+        assert "content_filter" in text
+        # The truncation remedy must not be offered for a refusal.
+        assert "Raise --max-tokens" not in text, text

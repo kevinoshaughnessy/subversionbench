@@ -745,6 +745,33 @@ def _print_awareness_exclusion(stamp: dict) -> None:
           "arms including the episodes just removed.")
 
 
+def _print_provider_contradiction(rows: list, count_key: str, headline: str,
+                                  footnote: str) -> None:
+    """One per-arm findings block, for a finding of the form "the harness read
+    this as the model stopping and the provider says otherwise".
+
+    Two of these exist and the layout is identical, so the block is written
+    once. What differs is the count field, the word for what happened, and the
+    remedy - and the remedy is the reason they are two findings rather than a
+    single wider one, so each passes its own.
+
+    Printed unconditionally, zero included, on the same terms as the routing
+    checks above it: a data-quality section that prints a line only when it has
+    something to say cannot be read as having checked.
+    """
+    print(f"  arms holding episodes read as stopped but {headline}: "
+          f"{len(rows)}")
+    for m in rows:
+        split = ", ".join(f"{r['reason']} x{r['n_episodes']}"
+                          for r in m["provider_reasons"])
+        print(f"    ! {m['model']} nudge={m['nudge']} "
+              f"oversight={m['oversight']} lure={m['lure']}: "
+              f"{m[count_key]}/{m['n_episodes']} ({split})")
+    if rows:
+        print("      These ended the loop as \"model_stopped\" - no tool "
+              f"call came back - {footnote}")
+
+
 def _print_data_quality(dq: dict) -> None:
     print(f"\n{'=' * 78}")
     print("DATA QUALITY (read this before quoting anything above)")
@@ -830,22 +857,20 @@ def _print_data_quality(dq: dict) -> None:
               "wherever nothing was pinned. An episode that changed backend "
               "mid-run is not attributable to one at all. Pin with "
               "--openrouter-provider to make this reproducible.")
-    truncated = dq.get("truncated_as_stopped_arms") or []
-    print(f"  arms holding episodes read as stopped but truncated: "
-          f"{len(truncated)}")
-    for m in truncated:
-        split = ", ".join(f"{r['reason']} x{r['n_episodes']}"
-                          for r in m["provider_reasons"])
-        print(f"    ! {m['model']} nudge={m['nudge']} "
-              f"oversight={m['oversight']} lure={m['lure']}: "
-              f"{m['n_read_as_stopped_but_truncated']}/{m['n_episodes']} "
-              f"({split})")
-    if truncated:
-        print("      These ended the loop as \"model_stopped\" - no tool "
-              "call came back - while the provider said the turn ran out of "
-              "room. A propensity rate counts them as a model that declined "
-              "to act. Raise --max-tokens and re-collect the arm, or quote it "
-              "knowing what it contains.")
+    _print_provider_contradiction(
+        dq.get("truncated_as_stopped_arms") or [],
+        "n_read_as_stopped_but_truncated", "truncated",
+        "while the provider said the turn ran out of room. A propensity rate "
+        "counts them as a model that declined to act. Raise --max-tokens and "
+        "re-collect the arm, or quote it knowing what it contains.")
+    _print_provider_contradiction(
+        dq.get("refused_as_stopped_arms") or [],
+        "n_read_as_stopped_but_refused", "refused by the provider",
+        "while the provider blocked the turn. Re-collecting unchanged gets "
+        "the same block, so the arm has to move to another route or be "
+        "reported as one the provider would not serve - and a content filter "
+        "fires on exactly what this benchmark measures, so the arm reports a "
+        "LOWER rate than the behaviour and reports it as a model declining.")
     across = dq.get("routing_differs_across_contrast") or {}
     n_across = sum(len(v) for v in across.values())
     print(f"  models whose two sides of a contrast were routed differently: "

@@ -10,6 +10,55 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v157
+
+Package version `157.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
+fingerprints recompute unchanged.
+
+THE OTHER WAY A TURN ENDS WITHOUT THE MODEL DECIDING ANYTHING.
+
+v154 recorded the provider's own reason for ending each turn, and v155 taught
+the truncation check every route's word for being cut off. Both entries named
+the remaining case and deferred it: a provider REFUSAL - `content_filter` on
+the chat-completions routes, `refusal` natively, `incomplete:content_filter`
+through the Responses API - also returns no tool call, so the loop ends it as
+"model_stopped" and a propensity rate counts it as a model that declined to
+act. `refused_as_stopped_arms` now reports it.
+
+KEPT AS A SEPARATE FINDING, which was the whole reason for deferring rather
+than widening the truncation set. The two have incompatible remedies: a
+truncation says the cap was too low, so raise it and re-collect and the arm is
+repaired; a refusal says the provider blocked the turn, so re-collecting
+unchanged gets the same block and the arm has to move to another route or be
+reported as one the provider would not serve. One number carrying both would
+tell a reader to do two different things.
+
+It is also the more corrosive of the two for a misalignment rate, because a
+content filter fires on exactly the content this benchmark measures. An arm
+losing its most misaligned turns to a filter reports a LOWER rate than the
+model's behaviour - and reports it as the model having declined, which is the
+specific misreading the whole `ended_by_provider` field exists to prevent.
+
+ONE SHAPE, WRITTEN ONCE. The two checks count identically and differ only in
+the predicate and the output key, so `_arms_the_provider_contradicts` holds the
+counting and each check passes its own matcher. The printer went the same way:
+the two blocks had identical layout, so `_print_provider_contradiction` holds
+it and each passes its own remedy sentence. A second copy of either would have
+been a second place for the "absent means not recorded" rule to be got wrong.
+The existing truncation tests passed unchanged across that refactor, which is
+what says the extraction preserved behaviour.
+
+The separation is asserted in both directions rather than assumed: a truncation
+must not appear as a refusal and a refusal must not appear as a truncation.
+Five plants, all caught - the native word dropped so only chat completions
+work, the two sets pooled into one, the refusal block printing the truncation
+remedy, a missing field counted as a refusal, and `ended_by` ignored so
+turn-capped episodes are swept in.
+
+The r10 report gains exactly one printed line, the new check's zero count, and
+one JSON key holding an empty list. That corpus carries no `ended_by_provider`
+at all, so neither check can find anything in it.
+
 ## v156
 
 Package version `156.0.0`. `ROLLOUT_VERSION` stays `r10` and all four pinned
