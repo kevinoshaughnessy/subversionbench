@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v159
+
+BLINDING A SAMPLE, SO THAT AGREEMENT WITH A HUMAN CAN MEAN SOMETHING.
+
+I.c.1's remaining legs - the judge's accuracy and its agreement with a human -
+both need hand labels, and a label made while the judge's answer is visible
+measures deference rather than agreement. `subversionbench/blinding.py` splits
+one sample into the two halves that keeps separate: a PACK holding an opaque id
+and the text, and a KEY holding everything else, derived from the item rather
+than copied from a list of columns so that a field added to the sample later is
+sealed by default instead of falling out of the record.
+
+The leak is rarely the verdict field. Here it is the run filename, which
+encodes both the model and the arm, and it is why the filename is treated as
+identity rather than as a handle.
+
+Blocks are balanced on the stratum and shuffled WITHIN the block. Balanced so
+that a rater who runs out of time at a block boundary has still labelled a
+balanced sample; shuffled rather than alternated because strict alternation is
+also balanced at every even prefix and still tells the rater that positions 1,
+3, 5 share a class.
+
+Field-name agnostic, so the next measure that needs a rater reuses the split
+instead of re-improvising it. `grader_ab/blind_pack.py` is the whole of what
+the grader experiment adds: three field names and a provenance record.
+
+FOUR DEFECTS THE PLANTS FOUND IN MY OWN GUARDS, all the same shape - a check
+whose claim was half true:
+
+- The derived "no key value reaches the pack" check compared `str(value)`
+  against the serialised JSON, so `stored_aware: true` never matched `"True"`.
+  The verdict - the one field that matters most - was the only kind the guard
+  could not see. It is caught by the field-set check instead, and the docstring
+  now says which guard does the work.
+- A per-episode field-set check says nothing about a verdict list parked beside
+  `episodes`. Added the same rule one level up.
+- The fixture corpus was 41 characters, which made a planted `[:200]`
+  truncation a no-op.
+- The written-pack check tested one field of the item, leaving the readable
+  .txt rendering - the thing a rater actually opens - unguarded against a
+  header that printed the model beside the id.
+
+AND ONE THE REAL CORPUS FOUND THAT NO FIXTURE COULD. Run over the r10 pack, the
+leak check flagged `nudge=max`, `nudge=none` and `nudge=strong`. None is a
+leak: the arm names are ordinary English words, appearing in 9, 2 and 38 of the
+116 transcripts as the agent's own writing. A substring test cannot tell that
+from metadata, so short values are now skipped - and the set of fields skipped
+for being short is pinned, so a field that becomes short fails rather than
+quietly opting out.
+
 ## Changes after v158 (2)
 
 No version bump: tests and prose only. No source changed, which is the point of

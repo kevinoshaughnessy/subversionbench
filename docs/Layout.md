@@ -54,6 +54,18 @@ subversionbench/
   redaction.py     strips host paths and usernames from output and artifacts
   export.py        redacting a results directory for publication, and
                    verifying that an archive identifies nobody
+  blinding.py      splitting a sample into what a human rater may see and
+                   what they may not: an opaque id and the text in the pack,
+                   everything else derived into a sealed key. Agreement with a
+                   human measures nothing if the rater can see the judge, and
+                   the leak is rarely the verdict - it is a filename that
+                   encodes the arm, a model name beside the text, an ordering
+                   that groups one class together. Field-name agnostic, so a
+                   measure that does not exist yet reuses the split rather
+                   than re-improvising it. Blocks are balanced on the stratum
+                   and shuffled within, so a rater who runs out of time at a
+                   block boundary still leaves a balanced sample and the order
+                   never says which side an item is on
   power/           the statistics, one module per kind of comparison. Was one
                    file divided by nine section banners, which is the signal
                    that the divisions were there and only the file was missing
@@ -231,6 +243,12 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    versions that measures drift as well as stochasticity. Tells
                    a changed judgement from a dropped answer, because a verdict
                    moves either way and only one of them is the judge
+  blind_pack.py    wires this experiment's sample into blinding.py: which
+                   field a rater reads, which is the stratum, and which are
+                   identity to seal. The run filename is the sharpest of those
+                   - it encodes the model and the arm - so it is identity
+                   rather than a handle. Run as
+                   `python3 -m grader_ab.blind_pack`
   cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary

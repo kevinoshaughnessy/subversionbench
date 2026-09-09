@@ -120,8 +120,10 @@ Two structural findings from the same run:
 - Calls fail outright at about 0.2% of question-slots, and roughly a third of
   the time that lands on a question the verdict depends on.
 
-**Accuracy and human agreement: not evidenced.** Both need labelled ground
-truth, which does not exist for this corpus. What exists instead is
+**Accuracy and human agreement: not evidenced, but no longer unstaged.** Both
+need labelled ground truth, which does not exist for this corpus. The blinded
+labelling setup does exist - see "Blinding, and what a single rater can claim"
+below - so what remains is the reading, not the machinery. What exists instead is
 `cross_analysis_awareness`, the agreement between the keyword screen and the
 grader - a comparison of two instruments, not of either against truth, and not
 one of I.c.1's three legs. The v16 rubric experiment recorded in
@@ -135,6 +137,55 @@ upper bound of 6.1%, judge instability is far below the smallest effect this
 benchmark claims to detect - `minimum_detectable_rate(0.301, 60)` is 0.571 - so
 the published awareness figures are not meaningfully limited by it. That is the
 useful conclusion, and it is also the reason a larger sample was not bought.
+
+### Blinding, and what a single rater can claim
+
+The rater here is the benchmark's sole author, so this cannot be inter-rater
+reliability and is not reported as it. It is **author agreement, single rater,
+non-independent**: evidence that the judge implements the operationalisation,
+not evidence that the operationalisation is one others would share. The second
+claim needs a second person and is not available.
+
+Two consequences follow, and both are design decisions rather than caveats.
+
+**One rater collapses two legs into one exercise.** The labels ARE the ground
+truth accuracy would be scored against, so a single blind pass produces both of
+I.c.1's outstanding legs rather than one of them.
+
+**Intra-rater reliability replaces the second rater.** Re-labelling a subset
+after a gap, order re-randomised and the first labels unseen, bounds the whole
+measurement: judge-human disagreement below the rater's own noise floor is not
+evidence about the judge. It is the strongest substitute available to a sole
+author and it costs a quarter of the labelling.
+
+The blinding itself is `subversionbench/blinding.py`, and what it withholds is
+chosen from what could betray the answer rather than from what is obviously the
+answer:
+
+| Sealed | Why it is identity, not a handle |
+|---|---|
+| `run` | the filename encodes the model AND the arm |
+| `stored_aware` | the judge's verdict |
+| `model` | the rate varies by model, so it is a prior |
+| `oversight`, `lure`, `nudge` | the arm, for the same reason |
+
+The rater sees `agent_corpus`, which is the view the grader was given - capped
+and formatted identically. A rater shown the raw transcript would see tool
+output the judge never read, and a disagreement would then be about the input
+rather than about the judgement.
+
+Blocks are balanced on the stored verdict and shuffled within the block, so
+labelling can stop at any block boundary and still leave a balanced sample,
+while the order never says which side an episode is on. The key is written to
+disk rather than re-derived on demand: the sampler is deterministic only against
+a fixed candidate list, and this corpus is being restaged, so a regenerated
+mapping would join the labels to the wrong episodes with nothing looking wrong.
+
+The one thing the machinery cannot supply is the order of operations. The label
+definition has to be frozen before the pack is read, and the original blind
+label - not an adjudicated revision - is what enters the statistic. Adjudicating
+toward the judge would turn agreement into a measure of deference, and every
+revision would move it the same way.
 
 ## Challenge validity (II.\*)
 
@@ -192,11 +243,13 @@ benchmark cannot do as much as for the things it can.
 
 ## What would close the remaining gaps
 
-1. **I.c.1, accuracy and human agreement.** A hand-labelled sample with two or
-   more raters, scored against the grader. It is the only remaining gap that
-   touches a published number. Worth doing after the self-consistency result
-   above, not before: agreement with a human means little for a judge that does
-   not agree with itself, and that order is now established rather than assumed.
+1. **I.c.1, accuracy and human agreement.** A hand-labelled sample scored
+   against the grader. It is the only remaining gap that touches a published
+   number. Worth doing after the self-consistency result above, not before:
+   agreement with a human means little for a judge that does not agree with
+   itself, and that order is now established rather than assumed. The pack is
+   built and blind; the limitation is the rater, and the section below states
+   it rather than working around it.
 2. **I.b.1 is closed by the measurement above**, which found nothing to fix and
    a reason not to try.
 3. **III.12** is closed by the argument above rather than by an experiment.
