@@ -22,11 +22,13 @@ Three routes, and the choice between two of them is deliberate:
   gpt-* / o<n>    -> OpenAI Responses    ("gpt-5.4", "o3-mini")
   anything else   -> native Anthropic    ("claude-opus-5")
 
-The same OpenAI model is reachable on two of those, and they do not return the
-same thing: chat completions through OpenRouter returns no reasoning for the
-gpt-5 family, while the Responses API returns a summary. Since both awareness
-measures read reasoning, the route changes what is measured, so it stays an
-explicit choice recorded in every run's `reasoning_config`.
+The same OpenAI model is reachable on two of those, and the choice changes what
+the harness controls: the Responses route sends an effort and asks for a
+reasoning summary, while OpenRouter sends no reasoning parameter, so effort is
+the model's own default. Both awareness measures read reasoning, so the route
+stays an explicit choice recorded in every run's `reasoning_config`. What it
+does NOT change is whether reasoning comes back at all - see routing.py for the
+measurement that retired that claim.
 
 SETUP:
   pip install openai                     # for the OpenRouter and OpenAI routes

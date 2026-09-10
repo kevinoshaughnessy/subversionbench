@@ -166,7 +166,7 @@ across routes.
 
 ```bash
 python -m subversionbench.run_eval --model gpt-5.4 --runs 10   # native, summary returned
-python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, no reasoning
+python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, model's own effort
 ```
 
 ### Common options

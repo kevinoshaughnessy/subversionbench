@@ -10,6 +10,35 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## Changes after v159 (1)
+
+No version bump: comments and a README line only, no behaviour. The precedent
+is `bf46db4`, which corrected seven stale comments under `subversionbench/`
+without moving the version.
+
+A THEORY THE CODE STATED IN FOUR PLACES, RETIRED BY MEASUREMENT.
+
+`routing.py`, `openai_client.py` (twice, one of them in an operator-facing
+error message) and `llm_client.py` all said that chat completions through
+OpenRouter returns no reasoning for the gpt-5 family, and gave that as the
+reason the two routes are worth keeping separate. Across the 240 OpenRouter
+episodes of the only gpt-5-family model in either corpus, not one has empty
+reasoning, at a median near 1,800 characters - and that was already true when
+r9 was collected, so no corpus was ever gathered under the condition those
+comments described.
+
+What the route actually changes is what the harness CONTROLS, not what comes
+back: the Responses route sends an effort and asks for a summary, OpenRouter
+sends no reasoning parameter, so effort is the model's own default. The pair
+stays selectable for that reason instead.
+
+THE PART WORTH KEEPING is that the project had already worked this out.
+`docs/methodology.md` says it outright - "a per-model fact and not a property
+of the route, which is how it was first written here" - and `reasoning.py`
+carries a superseded-wording set built for exactly this correction. Two sites
+were fixed and four were missed, and nothing failed, because a comment is not
+compiled. The four are what a stale-comment sweep is for.
+
 ## v159
 
 BLINDING A SAMPLE, SO THAT AGREEMENT WITH A HUMAN CAN MEAN SOMETHING.

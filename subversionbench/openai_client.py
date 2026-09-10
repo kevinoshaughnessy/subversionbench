@@ -1,10 +1,15 @@
 """
 OpenAI adapter: the Responses API in, Anthropic-shaped blocks out.
 
-Exists because chat completions returns no reasoning for the gpt-5 family, and
-both awareness measures read reasoning. The Responses API returns a reasoning
-SUMMARY when asked - never the trace, which OpenAI does not expose to anyone -
-so this moves such a model from "withheld" to "summarised" and no further.
+Exists because the Responses API is the route that lets the harness ASK for a
+reasoning summary and name the effort it is produced at; OpenRouter takes no
+reasoning parameter here, so effort is whatever the model defaults to. It
+returns a SUMMARY when asked - never the trace, which OpenAI does not expose to
+anyone - so this moves such a model from "at an unrecorded effort" to
+"summarised at a recorded one", and no further.
+
+NOT because chat completions returns no reasoning for the gpt-5 family, which
+is what this claimed until it was measured. See routing.py for the count.
 """
 
 import json
@@ -113,8 +118,8 @@ class OpenAIClient:
                 "OPENAI_API_KEY environment variable not set. Get a key from "
                 "https://platform.openai.com/api-keys, or run the model "
                 "through OpenRouter instead by prefixing the ID with "
-                "'openai/' - note that route returns no reasoning for the "
-                "gpt-5 family."
+                "'openai/' - note that route sends no effort parameter, so "
+                "reasoning comes back at whatever the model does by default."
             )
         # The SDK default read timeout is 600s with no override here, so one
         # degraded call could stall up to max_retries x 600s before the batch
