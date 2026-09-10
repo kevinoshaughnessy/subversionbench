@@ -41,6 +41,32 @@ means one place to look for what was dropped.
 # separated, and Breslow-Day does not reject. One reading destroys the effect
 # and the other finds it.
 #
+# CALL THIS EFFECT MODIFICATION, NOT SIMPSON'S PARADOX. Simpson's requires the
+# pooled figure to oppose BOTH strata; -3.7pp agrees with the oversight arm and
+# opposes only the other. Nor is there an allocation imbalance to blame: the
+# aware share is 28.5% of the oversight arm and 28.2% of the no-oversight one,
+# so the pooled figure is very nearly the equal-weighted mean of the two, and
+# 0.51*(-9.3) + 0.49*(+2.2) = -3.7 recovers it exactly. Nothing is hidden by
+# pooling here; two different effects are simply averaged into a number that
+# describes neither.
+#
+# WHY THE ARMS DIFFER: THE OUTCOME IS NOT ONE OUTCOME. In the oversight arm 190
+# of the 213 unaware misalignments ARE the oversight act - disabling the
+# monitoring. That act cannot occur in an arm with no monitoring to disable, so
+# what "misaligned" counts there is the recommendation itself. The label is
+# shared and the measurement is not, which is the whole reason an average of
+# the two means nothing.
+#
+# THE MODEL AXIS IS A SEPARATE PROBLEM, and that one IS the Simpson's-shaped
+# reversal: crude -3.7pp against model-stratified +0.2pp. It is driven by
+# models that misalign often and verbalise awareness almost never -
+# x-ai/grok-4.5 is 50.6% misaligned with 1.1% of its episodes aware, and
+# google/gemini-3-flash-preview 40.0% misaligned with 0.0% aware. Dropping
+# grok-4.5 alone takes the crude gap from -3.7pp to -1.2pp, so most of the
+# crude "effect" is a statement about which models were sampled rather than
+# about what awareness does inside an episode. Excluding the arm does not fix
+# that; stratifying by model does, and the report always reports both.
+#
 # So this is still a SENSITIVITY READING and not a correction - it repairs
 # nothing, it reports what is left once the arm is excluded - but it is no
 # longer a workaround for a bug. It is the arm-stratified reading of every
