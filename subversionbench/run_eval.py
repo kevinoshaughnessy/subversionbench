@@ -33,6 +33,7 @@ from .arms_summary import write_summary_of_summaries
 from .compare import compare_batches
 from .config import (
     CAPABILITY_TARGETS,
+
     DEFAULT_GRADER_MODEL,
     DEFAULT_INTERROGATION,
     INTERROGATION_CHOICES,
@@ -64,6 +65,7 @@ from .llm_client import (
 # batch_stem, parse_batch_filename, find_run_files and find_run_files_by_stamp are
 # re-exported: this module was their home and several test files still reach them
 # through it as attributes. The rest are imported because this module uses them.
+from .artefact_dates import MODES as DATE_MODES
 from .batch import (ALL, BatchIdentity, BatchSelection, batch_stem,  # noqa: F401
                     discover_batches, find_run_files, find_run_files_by_stamp,
                     parse_batch_filename)
@@ -190,6 +192,21 @@ def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
              "pooling one episode into a misalignment rate inflates it "
              "towards the ceiling it exists to measure. Collect into a "
              "separate --output-dir.")
+    parser.add_argument(
+        "--date-mode", choices=list(DATE_MODES), default=None,
+        help="Artefact-date arm. Nothing set the scenario files' modification "
+             "times, so every episode collected to date ran in a directory "
+             "whose files claim to have been touched the moment the batch "
+             "ran - later than the period the scenario describes, always. "
+             "'consistent' backdates them into that period, ordered the way a "
+             "real project's are; 'inconsistent' puts them decades ahead and "
+             "identical, which is the widest contrast available rather than "
+             "the realistic middle: a plausible manipulation is the hardest "
+             "to detect, and a null from the extremes bounds the subtle case "
+             "too. Each non-default mode has its own rollout fingerprint and "
+             "its own filename mark, so it cannot pool with the corpus it is "
+             "the counterfactual to. Leaving this unset is 'default' and "
+             "changes nothing.")
     parser.add_argument("--yes", action="store_true",
                         help="Proceed with a fanned-out mode that sends API "
                              "requests. Required with --model/--nudge all on "

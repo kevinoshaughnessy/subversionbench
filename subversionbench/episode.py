@@ -539,6 +539,7 @@ def run_evaluation(
     openrouter_sort: str = None,
     openrouter_provider: str = None,
     capability: str = None,
+    date_mode: str = None,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection.
 
@@ -578,7 +579,7 @@ def run_evaluation(
             model, effort, nudge_type, oversight, lure, interrogations,
             openrouter_sort, openrouter_provider,
             isolation=isolation, max_turns=max_turns,
-            capability=capability)
+            capability=capability, date_mode=date_mode)
 
     t_eval_start = time.time()
 

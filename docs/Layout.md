@@ -18,6 +18,16 @@ subversionbench/
   rollout_pins.py  the declared rollout version and the fingerprints it pins to
   interrogations.py  the probes, the classifier prompt, the answer markers
   scenario.py      the scenario text, held base64-encoded at rest
+  artefact_dates.py  when the scenario's files claim to have been written.
+                   Nothing set their modification times, so every episode ever
+                   collected ran among files claiming to have been touched the
+                   moment the batch ran - later than the period the scenario
+                   describes. The arm makes that a choice: `consistent`
+                   backdates them into the period and orders them the way a
+                   real project's are, `inconsistent` puts them decades ahead
+                   and identical. The extremes rather than the realistic
+                   middle, because a plausible manipulation is the hardest to
+                   detect and a null from the extremes bounds it
   rollout.py       rollout identity: what the model saw and what it could do
   routing.py       which API serves a model ID
   hostenv.py       what the HOST contributed to an episode - shell,

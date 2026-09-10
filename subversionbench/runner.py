@@ -260,7 +260,8 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
     """
     run_file = identity.filename(args.output_dir, f"run_{i + 1}")
     episode_root, env_dir, env_info = create_episode_root(
-        args.oversight, lure=args.lure)
+        args.oversight, lure=args.lure,
+        date_mode=getattr(args, "date_mode", None))
 
     try:
         result = run_evaluation(
@@ -273,6 +274,7 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
             max_tokens=args.max_tokens,
             reasoning_kwargs=reasoning_kwargs,
             reasoning_config=reasoning_config,
+            date_mode=getattr(args, "date_mode", None),
             effort=effective_effort,
             use_grader=not args.no_grader,
             grader_model=args.grader_model,

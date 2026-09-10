@@ -34,6 +34,11 @@ NO_OVERSIGHT_TAG = "nooversight"
 # it with two segments to peel where one has meaning.
 CAPABILITY_TAG = "capability"
 
+# The artefact-date arm's mark, hyphenated for the reason above: the suffix
+# stripper peels `_`-separated segments, and `_dates_consistent` would give it
+# two segments where one has meaning.
+DATE_TAG = "dates"
+
 # "Do not filter on the corpus at all" - propensity and capability files alike.
 #
 # NEEDED BECAUSE None IS A VALUE HERE, not an absence. Every other optional
@@ -92,12 +97,18 @@ class BatchIdentity:
     # same model, nudge and arm are two conditions whose summaries must not
     # land on the same filename.
     capability: str = None
+    # None on every batch collected before the artefact-date arm existed, and
+    # on every one run under the default since. Part of the identity for the
+    # reason `capability` is: two date modes of the same model, nudge and arm
+    # are two conditions whose summaries must not land on one filename.
+    date_mode: str = None
 
     @property
     def stem(self) -> str:
         """The middle of every filename belonging to this batch."""
         return batch_stem(self.model_slug, self.nudge, self.effort,
-                          self.oversight, self.lure, self.capability)
+                          self.oversight, self.lure, self.capability,
+                          self.date_mode)
 
     def filename(self, output_dir: str, prefix: str = "summary") -> str:
         """
@@ -124,7 +135,8 @@ class BatchIdentity:
         """
         return cls(model=args.model, model_slug=model_slug, nudge=args.nudge,
                    effort=effort, oversight=args.oversight, lure=args.lure,
-                   stamp=stamp, capability=getattr(args, "capability", None))
+                   stamp=stamp, capability=getattr(args, "capability", None),
+                   date_mode=getattr(args, "date_mode", None))
 
 
 
@@ -189,7 +201,7 @@ class BatchSelection:
 
 def batch_stem(model_slug: str, nudge: str, effort=None,
                oversight: bool = True, lure: bool = False,
-               capability: str = None) -> str:
+               capability: str = None, date_mode: str = None) -> str:
     """
     The middle of every filename belonging to one batch.
 
@@ -215,10 +227,17 @@ def batch_stem(model_slug: str, nudge: str, effort=None,
     # The capability mark sits FIRST among the optional suffixes, so that a
     # directory listing sorts a model's capability batches away from its
     # propensity ones rather than interleaving them by effort.
+    # The artefact-date arm marks the name only when it is ON, and only for a
+    # non-default mode - so every batch already on disk keeps the name it has,
+    # exactly as the oversight and lure marks do above. Placed before the
+    # effort segment so the two compose the same way.
+    from .artefact_dates import DEFAULT as _DATE_DEFAULT
+    dated = date_mode and date_mode != _DATE_DEFAULT
     return (f"{model_slug}_{nudge}"
             + (f"_{CAPABILITY_TAG}-{capability}" if capability else "")
             + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
             + ("_lure" if lure else "")
+            + (f"_{DATE_TAG}-{date_mode}" if dated else "")
             + (f"_{effort}" if effort else ""))
 
 
@@ -276,6 +295,18 @@ def parse_batch_filename(path: str, nudge: str):
             capability = marked.group(1)
             name = name[:marked.start()]
             continue
+        # CONSUMED, NOT RETURNED. Growing this function's return is what broke
+        # every caller's unpack at v132, and ten of them still unpack five
+        # values - so the date segment is stripped here so that the marks to
+        # its LEFT (`_lure`, `_nooversight`) go on parsing, and the mode
+        # itself is read by date_mode_from_filename below. Leaving it
+        # unstripped would end the loop early and report a no-oversight lure
+        # batch as an oversight one, which is the silent mislabelling this
+        # parser exists to prevent.
+        dated = re.search(rf"_{DATE_TAG}-([^_]+)$", name)
+        if dated:
+            name = name[:dated.start()]
+            continue
         if not name.endswith(f"_{nudge}"):
             for level in EFFORT_LEVELS:
                 if name.endswith(f"_{level}"):
@@ -288,6 +319,25 @@ def parse_batch_filename(path: str, nudge: str):
         break
 
     return effort, stamp, oversight, lure, capability
+
+
+def date_mode_from_filename(path: str):
+    """The artefact-date arm a filename names, or None for the default.
+
+    Separate from parse_batch_filename rather than a sixth value on its
+    return: that return grew once and broke every caller's unpack, and ten
+    call sites still unpack five. A caller that needs the mode asks for it.
+    """
+    name = os.path.basename(path)
+    if name.endswith(".json"):
+        name = name[:-len(".json")]
+    name = re.sub(r"_(\d{8}T\d{6}(?:-\d+)?)$", "", name)
+    for level in EFFORT_LEVELS:
+        if name.endswith(f"_{level}"):
+            name = name[:-len(f"_{level}")]
+            break
+    marked = re.search(rf"_{DATE_TAG}-([^_]+)$", name)
+    return marked.group(1) if marked else None
 
 # =========================================================================
 # Finding a batch on disk

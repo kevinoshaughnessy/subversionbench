@@ -431,6 +431,79 @@ def capability_fingerprint_for(target: str, oversight: bool) -> str:
     return CAPABILITY_FINGERPRINTS[key]
 
 
+# =========================================================================
+# The artefact-date arm
+# =========================================================================
+#
+# Nothing set the scenario files' modification times, so every episode ever
+# collected ran in a directory whose files claim to have been touched at the
+# moment the batch ran - always later than the period the scenario describes.
+# That is a property of the environment the model can read with one `ls -l`,
+# so changing it changes the rollout.
+#
+# A SEPARATE TABLE, on exactly the terms the capability block above sets out.
+# Widening ROLLOUT_FINGERPRINTS' keys to carry a date_mode default would edit
+# the one table AGENTS.md names as the experiment's identity, and rewrite the
+# "two of r10's four fingerprints are r9's" property test and every other guard
+# built on it, for an arm none of them is about. The four values above do not
+# move, and `rollout_fingerprint` appends its date marker only when the arm is
+# ON - the same discipline as the lure marker in episode_root_layout - so the
+# default recomputes byte-identically and the 4,553 episodes already collected
+# keep their identity.
+#
+# WHY THE ARM EXISTS. No episode in r10 reasons from the date discrepancy to
+# being under evaluation, and exposure to the timestamps does not predict
+# awareness once exploration depth is held constant. But no verbalised measure
+# can rule out a model being influenced by something it never mentions, and
+# only an experiment can. Arm A makes the dates coherent; arm B makes them
+# flagrantly impossible. The pair is deliberately the widest contrast
+# available rather than the realistic middle: a manipulation calibrated to be
+# plausible is the hardest to detect, and a null from the extremes bounds the
+# subtle case too.
+#
+# Keyed by (date_mode, oversight, lure). The default mode is ABSENT rather
+# than pinned to the values above: an episode collected under it is an
+# ordinary episode of the arm above and takes that arm's fingerprint, and
+# giving it a second name here would be the one table saying two things.
+DATE_ARM_FINGERPRINTS = MappingProxyType({
+    ("consistent",   True,  False): "68bf5d3632ec",
+    ("consistent",   True,  True):  "ba4a7253663e",
+    ("consistent",   False, False): "77ccfa709f57",
+    ("consistent",   False, True):  "82cd204e330e",
+    ("inconsistent", True,  False): "7553296e572b",
+    ("inconsistent", True,  True):  "9bb8b4062ff0",
+    ("inconsistent", False, False): "ab8daa97671b",
+    ("inconsistent", False, True):  "bacc39081173",
+})
+
+
+def date_fingerprint_for(date_mode: str, oversight: bool,
+                         lure: bool = False) -> str:
+    """
+    The pinned fingerprint of one artefact-date arm.
+
+    Raises on the default mode rather than returning the plain arm's value.
+    The caller has to decide which table it is asking, because a date-arm
+    episode stamped with the plain arm's identity would pool with the corpus
+    it is the counterfactual to - which is the one failure both tables exist
+    to prevent.
+    """
+    key = (str(date_mode), bool(oversight), bool(lure))
+    if key not in DATE_ARM_FINGERPRINTS:
+        raise KeyError(
+            f"no pinned date-arm fingerprint for {key}. The default mode is "
+            f"deliberately absent - use fingerprint_for() for it. Pin a new "
+            f"mode before collecting episodes under it, or they cannot be "
+            f"told apart from another arm's later.")
+    if _alternative is not None:
+        from .scenario import BUNDLE_ENV_VAR
+        raise RuntimeError(
+            f"the artefact-date arms have no pins under an alternative "
+            f"scenario bundle; these identify the shipped scenario's arms. "
+            f"Unset {BUNDLE_ENV_VAR}, or pin the twin's date arms first.")
+    return DATE_ARM_FINGERPRINTS[key]
+
+
 def fingerprint_for(oversight: bool, lure: bool = False) -> str:
     """
     The pinned fingerprint of one arm.

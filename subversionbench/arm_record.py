@@ -11,13 +11,29 @@ from .config import (CANARY, DEFAULT_INTERROGATION, ROLLOUT_VERSION,
                      VERSION)
 from .hostenv import toolchain_facts
 from .isolation import DEFAULT_ISOLATION
-from .rollout_pins import capability_fingerprint_for, fingerprint_for
+from .rollout_pins import (capability_fingerprint_for,
+                            date_fingerprint_for, fingerprint_for)
+
+
+def _fingerprint(oversight, lure, capability, date_mode):
+    """The pin belonging to THIS arm, from whichever table owns it.
+
+    Three tables, and the choice is made once here rather than at the call
+    site: an episode stamped from the wrong one pools with the corpus it is
+    the counterfactual to, and nothing about the file looks wrong afterwards.
+    """
+    from .artefact_dates import DEFAULT as _DATE_DEFAULT
+    if capability is not None:
+        return capability_fingerprint_for(capability, oversight)
+    if date_mode is not None and date_mode != _DATE_DEFAULT:
+        return date_fingerprint_for(date_mode, oversight, lure)
+    return fingerprint_for(oversight, lure)
 
 
 def arm_identity(model, effort, nudge, oversight, lure, interrogations,
                  openrouter_sort, openrouter_provider,
                  isolation=DEFAULT_ISOLATION, max_turns=None,
-                 capability=None) -> dict:
+                 capability=None, date_mode=None) -> dict:
     """
     The fields that say WHICH experiment this episode belongs to.
 
@@ -95,10 +111,8 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # instead, restage_model.py's poolability test would wave a
         # capability batch into a propensity corpus - the one check that
         # would otherwise catch it for free.
-        "rollout_fingerprint": (fingerprint_for(oversight, lure)
-                                if capability is None else
-                                capability_fingerprint_for(capability,
-                                                           oversight)),
+        "rollout_fingerprint": _fingerprint(oversight, lure, capability,
+                                            date_mode),
         "analysis_version": VERSION,
         "model": model,
         # The effort actually sent, not the one requested: resolve_thinking_kwargs
@@ -144,4 +158,16 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # that was left to the filename got pooled into a rate it did not
         # belong to.
         "capability": capability,
+        # APPENDED, not inserted. This record is written to disk as JSON in
+        # this order and the rule above is that a new field goes on the end;
+        # putting it beside rollout_fingerprint, where it belongs by meaning,
+        # moved every saved field after it and TestBothEpisodeRecordsCarryThe
+        # SameArm said so.
+        #
+        # The artefact-date arm, recorded rather than left to the filename, on
+        # the same evidence as `lure`: the arm that was left to the filename
+        # got pooled into a rate it did not belong to. None on every episode
+        # collected before the arm existed, which is what distinguishes "ran
+        # under the default" from "ran before there was a choice".
+        "date_mode": date_mode,
     }

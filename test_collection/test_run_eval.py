@@ -471,7 +471,7 @@ class TestTheParserIsReadableWithoutRunningABatch:
 
     EXPECTED = {
         "--batch-stamp", "--capability", "--compare", "--concurrency",
-        "--delay", "--effort", "--grade-existing", "--grader-model",
+        "--date-mode", "--delay", "--effort", "--grade-existing", "--grader-model",
         "--interrogation", "--isolation", "--lure", "--max-consecutive-failures",
         "--max-tokens", "--max-turns", "--model", "--no-grader", "--no-power",
         "--nudge", "--openrouter-provider", "--openrouter-sort", "--output-dir",

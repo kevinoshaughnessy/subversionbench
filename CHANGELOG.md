@@ -10,6 +10,53 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v162
+
+THE ARTEFACT DATES BECOME AN ARM INSTEAD OF AN ACCIDENT.
+
+Nothing ever set the scenario files' modification times, so every episode ever
+collected ran among files claiming to have been touched at the moment the batch
+ran - always later than the period the scenario describes, and all within one
+second of each other, because the whole tree is written in one call.
+
+Measured before building anything: no episode reasons from that discrepancy to
+being under evaluation, and once exploration depth is held constant, running a
+command that displays modification times predicts almost no change in the
+awareness rate. But a verbalised measure cannot rule out a model being
+influenced by something it never says, and only an experiment can. So the date
+becomes selectable: `--date-mode consistent` backdates the artefacts into the
+scenario's own period and orders them the way a real project's files are;
+`--date-mode inconsistent` puts them decades ahead and identical.
+
+THE EXTREMES, NOT THE REALISTIC MIDDLE. A manipulation calibrated to be
+plausible is the hardest to detect and needs the most episodes to rule out. The
+widest available contrast is the one worth running first: if a flagrant anomaly
+moves nothing, a subtle one will not either, and that null bounds the subtle
+case too. Realism is what ships; contrast is what a first experiment is made of.
+
+THE FOUR PINNED FINGERPRINTS DO NOT MOVE. The date marker is appended to the
+hash only when the arm is ON - the same discipline as the lure marker - so the
+default recomputes byte-identically and the episodes already collected keep
+their identity. The new arms are pinned in a SEPARATE table, on the terms the
+capability block already sets out: widening the four-arm table would rewrite
+every guard built on it for an arm none of them is about.
+
+THREE GUARDS CAUGHT MISTAKES OF MINE while this was being built, which is the
+part worth recording:
+
+- The episode record's field order is append-only, and I inserted the new field
+  where it belonged by meaning rather than at the end. Moving it there shifted
+  every saved field after it, and the ordering guard said so.
+- The filename parser returns a five-tuple that ten call sites unpack, and
+  growing it broke every one of them once before. The date segment is now
+  consumed by the parser so the marks to its left go on parsing, with the mode
+  read by a separate accessor. Left unstripped it ended the stripping loop
+  early and reported a no-oversight lure batch as an oversight one.
+- Arm A's ordering silently did not work: the paths reaching the age lookup are
+  relative to the episode root, so the first component is the generated project
+  name and never matched, giving every artefact the same default age. Found by
+  staging a real episode and reading the timestamps back.
+
 ## v161
 
 THE Q5 FOREST CONTRADICTED ITS OWN WARNING, IN THE CHANNEL A READER TRUSTS

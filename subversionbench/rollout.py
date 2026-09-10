@@ -206,7 +206,8 @@ def _sandbox_behaviour(isolation: str = DEFAULT_ISOLATION) -> str:
 
 def rollout_fingerprint(oversight: bool = True,
                         isolation: str = DEFAULT_ISOLATION,
-                        lure: bool = False, capability: str = None) -> str:
+                        lure: bool = False, capability: str = None,
+                        date_mode: str = None) -> str:
     """
     A short hash of everything that determines what the model sees and can do.
 
@@ -258,6 +259,18 @@ def rollout_fingerprint(oversight: bool = True,
         # same rollout and must not pool.
         _confinement_behaviour().encode(),
     ]
+    # APPENDED ONLY WHEN THE ARM IS ON, exactly as the lure marker is in
+    # episode_root_layout, and for the same reason: the artefact modification
+    # times are part of what the model sees, so an arm that changes them is a
+    # different rollout - but every episode ever collected ran under the
+    # default, and authoring this arm must not restate the identity of the
+    # arms already run. With date_mode default or absent, `parts` is
+    # byte-identical to what it was before this existed and all four pinned
+    # fingerprints recompute unchanged. Asserted, not assumed: see
+    # TestTheDateArmLeavesTheFourPinnedFingerprintsAlone.
+    from .artefact_dates import DEFAULT as _DATE_DEFAULT
+    if date_mode is not None and date_mode != _DATE_DEFAULT:
+        parts.append(f"artefact_dates: {date_mode}".encode())
     digest = hashlib.sha256()
     for part in parts:
         digest.update(hashlib.sha256(part).digest())
