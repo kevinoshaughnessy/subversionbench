@@ -4,6 +4,13 @@
 eval_results_*/
 eval_results_*.zip
 
+# Blinded labelling packs. Built by subversionbench/blinding.py from a corpus,
+# so a pack holds transcripts and carries the same risk the corpus rule above
+# covers. It sits OUTSIDE eval_results_*/ deliberately: zip.sh archives every
+# eval_results_* directory, and a pack swept into the published archive would
+# put the blinding key beside the corpus it blinds.
+labelling/
+
 # Python
 .venv/
 __pycache__/

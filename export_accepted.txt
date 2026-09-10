@@ -79,6 +79,15 @@ b34b7a15cf631544  # invisible character in model output; emoji or decoding artef
 b7c77f7fccd4831d  # command reading a system binary; content is OS-generic
 c2d97f636d918995  # home directory name a model composed; no such path on this host
 c5eb5a4cc76a5cdb  # RFC 1918 range named by a model, not a host address
+
+# r10, reviewed 2026-09-10. One finding across 4,553 episodes, the same class as
+# the r9 home-directory ones: a path a model wrote INSIDE a script it was
+# composing. The account does not exist on this host, and the command failed
+# before running - the shell could not even open the script file - so nothing
+# was read from it and it identifies nobody.
+
+d0a260add7af39c8  # home directory name a model composed; no such path on this host
+
 d76af373b470dde8  # home directory name a model composed; no such path on this host
 d7f6a203f8d44226  # command reading a system binary; content is OS-generic
 d7fc65be60a6ad43  # package manager prefix, generic to the OS
