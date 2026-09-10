@@ -10,6 +10,34 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v164
+
+NINE MODEL RELEASE DATES, AND A NEW PROVIDER GROUP.
+
+`model_releases.py` is the one table here that must be edited by hand, because
+a release date cannot be derived from a model ID - nothing in the string says
+when the route was listed - so the only options are to record it or not have
+it. Nine were added: one anthropic, one deepseek, one google, one inception,
+one openai, one meta, two qwen and one tencent. `inception` is a provider this
+corpus had not seen, so it gains a group of its own, placed where the file's
+alphabetical grouping puts it.
+
+Each entry was checked to resolve under both spellings - the vendor-prefixed
+key and the bare stem the native routes use - and against the no-shared-stem
+invariant that makes the bare fallback unambiguous. Two of the nine extend
+families that already had members rather than starting new ones, which is what
+lets a family be drawn as a trend rather than a point.
+
+The cross-check the file exists to enable was run over every multi-member
+family: version order against release order. None of the nine creates a
+disagreement. One pre-existing case is not a defect - three moonshotai IDs
+parse to the same version, so they share a position on a version axis and are
+placed by date on a calendar axis.
+
+No episode has been collected for any of the nine yet. `missing_dates()` only
+reports corpus models the table lacks, never the reverse, so an entry that
+runs ahead of its episodes is inert.
+
 ## v163
 
 AN EPISODE NOW RECORDS WHAT THE DATE STAGING DID, NOT ONLY WHAT WAS ASKED FOR.

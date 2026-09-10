@@ -66,12 +66,14 @@ RELEASE_DATES = {
     "anthropic/claude-opus-4.8": date(2026, 5, 27),
     "anthropic/claude-sonnet-5": date(2026, 6, 30),
     "anthropic/claude-opus-5": date(2026, 7, 24),
+    "anthropic/claude-fable-5.1": date(2026, 9, 1),
 
     # deepseek
     "deepseek/deepseek-v4-pro": date(2026, 4, 24),
     "deepseek/deepseek-v4-flash": date(2026, 4, 24),
     "deepseek/deepseek-v4-flash-0731": date(2026, 7, 31),
     "deepseek/deepseek-v4-pro-0813": date(2026, 8, 12),
+    "deepseek/deepseek-v4.1-flash": date(2026, 9, 10),
 
     # google
     "google/gemini-3-flash-preview": date(2025, 12, 17),
@@ -81,6 +83,10 @@ RELEASE_DATES = {
     "google/gemini-3.5-flash": date(2026, 5, 19),
     "google/gemini-3.6-flash": date(2026, 7, 21),
     "google/gemini-3.7-flash": date(2026, 8, 13),
+    "google/gemini-3.8-flash": date(2026, 9, 2),
+
+    # inception
+    "inception/mercury-2.5": date(2026, 9, 8),
 
     # inclusionai
     "inclusionai/ling-3.0-flash": date(2026, 7, 23),
@@ -101,6 +107,7 @@ RELEASE_DATES = {
     "openai/gpt-5.6-luna": date(2026, 7, 9),
     "openai/gpt-5.6-terra": date(2026, 7, 9),
     "openai/gpt-5.6-sol": date(2026, 7, 9),
+    "openai/gpt-6-astra": date(2026, 9, 4),
 
     # meta
     "meta-llama/llama-4-maverick": date(2025, 4, 5),
@@ -108,6 +115,7 @@ RELEASE_DATES = {
     "meta/muse-spark-1.1": date(2026, 7, 16),
     "meta/muse-spark-1.2": date(2026, 8, 6),
     "meta/muse-glimmer-30b": date(2026, 8, 9),
+    "meta/muse-spark-1.3": date(2026, 9, 2),
 
     # qwen
     "qwen/qwen3.5-flash-02-23": date(2026, 2, 25),
@@ -117,12 +125,15 @@ RELEASE_DATES = {
     # broken differently between runs would move a chart's x-axis.
     "qwen/qwen3.6-27b": date(2026, 4, 27),
     "qwen/qwen3.6-flash": date(2026, 4, 27),
+    "qwen/qwen3.7-max": date(2026, 5, 21),
     "qwen/qwen3.7-flash": date(2026, 7, 27),
     "qwen/qwen3.8-27b": date(2026, 8, 14),
     "qwen/qwen3.8-flash": date(2026, 8, 26),
+    "qwen/qwen3.8-max-0902": date(2026, 9, 3),
 
     # tencent
     "tencent/hy3": date(2026, 7, 6),
+    "tencent/hy4-preview": date(2026, 8, 28),
 
     # thinkingmachines - `inkling-small` only. The unnamed-size `inkling` is a
     # DIFFERENT model and was never evaluated here; see the deliberately
