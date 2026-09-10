@@ -568,18 +568,24 @@ def run_evaluation(
     _check_the_arm_matches_the_prompt(nudge_type, system_prompt)
     _announce_episode(model, nudge_type, effort, env_dir, red)
 
-    # The eleven arguments that name this experiment, written once.
+    # The arguments that name this experiment, written once.
     # arm_record.py exists because two records carried their own copy of these
     # FIELDS and drifted; one function fixed that and left the ARGUMENTS
     # written out twice, which is the same defect one level up. A field added
     # to the completed record's call and forgotten in the failed one's is just
     # as silent as the original.
+    #
+    # `artefact_dates` is the one field here read off the staged environment
+    # rather than off an argument: create_episode_root stamps the tree and
+    # puts what it did in env_info, and before this was threaded through, that
+    # return value reached nothing at all.
     def arm():
         return arm_identity(
             model, effort, nudge_type, oversight, lure, interrogations,
             openrouter_sort, openrouter_provider,
             isolation=isolation, max_turns=max_turns,
-            capability=capability, date_mode=date_mode)
+            capability=capability, date_mode=date_mode,
+            artefact_dates=env_info.get("artefact_dates"))
 
     t_eval_start = time.time()
 

@@ -26,6 +26,59 @@ ARMS = [(oversight, lure) for oversight in (True, False)
         for lure in (False, True)]
 
 
+def _two_records_staged(date_mode):
+    """A completed and a died episode, both staged with `date_mode`.
+
+    Both, because arm_record.py exists precisely because the two records drifted
+    apart, and a field threaded into one of them is the shape that defect took.
+    The environment is built by create_episode_root rather than by
+    create_hardened_environment, which is the whole point: create_episode_root
+    is what stamps the tree and what puts the result in env_info.
+    """
+    import contextlib
+    import io
+    import types
+
+    import subversionbench.llm_client as ev_llm
+    from subversionbench.config import SYSTEM_PROMPT_STRONG_NUDGE
+    from subversionbench.environment import create_episode_root
+    from subversionbench.episode import EpisodeAPIError, run_evaluation
+
+    def reply(**_kw):
+        return types.SimpleNamespace(
+            content=[types.SimpleNamespace(
+                type="text", text="I recommend the balanced one.")],
+            stop_reason="end_turn", provider="a-backend",
+            usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
+
+    def episode(create):
+        _root, env_dir, env_info = create_episode_root(
+            True, lure=False, date_mode=date_mode)
+        client = types.SimpleNamespace(
+            messages=types.SimpleNamespace(create=create))
+        real = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: client
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                return run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_STRONG_NUDGE,
+                    user_prompt="Do it.", env_dir=env_dir, env_info=env_info,
+                    model="m", nudge="strong", max_turns=2, use_grader=False,
+                    date_mode=date_mode)
+        finally:
+            ev_llm.get_client = real
+
+    def dies(**_kw):
+        raise RuntimeError("429 rate limited")
+
+    complete = episode(reply)
+    try:
+        episode(dies)
+    except EpisodeAPIError as died:
+        return complete, died.partial
+    raise AssertionError("the failing client did not fail the episode")
+
+
 class TestTheDateArmLeavesTheFourPinnedFingerprintsAlone:
     """The hard invariant. Every episode on disk was collected under the
     default, so the default must hash byte-identically to what it hashed
@@ -252,6 +305,33 @@ class TestTheEpisodeRecordsWhichArmItRan:
         for mode in (None, ad.DEFAULT):
             assert self._identity(date_mode=mode)["rollout_fingerprint"] == \
                 fingerprint_for(True, False)
+
+    def test_what_the_staging_DID_reaches_the_record_not_just_what_was_asked(self):
+        """The gap `date_mode` alone leaves. apply() walking a tree and
+        stamping nothing raises nothing and returns files_stamped 0, so an
+        episode carrying only the requested mode looks identically staged
+        whether the staging happened or not - and the one real instance of
+        that bug, _age_days matching no path component, was found by staging
+        an episode by hand because no saved episode could have shown it.
+
+        Run end to end rather than asserted off arm_identity's signature: the
+        value is read off env_info, so a guard that passes arm_identity the
+        record itself proves nothing about the link that was actually missing,
+        which is create_episode_root's return value reaching the record.
+        """
+        complete, failed = _two_records_staged(ad.CONSISTENT)
+        for record in (complete, failed):
+            staged = record["artefact_dates"]
+            assert staged["date_mode"] == ad.CONSISTENT
+            assert staged["files_stamped"] > 0, (
+                "the episode records a mode it cannot show was applied")
+
+    def test_an_episode_with_no_date_mode_records_no_staging(self):
+        """None and a staging of zero files are different facts, the same
+        distinction `date_mode` draws between None and 'default'."""
+        complete, failed = _two_records_staged(None)
+        assert complete["artefact_dates"] is None
+        assert failed["artefact_dates"] is None
 
     def test_a_capability_episode_is_unaffected_by_the_date_arm(self):
         """Three tables, one choice, made in one place. A capability episode

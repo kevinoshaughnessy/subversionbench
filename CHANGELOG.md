@@ -10,6 +10,42 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v163
+
+AN EPISODE NOW RECORDS WHAT THE DATE STAGING DID, NOT ONLY WHAT WAS ASKED FOR.
+
+`artefact_dates.apply` returns a record of the staging it performed, and its
+docstring said the caller writes that onto the episode. The caller did not: the
+value was assigned into `env_info`, used for grading paths, and dropped. Every
+episode of the date arm therefore carried the mode that was *requested* and no
+evidence that any file was actually stamped.
+
+The two are not the same claim. `apply` walking a tree and matching nothing
+raises nothing and returns a stamped count of zero, so an episode recording
+only the request looks identically staged whether the staging happened or not.
+That failure is not hypothetical - the age lookup once matched no component of
+the paths it was given and silently gave every artefact one age, and it was
+found by staging an episode by hand, because no saved episode could have shown
+it. Verifying an arm after the fact by reading what the model happened to list
+works only for episodes that happened to list something.
+
+So the returned record is threaded through `arm_identity` onto both the
+completed and the failed episode record, appended last, per the ordering rule
+that dict already carries. It is deliberately not part of the arm's identity:
+the mode is what makes two episodes comparable, while the stamped count varies
+with the tree, and folding it into the fingerprint would give every episode an
+identity of its own. All twelve pinned fingerprints - the four rollout arms and
+the eight date-arm entries - recompute unchanged.
+
+The guard runs an episode end to end from a staged root rather than asserting
+on `arm_identity`'s signature, because the link that was missing was the one
+between the staged environment and the record; a check that hands `arm_identity`
+the value itself would have passed throughout the period the field was lost.
+
+Episodes collected before this carry `null`, which is the same distinction
+`date_mode` already draws between an episode that ran under a chosen default
+and one that ran before there was a choice.
+
 ## v162
 
 THE ARTEFACT DATES BECOME AN ARM INSTEAD OF AN ACCIDENT.

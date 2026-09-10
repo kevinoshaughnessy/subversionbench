@@ -239,7 +239,7 @@ class TestBothEpisodeRecordsCarryTheSameArm:
                 "rollout_fingerprint", "analysis_version", "model", "effort",
                 "openrouter_sort", "openrouter_provider", "nudge",
                 "isolation", "max_turns", "toolchain", "capability",
-                "date_mode")
+                "date_mode", "artefact_dates")
 
     def _built(self, **kw):
         from subversionbench.arm_record import arm_identity

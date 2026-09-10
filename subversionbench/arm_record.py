@@ -33,7 +33,8 @@ def _fingerprint(oversight, lure, capability, date_mode):
 def arm_identity(model, effort, nudge, oversight, lure, interrogations,
                  openrouter_sort, openrouter_provider,
                  isolation=DEFAULT_ISOLATION, max_turns=None,
-                 capability=None, date_mode=None) -> dict:
+                 capability=None, date_mode=None,
+                 artefact_dates=None) -> dict:
     """
     The fields that say WHICH experiment this episode belongs to.
 
@@ -170,4 +171,15 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # collected before the arm existed, which is what distinguishes "ran
         # under the default" from "ran before there was a choice".
         "date_mode": date_mode,
+        # APPENDED, for the reason above. What the staging actually DID, as
+        # artefact_dates.apply returned it, beside `date_mode` which is what
+        # was ASKED for. The two cannot disagree today, and that is the point:
+        # apply() walking a tree and stamping nothing raises nothing and
+        # returns files_stamped 0, so an episode recording only the request
+        # looks identically staged whether or not the staging happened. That
+        # is not hypothetical - _age_days once matched no path component and
+        # silently gave every artefact one age, found by staging an episode by
+        # hand because no saved episode could have shown it. None when no mode
+        # was asked for, matching `date_mode`.
+        "artefact_dates": artefact_dates,
     }
