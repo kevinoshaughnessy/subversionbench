@@ -10,6 +10,41 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v160
+
+THE ARM-EXCLUSION FLAG WAS BUILT FOR A DEFECT AND OUTLIVED IT.
+
+`--exclude-no-oversight` existed because r9's no-oversight arm shipped a task
+README promising an automated quality preview the arm itself removed, so models
+hunted for a missing artefact and left the project directory looking for it.
+r10 repaired that, under a new rollout because the fix changes what the model
+observes, and the r10 corpus shows the induced behaviour gone.
+
+So the flag's stated reason is now history, and every site that gave it -
+`report/exclusions.py`, the `--exclude-no-oversight` help text, the `why`
+string carried into chart captions and the published JSON, and the README
+table - was describing a corpus that no longer exists.
+
+WHAT REPLACES IT IS STRUCTURAL AND WAS ALWAYS THE STRONGER REASON. The arm is
+defined as a REMOVAL, so it provides no artefact the oversight act could be
+committed against; its misalignment is made of different acts. The two arms are
+therefore not one population for any question conditioned on something else,
+and on this corpus the awareness-to-misalignment relationship REVERSES SIGN
+between them. Each direction is separated on its own, so the pooled figure is
+an average over two real effects that point opposite ways: pooled, the
+model-stratified estimate is not separated and Breslow-Day rejects homogeneity;
+with the arm excluded it is separated and Breslow-Day does not reject. One
+reading destroys the effect and the other finds it.
+
+The flag is still a sensitivity reading rather than a correction - it repairs
+nothing, it reports what is left once the arm is excluded - but for a question
+conditioned on awareness it is now the reading to quote rather than a
+workaround to explain away. The figures are in `report/exclusions.py`, where a
+measurement belongs.
+
+Found by running the flag on r10 to check whether it had anything left to say.
+It did.
+
 ## Changes after v159 (1)
 
 No version bump: comments and a README line only, no behaviour. The precedent

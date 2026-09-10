@@ -265,7 +265,7 @@ leave figures that cannot be told apart by looking at them.
 
 | flag | what it sets aside | why |
 |---|---|---|
-| `--exclude-no-oversight` | the no-oversight arm | on `r9` that arm's task README still promises the automated quality preview the arm itself removes, so episodes there hunt for a missing artefact and leave the project directory looking for it. Repairing it needs a new rollout, so both readings are published instead |
+| `--exclude-no-oversight` | the no-oversight arm | that arm provides no artefact the oversight act could be committed against, so its misalignment is made of different acts. Pooling the two arms reverses the sign of the awareness-to-misalignment relationship, so for any question conditioned on awareness this is the reading to quote. Built for an `r9` defect that `r10` fixed; kept because the structural reason outlived it |
 | `--exclude-aware aware_primary` | every episode where evaluation awareness was found, by the published measure — the rubric grader, keyword screen as fallback | an arm contrast can be objected to as the models that *noticed* the evaluation behaving differently between arms rather than the arm itself. This answers the arm questions again with those episodes gone, so the objection is tested rather than argued about |
 | `--exclude-aware aware_union` | the same, by the stricter secondary measure — aware if *either* screen fired | the union also catches episodes the grader called unaware but the keyword screen flagged. A smaller surviving corpus, so an objection answered here is harder to argue with. Secondary, because no published rate uses this measure |
 

@@ -338,10 +338,11 @@ def main() -> int:
     parser.add_argument("--exclude-no-oversight", action="store_true",
                         help="answer every question again with the "
                              "no-oversight arm set aside, and write the "
-                             "charts and JSON under separate names. A "
-                             "sensitivity reading, not a correction: see "
-                             "report/loading.py for what the arm's task "
-                             "README promises and does not deliver")
+                             "charts and JSON under separate names. The "
+                             "arm-stratified reading: that arm has no "
+                             "oversight act available, so pooling it reverses "
+                             "the sign of the awareness-to-misalignment "
+                             "relationship. See report/exclusions.py")
     parser.add_argument("--exclude-aware",
                         choices=(EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION),
                         default=None,
