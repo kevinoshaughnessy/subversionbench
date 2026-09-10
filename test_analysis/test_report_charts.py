@@ -753,13 +753,25 @@ class TestTheLegendShowsWhatIsActuallyDrawn:
     line while the crude diamond on the chart was grey - the same fault as a
     caption contradicting its marks, one box lower."""
 
-    def _handles(self, demoted: bool):
-        rows = [rc.Row("m", 0.1, 0.0, 0.2, "model"),
-                rc.Row("CRUDE", -0.037, -0.05, -0.024, "crude",
-                       demoted=demoted),
-                rc.Row("MH", 0.002, -0.017, 0.022, "stratified")]
+    def _labelled(self, rows: list):
+        """The legend entries for `rows`, keyed by label - or skip.
+
+        _legend_handles builds Line2D swatches, so it needs matplotlib, which
+        is an optional extra: the minimal-install job runs this file without
+        it. Every test in this class goes through here rather than reaching
+        for _legend_handles itself, so the guard covers the whole class
+        instead of the one path it was first written for - the per-kind test
+        below builds its own rows and would otherwise be left uncovered.
+        """
+        _plt()
         from report_charts.draw import _legend_handles
         return {h.get_label(): h for h in _legend_handles(rows)}
+
+    def _handles(self, demoted: bool):
+        return self._labelled([
+            rc.Row("m", 0.1, 0.0, 0.2, "model"),
+            rc.Row("CRUDE", -0.037, -0.05, -0.024, "crude", demoted=demoted),
+            rc.Row("MH", 0.002, -0.017, 0.022, "stratified")])
 
     def test_a_demoted_kind_is_greyed_in_the_legend_too(self):
         from report_charts.style import _DEMOTED_COLOUR
@@ -790,12 +802,11 @@ class TestTheLegendShowsWhatIsActuallyDrawn:
         above cannot see that fault: the model row comes first in a real
         forest, so a lookup that took the first row regardless of kind found
         an undemoted one and greyed nothing."""
-        from report_charts.draw import _legend_handles
         from report_charts.style import _COLOURS
-        rows = [rc.Row("m", 0.1, 0.0, 0.2, "model", demoted=True),
-                rc.Row("CRUDE", -0.037, -0.05, -0.024, "crude"),
-                rc.Row("MH", 0.002, -0.017, 0.022, "stratified")]
-        handles = {h.get_label(): h for h in _legend_handles(rows)}
+        handles = self._labelled([
+            rc.Row("m", 0.1, 0.0, 0.2, "model", demoted=True),
+            rc.Row("CRUDE", -0.037, -0.05, -0.024, "crude"),
+            rc.Row("MH", 0.002, -0.017, 0.022, "stratified")])
         assert handles["crude pooled"].get_color() == _COLOURS["crude"]
         assert handles["stratified (Mantel-Haenszel)"].get_color() == (
             _COLOURS["stratified"])
