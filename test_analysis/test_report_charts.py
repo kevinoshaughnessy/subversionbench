@@ -641,3 +641,166 @@ class TestACollapsedRowSaysWhyTheSectionSaysItCollapsed:
         guarantee. A reason that does not follow it must not become empty."""
         assert rc.questions._missing_label("nothing to compare") == (
             "nothing to compare")
+
+
+class TestTheCrudeEstimateIsDemotedWhenTheReportSaysNotToReadIt:
+    """`crude_vs_stratified` already prints a red caption saying to report the
+    stratified result. Drawn in full colour beside it, the crude diamond
+    contradicted that caption in the channel a reader trusts first."""
+
+    def _section(self, diverges: bool) -> dict:
+        return {
+            "overall": {"difference": -0.037, "difference_ci95": [-0.05, -0.024],
+                        "separated": True},
+            "stratified": {"mantel_haenszel": {
+                "risk_difference": 0.002,
+                "risk_difference_ci95": [-0.017, 0.022],
+                "n_strata_used": 29, "separated": False}},
+            "crude_vs_stratified": {"diverges": diverges, "warning": "x"},
+        }
+
+    def _crude(self, diverges: bool):
+        rows = rc._pooled_rows(self._section(diverges))
+        return next(r for r in rows if r.kind == "crude")
+
+    def test_it_is_demoted_where_the_two_disagree(self):
+        assert self._crude(True).demoted is True
+
+    def test_it_is_not_demoted_where_they_agree(self):
+        """The other direction. A version that demoted the crude row always
+        would pass the check above and make the warning meaningless."""
+        assert self._crude(False).demoted is False
+
+    def test_the_stratified_row_is_never_demoted(self):
+        """It is the row the warning tells the reader to use."""
+        for diverges in (True, False):
+            rows = rc._pooled_rows(self._section(diverges))
+            strat = next(r for r in rows if r.kind == "stratified")
+            assert strat.demoted is False
+
+    def test_a_demoted_row_is_drawn_in_the_demoted_colour(self):
+        """Wiring, not just the flag: setting the flag and never reading it
+        would leave the chart identical and every check above passing."""
+        from report_charts.draw import _row_colour
+        from report_charts.style import _COLOURS, _DEMOTED_COLOUR
+        demoted = rc.Row("x", -0.037, -0.05, -0.024, "crude",
+                             marked=True, demoted=True)
+        plain = rc.Row("x", -0.037, -0.05, -0.024, "crude", marked=True)
+        assert _row_colour(demoted) == _DEMOTED_COLOUR
+        assert _row_colour(plain) == _COLOURS["crude"]
+
+    def test_demotion_outranks_the_significance_colour(self):
+        """A demoted per-model row must not come back red for having cleared
+        zero - the loudest colour on the chart for the row being disowned."""
+        from report_charts.draw import _row_colour
+        from report_charts.style import _DEMOTED_COLOUR
+        row = rc.Row("m", 0.5, 0.1, 0.9, "model", marked=True,
+                         demoted=True)
+        assert _row_colour(row) == _DEMOTED_COLOUR
+
+
+class TestThePooledEstimatesCarryTheirNumbers:
+    """The pooled intervals cannot be judged by eye at any usable axis: the
+    model intervals have a median width near 30pp, so the axis is at least
+    ~40pp wide, and the crude pooled interval is 2.6pp. Clipping the axis was
+    tried and removed - it cannot make that legible without clipping away the
+    models the forest exists to show."""
+
+    def _rows(self):
+        return rc._pooled_rows({
+            "overall": {"difference": -0.037, "difference_ci95": [-0.05, -0.024],
+                        "separated": True},
+            "stratified": {"mantel_haenszel": {
+                "risk_difference": 0.0018,
+                "risk_difference_ci95": [-0.017, 0.0221],
+                "n_strata_used": 29, "separated": False}},
+        })
+
+    def test_both_pooled_rows_state_their_estimate_and_interval(self):
+        for row in self._rows():
+            assert row.note, f"{row.label} carries no number"
+            assert "[" in row.note and "]" in row.note
+
+    def test_the_numbers_are_the_ones_in_the_report(self):
+        """Read off the row, not recomputed: a note showing a different
+        number from the mark beside it is worse than no note."""
+        crude = next(r for r in self._rows() if r.kind == "crude")
+        assert crude.note == "-3.7 [-5.0, -2.4]"
+
+    def test_a_sign_is_always_shown(self):
+        """+0.2 and 0.2 read differently beside a row about a difference."""
+        strat = next(r for r in self._rows() if r.kind == "stratified")
+        assert strat.note.startswith("+")
+
+    def test_a_model_row_carries_no_number(self):
+        """Twenty-nine of these would be noise, and the axis places them well
+        enough - it is only the pooled rows the axis cannot serve."""
+        rows = rc._model_rows([
+            {"model": "m", "difference": 0.1,
+             "difference_ci95": [0.0, 0.2],
+             "a": {"successes": 1, "n": 10}, "b": {"successes": 0, "n": 10}}])
+        assert all(not r.note for r in rows)
+
+    def test_a_missing_interval_still_states_the_estimate(self):
+        assert rc._effect_note(-0.037, None, None) == "-3.7"
+
+    def test_nothing_is_stated_for_a_missing_estimate(self):
+        assert rc._effect_note(None, None, None) == ""
+
+
+class TestTheLegendShowsWhatIsActuallyDrawn:
+    """A legend keyed off the palette said "crude pooled" beside an orange
+    line while the crude diamond on the chart was grey - the same fault as a
+    caption contradicting its marks, one box lower."""
+
+    def _handles(self, demoted: bool):
+        rows = [rc.Row("m", 0.1, 0.0, 0.2, "model"),
+                rc.Row("CRUDE", -0.037, -0.05, -0.024, "crude",
+                       demoted=demoted),
+                rc.Row("MH", 0.002, -0.017, 0.022, "stratified")]
+        from report_charts.draw import _legend_handles
+        return {h.get_label(): h for h in _legend_handles(rows)}
+
+    def test_a_demoted_kind_is_greyed_in_the_legend_too(self):
+        from report_charts.style import _DEMOTED_COLOUR
+        entry = next(h for label, h in self._handles(True).items()
+                     if label.startswith("crude pooled"))
+        assert entry.get_color() == _DEMOTED_COLOUR
+
+    def test_an_undemoted_kind_keeps_its_own_colour(self):
+        """The other direction: greying it always would make the legend say
+        nothing about which estimate the report disowned."""
+        from report_charts.style import _COLOURS
+        entry = self._handles(False)["crude pooled"]
+        assert entry.get_color() == _COLOURS["crude"]
+
+    def test_the_demoted_entry_points_at_the_caption(self):
+        assert any(label.startswith("crude pooled") and "caption" in label
+                   for label in self._handles(True))
+
+    def test_the_other_kinds_are_untouched_by_a_demotion(self):
+        from report_charts.style import _COLOURS
+        handles = self._handles(True)
+        assert handles["stratified (Mantel-Haenszel)"].get_color() == (
+            _COLOURS["stratified"])
+        assert handles["per model"].get_color() == _COLOURS["model"]
+
+    def test_the_lookup_is_per_kind_and_not_the_first_row(self):
+        """Demoting a MODEL row must not grey the pooled entries. The check
+        above cannot see that fault: the model row comes first in a real
+        forest, so a lookup that took the first row regardless of kind found
+        an undemoted one and greyed nothing."""
+        from report_charts.draw import _legend_handles
+        from report_charts.style import _COLOURS
+        rows = [rc.Row("m", 0.1, 0.0, 0.2, "model", demoted=True),
+                rc.Row("CRUDE", -0.037, -0.05, -0.024, "crude"),
+                rc.Row("MH", 0.002, -0.017, 0.022, "stratified")]
+        handles = {h.get_label(): h for h in _legend_handles(rows)}
+        assert handles["crude pooled"].get_color() == _COLOURS["crude"]
+        assert handles["stratified (Mantel-Haenszel)"].get_color() == (
+            _COLOURS["stratified"])
+
+    def test_only_the_kinds_present_are_listed(self):
+        """The behaviour the function already had, pinned before it was
+        rewritten around it."""
+        assert "parallel measure (visible text only)" not in self._handles(False)

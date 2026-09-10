@@ -5,6 +5,8 @@ report, and this module is the boundary where a report dict becomes
 something with a position on an axis.
 """
 
+from .style import PP
+
 
 
 # Rows
@@ -17,13 +19,22 @@ class Row:
 
     `missing` carries the reason an effect could not be computed, so the row can
     be drawn as an explicit gap rather than either dropped or faked as zero.
+
+
+    `demoted` de-emphasises a row that is drawn but must not be read as the
+    answer. It exists for the crude pooled estimate on a question where
+    `crude_vs_stratified` says the two disagree: the report prints a warning in
+    red saying to report the stratified result, and a crude diamond drawn in
+    full colour beside it contradicts that warning in the one channel a reader
+    trusts most. The row stays on the chart - hiding it would remove the
+    comparison the warning is about - but it stops competing for the eye.
     """
 
     __slots__ = ("label", "diff", "lo", "hi", "kind", "marked", "note",
-                 "missing")
+                 "missing", "demoted")
 
     def __init__(self, label, diff, lo, hi, kind="model", marked=False,
-                 note="", missing=""):
+                 note="", missing="", demoted=False):
         self.label = label
         self.diff = diff
         self.lo = lo
@@ -32,11 +43,30 @@ class Row:
         self.marked = marked
         self.note = note
         self.missing = missing
+        self.demoted = demoted
 
 
 def _ci(contrast: dict) -> tuple:
     ci = contrast.get("difference_ci95") or (None, None)
     return ci[0], ci[1]
+
+
+def _effect_note(diff, lo, hi) -> str:
+    """The estimate and its interval, in words, beside the row.
+
+    THE POOLED INTERVALS CANNOT BE JUDGED BY EYE and no choice of axis fixes
+    that. Measured on Q5: the model intervals have a median width of 29.8pp,
+    so an axis that shows the forest at all is at least ~40pp wide, while the
+    crude pooled interval is 2.59pp - under 5% of the axis at every usable
+    scale. Clipping the axis was tried and removed: it cannot make a 2.6pp
+    interval legible without clipping away most of the models the forest
+    exists to show. A number can say what a mark this small cannot.
+    """
+    if diff is None:
+        return ""
+    if lo is None or hi is None:
+        return f"{diff * PP:+.1f}"
+    return f"{diff * PP:+.1f} [{lo * PP:+.1f}, {hi * PP:+.1f}]"
 
 
 def _model_rows(by_model: list) -> list:
@@ -88,14 +118,24 @@ def _pooled_rows(section: dict) -> list:
     overall = section.get("overall") or {}
     if overall.get("difference") is not None:
         lo, hi = _ci(overall)
+        # Demoted exactly when the report's own divergence check says the two
+        # disagree - read from `crude_vs_stratified`, never re-derived, for the
+        # reason _divergence_caption gives: the chart must not be able to say
+        # something the printed report does not.
+        diverges = bool((section.get("crude_vs_stratified")
+                         or {}).get("diverges"))
         rows.append(Row("CRUDE POOLED", overall["difference"], lo, hi,
-                        "crude", marked=bool(overall.get("separated"))))
+                        "crude", marked=bool(overall.get("separated")),
+                        note=_effect_note(overall["difference"], lo, hi),
+                        demoted=diverges))
     mh = ((section.get("stratified") or {}).get("mantel_haenszel") or {})
     if mh.get("risk_difference") is not None:
         ci = mh.get("risk_difference_ci95") or (None, None)
         rows.append(Row(f"STRATIFIED (MH, {mh.get('n_strata_used', '?')} models)",
                         mh["risk_difference"], ci[0], ci[1],
-                        "stratified", marked=bool(mh.get("separated"))))
+                        "stratified", marked=bool(mh.get("separated")),
+                        note=_effect_note(mh["risk_difference"],
+                                          ci[0], ci[1])))
     # Questions 2 and 4 only. The same contrast read from visible text alone -
     # the one channel every provider route returns - so a reader can see whether
     # the conclusion survives losing the reasoning channel. Drawn beside the

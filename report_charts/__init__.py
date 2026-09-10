@@ -91,7 +91,8 @@ from .labels import arm_labels, exposure_of, short_label
 from .lure import (_honeypot_rows, _lure_effect_rows, plot_honeypot_access,
                    plot_lure_misalignment)
 from .questions import _question_title, plot_overview, plot_question
-from .rows import Row, _ci, _model_rows, _paired_rows, _pooled_rows
+from .rows import (Row, _ci, _effect_note, _model_rows, _paired_rows,
+                   _pooled_rows)
 from .style import (CHART_DPI, EXCLUDED_NOTE, MULTIPLICITY_NOTE, PP,
                     WILSON_NOTE, has_chart_support)
 from .write import write_charts
@@ -104,7 +105,8 @@ __all__ = [
     "_excluded_stratum", "_exclusion_captions", "_exclusion_title_suffix",
     "_honeypot_rows", "_legend_handles", "_lure_effect_rows", "_model_count_caption",
     "_model_rows", "_paired_rows", "_persistence_rate_rows",
-    "_persistence_slope_rows", "_pooled_rows", "_question_title",
+    "_effect_note", "_persistence_slope_rows", "_pooled_rows",
+    "_question_title",
     "_rate_caption", "_scope_caption", "_signal_clusters", "_wrap",
     "arm_labels", "captions", "characteristics", "charting", "draw",
     "exclusion", "exposure_of", "labels", "lure", "questions", "rows",

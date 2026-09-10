@@ -10,6 +10,41 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v161
+
+THE Q5 FOREST CONTRADICTED ITS OWN WARNING, IN THE CHANNEL A READER TRUSTS
+FIRST.
+
+Where `crude_vs_stratified` finds the two pooled estimates disagree, the chart
+printed a red caption saying to report the stratified result - and then drew
+the crude diamond in full colour beside it, at a scale where both estimates
+looked coincident. The words said "these disagree, use the second one" and the
+picture said "two summaries, both near zero, in agreement". The picture wins.
+
+Two changes, and one proposal abandoned on measurement.
+
+DEMOTION. A row now carries `demoted`, set on the crude estimate exactly when
+the report's own divergence check fires - read from `crude_vs_stratified`,
+never re-derived, so the chart cannot say something the printed report does
+not. A demoted row is drawn grey and hollow, and demotion outranks the
+significance colour: an estimate the report has just disowned must not be the
+reddest thing on the chart for having cleared zero. The legend follows the
+rows rather than the palette, because a legend showing orange over a grey
+diamond is the same fault one box lower.
+
+THE NUMBERS, BESIDE THE POOLED ROWS. Both pooled estimates now state their
+value and interval as text.
+
+CLIPPING THE AXIS WAS TRIED AND REMOVED. The idea was that one model with a
+single episode on one side was stretching the scale, so clipping would let the
+pooled intervals be seen. Measured before shipping: the per-model intervals
+have a median width around 30 points, so any axis that shows the forest at all
+is at least 40 points wide, while the crude pooled interval is under 3. At
+every usable clip it stays under 5% of the axis width. Clipping cannot make it
+legible without clipping away most of the models the forest exists to show, so
+the code came out again and a number went in instead, which says what a mark
+that small cannot.
+
 ## v160
 
 THE ARM-EXCLUSION FLAG WAS BUILT FOR A DEFECT AND OUTLIVED IT.

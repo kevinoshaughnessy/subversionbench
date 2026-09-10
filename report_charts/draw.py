@@ -14,12 +14,26 @@ plot built without rendering them: the plot modules call these through
 from .captions import _wrap
 from .style import (CHART_DPI, PP, _COLOURS,
                     _FIGURE_MARGIN, _FIGURE_WIDTH, _MODEL_MARKER,
-                    _POOLED_KINDS, _ROW_HEIGHT, _SIGNAL_COLOURS,
+                    _DEMOTED_COLOUR, _POOLED_KINDS, _ROW_HEIGHT,
+                    _SIGNAL_COLOURS,
                     _SUMMARY_MARKER, _TITLE_WRAP)
 
 
 # Drawing
 # ---------------------------------------------------------------------------
+
+def _row_colour(row) -> str:
+    """What one row is drawn in.
+
+    Demotion wins over every other rule, including the significance colour: a
+    crude estimate the report has just warned against must not be the reddest
+    thing on the chart because it happened to clear zero.
+    """
+    if row.demoted:
+        return _DEMOTED_COLOUR
+    return _COLOURS["model_significant" if (
+        row.kind == "model" and row.marked) else row.kind]
+
 
 def _draw_forest(plt, rows: list, title: str, captions: list, path: str,
                  xlabel: str, legend: bool = True,
@@ -35,8 +49,7 @@ def _draw_forest(plt, rows: list, title: str, captions: list, path: str,
             ax.text(0, y, f"  {row.missing}", va="center", fontsize=7,
                     color="#999999", style="italic")
             continue
-        colour = _COLOURS["model_significant" if (
-            row.kind == "model" and row.marked) else row.kind]
+        colour = _row_colour(row)
         summary = row.kind != "model"
         if row.lo is not None and row.hi is not None:
             ax.plot([row.lo * PP, row.hi * PP], [y, y], color=colour,
@@ -49,7 +62,11 @@ def _draw_forest(plt, rows: list, title: str, captions: list, path: str,
                 # Open where the corrected test did not reject, so the eye is
                 # not drawn to intervals that clear zero only before
                 # multiplicity correction.
-                markerfacecolor=colour if (summary or row.marked) else "white",
+                # A demoted summary is hollow as well as grey: filled is what
+                # every other summary marker is, so leaving it filled would
+                # still read as the headline in a monochrome print.
+                markerfacecolor=("white" if row.demoted else
+                                 colour if (summary or row.marked) else "white"),
                 markeredgecolor=colour, markeredgewidth=1.3, zorder=4)
         if row.note:
             ax.text(1.005, y, row.note, transform=ax.get_yaxis_transform(),
@@ -104,10 +121,31 @@ def _legend_handles(rows: list) -> list:
              "stratified": "stratified (Mantel-Haenszel)",
              "parallel": "parallel measure (visible text only)",
              "paired": "paired contrast (exact McNemar)"}
-    return [Line2D([], [], color=_COLOURS[k], linewidth=2,
-                   marker=_MODEL_MARKER if k == "model" else _SUMMARY_MARKER,
-                   markersize=6, label=names[k])
-            for k in ("model", "crude", "stratified", "parallel", "paired")
+
+    def _swatch(kind):
+        """The colour and label a kind is ACTUALLY drawn in.
+
+        Taken from a row rather than from _COLOURS, because a demoted row is
+        grey: a legend saying "crude pooled" beside an orange line, over a
+        chart whose crude diamond is grey, is the same fault as the caption
+        that used to contradict the marks."""
+        row = next((r for r in rows if r.kind == kind and r.diff is not None),
+                   None)
+        if row is not None and row.demoted:
+            return _DEMOTED_COLOUR, names[kind] + " - see caption", "white"
+        return _COLOURS[kind], names[kind], _COLOURS[kind]
+
+    handles = []
+    for k in ("model", "crude", "stratified", "parallel", "paired"):
+        colour, label, face = _swatch(k)
+        handles.append(Line2D([], [], color=colour, linewidth=2,
+                              marker=(_MODEL_MARKER if k == "model"
+                                      else _SUMMARY_MARKER),
+                              markerfacecolor=face, markeredgecolor=colour,
+                              markersize=6, label=label))
+    return [h for h, k in zip(handles,
+                              ("model", "crude", "stratified", "parallel",
+                               "paired"), strict=True)
             if any(r.kind == k for r in rows)]
 
 

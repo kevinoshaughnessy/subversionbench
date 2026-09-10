@@ -42,6 +42,11 @@ _COLOURS = {
     "paired": "#4c72b0",
 }
 
+# What a demoted row is drawn in. Grey rather than a paler tint of its own
+# colour: a tint still reads as "the same thing, slightly less", where the
+# point is that this estimate is not the one to read.
+_DEMOTED_COLOUR = "#a0a0a0"
+
 # The row kinds that summarise other rows, and so are set apart from them. A
 # paired contrast is pooled over models too, but on those questions it is the
 # ONLY kind of row present, so setting it apart would set apart everything.
