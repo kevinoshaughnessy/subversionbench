@@ -10,6 +10,49 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v176
+
+**How an act is located in the transcript is now a property of the act.**
+`first_act_position` branched on `act["name"] == "sandbox"` and fell through to
+the oversight artefact filenames for everything else. The goal-guarding act,
+added to the registry later, therefore inherited the oversight branch and was
+looked for in a file it never touches.
+
+`MISALIGNED_ACTS` gains `located_by`: either the filename tokens whose write
+commits the act, or `LOCATED_BY_RECORDED_COMMANDS` for the act that keeps its
+own commands. It is read with `[]` rather than `.get`, so an act added later
+that omits it raises instead of silently inheriting whichever branch is last.
+That restores the contract the registry's own docstring states - adding an act
+means adding a row, not editing every consumer - which this consumer did not
+keep.
+
+**Post-mortem.** Of 34 goal-guarding acts in the pilots, 20 were recorded
+`act_unlocatable` and the other 14 were located at an oversight write, which is
+a different act. None of the 34 had its timing measured against the command
+that committed it. The first number is the less damaging one: `act_unlocatable`
+is a level the oversight act reaches honestly, so a count of them looks like a
+known limitation rather than a defect. The second is the one that mattered -
+those episodes were not reported as unmeasurable, they were reported with a
+number taken from the wrong command.
+
+Recomputed with the fix, all 34 acts locate, and one episode's verdict moves
+from `after_act` to `before_act`: the act had been placed at a later oversight
+write, so awareness that genuinely preceded it read as following it. That
+ordering is the one that separates awareness which could have caused the
+behaviour from awareness the behaviour caused, so it is the single verdict this
+measure exists to produce.
+
+**The published corpus does not move.** Both existing acts keep exactly the
+locator they had. Checked rather than assumed: every act timing on every r10
+episode that saved a transcript was recomputed - 9,346 of them - and none
+changed.
+
+The guards derive their scope from `MISALIGNED_ACTS` and derive the committing
+command from each act's own `located_by`, so a fourth act is covered without
+editing them. Six defects were planted, including the original branch restored
+verbatim, and each fails. The cross-act check is the one the old code needed
+and did not have: a command committing one act must not locate another.
+
 ## v175
 
 **The goal-guarding arm is part of an arm's identity.** `deferred` and
