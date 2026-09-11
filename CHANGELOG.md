@@ -10,6 +10,39 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v169
+
+CHARTS MOVE OUT OF THE CORPUS THEY ARE DRAWN FROM.
+
+They defaulted to `charts/` inside the results directory, which put derived
+pictures inside the thing that holds the episodes. Two consequences, both real.
+`zip.sh` archives an `eval_results_*` directory whole, so every published
+archive carried a set of PNGs that can be redrawn from the JSON beside them, in
+an artefact whose whole purpose is the transcripts, which cannot. And a reader
+comparing two rollouts had to open two directories that each called their
+charts the same thing: nothing but the enclosing corpus told one rollout's
+`family_misaligned_all.png` from another's.
+
+The default is now `charts/<rollout>/` BESIDE the results directory, derived
+from that directory's own parent so a corpus read from elsewhere puts its
+charts beside itself. One `charts/` holds every rollout, one subdirectory each,
+which is what makes them comparable without being pooled into one namespace.
+`--chart-dir` still overrides, unchanged: it is how a caller says "not there".
+
+Four tools drew charts and all four carried their own copy of the same join,
+which is four chances to answer one question differently. They now share
+`charting.default_chart_dir`, which is where `import_pyplot` already lives for
+the same reason.
+
+The guard is derived from which files declare `--chart-dir` rather than from a
+list of the four, so a fifth chart-writing tool inherits the rule the day it is
+written. Checked in both directions: none of them may join charts onto an
+output directory, and every one of them must resolve the default through the
+helper - without the second half, a tool that spells the join differently, or
+writes to a path it never computed, satisfies the first. Planted both ways.
+
+`charts/` is gitignored. Nothing in it is recoverable only from there.
+
 ## v168
 
 THE USERNAME SURVIVED REDACTION WHEN IT FOLLOWED A HYPHEN OR A DOT.

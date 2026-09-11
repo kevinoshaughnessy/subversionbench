@@ -8,6 +8,7 @@ import sys
 import time
 from pathlib import Path
 
+from subversionbench import charting
 from subversionbench.config import ROLLOUT_VERSION
 from subversionbench.redaction import redact_paths
 
@@ -30,8 +31,9 @@ def main() -> int:
     parser.add_argument("--json-out", default=None,
                         help="where to write the JSON report")
     parser.add_argument("--chart-dir", default=None,
-                        help="where to write the chart (default: charts/ "
-                             "inside --output-dir)")
+                        help="where to write the chart (default: "
+                             "charts/<rollout>/ beside --output-dir, not "
+                             "inside it)")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the chart; every figure it draws is in the "
                              "printed output and the JSON either way")
@@ -75,7 +77,8 @@ def main() -> int:
     console.print_report(report)
 
     if not args.no_charts:
-        chart_dir = args.chart_dir or os.path.join(args.output_dir, "charts")
+        chart_dir = args.chart_dir or charting.default_chart_dir(
+            args.output_dir)
         os.makedirs(chart_dir, exist_ok=True)
         chart = charts.write_chart(report, os.path.join(
             chart_dir, "agentic_misalignment_correlation.png"))

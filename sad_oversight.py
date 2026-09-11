@@ -658,8 +658,9 @@ def main() -> int:
                              "sad_oversight_correlation_<timestamp>.json "
                              "inside --output-dir)")
     parser.add_argument("--chart-dir", default=None,
-                        help="where to write the chart (default: charts/ "
-                             "inside --output-dir)")
+                        help="where to write the chart (default: "
+                             "charts/<rollout>/ beside --output-dir, not "
+                             "inside it)")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the chart; every figure it draws is in the "
                              "printed output and the JSON either way")
@@ -694,7 +695,8 @@ def main() -> int:
     print_report(report)
 
     if not args.no_charts:
-        chart_dir = args.chart_dir or os.path.join(args.output_dir, "charts")
+        chart_dir = args.chart_dir or charting.default_chart_dir(
+            args.output_dir)
         os.makedirs(chart_dir, exist_ok=True)
         chart = write_chart(report, os.path.join(
             chart_dir, "sad_oversight_correlation.png"))

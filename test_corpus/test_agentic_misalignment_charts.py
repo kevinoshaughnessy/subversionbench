@@ -15,6 +15,7 @@ from pathlib import Path
 
 import agentic_misalignment as am
 import conftest
+from subversionbench import charting
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 
@@ -673,7 +674,8 @@ class TestTheCLIWritesTheChart:
             raise unittest.SkipTest("matplotlib not installed")
         out = tempfile.mkdtemp()
         assert self._run(out) == 0
-        chart = Path(out) / "charts" / "agentic_misalignment_correlation.png"
+        chart = Path(charting.default_chart_dir(out)) / \
+            "agentic_misalignment_correlation.png"
         assert chart.exists(), "main() did not write a chart to the default path"
 
     def test_a_normal_run_also_writes_a_chart_per_scenario(self):
@@ -686,7 +688,7 @@ class TestTheCLIWritesTheChart:
             raise unittest.SkipTest("matplotlib not installed")
         out = tempfile.mkdtemp()
         assert self._run(out) == 0
-        found = list((Path(out) / "charts").glob(
+        found = list(Path(charting.default_chart_dir(out)).glob(
             "agentic_misalignment_scenario_*.png"))
         assert found, "main() did not write any per-scenario chart"
 
@@ -708,13 +710,14 @@ class TestTheCLIWritesTheChart:
                 assert am.main() == 0
         finally:
             sys.argv = argv
-        chart = Path(out) / "charts" / "agentic_misalignment_scenario_act_correlation.png"
+        chart = Path(charting.default_chart_dir(out)) / \
+            "agentic_misalignment_scenario_act_correlation.png"
         assert chart.exists(), "main() did not write the scenario/act chart"
 
     def test_no_charts_flag_skips_the_chart_file(self):
         out = tempfile.mkdtemp()
         assert self._run(out, "--no-charts") == 0
-        assert not (Path(out) / "charts").exists(), (
+        assert not Path(charting.default_chart_dir(out)).exists(), (
             "--no-charts wrote a chart directory anyway")
 
     def test_chart_dir_is_honoured(self):

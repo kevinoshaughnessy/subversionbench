@@ -756,3 +756,65 @@ class TestEveryChecklistCitationGivesBothNumberings:
         for paper, repo in ABC_ITEM_NUMBERING.items():
             assert paper[0] in "TOR", paper
             assert repo.split(".")[0] in ("I", "II", "III"), repo
+
+
+class TestNoToolWritesItsChartsInsideTheCorpus:
+    """
+    Charts default to `charts/<rollout>/` BESIDE a results directory, never
+    inside one.
+
+    Why it matters enough to be a rule rather than four decisions: `zip.sh`
+    archives every `eval_results_*` directory whole, so a tool that writes its
+    charts inside one puts regenerable pictures into the published archive -
+    an artefact that exists for the transcripts, which are the only thing in it
+    that cannot be redrawn from the JSON beside them. Four tools drew charts
+    and all four had their own copy of the same `os.path.join(output_dir,
+    "charts")`, which is four chances to answer one question differently and
+    four places to fix it.
+
+    DERIVED FROM WHO DECLARES THE FLAG, not from a list of the four. A fifth
+    chart-writing tool inherits the rule the day it is written; a list would
+    cover it the day someone remembers. Each tool's own tests check the
+    behaviour - that a run puts its files in the resolved directory and
+    --no-charts puts none anywhere - and this checks the property those tests
+    cannot see, which is that nobody has quietly added a fifth.
+    """
+
+    def _chart_dir_tools(self):
+        from conftest import PROJECT_ROOT, source_python_files
+        return [rel for rel in source_python_files()
+                if "--chart-dir" in (PROJECT_ROOT / rel).read_text(
+                    encoding="utf-8")]
+
+    def test_the_flag_is_declared_somewhere(self):
+        """A scope that matches nothing passes every guard built on it."""
+        assert self._chart_dir_tools()
+
+    def test_no_tool_joins_its_charts_onto_its_output_directory(self):
+        import re
+
+        from conftest import PROJECT_ROOT
+        inside = re.compile(r"join\(\s*(?:args\.)?output_dir\s*,\s*[\"']charts")
+        offenders = [
+            f"{rel}:{i}"
+            for rel in self._chart_dir_tools()
+            for i, line in enumerate(
+                (PROJECT_ROOT / rel).read_text(encoding="utf-8").splitlines(), 1)
+            if inside.search(line)]
+        assert not offenders, (
+            f"charts default inside the corpus at {offenders}. zip.sh archives "
+            f"an eval_results_* directory whole, so these would be encrypted "
+            f"into the published archive. Use charting.default_chart_dir().")
+
+    def test_every_tool_that_declares_the_flag_resolves_it_through_the_helper(self):
+        """The positive half. Without it the rule above is satisfied by a tool
+        that spells the same join a different way, or writes its charts to a
+        path it never computed at all."""
+        from conftest import PROJECT_ROOT
+        missing = [rel for rel in self._chart_dir_tools()
+                   if "default_chart_dir" not in (PROJECT_ROOT / rel).read_text(
+                       encoding="utf-8")]
+        assert not missing, (
+            f"{missing} declare --chart-dir and never call "
+            f"charting.default_chart_dir, so where their charts land is their "
+            f"own decision rather than the project's.")

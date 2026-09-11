@@ -298,14 +298,22 @@ class TestTheReportRunsWithAndWithoutCharts:
                            "awareness_subgroups": {"aware": 3, "unaware": 7}},
                           f)
 
-    def test_charts_land_beside_the_json_by_default(self, monkeypatch):
+    def test_charts_land_beside_the_corpus_and_not_inside_it(self,
+                                                             monkeypatch):
+        """OUTSIDE the results directory. zip.sh archives an eval_results_*
+        directory whole, so charts written inside one are encrypted into the
+        published archive - an artefact that exists for the transcripts, which
+        are the only thing in it that cannot be regenerated."""
         _plt()
-        with tempfile.TemporaryDirectory() as out:
+        with tempfile.TemporaryDirectory() as parent:
+            out = os.path.join(parent, "eval_results_rX")
+            os.makedirs(out)
             self._corpus(out)
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
-            assert os.path.isdir(os.path.join(out, "charts"))
+            assert os.path.isdir(os.path.join(parent, "charts", "rX"))
+            assert not os.path.exists(os.path.join(out, "charts"))
 
     def test_no_charts_leaves_the_analysis_untouched(self, monkeypatch):
         """Every figure the charts draw is in the printed output and the JSON,
@@ -317,7 +325,8 @@ class TestTheReportRunsWithAndWithoutCharts:
                 ["run_report.py", "--output-dir", out, "--no-charts",
                  "--json-out", os.path.join(out, "r.json")])
             assert run_report.main() == 0
-            assert not os.path.exists(os.path.join(out, "charts"))
+            assert not os.path.exists(
+                charting.default_chart_dir(out))
             with open(os.path.join(out, "r.json")) as f:
                 report = json.load(f)
             assert len(report["questions"]) == 13

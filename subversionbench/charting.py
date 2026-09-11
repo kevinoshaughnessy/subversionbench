@@ -109,3 +109,48 @@ def caption_below(fig, captions, wrap) -> None:
                  color=_CAPTION_COLOUR)
         y -= (_CAPTION_LINE_IN * (text.count("\n") + 1)
               + _CAPTION_GAP_IN * 0.6) / height_in
+
+
+# The prefix every corpus directory carries, stripped so that the chart
+# directory is named for the rollout rather than for the naming convention.
+_CORPUS_PREFIX = "eval_results_"
+
+
+def default_chart_dir(output_dir: str, suffix: str = "") -> str:
+    """Where charts go when the caller did not say: charts/<rollout><suffix>.
+
+    OUTSIDE THE CORPUS, and that is the point.
+    ------------------------------------------
+    Charts used to default to `charts/` inside the results directory they were
+    drawn from, which put derived pictures inside the thing that holds the
+    episodes. Two consequences, both real:
+
+      - `zip.sh` archives every `eval_results_*` directory whole, so every
+        published archive carried a set of PNGs regenerable from the JSON
+        beside them, in an artefact whose whole purpose is the transcripts;
+      - a reader comparing two rollouts had to open two directories that each
+        called their charts the same thing, because the only thing telling
+        `family_misaligned_all.png` of r9 from r10's was which corpus it sat
+        in.
+
+    One `charts/` beside the corpora, with a subdirectory per rollout, answers
+    both: the archive holds only what cannot be regenerated, and every chart in
+    the project is reachable from one place without being pooled into one
+    namespace.
+
+    BESIDE THE CORPUS RATHER THAN AT A FIXED ROOT. Derived from the output
+    directory's own parent, so a corpus read from somewhere else - a scratch
+    copy, a mounted archive - puts its charts beside itself instead of writing
+    into the working tree of whoever happens to be running.
+
+    `suffix` is for a report that holds different numbers under the same
+    filenames, which is what the exclusion flags produce.
+    """
+    import os
+
+    output_dir = str(output_dir).rstrip(os.sep)
+    corpus = os.path.basename(os.path.abspath(output_dir))
+    if corpus.startswith(_CORPUS_PREFIX):
+        corpus = corpus[len(_CORPUS_PREFIX):]
+    parent = os.path.dirname(os.path.abspath(output_dir))
+    return os.path.join(parent, "charts", corpus + suffix)

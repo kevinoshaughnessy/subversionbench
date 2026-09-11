@@ -21,6 +21,7 @@ import os
 import time
 
 import report_charts
+from subversionbench import charting
 from subversionbench.config import ROLLOUT_VERSION, VERSION
 from subversionbench.redaction import redact_paths
 
@@ -341,7 +342,8 @@ def main() -> int:
                              "--output-dir)")
     parser.add_argument("--chart-dir", default=None,
                         help="where to write the question charts (default: "
-                             "charts/ inside --output-dir)")
+                             "charts/<rollout>/ beside --output-dir, not "
+                             "inside it)")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the charts; every figure they draw is in "
                              "the printed output and the JSON either way")
@@ -420,12 +422,12 @@ def main() -> int:
         # A DIFFERENT DIRECTORY BY DEFAULT, and the reason is the whole point of
         # the flag: these charts hold different numbers under the same
         # filenames, and writing them over the pooled set would leave a
-        # `charts/` whose contents cannot be told apart from the full-corpus
+        # directory whose contents cannot be told apart from the full-corpus
         # ones by looking at them. An explicit --chart-dir still wins, so a
         # caller who wants them somewhere else says so.
-        chart_dir = args.chart_dir or os.path.join(
+        chart_dir = args.chart_dir or charting.default_chart_dir(
             args.output_dir,
-            "charts" + _artefact_suffix(exclusion, awareness_exclusion))
+            _artefact_suffix(exclusion, awareness_exclusion))
         written = report_charts.write_charts(report, chart_dir)
         if written:
             print(f"\n{len(written)} chart(s) written to "

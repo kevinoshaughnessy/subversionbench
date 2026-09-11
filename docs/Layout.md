@@ -97,9 +97,14 @@ subversionbench/
                      leave-one-out range that at this n is the headline
     multiplicity.py  Holm and Benjamini-Hochberg over a family of p-values
     batch_report.py  the precision block a finished batch carries
-  charting.py      where pyplot comes from, for everything here that draws:
-                   one headless-backend import site, shared by trends/,
-                   report_charts/ and sad_oversight.py
+  charting.py      where pyplot comes from, and where charts GO, for
+                   everything here that draws: one headless-backend import
+                   site and one default destination, shared by trends/,
+                   report_charts/, sad_oversight.py and
+                   agentic_misalignment/. The destination is charts/<rollout>/
+                   BESIDE a corpus rather than inside it, so zip.sh does not
+                   sweep regenerable pictures into the published archive and
+                   two rollouts' identically-named charts stay apart
   contamination.py leak audit, canary/forced-choice/continuation probes
   grading/         scoring an episode; __init__.py is the scoring API
     acts.py                the misaligned acts and their per-act keys

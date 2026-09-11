@@ -269,7 +269,7 @@ class TestPersistenceChartsInARealReport:
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
-            names = set(os.listdir(os.path.join(out, "charts")))
+            names = set(os.listdir(charting.default_chart_dir(out)))
         assert "persistence_rate.png" in names
 
 
@@ -611,7 +611,7 @@ class TestSignalChartInARealReport:
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
-            names = set(os.listdir(os.path.join(out, "charts")))
+            names = set(os.listdir(charting.default_chart_dir(out)))
         assert "eval_signal_rates.png" in names
 
 

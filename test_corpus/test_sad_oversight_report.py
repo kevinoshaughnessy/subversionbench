@@ -487,7 +487,7 @@ class TestTheRunWritesWhatItSays:
             monkeypatch.setattr("sys.argv",
                                 ["sad_oversight.py", "--output-dir", out])
             assert so.main() == 0
-            chart = os.path.join(out, "charts",
+            chart = os.path.join(charting.default_chart_dir(out),
                                  "sad_oversight_correlation.png")
             assert os.path.exists(chart)
 
