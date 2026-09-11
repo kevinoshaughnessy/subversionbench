@@ -10,6 +10,51 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v177
+
+**A paid pre-act reading is only read at the position it was graded at.** The
+pre-act awareness rubric runs over `transcript[:act_index]`, so its answer is
+about an act only while the act is still at that index. `awareness_ordering`
+recomputes the act position on every free re-derivation and deliberately leaves
+the paid reading alone - overwriting a real reading with a "no grader" marker
+once destroyed a hundred-run batch, which is why that branch exists.
+Preserving it is right. Continuing to read it as current is not.
+
+`awareness_before_act_flag` now compares the two stored indices and falls back
+to the keyword ordering when they disagree, on the same terms as a skipped
+reading. The keyword measure under-detects badly, so that is a worse answer; it
+is not a wrong one, and it is recomputed from the current act position every
+time.
+
+**This was not specific to any one act or corpus.** Two readings in the
+published r10 corpus were already affected, on the sandbox act, before the
+goal-guarding act existed: graded at index 45 and 67 while their acts now sit
+at 56 and 69, moved by earlier corrections to the awareness matcher and to the
+read/write verb lists. Nine more appeared in the goal-guarding pilots when the
+act locator was fixed in v176, with gaps as wide as index 22 against a true
+position of 80 - a reading covering barely a quarter of the prefix it claims.
+
+**A published figure moves, and this is the one entry that says which.** r10's
+sandbox "aware before the act" count goes from 25 of 73 to 24 of 71, with the
+two superseded readings reported unavailable rather than counted. One of them
+had answered "aware before the act" over a prefix that stopped eleven entries
+short of the act. The oversight act is unchanged, and no other figure in the
+report moves.
+
+**Compared, not marked.** A flag written where the desync happens would be a
+third copy of a fact the two records already carry, and every future writer of
+either field would have to remember to maintain it - including clearing it when
+the positions converge again, which nothing would have done. All 1,398 usable
+readings on disk across r9, r10 and the pilots carry `act_index`, so the
+comparison is always answerable; a reading that records no position is treated
+as superseded, which fixes the direction for a shape that does not exist rather
+than leaving it to whichever comparison happened to be written.
+
+The substitution is counted in `pre_act_readings_superseded` rather than left
+silent: the figure renders either way and nothing else in the document would
+say which measure produced it. Five defects were planted, including the
+comparison stubbed to each of its two constant answers, and each fails.
+
 ## v176
 
 **How an act is located in the transcript is now a property of the act.**

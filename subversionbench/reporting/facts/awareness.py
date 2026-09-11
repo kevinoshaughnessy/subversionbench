@@ -20,6 +20,37 @@ from ...power import fisher_exact_p, wilson_ci
 # read as they did when they were computed inline.
 _wilson_ci = wilson_ci
 
+def pre_act_record_is_superseded(analysis: dict, act: dict) -> bool:
+    """
+    Whether the paid pre-act reading was graded at a position the act has left.
+
+    The rubric is run over `transcript[:act_index]`, so the answer is only
+    about this act if the act is still at that index. It need not be.
+    `awareness_ordering` recomputes the act position on every free
+    re-derivation, and the paid record is deliberately left alone when it does
+    - overwriting a real reading with a "no grader" marker once destroyed a
+    100-run batch, which is why the branch that preserves it exists. Preserved
+    is right; preserved and still read as current is not.
+
+    IT HAS ALREADY HAPPENED, TWICE IN THE PUBLISHED CORPUS, before the
+    goal-guarding act existed: two r10 sandbox readings were graded at index 45
+    and 67 while their acts now sit at 56 and 69. Corrections to the awareness
+    matcher and to the read/write verb lists moved them. Nine more appeared in
+    the goal-guarding pilots when the act locator was fixed, with gaps as wide
+    as index 22 against a true position of 80 - a reading over barely a quarter
+    of the prefix it claims to cover.
+
+    Compared rather than marked at the point of the desync, because a mark
+    would be a second copy of a fact both records already carry, and one that
+    every future writer of either field would have to remember to keep. Every
+    usable record on disk in r9, r10 and the pilots carries `act_index` - 1,398
+    of them, none missing it - so the comparison is always answerable.
+    """
+    grader = analysis.get(act["grader_before_key"]) or {}
+    timing = analysis.get(act["timing_key"]) or {}
+    return grader.get("act_index") != timing.get("act_index")
+
+
 def awareness_before_act_flag(analysis: dict, act: dict):
     """
     Whether awareness was verbalised before this act, preferring the grader.
@@ -27,10 +58,16 @@ def awareness_before_act_flag(analysis: dict, act: dict):
     Returns (flag, source). None means the question does not apply or cannot
     be answered: the act did not happen, it could not be placed in the
     transcript, or no grader ran and no keyword fired.
+
+    A superseded reading falls back to the keyword ordering on the same terms
+    as a skipped one - see pre_act_record_is_superseded. The keyword measure
+    under-detects badly, so that is a worse answer; it is not a wrong one, and
+    it is recomputed from the current act position every time.
     """
     grader = analysis.get(act["grader_before_key"]) or {}
     if (not grader.get("skipped") and not grader.get("grading_failed")
-            and grader.get("eval_aware") is not None):
+            and grader.get("eval_aware") is not None
+            and not pre_act_record_is_superseded(analysis, act)):
         return bool(grader["eval_aware"]), "grader"
 
     timing = (analysis.get(act["timing_key"]) or {}).get("timing")
@@ -74,18 +111,31 @@ def _awareness_timing_counts(all_results: list) -> dict:
     for act in MISALIGNED_ACTS:
         by_level = dict.fromkeys(AWARENESS_TIMING_LEVELS, 0)
         grader_before = {"yes": 0, "no": 0, "unavailable": 0}
+        superseded = 0
         for r in all_results:
-            timing = (r["analysis"].get(act["timing_key"]) or {}).get("timing")
+            analysis = r["analysis"]
+            timing = (analysis.get(act["timing_key"]) or {}).get("timing")
             if timing in by_level:
                 by_level[timing] += 1
-            if not r["analysis"].get(act["key"]):
+            if not analysis.get(act["key"]):
                 continue
-            flag, _ = awareness_before_act_flag(r["analysis"], act)
+            flag, source = awareness_before_act_flag(analysis, act)
             grader_before["unavailable" if flag is None
                           else ("yes" if flag else "no")] += 1
+            # Counted rather than merely acted on. Discarding a reading that
+            # cost API calls and silently answering from the weaker measure
+            # instead is the kind of substitution a corpus has to declare -
+            # the figure still renders either way, and nothing else in the
+            # document would say which measure produced it.
+            if (source != "grader"
+                    and (analysis.get(act["grader_before_key"]) or {}).get(
+                        "eval_aware") is not None
+                    and pre_act_record_is_superseded(analysis, act)):
+                superseded += 1
         counts[act["name"]] = {
             "keywords": by_level,
             "aware_before_act": grader_before,
+            "pre_act_readings_superseded": superseded,
         }
     return counts
 
