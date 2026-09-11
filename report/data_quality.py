@@ -24,6 +24,20 @@ from .loading import ARM_FIELDS, arm_key
 from .pooling import _models
 
 
+def _arm_of(key: tuple) -> dict:
+    """
+    An arm key back as the fields it was built from.
+
+    Every finding in this module reports the arm it is about, and each one
+    unpacked the key into four names and rebuilt the dict by hand. That is
+    four more copies of what an arm is: adding `goalguard` to `arm_key` made
+    all four raise on the unpack, which was the lucky direction - a finding
+    that silently dropped the new field from its output would have printed
+    two different arms under one label.
+    """
+    return dict(zip(ARM_FIELDS, key, strict=True))
+
+
 def _model_rate_pairs(rows: list) -> list:
     """
     Both awareness rates per model, over one shared denominator.
@@ -120,13 +134,13 @@ def duplicate_arms(summaries: list) -> list:
     seen = {}
     for r in summaries:
         seen.setdefault(
-            (r["model"], r["nudge"], r["oversight"], r["lure"]), []).append(r)
+            arm_key(r), []).append(r)
     out = []
-    for (model, nudge, oversight, lure), rows in sorted(seen.items(), key=str):
+    for key, rows in sorted(seen.items(), key=str):
         if len(rows) < 2:
             continue
         out.append({
-            "model": model, "nudge": nudge, "oversight": oversight, "lure": lure,
+            **_arm_of(key),
             "n_batches": len(rows),
             "pooled_n_runs": sum(r["n_runs"] for r in rows),
             "batches": [{"file": r["file"], "n_runs": r["n_runs"]} for r in rows],
@@ -153,8 +167,8 @@ def routing_differs_across_contrast(episodes: list, axis: str) -> list:
 
     WHAT THIS CATCHES THAT mixed_routing_arms DOES NOT
     --------------------------------------------------
-    mixed_routing_arms keys on the whole arm - (model, nudge, oversight, lure)
-    - and asks whether the episodes INSIDE one published rate were collected
+    mixed_routing_arms keys on the whole arm - see loading.arm_key - and asks
+    whether the episodes INSIDE one published rate were collected
     alike. That is the right question for a rate, and it is silent on the one
     that matters for a CONTRAST: every arm can be internally uniform while the
     two arms being compared were routed differently from each other. Nothing
@@ -242,7 +256,7 @@ def mixed_served_provider_arms(episodes: list) -> list:
         providers = ep.get("served_by_providers") or ()
         if not providers:
             continue
-        key = (ep["model"], ep["nudge"], ep["oversight"], ep["lure"])
+        key = arm_key(ep)
         entry = arms.setdefault(key, {"providers": {}, "changed": 0, "n": 0})
         entry["n"] += 1
         if ep.get("served_by_changed"):
@@ -251,12 +265,11 @@ def mixed_served_provider_arms(episodes: list) -> list:
             entry["providers"][provider] = entry["providers"].get(provider, 0) + 1
 
     out = []
-    for (model, nudge, oversight, lure), entry in sorted(arms.items(), key=str):
+    for key, entry in sorted(arms.items(), key=str):
         if len(entry["providers"]) < 2 and not entry["changed"]:
             continue
         out.append({
-            "model": model, "nudge": nudge, "oversight": oversight,
-            "lure": lure, "n_episodes": entry["n"],
+            **_arm_of(key), "n_episodes": entry["n"],
             "episodes_changing_mid_run": entry["changed"],
             "providers": [
                 {"provider": provider, "n_episodes": n}
@@ -299,23 +312,22 @@ def mixed_routing_arms(episodes: list) -> list:
     published rate were collected alike. Reported, never reconciled - which of
     the two routings was wanted is not something this can know.
 
-    Keyed on (model, nudge, oversight, lure), which is the arm a rate is
+    Keyed on the whole arm - see loading.arm_key - which is what a rate is
     published for, so it catches a mix however it arrived - one resumed batch or
     two pooled ones.
     """
     arms = {}
     for ep in episodes:
-        key = (ep["model"], ep["nudge"], ep["oversight"], ep["lure"])
+        key = arm_key(ep)
         routing = (ep.get("openrouter_sort"), ep.get("openrouter_provider"))
         arms.setdefault(key, {}).setdefault(routing, 0)
         arms[key][routing] += 1
     out = []
-    for (model, nudge, oversight, lure), counts in sorted(arms.items(), key=str):
+    for key, counts in sorted(arms.items(), key=str):
         if len(counts) < 2:
             continue
         out.append({
-            "model": model, "nudge": nudge, "oversight": oversight,
-            "lure": lure, "n_episodes": sum(counts.values()),
+            **_arm_of(key), "n_episodes": sum(counts.values()),
             "routings": [
                 {"sort": sort, "provider": provider, "n_episodes": n}
                 for (sort, provider), n in sorted(counts.items(), key=str)
@@ -394,7 +406,7 @@ def _arms_the_provider_contradicts(episodes: list, matches, count_key: str
         provider_reason = ep.get("ended_by_provider")
         if not provider_reason:
             continue
-        key = (ep["model"], ep["nudge"], ep["oversight"], ep["lure"])
+        key = arm_key(ep)
         entry = arms.setdefault(key, {"n": 0, "hit": 0, "reasons": {}})
         entry["n"] += 1
         if ep.get("ended_by") == "model_stopped" and matches(provider_reason):
@@ -403,13 +415,11 @@ def _arms_the_provider_contradicts(episodes: list, matches, count_key: str
                 entry["reasons"].get(provider_reason, 0) + 1)
 
     out = []
-    for (model, nudge, oversight, lure), entry in sorted(arms.items(),
-                                                         key=str):
+    for key, entry in sorted(arms.items(), key=str):
         if not entry["hit"]:
             continue
         out.append({
-            "model": model, "nudge": nudge, "oversight": oversight,
-            "lure": lure, "n_episodes": entry["n"],
+            **_arm_of(key), "n_episodes": entry["n"],
             count_key: entry["hit"],
             "provider_reasons": [
                 {"reason": reason, "n_episodes": n}
@@ -497,8 +507,8 @@ def attrition_facts(episodes: list, failed: list) -> dict:
         # of zeroes on every healthy batch, which is the shape of caveat a
         # reader stops looking at.
         "arms_with_losses": [
-            dict(zip(ARM_FIELDS, key, strict=True),
-                 n_analysed=analysed.get(key, 0), n_lost=lost[key],
+            dict(_arm_of(key), n_analysed=analysed.get(key, 0),
+                 n_lost=lost[key],
                  n_attempted=analysed.get(key, 0) + lost[key])
             for key in sorted(lost, key=str)],
     }

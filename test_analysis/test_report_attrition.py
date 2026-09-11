@@ -153,20 +153,18 @@ class TestTheAttritionArmIsTheReportsArm(unittest.TestCase):
             self.assertEqual(arm["model"], "m/a")
             self.assertEqual(arm["nudge"], "strong")
 
-    def test_an_arm_field_the_key_does_not_hold_cannot_split_an_arm(self):
+    def test_a_field_outside_the_key_cannot_split_an_arm(self):
         """
         Two failures in one arm differing only on a field outside ARM_FIELDS
-        are one arm's losses, not two arms'. This is the planted defect stated
-        as a property: goalguard was such a field.
+        are one arm's losses, not two arms'. `failed_on_turn` is such a field:
+        when an episode died is a property of the loss, not of the arm.
         """
         with tempfile.TemporaryDirectory() as out:
             _write_episode(out, 1, "m/a", "strong")
             _write_failed_episode(out, 2, "m/a", "strong",
-                                  stamp="20260101T000002",
-                                  goalguard="replacement")
+                                  stamp="20260101T000002", failed_on_turn=1)
             _write_failed_episode(out, 3, "m/a", "strong",
-                                  stamp="20260101T000003",
-                                  goalguard="deferred")
+                                  stamp="20260101T000003", failed_on_turn=18)
 
             facts = attrition_facts(load_episodes(out),
                                     load_failed_episodes(out))
@@ -174,7 +172,28 @@ class TestTheAttritionArmIsTheReportsArm(unittest.TestCase):
             self.assertEqual(len(facts["arms_with_losses"]), 1)
             self.assertEqual(facts["arms_with_losses"][0]["n_lost"], 2)
             self.assertEqual(facts["arms_with_losses"][0]["n_analysed"], 1)
-            self.assertNotIn("goalguard", facts["arms_with_losses"][0])
+            self.assertNotIn("failed_on_turn", facts["arms_with_losses"][0])
+
+    def test_the_goal_guarding_arm_splits_an_arm(self):
+        """
+        The counterpart, and the reason `goalguard` is in ARM_FIELDS: the two
+        goal-guarding arms are different scenarios, not two samples of one, so
+        their losses belong to different arms and so do their rates.
+        """
+        with tempfile.TemporaryDirectory() as out:
+            _write_failed_episode(out, 1, "m/a", "strong",
+                                  stamp="20260101T000001",
+                                  goalguard="replacement")
+            _write_failed_episode(out, 2, "m/a", "strong",
+                                  stamp="20260101T000002",
+                                  goalguard="deferred")
+
+            arms = attrition_facts([], load_failed_episodes(out))[
+                "arms_with_losses"]
+
+            self.assertEqual(len(arms), 2)
+            self.assertEqual({a["goalguard"] for a in arms},
+                             {"replacement", "deferred"})
 
     def test_every_arm_field_appears_in_the_reported_row(self):
         """Derived from ARM_FIELDS rather than listed, so a field added to the

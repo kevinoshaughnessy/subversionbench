@@ -347,6 +347,33 @@ def _max_turns(path: str, d: dict, scaffold: dict):
             or {}).get("max_turns")
 
 
+def _routing_columns(d: dict) -> dict:
+    """
+    How the request was routed, and which backend actually answered it.
+
+    Carried through so data_quality can see it. Every run file has recorded
+    the request keys since routing became selectable and nothing downstream
+    read them, so a rate could pool episodes answered by different backends
+    with nothing saying so. They are absent on episodes collected before the
+    fields existed and on every non-OpenRouter model, where None is the only
+    honest value.
+
+    `served_by_providers` is the other direction: what ANSWERED, as opposed to
+    what was asked for. The request keys are None wherever nothing was pinned,
+    which is most of the published corpus; these are read off the responses. A
+    tuple of the distinct providers across the episode's turns, because the
+    router can fall back mid-episode. Empty on every episode collected before
+    the field existed and on every non-OpenRouter route - "not recorded"
+    throughout, never "one provider".
+    """
+    return {
+        "openrouter_sort": d.get("openrouter_sort"),
+        "openrouter_provider": d.get("openrouter_provider"),
+        "served_by_providers": tuple(d.get("served_by_providers") or ()),
+        "served_by_changed": bool(d.get("served_by_changed")),
+    }
+
+
 def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
     """One saved run file as one row, or None if it is not in this corpus.
 
@@ -398,24 +425,13 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
     row = {
         "model": d["model"], "nudge": d.get("nudge"),
         "oversight": d.get("oversight"), "lure": d.get("lure"),
-        # HOW THE REQUEST WAS ROUTED, carried through so data_quality can
-        # see it. Every run file has recorded these since routing became
-        # selectable, and nothing downstream read them - so a rate could
-        # pool episodes answered by different backends with nothing saying
-        # so. Absent on episodes collected before the fields existed, and on
-        # every non-OpenRouter model, where None is the only honest value.
-        "openrouter_sort": d.get("openrouter_sort"),
-        "openrouter_provider": d.get("openrouter_provider"),
-        # WHICH BACKEND ANSWERED, as opposed to which was asked for. The
-        # two above are the request and are None wherever nothing was
-        # pinned, which is most of this corpus; these are read off the
-        # responses. A tuple of the distinct providers across the
-        # episode's turns, because the router can fall back mid-episode.
-        # Empty on every episode collected before the field existed, and
-        # on every non-OpenRouter route - "not recorded" throughout,
-        # never "one provider".
-        "served_by_providers": tuple(d.get("served_by_providers") or ()),
-        "served_by_changed": bool(d.get("served_by_changed")),
+        # WHICH COUNTERFACTUAL THIS EPISODE RAN UNDER, off the record the way
+        # `capability` below is. Part of the arm - see loading.arm_key - and
+        # None on every propensity episode, which is the whole published
+        # corpus. Absent, the two goal-guarding arms pooled into one, and a
+        # pilot's 9/10 and 0/9 were reported as a single 9/19.
+        "goalguard": d.get("goalguard"),
+        **_routing_columns(d),
         # THE SCAFFOLD'S TURN LIMIT, from the record where the record has it
         # and from the batch's own summary where it does not. An episode that
         # ended because the model stopped and one that ended because it ran out

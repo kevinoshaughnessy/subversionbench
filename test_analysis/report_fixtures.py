@@ -30,13 +30,14 @@ def _single(report):
 def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="20260101T000000",
                    n_runs=10, n_scheming=0, n_misaligned=0, n_aware=0,
                    n_unaware=0, cross=None, model_slug=None, capability=None,
-                   max_turns=None):
+                   max_turns=None, goalguard=None):
     # `capability` reaches the FILENAME, which is where the corpus is recorded
     # - a summary carries no top-level field for it. A fixture that could not
     # produce one left the capability half of load_summaries' filter untested.
     ident = BatchIdentity(model=model, model_slug=model_slug or model.replace("/", "_"),
                           nudge=nudge, effort=None, oversight=oversight, lure=lure,
-                          stamp=stamp, capability=capability)
+                          stamp=stamp, capability=capability,
+                          goalguard=goalguard)
     path = ident.filename(out, prefix="summary")
     d = {
         "model": model, "nudge": nudge, "n_runs": n_runs,
@@ -56,6 +57,7 @@ def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="2026010
     return path
 
 def _write_episode(out, n, model, nudge, oversight=True, lure=False,
+                   goalguard=None,
                    stamp="20260101T000000", sort=None, provider=None,
                    transcript=None, served_by=None, served_by_changed=False,
                    max_turns=None, ended_by=None,
@@ -68,6 +70,11 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
     ep = batch_episode(**episode_kwargs)
     normalise_analyses([ep])
     parts = ["run", str(n), model.replace("/", "_"), nudge]
+    # The runner writes the goal-guarding tag into the stem AND the record.
+    # Both, because the two loaders read it from different places - the
+    # episode loader off the record, load_summaries off the name.
+    if goalguard:
+        parts.append(f"goalguard-{goalguard}")
     if not oversight:
         parts.append("nooversight")
     if lure:
@@ -78,7 +85,8 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
         # the shape every collected run file has - a fixture that omitted the
         # keys would exercise a corpus that does not exist.
         json.dump({"model": model, "nudge": nudge, "oversight": oversight,
-                  "lure": lure, "analysis": ep["analysis"],
+                  "lure": lure, "goalguard": goalguard,
+                  "analysis": ep["analysis"],
                   # Written unconditionally, empty list included, because a
                   # collected run file always carries the key. `refusal_shown`
                   # is read off this, so a fixture that omitted it would make

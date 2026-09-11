@@ -10,6 +10,52 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v175
+
+**The goal-guarding arm is part of an arm's identity.** `deferred` and
+`replacement` stage different scenarios - the same file and the same means,
+differing in the motive the model is given for editing it - but nothing
+downstream knew that. Episode rows did not carry the field at all and summary
+rows did not read it off the filename, so both goal-guarding conditions grouped
+under one arm and every rate over such a corpus was an average of two
+populations rather than an estimate of either.
+
+`goalguard` now joins `arm_key`, both loaders carry it, and the two rebuilt
+arm-row builders carry it too.
+
+**Post-mortem.** On a pilot corpus the report read one model's no-nudge arm as
+9 of 19 misaligned. The truth underneath was 9 of 10 in one arm and 0 of 9 in
+the other: a middle that neither condition is, with nothing in the document
+saying two conditions had been averaged. `duplicate_arms` then found the two
+batches behind each such row, reported them as one arm collected twice, and
+advised deleting the superseded one - which would have destroyed half an
+experiment on the strength of a caveat that was itself the defect.
+
+**The published corpus does not move.** Every episode collected without the
+goal-guarding bundle records None here, so the new coordinate partitions such a
+corpus exactly as before. Checked rather than assumed: the full r10 report was
+built before and after and compared, and the two are equal apart from the added
+null field and the generation timestamp.
+
+**Eight hand-written copies of the arm identity became one.** The four findings
+in `data_quality` each unpacked the key into four names and rebuilt the dict by
+hand; adding a fifth coordinate made all four raise on the unpack, which was
+the lucky direction - a finding that silently dropped the new field from its
+output would have printed two different arms under one label. `_arm_of` builds
+the row from `ARM_FIELDS`, so the next coordinate needs no edit at any of them.
+
+The guards are derived from `ARM_FIELDS` rather than written against a field
+list, so a coordinate added later is covered without editing the tests: every
+row shape a loader produces must carry every field the key holds. Six defects
+were planted and each fails. `duplicate_arms` is checked in both directions -
+two different arms are not duplicates, and one arm collected twice still is -
+because a one-directional check on a finding that recommends deleting data is
+worse than no check.
+
+`_routing_columns` was extracted from `_episode_row`, which is over the
+function-length ratchet and may only shrink; it ends at 152 lines against 163
+before.
+
 ## v174
 
 **Count the episodes that were attempted and never analysed.** `load_episodes`

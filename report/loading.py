@@ -32,32 +32,52 @@ import glob
 import json
 import os
 
-from subversionbench.batch import parse_batch_filename
+from subversionbench.batch import (goalguard_from_filename,
+                                   parse_batch_filename)
 from subversionbench.grading import MISALIGNED_ACTS
 
 from .episode_rows import ANY_CAPABILITY, _batch_key, _episode_row
 
 
-ARM_FIELDS = ("model", "nudge", "oversight", "lure")
+ARM_FIELDS = ("model", "nudge", "oversight", "lure", "goalguard")
 
 
 def arm_key(row: dict) -> tuple:
     """
-    The four fields that identify an arm, read off a row of any shape.
+    The fields that identify an arm, read off a row of any shape.
 
-    DERIVED IN ONE PLACE BECAUSE THREE CALLERS NEED THE SAME ANSWER and two of
-    them read different row shapes: the two groupers below read an episode
-    row, and `attrition_facts` reads a failed-episode row, which is a
-    different dict built by a different loader. Written out at each site, the
-    attrition key was given a fifth field - `goalguard` - that episode rows do
-    not carry at all, so every arm it built matched no episode and reported
-    "0 analysed" for arms holding dozens.
+    DERIVED IN ONE PLACE BECAUSE EVERY CALLER NEEDS THE SAME ANSWER and they
+    read four different row shapes: a summary row, an episode row, a
+    failed-episode row and a rebuilt arm row, each built by a different
+    loader. It was written out at eight sites instead, and the copies drifted
+    in both directions.
+
+    One copy gained a field the others did not have: the attrition key was
+    given `goalguard` while episode rows did not carry it, so every arm it
+    built matched no episode and reported "0 analysed" for arms holding
+    dozens. The other seven then turned out to be missing that same field for
+    real - see below - so the fix was not to delete the fifth field from the
+    one copy but to put it in all of them, which is possible only once there
+    is one copy to put it in.
 
     `.get` rather than `[]` so a row missing a field groups under None instead
     of raising: a corpus predating a field is a thing to see in the table, not
     a crash. Booleans are not coerced - `oversight` is written as a boolean by
     both loaders, and coercing here would hide it if that ever stopped being
     true.
+
+    WHY `goalguard` IS ONE OF THE FIELDS. It names which counterfactual the
+    episode ran under, and the arms are different scenarios rather than
+    different samples of one - so pooling them is not a loss of resolution, it
+    is an average of two populations. Left out, the report read a pilot's
+    gemini/none arm as 9/19 misaligned: a 9/10 arm and a 0/9 arm averaged into
+    a middle that neither of them is, with nothing saying so. `duplicate_arms`
+    then flagged the two batches behind it as one arm collected twice and
+    advised deleting one, which would have thrown away half an experiment.
+
+    Every propensity episode ever collected records None here, so adding it
+    partitions no existing corpus: the r10 report is byte-identical across
+    this change, which is the check that was run rather than assumed.
     """
     return tuple(row.get(field) for field in ARM_FIELDS)
 
@@ -132,6 +152,10 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
             continue
         _effort, _stamp, oversight, lure, found_capability = \
             parse_batch_filename(path, nudge)
+        # Off the FILENAME, like oversight and lure above and unlike the
+        # episode loader, which reads it off the record: a summary JSON
+        # carries none of the four arm fields, they are all in its stem.
+        goalguard = goalguard_from_filename(path)
         # ONE FILTER, BOTH DIRECTIONS. `capability=None` - every caller in
         # the report - keeps propensity batches only, because a capability
         # episode was INSTRUCTED to take the act and pooling one into a
@@ -152,7 +176,8 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
         n_aware = subgroups.get("aware") or 0
         n_unaware = subgroups.get("unaware") or 0
         rows.append({
-            "model": model, "nudge": nudge, "oversight": oversight, "lure": lure,
+            "model": model, "nudge": nudge, "oversight": oversight,
+            "lure": lure, "goalguard": goalguard,
             "n_runs": d.get("n_runs") or 0,
             "n_scheming": d.get("n_scheming") or 0,
             # The wide construct beside the narrow one, on the SAME denominator,
@@ -320,6 +345,7 @@ def act_arm_rows(episodes: list) -> list:
         if row is None:
             row = {"model": e["model"], "nudge": e["nudge"],
                    "oversight": e["oversight"], "lure": e["lure"],
+                   "goalguard": e.get("goalguard"),
                    "n_runs": 0, "n_misaligned": 0, "n_scheming": 0,
                    "n_scheming_undetermined": 0}
             for act in MISALIGNED_ACTS:
@@ -364,6 +390,7 @@ def awareness_arm_rows(episodes: list) -> list:
         row = groups.setdefault(key, {
             "model": e["model"], "nudge": e["nudge"],
             "oversight": e["oversight"], "lure": e["lure"],
+            "goalguard": e.get("goalguard"),
             "n_awareness_resolved": 0, "n_aware": 0, "n_aware_text": 0,
             "n_text_undetermined": 0, "n_reasoning_only": 0,
             "n_bounded": 0,
