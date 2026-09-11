@@ -61,6 +61,37 @@ def _draw_release_fit(ax, fit: dict, colour) -> bool:
     return True
 
 
+# How far under the x-axis label the legend's top edge sits, in POINTS rather
+# than in axes fractions. A fraction would grow with the figure, so making the
+# panel taller would spend part of the new height on a wider gap - and the
+# height is added to give the data more room, not the margins. Small enough to
+# read as one block, wide enough that the two borders are not confusable.
+_LEGEND_GAP_PT = 12.0
+
+# The pad under the legend before the first caption, and the step from one
+# caption line to the next. Points, for the same reason, and equal to the axes
+# fractions they replace (0.03 and 0.055) at the panel height they were tuned on.
+_CAPTION_PAD_PT = 11.0
+_CAPTION_LINE_PT = 20.5
+
+
+def _axes_height_pt(fig, ax) -> float:
+    """The drawn height of the axes in points. Needs a drawn canvas."""
+    return ax.get_window_extent().height * 72.0 / fig.dpi
+
+
+def _below_the_axis_label(fig, ax) -> float:
+    """Where the legend's top edge goes, in axes coordinates (so, negative).
+
+    The bottom of the x-axis label, less a fixed gap in points. Needs a drawn
+    canvas: neither the label nor the axes has an extent before a renderer
+    exists.
+    """
+    label_bottom = (ax.xaxis.label.get_window_extent()
+                    .transformed(ax.transAxes.inverted()).y0)
+    return label_bottom - _LEGEND_GAP_PT / _axes_height_pt(fig, ax)
+
+
 def _dated_members(family: dict) -> list:
     """The members of one family that can be placed on a calendar."""
     return [(m, _member_release_date(m)) for m in family["members"]
@@ -166,6 +197,69 @@ def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
     return path
 
 
+def _legend_and_notes(fig, ax, report: dict, families: list,
+                      fitted: int) -> None:
+    """Everything drawn UNDER the axis: the family legend and its captions.
+
+    Its own function because it is the only part of the chart that is laid out
+    against measured extents rather than data coordinates, and because it needs
+    two canvas draws to place - a relationship to the figure that nothing above
+    it shares.
+    """
+    # BELOW the axes rather than beside them. A legend to the right takes its
+    # width out of the plotting area, and on a calendar axis that width is
+    # months: the same figure gives the data about a quarter more room with the
+    # legend underneath. Two columns unless there are few enough families to sit
+    # on one row, so the block stays wide and short rather than tall.
+    ncol = 1 if len(families) <= 2 else 2 if len(families) <= 6 else 3
+    # The legend has to clear the x-axis LABEL, not just the ticks, and where
+    # that label ends is MEASURED rather than guessed. Three guesses have been
+    # wrong here: -0.16 put the legend's top border through the label once the
+    # notes below grew tall enough for tight_layout to redistribute the figure,
+    # and -0.24 cleared it by an eighth of the axes height of empty paper. The
+    # label's own extent moves with the font, the figure size and the tick
+    # formatter, which is why no constant is right for long.
+    legend = ax.legend(title="family", fontsize=9, title_fontsize=9, ncol=ncol,
+                       loc="upper center", bbox_to_anchor=(0.5, -0.24),
+                       frameon=True, borderaxespad=0.0)
+    # MEASURE the legend rather than estimating its height. Two successive
+    # guesses were wrong here - a fraction of a row, then a row height that did
+    # not match this font - and each landed a caption inside the legend box.
+    # Laying out first and asking matplotlib where the legend actually ended is
+    # exact, and stays exact when the family count or font changes.
+    fig.tight_layout()
+    fig.canvas.draw()
+    legend.set_bbox_to_anchor((0.5, _below_the_axis_label(fig, ax)),
+                              transform=ax.transAxes)
+    fig.canvas.draw()
+    # One point, as a fraction of the axes height. Everything under the axis is
+    # spaced in points for the reason _LEGEND_GAP_PT gives: these offsets were
+    # tuned by eye against a 5.6in panel, and left as raw fractions they would
+    # stretch with every increase in figure height.
+    pt = 1.0 / _axes_height_pt(fig, ax)
+    below = (legend.get_window_extent()
+             .transformed(ax.transAxes.inverted()).y0 - _CAPTION_PAD_PT * pt)
+    if fitted:
+        ax.text(0.5, below, FIT_NOTE, transform=ax.transAxes, fontsize=8,
+                ha="center", va="top", color="#444444")
+        below -= _CAPTION_LINE_PT * pt
+    if report["metric"] in AWARENESS_METRICS:
+        note = _exposure_range_note(families, report["metric"])
+        if note:
+            ax.text(0.5, below, note, transform=ax.transAxes, fontsize=8,
+                    ha="center", va="top", color="#555555")
+            # The note names the zero-exposure models on a second line, so the
+            # next caption has to clear both.
+            below -= _CAPTION_LINE_PT * pt * (note.count("\n") + 1)
+    missing = report["data_quality"]["plotted_models_without_release_date"]
+    if missing:
+        ax.text(0.5, below,
+                f"! {len(missing)} model(s) omitted: no release date recorded "
+                f"in model_releases.py",
+                transform=ax.transAxes, fontsize=8, ha="center", va="top",
+                color="#b00020")
+
+
 def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
     """
     Every family on one calendar, coloured by family. Points and labels only.
@@ -202,7 +296,11 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
     # that gap was empty margin in every saved file. Measured across widths, the
     # axes reach 11.15in here, which matches the legend to within a percent.
     # _COMBINED_AXIS_PT is this figure's axes width in points and moves with it.
-    fig, ax = plt.subplots(figsize=(12.8, 5.6))
+    # 7.53in rather than 6.2: 1.33in is 200px at CHART_DPI, and all of it goes
+    # to the axes. The legend and its captions are placed against measured
+    # extents in points, so they keep the height they had and the panel takes
+    # the difference, instead of everything below the axis scaling with it.
+    fig, ax = plt.subplots(figsize=(12.8, 7.53))
     fitted = 0
     for family, colour in zip(families, colours, strict=True):
         dated = _dated_members(family)
@@ -245,47 +343,7 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
                  f"{report['metric_denominator_label']})", fontsize=12)
     ax.grid(axis="y", alpha=0.3)
     ax.grid(axis="x", alpha=0.15)
-    # BELOW the axes rather than beside them. A legend to the right takes its
-    # width out of the plotting area, and on a calendar axis that width is
-    # months: the same figure gives the data about a quarter more room with the
-    # legend underneath. Two columns unless there are few enough families to sit
-    # on one row, so the block stays wide and short rather than tall.
-    ncol = 1 if len(families) <= 2 else 2 if len(families) <= 6 else 3
-    # Far enough below the axes to clear the x-axis LABEL, not just the ticks.
-    # At -0.16 the legend's top border cut through it once the notes below grew
-    # tall enough for tight_layout to redistribute the figure.
-    legend_y = -0.24
-    legend = ax.legend(title="family", fontsize=9, title_fontsize=9, ncol=ncol,
-                       loc="upper center", bbox_to_anchor=(0.5, legend_y),
-                       frameon=True, borderaxespad=0.0)
-    # MEASURE the legend rather than estimating its height. Two successive
-    # guesses were wrong here - a fraction of a row, then a row height that did
-    # not match this font - and each landed a caption inside the legend box.
-    # Laying out first and asking matplotlib where the legend actually ended is
-    # exact, and stays exact when the family count or font changes.
-    fig.tight_layout()
-    fig.canvas.draw()
-    below = (legend.get_window_extent()
-             .transformed(ax.transAxes.inverted()).y0 - 0.03)
-    if fitted:
-        ax.text(0.5, below, FIT_NOTE, transform=ax.transAxes, fontsize=8,
-                ha="center", va="top", color="#444444")
-        below -= 0.055
-    if report["metric"] in AWARENESS_METRICS:
-        note = _exposure_range_note(families, report["metric"])
-        if note:
-            ax.text(0.5, below, note, transform=ax.transAxes, fontsize=8,
-                    ha="center", va="top", color="#555555")
-            # The note names the zero-exposure models on a second line, so the
-            # next caption has to clear both.
-            below -= 0.055 * note.count("\n") + 0.055
-    missing = report["data_quality"]["plotted_models_without_release_date"]
-    if missing:
-        ax.text(0.5, below,
-                f"! {len(missing)} model(s) omitted: no release date recorded "
-                f"in model_releases.py",
-                transform=ax.transAxes, fontsize=8, ha="center", va="top",
-                color="#b00020")
+    _legend_and_notes(fig, ax, report, families, fitted)
     # No second tight_layout: the notes were placed against the measured legend,
     # and re-running it would move the legend out from under them. bbox_inches
     # crops to include everything drawn.

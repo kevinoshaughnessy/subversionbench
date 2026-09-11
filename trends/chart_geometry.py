@@ -44,7 +44,16 @@ _LABEL_GAP = 0.06
 # kimi-k2 and kimi-k2-0905 are older but sit in no family here. Moving the floor
 # spends the width on the range that carries points. It is still a floor, so an
 # older model collected later reclaims the space automatically.
-RELEASE_AXIS_START = date(2025, 11, 1)
+#
+# Then 2025-11-01, which is where the second-earliest point is six weeks of
+# empty axis away: only kimi-k2-thinking sits before December, at 0.0%, and the
+# next point is gemini-3-flash-preview on 2025-12-17. The floor is now AHEAD of
+# that model rather than behind it, which is a deliberate choice and not an
+# oversight: the leftward extension below keeps kimi-k2-thinking on the axis, so
+# the setting is inert while it is in the corpus and takes effect the day it
+# leaves. Clipping it instead was considered and rejected - it carries 120
+# episodes and one of four points in its family's release fit.
+RELEASE_AXIS_START = date(2025, 12, 1)
 
 # Horizontal clearance and one row of vertical separation per colliding label,
 # the same mechanism the combined version chart uses. Two labels collide when

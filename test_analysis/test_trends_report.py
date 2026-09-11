@@ -12,8 +12,10 @@ import json
 import os
 import tempfile
 from datetime import date
+from unittest import mock
 
 import trends as ft
+from trends import chart_geometry as geometry
 from test_analysis.report_fixtures import _write_summary
 
 
@@ -362,12 +364,23 @@ class TestTheReleaseSpan:
         span = ft.release_span(self._report("2026-01-27", "2026-04-20"))
         assert span == (ft.RELEASE_AXIS_START, date(2026, 4, 20))
 
-    def test_the_floor_does_not_clip_the_earliest_model_in_this_corpus(self):
-        """The floor is only useful while it stays behind every plotted point.
-        r9's earliest family member is kimi-k2-thinking on 2025-11-06, so a
-        floor later than that would push a real point off the axis - and
-        release_span would silently drag it back, undoing the setting."""
-        assert ft.RELEASE_AXIS_START <= date(2025, 11, 6)
+    def test_no_floor_can_clip_the_earliest_plotted_model(self):
+        """The floor may sit AHEAD of the earliest model - it does today, and
+        kimi-k2-thinking on 2025-11-06 is the point it sits ahead of. What must
+        hold whatever the floor is set to is that the span still reaches the
+        earliest plotted date, because a point drawn outside the axis is worse
+        than an axis that starts earlier than asked for. Swept over floors on
+        both sides of the model rather than asserted at the one in force, so
+        moving the constant cannot quietly retire the check."""
+        earliest = date(2025, 11, 6)
+        report = self._report(earliest.isoformat(), "2026-06-01")
+        # Patched on chart_geometry, not on the `trends` facade: release_span
+        # reads the global out of its own module, so rebinding the re-export
+        # would leave the function looking at the original and the sweep would
+        # pass on one floor three times.
+        for floor in (date(2025, 1, 1), earliest, date(2026, 3, 1)):
+            with mock.patch.object(geometry, "RELEASE_AXIS_START", floor):
+                assert ft.release_span(report)[0] <= earliest
 
     def test_the_start_is_fixed_rather_than_the_earliest_model(self):
         """Otherwise adding an older model silently rescales every chart in the

@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v167
+
+THE COMBINED RELEASE CHART SPENDS ITS HEIGHT ON THE PANEL, NOT ON MARGINS.
+
+Two complaints about one figure: an eighth of the axes height of blank paper
+between the x-axis label and the legend, and not enough room for the data.
+
+Everything drawn under the axis is now placed against MEASURED extents instead
+of hand-tuned axes fractions. The legend sits a fixed number of points below
+the bottom of the x-axis label - found by drawing the canvas and asking where
+the label ended - and the captions under it step by a fixed number of points
+rather than by a fraction of the panel. Three guesses at that gap have been
+wrong before: one put the legend's border through the label, the next cleared
+it by the empty band this fixes.
+
+Points rather than fractions is what makes the second half work. The figure is
+1.33in taller, which is 200px at the chart DPI, and because nothing below the
+axis scales with the panel any more, all 200 land on the plot. Measured at the
+real label and title text: the axes go from 788px to 988px.
+
+THE RELEASE AXIS FLOOR MOVES TO DECEMBER 2025.
+
+Only one plotted model is released before December, and the six weeks between
+it and the next point were empty axis on every release chart. The floor is now
+AHEAD of that model rather than behind it, which is deliberate: release_span
+still extends leftward so the point stays on the axis, so the setting is inert
+while that model is in the corpus and takes effect the day it leaves. Clipping
+it instead was considered and rejected - it would have dropped one of four
+points from its family's release fit. The visible change today is that the axis
+starts at that model's date rather than at the floor.
+
+The guard that asserted the floor sits BEHIND every plotted point is replaced
+by one that asserts what must hold whatever the floor is: the span still
+reaches the earliest plotted date. Swept over floors either side of that model
+rather than asserted at the one in force, so moving the constant cannot quietly
+retire the check.
+
+A CAPTION GUARD THAT WAS WATCHING A LOCATION NOW WATCHES THE CHART.
+
+"Every chart that fits a line says what the line is" asserted that FIT_NOTE
+appeared in each plot function's own source. Giving the combined chart's
+legend-and-captions block a function of its own broke it, with the chart
+unchanged - the exact defect class AGENTS.md names. It now renders both charts
+and reads the strings they actually drew, so it survives a refactor and fails
+if either caption is dropped. Planted both ways round.
+
+test_trends_charts.py was two lines from the file limit and split along the
+division trends/ already carries: the release charts are date_charts.py's, and
+their tests are now test_trends_date_charts.py.
+
 ## v166
 
 THE GOAL-GUARDING PINS REFUSE AN ALTERNATIVE BUNDLE, LIKE THE OTHER TWO.
