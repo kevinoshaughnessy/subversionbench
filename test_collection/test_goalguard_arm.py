@@ -218,6 +218,27 @@ class TestTheArmHasAnIdentityOfItsOwn:
         seen[("none", False, "-")] = rollout_fingerprint(oversight=False)
         assert len(set(seen.values())) == len(seen), seen
 
+    def test_an_alternative_bundle_is_refused_rather_than_given_these_pins(self):
+        """The refusal capability_fingerprint_for and date_fingerprint_for
+        already make, and which was missing here. These pins identify the
+        SHIPPED scenario's arms; a twin's episodes carrying them would pool
+        with a scenario they do not match.
+
+        Patched rather than run under a real override, because the module
+        resolves `_alternative` once at import and a second bundle would need
+        its own sidecar to get that far."""
+        from subversionbench import rollout_pins as rp
+        was = rp._alternative
+        rp._alternative = ("someothertwin", {})
+        try:
+            rp.goalguard_fingerprint_for("replacement", True, "strong")
+        except RuntimeError as refused:
+            assert "alternative scenario bundle" in str(refused)
+            return
+        finally:
+            rp._alternative = was
+        raise AssertionError("an alternative bundle was given the shipped pins")
+
     def test_an_unpinned_arm_is_refused_by_the_guard_not_by_the_dict(self):
         """Asserted on the MESSAGE, because a bare lookup raises KeyError too.
         Written first as "does it raise KeyError", this passed with the guard

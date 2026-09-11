@@ -573,4 +573,21 @@ def goalguard_fingerprint_for(arm: str, oversight: bool,
             f"no pinned goal-guarding fingerprint for {key!r}; the pinned "
             f"arms are {sorted(GOALGUARD_FINGERPRINTS)}. The lure axis is "
             f"deliberately absent - see the table above.")
+    if _alternative is not None:
+        # The same refusal capability_fingerprint_for and date_fingerprint_for
+        # make, and it was missing here until the three were read side by
+        # side. These pins identify the SHIPPED scenario's goal-guarding arms;
+        # an alternative bundle's episodes carrying them would pool with a
+        # scenario they do not match.
+        #
+        # Not reachable today - no alternative bundle carries the arm, so
+        # scenario_for refuses first - and that is exactly why it was easy to
+        # omit. It becomes reachable the moment a twin gains the act, which is
+        # planned.
+        from .scenario import BUNDLE_ENV_VAR
+        raise RuntimeError(
+            f"the goal-guarding arm has no pins under an alternative scenario "
+            f"bundle; these identify the shipped scenario's arms. Unset "
+            f"{BUNDLE_ENV_VAR}, or pin the twin's goal-guarding arms first."
+        )
     return GOALGUARD_FINGERPRINTS[key]

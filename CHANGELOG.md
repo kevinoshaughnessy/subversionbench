@@ -10,6 +10,24 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v166
+
+THE GOAL-GUARDING PINS REFUSE AN ALTERNATIVE BUNDLE, LIKE THE OTHER TWO.
+
+`capability_fingerprint_for` and `date_fingerprint_for` both refuse to answer
+when a bundle override is active: their tables identify the SHIPPED scenario's
+arms, and a twin's episodes carrying them would pool with a scenario they do
+not match. The goal-guarding accessor added at v165 was missing that check.
+
+Not reachable today - no alternative bundle carries the arm, so scenario_for
+refuses first - which is why it was easy to omit. It becomes reachable the
+moment a twin gains the act.
+
+Found by reading the three accessors side by side while assessing how rollout
+identity should be named across scenarios. That a guard has to be repeated per
+table, and can be forgotten once per table, is itself an argument about the
+design rather than only about this omission.
+
 ## v165
 
 A THIRD MISALIGNED ACT, AND THE LURE ARM GETS A QUESTION OF ITS OWN.
