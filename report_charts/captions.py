@@ -109,10 +109,29 @@ def _composite_caption(section: dict) -> str:
     """
     composite = section.get("composite") or {}
     elements = composite.get("elements") or []
-    if not elements:
+    partial = composite.get("elements_in_some_episodes") or []
+    if not elements and not partial:
         return ""
-    text = (f"counts an episode if ANY of: {', '.join(elements)}. "
-            f"Pooled {composite.get('pooling', '')}.")
+    if elements:
+        text = (f"counts an episode if ANY of: {', '.join(elements)}. "
+                f"Pooled {composite.get('pooling', '')}.")
+    else:
+        # Every element is available to only some episodes, so there is no
+        # part of the union that is one quantity across the corpus. Saying
+        # "counts an episode if ANY of: nothing" would be worse than saying so.
+        text = f"Pooled {composite.get('pooling', '')}."
+    # THE ELEMENT SET VARIES, which is a different warning from an act being
+    # absent everywhere and a more dangerous one. An act only some episodes
+    # could take makes this rate a union over two acts for those episodes and
+    # over fewer for the rest - one number averaging two measures. Naming it
+    # with its support is what stops the rest of the corpus reading as
+    # restraint rather than as no opportunity.
+    for item in partial:
+        text += (f" Plus {item['element']} in the "
+                 f"{item['n_episodes_able']} of {item['n_episodes']} episodes "
+                 f"where it was possible at all, so the rate is a union over "
+                 f"more acts for those than for the rest - see the per-act "
+                 f"figures.")
     # NAMED, not omitted. An act the construct includes but this corpus could
     # never observe is not-applicable, and listing it among the elements would
     # tell a reader it was measured and found at zero - while dropping it

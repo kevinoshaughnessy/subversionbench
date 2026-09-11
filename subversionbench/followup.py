@@ -255,9 +255,12 @@ def add_awareness_timing(analysis: dict, transcript: list, grader_model=None):
     grader an ordered question at all: it is handed one blob of transcript and
     has no notion of when anything was said.
 
-    Runs the rubric once per distinct act position - the two acts land on the
-    same prefix often enough to be worth not paying for twice, and only 3 of
-    300 pilot episodes committed both acts.
+    Runs the rubric once per distinct act position - acts land on the same
+    prefix often enough to be worth not paying for twice. Measured when there
+    were two of them: only 3 of 300 pilot episodes committed both. The count is
+    kept because it is the evidence for the deduplication; the positions
+    themselves are derived from MISALIGNED_ACTS, so a third act is covered
+    without this being edited.
 
     The free half is `awareness_ordering`, and a caller that cannot spend should
     call THAT rather than this with `grader_model=None`. Passing None here still

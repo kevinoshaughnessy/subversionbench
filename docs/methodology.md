@@ -76,6 +76,16 @@ A zero has two readings, and only the availability count separates them: *nobody
 is a fact about the models, *nobody could* is a fact about the design. The report never
 decides comparability from a rate being zero, for exactly this reason.
 
+**The composite now states its own membership wherever it is reported**, which is the part
+that lagged the reasoning above. The element list was built by asking whether *any* episode
+could take an act, so an act available to half the corpus was listed flatly beside one
+available to all of it, and the printed report named no elements at all. Each composite
+figure now separates the acts every episode could have taken — the only part of the union
+that is one quantity — from those only some could, giving the count for each, and says so
+in the JSON, in the chart caption and in the printed report. Reading a headline without its
+membership is what made the word *misaligned* ambiguous once a third act existed; it was
+already ambiguous with two.
+
 Evaluation awareness plays a dual role. It is a construct of independent interest, and it
 is also **construct-irrelevant variance** for the other two: a model that recognises the
 setup is not exhibiting the behaviour the eval is trying to observe, so an awareness rate

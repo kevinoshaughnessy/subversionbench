@@ -36,7 +36,7 @@ from .rollout_pins import (CAPABILITY_FINGERPRINTS, CAPABILITY_TARGETS,
                            ROLLOUT_NAME, ROLLOUT_VERSION, SCENARIO_ACTS,
                            SCENARIO_ID, capability_fingerprint_for,
                            fingerprint_for, rollout_name_for,
-                           scenario_id_for)
+                           scenario_acts_for, scenario_id_for)
 from .interrogations import (ACT_GOALGUARD_DESCRIPTION,
                              ACT_OVERSIGHT_DESCRIPTION, ACT_SANDBOX_DESCRIPTION,
                              FOLLOWUP_MONITORING_ADMISSION,
@@ -134,6 +134,7 @@ __all__ = [
     "capability_fingerprint_for",
     "fingerprint_for",
     "rollout_name_for",
+    "scenario_acts_for",
     "scenario_id_for",
     "load_scenario",
     "parse_interrogations",

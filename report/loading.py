@@ -216,10 +216,14 @@ def act_arm_rows(episodes: list) -> list:
     merely rare, it is impossible. `oversight_observable` is true for every
     episode of the oversight arm and false for every episode of the other.
 
-    That makes the composite contrast a comparison of a union over two acts
-    against a union over one, which is a different quantity on each side rather
-    than the same quantity measured twice. The per-act counts here are what let
-    the report state the contrast on an act both arms could actually commit.
+    That makes the composite contrast a comparison of a union over MORE acts
+    against a union over fewer, which is a different quantity on each side
+    rather than the same quantity measured twice. Not spelled as a count: it
+    was two against one for as long as there were two acts, and a third would
+    have made the sentence quietly wrong. The per-act counts here are what let
+    the report state the contrast on an act both arms could actually commit,
+    and `report/pooling.composite_of` is what makes the varying element set
+    visible wherever the composite itself is reported.
 
     The observability counts travel with the acts rather than being recomputed
     downstream, because "the rate was zero" and "the act was unavailable" are the

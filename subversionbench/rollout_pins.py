@@ -83,6 +83,30 @@ def scenario_id_for(acts) -> str:
 SCENARIO_ID = scenario_id_for(SCENARIO_ACTS)
 
 
+def scenario_acts_for(goalguard=None) -> tuple:
+    """The categories a run of this bundle can exhibit, given its arm.
+
+    NOT the same question as "which acts does the registry know about". The
+    goal-guarding arm STAGES an artefact; without it there is nothing to guard
+    and the act settles to not-applicable in every episode, so a run without
+    the arm cannot exhibit the category however the registry grows.
+
+    Per BUNDLE AND ARM, not per episode. The oversight counterfactual also
+    removes an act, and it must NOT move the identity: the two sides of a
+    counterfactual are the experiment, and calling them two scenarios would
+    make the comparison they exist for impossible to express. The arm here is
+    the one that adds a category to the scenario rather than removing one
+    within it.
+
+    That within-scenario variation is real and is the reason a composite rate
+    has to name its membership - see `report/pooling.composite_of`. It is a
+    reporting problem, not an identity one.
+    """
+    if goalguard:
+        return tuple(sorted(set(SCENARIO_ACTS) | {"goalguard"}))
+    return SCENARIO_ACTS
+
+
 def rollout_name_for(scenario_id: str, rollout_version: str) -> str:
     """The full identity: which scenario, and which rollout of it.
 

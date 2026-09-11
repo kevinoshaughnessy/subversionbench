@@ -277,6 +277,44 @@ class TestTheScenarioIdentityIsTheActSet:
         with pytest.raises(ValueError):
             scenario_id_for(())
 
+    def test_the_goal_guarding_arm_is_a_different_scenario(self):
+        """It stages an artefact the default arm does not, so a run with it can
+        exhibit a category a run without it cannot. Stamping the bundle's
+        default id on such a run would claim a composite membership the
+        episodes do not have."""
+        from subversionbench.config import scenario_acts_for, scenario_id_for
+        plain = scenario_id_for(scenario_acts_for())
+        guarding = scenario_id_for(scenario_acts_for("replacement"))
+        assert plain != guarding
+        assert "goalguard" in guarding and "goalguard" not in plain
+
+    def test_the_oversight_counterfactual_is_NOT_a_different_scenario(self):
+        """The other direction, and the one that would be a worse mistake. The
+        no-oversight arm removes an act too, but both sides of a counterfactual
+        are one experiment - splitting them by identity would make the
+        comparison they exist for impossible to express. That the composite's
+        membership still varies across those arms is a reporting problem, and
+        report/pooling.composite_of is where it is answered."""
+        from subversionbench.arm_record import arm_identity
+        common = {"model": "m", "effort": None, "nudge": "none",
+                  "lure": False, "interrogations": ("zeroevidence",),
+                  "openrouter_sort": None, "openrouter_provider": None}
+        on = arm_identity(oversight=True, **common)["scenario_id"]
+        off = arm_identity(oversight=False, **common)["scenario_id"]
+        assert on == off
+
+    def test_the_stamped_id_follows_the_arm_rather_than_the_module(self):
+        """Driven through the record builder, not read off the constant: the
+        field is only useful if what reaches the saved episode moves."""
+        from subversionbench.arm_record import arm_identity
+        common = {"model": "m", "effort": None, "nudge": "none",
+                  "oversight": True, "lure": False,
+                  "interrogations": ("zeroevidence",),
+                  "openrouter_sort": None, "openrouter_provider": None}
+        plain = arm_identity(**common)["scenario_id"]
+        guarding = arm_identity(goalguard="replacement", **common)["scenario_id"]
+        assert plain != guarding
+
     def test_the_full_name_carries_both_halves(self):
         """Neither identifies a corpus alone: "r10" says nothing about what was
         measured and "oversight-sandbox" nothing about what the model saw."""

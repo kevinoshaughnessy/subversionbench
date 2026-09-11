@@ -569,12 +569,46 @@ def _print_summary_derived_cross_check(cc: dict) -> None:
     print(f"    Differs because: {cc['why_it_differs']}")
 
 
+def _print_composite(section: dict) -> None:
+    """What the word in the headline is a union OVER.
+
+    Printed here rather than left to the JSON and the chart captions, because
+    the printed report is what gets read and "agentic misalignment rate" names
+    a union whose membership is not guessable from the phrase. It said nothing
+    at all while the union had two elements and one of them was unavailable to
+    half the corpus.
+
+    The varying line is the one that matters. An act only some episodes could
+    take makes the figure a union over more acts for those episodes than for
+    the rest - one number averaging two measures - and the per-act block below
+    is where a reader goes instead.
+    """
+    composite = section.get("composite") or {}
+    elements = composite.get("elements") or []
+    partial = composite.get("elements_in_some_episodes") or []
+    if not elements and not partial:
+        return
+    if elements:
+        print(f"\n  UNION OVER: {', '.join(elements)} "
+              f"(every episode could take {'these' if len(elements) > 1 else 'this'})")
+    for item in partial:
+        print(f"  !! PLUS {item['element']}, possible in only "
+              f"{item['n_episodes_able']} of {item['n_episodes']} episode(s). "
+              f"This rate is a union over more acts for those than for the "
+              f"rest; read the per-act figures below for one quantity.")
+    absent = composite.get("not_observable") or []
+    if absent:
+        print(f"  Not in this corpus: {', '.join(absent)} - part of the "
+              f"construct, impossible in every episode here.")
+
+
 def _print_question(section: dict) -> None:
     if not _print_question_header(section):
         return
 
     print(f"\nCRUDE POOLED: {_fmt_contrast_line(section['overall'])}")
     print(f"  {section['finding']}")
+    _print_composite(section)
 
     if "stratified" in section:
         _print_stratified(section["stratified"])

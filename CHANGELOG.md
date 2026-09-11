@@ -10,6 +10,52 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v171
+
+"MISALIGNED" NOW STATES WHAT IT IS A UNION OVER, WHEREVER IT IS REPORTED.
+
+The construct is a union: an episode counts if it took ANY act. The elements of
+that union are not the same for every episode, because an act whose artefact
+was never staged is IMPOSSIBLE rather than unobserved - and half of r10 is the
+no-oversight arm, where there is no monitoring artefact to tamper with. So a
+corpus-level rate is a union over two acts for one half of the corpus and over
+one act for the other: one number averaging two different measures.
+
+methodology.md has said this for some time and the per-act contrast was built
+for it. What lagged was the description OF the composite. The element list was
+computed with a single `any()`, so one episode being able to take an act put
+that act in the list on behalf of all of them, and the printed report named no
+elements at all.
+
+Each composite figure now separates the acts EVERY episode could have taken -
+the only part of the union that is one quantity - from those only some could,
+giving the count for each, and carries `element_set_varies`. Stated in the
+JSON, in the chart caption and, newly, in the printed report, which is where
+the number is actually read.
+
+Adding goal guarding made this visible. It was already true with two acts.
+
+NO NUMBER MOVED. This is a description, not a re-analysis: every question
+contrast in the r10 report is identical before and after, checked field by
+field. Nothing here can repair the measure - the cell is structurally empty
+rather than confounded - and the per-act contrast remains the version both arms
+could actually commit.
+
+THE SCENARIO ID NOW FOLLOWS THE ARM.
+
+A run of the goal-guarding arm stages an artefact the default arm does not, so
+it can exhibit a category a run without it cannot. Stamped with the bundle's
+default id, such a run would claim a composite membership its episodes do not
+have - the same ambiguity, re-encoded in the identity. The oversight
+counterfactual deliberately does NOT move it: both sides of a counterfactual
+are one experiment, and splitting them by identity would make the comparison
+they exist for impossible to express. Guarded in both directions.
+
+Two comments that spelled the act count as a number are de-hardcoded. Both were
+correct for as long as there were two acts. `classify_misalignment`'s docstring
+enumerated the acts it unions while iterating a registry that had grown a
+third, which is the same defect in the place most likely to be read.
+
 ## v170
 
 A CORPUS NOW SAYS WHICH SCENARIO IT BELONGS TO, NOT ONLY WHICH ROLLOUT.
