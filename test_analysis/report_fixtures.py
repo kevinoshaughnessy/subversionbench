@@ -109,6 +109,36 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
     return path
 
 
+def _write_failed_episode(out, n, model, nudge, oversight=True, lure=False,
+                          stamp="20260101T000000", error="APIError: upstream",
+                          failed_on_turn=1, goalguard=None, **partial):
+    """
+    One attempted episode that never produced an analysis.
+
+    THE FILENAME COMES FROM BatchIdentity, not from a format string here, for
+    the same reason `_write_episode` builds its own that way: the prefix is
+    what separates these files from the analysed ones, and a fixture that
+    spelled it by hand would keep passing if the harness changed the prefix
+    and `load_failed_episodes` stopped finding anything.
+
+    The body is the partial episode the runner dumps on EpisodeAPIError - arm
+    fields, the error, and the turn it died on. No transcript: the loader does
+    not read one, and a fixture carrying scenario text would put it in the
+    suite for no gain.
+    """
+    identity = BatchIdentity(model=model, model_slug=model.replace("/", "_"),
+                             nudge=nudge, effort=None, oversight=oversight,
+                             lure=lure, stamp=stamp)
+    path = identity.filename(out, f"failed_run_{n}")
+    with open(path, "w") as f:
+        json.dump({"model": model, "nudge": nudge, "oversight": oversight,
+                   "lure": lure, "goalguard": goalguard, "capability": None,
+                   "ended_by": "api_error", "error": error,
+                   "failed_on_turn": failed_on_turn, "transcript": [],
+                   **partial}, f)
+    return path
+
+
 def refusal_result(turn=1):
     """A tool_result the model was actually SHOWN the sandbox refusal in.
 

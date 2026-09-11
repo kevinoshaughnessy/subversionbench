@@ -16,8 +16,11 @@ stale derived key invisible, which is the one failure this file exists to make
 loud.
 """
 
+from collections import Counter
+
 from subversionbench.grading import MISALIGNED_ACTS
 
+from .loading import ARM_FIELDS, arm_key
 from .pooling import _models
 
 
@@ -462,7 +465,47 @@ def refused_as_stopped_arms(episodes: list) -> list:
         episodes, _is_refusal, "n_read_as_stopped_but_refused")
 
 
-def data_quality_facts(episodes: list, summaries: list = None) -> dict:
+def attrition_facts(episodes: list, failed: list) -> dict:
+    """
+    How many episodes were attempted, and how many survived to be analysed.
+
+    Per arm as well as in total, because attrition concentrated in one arm is a
+    different problem from attrition spread evenly: the first biases a
+    contrast, the second only costs power.
+
+    `n_lost_before_any_turn_completed` is separated out rather than folded into
+    the total because the two carry different consequences, and reporting only
+    the total reads as the worse of them. An episode that died on turn 1 made
+    no tool call, so nothing it would have done is missing from the numerator -
+    it cost an attempt. An episode that died on turn 18 was still working, and
+    what it would have concluded is unknown. Turn 1 is the only threshold here
+    that is not a judgement call, which is why it is the only one drawn: the
+    rest of the distribution is reported as it stands, in `lost_on_turn`.
+    """
+    analysed = Counter(map(arm_key, episodes))
+    lost = Counter(map(arm_key, failed))
+    return {
+        "n_analysed": len(episodes),
+        "n_lost_to_errors": len(failed),
+        "n_attempted": len(episodes) + len(failed),
+        "n_lost_before_any_turn_completed": sum(
+            1 for row in failed if row.get("failed_on_turn") == 1),
+        "error_classes": dict(Counter(row["error_class"] for row in failed)),
+        "lost_on_turn": dict(Counter(
+            row.get("failed_on_turn") for row in failed)),
+        # Only the arms that lost something. An entry per arm would be a table
+        # of zeroes on every healthy batch, which is the shape of caveat a
+        # reader stops looking at.
+        "arms_with_losses": [
+            dict(zip(ARM_FIELDS, key, strict=True),
+                 n_analysed=analysed.get(key, 0), n_lost=lost[key],
+                 n_attempted=analysed.get(key, 0) + lost[key])
+            for key in sorted(lost, key=str)],
+    }
+
+
+def data_quality_facts(episodes: list, summaries: list = None,
+                       failed: list = None) -> dict:
     """
     The things that would make the figures above mean less than they say.
 
@@ -513,6 +556,11 @@ def data_quality_facts(episodes: list, summaries: list = None) -> dict:
             axis: routing_differs_across_contrast(episodes, axis)
             for axis in CONTRASTED_AXES
         },
+        # Attempted-but-lost episodes, which are in no denominator anywhere
+        # else in this document. Defaulted rather than required so that the
+        # callers reading a corpus without them keep working; an empty list
+        # reports zero losses, which is the true answer for such a corpus.
+        "attrition": attrition_facts(episodes, failed or []),
     }
 
 

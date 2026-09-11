@@ -37,7 +37,7 @@ from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                          EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
                          NO_EXCLUSION, exclude_arm, exclude_aware_episodes)
 from .loading import (act_arm_rows, awareness_arm_rows, load_episodes,
-                      load_summaries)
+                      load_failed_episodes, load_summaries)
 from .pooling import _crude_vs_stratified, _models
 from .questions_arms import (POOLED_FROM_REBUILT_ARM_ROWS,
                              POOLED_FROM_SUMMARIES,
@@ -161,21 +161,42 @@ def _collapsed_by_exclusion(section: dict, axis: str) -> str:
             f"to compare it against")
 
 
+def _narrowed_corpus(output_dir: str, exclusion: str,
+                     awareness_exclusion: str) -> tuple:
+    """
+    Everything the directory holds, narrowed by both readings before use.
+
+    THE NARROWING HAPPENS BEFORE ANYTHING READS ANY LIST. All three sources
+    are narrowed by the same predicate in one call - see exclude_arm - because
+    questions 1-4 are answered from the summaries and 5-12 from the episodes,
+    and an exclusion that reached only one of those would produce a report
+    whose halves describe different corpora while every number in it still
+    rendered.
+
+    The failed episodes go through exclude_arm too, which is why they are
+    passed to it in the episode position of a second call rather than being
+    filtered here: a report that excluded the no-oversight arm and then
+    counted that arm's API losses against the surviving one would be making
+    exactly the split-corpus claim the paragraph above exists to prevent, and
+    a second copy of the predicate is a second thing to keep in step.
+    """
+    summaries, episodes, arm_exclusion = exclude_arm(
+        load_summaries(output_dir), load_episodes(output_dir), exclusion)
+    _, failed, _ = exclude_arm([], load_failed_episodes(output_dir), exclusion)
+    # And then the awareness reading, which narrows the EPISODES ONLY - see
+    # exclude_aware_episodes for why there is no summary-side counterpart. The
+    # failed episodes have no awareness verdict to read, so they are outside
+    # that reading rather than exempted from it.
+    episodes, awareness_stamp = exclude_aware_episodes(
+        episodes, awareness_exclusion)
+    return summaries, episodes, failed, arm_exclusion, awareness_stamp
+
+
 def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
                  awareness_exclusion: str = NO_AWARENESS_EXCLUSION) -> dict:
-    summaries = load_summaries(output_dir)
-    episodes = load_episodes(output_dir)
-    # BEFORE anything reads either list. Both sources are narrowed by the same
-    # predicate in one call - see exclude_arm - because questions 1-4 are
-    # answered from the summaries and 5-12 from the episodes, and an exclusion
-    # that reached only one of those would produce a report whose halves
-    # describe different corpora while every number in it still rendered.
-    summaries, episodes, arm_exclusion = exclude_arm(
-        summaries, episodes, exclusion)
-    # And then the awareness reading, which narrows the EPISODES ONLY - see
-    # exclude_aware_episodes for why there is no summary-side counterpart.
-    episodes, awareness_exclusion_stamp = exclude_aware_episodes(
-        episodes, awareness_exclusion)
+    (summaries, episodes, failed, arm_exclusion,
+     awareness_exclusion_stamp) = _narrowed_corpus(
+         output_dir, exclusion, awareness_exclusion)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
     # summary field holds. Questions 2 and 4 take the headline measure from the
     # summaries as before and this alongside it; see _text_reachable_block.
@@ -319,7 +340,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # corpus - a document describing two different populations in one
         # header line, with nothing saying so.
         "n_models": len(_models(aware_source)),
-        "data_quality": data_quality_facts(episodes, summaries),
+        "data_quality": data_quality_facts(episodes, summaries,
+                                          failed),
         # Conduct rather than rates, and deliberately NOT in
         # `questions`: these are descriptive profiles, and the
         # question machinery would attach effect estimates to them.

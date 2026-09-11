@@ -806,10 +806,61 @@ def _print_provider_contradiction(rows: list, count_key: str, headline: str,
               f"call came back - {footnote}")
 
 
+def _print_duplicate_arms(dupes: list) -> None:
+    """One arm's episodes spread over more than one batch, pooled here."""
+    print(f"  arms represented by more than one batch (POOLED here): "
+          f"{len(dupes)}")
+    for d in dupes:
+        print(f"    ! {d['model']} nudge={d['nudge']} oversight={d['oversight']} "
+              f"lure={d['lure']}: {d['n_batches']} batches pooled to "
+              f"n={d['pooled_n_runs']}")
+        for b in d["batches"]:
+            print(f"        n_runs={b['n_runs']:<4} {b['file']}")
+    if dupes:
+        print("      If a batch above was re-run to REPLACE an earlier partial "
+              "one, both are being counted. Move or delete the superseded "
+              "batch; pooling also mixes collection conditions the run files "
+              "record separately (openrouter_provider/openrouter_sort).")
+
+
+def _print_attrition(attrition: dict) -> None:
+    """
+    What was attempted, against what reached a denominator.
+
+    FIRST IN THE SECTION, and printed with its zero, because it is the only
+    line that says what population everything above was computed over. Every
+    other check here qualifies a number; this one says how many episodes
+    there were to make numbers out of.
+    """
+    if not attrition:
+        return
+    lost = attrition["n_lost_to_errors"]
+    print(f"  episodes attempted: {attrition['n_attempted']} - "
+          f"{attrition['n_analysed']} analysed, {lost} lost to errors")
+    if not lost:
+        return
+    early = attrition["n_lost_before_any_turn_completed"]
+    classes = ", ".join(f"{k}={v}" for k, v in
+                        sorted(attrition["error_classes"].items()))
+    print(f"    ! {lost} attempted episode(s) never produced an analysis "
+          f"({classes}). They are in no denominator in this document.")
+    print(f"      {early} died before completing a turn, which costs an "
+          f"attempt and nothing else; the other {lost - early} died mid-"
+          f"episode, and what those would have done is unknown.")
+    for arm in attrition["arms_with_losses"]:
+        print(f"      {arm['model']} nudge={arm['nudge']} "
+              f"oversight={arm['oversight']} lure={arm['lure']}: "
+              f"{arm['n_analysed']}/{arm['n_attempted']} analysed")
+    print("      Losses concentrated in ONE arm bias the contrast it sits in; "
+          "losses spread evenly only cost power. Re-collect the arms above "
+          "to their intended n rather than quoting the short ones.")
+
+
 def _print_data_quality(dq: dict) -> None:
     print(f"\n{'=' * 78}")
     print("DATA QUALITY (read this before quoting anything above)")
     print(f"{'=' * 78}")
+    _print_attrition(dq.get("attrition") or {})
     sources = ", ".join(f"{k}={v}" for k, v in sorted(dq["awareness_verdict_sources"].items()))
     print(f"  awareness verdict sources: {sources or 'none'}")
     if not dq["awareness_all_from_grader"]:
@@ -841,19 +892,7 @@ def _print_data_quality(dq: dict) -> None:
         print(f"    ! {dq['n_sandbox_escape_field_absent']} episode(s) have no "
               f"sandbox_escape_attempts field at all; they count as no-attempt "
               f"in question 7.")
-    dupes = dq["duplicate_arms"]
-    print(f"  arms represented by more than one batch (POOLED here): {len(dupes)}")
-    for d in dupes:
-        print(f"    ! {d['model']} nudge={d['nudge']} oversight={d['oversight']} "
-              f"lure={d['lure']}: {d['n_batches']} batches pooled to "
-              f"n={d['pooled_n_runs']}")
-        for b in d["batches"]:
-            print(f"        n_runs={b['n_runs']:<4} {b['file']}")
-    if dupes:
-        print("      If a batch above was re-run to REPLACE an earlier partial "
-              "one, both are being counted. Move or delete the superseded "
-              "batch; pooling also mixes collection conditions the run files "
-              "record separately (openrouter_provider/openrouter_sort).")
+    _print_duplicate_arms(dq["duplicate_arms"])
     mixed_routing = dq.get("mixed_routing_arms") or []
     print(f"  arms whose episodes were not all routed the same way: "
           f"{len(mixed_routing)}")

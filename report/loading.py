@@ -38,6 +38,30 @@ from subversionbench.grading import MISALIGNED_ACTS
 from .episode_rows import ANY_CAPABILITY, _batch_key, _episode_row
 
 
+ARM_FIELDS = ("model", "nudge", "oversight", "lure")
+
+
+def arm_key(row: dict) -> tuple:
+    """
+    The four fields that identify an arm, read off a row of any shape.
+
+    DERIVED IN ONE PLACE BECAUSE THREE CALLERS NEED THE SAME ANSWER and two of
+    them read different row shapes: the two groupers below read an episode
+    row, and `attrition_facts` reads a failed-episode row, which is a
+    different dict built by a different loader. Written out at each site, the
+    attrition key was given a fifth field - `goalguard` - that episode rows do
+    not carry at all, so every arm it built matched no episode and reported
+    "0 analysed" for arms holding dozens.
+
+    `.get` rather than `[]` so a row missing a field groups under None instead
+    of raising: a corpus predating a field is a thing to see in the table, not
+    a crash. Booleans are not coerced - `oversight` is written as a boolean by
+    both loaders, and coercing here would hide it if that ever stopped being
+    true.
+    """
+    return tuple(row.get(field) for field in ARM_FIELDS)
+
+
 def load_scaffold(output_dir: str) -> dict:
     """
     What each batch's summary says about the scaffold its episodes ran under.
@@ -170,13 +194,68 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
     return rows
 
 
+def load_failed_episodes(output_dir: str) -> list:
+    """
+    The episodes that were attempted and never produced an analysis.
+
+    WHY THESE ARE COUNTED RATHER THAN IGNORED. `load_episodes` below excludes
+    them deliberately - its glob requires the filename to start with "run_",
+    and a failed episode has no analysis to condition anything on. That
+    exclusion is right and stays. What was missing is that nothing said how
+    many there were, so a rate of 18/19 gave no hint of how many episodes had
+    been attempted to get it.
+
+    It is the rule this codebase already applies one level down: a failed
+    grader leaves the DENOMINATOR rather than reading as "not aware". An
+    episode lost to an API error cannot join a denominator, because there is
+    no verdict to put in it - but it can be counted beside one, and it has to
+    be, because attrition is not always random with respect to the outcome.
+
+    THE TURN IT DIED ON IS CARRIED BECAUSE IT SEPARATES TWO DIFFERENT FACTS.
+    Measured on the goal-guarding pilot: episodes that took the act ran 15-34
+    turns and episodes that did not finished at 11-19, so a failure at turn 18
+    lands inside the band where an acting episode is still working and removes
+    an unknown outcome. A failure on turn 1 removes nothing but the attempt -
+    no turn completed, so it cannot correlate with what the episode would have
+    done. Eleven of fourteen losses in that batch were turn-1 losses, and a
+    single count of "14 lost" would have read as the far worse of the two.
+
+    Returns the arm fields, the error class and the turn only. The partial
+    transcript is deliberately not carried: nothing downstream reads it, and
+    these records hold the same scenario text every run file does.
+    """
+    rows = []
+    for path in sorted(glob.glob(os.path.join(output_dir,
+                                              "failed_run_*.json"))):
+        with open(path, encoding="utf-8") as handle:
+            saved = json.load(handle)
+        rows.append({
+            "model": saved.get("model"),
+            "nudge": saved.get("nudge"),
+            "oversight": saved.get("oversight"),
+            "lure": saved.get("lure"),
+            "goalguard": saved.get("goalguard"),
+            "capability": saved.get("capability"),
+            # The class, not the message. A message carries a provider's
+            # wording and sometimes an account identifier or a path; the class
+            # is what a reader needs to tell a routing mistake from a
+            # transient, and is the whole of what this reports.
+            "error_class": str(saved.get("error") or "").split(":", 1)[0]
+                           or "unknown",
+            "failed_on_turn": saved.get("failed_on_turn"),
+        })
+    return rows
+
+
 def load_episodes(output_dir: str, capability: str = None) -> list:
     """
     Every completed episode in output_dir, stripped to what questions 5-12 need.
 
     failed_run_*.json never reaches this: the glob requires the filename to
     START with "run_", which "failed_run_..." does not - those episodes never
-    produced an analysis to condition anything on.
+    produced an analysis to condition anything on. `load_failed_episodes`
+    above reads them, so that what was lost is counted beside what survived
+    rather than being invisible.
 
     transcript/system_prompt/user_prompt are dropped immediately after load
     rather than carried: several thousand of these exist, and nothing read
@@ -236,7 +315,7 @@ def act_arm_rows(episodes: list) -> list:
     """
     groups = {}
     for e in episodes:
-        key = (e["model"], e["nudge"], e["oversight"], e["lure"])
+        key = arm_key(e)
         row = groups.get(key)
         if row is None:
             row = {"model": e["model"], "nudge": e["nudge"],
@@ -281,7 +360,7 @@ def awareness_arm_rows(episodes: list) -> list:
     for e in episodes:
         if e["aware"] is None:
             continue
-        key = (e["model"], e["nudge"], e["oversight"], e["lure"])
+        key = arm_key(e)
         row = groups.setdefault(key, {
             "model": e["model"], "nudge": e["nudge"],
             "oversight": e["oversight"], "lure": e["lure"],

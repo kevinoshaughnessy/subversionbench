@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v174
+
+**Count the episodes that were attempted and never analysed.** `load_episodes`
+reads `run_*.json` and a failed episode is saved as `failed_run_*.json`, so it
+was excluded from every denominator - correctly, since it has no verdict to put
+in one - and also from every count, so nothing in the report said a single
+episode had been lost. New `load_failed_episodes` reads them, and
+`attrition_facts` reports attempted against analysed, in total and per arm,
+inside the data-quality section.
+
+It is the rule already applied one level down: a failed grader leaves the
+denominator rather than reading as "not aware". An episode lost to an API error
+cannot join a denominator either, but it can be counted beside one, and it has
+to be, because attrition is not always random with respect to the outcome.
+
+The turn the episode died on is reported apart from the total, because the two
+carry different consequences and one number reads as the worse of them. An
+episode that died before completing a turn made no tool call, so nothing it
+would have done is missing - it cost an attempt. An episode that died mid-run
+was still working and its outcome is unknown. Turn 1 is the only threshold here
+that is not a judgement call, which is why it is the only one drawn; the rest
+of the distribution is reported as it stands.
+
+Only the arms that lost something are listed. An entry per arm would be a table
+of zeroes on every healthy batch, which is the shape of caveat a reader stops
+looking at.
+
+**Post-mortem of a defect fixed before it shipped.** The first version of
+`attrition_facts` built its own arm key with a fifth field, `goalguard`, which
+a failed episode records and an episode row does not carry at all. Every arm it
+produced therefore matched no episode, and on a pilot corpus the table read
+"0 of 6 analysed" for an arm holding 19 analysed episodes - a catastrophe on
+the page and a healthy corpus underneath. The fix is not a corrected list of
+four field names, which would be the same defect spelled differently: `arm_key`
+in `report/loading.py` is now the single definition of what an arm is, used by
+both arm groupers and by the attrition table, so a table qualifying a set of
+rates is keyed the way those rates are keyed or it is describing a different
+partition of the corpus than the reader is holding.
+
+**Two functions were extracted so their callers could shrink.** Both
+`build_report` and `_print_data_quality` are over the function-length ratchet
+and may only get smaller, so `_narrowed_corpus` and `_print_duplicate_arms`
+take out divisions the code already carried as section comments; both callers
+end shorter than they began.
+
+Failed episodes are narrowed by `exclude_arm` alongside the summaries and the
+episodes rather than filtered separately - a report that excluded one arm and
+then counted that arm's losses against the surviving one would make exactly the
+split-corpus claim `exclude_arm` exists to prevent.
+
 ## v173
 
 THE SCENARIO IDENTITY MISSED THE SAME DISJUNCTION THE ENVIRONMENT DID.
