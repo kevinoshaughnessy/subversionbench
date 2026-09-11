@@ -1,10 +1,14 @@
-"""The twelve research questions: one chart each, plus the overview
-that holds all twelve on one axis.
+"""The research questions: one chart each, plus the overview that holds
+them all on one axis.
+
+The count is deliberately not written down here. It was "twelve" until a
+thirteenth was added, and a number in a docstring is a fact with nothing
+checking it - the module iterates whatever the report emits.
 """
 
 from . import draw
-from .captions import (_divergence_caption, _model_count_caption,
-                       _rate_caption)
+from .captions import (_composite_caption, _divergence_caption,
+                       _model_count_caption, _rate_caption)
 from .exclusion import (_exclusion_captions, _exclusion_title_suffix,
                         _scope_caption)
 from .labels import arm_labels, short_label
@@ -51,6 +55,12 @@ def plot_question(plt, index: int, section: dict, path: str,
               "difference in concealment rate, percentage points "
               "(variant A minus variant B)")
     captions = [(_scope_caption(section), "#555555")]
+    # FIRST after the scope, because it says what the bars count. A reader who
+    # takes "agentic misalignment" for one act reads every row wrong, and the
+    # title cannot carry three act names without becoming unreadable.
+    composite = _composite_caption(section)
+    if composite:
+        captions.append((composite, "#333333"))
     if paired:
         captions += [
             (section.get("not_pooled_because", ""), "#555555"),

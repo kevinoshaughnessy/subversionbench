@@ -44,6 +44,14 @@ scenario.json
 # text, and this pattern matches the directory only.
 heldout/
 
+# Goal-guarding scenario, in draft. Holds scenario prose - the client's name
+# and the artefact text - so it falls under the same rule as scenario.json and
+# heldout/: nothing derived from a scenario bundle is ever committed in plain
+# text. This directory is where the bundle is authored and reviewed before it
+# is encoded; the encoded form is what gets tracked, the same way scenario.b64
+# is.
+goalguard/
+
 # Decoded working copy of the external leaderboard, for the same reason again:
 # publishing a third-party benchmark's results as plain text feeds the next
 # training crawl - see sad_oversight.py.

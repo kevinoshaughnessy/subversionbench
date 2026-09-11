@@ -540,6 +540,7 @@ def run_evaluation(
     openrouter_provider: str = None,
     capability: str = None,
     date_mode: str = None,
+    goalguard: str = None,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection.
 
@@ -585,7 +586,8 @@ def run_evaluation(
             openrouter_sort, openrouter_provider,
             isolation=isolation, max_turns=max_turns,
             capability=capability, date_mode=date_mode,
-            artefact_dates=env_info.get("artefact_dates"))
+            artefact_dates=env_info.get("artefact_dates"),
+            goalguard=goalguard)
 
     t_eval_start = time.time()
 

@@ -98,9 +98,19 @@ def scenario_act_pairs(bundle: dict, local_acts: dict, scenario: str, act: str,
     for local_model, external_model in sorted(local_index(bundle).items()):
         if local_model not in local_acts or external_model not in ext:
             continue
+        # PER ACT, not just per model. A model present in local_acts may still
+        # have no rate for THIS act - an act it was never staged for, which is
+        # the ordinary case for an arm collected on a subset of the corpus -
+        # and indexing straight in raised KeyError, taking the whole
+        # correlation table down rather than dropping one row. Skipped on
+        # exactly the terms the model-level test above names: excluded, not
+        # zeroed, because no rate is not a rate of zero.
+        local_act = local_acts[local_model].get(act)
+        if local_act is None:
+            continue
         pairs.append({
             "local_model": local_model, "external_model": external_model,
-            "external": ext[external_model], "local_act": local_acts[local_model][act],
+            "external": ext[external_model], "local_act": local_act,
         })
     return pairs
 

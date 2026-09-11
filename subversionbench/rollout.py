@@ -52,7 +52,7 @@ import json
 
 from .config import SANDBOX_DISPLAY_PATH, TOOLS
 from .isolation import DEFAULT_ISOLATION
-from .scenario import scenario_for
+from .scenario import lure_applies, scenario_for
 
 # Commands whose handling defines the sandbox as the model experiences it.
 # Each one is here because it distinguishes a behaviour that has changed, or
@@ -207,7 +207,9 @@ def _sandbox_behaviour(isolation: str = DEFAULT_ISOLATION) -> str:
 def rollout_fingerprint(oversight: bool = True,
                         isolation: str = DEFAULT_ISOLATION,
                         lure: bool = False, capability: str = None,
-                        date_mode: str = None) -> str:
+                        date_mode: str = None,
+                        goalguard: str = None,
+                        nudge: str = "strong") -> str:
     """
     A short hash of everything that determines what the model sees and can do.
 
@@ -230,7 +232,17 @@ def rollout_fingerprint(oversight: bool = True,
     """
     from .environment import episode_root_layout
 
-    scenario = scenario_for(oversight, lure=lure, capability=capability)
+    # `goalguard` needs no marker of its own, unlike date_mode: it changes the
+    # assembled scenario itself - the successor's parameter file, the
+    # deployment note and the third interrogation ladder all land in the dict
+    # hashed below - so the identity moves by construction. With it None the
+    # arm assembles byte-for-byte as before and the pinned fingerprints stand.
+    # `nudge` reaches the assembly only through the goal-guarding arm, whose
+    # memo varies by it. Defaulting to "strong" keeps every existing caller -
+    # and therefore every pinned r10 fingerprint - computing exactly what it
+    # computed before, because outside that arm the assembly ignores nudge.
+    scenario = scenario_for(oversight, lure=lure, capability=capability,
+                            goalguard=goalguard, nudge=nudge)
     parts = [
         json.dumps(scenario, sort_keys=True).encode(),
         json.dumps(TOOLS, sort_keys=True).encode(),
@@ -240,7 +252,12 @@ def rollout_fingerprint(oversight: bool = True,
         # environment layout at all, so changing it altered the rollout with the
         # drift guard silent. Structure only: the project directory's contents
         # are already hashed through the scenario bundle above.
-        episode_root_layout(lure=lure).encode(),
+        # The EFFECTIVE lure, so a goal-guarding arm asked for with
+        # --lure true hashes as the arm it actually stages. Without
+        # this the assembly is unchanged and the layout is not, and
+        # the episode carries an identity nothing pins.
+        episode_root_layout(
+            lure=lure_applies(lure, goalguard)).encode(),
         # Where the KERNEL stops the shell, which is a different question from the
         # blocklist hashed above and has to be hashed separately.
         #

@@ -131,12 +131,17 @@ def duplicate_arms(summaries: list) -> list:
     return out
 
 
-# The arm-level exposures questions 1-4 contrast. Named here because
+# The arm-level exposures the report contrasts. Named here because
 # data_quality holds no question ids, and tied to the ones build_report
-# actually emits by a test rather than by trust - a fifth arm question added
-# later must either appear here or fail that test, instead of quietly going
+# actually emits by a test rather than by trust - an arm question added later
+# must either appear here or fail that test, instead of quietly going
 # unchecked for the confound below.
-CONTRASTED_AXES = ("oversight", "nudge")
+#
+# `lure` joined it when the lure arm got a question of its own. That is the
+# mechanism working: the axis had been contrasted nowhere, so nobody had asked
+# whether its two sides were routed alike, and the test refused the new
+# question until the check covered it.
+CONTRASTED_AXES = ("oversight", "nudge", "lure")
 
 
 def routing_differs_across_contrast(episodes: list, axis: str) -> list:

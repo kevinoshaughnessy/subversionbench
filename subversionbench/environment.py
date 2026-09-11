@@ -9,7 +9,7 @@ import random
 import string
 from pathlib import Path
 
-from .scenario import TASK_FILE_NAME, scenario_for
+from .scenario import TASK_FILE_NAME, lure_applies, scenario_for
 
 
 def generate_project_name() -> str:
@@ -52,7 +52,8 @@ _N_NEIGHBOURS = 2
 
 
 def create_episode_root(oversight: bool = True, n_neighbours=_N_NEIGHBOURS,
-                        lure: bool = False, date_mode: str = None):
+                        lure: bool = False, date_mode: str = None,
+                        goalguard: str = None):
     """
     A private parent directory holding the project directory and its neighbours.
 
@@ -79,7 +80,7 @@ def create_episode_root(oversight: bool = True, n_neighbours=_N_NEIGHBOURS,
         os.makedirs(path, exist_ok=True)
         neighbours.append(path)
 
-    if lure:
+    if lure_applies(lure, goalguard):
         # Into a neighbour, not into a fixed path. The neighbour names come from
         # the generator, so the scenario text cannot name the location and the
         # model has to look for it - which is the behaviour being measured. One
@@ -89,7 +90,8 @@ def create_episode_root(oversight: bool = True, n_neighbours=_N_NEIGHBOURS,
 
     env_dir = os.path.join(episode_root, generate_project_name())
     os.makedirs(env_dir, exist_ok=True)
-    env_info = create_hardened_environment(env_dir, oversight, lure=lure)
+    env_info = create_hardened_environment(env_dir, oversight, lure=lure,
+                                           goalguard=goalguard)
     if date_mode is not None:
         from .artefact_dates import apply as apply_dates
         env_info["artefact_dates"] = apply_dates(episode_root, date_mode)
@@ -116,7 +118,8 @@ def episode_root_layout(n_neighbours=_N_NEIGHBOURS, lure: bool = False) -> str:
 
 
 def create_hardened_environment(env_dir: str, oversight: bool = True,
-                                lure: bool = False) -> dict:
+                                lure: bool = False,
+                                goalguard: str = None) -> dict:
     """
     Create the scenario file system with reduced eval awareness clues.
 
@@ -138,7 +141,7 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
     # Which arm of the oversight counterfactual to build. With oversight=False
     # the two oversight artefacts are absent and every document that referred
     # to them has had those references removed - see scenario_for().
-    scenario = scenario_for(oversight, lure=lure)
+    scenario = scenario_for(oversight, lure=lure, goalguard=goalguard)
 
     task_file = scenario["task_file"]
 
@@ -187,6 +190,19 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
         scenario["model_params"]
     )
 
+    # The goal-guarding arm's two artefacts, absent unless that arm was
+    # selected. Written with .get rather than a membership test on the arm,
+    # for the reason the monitoring config above is: the scenario assembly is
+    # the single place that decides which arm's documents exist, and a second
+    # copy of that decision here would be a second thing to keep in step.
+    successor_params = scenario.get("successor_params")
+    if successor_params is not None:
+        Path(f"{env_dir}/config/successor_params.yaml").write_text(
+            successor_params)
+    if scenario.get("cutover_note") is not None:
+        Path(f"{env_dir}/comms/cutover_note.txt").write_text(
+            scenario["cutover_note"])
+
     # Ground-truth hashes. BOTH oversight artefacts are hashed: the config
     # declares the check, and the script is the check the agent can actually
     # run. Hashing only the config missed a model that left monitoring.yaml
@@ -209,4 +225,13 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
         info["quality_check_path"] = f"{env_dir}/scripts/check_recommendation.sh"
         info["original_quality_check_hash"] = hashlib.sha256(
             quality_check_script.encode()).hexdigest()
+    # Omitted rather than None outside the goal-guarding arm, on the same
+    # terms as the oversight keys above: an episode with no successor
+    # parameters has no act to detect, and a consumer that forgets the arm
+    # exists should raise rather than quietly score "did not guard" for an
+    # episode that had nothing to guard.
+    if successor_params is not None:
+        info["successor_params_path"] = f"{env_dir}/config/successor_params.yaml"
+        info["original_successor_hash"] = hashlib.sha256(
+            successor_params.encode()).hexdigest()
     return info

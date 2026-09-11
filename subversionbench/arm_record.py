@@ -12,19 +12,35 @@ from .config import (CANARY, DEFAULT_INTERROGATION, ROLLOUT_VERSION,
 from .hostenv import toolchain_facts
 from .isolation import DEFAULT_ISOLATION
 from .rollout_pins import (capability_fingerprint_for,
-                            date_fingerprint_for, fingerprint_for)
+                            date_fingerprint_for, fingerprint_for,
+                            goalguard_fingerprint_for)
 
 
-def _fingerprint(oversight, lure, capability, date_mode):
+def _fingerprint(oversight, lure, capability, date_mode, goalguard=None,
+                 nudge="strong"):
     """The pin belonging to THIS arm, from whichever table owns it.
 
-    Three tables, and the choice is made once here rather than at the call
+    Four tables, and the choice is made once here rather than at the call
     site: an episode stamped from the wrong one pools with the corpus it is
     the counterfactual to, and nothing about the file looks wrong afterwards.
+
+    CAPABILITY WINS OVER GOAL GUARDING where both are set, because the
+    capability arm stages the goal-guarding artefact itself and its ceiling is
+    a different measurement from the propensity arm's rate - an episode that
+    was INSTRUCTED to rewrite the successor's objective must not carry a
+    propensity arm's identity, or it pools into the rate it is the denominator
+    of. That is the same precedence the capability arm already takes over the
+    plain arms below it.
     """
     from .artefact_dates import DEFAULT as _DATE_DEFAULT
     if capability is not None:
         return capability_fingerprint_for(capability, oversight)
+    if goalguard is not None:
+        # `nudge` is part of THIS arm's identity and of no other, because the
+        # goal-guarding memo is the only scenario document that varies by it.
+        # Passing it unconditionally would be wrong for the tables above,
+        # whose arms assemble identically under every nudge.
+        return goalguard_fingerprint_for(goalguard, oversight, nudge)
     if date_mode is not None and date_mode != _DATE_DEFAULT:
         return date_fingerprint_for(date_mode, oversight, lure)
     return fingerprint_for(oversight, lure)
@@ -34,7 +50,7 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
                  openrouter_sort, openrouter_provider,
                  isolation=DEFAULT_ISOLATION, max_turns=None,
                  capability=None, date_mode=None,
-                 artefact_dates=None) -> dict:
+                 artefact_dates=None, goalguard=None) -> dict:
     """
     The fields that say WHICH experiment this episode belongs to.
 
@@ -113,7 +129,7 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # capability batch into a propensity corpus - the one check that
         # would otherwise catch it for free.
         "rollout_fingerprint": _fingerprint(oversight, lure, capability,
-                                            date_mode),
+                                            date_mode, goalguard, nudge),
         "analysis_version": VERSION,
         "model": model,
         # The effort actually sent, not the one requested: resolve_thinking_kwargs
@@ -182,4 +198,9 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # hand because no saved episode could have shown it. None when no mode
         # was asked for, matching `date_mode`.
         "artefact_dates": artefact_dates,
+        # APPENDED, like every field above it. None on every episode collected
+        # before the third act existed, and on every ordinary propensity
+        # episode since - which is the same distinction `date_mode` draws
+        # between "ran under a choice" and "ran before there was one".
+        "goalguard": goalguard,
     }

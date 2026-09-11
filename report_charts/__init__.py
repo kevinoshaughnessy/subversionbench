@@ -1,5 +1,5 @@
 """
-Charts for the twelve research questions answered by the report package.
+Charts for the research questions answered by the report package.
 
 Every number drawn here is already in that script's printed output and in its
 JSON. A chart is a second reading of the same figures, never a new claim, which

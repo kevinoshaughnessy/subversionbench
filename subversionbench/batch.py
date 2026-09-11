@@ -34,6 +34,13 @@ NO_OVERSIGHT_TAG = "nooversight"
 # it with two segments to peel where one has meaning.
 CAPABILITY_TAG = "capability"
 
+# The goal-guarding arm's mark. Its own tag rather than a reuse of the
+# capability one for the reason that one exists: a goal-guarding episode
+# is a PROPENSITY episode - the act is available, not instructed - so it
+# belongs in a misalignment rate, and a shared tag would have the loaders
+# drop it from the rates it is collected for.
+GOALGUARD_TAG = "goalguard"
+
 # The artefact-date arm's mark, hyphenated for the reason above: the suffix
 # stripper peels `_`-separated segments, and `_dates_consistent` would give it
 # two segments where one has meaning.
@@ -102,13 +109,19 @@ class BatchIdentity:
     # reason `capability` is: two date modes of the same model, nudge and arm
     # are two conditions whose summaries must not land on one filename.
     date_mode: str = None
+    # None on every batch collected before the goal-guarding act existed and
+    # on every ordinary propensity batch since. Part of the identity for the
+    # reason `capability` is: two goal-guarding arms of the same model, nudge
+    # and oversight arm are two conditions whose summaries must not land on
+    # one filename.
+    goalguard: str = None
 
     @property
     def stem(self) -> str:
         """The middle of every filename belonging to this batch."""
         return batch_stem(self.model_slug, self.nudge, self.effort,
                           self.oversight, self.lure, self.capability,
-                          self.date_mode)
+                          self.date_mode, self.goalguard)
 
     def filename(self, output_dir: str, prefix: str = "summary") -> str:
         """
@@ -136,6 +149,7 @@ class BatchIdentity:
         return cls(model=args.model, model_slug=model_slug, nudge=args.nudge,
                    effort=effort, oversight=args.oversight, lure=args.lure,
                    stamp=stamp, capability=getattr(args, "capability", None),
+                   goalguard=getattr(args, "goalguard", None),
                    date_mode=getattr(args, "date_mode", None))
 
 
@@ -201,7 +215,8 @@ class BatchSelection:
 
 def batch_stem(model_slug: str, nudge: str, effort=None,
                oversight: bool = True, lure: bool = False,
-               capability: str = None, date_mode: str = None) -> str:
+               capability: str = None, date_mode: str = None,
+               goalguard: str = None) -> str:
     """
     The middle of every filename belonging to one batch.
 
@@ -235,6 +250,12 @@ def batch_stem(model_slug: str, nudge: str, effort=None,
     dated = date_mode and date_mode != _DATE_DEFAULT
     return (f"{model_slug}_{nudge}"
             + (f"_{CAPABILITY_TAG}-{capability}" if capability else "")
+            # Marked only when the arm is on, like every optional segment
+            # above, so a batch already on disk keeps the name it has. Placed
+            # after the capability mark and before the oversight one so the
+            # ordering of the optional suffixes stays the order they were
+            # authored in - which is what lets the parser peel them.
+            + (f"_{GOALGUARD_TAG}-{goalguard}" if goalguard else "")
             + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
             + ("_lure" if lure else "")
             + (f"_{DATE_TAG}-{date_mode}" if dated else "")
@@ -307,6 +328,14 @@ def parse_batch_filename(path: str, nudge: str):
         if dated:
             name = name[:dated.start()]
             continue
+        # CONSUMED, NOT RETURNED, for the reason the date segment above is:
+        # this return has five values and ten callers unpack exactly five.
+        # goalguard_from_filename below is how a caller that needs the arm
+        # asks for it. Stripped here so the marks to its LEFT keep parsing.
+        guarded = re.search(rf"_{GOALGUARD_TAG}-([^_]+)$", name)
+        if guarded:
+            name = name[:guarded.start()]
+            continue
         if not name.endswith(f"_{nudge}"):
             for level in EFFORT_LEVELS:
                 if name.endswith(f"_{level}"):
@@ -319,6 +348,24 @@ def parse_batch_filename(path: str, nudge: str):
         break
 
     return effort, stamp, oversight, lure, capability
+
+
+def goalguard_from_filename(path: str):
+    """The goal-guarding arm a filename names, or None when it names none.
+
+    Separate from parse_batch_filename for the reason date_mode_from_filename
+    is: that return grew once and broke every caller's unpack.
+
+    Matched by prefix on the segment rather than against GOALGUARD_ARMS, on
+    the same argument the capability tag makes above - an arm authored later
+    must be readable off a filename written today, and falling back to None
+    for an unrecognised one would report a goal-guarding batch as a plain
+    propensity batch, which is the one reading this tag exists to prevent.
+    """
+    name = os.path.basename(path)
+    name = name[:-len(".json")] if name.endswith(".json") else name
+    marked = re.search(rf"_{GOALGUARD_TAG}-([^_]+)(?:_|$)", name)
+    return marked.group(1) if marked else None
 
 
 def date_mode_from_filename(path: str):

@@ -1,5 +1,5 @@
 """
-The twelve research-question charts, and the overview that holds all twelve.
+The research-question charts, and the overview that holds them all.
 
 A chart is a second reading of numbers the printed report already carries, so
 the thing worth testing is not that matplotlib drew something: it is that the
@@ -144,7 +144,7 @@ class TestTheArmsAreNamedInWords:
         source = inspect.getsource(run_report.build_report)
         called = [n for n in dir(run_report)
                   if n.startswith("question_") and f"{n}(" in source]
-        assert len(called) == 12
+        assert len(called) == 13
         for name in called:
             # Defined in one of the three question modules, not merely reachable
             # through the package. This was `== "run_report"` while the report
@@ -289,7 +289,7 @@ class TestTheChartsRender:
 class TestTheReportRunsWithAndWithoutCharts:
 
     def _corpus(self, out):
-        """One arm, enough for build_report to produce all twelve sections."""
+        """One arm, enough for build_report to produce every section."""
         for oversight in ("oversight", "nooversight"):
             name = f"summary_strong_{oversight}_nolure_20260101T000000.json"
             with open(os.path.join(out, name), "w") as f:
@@ -320,7 +320,7 @@ class TestTheReportRunsWithAndWithoutCharts:
             assert not os.path.exists(os.path.join(out, "charts"))
             with open(os.path.join(out, "r.json")) as f:
                 report = json.load(f)
-            assert len(report["questions"]) == 12
+            assert len(report["questions"]) == 13
             assert "charts" not in report
 
     def test_the_json_records_the_charts_it_wrote(self, monkeypatch):

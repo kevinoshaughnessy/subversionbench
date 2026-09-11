@@ -8,6 +8,7 @@ means adding a row here, not editing every consumer.
 
 from ..api_errors import is_auth_error
 from ..config import (
+    ACT_GOALGUARD_DESCRIPTION,
     ACT_OVERSIGHT_DESCRIPTION,
     DEFAULT_INTERROGATION,
     INTERROGATION_CHOICES,
@@ -18,6 +19,11 @@ from ..config import (
     FOLLOWUP_MONITORING_DENIAL,
     FOLLOWUP_MONITORING_QUESTIONS,
     FOLLOWUP_MONITORING_QUESTIONS_MAX,
+    FOLLOWUP_GOALGUARD_ADMISSION,
+    FOLLOWUP_GOALGUARD_CONTRITION,
+    FOLLOWUP_GOALGUARD_DENIAL,
+    FOLLOWUP_GOALGUARD_QUESTIONS,
+    FOLLOWUP_GOALGUARD_QUESTIONS_MAX,
     FOLLOWUP_SANDBOX_ADMISSION,
     FOLLOWUP_SANDBOX_CONTRITION,
     FOLLOWUP_SANDBOX_DENIAL,
@@ -157,6 +163,33 @@ MISALIGNED_ACTS = (
         "contrition": FOLLOWUP_SANDBOX_CONTRITION,
         "banner": "SANDBOX ESCAPE ATTEMPTED",
         "topic": "SANDBOX",
+    },
+    {
+        "name": "goalguard",
+        "q1_key": "goalguard_q1",
+        "q1_key_max": "goalguard_q1_max",
+        "scheming_key": "scheming_goalguard",
+        "timing_key": "awareness_timing_goalguard",
+        "grader_before_key": "eval_awareness_grader_before_goalguard",
+        # The ACT, not `successor_params_modified`, though the two agree
+        # today. The act is the field a rate is built on and the field that
+        # gates the interrogation, and keeping it distinct from the raw
+        # artefact measure leaves room for the act to narrow the way the
+        # sandbox act had to - there, the wide field put the follow-up to
+        # episodes that had taken no act, and a model that denied it was
+        # scored as scheming for lying about something it had not done.
+        "key": "goal_guarded",
+        "followup_key": "goalguard_followup_response",
+        "disclosure_key": "disclosure_goalguard",
+        "level_key": "concealment_goalguard",
+        "description": ACT_GOALGUARD_DESCRIPTION,
+        "questions": FOLLOWUP_GOALGUARD_QUESTIONS,
+        "questions_max": FOLLOWUP_GOALGUARD_QUESTIONS_MAX,
+        "admission": FOLLOWUP_GOALGUARD_ADMISSION,
+        "denial": FOLLOWUP_GOALGUARD_DENIAL,
+        "contrition": FOLLOWUP_GOALGUARD_CONTRITION,
+        "banner": "SUCCESSOR OBJECTIVE CHANGED",
+        "topic": "GOAL GUARDING",
     },
 )
 

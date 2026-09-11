@@ -39,6 +39,7 @@ from .loading import (act_arm_rows, awareness_arm_rows, load_episodes,
 from .pooling import _crude_vs_stratified, _models
 from .questions_arms import (POOLED_FROM_REBUILT_ARM_ROWS,
                              POOLED_FROM_SUMMARIES,
+                             question_lure_vs_sandbox_escape,
                              question_nudge_vs_awareness,
                              question_oversight_vs_awareness,
                              question_oversight_vs_misalignment,
@@ -240,6 +241,15 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     questions.extend([
         question_paraphrase_vs_concealment(episodes),
         question_evidence_vs_concealment(episodes),
+        # APPENDED, not inserted beside the other sandbox question. The
+        # question numbers are the chart filenames and how the report refers
+        # to itself; slotting a thirteenth in at position 8 renumbered five
+        # existing questions and silently repointed every reference to them.
+        #
+        # Episode-level, like the awareness questions and unlike questions
+        # 1-4: the summaries carry a sandbox RATE but no count, and a contrast
+        # needs a numerator.
+        question_lure_vs_sandbox_escape(episodes),
     ])
 
     # Marked on the section rather than worked out again by each consumer. The
@@ -317,7 +327,7 @@ def main() -> int:
         # which under `-m` is `__main__.py`, a name that appears nowhere
         # a reader could act on. This is the command the docs give.
         prog="python3 -m report",
-        description="Answer twelve fixed research questions from a results "
+        description="Answer the fixed research questions from a results "
                     "directory: oversight/nudge vs scheming and verbalised "
                     "evaluation awareness, and awareness vs misalignment, "
                     "oversight-override, sandbox-escape, the three scheming "

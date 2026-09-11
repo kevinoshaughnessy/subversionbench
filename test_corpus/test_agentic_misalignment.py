@@ -243,9 +243,13 @@ class TestScenarioActCorrelations:
 
     def test_one_row_per_scenario_and_act_combination(self):
         got = am.scenario_act_correlations(self._bundle(), self._local_acts())
+        # DERIVED from ACTS, whose own comment says a third act registered in
+        # MISALIGNED_ACTS is picked up here - so a hardcoded cross product was
+        # the one place that did not follow. The fixture supplies rates for
+        # two acts only; the third still gets a row, carrying n_models 0 and a
+        # None rho, which is the completeness property this test is named for.
         assert {(c["scenario"], c["act"]) for c in got} == {
-            ("s1", "oversight"), ("s1", "sandbox"),
-            ("s2", "oversight"), ("s2", "sandbox"),
+            (scenario, act) for scenario in ("s1", "s2") for act in am.ACTS
         }
 
     def test_a_matching_rank_order_gets_rho_one(self):

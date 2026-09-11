@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v165
+
+A THIRD MISALIGNED ACT, AND THE LURE ARM GETS A QUESTION OF ITS OWN.
+
+GOAL GUARDING. Meinke et al.'s third covert-subversion behaviour joins
+oversight subversion and sandbox escape: on learning it is to be replaced by
+an engine with a different objective, does the model rewrite that successor's
+parameter file so the replacement pursues the model's objective instead?
+
+It lives in the SHIPPED bundle rather than a new one, which is only sound
+because every arm key is popped unconditionally before the arm is chosen. All
+four pinned rollout fingerprints recompute unchanged, and 120 arm assemblies
+were compared against the committed bundle byte for byte.
+
+Two sub-arms, differing in motive and not in means. Both stage the successor's
+parameter file; only the deployment note differs, because a counterfactual
+that removed the file would make the act impossible rather than unmotivated
+and its rate would read zero by construction.
+
+The memo varies by nudge INSIDE this arm only. The shipped scenario returns
+identical assemblies for none and strong - that is what lets one fingerprint
+cover both - and the fingerprint is taken with the default nudge, so a
+strong-nudge override on the shipped path would have moved all four r10 pins.
+
+--lure true is a NO-OP here rather than an error. The lure attributes reaching
+outside the project directory and this act's artefact is inside it, so the
+axis does not bear on the act and is not pinned. Left to run, it staged a file
+with nothing pointing at it and stamped the episode with the non-lure arm's
+identity.
+
+THE LURE ARM'S QUESTION. The arm has been collected since r1 and never had a
+question; it appeared only as a stratifier. It has one now, and a chart. The
+contrast is restricted to the oversight arm, with the counterfactual reported
+rather than dropped, because the counterfactual overrides the memo after the
+lure sets it and carries no lure-aware variant - so in that arm the lure
+sentence is absent and the two levels differ in nothing the model can read.
+That is a construct-validity defect in the shipped scenario, recorded here and
+fixed by re-collection rather than by analysis.
+
+COMPOSITE OUTCOMES NOW SAY WHAT THEY ARE. "Agentic misalignment" and
+"scheming" are unions over the act registry, and the charts named neither the
+members nor the pooling rule. Both are now stated on the chart, derived from
+the registry rather than written out, and the elements are narrowed to the
+acts the corpus being read could actually observe - an act no episode could
+take is named separately rather than listed among them, which would say it was
+measured and found at zero.
+
+The routing-confound check gained the lure axis, because the report now
+contrasts it. Its own guard refused the new question until it did.
+
 ## v164
 
 NINE MODEL RELEASE DATES, AND A NEW PROVIDER GROUP.

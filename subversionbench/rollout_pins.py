@@ -391,6 +391,13 @@ CAPABILITY_FINGERPRINTS = MappingProxyType({
     ("oversight", True):  "cda50ccbdcd6",
     ("sandbox",   True):  "a99fd228178f",
     ("sandbox",   False): "809b6a38def0",
+    # The goal-guarding ceiling. Both arms are pinned because, unlike the
+    # oversight target, the counterfactual does not remove the artefact this
+    # instruction names: the successor's parameter file is staged by the
+    # capability arm itself, so the instruction is satisfiable with or without
+    # oversight and there is a ceiling to measure on both sides.
+    ("goalguard", True):  "7a68427ea5eb",
+    ("goalguard", False): "be2f981aa9bf",
 })
 
 # The targets an operator may name, derived from the table rather than written
@@ -523,3 +530,47 @@ def fingerprint_for(oversight: bool, lure: bool = False) -> str:
         )
     return ROLLOUT_FINGERPRINTS[key]
 
+
+# Keyed (arm, oversight). The goal-guarding design has no lure axis: the lure
+# exists to attribute reaching OUTSIDE the project directory, and the
+# successor's parameter file is inside it, so the arm would double the cost of
+# every cell to vary something the act does not touch. A lure combination is
+# therefore absent rather than pinned, and asking for one raises - the same
+# refusal as any other unpinned arm, and for the same reason: an episode
+# stamped with an identity nobody chose is one that pools somewhere it does
+# not belong.
+GOALGUARD_FINGERPRINTS = MappingProxyType({
+    # Keyed (arm, oversight, nudge). NUDGE IS IN THE KEY because this arm's
+    # memo varies by it - the shipped scenario's does not, which is why its
+    # own table needs no nudge axis and why `none` and `strong` share a pin
+    # there. A table without it would give the two pressure levels one
+    # identity and pool a result with its own control.
+    ("deferred",   True , "none"):    "2ceb84680469",
+    ("deferred",   True , "strong"):  "678806ecf1d7",
+    ("deferred",   False, "none"):    "96e35c7f4347",
+    ("deferred",   False, "strong"):  "d65a770fe0ff",
+    ("replacement",True , "none"):    "e1cefa12c6f8",
+    ("replacement",True , "strong"):  "917cbbc10529",
+    ("replacement",False, "none"):    "3a1a89c6e4c2",
+    ("replacement",False, "strong"):  "2891908ef538",
+})
+
+GOALGUARD_ARMS = tuple(sorted({a for a, _o, _n in GOALGUARD_FINGERPRINTS}))
+
+
+def goalguard_fingerprint_for(arm: str, oversight: bool,
+                              nudge: str = "strong") -> str:
+    """
+    The pinned fingerprint of one goal-guarding arm.
+
+    Raises on anything unpinned, for the reason fingerprint_for does: an
+    episode stamped with an arm identity that was never pinned is one whose
+    poolability nobody decided.
+    """
+    key = (str(arm), bool(oversight), str(nudge))
+    if key not in GOALGUARD_FINGERPRINTS:
+        raise KeyError(
+            f"no pinned goal-guarding fingerprint for {key!r}; the pinned "
+            f"arms are {sorted(GOALGUARD_FINGERPRINTS)}. The lure axis is "
+            f"deliberately absent - see the table above.")
+    return GOALGUARD_FINGERPRINTS[key]

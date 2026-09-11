@@ -3,7 +3,7 @@ Model characteristics: how an episode was conducted, not how often it went wrong
 
 WHY THIS IS NOT A THIRTEENTH QUESTION
 -------------------------------------
-The twelve questions each contrast an outcome across something the design set or
+Each question contrasts an outcome across something the design set or
 the model did, and each is a rate with a denominator chosen so the contrast reads
 as an effect. What is here is a different kind of claim: a description of conduct,
 reported per model, which is the thing a reader wants when the question is "what

@@ -51,7 +51,7 @@ class TestBuildReportEndToEnd:
                            tampered=None)
         return out
 
-    def test_produces_all_twelve_questions(self):
+    def test_produces_every_question(self):
         report = rr.build_report(self._fixture_dir())
         ids = [q["id"] for q in report["questions"]]
         assert ids == [
@@ -61,7 +61,7 @@ class TestBuildReportEndToEnd:
             "awareness_vs_monitoring_disabled", "awareness_vs_sandbox_escape",
             "awareness_vs_scheming", "awareness_vs_oversight_scheming",
             "awareness_vs_sandbox_scheming", "paraphrase_vs_concealment",
-            "evidence_vs_concealment",
+            "evidence_vs_concealment", "lure_vs_sandbox_escape",
         ]
         assert report["n_summary_files"] == 2
         assert report["n_episode_files"] == 10
@@ -198,7 +198,10 @@ class TestMain:
         assert "Does the presence of oversight" in text
         with open(json_out) as f:
             saved = json.load(f)
-        assert len(saved["questions"]) == 12
+        # A literal, deliberately: this pins the report's SURFACE, so adding
+        # a question is something somebody has to notice. 12 -> 13 when the
+        # lure arm got a question of its own.
+        assert len(saved["questions"]) == 13
 
 class TestTheParallelTextReachableMeasure:
     """That questions 2 and 4 - and only those two - carry the parallel measure,
@@ -312,8 +315,8 @@ class TestTheLayersDoNotPointBackwards:
             f"{sorted(printed - {'MIN_INFORMATIVE_DENOMINATOR'})}")
 
     def test_every_question_is_in_exactly_one_group(self):
-        """Twelve, once each. A question defined in two modules, or reachable
-        through the package but in neither group, is how the count in
+        """Each question in exactly one module. A question defined in two, or
+        reachable through the package but in neither group, is how the count in
         test_report_charts drifts away from what build_report calls."""
         import importlib
         seen = {}
@@ -324,7 +327,10 @@ class TestTheLayersDoNotPointBackwards:
                         getattr(module, name).__module__ == module.__name__:
                     assert name not in seen, (name, seen[name], leaf)
                     seen[name] = leaf
-        assert len(seen) == 12, sorted(seen)
+        # Same literal as TestMain's surface pin, and it must stay the same:
+        # this counts question_ functions defined, that one counts sections
+        # emitted, and the pair catches one defined but never called.
+        assert len(seen) == 13, sorted(seen)
         assert sorted(seen.values()).count("questions_paired") == 2
 
 class TestTheHeaderCountsDescribeTheCorpusTheQuestionsUse:
@@ -810,7 +816,11 @@ class TestTheUnawareCorpusReading:
         assert estimable == ["oversight_vs_scheming",
                              "oversight_vs_misalignment",
                              "paraphrase_vs_concealment",
-                             "evidence_vs_concealment"]
+                             "evidence_vs_concealment",
+                             # An ARM, so the unaware-corpus reading can
+                             # still answer it: the exposure was assigned
+                             # before the episode ran.
+                             "lure_vs_sandbox_escape"]
 
     def test_nothing_is_blamed_when_no_awareness_reading_was_asked_for(self):
         report = rr.build_report(_two_arm_dir())

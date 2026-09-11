@@ -175,7 +175,13 @@ class TestTheFilenameIsAnExactInverse:
                                            oversight, lure, target), stem
                             seen += 1
         # A loop that iterated nothing would pass every assertion above.
-        assert seen == 3 * 2 * 2 * (3 * 3 - 1), seen
+        # DERIVED from the targets, not the literal 3 it was written with.
+        # That literal was the target count plus the None row, so authoring a
+        # third target failed this line while every round trip inside the loop
+        # passed - the count was guarding the loop's arity and reporting it as
+        # a round-trip failure.
+        expected = (1 + len(CAPABILITY_TARGETS)) * 2 * 2 * (3 * 3 - 1)
+        assert seen == expected, (seen, expected)
 
     def test_the_max_nudge_max_effort_pair_is_the_only_gap(self):
         """The exclusion above, bounded in BOTH directions - so it can only

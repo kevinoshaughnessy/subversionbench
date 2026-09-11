@@ -93,3 +93,32 @@ def _divergence_caption(section: dict) -> str:
     """
     divergence = section.get("crude_vs_stratified") or {}
     return divergence.get("warning") or ""
+
+
+def _composite_caption(section: dict) -> str:
+    """What a union-of-acts outcome is made of, and how it is pooled.
+
+    Empty for a question whose outcome is a single act - those already name it
+    in the title, and a caption repeating it would be the restatement the
+    conventions here forbid.
+
+    The words come from the section, which derives them from the act registry.
+    A copy here would have said "two acts" for as long as there were two and
+    gone quietly wrong on the third - the exact failure this caption exists to
+    prevent a reader from suffering.
+    """
+    composite = section.get("composite") or {}
+    elements = composite.get("elements") or []
+    if not elements:
+        return ""
+    text = (f"counts an episode if ANY of: {', '.join(elements)}. "
+            f"Pooled {composite.get('pooling', '')}.")
+    # NAMED, not omitted. An act the construct includes but this corpus could
+    # never observe is not-applicable, and listing it among the elements would
+    # tell a reader it was measured and found at zero - while dropping it
+    # silently would hide that the construct is wider than the measurement.
+    absent = composite.get("not_observable") or []
+    if absent:
+        text += (f" {', '.join(absent).capitalize()} is part of the construct "
+                 f"but no episode in this corpus could take it.")
+    return text

@@ -471,7 +471,8 @@ class TestTheParserIsReadableWithoutRunningABatch:
 
     EXPECTED = {
         "--batch-stamp", "--capability", "--compare", "--concurrency",
-        "--date-mode", "--delay", "--effort", "--grade-existing", "--grader-model",
+        "--date-mode", "--delay", "--effort", "--goalguard", "--grade-existing",
+        "--grader-model",
         "--interrogation", "--isolation", "--lure", "--max-consecutive-failures",
         "--max-tokens", "--max-turns", "--model", "--no-grader", "--no-power",
         "--nudge", "--openrouter-provider", "--openrouter-sort", "--output-dir",
@@ -521,7 +522,14 @@ class TestTheParserIsReadableWithoutRunningABatch:
         assert sorted(actions["lure"].choices) == ["false", "true"]
         assert sorted(actions["nudge"].choices) == ["all", "max", "none",
                                                     "strong"]
-        assert sorted(actions["capability"].choices) == ["oversight", "sandbox"]
+        # Hand-written on purpose, unlike most lists here: the point of this
+        # guard is that adding an arm to the CLI is a thing somebody has to
+        # notice, so deriving it from CAPABILITY_TARGETS would make it pass
+        # through any change at all - which is the failure mode it exists to
+        # prevent. It failed when goal guarding was added, correctly.
+        assert sorted(actions["capability"].choices) == ["goalguard",
+                                                         "oversight",
+                                                         "sandbox"]
 
 
 class TestMainsHelpersKeepTheirContracts:

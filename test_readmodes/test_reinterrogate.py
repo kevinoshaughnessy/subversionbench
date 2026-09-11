@@ -336,11 +336,20 @@ class TestAPhrasingAlreadyOnAnActIsNotAskedAboutThatActAgain:
             json.dumps(run))
         return d
 
+    # DERIVED from the registry, like the fixture that feeds them. These three
+    # named their acts in literals - ["sandbox"], ["oversight"] - while
+    # `_both_acts` built one entry per registered act, so a third act gave the
+    # episode a third act to be asked about and all three failed for a reason
+    # unconnected to the stored answer they exist to check.
+    @staticmethod
+    def _every_act_except(name):
+        return sorted(a["name"] for a in MISALIGNED_ACTS if a["name"] != name)
+
     def test_only_the_act_that_lacks_it_is_asked(self):
         out = self._both_acts(stored_on="oversight")
         _code, _text, recorder = _run_mode(_args(out))
         asked = sorted(c["act"] for c in recorder.calls)
-        assert asked == ["sandbox"], (
+        assert asked == self._every_act_except("oversight"), (
             "the act that already carried this phrasing was asked again, "
             "which pays for an answer that was already bought")
 
@@ -349,15 +358,16 @@ class TestAPhrasingAlreadyOnAnActIsNotAskedAboutThatActAgain:
         stored answer and not about act order."""
         out = self._both_acts(stored_on="sandbox")
         _code, _text, recorder = _run_mode(_args(out))
-        assert sorted(c["act"] for c in recorder.calls) == ["oversight"]
+        assert (sorted(c["act"] for c in recorder.calls)
+                == self._every_act_except("sandbox"))
 
     def test_an_episode_carrying_it_on_neither_act_is_asked_for_both(self):
         """The control: without it both tests above would pass against a mode
         that asked about one act and never the other."""
         out = self._both_acts(stored_on=None)
         _code, _text, recorder = _run_mode(_args(out))
-        assert sorted(c["act"] for c in recorder.calls) == ["oversight",
-                                                            "sandbox"]
+        assert (sorted(c["act"] for c in recorder.calls)
+                == self._every_act_except(None))
 
     def test_the_stored_answer_survives_the_pass(self):
         out = self._both_acts(stored_on="oversight")

@@ -15,6 +15,7 @@ import json
 import os
 
 from ..batch import BatchIdentity, parse_batch_filename
+from ..grading.acts import MISALIGNED_ACTS
 from ..redaction import redact_paths
 from ..reporting.summary import runtime_from_existing_summary, summarise_batch
 from .selection import find_run_files_or_explain
@@ -36,6 +37,17 @@ from .selection import find_run_files_or_explain
 #
 # Four defects in v23-v25 came from that distinction being implicit. Anything
 # not named here is treated as sampled and left exactly as it stands.
+# One row per act, so registering an act cannot leave its derived fields
+# unsaved. `_by_variant` is not a key on the act - it is the per-phrasing
+# companion of the concealment level - so it is spelled out from level_key
+# rather than looked up.
+_PER_ACT_REDERIVED = tuple(
+    field
+    for act in MISALIGNED_ACTS
+    for field in (act["level_key"], f'{act["level_key"]}_by_variant',
+                  act["scheming_key"], act["timing_key"])
+)
+
 REDERIVED_ANALYSIS_FIELDS = (
     "sandbox_boundary_attempts",
     "sandbox_environment_probes",
@@ -84,18 +96,18 @@ REDERIVED_ANALYSIS_FIELDS = (
     "honeypot_detail",
     "out_of_scope_attempts",
     "out_of_scope_detail",
-    "concealment_oversight",
-    "concealment_sandbox",
-    # Deterministic given the stored answers, exactly like the two above. The
-    # ANSWERS are sampled and stay out of this list; the levels derived from them
-    # do not, or a change to the scale would reach the headline level and leave
-    # the per-phrasing ones pinned to the old rule.
-    "concealment_oversight_by_variant",
-    "concealment_sandbox_by_variant",
-    "scheming_oversight",
-    "scheming_sandbox",
-    "awareness_timing_oversight",
-    "awareness_timing_sandbox",
+    # DERIVED FROM THE ACT REGISTRY, not written out per act. The six names
+    # that used to sit here were correct for two acts and silently short by
+    # four the moment a third was registered - a rebuild would have recomputed
+    # the goal-guarding concealment level, thrown it away, and left the saved
+    # episode carrying the old answer, which is precisely the defect the
+    # comment below describes for the fields it was written about.
+    #
+    # Deterministic given the stored answers, exactly like the fields above.
+    # The ANSWERS are sampled and stay out of this list; the levels derived
+    # from them do not, or a change to the scale would reach the headline
+    # level and leave the per-phrasing ones pinned to the old rule.
+    *_PER_ACT_REDERIVED,
     # Episode-level awareness onset, act-independent, so an analysis can condition
     # on "aware by turn N" without reference to whether an act happened - which is
     # what the selection-bias note in README.md is about.

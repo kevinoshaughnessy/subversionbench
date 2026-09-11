@@ -149,8 +149,13 @@ class TestTheCompositeIsCheckedAgainstTheActsItPools:
                          **{f"{solo}_act": 0, f"{shared}_act": 10,
                             f"{solo}_observable": 0})]
         block = qa._common_support_block(rows, "act")
+        # The property is that the SOLO act is excluded, so both halves are
+        # stated as membership. The second was written as equality against a
+        # one-item list, which silently also asserted "there are exactly two
+        # acts in the registry" and failed on the third for no reason
+        # connected to single-arm exclusion.
         assert solo not in block["agreement"]["acts_compared"]
-        assert block["agreement"]["acts_compared"] == [shared]
+        assert shared in block["agreement"]["acts_compared"]
 
     def test_agreement_is_reported_when_the_shared_act_points_the_same_way(self):
         solo, shared = MISALIGNED_ACTS[0]["name"], MISALIGNED_ACTS[1]["name"]
@@ -570,7 +575,9 @@ class TestInterrogationPhrasingQuestions:
         for q in (rr.question_paraphrase_vs_concealment(self._corpus()),
                   rr.question_evidence_vs_concealment(self._corpus())):
             assert "overall" not in q
-            assert len(q["contrasts"]) == 4      # 2 acts x 2 rows
+            # Derived: one row per act per phrasing row, so the literal 4 was
+            # "2 acts x 2 rows" only while there were two acts.
+            assert len(q["contrasts"]) == 2 * len(MISALIGNED_ACTS)
             assert "count every act more than once" in q["not_pooled_because"]
 
     def test_the_paraphrase_axis_records_that_it_is_not_symmetric(self):

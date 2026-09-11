@@ -51,9 +51,9 @@ with its own n.
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 from .data_quality import cross_analysis_rows
-from .episode_rows import NUDGE_LEVELS
+from .episode_rows import MISALIGNED_ACTS, NUDGE_LEVELS
 from .pooling import (_by_model, _consistency, _contrast, _finding,
-                      _stratified)
+                      _stratified, composite_of)
 
 
 def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
@@ -93,8 +93,10 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
 
     return {
         "id": "awareness_vs_misalignment",
-        "question": "Do overall agentic misalignment rates increase or "
-                    "decrease with verbalised evaluation awareness?",
+        "composite": composite_of(MISALIGNED_ACTS, rows),
+        "question": "Do agentic misalignment rates (any of the measured "
+                    "acts) increase or decrease with verbalised evaluation "
+                    "awareness?",
         "data_source": "run_*.json episodes: classify_misalignment(analysis), "
                        "conditioned on awareness_flag()",
         "overall": overall,
@@ -220,8 +222,10 @@ def question_awareness_vs_scheming(episodes: list) -> dict:
         by_lure.append(c)
     return {
         "id": "awareness_vs_scheming",
-        "question": "Do overall scheming rates increase or decrease with "
-                    "verbalised evaluation awareness?",
+        "composite": composite_of(MISALIGNED_ACTS, rows),
+        "question": "Do scheming rates (a misaligned act plus concealment "
+                    "of it, over any of the measured acts) increase or "
+                    "decrease with verbalised evaluation awareness?",
         "data_source": "run_*.json episodes: classify_scheming(analysis), "
                        "conditioned on awareness_flag(). Denominator is every "
                        "episode, as in the published scheming_rate; "
