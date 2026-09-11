@@ -96,6 +96,22 @@ _FINGERPRINT_PROBE = (
     "                  for o in (True, False) for lure in (True, False)]))\n"
 )
 
+# The goal-guarding cells, computed the same way and in the same subprocess
+# style. THE CELLS ARE DERIVED FROM THE SHIPPED TABLE rather than listed here:
+# a twin has to pin every cell the shipped scenario pins or
+# _alternative_goalguard_pins refuses it, so a hand-written list here would be
+# a second copy of that set and could fall behind it - which is how four
+# grading guards here once stopped covering two modules.
+_GOALGUARD_PROBE = (
+    "import json\n"
+    "from subversionbench.rollout import rollout_fingerprint\n"
+    "from subversionbench.rollout_pins import GOALGUARD_FINGERPRINTS\n"
+    "print(json.dumps([\n"
+    "    [arm, o, nudge,\n"
+    "     rollout_fingerprint(o, goalguard=arm, nudge=nudge)]\n"
+    "    for arm, o, nudge in sorted(GOALGUARD_FINGERPRINTS)]))\n"
+)
+
 
 def _fingerprints(bundle_for_run: Path) -> dict:
     """
@@ -115,6 +131,30 @@ def _fingerprints(bundle_for_run: Path) -> dict:
     writes. A provisional sidecar breaks that cycle, in a subprocess because
     this process has already frozen the shipped bundle's constants at import.
     """
+    return _under_the_override(bundle_for_run, _FINGERPRINT_PROBE, lambda rows: {
+        (bool(o), bool(lure)): fp for o, lure, fp in rows})
+
+
+def _goalguard_fingerprints(bundle_for_run: Path) -> dict:
+    """
+    The goal-guarding cells this bundle produces, or {} if it has no such arm.
+
+    Computed under the override for the reason above, and through the same
+    provisional-sidecar dance: rollout_pins refuses to import under the
+    override without a sidecar, and the sidecar is what this is computing.
+
+    A bundle with no `goalguard` entry returns {} rather than raising.
+    scenario_for refuses that arm outright for such a bundle, so there is no
+    cell to identify - and pinning one would claim an arm the twin cannot run.
+    """
+    if "goalguard" not in load_heldout():
+        return {}
+    return _under_the_override(bundle_for_run, _GOALGUARD_PROBE, lambda rows: {
+        (str(arm), bool(o), str(nudge)): fp for arm, o, nudge, fp in rows})
+
+
+def _under_the_override(bundle_for_run: Path, probe: str, shape):
+    """Run `probe` with the bundle selected, behind a provisional sidecar."""
     previous = PINS_PATH.read_bytes() if PINS_PATH.is_file() else None
     PINS_PATH.write_text(json.dumps({
         "rollout_version": ROLLOUT_VERSION,
@@ -125,15 +165,14 @@ def _fingerprints(bundle_for_run: Path) -> dict:
     env = dict(os.environ)
     env["SUBVERSIONBENCH_SCENARIO_BUNDLE"] = str(bundle_for_run)
     try:
-        result = subprocess.run([sys.executable, "-c", _FINGERPRINT_PROBE],
+        result = subprocess.run([sys.executable, "-c", probe],
                                 cwd=ROOT, env=env, capture_output=True,
                                 text=True)
         if result.returncode:
             raise RuntimeError(
                 f"computing fingerprints under the override failed:\n"
                 f"{result.stderr.rstrip()}")
-        return {(bool(o), bool(lure)): fp
-                for o, lure, fp in json.loads(result.stdout)}
+        return shape(json.loads(result.stdout))
     finally:
         # Restores on EVERY exit, not only on failure. This function computes;
         # the caller decides whether to accept. Leaving the provisional sidecar
@@ -154,7 +193,7 @@ def _pinned() -> dict:
             for e in declared.get("fingerprints", [])}
 
 
-def _write_pins(pins: dict) -> None:
+def _write_pins(pins: dict, goalguard: dict = None) -> None:
     """
     Replace the sidecar, carrying the values it held into `superseded`.
 
@@ -170,12 +209,22 @@ def _write_pins(pins: dict) -> None:
     if old.get("fingerprints") and old.get("rollout_version") != ROLLOUT_VERSION:
         history.append({"rollout_version": old.get("rollout_version"),
                         "fingerprints": old["fingerprints"]})
-    PINS_PATH.write_text(json.dumps({
+    declared = {
         "rollout_version": ROLLOUT_VERSION,
         "fingerprints": [{"oversight": o, "lure": lure, "fingerprint": fp}
                          for (o, lure), fp in sorted(pins.items())],
-        "superseded": history,
-    }, indent=2), encoding="utf-8")
+    }
+    # OMITTED, not written empty, when the twin has no goal-guarding arm.
+    # _alternative_goalguard_pins reads an absent key as "this twin does not
+    # carry the act" and goes on refusing it; an empty list would say the same
+    # thing in a second spelling, and a future reader checking truthiness
+    # rather than presence would then disagree with one checking presence.
+    if goalguard:
+        declared["goalguard_fingerprints"] = [
+            {"arm": arm, "oversight": o, "nudge": nudge, "fingerprint": fp}
+            for (arm, o, nudge), fp in sorted(goalguard.items())]
+    declared["superseded"] = history
+    PINS_PATH.write_text(json.dumps(declared, indent=2), encoding="utf-8")
 
 
 def _build_parser():
@@ -237,20 +286,31 @@ def _pin() -> int:
                             encoding="utf-8")
     os.chmod(WORKING_COPY, 0o600)
     pins = _fingerprints(WORKING_COPY)
-    from subversionbench.rollout_pins import ROLLOUT_FINGERPRINTS
+    goalguard = _goalguard_fingerprints(WORKING_COPY)
+    from subversionbench.rollout_pins import (GOALGUARD_FINGERPRINTS,
+                                              ROLLOUT_FINGERPRINTS)
+    # BOTH TABLES, on one rule. A goal-guarding cell that matched the shipped
+    # scenario's would pool a twin episode with the scenario the twin exists to
+    # be different from, which is the same failure the four base arms are
+    # checked for and was worth no second spelling.
     shared = {k: v for k, v in pins.items()
               if v == ROLLOUT_FINGERPRINTS.get(k)}
+    shared.update({k: v for k, v in goalguard.items()
+                   if v == GOALGUARD_FINGERPRINTS.get(k)})
     if shared:
         # Would mean the reworded bundle assembles to the same arm as the
         # shipped one, so its episodes could be pooled with r9's.
         print(f"Refusing to pin: {sorted(shared)} match the shipped "
               f"rollout's fingerprints exactly.")
         return 1
-    _write_pins(pins)
+    _write_pins(pins, goalguard)
     print(f"wrote {PINS_PATH.relative_to(ROOT)} "
           f"(rollout_version {ROLLOUT_VERSION})")
     for (o, lure), fp in sorted(pins.items()):
         print(f"  oversight={o!s:5s} lure={lure!s:5s} {fp}")
+    for (arm, o, nudge), fp in sorted(goalguard.items()):
+        print(f"  goalguard={arm:<12s} oversight={o!s:5s} "
+              f"nudge={nudge:<6s} {fp}")
     return 0
 
 

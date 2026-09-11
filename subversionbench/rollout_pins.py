@@ -431,6 +431,48 @@ def _alternative_pins():
     return version, pins, _alternative_acts(declared, sidecar)
 
 
+def _alternative_goalguard_pins():
+    """
+    The selected bundle's goal-guarding pins, or None if it declares none.
+
+    A SEPARATE READER RATHER THAN A FOURTH VALUE ON _alternative_pins. That
+    return has three and one caller unpacks exactly three; this file's own
+    history with parse_batch_filename - a return that grew once and broke every
+    caller - is the argument, and date_mode_from_filename and
+    goalguard_from_filename are the two precedents for answering a second
+    question with a second function.
+
+    NONE IS NOT AN EMPTY TABLE. A twin that does not carry the act declares no
+    pins, and goalguard_fingerprint_for goes on refusing for it - which is
+    right, because there is no arm to identify. A twin that does carry the act
+    must pin every cell of it: a partly-pinned table would raise hours into a
+    batch, on whichever cell was missing.
+    """
+    import json
+    from pathlib import Path
+
+    from .scenario import bundle_is_overridden, selected_bundle_path
+
+    if not bundle_is_overridden():
+        return None
+    sidecar = Path(selected_bundle_path()).with_suffix(_PINS_SIDECAR_SUFFIX)
+    declared = json.loads(sidecar.read_text(encoding="utf-8"))
+    entries = declared.get("goalguard_fingerprints")
+    if not entries:
+        return None
+    pins = {(str(e["arm"]), bool(e["oversight"]), str(e["nudge"])):
+            str(e["fingerprint"]) for e in entries}
+    missing = set(GOALGUARD_FINGERPRINTS) - set(pins)
+    if missing:
+        raise ValueError(
+            f"{sidecar.name} declares goal-guarding pins but leaves "
+            f"{sorted(missing)} unpinned. Every cell needs its own identity or "
+            f"it cannot be told apart from another's - and a table one cell "
+            f"short raises on that cell alone, hours into a batch."
+        )
+    return pins
+
+
 def _alternative_acts(declared: dict, sidecar) -> tuple:
     """The act set a bundle declares, or the shipped one when it declares none.
 
@@ -685,6 +727,15 @@ GOALGUARD_FINGERPRINTS = MappingProxyType({
     ("replacement",False, "strong"):  "2891908ef538",
 })
 
+# APPLIED HERE, not beside the other override at the top of the file, because
+# the table it replaces is defined above and nothing can replace it before it
+# exists. A twin that carries the goal-guarding act supplies its own eight
+# cells; one that does not leaves this alone and keeps the refusal below.
+_alt_goalguard = (_alternative_goalguard_pins() if _alternative is not None
+                  else None)
+if _alt_goalguard is not None:
+    GOALGUARD_FINGERPRINTS = MappingProxyType(_alt_goalguard)
+
 GOALGUARD_ARMS = tuple(sorted({a for a, _o, _n in GOALGUARD_FINGERPRINTS}))
 
 
@@ -703,21 +754,24 @@ def goalguard_fingerprint_for(arm: str, oversight: bool,
             f"no pinned goal-guarding fingerprint for {key!r}; the pinned "
             f"arms are {sorted(GOALGUARD_FINGERPRINTS)}. The lure axis is "
             f"deliberately absent - see the table above.")
-    if _alternative is not None:
+    if _alternative is not None and _alt_goalguard is None:
         # The same refusal capability_fingerprint_for and date_fingerprint_for
         # make, and it was missing here until the three were read side by
-        # side. These pins identify the SHIPPED scenario's goal-guarding arms;
-        # an alternative bundle's episodes carrying them would pool with a
-        # scenario they do not match.
+        # side. The shipped pins identify the SHIPPED scenario's goal-guarding
+        # arms; an alternative bundle's episodes carrying them would pool with
+        # a scenario they do not match.
         #
-        # Not reachable today - no alternative bundle carries the arm, so
-        # scenario_for refuses first - and that is exactly why it was easy to
-        # omit. It becomes reachable the moment a twin gains the act, which is
-        # planned.
+        # It became reachable when a twin gained the act, which is what the
+        # comment here used to say was planned. The answer is not to drop the
+        # refusal but to narrow it: a twin that pins its own eight cells has
+        # replaced the table above and is identified by its own values, and a
+        # twin that has not is still being asked for an identity nobody
+        # computed.
         from .scenario import BUNDLE_ENV_VAR
         raise RuntimeError(
-            f"the goal-guarding arm has no pins under an alternative scenario "
-            f"bundle; these identify the shipped scenario's arms. Unset "
-            f"{BUNDLE_ENV_VAR}, or pin the twin's goal-guarding arms first."
+            f"the goal-guarding arm has no pins under this scenario bundle; "
+            f"the shipped pins identify the shipped scenario's arms. Unset "
+            f"{BUNDLE_ENV_VAR}, or run heldout_tool.py --pin to give the "
+            f"twin's goal-guarding arms their own identity."
         )
     return GOALGUARD_FINGERPRINTS[key]

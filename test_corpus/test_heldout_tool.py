@@ -196,7 +196,8 @@ class TestTheHeldOutToolsModes:
         return tempfile.TemporaryDirectory(dir=str(heldout_tool.HELDOUT_DIR),
                                            prefix="tooltest_")
 
-    def _tool(self, tmpdir, stub_fingerprints=None, stub_invariants=None):
+    def _tool(self, tmpdir, stub_fingerprints=None, stub_invariants=None,
+              stub_goalguard=None):
         """heldout_tool with its paths redirected at a copy. A context
         manager, not a fixture: run_tests.py cannot interpret one."""
         import contextlib
@@ -209,7 +210,8 @@ class TestTheHeldOutToolsModes:
         def _ctx():
             saved = {name: getattr(heldout_tool, name) for name in
                      ("BUNDLE_PATH", "WORKING_COPY", "PINS_PATH",
-                      "_fingerprints", "_invariants_hold")}
+                      "_fingerprints", "_goalguard_fingerprints",
+                      "_invariants_hold")}
             try:
                 copy = Path(tmpdir) / "scenario_heldout.enc"
                 shutil.copy2(saved["BUNDLE_PATH"], copy)
@@ -220,6 +222,11 @@ class TestTheHeldOutToolsModes:
                     heldout_tool._fingerprints = stub_fingerprints
                 if stub_invariants is not None:
                     heldout_tool._invariants_hold = stub_invariants
+                # Defaulted to "this twin has no goal-guarding arm" rather
+                # than left real: the real one runs a subprocess per call.
+                heldout_tool._goalguard_fingerprints = (
+                    stub_goalguard if stub_goalguard is not None
+                    else (lambda path: {}))
                 yield heldout_tool
             finally:
                 for name, value in saved.items():
@@ -229,12 +236,14 @@ class TestTheHeldOutToolsModes:
     def _encodable(self, tool):
         """The twin, plus any entry the SHIPPED bundle has and it does not.
 
-        --encode checks the working copy against the shipped key set, and
-        the held-out bundle predates at least one entry added since it was
-        authored - so an unmodified round trip is refused today. Filling the
-        gap here keeps these tests about main's dispatch rather than about
-        that difference, which test_every_entry_the_scenario_needs_is_present
-        is the right place to notice.
+        --encode checks the working copy against the shipped key set. The
+        twin carries every shipped entry today, so this fills nothing and is
+        kept for the case it was written for: the shipped bundle gaining an
+        entry the twin has not been given yet, which is what an unmodified
+        round trip would otherwise fail on. It was not hypothetical - the twin
+        was three entries short until the goal-guarding arm was authored into
+        it - and test_every_entry_the_scenario_needs_is_present is the right
+        place to notice the gap rather than paper over it.
         """
         edited = tool.load_heldout(tool.BUNDLE_PATH)
         shipped = load_scenario()
@@ -245,6 +254,58 @@ class TestTheHeldOutToolsModes:
     def _pins(self, value="fp"):
         return lambda path: {(o, lure): f"{value}-{o}-{lure}"
                              for o in (True, False) for lure in (True, False)}
+
+    def _gg(self, value="tw"):
+        """Stubbed goal-guarding cells, one per cell the SHIPPED table pins.
+
+        Derived rather than listed, because the sidecar reader refuses a twin
+        that pins fewer cells than the shipped scenario - a hand-written list
+        here would be a second copy of that set."""
+        from subversionbench.rollout_pins import GOALGUARD_FINGERPRINTS
+        return lambda path: {
+            key: f"{value}{i:010d}"
+            for i, key in enumerate(sorted(GOALGUARD_FINGERPRINTS))}
+
+    def test_pin_writes_the_goal_guarding_cells_to_the_sidecar(self):
+        """Without this the tool can compute them and drop them on the floor,
+        and the twin reads as a bundle with no goal-guarding arm."""
+        with self._workspace() as d:
+            with self._tool(d, stub_fingerprints=self._pins(),
+                            stub_goalguard=self._gg()) as tool:
+                assert tool._pin() == 0
+                declared = json.loads(tool.PINS_PATH.read_text())
+        cells = declared["goalguard_fingerprints"]
+        from subversionbench.rollout_pins import GOALGUARD_FINGERPRINTS
+        assert len(cells) == len(GOALGUARD_FINGERPRINTS)
+        assert {(c["arm"], c["oversight"], c["nudge"]) for c in cells} == \
+            set(GOALGUARD_FINGERPRINTS)
+
+    def test_a_twin_with_no_such_arm_writes_no_such_key(self):
+        """Absent, not an empty list. The reader takes an absent key as "this
+        twin does not carry the act"; an empty list says the same thing in a
+        second spelling, and a reader checking truthiness would then disagree
+        with one checking presence."""
+        with self._workspace() as d:
+            with self._tool(d, stub_fingerprints=self._pins()) as tool:
+                assert tool._pin() == 0
+                declared = json.loads(tool.PINS_PATH.read_text())
+        assert "goalguard_fingerprints" not in declared
+
+    def test_pin_refuses_a_cell_that_matches_the_shipped_scenario(self):
+        """
+        The same refusal the four base arms get, on the same rule. A twin cell
+        equal to a shipped one would stamp twin episodes with the identity of
+        the scenario the twin exists to differ from, and they would pool.
+        """
+        from subversionbench.rollout_pins import GOALGUARD_FINGERPRINTS
+        shipped = dict(GOALGUARD_FINGERPRINTS)
+        with self._workspace() as d:
+            with self._tool(d, stub_fingerprints=self._pins(),
+                            stub_goalguard=lambda path: shipped) as tool:
+                assert tool._pin() == 1, (
+                    "a twin cell identical to the shipped one was accepted")
+                assert not tool.PINS_PATH.exists(), (
+                    "the sidecar was written despite the refusal")
 
     def test_list_names_every_entry_with_a_size(self):
         with self._workspace() as d:

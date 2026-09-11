@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -507,3 +508,158 @@ class TestZipShNeverArchivesTheHeldOutCorpus:
         assert set(result.stdout.split()) == expected, (
             f"zip.sh derives {sorted(set(result.stdout.split()))} from the "
             f"sidecar but it declares {sorted(expected)}")
+
+
+class TestATwinPinsItsOwnGoalGuardingArms:
+    """
+    The shipped goal-guarding pins identify the SHIPPED scenario's arms. A twin
+    carrying the act has to supply its own, or its episodes are stamped with an
+    identity belonging to the scenario the twin exists to differ from.
+
+    `goalguard_fingerprint_for` refused outright under any override, with a
+    comment saying the case was unreachable because no twin carried the act and
+    that this would change when one did. It has. The refusal is narrowed rather
+    than dropped: a twin that pins its own cells is identified by them, and one
+    that has not is still being asked for an identity nobody computed.
+    """
+
+    def _sidecar(self, root, goalguard=None, version="twin-test"):
+        bundle = root / "alt.enc"
+        bundle.write_text("", encoding="utf-8")
+        declared = {
+            "rollout_version": version,
+            "fingerprints": [{"oversight": o, "lure": lure,
+                              "fingerprint": f"{int(o)}{int(lure)}0000000000"}
+                             for o in (True, False) for lure in (True, False)],
+        }
+        if goalguard is not None:
+            declared["goalguard_fingerprints"] = goalguard
+        bundle.with_suffix(".pins.json").write_text(json.dumps(declared),
+                                                    encoding="utf-8")
+        return bundle
+
+    def _every_cell(self):
+        """Derived from the shipped table, not listed - a twin must pin
+        exactly the cells the shipped scenario pins, so a hand-written list
+        here would be a second copy of that set and could fall behind it."""
+        return [{"arm": arm, "oversight": o, "nudge": nudge,
+                 "fingerprint": f"twin{abs(hash((arm, o, nudge))) % 10**8:08d}"}
+                for arm, o, nudge in sorted(rollout_pins.GOALGUARD_FINGERPRINTS)]
+
+    def test_a_twin_that_declares_none_reads_as_none(self):
+        bundle = self._sidecar(Path(tempfile.mkdtemp()))
+        with overridden(bundle):
+            assert rollout_pins._alternative_goalguard_pins() is None
+
+    def test_a_twin_that_pins_every_cell_replaces_the_shipped_table(self):
+        cells = self._every_cell()
+        bundle = self._sidecar(Path(tempfile.mkdtemp()), goalguard=cells)
+        with overridden(bundle):
+            pins = rollout_pins._alternative_goalguard_pins()
+        assert set(pins) == set(rollout_pins.GOALGUARD_FINGERPRINTS)
+        assert not set(pins.values()) & set(
+            rollout_pins.GOALGUARD_FINGERPRINTS.values()), (
+                "a twin cell equal to a shipped one would pool the twin's "
+                "episodes with the scenario it exists to differ from")
+
+    def test_a_partly_pinned_table_is_refused(self):
+        """Every cell or none. One short raises from goalguard_fingerprint_for
+        hours into a batch, on whichever cell was missing."""
+        cells = self._every_cell()[:-1]
+        bundle = self._sidecar(Path(tempfile.mkdtemp()), goalguard=cells)
+        with overridden(bundle):
+            try:
+                rollout_pins._alternative_goalguard_pins()
+            except ValueError as e:
+                assert "unpinned" in str(e)
+            else:
+                raise AssertionError("a partly-pinned table was accepted")
+
+    def test_the_shipped_bundle_has_no_alternative_goal_guarding_pins(self):
+        with overridden(None):
+            assert rollout_pins._alternative_goalguard_pins() is None
+
+    def _in_a_subprocess(self, bundle, code):
+        """
+        Run `code` with the bundle selected, and return its output.
+
+        A SUBPROCESS BECAUSE THE OVERRIDE IS APPLIED AT IMPORT. The block that
+        swaps the table runs once, when rollout_pins is first imported, so a
+        test that sets the variable in this process is testing the reader and
+        not the wiring - which is exactly the gap that let four planted
+        defects pass: the reader was guarded and nothing asserted its answer
+        ever reached GOALGUARD_FINGERPRINTS or goalguard_fingerprint_for.
+        """
+        env = dict(os.environ)
+        env[BUNDLE_ENV_VAR] = str(bundle)
+        return subprocess.run(
+            [sys.executable, "-c", code], cwd=str(Path(rollout_pins.__file__)
+                                                  .parent.parent),
+            env=env, capture_output=True, text=True)
+
+    def _twin_bundle(self, root, goalguard):
+        """A readable JSON bundle beside a sidecar - the shape a real run
+        reads, since scenario.py has no decryption path."""
+        bundle = root / "twin.json"
+        bundle.write_text(json.dumps(load_scenario()), encoding="utf-8")
+        self._sidecar_beside(bundle, goalguard)
+        return bundle
+
+    def _sidecar_beside(self, bundle, goalguard):
+        declared = {
+            "rollout_version": "twin-wiring-test",
+            "fingerprints": [{"oversight": o, "lure": lure,
+                              "fingerprint": f"{int(o)}{int(lure)}0000000000"}
+                             for o in (True, False) for lure in (True, False)],
+        }
+        if goalguard is not None:
+            declared["goalguard_fingerprints"] = goalguard
+        bundle.with_suffix(".pins.json").write_text(json.dumps(declared),
+                                                    encoding="utf-8")
+
+    def test_the_twins_cells_reach_the_table_and_the_lookup(self):
+        """The wiring, not the reader. Four defects were planted at this seam
+        and every one of them passed against the reader's own tests."""
+        cells = self._every_cell()
+        bundle = self._twin_bundle(Path(tempfile.mkdtemp()), cells)
+        result = self._in_a_subprocess(bundle, (
+            "from subversionbench.rollout_pins import ("
+            "GOALGUARD_FINGERPRINTS as G, goalguard_fingerprint_for as f)\n"
+            "arm, o, nudge = sorted(G)[0]\n"
+            "print(G[(arm, o, nudge)], f(arm, o, nudge))\n"))
+        assert result.returncode == 0, result.stderr
+        from_table, from_lookup = result.stdout.split()
+        expected = {(c["arm"], c["oversight"], c["nudge"]): c["fingerprint"]
+                    for c in cells}
+        first = sorted(expected)[0]
+        assert from_table == expected[first], (
+            "the twin's pins did not replace the shipped table")
+        assert from_lookup == expected[first], (
+            "goalguard_fingerprint_for did not return the twin's pin")
+
+    def test_a_twin_without_them_is_still_refused(self):
+        """The other direction, and the reason the refusal is narrowed rather
+        than dropped: a twin that has not pinned the act is being asked for an
+        identity nobody computed."""
+        bundle = self._twin_bundle(Path(tempfile.mkdtemp()), None)
+        result = self._in_a_subprocess(bundle, (
+            "from subversionbench.rollout_pins import goalguard_fingerprint_for\n"
+            "try:\n"
+            "    goalguard_fingerprint_for('replacement', False, 'none')\n"
+            "except RuntimeError as e:\n"
+            "    print('REFUSED')\n"
+            "else:\n"
+            "    print('ACCEPTED')\n"))
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "REFUSED", (
+            "a twin with no goal-guarding pins was given the shipped "
+            "scenario's identity")
+
+    def test_the_shipped_pins_are_literals(self):
+        """The same rule the four base arms are held to: written down rather
+        than computed, so a change to a twin's identity shows in a diff."""
+        source = open(rollout_pins.__file__, encoding="utf-8").read()
+        assert len(rollout_pins.GOALGUARD_FINGERPRINTS) == 8
+        for value in rollout_pins.GOALGUARD_FINGERPRINTS.values():
+            assert f'"{value}"' in source, (
+                f"{value} is not written literally in the file")

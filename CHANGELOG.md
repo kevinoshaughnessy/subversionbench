@@ -10,6 +10,50 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v178
+
+**A twin can now carry the goal-guarding arm, and pins its own identity for
+it.** `goalguard_fingerprint_for` refused outright under any alternative
+bundle, with a comment saying the case was unreachable because no twin carried
+the act and that it would become reachable when one did. It has.
+
+The refusal is narrowed rather than dropped. A twin that pins its own eight
+cells replaces the shipped table and is identified by its own values; a twin
+that has not is still being asked for an identity nobody computed, and is still
+refused. The sidecar gains an optional `goalguard_fingerprints` list, read by
+`_alternative_goalguard_pins` - a separate reader rather than a fourth value on
+`_alternative_pins`, on the precedent `date_mode_from_filename` and
+`goalguard_from_filename` set: a return that grew once here broke every caller.
+
+Absent means "this twin does not carry the act" and is left absent rather than
+written as an empty list, so presence and truthiness cannot disagree. Present
+means every cell: a partly-pinned table is refused, because one cell short
+raises from the lookup hours into a batch, on whichever cell was missing. The
+cells to pin are derived from the shipped table in both the tool and its
+guards, so neither holds a second copy of that set.
+
+`heldout_tool.py --pin` computes them under the override through the same
+provisional-sidecar route the four base arms use, and refuses a cell that
+equals the shipped scenario's on the same rule the base arms are held to.
+
+**The base rollout does not move.** The new entries are popped out of the
+bundle before the base arms assemble, so the twin's four fingerprints recompute
+unchanged and its existing episodes stay poolable - the same property that lets
+r9 and r10 oversight arms pool.
+
+Four defects were planted at the wiring seam and passed against the reader's
+own tests, which is the gap that produced them: guards existed for
+`_alternative_goalguard_pins` and nothing asserted its answer ever reached
+`GOALGUARD_FINGERPRINTS` or the lookup. The override is applied at import, so
+the wiring is now exercised against a real bundle in a subprocess. Six defects
+planted in total, each caught.
+
+The twin also gained the `capability` entries it never had. That was not
+optional: the tool refuses to encode a bundle missing any entry the shipped one
+has, so the twin had been unencodable since those entries were added. A comment
+in the tool's tests describing that gap as a standing difference was corrected
+rather than left - it is no longer true.
+
 ## v177
 
 **A paid pre-act reading is only read at the position it was graded at.** The

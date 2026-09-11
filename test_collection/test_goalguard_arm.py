@@ -218,25 +218,33 @@ class TestTheArmHasAnIdentityOfItsOwn:
         seen[("none", False, "-")] = rollout_fingerprint(oversight=False)
         assert len(set(seen.values())) == len(seen), seen
 
-    def test_an_alternative_bundle_is_refused_rather_than_given_these_pins(self):
+    def test_a_twin_that_has_not_pinned_the_arm_is_refused(self):
         """The refusal capability_fingerprint_for and date_fingerprint_for
         already make, and which was missing here. These pins identify the
         SHIPPED scenario's arms; a twin's episodes carrying them would pool
         with a scenario they do not match.
 
-        Patched rather than run under a real override, because the module
-        resolves `_alternative` once at import and a second bundle would need
-        its own sidecar to get that far."""
+        NARROWED, NOT DROPPED, once a twin gained the act: a twin that pins its
+        own eight cells replaces the table and is identified by its own values,
+        and only one that has not is still being asked for an identity nobody
+        computed. Both halves are exercised against a real override, in a
+        subprocess, by TestATwinPinsItsOwnGoalGuardingArms in
+        test_corpus/test_heldout_scenario.py - the override is applied at
+        import, so this patched form can only reach the refusal.
+
+        Asserted on a phrase unique to THIS refusal. "no pins" would also
+        match the KeyError raised for an unpinned cell of the shipped table,
+        which is a different failure with a different remedy."""
         from subversionbench import rollout_pins as rp
-        was = rp._alternative
-        rp._alternative = ("someothertwin", {})
+        was, was_gg = rp._alternative, rp._alt_goalguard
+        rp._alternative, rp._alt_goalguard = ("someothertwin", {}), None
         try:
             rp.goalguard_fingerprint_for("replacement", True, "strong")
         except RuntimeError as refused:
-            assert "alternative scenario bundle" in str(refused)
+            assert "shipped pins identify" in str(refused)
             return
         finally:
-            rp._alternative = was
+            rp._alternative, rp._alt_goalguard = was, was_gg
         raise AssertionError("an alternative bundle was given the shipped pins")
 
     def test_an_unpinned_arm_is_refused_by_the_guard_not_by_the_dict(self):
