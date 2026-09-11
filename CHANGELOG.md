@@ -10,6 +10,42 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v168
+
+THE USERNAME SURVIVED REDACTION WHEN IT FOLLOWED A HYPHEN OR A DOT.
+
+The operator's username is redacted as a standalone word. The trailing side of
+that boundary was fixed once already, because tools name things after the
+account that owns them and `<username>-code-zsh` kept the identity. The leading
+side was left rejecting `-` and `.` as well, on the reasoning that something
+ending in the username is a different token that merely contains those letters.
+
+That reasoning is sound and the guard did not implement it. The token it
+describes is `x<username>y`, and `x` is a word character, so a plain `(?<!\w)`
+already refuses it. What the extra two characters actually refused was the
+username FOLLOWING a separator - `backup.<username>`, or a path whose
+separators have been flattened to hyphens, which is what a per-project
+temporary directory looks like. That is the same compound the trailing side was
+fixed for, read from the other end.
+
+Found by the archive build refusing: the clean-verify that runs on the unpacked
+archive found the identity and deleted what it had just made, which is the
+behaviour it exists for. Nothing was published carrying it.
+
+Both guards are now `\w` alone. `x<username>y` and `<username>s_backup` stay
+untouched, which is what the asymmetry was for. The test that asserted the old
+asymmetry is replaced by one that checks a word character blocks the match on
+BOTH sides, and a new one covers the separator cases - planted three ways:
+restoring the old leading guard, and over-relaxing to a bare substring, which
+fails the guards against rewriting scenario prose.
+
+The character-dump spelling of the same rule is aligned but is NOT a fix and is
+not tested as one: measured against a real dump, both spellings match, because
+the one-character-per-column spread puts a gap character beside the first and
+last letters and the boundary never sees the separator. It is aligned because a
+rule spelled two ways is one that gets fixed in one place and left wrong in the
+other, which is what happened here.
+
 ## v167
 
 THE COMBINED RELEASE CHART SPENDS ITS HEIGHT ON THE PANEL, NOT ON MARGINS.

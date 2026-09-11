@@ -114,12 +114,38 @@ class TestPathRedaction:
             assert username not in out, text
             assert expected in out, out
 
-    def test_a_trailing_word_character_still_blocks_the_match(self):
-        """The two sides are not symmetric on purpose. A following `-` or `.` starts a
-        compound named AFTER the operator; a following letter or digit makes a
-        different token that merely contains those letters."""
+    def test_username_following_a_separator_is_redacted(self):
+        """The other end of the same compound, and the one that got through.
+
+        A path whose separators have been flattened to hyphens is what a
+        per-project temp directory looks like, and the leading guard used to
+        reject a preceding `-` or `.` - so the identity survived into a staged
+        archive and was caught only by the clean-verify that deletes it.
+
+        The character-dump spelling of the rule is deliberately NOT checked
+        here: measured against a real `od -c` dump, it matches either way,
+        because the spread puts a gap character beside the first and last
+        letters and the boundary never sees the separator. A case that passes
+        against the defect is not evidence.
+        """
         username = getpass.getuser()
-        for text in (f"{username}s_backup", f"{username}2", f"x{username}y"):
+        for text in (f"/tmp/-Users-{username}-MainProject/a.png",
+                     f"backup.{username}.tar",
+                     f"-{username}-"):
+            out = ev.redact_paths(text)
+            assert username not in out, text
+            assert "operator" in out, out
+
+    def test_a_word_character_on_either_side_still_blocks_the_match(self):
+        """What the boundary is actually for. `-` and `.` compound a name with
+        the account that owns it and must not block; a letter or digit makes a
+        different token that merely contains those letters and must. Checked on
+        BOTH sides, because relaxing the leading guard is what let the
+        separator cases through and the cost of going too far is scenario prose
+        rewritten mid-sentence."""
+        username = getpass.getuser()
+        for text in (f"{username}s_backup", f"{username}2", f"x{username}y",
+                     f"x{username}", f"9{username}"):
             assert username in ev.redact_paths(text), text
 
     def test_username_only_replaced_as_whole_word(self):
