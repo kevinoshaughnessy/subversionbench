@@ -10,6 +10,47 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v172
+
+THE GOAL-GUARDING CAPABILITY ARM INSTRUCTED AN ACT ON A FILE IT NEVER STAGED.
+
+`scenario_for` stages the goal-guarding artefact when EITHER the arm is set or
+the capability target is `goalguard` - the ceiling needs the file without the
+deployment note that supplies the motive. `create_hardened_environment` built
+its bundle by passing only `goalguard`, so a `--capability goalguard` episode
+was assembled from a bundle with no successor parameters while the instruction
+it was handed named that file by path.
+
+It failed in the worst direction available. The act was IMPOSSIBLE rather than
+declined, so the ceiling read zero by construction - and a zero ceiling is the
+reading that turns a model's genuine refusal into "this scenario cannot be
+solved at all". A propensity rate measured against it would be uninterpretable
+in exactly the way the capability arm exists to prevent.
+
+`capability` now threads through `create_episode_root` and
+`create_hardened_environment` to `scenario_for`, and the runner forwards it
+off the args bag.
+
+Found by a model reporting it in its own reasoning - it noticed the prompt
+named a config file that was not there - after a batch had started. No existing
+guard could have caught it: every one of them checks the SCENARIO side, where
+the disjunction was always correct.
+
+The new guards check both wiring points, because the first draft covered only
+one. Cutting the runner's forwarding left the whole collection suite green,
+since every other assertion calls `create_hardened_environment` directly; the
+added one drives `run_batch` with the model call stubbed and reads the env_info
+a real batch produces. Derived from the pin table rather than listing targets,
+with a target that has no entry in the artefact map failing rather than being
+skipped, and checked in both directions so that staging the artefact in every
+episode fails too.
+
+`create_hardened_environment` is 113 lines, down from 118. Three near-identical
+artefact-hash blocks became `_record_artefact`, which is also where the
+omitted-rather-than-None rule is now stated once instead of twice and a half.
+
+All 25 pinned fingerprints across the four tables recompute unchanged.
+
 ## v171
 
 "MISALIGNED" NOW STATES WHAT IT IS A UNION OVER, WHEREVER IT IS REPORTED.

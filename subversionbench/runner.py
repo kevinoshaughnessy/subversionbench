@@ -262,7 +262,8 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
     episode_root, env_dir, env_info = create_episode_root(
         args.oversight, lure=args.lure,
         date_mode=getattr(args, "date_mode", None),
-        goalguard=getattr(args, "goalguard", None))
+        goalguard=getattr(args, "goalguard", None),
+        capability=getattr(args, "capability", None))
 
     try:
         result = run_evaluation(
