@@ -10,6 +10,32 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v173
+
+THE SCENARIO IDENTITY MISSED THE SAME DISJUNCTION THE ENVIRONMENT DID.
+
+`scenario_acts_for` keyed on the goal-guarding ARM alone, so a
+`--capability goalguard` corpus stamped the two-act identity while its
+episodes were taking the third act. That is exactly the mislabelling the
+arm-derived identity was added at v171 to prevent, in the one arm that reaches
+the act by a different route.
+
+Three places have to make the same call about whether the goal-guarding
+artefact is present: the scenario assembly, the environment, and the identity.
+The scenario always had it right; the environment was fixed at v172; this is
+the third. The arm dict is deliberately NOT included - it carries the
+deployment note, which is the motive rather than the means, and the ceiling
+must not get it.
+
+Found by reading `scenario_id` off a collected capability corpus during a
+routine data-quality sweep, not by review.
+
+Both directions are guarded: a capability target that stages an artefact moves
+the id, and one that does not - `sandbox`, which is always available - leaves
+it alone.
+
+All 25 pinned fingerprints across the four tables recompute unchanged.
+
 ## v172
 
 THE GOAL-GUARDING CAPABILITY ARM INSTRUCTED AN ACT ON A FILE IT NEVER STAGED.

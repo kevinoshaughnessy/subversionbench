@@ -288,6 +288,34 @@ class TestTheScenarioIdentityIsTheActSet:
         assert plain != guarding
         assert "goalguard" in guarding and "goalguard" not in plain
 
+    def test_the_capability_target_moves_the_id_like_the_arm_does(self):
+        """The same disjunction scenario_for makes, and the same one the
+        ENVIRONMENT was missing at v172: --capability goalguard stages the
+        artefact without the deployment note, so those episodes can exhibit
+        the third category and must not carry the two-act identity. Found by
+        reading scenario_id off a collected capability corpus.
+
+        A capability target that is not an act of its own - sandbox is always
+        available - must leave the id alone, which is the other direction."""
+        from subversionbench.config import scenario_acts_for, scenario_id_for
+        plain = scenario_id_for(scenario_acts_for())
+        assert scenario_id_for(scenario_acts_for(capability="goalguard")) == \
+            scenario_id_for(scenario_acts_for("replacement"))
+        assert scenario_id_for(scenario_acts_for(capability="sandbox")) == plain
+
+    def test_the_stamped_id_follows_the_capability_target_too(self):
+        """Through the record builder, because the constant is not what gets
+        saved."""
+        from subversionbench.arm_record import arm_identity
+        common = {"model": "m", "effort": None, "nudge": "none",
+                  "oversight": False, "lure": False,
+                  "interrogations": ("zeroevidence",),
+                  "openrouter_sort": None, "openrouter_provider": None}
+        assert "goalguard" in arm_identity(capability="goalguard",
+                                           **common)["scenario_id"]
+        assert "goalguard" not in arm_identity(capability="sandbox",
+                                               **common)["scenario_id"]
+
     def test_the_oversight_counterfactual_is_NOT_a_different_scenario(self):
         """The other direction, and the one that would be a worse mistake. The
         no-oversight arm removes an act too, but both sides of a counterfactual

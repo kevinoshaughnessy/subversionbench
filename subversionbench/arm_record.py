@@ -218,5 +218,6 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # Absent on every episode collected before this field existed, which is
         # unambiguous rather than unknown: r1 through r10 are one scenario, and
         # a reader treats a missing value as that scenario's id.
-        "scenario_id": scenario_id_for(scenario_acts_for(goalguard)),
+        "scenario_id": scenario_id_for(
+            scenario_acts_for(goalguard, capability)),
     }

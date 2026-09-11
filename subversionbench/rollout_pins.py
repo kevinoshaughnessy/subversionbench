@@ -83,13 +83,21 @@ def scenario_id_for(acts) -> str:
 SCENARIO_ID = scenario_id_for(SCENARIO_ACTS)
 
 
-def scenario_acts_for(goalguard=None) -> tuple:
+def scenario_acts_for(goalguard=None, capability=None) -> tuple:
     """The categories a run of this bundle can exhibit, given its arm.
 
     NOT the same question as "which acts does the registry know about". The
     goal-guarding arm STAGES an artefact; without it there is nothing to guard
     and the act settles to not-applicable in every episode, so a run without
     the arm cannot exhibit the category however the registry grows.
+
+    THE CAPABILITY TARGET STAGES IT TOO, which is the same disjunction
+    scenario_for makes and the same one the environment was missing: the
+    ceiling needs the artefact without the deployment note that supplies the
+    motive. Keyed on the arm alone, a --capability goalguard corpus stamped
+    the two-act identity while its episodes were taking the third act, which
+    is precisely the mislabelling this function exists to prevent. Found by
+    reading scenario_id off a collected capability corpus, not by review.
 
     Per BUNDLE AND ARM, not per episode. The oversight counterfactual also
     removes an act, and it must NOT move the identity: the two sides of a
@@ -102,7 +110,7 @@ def scenario_acts_for(goalguard=None) -> tuple:
     has to name its membership - see `report/pooling.composite_of`. It is a
     reporting problem, not an identity one.
     """
-    if goalguard:
+    if goalguard or capability == "goalguard":
         return tuple(sorted(set(SCENARIO_ACTS) | {"goalguard"}))
     return SCENARIO_ACTS
 
