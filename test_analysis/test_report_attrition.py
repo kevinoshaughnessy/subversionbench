@@ -15,7 +15,7 @@ import unittest
 
 from report import (attrition_facts, data_quality_facts, load_episodes,
                     load_failed_episodes)
-from report.console import _print_attrition
+from report.console_data_quality import _print_attrition
 from report.loading import ARM_FIELDS, arm_key
 from test_analysis.report_fixtures import (_write_episode,
                                            _write_failed_episode)
@@ -301,7 +301,7 @@ class TestTheReportSaysWhatItLost(unittest.TestCase):
 
             import contextlib
             import io
-            from report.console import _print_data_quality
+            from report.console_data_quality import _print_data_quality
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
                 _print_data_quality(facts)
@@ -328,3 +328,87 @@ def _printed(attrition: dict) -> str:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheReportSaysWhichScenarioItPooled(unittest.TestCase):
+    """
+    `misaligned` and `scheming` are unions over the acts a scenario stages, so
+    two scenarios do not produce the same composite. A corpus straddling both
+    reports a number whose elements change between episodes - which is not a
+    less precise estimate of anything, it is a quantity with no referent.
+
+    The batch summary's provenance block already answers this per batch. The
+    report pools across batches, and nothing in it said what it had pooled.
+    """
+
+    def _episode(self, out, n, scenario_id=None, **kw):
+        path = _write_episode(out, n, "m/a", "strong",
+                              stamp=f"2026010100000{n}", **kw)
+        if scenario_id is not None:
+            with open(path, encoding="utf-8") as handle:
+                saved = json.load(handle)
+            saved["scenario_id"] = scenario_id
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(saved, handle)
+        return path
+
+    def test_a_single_scenario_corpus_says_so_with_its_count(self):
+        """Printed with its one value: a line that appears only when a corpus
+        is mixed cannot be read as having checked that it is not."""
+        with tempfile.TemporaryDirectory() as out:
+            self._episode(out, 1, scenario_id="oversight-sandbox")
+            self._episode(out, 2, scenario_id="oversight-sandbox")
+
+            facts = data_quality_facts(load_episodes(out), [])
+
+            self.assertEqual(facts["scenarios"], {"oversight-sandbox": 2})
+            self.assertFalse(facts["scenarios_mixed"])
+
+    def test_two_scenarios_in_one_corpus_are_flagged(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._episode(out, 1, scenario_id="oversight-sandbox")
+            self._episode(out, 2, scenario_id="goalguard-oversight-sandbox")
+
+            facts = data_quality_facts(load_episodes(out), [])
+
+            self.assertTrue(facts["scenarios_mixed"])
+            self.assertEqual(len(facts["scenarios"]), 2)
+
+    def test_an_episode_predating_the_field_is_the_shipped_act_set(self):
+        """
+        NOT "unrecorded". The field postdates r1 through r10 and those are one
+        scenario, so reading its absence as unknown would put the entire
+        published corpus in a second bucket and make every report claim it
+        straddles two scenarios. The same reading the batch summary takes.
+        """
+        from subversionbench.rollout_pins import SCENARIO_ID
+
+        with tempfile.TemporaryDirectory() as out:
+            self._episode(out, 1)
+            self._episode(out, 2, scenario_id=SCENARIO_ID)
+
+            facts = data_quality_facts(load_episodes(out), [])
+
+            self.assertEqual(facts["scenarios"], {SCENARIO_ID: 2})
+            self.assertFalse(facts["scenarios_mixed"])
+
+    def test_the_section_prints_the_scenario_line_and_the_warning(self):
+        """The wiring as well as the fact - the same gap that let four
+        defects through at the twin's pin seam."""
+        import contextlib
+        import io
+
+        from report.console_data_quality import _print_data_quality
+
+        with tempfile.TemporaryDirectory() as out:
+            self._episode(out, 1, scenario_id="oversight-sandbox")
+            self._episode(out, 2, scenario_id="goalguard-oversight-sandbox")
+            facts = data_quality_facts(load_episodes(out), [])
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                _print_data_quality(facts)
+            printed = buffer.getvalue()
+
+        self.assertIn("scenario act sets in this corpus", printed)
+        self.assertIn("goalguard-oversight-sandbox", printed)
+        self.assertIn("straddles more than one SCENARIO", printed)

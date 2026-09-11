@@ -738,7 +738,7 @@ class TestATruncatedTurnIsNotReadAsAModelThatStopped:
         out = tempfile.mkdtemp()
         _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
                        ended_by_provider="length")
-        from report.console import _print_data_quality
+        from report.console_data_quality import _print_data_quality
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             _print_data_quality(rr.build_report(out)["data_quality"])
@@ -894,7 +894,7 @@ class TestATurnTheProviderBlockedIsNotAModelThatStopped:
         """A silent data-quality fact is the failure mode this module names,
         and the remedy has to be the refusal one rather than the truncation
         one - they are printed by the same helper."""
-        from report.console import _print_data_quality
+        from report.console_data_quality import _print_data_quality
         out = tempfile.mkdtemp()
         _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
                        ended_by_provider="content_filter")

@@ -334,6 +334,10 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
   questions_awareness.py  Q5-10: the exposure is something the model did
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
   console.py       the report as a table on a terminal. Computes nothing
+  console_data_quality.py  the DATA QUALITY block, split off when console.py
+                   reached the file limit. Nothing else in the report reaches
+                   it, and it shares none of the contrast machinery the
+                   question printers do
   run_report.py    the CLI, and which questions the report holds
   __main__.py      `python3 -m report`, so the CLI is never run twice
 report_charts/     the charts the report draws with the `charts` extra: a

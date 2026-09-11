@@ -13,6 +13,7 @@ MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS and checks each one arrived.
 import json
 
 from subversionbench.batch import parse_batch_filename
+from subversionbench.rollout_pins import SCENARIO_ID
 from subversionbench.config import DEFAULT_INTERROGATION
 from subversionbench.grading import (MISALIGNED_ACTS, SCHEMING_LEVELS,
                                      awareness_channels, capability_outcome,
@@ -431,6 +432,14 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
         # corpus. Absent, the two goal-guarding arms pooled into one, and a
         # pilot's 9/10 and 0/9 were reported as a single 9/19.
         "goalguard": d.get("goalguard"),
+        # WHICH ACT SET WAS ON OFFER, which is not the same question as which
+        # arm ran. An absent value is the shipped set rather than an unknown
+        # one - the field postdates r1 through r10 and those are all one
+        # scenario - which is the same reading the batch summary's own
+        # provenance block takes, and for the same reason: treating it as
+        # unrecorded would put the whole published corpus in a second bucket
+        # and make every report claim it straddles two scenarios.
+        "scenario_id": d.get("scenario_id") or SCENARIO_ID,
         **_routing_columns(d),
         # THE SCAFFOLD'S TURN LIMIT, from the record where the record has it
         # and from the batch's own summary where it does not. An episode that

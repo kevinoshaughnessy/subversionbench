@@ -28,9 +28,10 @@ from subversionbench.redaction import redact_paths
 
 from .console import (_print_arm_exclusion, _print_awareness_exclusion,
                       _print_characteristics,
-                      _print_data_quality, _print_question,
+                      _print_question,
                       _print_variant_question)
 from .characteristics import characteristics
+from .console_data_quality import _print_data_quality
 from .data_quality import data_quality_facts
 from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                          EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,

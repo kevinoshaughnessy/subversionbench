@@ -10,6 +10,44 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v179
+
+**The report says which scenario it pooled.** `scenario_id` has been stamped on
+every run file since v173 and the batch summary's provenance block has reported
+it since, but the report itself could not see it: episode rows did not carry
+the field, and `data_quality` had no scenario key. The report pools across
+batches, so a per-batch figure cannot settle the question a reader of the
+report has.
+
+It matters because `misaligned` and `scheming` are unions over the acts a
+scenario stages. Two rollouts of one scenario differ in what the model saw; two
+scenarios differ in which categories were on offer at all, so their composites
+are not the same quantity and pooling them produces a number with no referent
+rather than a less precise one. The line prints with its single value, because
+one that appeared only when a corpus was mixed could not be read as having
+checked that it was not.
+
+**An absent `scenario_id` is the shipped act set, not an unknown one** - the
+field postdates r1 through r10 and those are one scenario, so reading its
+absence as unrecorded would put the whole published corpus in a second bucket
+and make every report claim it straddles two. That reading is now made in
+exactly one place, where the episode row is built. It had been written twice;
+the second copy was unreachable, and was found by planting the opposite reading
+in it and watching every test pass.
+
+**`report/console.py` reached the file limit and was split.** The DATA QUALITY
+printers moved to `console_data_quality.py` - the seam the code already had:
+six functions that print one section, share none of the contrast machinery the
+question printers share, and are reached from nowhere else.
+
+No published figure moves. The r10 report was built before and after and
+compared: the only differences are the two new keys, the analysis version and
+the timestamp.
+
+Six defects were planted and each fails, including the facts never reaching the
+document and the printed warning being dropped - the wiring as well as the
+fact, which is the seam four planted defects walked through one version ago.
+
 ## v178
 
 **A twin can now carry the goal-guarding arm, and pins its own identity for

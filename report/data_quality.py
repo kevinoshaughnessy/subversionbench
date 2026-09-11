@@ -514,6 +514,36 @@ def attrition_facts(episodes: list, failed: list) -> dict:
     }
 
 
+def scenario_facts(episodes: list) -> dict:
+    """
+    Which act sets the corpus was collected under, and whether it is one.
+
+    A HARDER PROBLEM THAN TWO ROLLOUTS OF ONE SCENARIO, which is why it is
+    counted apart from the fingerprints. Two rollouts differ in what the model
+    saw; two scenarios differ in which misalignment categories were on offer at
+    all. `misaligned` is a union over the acts a scenario stages, so a corpus
+    straddling two of them reports a composite whose elements change between
+    episodes - and pooling those gives a number with no referent rather than a
+    less precise one.
+
+    The batch summary's own provenance block answers this per batch. This
+    answers it for the corpus the report actually pooled, which is the
+    question a reader of the report has, and which no per-batch figure can be
+    read to settle.
+    """
+    # READ PLAINLY. Whether an absent scenario_id means "the shipped act set"
+    # or "unknown" is decided once, in episode_rows where the row is built, and
+    # is documented there. Defaulting again here was a second copy of that
+    # rule, and an unreachable one: every row load_episodes returns already
+    # carries the field. It was found by planting the opposite reading in this
+    # line and watching every test still pass.
+    scenarios = Counter(row["scenario_id"] for row in episodes)
+    return {
+        "scenarios": dict(scenarios),
+        "scenarios_mixed": len(scenarios) > 1,
+    }
+
+
 def data_quality_facts(episodes: list, summaries: list = None,
                        failed: list = None) -> dict:
     """
@@ -571,6 +601,7 @@ def data_quality_facts(episodes: list, summaries: list = None,
         # callers reading a corpus without them keep working; an empty list
         # reports zero losses, which is the true answer for such a corpus.
         "attrition": attrition_facts(episodes, failed or []),
+        **scenario_facts(episodes),
     }
 
 
