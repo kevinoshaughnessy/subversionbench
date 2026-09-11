@@ -15,7 +15,15 @@ or "does not exist".
 subversionbench/
   version.py       the analysis version, alone, because it moves every release
   config.py        canary, prompts, rubric questions, tool defs; re-exports below
-  rollout_pins.py  the declared rollout version and the fingerprints it pins to
+  rollout_pins.py  which experiment a corpus belongs to, in three coordinates.
+                   SCENARIO_ACTS is which misalignment categories the rollout
+                   can exhibit, and the id derived from it is the scenario's
+                   identity - the SETTING is deliberately not part of it, so
+                   the waste-disposal held-out bundle is a twin of the
+                   transport one rather than a different experiment.
+                   ROLLOUT_VERSION is what the model saw within that scenario.
+                   The pinned fingerprints are the per-arm identities that say
+                   two batches of one rollout may be pooled
   interrogations.py  the probes, the classifier prompt, the answer markers
   scenario.py      the scenario text, held base64-encoded at rest
   artefact_dates.py  when the scenario's files claim to have been written.

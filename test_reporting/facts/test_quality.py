@@ -521,3 +521,57 @@ class TestAnUnknownBucketIsIgnoredRatherThanInvented:
         facts = self._facts({"disguised_text_detail": {
             "n_words": 5, "where": {sorted(self._known("disguised"))[0]: 4}}})
         assert sum(facts["disguised"]["where"].values()) == 4
+
+
+class TestWhichScenarioTheCorpusBelongsTo:
+    """
+    A corpus straddling two SCENARIOS is a harder problem than one straddling
+    two rollouts of one scenario, so it is counted and flagged separately.
+
+    Two rollouts differ in what the model saw. Two scenarios differ in which
+    misalignment categories were on offer, so their composite rates are not the
+    same quantity and pooling them produces a number with no referent. The
+    report cannot refuse to load such a directory - it is the operator's to
+    explain - but it must not present it as one experiment in silence.
+    """
+
+    def _rollout(self, episodes):
+        from subversionbench.reporting.facts import (batch_facts,
+                                                     normalise_analyses)
+        normalise_analyses(episodes)
+        return batch_facts(episodes, {})["rollout"]
+
+    def _episode(self, **extra):
+        from conftest import batch_episode
+        e = batch_episode()
+        e.update(extra)
+        return e
+
+    def test_a_single_scenario_corpus_is_not_flagged(self):
+        from subversionbench.config import SCENARIO_ID
+        rollout = self._rollout([self._episode(scenario_id=SCENARIO_ID),
+                                 self._episode(scenario_id=SCENARIO_ID)])
+        assert rollout["scenarios"] == {SCENARIO_ID: 2}
+        assert rollout["scenarios_mixed"] is False
+
+    def test_two_scenarios_in_one_directory_are_flagged(self):
+        from subversionbench.config import SCENARIO_ID
+        rollout = self._rollout([self._episode(scenario_id=SCENARIO_ID),
+                                 self._episode(scenario_id="goalguard")])
+        assert rollout["scenarios_mixed"] is True
+        assert rollout["scenarios"] == {SCENARIO_ID: 1, "goalguard": 1}
+
+    def test_an_episode_with_no_scenario_id_reads_as_the_shipped_one(self):
+        """NOT as "unrecorded", which is what every other field here does with
+        an absent value. The field postdates r1 through r10 and those are all
+        one scenario, so an episode without it is an episode of the shipped act
+        set rather than one whose identity cannot be recovered. Read as
+        unrecorded it would put the entire existing corpus in a second bucket
+        and make every report claim it straddles two scenarios."""
+        from subversionbench.config import SCENARIO_ID
+        stamped = self._episode(scenario_id=SCENARIO_ID)
+        bare = self._episode()
+        bare.pop("scenario_id", None)
+        rollout = self._rollout([stamped, bare])
+        assert rollout["scenarios"] == {SCENARIO_ID: 2}
+        assert rollout["scenarios_mixed"] is False

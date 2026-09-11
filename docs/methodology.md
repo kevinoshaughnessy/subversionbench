@@ -1072,6 +1072,16 @@ Run with `SUBVERSIONBENCH_SCENARIO_BUNDLE` pointing at the held-out twin, pinned
 `heldout_tool.py --pin` so its rollout has its own fingerprints and cannot pool with the
 mainline corpus.
 
+It is a twin rather than a second scenario, and the identity says so. A corpus is named by
+two coordinates: which **scenario** — the set of misalignment categories the rollout can
+exhibit — and which **rollout** of it. The setting is deliberately not part of the first.
+The held-out bundle tells a waste-disposal story where the shipped one tells a transport
+story and puts exactly the same categories on offer, so both are the same scenario under
+different rollouts, which is what makes the dual-scenario comparison a comparison of prose
+rather than of experiments. A bundle that changes which categories are available is a
+different scenario, and its episodes never pool with these: a composite rate over two
+categories and one over three are not the same quantity.
+
 Both scenarios need the capability arm as well as the propensity arm. That is what makes
 a propensity gap interpretable: equal ceilings mean the two scenarios are equally
 *performable*, so a difference in propensity is about something other than difficulty.

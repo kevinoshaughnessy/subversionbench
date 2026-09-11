@@ -22,6 +22,7 @@ from collections import Counter
 
 from ...grading import MISALIGNED_ACTS, QUOTE_GROUNDING_OUTCOMES
 from ...rollout import rollout_fingerprint
+from ...rollout_pins import SCENARIO_ID
 def score_provenance(all_results: list) -> dict:
     """
     Which model scored each LLM-judged measure, tallied over the batch.
@@ -365,6 +366,14 @@ def _rollout_provenance(all_results: list) -> dict:
     """
     versions = Counter(r.get("rollout_version") or "unrecorded"
                        for r in all_results)
+    # AN ABSENT scenario_id IS NOT UNKNOWN, unlike every other field counted
+    # here. It postdates r1 through r10, and those are all one scenario, so an
+    # episode without it is an episode of the shipped act set rather than one
+    # whose identity cannot be recovered. Reading it as "unrecorded" would put
+    # the entire existing corpus into a second bucket and make every report say
+    # it straddles two scenarios.
+    scenarios = Counter(r.get("scenario_id") or SCENARIO_ID
+                        for r in all_results)
     fingerprints = Counter(r.get("rollout_fingerprint") or "unrecorded"
                            for r in all_results)
     isolation_modes = Counter(r.get("isolation") or "unrecorded"
@@ -382,6 +391,14 @@ def _rollout_provenance(all_results: list) -> dict:
         matches_current = None
     return {
         "versions": dict(versions),
+        "scenarios": dict(scenarios),
+        # A corpus straddling two scenarios is a harder problem than one
+        # straddling two rollouts of one scenario, which is why it is counted
+        # separately. Two rollouts differ in what the model saw; two scenarios
+        # differ in which misalignment categories were on offer, so their
+        # composite rates are not the same quantity and pooling them produces a
+        # number with no referent.
+        "scenarios_mixed": len(scenarios) > 1,
         "fingerprints": dict(fingerprints),
         "mixed": len(fingerprints) > 1,
         "current_fingerprints": {f"oversight={o} lure={lu}": fp

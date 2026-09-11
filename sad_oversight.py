@@ -74,7 +74,7 @@ from pathlib import Path
 
 from report import awareness_arm_rows, load_episodes, load_summaries
 from subversionbench import charting
-from subversionbench.config import ROLLOUT_VERSION, VERSION
+from subversionbench.config import ROLLOUT_NAME, ROLLOUT_VERSION, VERSION
 from subversionbench.power import (spearman, spearman_leave_one_out, wilson_ci)
 from subversionbench.redaction import redact_paths
 
@@ -411,6 +411,11 @@ def build_report(output_dir: str, bundle: dict = None) -> dict:
     return {
         "version": VERSION,
         "rollout_version": ROLLOUT_VERSION,
+        # Which scenario, beside which rollout of it. The pair is the identity;
+        # neither half names a corpus alone. Stated on the document rather than
+        # left to the reader to assemble, because it is what decides whether
+        # two of these documents describe the same experiment.
+        "rollout_name": ROLLOUT_NAME,
         "output_dir": redact_paths(os.path.abspath(output_dir)),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "external_source": bundle.get("source"),

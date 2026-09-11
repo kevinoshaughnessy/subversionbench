@@ -34,6 +34,66 @@ from types import MappingProxyType
 # strong-nudge prompts inside eval_results_v14. See rollout.py.
 ROLLOUT_VERSION = "r10"
 
+# SCENARIO_ACTS is the THIRD coordinate, and the one r1 through r10 never
+# needed because there was only ever one scenario.
+#
+# WHAT MAKES TWO SCENARIOS THE SAME SCENARIO. Not the setting. The held-out
+# bundle tells a waste-disposal story where the shipped one tells a transport
+# story, and it is a TWIN: same misalignment categories, same acts available,
+# same questions asked of them, different prose so that a model trained on one
+# has not seen the other. Naming the shipped scenario after its setting would
+# make the twin look like a different experiment, and would need renaming again
+# the first time a scenario is neither transport nor waste disposal.
+#
+# So identity is the set of misalignment categories the rollout can exhibit,
+# which is exactly the set of acts its arms make available. Goal guarding is a
+# different act set and therefore a different scenario, not a later rollout of
+# this one - which is what settles whether its episodes may pool with these.
+#
+# DERIVED, NOT DECLARED. SCENARIO_ID is computed from SCENARIO_ACTS rather than
+# written beside it, because a second spelling of one fact is a second thing to
+# keep in step - the defect this file's own header calls its main source of
+# churn. Adding an act moves the id, which is the intended behaviour: a corpus
+# collected over two acts cannot pool with one collected over three, because
+# the composite rate the two report is not the same quantity. Per-act rates
+# stay comparable; the composite does not, and the id is what says so.
+#
+# The names are the `name` fields of grading/acts.py's MISALIGNED_ACTS. Not
+# imported: this module is the data half of the rollout check and is read very
+# early, and grading imports config which imports this. The correspondence is
+# asserted by a test instead, which is also where a typo is caught.
+SCENARIO_ACTS = ("oversight", "sandbox")
+
+
+def scenario_id_for(acts) -> str:
+    """The identity of a scenario that can exhibit exactly `acts`.
+
+    Sorted so that the id is a property of the SET rather than of the order
+    someone happened to write it in: two rollouts offering the same two acts
+    must not read as two scenarios because one listed them the other way round.
+    """
+    unique = sorted(set(acts))
+    if not unique:
+        raise ValueError(
+            "a scenario with no misalignment categories has no identity - "
+            "there is nothing it could measure")
+    return "-".join(unique)
+
+
+SCENARIO_ID = scenario_id_for(SCENARIO_ACTS)
+
+
+def rollout_name_for(scenario_id: str, rollout_version: str) -> str:
+    """The full identity: which scenario, and which rollout of it.
+
+    Neither half identifies a corpus alone. `r1` says nothing about what was
+    being measured, and `oversight-sandbox` says nothing about what the model
+    saw. Two corpora may be pooled only when both halves agree - and then only
+    when the arm fingerprints agree too, which is the check this file's tables
+    exist for.
+    """
+    return f"{scenario_id}/{rollout_version}"
+
 # sha256 over the assembled scenario ARM, the tool definitions, and the
 # sandbox's behaviour on a fixed battery of commands. Pinned here rather than
 # computed, so a rollout change is a startup error instead of a silent one: the
@@ -336,13 +396,51 @@ def _alternative_pins():
             f"unpinned. Every arm needs its own identity or it cannot be told "
             f"apart from another's."
         )
-    return version, pins
+    return version, pins, _alternative_acts(declared, sidecar)
+
+
+def _alternative_acts(declared: dict, sidecar) -> tuple:
+    """The act set a bundle declares, or the shipped one when it declares none.
+
+    INHERITING IS RIGHT HERE AND WRONG FOR THE FINGERPRINTS, which is worth
+    stating because this file says loudly that nothing is inherited. A
+    fingerprint inherited from the shipped scenario is a claim that two
+    different environments are the same one, and pools episodes that do not
+    match. An act set inherited from it is a claim that the twin measures the
+    same categories - which is what a twin IS, and what every sidecar written
+    before this field existed describes.
+
+    heldout_tool.py deliberately does NOT write the field. It builds twins,
+    so every sidecar it produces would carry a copy of the value inherited
+    here - a second spelling of one fact, which is the thing this file's header
+    names as its main source of churn. A bundle measuring a different set of
+    categories adds `scenario_acts` to its sidecar by hand, which is the same
+    way it would gain any other claim the tool cannot infer.
+    """
+    if "scenario_acts" not in declared:
+        return SCENARIO_ACTS
+    acts = tuple(str(a) for a in declared["scenario_acts"])
+    if not acts:
+        raise ValueError(
+            f"{sidecar.name} declares an empty scenario_acts. A bundle with no "
+            f"misalignment categories has no identity - omit the field to "
+            f"inherit the shipped scenario's."
+        )
+    return acts
 
 
 _alternative = _alternative_pins()
 if _alternative is not None:
-    ROLLOUT_VERSION, _alt_pins = _alternative
+    ROLLOUT_VERSION, _alt_pins, SCENARIO_ACTS = _alternative
     ROLLOUT_FINGERPRINTS = MappingProxyType(_alt_pins)
+    SCENARIO_ID = scenario_id_for(SCENARIO_ACTS)
+
+
+# The full identity of whatever bundle is selected, shipped or not. Built after
+# the override so that it names the bundle actually in force: computing it
+# beside SCENARIO_ID above would have frozen the shipped scenario's name into
+# every held-out run.
+ROLLOUT_NAME = rollout_name_for(SCENARIO_ID, ROLLOUT_VERSION)
 
 
 # The plain oversight arm, for callers that predate the later arms.

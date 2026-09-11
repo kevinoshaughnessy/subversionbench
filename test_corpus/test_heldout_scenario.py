@@ -149,8 +149,12 @@ class TestAnAlternativeBundleIsADifferentRollout:
                 f"{value} is not written literally in the file, so a rollout "
                 f"change would not show up in a diff of it")
 
-    def _staged(self, root, version="heldout-test", arms=None, write=True):
-        """A bundle file and, optionally, a sidecar pinning `arms`."""
+    def _staged(self, root, version="heldout-test", arms=None, write=True,
+                acts=None):
+        """A bundle file and, optionally, a sidecar pinning `arms`.
+
+        `acts` is omitted from the sidecar when None, which is the shape every
+        sidecar written before the field existed has."""
         bundle = root / "alt.enc"
         bundle.write_text("", encoding="utf-8")
         if write:
@@ -158,9 +162,11 @@ class TestAnAlternativeBundleIsADifferentRollout:
                 arms = [{"oversight": o, "lure": lure,
                          "fingerprint": f"{int(o)}{int(lure)}0000000000"}
                         for o in (True, False) for lure in (True, False)]
+            declared = {"rollout_version": version, "fingerprints": arms}
+            if acts is not None:
+                declared["scenario_acts"] = acts
             bundle.with_suffix(".pins.json").write_text(
-                json.dumps({"rollout_version": version,
-                            "fingerprints": arms}), encoding="utf-8")
+                json.dumps(declared), encoding="utf-8")
         return bundle
 
     def test_a_missing_sidecar_is_a_hard_failure(self):
@@ -217,12 +223,48 @@ class TestAnAlternativeBundleIsADifferentRollout:
     def test_a_complete_sidecar_replaces_version_and_all_four_arms(self):
         bundle = self._staged(Path(tempfile.mkdtemp()))
         with overridden(bundle):
-            version, pins = rollout_pins._alternative_pins()
+            version, pins, acts = rollout_pins._alternative_pins()
         assert version == "heldout-test"
         assert set(pins) == set(rollout_pins.ROLLOUT_FINGERPRINTS)
         assert not set(pins.values()) & set(
             rollout_pins.ROLLOUT_FINGERPRINTS.values()), (
             "an alternative rollout shares a fingerprint with r9")
+
+    def test_a_sidecar_with_no_act_set_inherits_the_shipped_one(self):
+        """The one thing that IS inherited, and the reason it is safe.
+
+        A fingerprint inherited from the shipped scenario claims two different
+        environments are one and pools episodes that do not match. An act set
+        inherited from it claims the bundle measures the same categories -
+        which is what a twin IS, and what every sidecar written before this
+        field existed describes."""
+        bundle = self._staged(Path(tempfile.mkdtemp()))
+        with overridden(bundle):
+            _version, _pins, acts = rollout_pins._alternative_pins()
+        assert acts == rollout_pins.SCENARIO_ACTS
+
+    def test_a_sidecar_may_declare_a_different_act_set(self):
+        """A bundle measuring a different set of categories is a different
+        scenario, not a twin, and says so rather than inheriting."""
+        bundle = self._staged(Path(tempfile.mkdtemp()), acts=["goalguard"])
+        with overridden(bundle):
+            _version, _pins, acts = rollout_pins._alternative_pins()
+        assert tuple(acts) == ("goalguard",)
+        assert rollout_pins.scenario_id_for(acts) == "goalguard"
+
+    def test_an_empty_act_set_is_refused_rather_than_inherited(self):
+        """Declaring nothing and declaring an empty list are different claims.
+        The first says "a twin"; the second says "measures no misalignment
+        category at all", which has no identity - and silently reading it as
+        the first would give that bundle the shipped scenario's name."""
+        bundle = self._staged(Path(tempfile.mkdtemp()), acts=[])
+        with overridden(bundle):
+            try:
+                rollout_pins._alternative_pins()
+            except ValueError as e:
+                assert "scenario_acts" in str(e)
+            else:
+                raise AssertionError("an empty act set was accepted")
 
     def test_the_sidecar_is_found_from_either_form_of_the_bundle(self):
         """Keyed on the stem, so the encrypted bundle and the decrypted JSON
@@ -232,7 +274,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         plaintext = root / "alt.json"
         plaintext.write_text("{}", encoding="utf-8")
         with overridden(plaintext):
-            version, pins = rollout_pins._alternative_pins()
+            version, pins, acts = rollout_pins._alternative_pins()
         assert version == "heldout-test" and len(pins) == 4
 
 

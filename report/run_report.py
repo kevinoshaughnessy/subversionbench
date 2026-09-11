@@ -22,7 +22,8 @@ import time
 
 import report_charts
 from subversionbench import charting
-from subversionbench.config import ROLLOUT_VERSION, VERSION
+from subversionbench.config import (ROLLOUT_NAME, ROLLOUT_VERSION,
+                                    VERSION)
 from subversionbench.redaction import redact_paths
 
 from .console import (_print_arm_exclusion, _print_awareness_exclusion,
@@ -282,6 +283,11 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     return {
         "version": VERSION,
         "rollout_version": ROLLOUT_VERSION,
+        # Which scenario, beside which rollout of it. The pair is the identity;
+        # neither half names a corpus alone. Stated on the document rather than
+        # left to the reader to assemble, because it is what decides whether
+        # two of these documents describe the same experiment.
+        "rollout_name": ROLLOUT_NAME,
         # What corpus this document is about. Always present, including for the
         # unrestricted reading, so a consumer never has to distinguish "no
         # exclusion" from "an older report that predates exclusions" - the two

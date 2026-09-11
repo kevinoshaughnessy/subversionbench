@@ -8,7 +8,7 @@ stops a third record growing its own copy.
 """
 
 from .config import (CANARY, DEFAULT_INTERROGATION, ROLLOUT_VERSION,
-                     VERSION)
+                     SCENARIO_ID, VERSION)
 from .hostenv import toolchain_facts
 from .isolation import DEFAULT_ISOLATION
 from .rollout_pins import (capability_fingerprint_for,
@@ -203,4 +203,21 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # episode since - which is the same distinction `date_mode` draws
         # between "ran under a choice" and "ran before there was one".
         "goalguard": goalguard,
+        # WHICH SCENARIO, beside which rollout of it. Neither half identifies
+        # a corpus alone: "r10" says nothing about what was measured, and
+        # "oversight-sandbox" says nothing about what the model saw. Recorded
+        # rather than derived at read time because the act set moves - the day
+        # a third category is added, an episode collected today has to keep
+        # saying it was collected over two.
+        #
+        # APPENDED rather than placed beside rollout_version, where it belongs
+        # by meaning. These dicts are written to disk as JSON and their key
+        # order is the saved field order; inserting in the middle would move
+        # every field after it for no reason. Growing by appending is how the
+        # list has grown throughout.
+        #
+        # Absent on every episode collected before this field existed, which is
+        # unambiguous rather than unknown: r1 through r10 are one scenario, and
+        # a reader treats a missing value as that scenario's id.
+        "scenario_id": SCENARIO_ID,
     }

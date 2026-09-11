@@ -222,6 +222,80 @@ class TestRolloutIdentity:
         assert rollout_fingerprint(True) == ROLLOUT_FINGERPRINTS[(True, False)]
         assert rollout_fingerprint(False) == ROLLOUT_FINGERPRINTS[(False, False)]
 
+class TestTheScenarioIdentityIsTheActSet:
+    """Which scenario a corpus belongs to, as distinct from which rollout of it.
+
+    Identity is the set of misalignment categories the rollout can exhibit, not
+    the setting it is told in. The held-out bundle is a waste-disposal story
+    where the shipped one is transport, and it measures exactly the same two
+    categories: naming the scenario after its setting would make a twin look
+    like a different experiment and would need renaming the first time a
+    scenario is neither.
+    """
+
+    def test_every_declared_act_is_a_real_misalignment_act(self):
+        """The correspondence rollout_pins cannot assert itself. It is the data
+        half of the rollout check and is imported before grading exists, so a
+        typo in SCENARIO_ACTS would name a category nothing measures and the id
+        would look perfectly well-formed."""
+        from subversionbench.config import SCENARIO_ACTS
+        from subversionbench.grading import MISALIGNED_ACTS
+        known = {act["name"] for act in MISALIGNED_ACTS}
+        assert known, "no acts defined - the guard would pass vacuously"
+        assert set(SCENARIO_ACTS) <= known, set(SCENARIO_ACTS) - known
+
+    def test_the_shipped_scenario_offers_exactly_the_two_original_acts(self):
+        """Goal guarding lives in the shipped bundle but behind its own arm, so
+        no episode of this scenario can exhibit it. If that ever stops being
+        true the id has to move, because a two-act composite rate and a
+        three-act one are not the same quantity."""
+        from subversionbench.config import SCENARIO_ACTS
+        assert set(SCENARIO_ACTS) == {"oversight", "sandbox"}
+
+    def test_the_id_is_a_property_of_the_set_not_of_the_writing_order(self):
+        """Two rollouts offering the same acts must not read as two scenarios
+        because one listed them the other way round."""
+        from subversionbench.config import scenario_id_for
+        assert scenario_id_for(("sandbox", "oversight")) == \
+            scenario_id_for(("oversight", "sandbox"))
+        assert scenario_id_for(("sandbox", "oversight", "sandbox")) == \
+            scenario_id_for(("oversight", "sandbox"))
+
+    def test_growing_the_act_set_moves_the_id(self):
+        """The decision this encodes: adding a category is a new scenario, not
+        a later rollout of the old one. A corpus collected over two acts cannot
+        pool with one collected over three, and the id is what says so."""
+        from subversionbench.config import SCENARIO_ACTS, scenario_id_for
+        grown = scenario_id_for(tuple(SCENARIO_ACTS) + ("goalguard",))
+        assert grown != scenario_id_for(SCENARIO_ACTS)
+
+    def test_a_scenario_with_no_acts_has_no_identity(self):
+        """Rather than an empty string, which would compare equal to another
+        empty one and pool two scenarios that measure nothing in common."""
+        import pytest
+        from subversionbench.config import scenario_id_for
+        with pytest.raises(ValueError):
+            scenario_id_for(())
+
+    def test_the_full_name_carries_both_halves(self):
+        """Neither identifies a corpus alone: "r10" says nothing about what was
+        measured and "oversight-sandbox" nothing about what the model saw."""
+        from subversionbench.config import (ROLLOUT_NAME, ROLLOUT_VERSION,
+                                            SCENARIO_ID)
+        assert ROLLOUT_NAME == f"{SCENARIO_ID}/{ROLLOUT_VERSION}"
+        assert SCENARIO_ID in ROLLOUT_NAME and ROLLOUT_VERSION in ROLLOUT_NAME
+
+    def test_the_id_is_derived_rather_than_written_beside_the_act_set(self):
+        """A second spelling of one fact is a second thing to keep in step,
+        which this file's own header calls its main source of churn. Driven by
+        changing the act set and watching the id follow, rather than by reading
+        the source."""
+        from subversionbench.config import SCENARIO_ACTS, scenario_id_for
+        assert scenario_id_for(SCENARIO_ACTS) == scenario_id_for(
+            reversed(tuple(SCENARIO_ACTS)))
+        assert scenario_id_for(("a", "b")) == "a-b"
+
+
 class TestTheVariantIsRemovalOnly:
     """Adding phrasings must not change what any existing episode saw."""
 

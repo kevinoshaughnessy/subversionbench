@@ -10,6 +10,62 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v170
+
+A CORPUS NOW SAYS WHICH SCENARIO IT BELONGS TO, NOT ONLY WHICH ROLLOUT.
+
+`ROLLOUT_VERSION` answered "what did the model see" and nothing answered "what
+was being measured". That was free while there was one scenario. It stops being
+free with a second: goal guarding puts a different set of misalignment
+categories on offer, and its episodes must never pool with these, because a
+composite rate over two categories and one over three are not the same
+quantity.
+
+SCENARIO IDENTITY IS THE ACT SET, NOT THE SETTING. The held-out bundle tells a
+waste-disposal story where the shipped one tells a transport story and puts
+exactly the same two categories on offer. It is a twin, and naming the shipped
+scenario after its setting would have made it look like a different experiment
+- and would have needed renaming the first time a scenario is neither transport
+nor waste disposal. So `SCENARIO_ACTS` names the categories, and the id is
+derived from it rather than written beside it: a second spelling of one fact is
+a second thing to keep in step.
+
+The full name is the pair, `<scenario>/<rollout>`. Neither half identifies a
+corpus alone.
+
+`ROLLOUT_VERSION` DOES NOT MOVE. It is still `r10` and all four pinned
+fingerprints recompute unchanged. Renaming it would have restamped an identity
+that 3,340 collected episodes already carry and split them from everything
+collected next, which is the opposite of what an identity is for. The scenario
+is a new coordinate beside it, not a rewrite of it.
+
+A GROWING ACT SET IS A NEW SCENARIO, not a later rollout of the old one. This
+was an open question and is now a decision the id enforces: adding a category
+moves the id, so the two corpora cannot be presented as one experiment. Per-act
+rates stay comparable across both; only the composite is refused.
+
+Episodes carry `scenario_id`, appended rather than placed beside
+`rollout_version` where it belongs by meaning - these dicts are written to disk
+as JSON and inserting in the middle moves every field after it. An episode
+without the field is the shipped scenario rather than an unknown one, which is
+unambiguous: r1 through r10 are all one scenario. Read as "unrecorded" it would
+have put the whole existing corpus in a second bucket and made every report
+claim it straddles two scenarios.
+
+Reports carry `rollout_name`, and the quality block counts scenarios and flags
+a directory holding more than one. A report cannot refuse to load such a
+directory - that is the operator's to explain - but it must not present it as
+one experiment in silence.
+
+An alternative bundle may declare `scenario_acts` in its pins sidecar, and
+inherits the shipped set when it does not. Inheriting is right here and wrong
+for the fingerprints, which is worth stating because this file says loudly that
+nothing is inherited: an inherited fingerprint claims two environments are one
+and pools episodes that do not match, while an inherited act set claims the
+bundle measures the same categories, which is what a twin is. An empty declared
+set is refused rather than inherited - declaring nothing and declaring nothing
+useful are different claims.
+
 ## v169
 
 CHARTS MOVE OUT OF THE CORPUS THEY ARE DRAWN FROM.
