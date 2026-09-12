@@ -558,8 +558,50 @@ def _shell_bool(name: str, value: str) -> bool:
     return value == "true"
 
 
+NO_ARM = "none"
+
+
+def _arm_stem(path: str, nudge: str) -> str:
+    """
+    The arm segment of a run filename - everything `batch_stem` wrote, less
+    the effort level.
+
+    READ OFF THE NAME RATHER THAN RECOMPOSED FROM PARSED PARTS. Recomposing
+    means naming each axis at the call site, and that hand-written list is
+    precisely what fell behind: the census knew about oversight and lure,
+    while the goal-guarding and artefact-date arms were added to `batch_stem`
+    and to nothing here. Two goal-guarding arms therefore shared one count,
+    so collecting the second after the first saw the first's episodes, read
+    "enough already on disk" and skipped - exiting 0 with the contrast never
+    collected. Taken as a substring, an axis added to `batch_stem` tomorrow
+    appears on both sides of the comparison without an edit here.
+
+    EFFORT IS DELIBERATELY NOT PART OF IT, and this is an exemption with a
+    measurement rather than an oversight: run_all_arms.sh does not parse
+    --effort, which reaches run_eval.py through its passthrough, so the shell
+    cannot say which level it is asking for. Were effort compared, a census
+    for the default level would stop counting the 120 run files in
+    eval_results_r10 that carry `_medium` and re-collect every one of them.
+    Narrowing to a level is what `find_run_files(effort=...)` is for.
+    """
+    name = os.path.basename(path)
+    if name.endswith(".json"):
+        name = name[:-len(".json")]
+    name = re.sub(r"^run_\d+_", "", name)
+    name = re.sub(r"_(\d{8}T\d{6}(?:-\d+)?)$", "", name)
+    # parse_batch_filename rather than a bare EFFORT_LEVELS test, for its nudge
+    # guard: `max` is both a nudge level and an effort level, and stripping it
+    # from a --nudge max batch would make that arm's stem the same as a
+    # nudge-less one's.
+    effort, _stamp, _oversight, _lure, _cap = parse_batch_filename(path, nudge)
+    if effort and name.endswith(f"_{effort}"):
+        name = name[:-len(f"_{effort}")]
+    return name
+
+
 def arm_run_file_census(output_dir: str, model: str, nudge: str,
-                        oversight: str, lure: str) -> tuple:
+                        oversight: str, lure: str,
+                        goalguard: str = NO_ARM) -> tuple:
     """
     How many run files one exact collection arm already has, and under which
     batch stamps, as `(count, [stamp, ...])`.
@@ -581,20 +623,33 @@ def arm_run_file_census(output_dir: str, model: str, nudge: str,
     on this side of the boundary where `_shell_bool` can reject a bad value and
     a test can prove it does.
 
-    `lure` is filtered here rather than by find_run_files, which does not carry
-    it; `capability=None` is passed so the capability corpus can never satisfy
-    a propensity arm's target.
+    `goalguard` is that arm's name, or NO_ARM for the plain propensity arm that
+    stages no successor file. A sentinel rather than an empty string because an
+    unset shell variable already spells empty, and the two must not mean the
+    same thing here; `TestTheCollectionCensusCountsOnlyWhatItWouldCollect`
+    holds it against GOALGUARD_ARMS so a real arm can never be named "none".
+
+    MATCHED ON THE WHOLE ARM STEM, not axis by axis - see `_arm_stem` for what
+    that fixed. `capability=None` is still passed to find_run_files as a
+    pre-filter; the stem comparison would exclude a capability episode anyway,
+    and the narrower glob is kept because it is what that parameter is for.
     """
     want_oversight = _shell_bool("oversight", oversight)
     want_lure = _shell_bool("lure", lure)
+    want = BatchIdentity(model=model, model_slug=model.replace("/", "_"),
+                         nudge=nudge, oversight=want_oversight,
+                         lure=want_lure,
+                         goalguard=None if goalguard == NO_ARM else goalguard
+                         ).stem
 
     stamps = set()
     n = 0
     for path in find_run_files(output_dir, model.replace("/", "_"), nudge,
                                oversight=want_oversight, capability=None):
-        _effort, stamp, _oversight, got_lure, _cap = parse_batch_filename(
+        if _arm_stem(path, nudge) != want:
+            continue
+        _effort, stamp, _oversight, _lure, _cap = parse_batch_filename(
             path, nudge)
-        if got_lure == want_lure:
-            n += 1
-            stamps.add(stamp or "")
+        n += 1
+        stamps.add(stamp or "")
     return n, sorted(stamps)

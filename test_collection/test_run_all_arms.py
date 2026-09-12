@@ -420,6 +420,50 @@ class TestTheSkipCheckSurvivesTheShellBoundary(unittest.TestCase):
         self.assertNotIn("skipping", done.stdout)
         self.assertEqual(done.stdout.count("would run:"), ARMS, done.stdout)
 
+    def test_each_goalguard_arm_is_skipped_on_its_own_episodes(self):
+        """
+        THE DEFECT, AT THE SHELL BOUNDARY. The census pooled the two
+        goal-guarding arms, so collecting the second after the first saw
+        --runs episodes on disk and skipped: the contrast the arm exists for
+        was never collected, and the script exited 0.
+
+        `replacement` is complete here and `deferred` is not, so exactly the
+        deferred arms may run.
+        """
+        out = self._dir(
+            "run_1_test_stub-model_none_goalguard-replacement"
+            "_20260101T000000.json",
+            "run_1_test_stub-model_none_goalguard-replacement_nooversight"
+            "_20260101T000000.json")
+        done = self._run(out, extra=["--goalguards", "replacement,deferred",
+                                     "--lures", "false"])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(done.stdout.count("skipping"), 2, done.stdout)
+        would = [ln for ln in done.stdout.splitlines() if "would run:" in ln]
+        self.assertEqual(len(would), 2, done.stdout)
+        for line in would:
+            self.assertIn("--goalguard deferred", line)
+
+    def test_the_default_cross_product_passes_no_goalguard_flag(self):
+        """NO_ARM is the absence of the arm, not a value to pass on. run_eval.py
+        accepts only real arm names, so passing the sentinel would abort every
+        arm - and the default shape is the one every corpus to date was
+        collected under."""
+        done = self._run(self._dir())
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(done.stdout.count("would run:"), ARMS, done.stdout)
+        self.assertNotIn("--goalguard", done.stdout)
+
+    def test_a_goalguard_episode_does_not_skip_the_plain_arm(self):
+        """The other direction: the default cross product must not be
+        satisfied by episodes from an arm it is not collecting."""
+        out = self._dir("run_1_test_stub-model_none_goalguard-deferred"
+                        "_20260101T000000.json")
+        done = self._run(out)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn("skipping", done.stdout)
+        self.assertEqual(done.stdout.count("would run:"), ARMS, done.stdout)
+
     def test_a_failed_census_stops_the_batch_rather_than_collecting(self):
         """The costly direction. An unreadable count used to leave `existing`
         empty; both arithmetic tests then errored to stderr, neither branch was

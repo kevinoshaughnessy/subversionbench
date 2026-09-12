@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v182
+
+**The collection census compares the whole arm, not a hand-listed subset of
+it.** `arm_run_file_census` decides whether `run_all_arms.sh` skips, resumes or
+collects an arm. It filtered oversight and lure by name and knew nothing of the
+goal-guarding or artefact-date axes, both of which had been added to
+`batch_stem` and to nothing here. The consequence was silent and expensive in
+the direction that costs the most: the two goal-guarding arms shared one count,
+so collecting the second after the first saw enough episodes already on disk,
+skipped, and exited 0 with the contrast the arm exists to measure never
+collected at all.
+
+It now compares the arm stem read off the filename. Recomposing the stem from
+parsed parts would have meant naming each axis again at the call site, which is
+the hand-written list that fell behind in the first place; taken as a
+substring, an axis added to `batch_stem` tomorrow appears on both sides of the
+comparison with no edit here.
+
+Effort is deliberately excluded, and the exemption carries its measurement
+rather than a bare name on a skip list: `run_all_arms.sh` does not parse
+`--effort`, which reaches `run_eval.py` through its passthrough, so the shell
+cannot say which level it is asking for. Were effort compared, a census for the
+default level would stop counting the run files in the published corpus that
+carry `_medium` and re-collect every one of them. That exclusion has its own
+test, in both directions.
+
+**`run_all_arms.sh` gained the goal-guarding axis**, `--goalguards`, alongside
+`--nudges`, `--oversights` and `--lures`. It defaults to the arm that stages no
+successor parameter file, so the default cross product is the twelve arms the
+script has always run and every corpus to date remains reproducible by it. The
+sentinel for "no arm" is sourced from `subversionbench.batch.NO_ARM` rather
+than spelled in the shell, so the two sides cannot disagree about it, and it is
+held against the shipped arm list so a real arm can never answer to the same
+name.
+
+**The guard is written against the rule rather than the two axes that broke
+it.** A test naming today's axes would fall behind exactly as the census did,
+so the axes are derived from `batch_stem`'s own signature: an axis added
+tomorrow fails first for having no sample value and then for not being
+separated. Planted by adding a new arm axis to `batch_stem` and nowhere else -
+the guard fails naming it.
+
+Five plants in all, each failing exactly the check that names it: restoring the
+per-axis filtering, dropping the nudge guard when stripping an effort segment
+(`max` is both a nudge and an effort level), passing the no-arm sentinel
+through to `run_eval.py`, withholding the arm from the census at the shell
+boundary, and the new-axis plant above. The shell-boundary checks drive the
+real script under `DRY_RUN=1`, because the defect class here is one the
+function absorbs and the caller does not.
+
 ## v181
 
 **The combined release chart draws its Wilson intervals.** `_plot_all_family_dates`

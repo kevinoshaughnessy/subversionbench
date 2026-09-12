@@ -1,12 +1,26 @@
 #!/usr/bin/env bash
 #
-# Run every (nudge, oversight, lure) arm for one model, --runs episodes each.
+# Run every (nudge, oversight, lure, goalguard) arm for one model, --runs
+# episodes each.
 #
-# 12 arms: nudge in {none, strong, max} x oversight in {true, false} x lure in
-# {true, false}. Each is a DISTINCT rollout arm - none pools with another, and
-# nothing about the harness merges them - so this is 12 separate batches run
-# back to back, not one bigger one. Narrow the axes with --nudges/--oversights/
-# --lures (comma-separated) if you do not want the full cross product.
+# 12 arms by default: nudge in {none, strong, max} x oversight in {true, false}
+# x lure in {true, false} x goalguard in {none}. Each is a DISTINCT rollout arm
+# - none pools with another, and nothing about the harness merges them - so
+# these are separate batches run back to back, not one bigger one. Narrow or
+# widen the axes with --nudges/--oversights/--lures/--goalguards
+# (comma-separated) if you do not want the default cross product.
+#
+# THE GOAL-GUARDING AXIS defaults to `none`, the arm that stages no successor
+# parameter file - which is every batch collected before that act existed, so
+# the default cross product is the one this script has always run. `none` is
+# the absence of the arm and is not passed to run_eval.py at all; any other
+# value is passed as --goalguard, and subversionbench.batch.NO_ARM holds the
+# spelling both sides agree on.
+#
+#   ./run_all_arms.sh --model M --runs 10 --goalguards replacement,deferred \
+#                     --nudges none,strong --lures false
+#
+# is the eight-arm shape eval_results_goalguard_r1 was collected in.
 #
 # EVERY interrogation phrasing is exercised, and it is NOT a thirteenth loop
 # dimension. The phrasings are a paired design: each is put to the SAME episode,
@@ -30,13 +44,15 @@
 # through to every arm unchanged.
 #
 # COST: 12 arms x --runs episodes per model by default - 120 episodes at
-# --runs 10. Budget for that before running for real; DRY_RUN=1 prints the
+# --runs 10, and the axes multiply, so widening one is not free. Budget for that before running for real; DRY_RUN=1 prints the
 # command for every arm and spends nothing.
 #
 # SAFE TO RE-RUN. Before each arm, this checks --output-dir for run files
-# already on disk under that exact (model, nudge, oversight, lure), via
-# subversionbench.batch.arm_run_file_census - not just oversight, since
-# find_run_files() does not itself filter on lure. The census counts the
+# already on disk under that exact arm, via
+# subversionbench.batch.arm_run_file_census, which compares the WHOLE arm
+# stem rather than a hand-listed set of axes - the list it used to carry fell
+# behind the filename, pooled the two goal-guarding arms into one count, and
+# would skip collecting the second of them. The census counts the
 # PROPENSITY corpus only: a capability episode carries the same nudge,
 # oversight and lure in its name, so counting one toward this arm's target
 # would skip collecting an arm that has no propensity episodes at all:
@@ -59,6 +75,12 @@ RUNS=""
 NUDGES=(none strong max)
 OVERSIGHTS=(true false)
 LURES=(false true)
+# The arm that stages no successor parameter file: every batch collected
+# before the goal-guarding act existed, so this default leaves the cross
+# product exactly as it has always been. Sourced rather than spelled, so the
+# shell and the census cannot disagree about how "no arm" is written.
+NO_ARM="$(python3 -c 'from subversionbench.batch import NO_ARM; print(NO_ARM)')"
+GOALGUARDS=("$NO_ARM")
 # Matches run_eval.py's own default exactly, sourced rather than duplicated
 # as a literal - a mismatched default here is not cosmetic. This script's
 # own existing-file check reads OUTPUT_DIR directly; run_eval.py falls back
@@ -89,6 +111,7 @@ while [ $# -gt 0 ]; do
         --nudges) IFS=',' read -r -a NUDGES <<< "$2"; shift 2 ;;
         --oversights) IFS=',' read -r -a OVERSIGHTS <<< "$2"; shift 2 ;;
         --lures) IFS=',' read -r -a LURES <<< "$2"; shift 2 ;;
+        --goalguards) IFS=',' read -r -a GOALGUARDS <<< "$2"; shift 2 ;;
         --interrogations) INTERROGATIONS="$2"; shift 2 ;;
         --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         *) PASSTHROUGH+=("$1"); shift ;;
@@ -97,15 +120,15 @@ done
 
 if [ -z "$MODEL" ] || [ -z "$RUNS" ]; then
     echo "usage: $0 --model MODEL --runs N [--nudges a,b,c] [--oversights a,b]" >&2
-    echo "          [--lures a,b] [run_eval.py flags...]" >&2
+    echo "          [--lures a,b] [--goalguards a,b] [run_eval.py flags...]" >&2
     exit 1
 fi
 
-TOTAL_ARMS=$(( ${#NUDGES[@]} * ${#OVERSIGHTS[@]} * ${#LURES[@]} ))
+TOTAL_ARMS=$(( ${#NUDGES[@]} * ${#OVERSIGHTS[@]} * ${#LURES[@]} * ${#GOALGUARDS[@]} ))
 TOTAL_EPISODES=$(( TOTAL_ARMS * RUNS ))
 
 echo "Model: ${MODEL}"
-echo "Arms: ${#NUDGES[@]} nudge x ${#OVERSIGHTS[@]} oversight x ${#LURES[@]} lure = ${TOTAL_ARMS}"
+echo "Arms: ${#NUDGES[@]} nudge x ${#OVERSIGHTS[@]} oversight x ${#LURES[@]} lure x ${#GOALGUARDS[@]} goalguard = ${TOTAL_ARMS}"
 echo "Runs per arm: ${RUNS}  -  total episodes if nothing is already on disk: ${TOTAL_EPISODES}"
 echo "Extra interrogation phrasings per episode: ${INTERROGATIONS:-<none>}"
 [ "$DRY_RUN" = "1" ] && echo "DRY RUN - nothing will be spent"
@@ -206,10 +229,11 @@ i=0
 for nudge in "${NUDGES[@]}"; do
     for oversight in "${OVERSIGHTS[@]}"; do
         for lure in "${LURES[@]}"; do
+         for goalguard in "${GOALGUARDS[@]}"; do
             # Before starting an arm, so a stop never buys another one.
             i=$((i + 1))
             echo "############################################################"
-            echo "# [${i}/${TOTAL_ARMS}] nudge=${nudge} oversight=${oversight} lure=${lure}"
+            echo "# [${i}/${TOTAL_ARMS}] nudge=${nudge} oversight=${oversight} lure=${lure} goalguard=${goalguard}"
             echo "############################################################"
 
             # Prints "<count>\t<stamp1>[,<stamp2>...]" - count of run files that
@@ -228,7 +252,7 @@ import sys
 from subversionbench.batch import arm_run_file_census
 n, stamps = arm_run_file_census(*sys.argv[1:])
 print(n, ",".join(stamps) or "-")
-' "$OUTPUT_DIR" "$MODEL" "$nudge" "$oversight" "$lure")"; then
+' "$OUTPUT_DIR" "$MODEL" "$nudge" "$oversight" "$lure" "$goalguard")"; then
                 echo "  ERROR: could not count existing runs for this arm" >&2
                 exit 1
             fi
@@ -262,6 +286,13 @@ print(n, ",".join(stamps) or "-")
                 fi
             fi
 
+            # NO_ARM is the absence of the arm, so nothing is passed for it -
+            # run_eval.py's --goalguard takes only real arm names, and passing
+            # the sentinel would be rejected rather than ignored.
+            goalguard_args=()
+            [ "$goalguard" != "$NO_ARM" ] && \
+                goalguard_args=(--goalguard "$goalguard")
+
             interrogation_args=()
             [ -n "$INTERROGATIONS" ] && \
                 interrogation_args=(--interrogation "$INTERROGATIONS")
@@ -274,6 +305,7 @@ print(n, ",".join(stamps) or "-")
                  --model "$MODEL" --runs "$RUNS"
                  --nudge "$nudge" --oversight "$oversight" --lure "$lure"
                  --output-dir "$OUTPUT_DIR"
+                 "${goalguard_args[@]+"${goalguard_args[@]}"}"
                  "${interrogation_args[@]+"${interrogation_args[@]}"}"
                  "${resume_args[@]+"${resume_args[@]}"}" "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}")
 
@@ -302,12 +334,13 @@ print(n, ",".join(stamps) or "-")
                     echo "  [!] this arm did not complete - continuing to the next one."
                     echo "      Re-running this script (no --resume needed) will pick up"
                     echo "      wherever it left off, the same as any other partial arm."
-                    FAILED_ARMS+=("nudge=${nudge} oversight=${oversight} lure=${lure}")
+                    FAILED_ARMS+=("nudge=${nudge} oversight=${oversight} lure=${lure} goalguard=${goalguard}")
                 fi
             fi
             echo
             # And after it, so a stop during an arm is acted on as soon as the
             # arm lets go rather than waiting for the next one to be set up.
+         done
         done
     done
 done

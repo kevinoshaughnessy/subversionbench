@@ -551,6 +551,117 @@ class TestTheCollectionCensusCountsOnlyWhatItWouldCollect:
         assert arm_run_file_census(out, "x-ai/grok-4.5", "none",
                                    "true", "false")[0] == 1
 
+    def test_the_two_goalguard_arms_are_counted_separately(self):
+        """
+        THE DEFECT THIS FIX IS FOR. The census filtered oversight and lure by
+        hand and knew nothing of the goal-guarding axis, so both of that arm's
+        values landed in one count. Collecting `deferred` after `replacement`
+        therefore saw --runs episodes already on disk, skipped, and exited 0
+        with the contrast - the whole point of the arm - never collected.
+        """
+        from subversionbench.batch import arm_run_file_census
+        out = tempfile.mkdtemp()
+        for name in (
+                "run_1_m_none_goalguard-replacement_20260101T000000.json",
+                "run_2_m_none_goalguard-replacement_20260101T000000.json",
+                "run_1_m_none_goalguard-deferred_20260101T000001.json"):
+            Path(out, name).write_text("{}")
+
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   "replacement") == (2, ["20260101T000000"])
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   "deferred") == (1, ["20260101T000001"])
+
+    def test_a_goalguard_episode_does_not_satisfy_the_plain_arm(self):
+        """Both directions, because a count that is too high skips an arm that
+        was never collected and one that is too low pays for it twice."""
+        from subversionbench.batch import arm_run_file_census, NO_ARM
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_none_20260101T000000.json").write_text("{}")
+        Path(out, "run_1_m_none_goalguard-deferred_20260101T000001.json"
+             ).write_text("{}")
+
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   NO_ARM)[0] == 1
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   "deferred")[0] == 1
+
+    def test_the_no_arm_sentinel_is_not_the_name_of_a_real_arm(self):
+        """The shell spells "no goal-guarding arm" with this, so a real arm
+        answering to the same name would make the plain propensity arm
+        uncountable. Held against the shipped list rather than a copy of it."""
+        from subversionbench.batch import NO_ARM
+        from subversionbench.config import GOALGUARD_ARMS
+        assert GOALGUARD_ARMS, "no arms shipped - this would pass vacuously"
+        assert NO_ARM not in GOALGUARD_ARMS
+
+    def test_every_optional_arm_axis_is_separated_by_the_census(self):
+        """
+        THE RULE, NOT THE TWO AXES THAT BROKE IT. goalguard and date_mode were
+        both added to batch_stem and to neither the census nor its tests, and
+        a test naming today's axes would go the same way. The axes are derived
+        from batch_stem's own signature, so one added tomorrow fails here -
+        first for having no sample value, and then for not being separated -
+        instead of silently pooling two arms into one count.
+
+        effort is excluded deliberately and the exclusion is checked below, in
+        its own test, rather than being a bare name on a skip list.
+        """
+        from subversionbench.batch import (arm_run_file_census, batch_stem,
+                                           NO_ARM)
+        axes = [name for name in inspect.signature(batch_stem).parameters
+                if name not in ("model_slug", "nudge", "effort")]
+        assert axes, "no axes derived - this would pass vacuously"
+
+        # One value per axis that is NOT the default, and the census call that
+        # should see it. Asserted to cover every derived axis, so the mapping
+        # cannot fall behind the signature the way the census itself did.
+        samples = {"oversight": (False, ("false", "false", NO_ARM)),
+                   "lure": (True, ("true", "true", NO_ARM)),
+                   "capability": ("sandbox", None),
+                   "date_mode": ("consistent", None),
+                   "goalguard": ("deferred", ("true", "false", "deferred"))}
+        missing = [a for a in axes if a not in samples]
+        assert not missing, f"batch_stem grew {missing} - add a sample value"
+
+        plain = ("true", "false", NO_ARM)
+        for axis in axes:
+            value, own_census = samples[axis]
+            out = tempfile.mkdtemp()
+            Path(out, "run_1_" + batch_stem("m", "none", **{axis: value})
+                 + "_20260101T000000.json").write_text("{}")
+            assert arm_run_file_census(out, "m", "none", *plain)[0] == 0, (
+                f"a {axis}={value!r} episode satisfied the plain arm")
+            if own_census is not None:
+                assert arm_run_file_census(out, "m", "none", *own_census)[0] == 1, (
+                    f"a {axis}={value!r} episode was invisible to its own arm")
+
+    def test_the_census_still_counts_across_effort_levels(self):
+        """
+        The one axis the stem comparison deliberately ignores, checked so the
+        exemption cannot rot into an accident.
+
+        run_all_arms.sh does not parse --effort - it reaches run_eval.py
+        through the passthrough - so the shell cannot say which level it is
+        asking for. Were effort compared, a census for the default level would
+        stop counting the run files in eval_results_r10 that carry `_medium`
+        and re-collect every one of them.
+        """
+        from subversionbench.batch import arm_run_file_census, NO_ARM
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_none_medium_20260101T000000.json").write_text("{}")
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   NO_ARM)[0] == 1
+
+    def test_a_nudge_named_max_is_not_read_as_an_effort_level(self):
+        """`max` is both, and stripping it as an effort would give a --nudge
+        max batch the same arm stem as a nudge-less one."""
+        from subversionbench.batch import arm_run_file_census, NO_ARM
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_max_20260101T000000.json").write_text("{}")
+        assert arm_run_file_census(out, "m", "max", "true", "false",
+                                   NO_ARM)[0] == 1
+
     def test_an_unspelled_boolean_raises_rather_than_meaning_false(self):
         """`oversight == "true"` silently read every other spelling as the
         counterfactual arm, so a typo counted one arm and collected another."""
