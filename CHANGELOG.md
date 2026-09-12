@@ -10,6 +10,45 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v181
+
+**The combined release chart draws its Wilson intervals.** `_plot_all_family_dates`
+showed a point per dated model and nothing about how well each was pinned down,
+on the chart most likely to be lifted out of the repository and into a
+write-up. Several of those points rest on arms of ten episodes, where the
+interval spans tens of points, so the chart presented estimates as though they
+were precise. The whiskers go under the markers and under the labels, without
+caps and without printed bounds: at this density a capped bar reads as three
+marks per point, and the bracketed figures the per-family chart writes into
+each label do not fit beside a version string for every model in the corpus.
+The axis label names the convention, because an unexplained error bar is read
+as whatever the reader assumes and the two charts differ - the per-family one
+writes the same interval in brackets instead of drawing it.
+
+The upper bound goes into `axis_top` as well as into the bar. `axis_top` says
+in as many words that the values it is given must already include the error
+bars where they are drawn, and it is the easy half to forget because the
+points still fit without it. A whisker clipped at the top of the axis reads as
+a shorter interval rather than as a missing one, which is the failure that
+matters on a chart about precision.
+
+**The guard that broke on this was a guard against a location.**
+`test_no_line_joins_two_releases` asserted that `inspect.getsource` of two
+named plotters contained `scatter(` and did not contain `errorbar(`. The rule
+it holds is that nothing joins two release dates with a line - nothing was
+measured in between, so a segment invites reading a slope off months of empty
+axis - and neither the marker call moving into `_draw_family_points` nor the
+arrival of the whiskers touched that rule. It now renders the figure and reads
+the axes: every Line2D must be the dotted fit, and it fails if no fitted line
+was drawn at all, so it cannot pass vacuously. Whiskers are not a
+counter-example and the docstring says why - matplotlib draws them as a
+LineCollection, never a Line2D.
+
+Each of the three new checks was planted against: removing the whiskers,
+dropping the upper bound from the axis calculation, removing the note from the
+axis label, and joining the points with a solid line each fail exactly the
+check that names them.
+
 ## v180
 
 **The goal-guarding counterfactual is a report question.** `goalguard_vs_act`

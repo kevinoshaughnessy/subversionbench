@@ -68,18 +68,119 @@ class TestTheReleaseCharts:
             names = [os.path.basename(p) for p in written]
             assert len(names) == len(set(names)) == 6
 
+    def _rendered(self, out, plotter):
+        """
+        The axes a release plotter actually drew on.
+
+        THE PLOTTER CLOSES ITS OWN FIGURE, which is right - it writes a file
+        and owns what it opened - so the figure cannot be read afterwards.
+        `close` is suppressed for the call and the figure kept, rather than the
+        plotter being changed to hand one back for the benefit of a test.
+        """
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        report = ft.build_report(self._dated_corpus(out))
+        families = [f for f in report["families"] if ft._dated_members(f)]
+        kept = []
+        real_close = plt.close
+
+        def _keep(*args, **kwargs):
+            if args and hasattr(args[0], "axes"):
+                kept.append(args[0])
+                return None
+            return real_close(*args, **kwargs)
+
+        plt.close = _keep
+        try:
+            plotter(plt, report, ft._family_colours(plt, families),
+                    ft.release_span(report), os.path.join(out, "probe.png"))
+        finally:
+            plt.close = real_close
+        assert kept, "the plotter drew no figure, so this checked nothing"
+        axes = [ax for figure in kept for ax in figure.axes]
+        real_close("all")
+        return axes, families
+
     def test_no_line_joins_two_releases(self):
-        """Nothing was measured between two release dates, so a connecting
-        segment invites reading a slope off months of empty axis. The one line
-        these charts draw is a straight fit, and it comes from
-        _draw_release_fit rather than from joining the points up."""
-        import inspect
-        for plot in (ft._plot_family_dates, ft._plot_all_family_dates):
-            source = inspect.getsource(plot)
-            assert "scatter(" in source, plot.__name__
-            assert "ax.plot(" not in source, plot.__name__
-            assert "errorbar(" not in source, plot.__name__
-            assert "_draw_release_fit(" in source, plot.__name__
+        """
+        Nothing was measured between two release dates, so a connecting segment
+        invites reading a slope off months of empty axis. The only Line2D these
+        charts draw is the straight fit, which is dotted.
+
+        ASSERTED ON WHAT WAS DRAWN, not on the source of a named function. This
+        used to grep `inspect.getsource` for "scatter(" and for the ABSENCE of
+        "errorbar(" - a guard against a location, and it broke twice for
+        reasons unconnected to the rule it holds: once when the marker call was
+        given a function of its own, and once when the combined chart gained
+        the Wilson whiskers it should always have had. Neither joined two
+        releases with a line.
+
+        Whiskers are not a counter-example and must not be read as one:
+        matplotlib draws them as a LineCollection, never a Line2D, so a
+        connecting line still has nowhere to hide here.
+        """
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            axes, _ = self._rendered(out, ft._plot_all_family_dates)
+
+        assert axes, "no axes were drawn"
+        dotted = 0
+        for ax in axes:
+            for line in ax.lines:
+                assert line.get_linestyle() in (":", "dotted"), (
+                    f"a solid line joins points on a release chart: "
+                    f"{line.get_xydata()[:3]}")
+                dotted += 1
+        assert dotted, "no fitted line was drawn, so the check above is vacuous"
+
+    def test_the_combined_chart_draws_wilson_whiskers(self):
+        """
+        The interval has to be visible on the chart most likely to be lifted
+        into a write-up. Several points rest on arms of ten episodes, where the
+        Wilson interval spans tens of points, and without whiskers the chart
+        showed those estimates as though they were precise.
+
+        The axis label is asserted with them: an unexplained error bar is read
+        as whatever the reader assumes, and the per-family chart writes the
+        same interval in brackets instead of drawing it.
+        """
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            axes, families = self._rendered(out, ft._plot_all_family_dates)
+
+        bars = [c for ax in axes for c in ax.containers
+                if type(c).__name__ == "ErrorbarContainer"]
+        assert len(bars) == len(families), (
+            f"{len(bars)} error-bar containers for {len(families)} families")
+        assert any("Wilson" in ax.get_xlabel() for ax in axes), (
+            [ax.get_xlabel() for ax in axes])
+
+    def test_no_whisker_is_clipped_by_the_top_of_the_axis(self):
+        """
+        axis_top says it in as many words - the values it is given must already
+        include the error bars where they are drawn, or the whisker escapes the
+        axis. It is the easy half to forget, because the points still fit.
+
+        A CLIPPED WHISKER IS WORSE THAN A MISSING ONE. A missing interval reads
+        as absent; one that stops at the axis edge reads as a shorter interval
+        than it is, on the chart whose whole purpose is showing how wide the
+        interval really is.
+        """
+        self._skip_without_matplotlib()
+        with tempfile.TemporaryDirectory() as out:
+            axes, families = self._rendered(out, ft._plot_all_family_dates)
+
+        highest = max((m["rate"] or 0) * 100 + ft._upper_error(m)
+                      for f in families for m, _ in ft._dated_members(f))
+        assert highest > 0, "no interval to clip, so this checked nothing"
+        for ax in axes:
+            if not ax.containers:
+                continue
+            assert ax.get_ylim()[1] >= highest, (
+                f"the axis stops at {ax.get_ylim()[1]:.1f}% and the tallest "
+                f"upper bound is {highest:.1f}%")
 
     def test_the_fitted_line_is_dotted_and_sits_under_the_markers(self):
         """Dotted and behind, because it summarises the points rather than

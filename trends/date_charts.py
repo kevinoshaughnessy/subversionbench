@@ -20,8 +20,10 @@ from datetime import date
 from .captions import (_exposure_note, _exposure_range_note,
                        _release_point_name, _slope_label)
 from .chart_geometry import (_COMBINED_AXIS_PT, _PER_FAMILY_AXIS_PT,
-                             _date_label_layout, _point_label, axis_top)
-from .chart_style import (CHART_DPI, FIT_NOTE, WILSON_NOTE_BRACKETS_ONLY)
+                             _date_label_layout, _lower_error, _point_label,
+                             _upper_error, axis_top)
+from .chart_style import (CHART_DPI, FIT_NOTE, WILSON_NOTE,
+                          WILSON_NOTE_BRACKETS_ONLY)
 from .metrics import AWARENESS_METRICS
 from .report import _member_release_date
 
@@ -260,6 +262,37 @@ def _legend_and_notes(fig, ax, report: dict, families: list,
                 color="#b00020")
 
 
+def _draw_family_points(ax, dated: list, colour, label: str) -> None:
+    """
+    One family's points on the calendar, with their Wilson intervals.
+
+    THE WHISKERS GO UNDER THE MARKERS AND UNDER THE LABELS, at the lowest
+    zorder of the three. A whisker crossing a neighbouring family's marker is
+    the same collision the markers were given zorder 6 to win, and the interval
+    is what a reader checks second - after seeing where the point is.
+
+    No caps, and no numbers. At this density a capped bar reads as three marks
+    per point, and the bracketed figures the per-family chart writes into each
+    label would not fit beside a version string for every model in the corpus.
+
+    Markers are semi-transparent because two families can land on the same
+    point and a calendar axis gives no honest way to separate them: grok-4.6
+    and deepseek-v4-pro-0813 shipped on the same day at 3.33% and 3.36%, and
+    an opaque marker would hide one entirely. Blended, the overlap is at least
+    visible, and both labels are drawn either way.
+    """
+    when = [w for _m, w in dated]
+    rates = [(m["rate"] or 0) * 100 for m, _ in dated]
+    ax.errorbar(when, rates,
+                yerr=[[_lower_error(m) for m, _ in dated],
+                      [_upper_error(m) for m, _ in dated]],
+                fmt="none", ecolor=colour, elinewidth=1.1, alpha=0.55,
+                capsize=0, zorder=4, clip_on=False)
+    ax.scatter(when, rates, s=90, color=colour, zorder=6,
+               edgecolors="white", linewidths=0.8, clip_on=False,
+               alpha=0.85, label=label)
+
+
 def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
     """
     Every family on one calendar, coloured by family. Points and labels only.
@@ -274,11 +307,21 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
     on top of the one above: the families interleave on a calendar in a way they
     cannot on a position axis, so five joined-up families would cross into an
     unreadable mesh, while five straight fits stay legible.
+
+    WHISKERS BUT NO NUMBERS - see _draw_family_points. Several points rest on
+    arms of ten episodes where the Wilson interval spans tens of points, and
+    this is the chart most likely to be lifted into a write-up: until it had
+    them it showed estimates as though they were precise.
     """
     families = [f for f in report["families"] if _dated_members(f)]
     if not families:
         return None
-    top = axis_top([(m["rate"] or 0) * 100
+    # THE UPPER WHISKER IS IN THE AXIS CALCULATION, not just the point. axis_top
+    # says so in as many words - values must already include the error bars
+    # where they are drawn, or the whisker escapes the axis - and a whisker
+    # clipped at the top reads as a shorter interval rather than as a missing
+    # one, which is the failure that matters on a chart about precision.
+    top = axis_top([(m["rate"] or 0) * 100 + _upper_error(m)
                     for f in families for m, _ in _dated_members(f)])
     points, labels = [], {}
     for index, family in enumerate(families):
@@ -305,21 +348,13 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
     for family, colour in zip(families, colours, strict=True):
         dated = _dated_members(family)
         fitted += _draw_release_fit(ax, family.get("release_fit"), colour)
-        # Semi-transparent because two families can land on the same point and
-        # a calendar axis gives no honest way to separate them: grok-4.6 and
-        # deepseek-v4-pro-0813 shipped on the same day at 3.33% and 3.36%, and
-        # an opaque marker would hide one entirely. Blended, the overlap is at
-        # least visible, and both labels are drawn either way.
-        ax.scatter([when for _m, when in dated],
-                   [(m["rate"] or 0) * 100 for m, _ in dated],
-                   s=90, color=colour, zorder=6, edgecolors="white",
-                   linewidths=0.8, clip_on=False, alpha=0.85,
-                   # The slope goes in the legend, not on the line: five
-                   # gradients cannot be read off a shared axis, and a caption
-                   # per line would land in the middle of the data.
-                   label=f"{family['family']}  "
-                         f"({len(dated)} of {family['n_members']} dated"
-                         f"{_slope_label(family.get('release_fit'))})")
+        _draw_family_points(ax, dated, colour,
+                            # The slope goes in the legend, not on the line:
+                            # five gradients cannot be read off a shared axis,
+                            # and a caption per line would land in the data.
+                            f"{family['family']}  "
+                            f"({len(dated)} of {family['n_members']} dated"
+                            f"{_slope_label(family.get('release_fit'))})")
     for key, when, rate in points:
         dx, dy, ha, va = layout[key]
         colour = colours[key[0] % len(colours)]
@@ -334,7 +369,10 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
                           "ec": "none", "alpha": 0.85})
     _date_axis(plt, ax, span)
     ax.set_ylim(0, top)
-    ax.set_xlabel("release date (point labels give the version)")
+    # Named because the two conventions here differ: the per-family chart
+    # writes the same interval in brackets instead.
+    ax.set_xlabel(f"release date (point labels give the version)    "
+                  f"({WILSON_NOTE})")
     ax.set_ylabel(f"{report['metric_label']} (%)")
     total = sum(m["n"] or 0 for f in families for m, _ in _dated_members(f))
     plotted = sum(len(_dated_members(f)) for f in families)
