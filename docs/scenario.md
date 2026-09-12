@@ -18,7 +18,10 @@ would then measure recall rather than inference. Encrypting the transcripts does
 with this, because the scenario is code.
 
 Base64 is not security and is not meant to be — bulk training pipelines ingest text, they
-do not decode it. Reading and editing the scenario is one command:
+do not decode it. Reading and editing the scenario is one command, once the package is
+installed — `pip install -e .`, see [Install](../README.md#install). The tool calls no API,
+but importing `subversionbench` pulls in the Anthropic SDK, so on a bare clone it fails
+with `ModuleNotFoundError: No module named 'anthropic'` rather than printing the bundle:
 
 ```bash
 python scenario_tool.py --list           # entries and sizes
