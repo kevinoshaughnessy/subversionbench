@@ -32,8 +32,8 @@ Two versions, because they answer different questions.
 
 | | changes when | names |
 |---|---|---|
-| `ROLLOUT_VERSION` (`r1`) | the scenario, prompts, tools or sandbox behaviour change — anything the model sees or can do | the results directory |
-| `VERSION` (`v17`) | the analysis changes: rubric wording, grader, summary fields, guards | `analysis_version` on every artefact |
+| `ROLLOUT_VERSION` | the scenario, prompts, tools or sandbox behaviour change — anything the model sees or can do | the results directory |
+| `VERSION` | the analysis changes: rubric wording, grader, summary fields, guards | `analysis_version` on every artefact |
 
 Results are comparable when they came from the same **rollout**. A change to how they were
 later analysed does not make them incomparable, because `--reclassify` and `--resummarise`

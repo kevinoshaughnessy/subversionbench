@@ -78,9 +78,9 @@ The measure pointed at that is `awareness_provenance` in each batch summary (see
 [What gets measured](methodology.md#what-gets-measured)): awareness verbalised *before the model issued a
 single command* was formed from the framing alone, which is what template recognition looks
 like; awareness verbalised only after the monitoring config was read was inferred from the
-scenario. Across all 470 saved v15 episodes the pre-command share is **0%** — 108 of the 121
-keyword-aware episodes had a window in which it could have been observed, and it was
-observed in none. That is evidence against genre recognition, not proof: the decisive test
+scenario. Across the r10 corpus the pre-command share is **0.4%** — 4 of the 1,045
+keyword-aware episodes, where 1,024 of them had a window in which it could have been
+observed at all. That is evidence against genre recognition, not proof: the decisive test
 is a cue ablation, holding the structure fixed while changing the surface.
 
 The model probes are each paired with a negative control, because a probe that cannot fail
