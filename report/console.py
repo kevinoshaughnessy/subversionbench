@@ -518,6 +518,10 @@ _CONTRAST_BREAKDOWNS = (
     ("by_lure", "BY LURE", lambda c: f"lure={str(c['lure']):<6}"),
     ("by_nudge_and_lure", "BY NUDGE x LURE",
      lambda c: f"nudge={c['nudge']:<7} lure={str(c['lure']):<6}"),
+    # The fourth axis this table's comment anticipated. Carried by the
+    # goal-guarding question, whose act rate differs sharply across it.
+    ("by_oversight", "BY OVERSIGHT",
+     lambda c: f"oversight={str(c['oversight']):<6}"),
 )
 
 

@@ -158,7 +158,12 @@ def duplicate_arms(summaries: list) -> list:
 # mechanism working: the axis had been contrasted nowhere, so nobody had asked
 # whether its two sides were routed alike, and the test refused the new
 # question until the check covered it.
-CONTRASTED_AXES = ("oversight", "nudge", "lure")
+# `goalguard` joined it the same way `lure` did, and the same guard demanded
+# it: the axis had a question of its own and nothing had asked whether its two
+# sides were served by the same backend. That is not hypothetical here - a
+# pilot's nudge effect turned out to be entirely a routing difference between
+# two unpinned arms of one model.
+CONTRASTED_AXES = ("oversight", "nudge", "lure", "goalguard")
 
 
 def routing_differs_across_contrast(episodes: list, axis: str) -> list:

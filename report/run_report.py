@@ -43,6 +43,7 @@ from .pooling import _crude_vs_stratified, _models
 from .questions_arms import (POOLED_FROM_REBUILT_ARM_ROWS,
                              POOLED_FROM_SUMMARIES,
                              question_lure_vs_sandbox_escape,
+                              question_goalguard_vs_act,
                              question_nudge_vs_awareness,
                              question_oversight_vs_awareness,
                              question_oversight_vs_misalignment,
@@ -274,6 +275,13 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # 1-4: the summaries carry a sandbox RATE but no count, and a contrast
         # needs a numerator.
         question_lure_vs_sandbox_escape(episodes),
+        # APPENDED for the same reason the lure question is, and the reason
+        # matters more here: this one is empty on both published corpora, which
+        # carry no goal-guarding episodes. Inserted anywhere but the end it
+        # would renumber every question after it in a report where the numbers
+        # are the chart filenames - and it would do so for corpora the question
+        # cannot say anything about.
+        question_goalguard_vs_act(episodes),
     ])
 
     # Marked on the section rather than worked out again by each consumer. The

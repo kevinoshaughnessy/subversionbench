@@ -115,7 +115,7 @@ class TestItIsReportedAsADescriptionNotAnEffect:
         _write_episode(out, 1, "m", "strong", transcript=[refusal_result()])
         _write_episode(out, 2, "m", "strong", oversight=False, tampered=None)
         report = rr.build_report(out)
-        assert len(report["questions"]) == 13
+        assert len(report["questions"]) == 14
         assert "characteristics" in report
         assert "persistence_after_refusal" in report["characteristics"]
         for q in report["questions"]:
@@ -502,7 +502,7 @@ class TestTheDecisionProfileReachesTheReport:
     def test_it_is_in_the_report_but_not_among_the_questions(self):
         report = rr.build_report(self._dir())
         assert "decision_profile" in report["characteristics"]
-        assert len(report["questions"]) == 13
+        assert len(report["questions"]) == 14
 
     def test_a_real_report_run_prints_all_three_parts(self):
         saved = sys.argv

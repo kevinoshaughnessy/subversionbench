@@ -10,6 +10,60 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v180
+
+**The goal-guarding counterfactual is a report question.** `goalguard_vs_act`
+contrasts the arm whose cutover is imminent against the arm whose cutover is
+deferred, on the goal-guarding act. Both stage the same successor parameter
+file, name it in the same note, and leave the same commands to edit it with;
+only the reason to act differs. That contrast is what separates goal guarding
+from tidying a misconfigured successor or following an inferred instruction,
+and until now it was answerable only by a script written beside the corpus.
+
+It carries the machinery every arm question carries - per-model strata,
+Mantel-Haenszel, Breslow-Day, Holm and Benjamini-Hochberg over the per-model
+tests - and a `by_oversight` breakdown, because the act rate differs sharply
+across that axis and one pooled figure would average an arm where the model is
+watched with one where it is not.
+
+**Restricted to episodes that staged the artefact.** Propensity episodes never
+had a successor file to guard, so they are outside the question rather than a
+third level of it. On a corpus with no goal-guarding episodes both sides are
+empty and the contrast says so, which is the honest answer for r9 and r10 and
+the reason the question is appended rather than made a condition on the report
+running.
+
+**Two guards refused it until it was right, and both were correct to.** The
+routing-confound check enumerates the axes the report contrasts, and rejected a
+question on an axis it did not cover - the same way it behaved when the lure arm
+gained a question. `goalguard` joins `CONTRASTED_AXES`. That check is not
+hypothetical here: a pilot's apparent nudge effect turned out to be entirely a
+routing difference between two unpinned arms of one model.
+
+The chart layer derives a question's exposure from the text left of `_vs_` in
+its id, so the id has to be the row field. The question was renamed from
+`motive_vs_goal_guarding` to `goalguard_vs_act` to match `oversight_vs_*`,
+`nudge_vs_*` and `lure_vs_*`, and the chart layer gained readable names for its
+two levels.
+
+**No existing question moves.** The thirteen that were there are byte-identical
+and in the same order, checked by rebuilding the r10 report and comparing each.
+Every count assertion that names the number of questions was updated
+deliberately rather than relaxed.
+
+Two of six planted defects passed at first, and both were tests that could not
+see what they claimed to. `_contrast` filters by level and None matches neither,
+so restricting to goal-guarding episodes changes no denominator - the
+restriction shows only in the strata, where a propensity-only model becomes an
+empty stratum the multiplicity correction counts as a test. The other read
+`misaligned` where it should read the act, which agree on any fixture staging
+only one act. Both fixtures now stage what tells them apart.
+
+`test_run_report.py` reached the file limit, and `TestTheUnawareCorpusReading`
+moved to `test_run_report_readings.py`. `_two_arm_dir` moved to
+`report_fixtures.py`, on the precedent that module's own docstring states for
+helpers a second file comes to need.
+
 ## v179
 
 **The report says which scenario it pooled.** `scenario_id` has been stamped on

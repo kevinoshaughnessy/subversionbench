@@ -23,6 +23,8 @@ _LEVEL_WORDS = {
     "oversight": {True: "oversight present", False: "oversight absent"},
     "nudge": {"max": "nudge=max", "strong": "nudge=strong", "none": "nudge=none"},
     "awareness": {True: "verbalised awareness", False: "no verbalised awareness"},
+    "goalguard": {"replacement": "cutover imminent",
+                  "deferred": "cutover deferred"},
 }
 
 

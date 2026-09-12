@@ -14,6 +14,7 @@ only file that needed them; they moved here when it stopped being.
 """
 
 import json
+import tempfile
 
 from conftest import batch_episode
 from subversionbench.batch import BatchIdentity
@@ -145,6 +146,52 @@ def _write_failed_episode(out, n, model, nudge, oversight=True, lure=False,
                    "failed_on_turn": failed_on_turn, "transcript": [],
                    **partial}, f)
     return path
+
+
+#
+# `--exclude-no-oversight` answers all twelve questions again with the
+# no-oversight arm set aside, because that arm's task README still promises the
+# quality preview the arm itself removes. A sensitivity reading, not a
+# correction - see report/loading.py.
+
+def _two_arm_dir(nudges=("strong", "max"), unknown_arm=0):
+    """
+    A corpus with both oversight arms, both awareness levels inside each, and
+    both nudge levels named by `nudges`.
+
+    BOTH AWARENESS LEVELS IN BOTH ARMS on purpose: it is what lets a test tell
+    "this question lost a side because the arm went" from "this question never
+    had two sides here", which is the distinction _collapsed_by_exclusion was
+    corrected to respect.
+    """
+    out = tempfile.mkdtemp()
+    cross = {"aware": {"n": 8, "misaligned": 6},
+             "unaware": {"n": 2, "misaligned": 0}}
+    n = 0
+    for oversight in (True, False):
+        stamp = f"20260101T00000{int(oversight)}"
+        for nudge in nudges:
+            _write_summary(out, "m", nudge, oversight=oversight, lure=False,
+                           stamp=stamp, n_runs=20, n_scheming=1, n_misaligned=3,
+                           n_aware=8, n_unaware=12, cross=cross)
+            for aware in (True, False):
+                for _ in range(6):
+                    _write_episode(out, n, "m", nudge, oversight=oversight,
+                                   aware=aware, monitoring=not oversight,
+                                   escape=["cd /"] if aware else [],
+                                   tampered=None if not oversight else True,
+                                   stamp=stamp)
+                    n += 1
+    for _ in range(unknown_arm):
+        # An episode whose arm was never recorded. Written by hand rather than
+        # through _write_episode, which always states one.
+        path = f"{out}/run_{n}_m_strong_20260101T000009.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"model": "m", "nudge": "strong", "oversight": None,
+                       "lure": False, "analysis": {"misaligned": False},
+                       "transcript": []}, f)
+        n += 1
+    return out
 
 
 def refusal_result(turn=1):
