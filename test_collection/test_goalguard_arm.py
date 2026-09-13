@@ -432,3 +432,81 @@ class TestTheFilenameSaysWhichArmRanIt:
         stem = batch_stem("vendor_m", "strong", oversight=False, lure=True)
         assert goalguard_from_filename(
             f"run_1_{stem}_20260910T101500.json") is None
+
+
+class TestTheTwoIndependentAssemblyPathsAgree:
+    """
+    rollout_fingerprint (the PIN side, checked at collection time) and
+    create_hardened_environment (the WRITTEN side, what the model actually
+    reads) each call scenario_for independently - different modules, each
+    deriving its own arguments from `args`. v183's bug was exactly this: one
+    call site passed `nudge`, the other did not, and nothing compared them.
+    v184 fixed the drift guard to check the right PIN table, but the guard's
+    "actual" side is still an independent re-assembly through rollout_fingerprint
+    alone - it never touches create_hardened_environment, so a FUTURE instance
+    of the same defect, on any axis, would still pass it silently.
+
+    This spies on both real call sites during a real drive of each and asserts
+    they were given identical arguments. Since scenario_for is pure, arguments
+    matching is what actually guarantees the two paths assemble the same
+    scenario - and it needs no change to what any fingerprint hashes, so no
+    pin is at risk of moving.
+    """
+
+    def _captured(self, oversight, lure, goalguard, nudge, capability):
+        from subversionbench import environment as env_mod
+        from subversionbench import rollout as rollout_mod
+
+        calls = {}
+        real_env, real_roll = env_mod.scenario_for, rollout_mod.scenario_for
+
+        def spy_env(*a, **k):
+            calls["environment"] = (a, k)
+            return real_env(*a, **k)
+
+        def spy_roll(*a, **k):
+            calls["rollout"] = (a, k)
+            return real_roll(*a, **k)
+
+        env_mod.scenario_for = spy_env
+        rollout_mod.scenario_for = spy_roll
+        try:
+            env_mod.create_episode_root(oversight, lure=lure,
+                                        goalguard=goalguard,
+                                        capability=capability, nudge=nudge)
+            rollout_mod.rollout_fingerprint(oversight, lure=lure,
+                                            goalguard=goalguard,
+                                            capability=capability, nudge=nudge)
+        finally:
+            env_mod.scenario_for, rollout_mod.scenario_for = real_env, real_roll
+        return calls
+
+    def test_both_paths_are_actually_exercised(self):
+        """Without this, an agreement check that spied on nothing would pass
+        vacuously - which is exactly how the two-way branch it now guards
+        went untested for as long as it did."""
+        calls = self._captured(True, False, "deferred", "none", None)
+        assert set(calls) == {"environment", "rollout"}, calls
+
+    def test_the_two_paths_agree_across_the_pinned_grid(self):
+        """Swept over the whole grid the goal-guarding pins cover, since a
+        divergence on any one cell is the same failure the nudge defect was."""
+        from subversionbench.rollout_pins import GOALGUARD_FINGERPRINTS
+        for arm, oversight, nudge in sorted(GOALGUARD_FINGERPRINTS):
+            calls = self._captured(oversight, False, arm, nudge, None)
+            assert calls["environment"] == calls["rollout"], (
+                f"goalguard={arm} oversight={oversight} nudge={nudge}: "
+                f"environment.py called scenario_for with {calls['environment']}"
+                f", rollout.py with {calls['rollout']}")
+
+    def test_the_two_paths_agree_on_the_plain_arm_too(self):
+        """Not goal-guarding-specific: the same two call sites assemble every
+        arm, and the plain one is the one every existing pin depends on."""
+        for oversight in (True, False):
+            for nudge in ("none", "strong", "max"):
+                calls = self._captured(oversight, False, None, nudge, None)
+                assert calls["environment"] == calls["rollout"], (
+                    f"oversight={oversight} nudge={nudge}: "
+                    f"environment.py called scenario_for with "
+                    f"{calls['environment']}, rollout.py with "
+                    f"{calls['rollout']}")

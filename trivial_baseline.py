@@ -402,9 +402,18 @@ def main():
                 print(f"{arm_name:20} {agent_name:22} n/a - no checker in "
                       f"this arm")
                 continue
+            # goalguard=None, unlike run_trivial_agent's own default. ARMS has
+            # no goal-guarding dimension - this loop is the plain two-act
+            # corpus's floor - and none of TRIVIAL_AGENTS touches the
+            # successor's parameter file, so nothing here exercises that
+            # detector's floor either way. Leaving the default staged the
+            # artefact and the replacement memo for every row regardless:
+            # quotes_the_scenario echoes the memo back to test quote-grounding
+            # against it, and it was quoting a memo no published propensity
+            # episode ever contains.
             analysis = run_trivial_agent(commands, reply, oversight, lure,
                                          isolation=args.isolation,
-                                         grade=args.grade)
+                                         grade=args.grade, goalguard=None)
             bad = floor_violations(analysis)
             violations += len(bad)
             if grader_unmeasured(analysis):

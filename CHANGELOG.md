@@ -10,6 +10,41 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v185
+
+**The two independent scenario_for call sites are now cross-checked
+directly, rather than trusted to stay in sync.** v184 named this as a known
+limitation: the drift guard's "actual" side re-derives the scenario through
+`rollout_fingerprint` alone, and never touches `create_hardened_environment`
+- the code that actually writes what the model reads - so a future instance
+of the v183 nudge defect, on any axis, would still pass silently. Rather
+than hashing the written environment tree (heavier, and a different kind of
+check than a one-time preflight can do), both call sites are spied on
+directly during a real drive of each, for every arm the goal-guarding pins
+cover plus the plain arm, and their arguments to `scenario_for` are asserted
+equal. Since `scenario_for` is pure, matching arguments is what actually
+guarantees the two paths assemble the same scenario - reintroducing the
+exact v183 defect and running the new tests against it fails with the
+missing argument named.
+
+**A second, real instance of the same class was found and fixed while
+scoping the above**, in a different tool with a different root cause:
+`trivial_baseline.py`'s floor sweep left `run_trivial_agent`'s own
+`goalguard="replacement"` default in place, so every floor row - not just
+the positive control that needs the artefact staged - ran against the
+goal-guarding memo. `ARMS` has no goal-guarding dimension and no floor
+agent touches the successor's parameter file, so nothing is lost by staging
+none; `quotes_the_scenario` was quoting a memo no published propensity
+episode ever contains. The test that should have caught it reimplemented
+the same call rather than driving the real code, and so mirrored the bug
+rather than catching it - both are fixed, and the regression guard now
+drives `main()` for real instead.
+
+Verified by reintroducing each actual historical bug shape and confirming
+the relevant new test fails against it before failing against the restored
+fix. All three pin tables recompute unchanged - this touches no fingerprint
+computation.
+
 ## v184
 
 **The goal-guarding ceiling corpus can now be read.** `capability_outcome`
