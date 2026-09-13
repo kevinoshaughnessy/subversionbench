@@ -193,6 +193,18 @@ def _pinned() -> dict:
             for e in declared.get("fingerprints", [])}
 
 
+def _pinned_goalguard() -> dict:
+    """The goal-guarding fingerprints currently on the sidecar, keyed like
+    _goalguard_fingerprints. {} both when the sidecar has none and when there
+    is no sidecar at all - "no goal-guarding pins" is one fact, not two."""
+    if not PINS_PATH.is_file():
+        return {}
+    declared = json.loads(PINS_PATH.read_text(encoding="utf-8"))
+    return {(str(e["arm"]), bool(e["oversight"]), str(e["nudge"])):
+            str(e["fingerprint"])
+            for e in declared.get("goalguard_fingerprints", [])}
+
+
 def _write_pins(pins: dict, goalguard: dict = None) -> None:
     """
     Replace the sidecar, carrying the values it held into `superseded`.
@@ -293,15 +305,24 @@ def _pin() -> int:
     # scenario's would pool a twin episode with the scenario the twin exists to
     # be different from, which is the same failure the four base arms are
     # checked for and was worth no second spelling.
+    #
+    # KEPT AS TWO DICTS, not merged into one. pins is keyed (bool, bool) and
+    # goalguard is keyed (str, bool, str) - sorted() on a dict holding both
+    # compares a key of one shape against a key of the other the moment both
+    # are non-empty, and raises TypeError instead of printing the refusal
+    # this exists to report. Sorting each table on its own key shape is what
+    # the "wrote pins" printer below already does; the refusal now does the
+    # same rather than reaching for one spelling that cannot hold both.
     shared = {k: v for k, v in pins.items()
               if v == ROLLOUT_FINGERPRINTS.get(k)}
-    shared.update({k: v for k, v in goalguard.items()
-                   if v == GOALGUARD_FINGERPRINTS.get(k)})
-    if shared:
+    shared_goalguard = {k: v for k, v in goalguard.items()
+                        if v == GOALGUARD_FINGERPRINTS.get(k)}
+    if shared or shared_goalguard:
         # Would mean the reworded bundle assembles to the same arm as the
         # shipped one, so its episodes could be pooled with r9's.
-        print(f"Refusing to pin: {sorted(shared)} match the shipped "
-              f"rollout's fingerprints exactly.")
+        print(f"Refusing to pin: {sorted(shared)} base arm(s) and "
+              f"{sorted(shared_goalguard)} goal-guarding arm(s) match the "
+              f"shipped rollout's fingerprints exactly.")
         return 1
     _write_pins(pins, goalguard)
     print(f"wrote {PINS_PATH.relative_to(ROOT)} "
@@ -380,23 +401,44 @@ def _encode(repin: bool) -> int:
         # legitimate reword impossible.
         WORKING_COPY.write_text(json.dumps(edited, indent=2), encoding="utf-8")
         os.chmod(WORKING_COPY, 0o600)
+        # BOTH TABLES - the same rule _pin() applies when it first writes
+        # them. Checking only the base four here was the bug: a re-encode
+        # neither noticed a goal-guarding-only edit move that arm, nor kept
+        # its pins across an UNRELATED re-encode, because the sidecar this
+        # writes at the end used to come from `computed` alone - which is
+        # not written empty but simply never carries the key, so a repin
+        # for any other reason silently dropped the goal-guarding pins that
+        # were already there.
         computed = _fingerprints(WORKING_COPY)
+        computed_goalguard = _goalguard_fingerprints(WORKING_COPY)
         moved = sorted(k for k, v in computed.items() if _pinned().get(k) != v)
-        if moved and not repin:
-            print(f"\nRefusing to encode: this edit moves {len(moved)} of "
-                  f"{len(computed)} arm fingerprint(s), so it is a NEW "
-                  f"ROLLOUT:")
+        moved_goalguard = sorted(
+            k for k, v in computed_goalguard.items()
+            if _pinned_goalguard().get(k) != v)
+        if (moved or moved_goalguard) and not repin:
+            print(f"\nRefusing to encode: this edit moves {len(moved)} base "
+                  f"arm fingerprint(s) and {len(moved_goalguard)} "
+                  f"goal-guarding one(s), so it is a NEW ROLLOUT:")
             for key in moved:
                 print(f"    oversight={key[0]!s:5s} lure={key[1]!s:5s}  "
                       f"{_pinned().get(key, '(unpinned)')} -> {computed[key]}")
+            for key in moved_goalguard:
+                print(f"    goalguard={key[0]:<12s} oversight={key[1]!s:5s} "
+                      f"nudge={key[2]:<6s} "
+                      f"{_pinned_goalguard().get(key, '(unpinned)')} -> "
+                      f"{computed_goalguard[key]}")
             print(f"\nEpisodes already collected under "
                   f"{(_pinned() and json.loads(PINS_PATH.read_text(encoding='utf-8')).get('rollout_version')) or 'the current pins'} "
                   f"are NOT comparable with episodes collected after it.\n"
                   f"Set ROLLOUT_VERSION in this file to a new value and re-run "
                   f"with --repin to accept.")
             return 1
-        if moved:
-            _write_pins(computed)
+        if moved or moved_goalguard:
+            # goalguard_pinned() may still carry cells this edit did not
+            # touch - keep those rather than passing only what moved, or an
+            # edit to the base arms alone would wipe a goal-guarding table
+            # nothing here asked to change.
+            _write_pins(computed, {**_pinned_goalguard(), **computed_goalguard})
         if not _invariants_hold():
             print(f"\nRefusing to encode: {BUNDLE_PATH.name} rolled back.")
             return 1
@@ -409,8 +451,9 @@ def _encode(repin: bool) -> int:
             else:
                 PINS_PATH.write_bytes(previous_pins)
     print(f"{BUNDLE_PATH.name} updated.")
-    if moved:
-        print(f"NEW ROLLOUT {ROLLOUT_VERSION}: {len(moved)} arm(s) re-pinned. "
+    if moved or moved_goalguard:
+        print(f"NEW ROLLOUT {ROLLOUT_VERSION}: {len(moved)} base arm(s) and "
+              f"{len(moved_goalguard)} goal-guarding arm(s) re-pinned. "
               f"Collect into a fresh --output-dir; the previous rollout's "
               f"episodes stand but do not pool with these.")
     return 0

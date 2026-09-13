@@ -10,6 +10,47 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v187
+
+**The held-out twin's `--encode --repin` was unsafe for a bundle carrying
+the goal-guarding arm.** Three bugs, all from the same root cause -
+`--repin` only ever knew about the four base arms:
+
+- it computed only the base fingerprints, so it could not detect a
+  goal-guarding-only edit moving that arm's identity at all;
+- it then wrote the sidecar from those alone, and `_write_pins` omits the
+  `goalguard_fingerprints` key rather than writing it empty - so an
+  UNRELATED repin (any base-arm edit, for any reason) silently deleted the
+  twin's existing goal-guarding pins;
+- `--pin`'s own collision refusal merged a `(bool, bool)`-keyed dict with a
+  `(str, bool, str)`-keyed one and called `sorted()` on the result, which
+  raises `TypeError` instead of printing the refusal, in the one case
+  (both tables colliding at once) that message exists to report.
+
+Net effect: prepare a twin with goal-guarding, edit it later for any
+reason, and `--repin` would quietly drop the arm's pins without saying so.
+The real sidecar on this machine was checked and is unaffected - `--pin`
+itself was always correct, and no `--repin` has been run against it since
+the arm was added.
+
+Fixed by giving `--encode` a `_pinned_goalguard()` reader to match `_pinned()`,
+checking drift in both tables, and merging the newly computed goal-guarding
+cells over the EXISTING ones on write rather than replacing them outright -
+belt and braces, since `_goalguard_fingerprints` already returns the
+complete shipped cell set every time. The collision refusal now sorts and
+reports each table separately, matching how the "wrote pins" printer below
+it already does.
+
+Three new tests, each planted against the real historical shape and
+confirmed to fail on it: the mixed-collision `TypeError`, a goal-guarding
+move accepted without `--repin`, and existing goal-guarding pins dropped
+by a base-arm-only repin. No prior test constructed a collision in both
+tables at once, or seeded the sidecar with goal-guarding pins before a
+repin - which is exactly why none of the three was caught before.
+
+ruff clean, 3782 passed, fingerprints recompute unchanged - this is
+tooling around the pins, not the scenario they identify.
+
 ## v186
 
 **The goal-guarding arm gains the engagement check the other two acts already

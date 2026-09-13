@@ -307,6 +307,28 @@ class TestTheHeldOutToolsModes:
                 assert not tool.PINS_PATH.exists(), (
                     "the sidecar was written despite the refusal")
 
+    def test_pin_refuses_cleanly_when_both_tables_collide_at_once(self):
+        """The plant for the actual defect. `pins` is keyed (bool, bool) and
+        `goalguard` is keyed (str, bool, str); the two prior tests each leave
+        one of the two collision dicts empty, so a `shared` built by merging
+        them never held both shapes at once and `sorted()` on it never ran
+        into the mismatch. Only a collision in BOTH tables simultaneously
+        does - and before the fix, this raised TypeError instead of printing
+        the refusal."""
+        from subversionbench.rollout_pins import (GOALGUARD_FINGERPRINTS,
+                                                  ROLLOUT_FINGERPRINTS)
+        with self._workspace() as d:
+            with self._tool(
+                    d,
+                    stub_fingerprints=lambda p: dict(ROLLOUT_FINGERPRINTS),
+                    stub_goalguard=lambda p: dict(GOALGUARD_FINGERPRINTS),
+            ) as tool:
+                code, text = conftest.run_tool_main(tool, ["--pin"])
+                assert not tool.PINS_PATH.exists(), (
+                    "the sidecar was written despite the refusal")
+        assert code == 1
+        assert "match the shipped rollout's fingerprints exactly" in text
+
     def test_list_names_every_entry_with_a_size(self):
         with self._workspace() as d:
             with self._tool(d) as tool:
@@ -483,6 +505,71 @@ class TestTheHeldOutToolsModes:
         # The superseded pins are kept, so an archived results directory can
         # still be identified from a fingerprint alone.
         assert sidecar["superseded"], "the previous rollout was forgotten"
+
+    def _seeded_goalguard(self, tool, value="existing"):
+        """The sidecar JSON block --pin would write for _gg(value)."""
+        from subversionbench.rollout_pins import GOALGUARD_FINGERPRINTS
+        return [{"arm": arm, "oversight": o, "nudge": nudge,
+                "fingerprint": f"{value}{i:010d}"}
+               for i, (arm, o, nudge) in enumerate(sorted(GOALGUARD_FINGERPRINTS))]
+
+    def test_repin_preserves_goalguard_pins_an_unrelated_edit_did_not_move(self):
+        """The regression test for the actual defect. An edit that moves only
+        the base arms used to repin by calling _write_pins(computed) with no
+        second argument - which does not write goalguard_fingerprints EMPTY,
+        it omits the key outright, so the twin's goal-guarding arm silently
+        stopped being pinned at all despite nothing about it having changed."""
+        with self._workspace() as d:
+            with self._tool(d, stub_fingerprints=self._pins("moved"),
+                            stub_invariants=lambda: True,
+                            stub_goalguard=self._gg("existing")) as tool:
+                tool.PINS_PATH.write_text(json.dumps({
+                    "rollout_version": "heldout1",
+                    "fingerprints": [{"oversight": o, "lure": lure,
+                                      "fingerprint": "old"}
+                                     for o in (True, False)
+                                     for lure in (True, False)],
+                    "goalguard_fingerprints": self._seeded_goalguard(
+                        tool, "existing"),
+                }), encoding="utf-8")
+                tool.WORKING_COPY.write_text(
+                    json.dumps(self._encodable(tool)), encoding="utf-8")
+                code, text = conftest.run_tool_main(
+                    tool, ["--encode", "--repin"])
+                assert code == 0, text
+                sidecar = json.loads(tool.PINS_PATH.read_text(
+                    encoding="utf-8"))
+        assert "goalguard_fingerprints" in sidecar, (
+            "the goal-guarding pins were dropped by a repin that never "
+            "touched that arm")
+        from subversionbench.rollout_pins import GOALGUARD_FINGERPRINTS
+        assert len(sidecar["goalguard_fingerprints"]) == len(
+            GOALGUARD_FINGERPRINTS)
+
+    def test_a_goalguard_only_move_is_refused_without_repin(self):
+        """The other half of the same defect: moved was computed from the
+        base four alone, so an edit that changed only the goal-guarding
+        arm's assembly was accepted as though nothing had moved at all."""
+        with self._workspace() as d:
+            with self._tool(d, stub_fingerprints=self._pins("same"),
+                            stub_invariants=lambda: True,
+                            stub_goalguard=self._gg("moved")) as tool:
+                tool.PINS_PATH.write_text(json.dumps({
+                    "rollout_version": "heldout1",
+                    "fingerprints": [
+                        {"oversight": o, "lure": lure,
+                         "fingerprint": f"same-{o}-{lure}"}
+                        for o in (True, False) for lure in (True, False)],
+                    "goalguard_fingerprints": self._seeded_goalguard(
+                        tool, "existing"),
+                }), encoding="utf-8")
+                tool.WORKING_COPY.write_text(
+                    json.dumps(self._encodable(tool)), encoding="utf-8")
+                code, text = conftest.run_tool_main(tool, ["--encode"])
+        assert code == 1, (
+            "a goal-guarding-only move was accepted without --repin")
+        assert "NEW ROLLOUT" in text
+        assert "goal-guarding" in text
 
     def test_a_bundle_that_fails_its_invariants_is_rolled_back(self):
         """Written, then checked, then kept or rolled back. The invariants
