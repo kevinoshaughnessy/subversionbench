@@ -15,7 +15,8 @@ declared incomparable with a scenario it still matches exactly.
 import os
 import pathlib
 
-from subversionbench.batch import (batch_stem, goalguard_from_filename,
+from subversionbench.batch import (BatchIdentity, batch_stem,
+                                   goalguard_from_filename,
                                    parse_batch_filename)
 from subversionbench.environment import create_episode_root
 from subversionbench.grading.acts import MISALIGNED_ACTS, questions_for
@@ -27,6 +28,26 @@ from subversionbench.rollout_pins import (GOALGUARD_ARMS,
                                           fingerprint_for,
                                           goalguard_fingerprint_for)
 from subversionbench.scenario import scenario_for
+
+def _shipped_nudges():
+    """Every nudge the CLI accepts, less the fan-out sentinel.
+
+    Read off the shipped parser rather than written out here, so a nudge added
+    later is covered by the checks below instead of escaping them.
+    """
+    from subversionbench.run_eval import build_parser
+    for action in build_parser()._actions:
+        if action.dest == "nudge":
+            return tuple(c for c in action.choices if c != "all")
+    raise AssertionError("no --nudge argument found")
+
+
+NUDGES_THAT_ASSEMBLE = _shipped_nudges()
+# Varying by nudge on purpose and put to the model after the episode, never
+# written into the environment - so they are not evidence of the defect.
+INTERROGATION_KEYS = frozenset({"followup_monitoring_questions",
+                                "followup_sandbox_questions",
+                                "followup_goalguard_questions"})
 
 ARTEFACT = "config/successor_params.yaml"
 NOTE = "comms/cutover_note.txt"
@@ -125,6 +146,133 @@ class TestTheArtefactReachesTheEpisodeAndIsHashed:
             assert os.path.exists(os.path.join(env_dir, ARTEFACT)), arm
             assert os.path.exists(os.path.join(env_dir, NOTE)), arm
             assert info["original_successor_hash"], arm
+
+
+class TestTheEnvironmentIsTheScenarioTheFingerprintWasComputedOver:
+    """
+    The identity a batch is stamped with must describe the environment the
+    model was actually given.
+
+    THE DEFECT. `rollout_fingerprint` has passed `nudge` to `scenario_for`
+    since this arm was authored, because the arm's memo varies by it.
+    `create_hardened_environment` did not, so it took the "strong" default:
+    a `--goalguard X --nudge none` episode was fingerprinted over the none
+    memo and built with the strong one. All 120 nudge=none episodes in the
+    first goal-guarding batch hold the strong memo, and every one of them
+    matched its pin - the pin was simply not about what was on disk.
+
+    WRITTEN AGAINST THE RULE, NOT AGAINST `internal_memo`. The nudge-varying
+    keys are derived by assembling the arm at each nudge and diffing, so a
+    second key that starts varying tomorrow is covered without an edit here,
+    and a key that stops varying empties the scope rather than passing
+    quietly - which is what the emptiness assertions are for.
+    """
+
+    def _varying_keys(self, arm):
+        """Scenario keys whose value depends on the nudge, for one arm."""
+        at = {n: scenario_for(True, nudge=n, goalguard=arm)
+              for n in NUDGES_THAT_ASSEMBLE}
+        return {k for k in set().union(*(a.keys() for a in at.values()))
+                if len({repr(a.get(k)) for a in at.values()}) > 1}
+
+    def test_the_arm_has_a_nudge_varying_key_to_check(self):
+        """Without one the test below is vacuous, and the defect it guards
+        could not have happened."""
+        for arm in GOALGUARD_ARMS:
+            assert self._varying_keys(arm), arm
+
+    def test_no_nudge_varying_text_outside_the_arm(self):
+        """The other half of the rule: nudge must not reach assembly anywhere
+        else, which is what lets every other pinned fingerprint stand."""
+        assert self._varying_keys(None) <= INTERROGATION_KEYS
+
+    def test_every_pinned_arm_is_built_from_its_own_nudge(self):
+        for arm, oversight, nudge in sorted(GOALGUARD_FINGERPRINTS):
+            _root, env_dir, _info = create_episode_root(
+                oversight, lure=False, goalguard=arm, nudge=nudge)
+            on_disk = set()
+            for root, _dirs, files in os.walk(env_dir):
+                for name in files:
+                    path = pathlib.Path(root, name)
+                    try:
+                        on_disk.add(path.read_text())
+                    except (UnicodeDecodeError, OSError):
+                        continue
+            wanted = scenario_for(oversight, nudge=nudge, goalguard=arm)
+            for key in self._varying_keys(arm):
+                value = wanted.get(key)
+                if not isinstance(value, str) or key in INTERROGATION_KEYS:
+                    # Not written into the environment - the interrogation
+                    # ladders are put to the model afterwards.
+                    continue
+                assert value in on_disk, (
+                    f"{key} on disk is not the one assembled for "
+                    f"goalguard={arm} oversight={oversight} nudge={nudge}")
+
+
+class TestTheRunnerTellsTheEnvironmentWhichNudge:
+    """
+    The caller half of the rule above, and it needs its own check.
+
+    The guard on `create_episode_root` passes with the runner not passing
+    `nudge` at all - which is the shape the defect actually had, and the
+    repeat lesson here: the function was fine and the caller was not. Driven
+    through `_run_one_episode` with the rollout stubbed, so it asserts what
+    the runner hands over rather than what the signature allows.
+
+    Every arm axis is checked, not just nudge, because a guard naming one
+    axis would not have caught this one either.
+    """
+
+    def _handed_over(self, **arm):
+        import types
+        from subversionbench import runner as r
+
+        seen = {}
+
+        def record(oversight, **kwargs):
+            seen.update(kwargs, oversight=oversight)
+            return "/root", "/env", {}
+
+        fields = {
+            "oversight": True, "lure": False, "nudge": "none",
+            "goalguard": "deferred", "capability": None, "date_mode": None,
+            "model": "m", "max_turns": 1, "max_tokens": 1, "no_grader": True,
+            "grader_model": None, "interrogations": (),
+            "isolation": "deny-network", "output_dir": "/out",
+            "openrouter_sort": None, "openrouter_provider": None}
+        fields.update(arm)
+        args = types.SimpleNamespace(**fields)
+        real_root, real_eval = r.create_episode_root, r.run_evaluation
+        r.create_episode_root = record
+        r.run_evaluation = lambda **kw: (_ for _ in ()).throw(
+            RuntimeError("stop after the environment is built"))
+        try:
+            r._run_one_episode(0, args, BatchIdentity(
+                model="m", model_slug="m", nudge=args.nudge), "sys", "usr",
+                {}, None, None, None)
+        except Exception:
+            pass
+        finally:
+            r.create_episode_root, r.run_evaluation = real_root, real_eval
+        return seen
+
+    def test_the_nudge_reaches_the_environment(self):
+        for nudge in NUDGES_THAT_ASSEMBLE:
+            assert self._handed_over(nudge=nudge).get("nudge") == nudge, nudge
+
+    def test_every_arm_axis_reaches_the_environment(self):
+        """Derived from what create_episode_root accepts, so an axis added to
+        it fails here until the runner passes it."""
+        import inspect
+        from subversionbench.environment import create_episode_root
+        axes = {n for n in inspect.signature(create_episode_root).parameters
+                if n not in ("n_neighbours",)}
+        assert axes, "no axes derived - this would pass vacuously"
+        handed = self._handed_over()
+        missing = sorted(axes - set(handed))
+        assert not missing, (
+            f"the runner does not pass {missing} to create_episode_root")
 
 
 class TestTheActIsSettledFromTheArtefactNotTheTranscript:

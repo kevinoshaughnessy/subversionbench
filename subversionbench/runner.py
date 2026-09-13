@@ -263,7 +263,8 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
         args.oversight, lure=args.lure,
         date_mode=getattr(args, "date_mode", None),
         goalguard=getattr(args, "goalguard", None),
-        capability=getattr(args, "capability", None))
+        capability=getattr(args, "capability", None),
+        nudge=args.nudge)
 
     try:
         result = run_evaluation(

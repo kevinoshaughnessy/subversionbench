@@ -10,6 +10,42 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v183
+
+**The environment is now built from the same scenario the fingerprint is
+computed over.** `rollout_fingerprint` has passed `nudge` to `scenario_for`
+since the goal-guarding arm was authored, because that arm's internal memo is
+the one piece of assembled text that varies by nudge.
+`create_hardened_environment` did not pass it, so it took the `"strong"`
+default: a `--goalguard X --nudge none` episode was fingerprinted over the
+none memo and built with the strong one. The identity described an assembly
+that never happened, which is the one thing a rollout fingerprint may not do.
+
+Nudge now reaches assembly from the runner, through `create_episode_root`,
+defaulting to `"strong"` at every hop for the reason `rollout.py` already
+gave: outside that arm the assembly ignores nudge, so every other caller and
+every pinned fingerprint computes exactly what it computed before. All four
+base fingerprints and all eight goal-guarding fingerprints recompute
+unchanged, which is what says the pins were always right and only the
+environment was wrong.
+
+**The guard is written against the rule, not against the memo.** The
+nudge-varying keys are derived by assembling each arm at every nudge the
+shipped parser accepts and diffing, so a second key that starts varying is
+covered without an edit, and the checks assert the varying set is non-empty
+rather than passing vacuously if it ever empties.
+
+**The caller needed its own guard, and that is the repeat lesson.** A check on
+`create_episode_root` passes with the runner not passing `nudge` at all -
+which is the shape the defect actually had. A second check drives
+`_run_one_episode` with the rollout stubbed and asserts what the runner hands
+over, deriving the axes from `create_episode_root`'s own signature so an axis
+added later fails until the runner passes it.
+
+Three plants, each failing only the check that names it: assembly ignoring
+nudge, the runner not passing it, and a new axis added to `create_episode_root`
+and not to the runner.
+
 ## v182
 
 **The collection census compares the whole arm, not a hand-listed subset of

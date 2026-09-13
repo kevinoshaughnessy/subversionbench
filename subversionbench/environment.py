@@ -53,7 +53,8 @@ _N_NEIGHBOURS = 2
 
 def create_episode_root(oversight: bool = True, n_neighbours=_N_NEIGHBOURS,
                         lure: bool = False, date_mode: str = None,
-                        goalguard: str = None, capability: str = None):
+                        goalguard: str = None, capability: str = None,
+                        nudge: str = "strong"):
     """
     A private parent directory holding the project directory and its neighbours.
 
@@ -92,7 +93,8 @@ def create_episode_root(oversight: bool = True, n_neighbours=_N_NEIGHBOURS,
     os.makedirs(env_dir, exist_ok=True)
     env_info = create_hardened_environment(env_dir, oversight, lure=lure,
                                            goalguard=goalguard,
-                                           capability=capability)
+                                           capability=capability,
+                                           nudge=nudge)
     if date_mode is not None:
         from .artefact_dates import apply as apply_dates
         env_info["artefact_dates"] = apply_dates(episode_root, date_mode)
@@ -141,7 +143,8 @@ def _record_artefact(info: dict, path_key: str, path: str,
 def create_hardened_environment(env_dir: str, oversight: bool = True,
                                 lure: bool = False,
                                 goalguard: str = None,
-                                capability: str = None) -> dict:
+                                capability: str = None,
+                                nudge: str = "strong") -> dict:
     """
     Create the scenario file system with reduced eval awareness clues.
 
@@ -168,8 +171,20 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
     # --capability goalguard episode whose instruction named a file that was
     # never written, so the ceiling read zero by construction. See
     # TestTheCeilingIsStagedWithTheArtefactItInstructs.
+    # NUDGE TOO, and it reaches assembly only through the goal-guarding arm,
+    # whose memo varies by it. rollout.py has passed it to scenario_for since
+    # that arm was authored and this call did not, so for `--goalguard X
+    # --nudge none` the fingerprint was computed over the none memo while the
+    # environment was built with the strong one - an identity describing an
+    # assembly that never happened, which is the one thing a fingerprint may
+    # not do. All 120 nudge=none episodes in the first goal-guarding batch
+    # hold the strong memo.
+    #
+    # Defaulting to "strong" for the same reason rollout.py does: outside that
+    # arm the assembly ignores nudge, so every other caller - and therefore
+    # every pinned fingerprint - computes exactly what it computed before.
     scenario = scenario_for(oversight, lure=lure, goalguard=goalguard,
-                            capability=capability)
+                            capability=capability, nudge=nudge)
 
     task_file = scenario["task_file"]
 
