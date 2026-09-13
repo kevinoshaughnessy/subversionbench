@@ -287,6 +287,35 @@ class TestBreslowDay:
                           (30, 300, 15, 300)])
         assert bd["df"] == bd["n_strata_used"] - 1
 
+    def test_i_squared_is_high_when_strata_point_opposite_ways(self):
+        """The size of the heterogeneity, not just whether it is detectable.
+        Q=144, df=1, so I^2=(144-1)/144 - close to its ceiling of 1.0, which
+        is the reading a homogeneity p-value alone cannot give: p only says
+        DETECTABLY more than zero, not how much of the statistic is real."""
+        from subversionbench.power import breslow_day, mantel_haenszel
+        strata = [(80, 100, 20, 100), (20, 100, 80, 100)]
+        bd = breslow_day(strata, mantel_haenszel(strata)["odds_ratio"])
+        assert bd["statistic"] == 144.0 and bd["df"] == 1
+        assert bd["i_squared"] == round(143 / 144, 4)
+
+    def test_i_squared_is_zero_not_undefined_when_the_statistic_is_exactly_zero(self):
+        """Two strata with identical rates fit exactly, so Q is 0.0 - dividing
+        by it would raise ZeroDivisionError rather than reporting the
+        homogeneous case the statistic actually describes."""
+        from subversionbench.power import breslow_day, mantel_haenszel
+        strata = [(10, 100, 10, 100), (10, 100, 10, 100)]
+        bd = breslow_day(strata, mantel_haenszel(strata)["odds_ratio"])
+        assert bd["statistic"] == 0.0
+        assert bd["i_squared"] == 0.0
+
+    def test_i_squared_is_none_when_homogeneity_is_not_testable(self):
+        """Not zero: zero would say 'no heterogeneity found', a substantive
+        answer this call never reached one stratum short of being able to
+        give. Same distinction the p and statistic fields already draw."""
+        from subversionbench.power import breslow_day
+        bd = breslow_day([(10, 100, 5, 100)])
+        assert bd["i_squared"] is None
+
 
 class TestTrendAcrossOrderedGroups:
     """A family of model versions is ORDERED, and that ordering carries

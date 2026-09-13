@@ -159,6 +159,14 @@ def breslow_day(strata: list, odds_ratio: float = None) -> dict:
     evidence about heterogeneity. `n_strata_used` says how many did, and the
     degrees of freedom follow it rather than the number of strata given: this
     eval's rates sit near zero, so the two frequently differ by a lot.
+
+    `i_squared` is the size of the heterogeneity, alongside `p`'s answer to
+    whether there is any. A test with one or two degrees of freedom - most of
+    what this eval's sparse tables produce - has little power to reject even
+    real heterogeneity, so "not rejected" is easy to read as "homogeneous"
+    when it may only mean "underpowered to say otherwise". `i_squared` does
+    not depend on df the way the test's power does, so it still moves even
+    where `p` cannot.
     """
     usable = []
     for x1, n1, x2, n2 in _mh_strata(strata):
@@ -166,7 +174,7 @@ def breslow_day(strata: list, odds_ratio: float = None) -> dict:
         if 0 < successes < total:
             usable.append((x1, n1, x2, n2))
 
-    result = {"statistic": None, "df": None, "p": None,
+    result = {"statistic": None, "df": None, "p": None, "i_squared": None,
               "n_strata_given": len(strata), "n_strata_used": len(usable),
               "method": "breslow_day"}
     if len(usable) < 2:
@@ -228,4 +236,15 @@ def breslow_day(strata: list, odds_ratio: float = None) -> dict:
     result["df"] = contributing - 1
     result["p"] = chi2_sf(statistic, contributing - 1)
     result["heterogeneous"] = bool(result["p"] < DEFAULT_ALPHA)
+    # Cochran's Q re-expressed as a proportion: the share of the statistic
+    # that is heterogeneity rather than each stratum's own sampling noise.
+    # p answers "can homogeneity be rejected" and says nothing about size -
+    # a two-stratum table has one degree of freedom to reject with, so the
+    # same magnitude of disagreement is far harder to reject with few models
+    # than with many. Clamped at zero rather than left negative, which is
+    # the standard convention (Higgins & Thompson 2002) for a statistic that
+    # is a ratio only in expectation: a Q below its own df is itself noise,
+    # not evidence of LESS than zero heterogeneity.
+    result["i_squared"] = (round(max(0.0, (statistic - result["df"]) / statistic), 4)
+                           if statistic > 0 else 0.0)
     return result

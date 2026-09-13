@@ -193,14 +193,21 @@ def _stratified_interpretation(mh: dict, bd: dict) -> str:
         text += (f" Homogeneity could not be tested ({bd.get('note', '')}), so "
                  f"the average above may be over unlike effects.")
     elif bd.get("heterogeneous"):
-        text += (f" Breslow-Day rejects homogeneity (p={bd['p']:.4g}) across "
-                 f"{bd['n_strata_used']} informative model(s): the models do "
-                 f"NOT share one effect, so read this as an average over "
-                 f"genuinely different effects, not as the effect.")
+        text += (f" Breslow-Day rejects homogeneity (p={bd['p']:.4g}, "
+                 f"I^2={bd['i_squared']:.0%}) across {bd['n_strata_used']} "
+                 f"informative model(s): the models do NOT share one effect, "
+                 f"so read this as an average over genuinely different "
+                 f"effects, not as the effect.")
     else:
-        text += (f" Breslow-Day does not reject homogeneity (p={bd['p']:.4g}) "
-                 f"across {bd['n_strata_used']} informative model(s), so "
-                 f"pooling into one effect is defensible.")
+        # p not rejecting is not the same claim as "homogeneous" - a test
+        # with few degrees of freedom can fail to reject real heterogeneity,
+        # which is exactly what I^2 is stated for: it does not depend on df
+        # the way the test's power does, so a reader is not left inferring
+        # "small effect" from a statistic that may only mean "underpowered".
+        text += (f" Breslow-Day does not reject homogeneity (p={bd['p']:.4g}, "
+                 f"I^2={bd['i_squared']:.0%}) across {bd['n_strata_used']} "
+                 f"informative model(s), so pooling into one effect is "
+                 f"defensible.")
     return text
 
 

@@ -98,6 +98,8 @@ class TestStratifiedBlock:
         strat = rr._stratified(self._by_model(rows))
         assert strat["breslow_day"]["heterogeneous"] is True
         assert "NOT share one effect" in strat["interpretation"]
+        i2 = strat["breslow_day"]["i_squared"]
+        assert i2 is not None and f"I^2={i2:.0%}" in strat["interpretation"]
 
     def test_homogeneity_is_also_stated(self):
         rows = [{"model": "a", "g": True, "x": 20, "n": 100},
@@ -107,6 +109,8 @@ class TestStratifiedBlock:
         strat = rr._stratified(self._by_model(rows))
         assert strat["breslow_day"]["heterogeneous"] is False
         assert "defensible" in strat["interpretation"]
+        i2 = strat["breslow_day"]["i_squared"]
+        assert i2 is not None and f"I^2={i2:.0%}" in strat["interpretation"]
 
     def test_a_corpus_with_nothing_to_stratify_says_so(self):
         strat = rr._stratified([])
@@ -279,6 +283,7 @@ class TestTheHomogeneityVerdictReachesTheConsole:
         assert f"({strat['breslow_day']['n_strata_used']} informative" in text, (
             "the df has to be read against the strata that carried evidence, "
             "which is not the number of models")
+        assert f"I^2={strat['breslow_day']['i_squared']:.1%}" in text
 
     def test_homogeneous_strata_are_printed_as_not_rejecting(self):
         """Two-directional: one verdict for both would be worse than none."""

@@ -469,7 +469,7 @@ CRUDE POOLED: 30/1622=1.8%     vs 58/1609=3.6%     diff=-1.8%  p=0.002355  SEPAR
 STRATIFIED BY MODEL (Mantel-Haenszel - holds model constant):
     risk difference -1.7%  95% CI [-2.8%, -0.7%]  CMH chi2=10.1147 p=0.001471  (27/27 models)
     common odds ratio 0.5051  95% CI [0.3206, 0.7959]
-    Breslow-Day REJECTS homogeneity: chi2=68.9227 df=14 p=3.023e-09 (15 informative model(s))
+    Breslow-Day REJECTS homogeneity: chi2=68.9227 df=14 p=3.023e-09 I^2=79.7% (15 informative model(s))
 
 MULTIPLICITY over the 27 per-model test(s):
     uncorrected rejections: 3   expected from noise alone at alpha=0.05: 1.35
@@ -484,6 +484,13 @@ wrong and which systematically under-reports real differences. See
 
 In the per-model table the trailing `*HB` flags are, in order: CI excludes zero, survives
 Holm, survives Benjamini-Hochberg. `---` means none of the three.
+
+`I^2` on the Breslow-Day line is the *share* of that statistic that is heterogeneity rather
+than each stratum's own sampling noise - it answers "how much", where Breslow-Day's `p` only
+answers "detectably more than zero". A stratified table here usually has few degrees of
+freedom, so `p` alone can read as "homogeneous" when it may only mean "underpowered to reject
+homogeneity"; `I^2` does not depend on df the way the test's power does, so report both rather
+than `p` alone.
 
 ---
 

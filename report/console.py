@@ -442,7 +442,7 @@ def _print_stratified(strat: dict) -> None:
         verdict = ("REJECTS homogeneity" if bd.get("heterogeneous")
                    else "does not reject homogeneity")
         print(f"    Breslow-Day {verdict}: chi2={bd['statistic']} "
-              f"df={bd['df']} p={bd['p']:.4g} "
+              f"df={bd['df']} p={bd['p']:.4g} I^2={bd['i_squared']:.1%} "
               f"({bd['n_strata_used']} informative model(s))")
     else:
         print(f"    Breslow-Day: {bd.get('note', 'not computed')}")

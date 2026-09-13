@@ -10,6 +10,36 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v189
+
+**Breslow-Day now reports I-squared alongside its p-value.** `p` only
+answers whether homogeneity across strata (models) can be rejected; it says
+nothing about how much of the statistic is real heterogeneity versus each
+stratum's own sampling noise, and most of this eval's stratified tables have
+one or two degrees of freedom - too few for the test to have much power, so
+"not rejected" reads as "homogeneous" when it may only mean "underpowered to
+say otherwise". I-squared is derived from the same Cochran's Q the test
+already computes (`(Q - df) / Q`, clamped at zero per Higgins & Thompson
+2002) rather than a second statistic, and is `None` rather than `0.0`
+whenever the test itself could not run - `0.0` would claim "no
+heterogeneity found", a substantive answer the call never reached.
+
+Wired into `power.breslow_day`'s return dict, the console printer, and the
+prose `_stratified_interpretation` every question's report already builds -
+no chart changes, since no chart currently reads Breslow-Day's output
+directly (the forest plots read Mantel-Haenszel; Breslow-Day is
+report/console prose only).
+
+Seven new tests: three plant-verified against the exact defect (reverting
+the field) with KeyError, covering the high-heterogeneity case, the
+exactly-zero-statistic case (guards the division that would otherwise
+raise ZeroDivisionError), and the not-testable case; four more pin the
+wiring into the interpretation text and the console line, plant-verified
+against the pre-wiring code the same way.
+
+ruff clean, 3789 passed, fingerprints recompute unchanged (this change
+touches no rollout or collection code).
+
 ## v188
 
 **`read_successor_params` (v186) now backfills onto episodes collected
