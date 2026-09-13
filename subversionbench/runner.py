@@ -24,6 +24,7 @@ import sys
 import threading
 import time
 
+from .artefact_dates import DEFAULT as _DATE_DEFAULT
 from .batch import BatchIdentity, unique_batch_stamp
 from .blocks import serialise_messages
 from .config import ROLLOUT_FINGERPRINTS, capability_fingerprint_for
@@ -37,6 +38,7 @@ from .llm_client import missing_credential
 from .redaction import redact_paths
 from .reporting.summary import summarise_batch
 from .rollout import rollout_drift_error
+from .rollout_pins import date_fingerprint_for, goalguard_fingerprint_for
 from .scenario import scenario_for
 
 
@@ -523,16 +525,56 @@ def _rollout_matches_its_pin(args) -> bool:
     is the error this exists to prevent. Checked only for rollout modes: the
     read-only modes re-derive analysis from saved transcripts and must keep
     working against archived results whatever the current scenario says.
+
+    EACH ARM CHECKS ITS OWN PIN. This branched on --capability alone until
+    v184: a --goalguard or --date-mode collection has args.capability is None,
+    which took the plain arm's branch and checked a hash of the PLAIN scenario
+    against the plain pin - passing every time the plain arm itself had not
+    drifted, whatever --goalguard or --date-mode assembled. It is the reason
+    the nudge defect that v183 fixed was never refused: this check ran, found
+    the plain arm intact, and said proceed. Checking the propensity arm's pin
+    for a special arm's rollout would refuse every one of that arm's episodes
+    on an unrelated mismatch; skipping the check for it would leave it the
+    only unguarded arm. Neither is right - each arm's rollout has to be
+    compared against ITS OWN pin, computed from the SAME arguments that arm
+    is collected under.
+
+    date_mode is read with getattr for the reason create_episode_root's own
+    call two functions down does: not every args this reaches necessarily
+    carries the axis.
     """
-    # The capability arm checks its OWN pin. Checking the propensity arm's
-    # would compare a hash of the capability scenario against the pin for a
-    # different one and refuse every capability rollout; skipping the check
-    # would leave the new arm the only unguarded one.
+    date_mode = getattr(args, "date_mode", None)
+    dated = date_mode and date_mode != _DATE_DEFAULT
+    goalguard = getattr(args, "goalguard", None)
+    active = [name for name, on in
+             (("--capability", args.capability is not None),
+              ("--goalguard", goalguard is not None),
+              ("--date-mode", dated)) if on]
+    if len(active) > 1:
+        print(f"\n{'='*60}")
+        print("REFUSING TO ROLL OUT")
+        print(f"{'='*60}\n")
+        print(f"{' and '.join(active)} are both set. No rollout has been "
+              f"pinned for that combination - each of these arms is "
+              f"fingerprinted against the plain scenario alone, so a "
+              f"collection combining them would be stamped with one arm's "
+              f"identity while assembling both. Collect them separately, or "
+              f"pin the combination deliberately before running it.")
+        return False
+
+    if args.capability is not None:
+        expected = capability_fingerprint_for(args.capability, args.oversight)
+    elif goalguard is not None:
+        expected = goalguard_fingerprint_for(goalguard, args.oversight,
+                                             args.nudge)
+    elif dated:
+        expected = date_fingerprint_for(date_mode, args.oversight, args.lure)
+    else:
+        expected = ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)]
+
     drift = rollout_drift_error(
-        ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)]
-        if args.capability is None else
-        capability_fingerprint_for(args.capability, args.oversight),
-        args.oversight, args.isolation, args.lure, args.capability)
+        expected, args.oversight, args.isolation, args.lure, args.capability,
+        date_mode, goalguard, args.nudge)
     if drift:
         print(f"\n{'='*60}")
         print("REFUSING TO ROLL OUT")

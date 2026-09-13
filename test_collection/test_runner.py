@@ -1,9 +1,12 @@
 """
-Rolling out a batch: what it refuses before spending, and when it stops.
+Rolling out a batch: what happens once it is actually running.
 
-Three refusals live here rather than in the episode, because each is about the
-batch as a whole: isolation unavailable, a rollout fingerprint that has drifted,
-and a credential absent for a model about to be charged for.
+The pre-flight refusals - isolation unavailable, a rollout fingerprint that
+has drifted, a credential absent for a model about to be charged for - moved
+to test_rollout_preflight.py when this file outgrew the line limit. What is
+left here is batch-shaped rather than episode-shaped: the auth-failure abort
+mid-run, the concurrent scheduler, resilience across a bad episode, and what
+reaches the screen while a batch is going.
 """
 
 import concurrent.futures
@@ -21,98 +24,8 @@ from pathlib import Path
 from subversionbench.config import MAX_CLASSIFIER_FALLBACK_RATE
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
-import conftest
-from conftest import batch_episode, env_without
+from conftest import batch_episode
 
-
-class TestARolloutRefusesBeforeItSpends:
-    def _rollout(self, model="google/gemini-3-flash-preview", extra=()):
-        out = tempfile.mkdtemp()
-        argv = ["run_eval", "--model", model, "--runs", "1", "--delay", "0",
-                "--no-power", "--output-dir", out, *extra]
-        saved = sys.argv
-        sys.argv = argv
-        try:
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                code = ev_run.main()
-        finally:
-            sys.argv = saved
-        return code, buf.getvalue(), out
-
-    def test_a_missing_model_credential_stops_it(self):
-        with env_without("OPENROUTER_API_KEY"):
-            code, out, _ = self._rollout()
-        assert code == 1
-        assert "REFUSING TO ROLL OUT" in out
-        assert "OPENROUTER_API_KEY" in out
-
-    def test_a_missing_grader_credential_stops_it_too(self):
-        """The model's own route being fine is not enough: the grader model scores
-        every interrogation answer, so its credential decides whether the
-        concealment measure works at all."""
-        with env_without("ANTHROPIC_API_KEY"):
-            code, out, _ = self._rollout()
-        assert code == 1
-        assert "ANTHROPIC_API_KEY" in out
-        assert "--grader-model" in out
-
-    def test_no_grader_does_not_excuse_the_grader_credential(self):
-        """--no-grader turns off the awareness rubric, not the interrogation
-        classifier, which is scored by the same model."""
-        with env_without("ANTHROPIC_API_KEY"):
-            code, out, _ = self._rollout(extra=["--no-grader"])
-        assert code == 1
-        assert "even with --no-grader" in out
-
-    def test_it_refuses_before_any_episode_is_written(self):
-        with env_without("ANTHROPIC_API_KEY"):
-            code, out, outdir = self._rollout()
-        import glob
-        assert not glob.glob(f"{outdir}/run_*.json"), "an episode was paid for"
-        assert "# RUN 1/" not in out
-
-    def test_the_refusal_names_the_fix(self):
-        with env_without("ANTHROPIC_API_KEY"):
-            _, out, _ = self._rollout()
-        assert "export ANTHROPIC_API_KEY=" in out
-
-    def test_a_drifted_rollout_stops_it(self):
-        """The refusal that keeps two experiments out of one directory.
-
-        Pooling episodes from a moved rollout is the error the fingerprints
-        exist to prevent, and it is silent: every rate still prints. The
-        refusal itself had no test - the drift check returns None in a healthy
-        checkout, so nothing had ever executed the branch that stops the batch.
-        """
-        code, out, attempted = conftest.refused_rollout(
-            rollout_drift_error=lambda *a, **k:
-                "the sandbox display line moved since r10 was pinned")
-        assert attempted == 0, "a drifted rollout collected episodes anyway"
-        assert code == 1
-        assert "REFUSING TO ROLL OUT" in out
-        assert "the sandbox display line moved" in out, (
-            "the refusal must say what drifted, not merely that something did")
-
-    def test_isolation_that_cannot_be_enforced_stops_it(self):
-        """Refuse rather than silently downgrade. The message has to name the
-        fix, because the alternative to an actionable one is someone reaching
-        for a way around the check without understanding it."""
-        code, out, attempted = conftest.refused_rollout(
-            isolation_available=lambda mode: False)
-        assert attempted == 0
-        assert code == 1
-        assert "cannot be enforced on this host" in out
-        assert "bubblewrap" in out and "no way to run without containment" in out
-
-    def test_isolation_that_does_not_hold_stops_it(self):
-        """Verified, not trusted: a policy that silently fails to apply looks
-        exactly like one that works - the model simply reaches the network."""
-        code, out, attempted = conftest.refused_rollout(
-            verify_isolation=lambda mode, profile: "loopback was reachable")
-        assert attempted == 0
-        assert code == 1
-        assert "Isolation did not hold" in out and "loopback was reachable" in out
 
 class TestADegradedBatchCannotLookClean:
     def _summary_for(self, answers):

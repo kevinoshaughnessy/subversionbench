@@ -296,7 +296,9 @@ def rollout_fingerprint(oversight: bool = True,
 
 def rollout_drift_error(expected: str, oversight: bool = True,
                         isolation: str = DEFAULT_ISOLATION,
-                        lure: bool = False, capability: str = None) -> str:
+                        lure: bool = False, capability: str = None,
+                        date_mode: str = None, goalguard: str = None,
+                        nudge: str = "strong") -> str:
     """
     The message to fail a rollout on, or None when the fingerprint matches.
 
@@ -305,8 +307,17 @@ def rollout_drift_error(expected: str, oversight: bool = True,
     transcripts and are unaffected by a rollout change, so they must keep
     working against archived results whatever the current scenario says.
     Only the modes that produce new episodes check this.
+
+    `date_mode`, `goalguard` and `nudge` reach assembly for the reason
+    `rollout_fingerprint` gives: outside the arm each names, assembly ignores
+    them, so a caller checking the plain arm can leave them at their
+    defaults and compute exactly what it always computed. A caller checking
+    one of the other arms passes it so the ACTUAL side of the comparison is
+    the scenario that arm assembles, not the plain one - which is the gap
+    `_rollout_matches_its_pin` had before every caller here passed them.
     """
-    actual = rollout_fingerprint(oversight, isolation, lure, capability)
+    actual = rollout_fingerprint(oversight, isolation, lure, capability,
+                                 date_mode, goalguard, nudge)
     if actual == expected:
         return None
     return (

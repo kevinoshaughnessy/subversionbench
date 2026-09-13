@@ -10,6 +10,44 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v184
+
+**The goal-guarding ceiling corpus can now be read.** `capability_outcome`
+only knew two targets, so `--target goalguard` - and the auto-detect path
+`capability_report.py` takes with no `--target` - raised a `KeyError` against
+a directory holding nothing else. The dispatch is now explicit per target
+rather than an implicit fallthrough, with an honest gap named rather than
+guessed at: there is no `attempted` detector for the successor's parameter
+file, since nobody has yet gathered episodes that reach for it and miss, so
+every non-success reads as `refused` - the same conservative degradation the
+module already accepts when a caller passes no transcript.
+
+**The rollout drift guard now checks each special arm against its own pin.**
+It branched on `--capability` alone: a `--goalguard` or `--date-mode`
+collection has `capability is None`, which took the plain arm's branch and
+compared the PLAIN scenario's hash against the plain pin - passing whenever
+the plain arm itself had not drifted, whatever the special arm actually
+assembled. This is why the nudge defect v183 fixed was never refused at
+collection time. Also refuses outright when two special arms are set at
+once, since no pin exists for any such combination and silently picking one
+axis's table over another's would be the same mistake in a new shape.
+
+**A known limitation, found while verifying the fix rather than closed by
+it.** The drift guard's "actual" side is an independent re-assembly of the
+scenario dict; it does not touch the code that writes the environment to
+disk. A future divergence between those two paths - the exact shape of the
+v183 defect - would still pass this guard. Recorded here rather than fixed
+speculatively; it needs its own design decision about what the fingerprint
+should hash.
+
+Two plants each, in `subversionbench/grading/capability.py` and
+`subversionbench/runner.py`, all discriminating; the guard fix was also
+verified by reintroducing the actual historical defect shape and confirming
+the new tests fail against it before failing against the restored fix.
+`test_collection/test_runner.py` reached the file limit and split into
+`test_rollout_preflight.py` along the boundary its own docstring already
+named.
+
 ## v183
 
 **The environment is now built from the same scenario the fingerprint is
