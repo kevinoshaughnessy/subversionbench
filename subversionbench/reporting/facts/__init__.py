@@ -44,7 +44,7 @@ __all__ = ["awareness_before_act_flag", "awareness_flag", "batch_facts",
 # true - which is what makes the persistence test in test_reporting/facts/test_init.py
 # mean anything.
 INTERNAL_FIGURES = ("n_boundary", "n_check_applicable", "n_config_applicable",
-                    "n_env_probe")
+                    "n_env_probe", "n_successor_applicable")
 
 
 def batch_facts(all_results: list, runtime: dict = None) -> dict:

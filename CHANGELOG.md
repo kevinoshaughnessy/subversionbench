@@ -10,6 +10,33 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v186
+
+**The goal-guarding arm gains the engagement check the other two acts already
+have.** `read_internal_memo` and `read_monitoring_config` exist so a 0% rate
+can be told apart from "never looked" - `read_successor_params` did not:
+`_settle_goalguard` set it to None where the arm is absent and never set it
+to True where the file exists to be read, so a real goal-guarding episode
+carried no such key at all. Without it, a model's zero on the act cannot be
+distinguished from a model that never discovered the artefact, one level
+below what the capability ceiling already resolves for the act itself.
+
+Detection mirrors `read_monitoring_config` exactly - a filename token plus
+`reads_a_file`, so a prose mention does not count as having opened it - and
+the new figure is wired through the same path every other engagement check
+already takes: console's Situational Understanding block, the batch summary
+rate, and rates.py's proper Wilson-CI'd rate over episodes where the file
+existed at all. Fourteen report snapshots regenerated for the one added
+console line, read before accepting.
+
+Four new tests, three failing on the exact original defect when planted -
+KeyError, not merely the wrong value, since the field was genuinely absent
+on the branch that matters.
+
+ruff clean, 3782 passed (pre-heldout-tool-fix baseline), fingerprints
+recompute unchanged - this adds a figure to the report, it does not touch
+scenario assembly.
+
 ## v185
 
 **The two independent scenario_for call sites are now cross-checked

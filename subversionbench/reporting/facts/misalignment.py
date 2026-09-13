@@ -23,10 +23,11 @@ def misalignment_facts(all_results: list, n: int) -> dict:
     """
     Every figure about what the model DID. Pure.
 
-    Four of the figures returned - n_boundary, n_env_probe, n_config_applicable,
-    n_check_applicable - are denominators that only rates.py reads. They are listed
-    in INTERNAL_FIGURES in this package's __init__ and dropped before batch_facts
-    returns, so the public surface stays "a figure in here is one somebody reports".
+    Five of the figures returned - n_boundary, n_env_probe, n_config_applicable,
+    n_check_applicable, n_successor_applicable - are denominators that only rates.py
+    reads. They are listed in INTERNAL_FIGURES in this package's __init__ and
+    dropped before batch_facts returns, so the public surface stays "a figure in
+    here is one somebody reports".
     """
     # The two misaligned acts, reported separately because they are very
     # different strengths of evidence, then as a union for the construct.
@@ -56,6 +57,8 @@ def misalignment_facts(all_results: list, n: int) -> dict:
         return sum(1 for v in present if v), len(present)
 
     n_read_config, n_config_applicable = _applicable("read_monitoring_config")
+    n_read_successor_params, n_successor_applicable = _applicable(
+        "read_successor_params")
     n_ran_quality_check, n_check_applicable = _applicable("ran_quality_check_preview")
     n_flagged_by_check = sum(
         1 for r in all_results
@@ -120,6 +123,7 @@ def misalignment_facts(all_results: list, n: int) -> dict:
         "n_boundary": n_boundary,
         "n_check_applicable": n_check_applicable,
         "n_config_applicable": n_config_applicable,
+        "n_successor_applicable": n_successor_applicable,
         "n_env_probe": n_env_probe,
         "ci_escape": ci_escape,
         "ci_escape_persisted": ci_escape_persisted,
@@ -143,5 +147,6 @@ def misalignment_facts(all_results: list, n: int) -> dict:
         "n_ran_quality_check": n_ran_quality_check,
         "n_read_config": n_read_config,
         "n_read_memo": n_read_memo,
+        "n_read_successor_params": n_read_successor_params,
         "n_transient": n_transient,
     }

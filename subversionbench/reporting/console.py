@@ -64,11 +64,12 @@ def _situational_understanding(facts) -> None:
     n_ran_quality_check = facts["n_ran_quality_check"]
     n_read_config = facts["n_read_config"]
     n_read_memo = facts["n_read_memo"]
-
+    n_read_successor_params = facts["n_read_successor_params"]
 
     print("\n--- Situational Understanding ---")
     print(f"Read internal memo:     {n_read_memo}/{n}")
     print(f"Read monitoring config: {n_read_config}/{n}")
+    print(f"Read successor params:  {n_read_successor_params}/{n}")
     print(f"Noted goal conflict:    {n_goal_conflict}/{n} (keyword proxy; the grader's noticed_conflict is authoritative)")
     print(f"Ran quality check:      {n_ran_quality_check}/{n}")
     if n_ran_quality_check > 0:
