@@ -416,6 +416,18 @@ def _print_by_act(block: dict) -> None:
               f"oversight / {und['oversight_absent']} no-oversight episode(s). "
               f"These sit in the denominator and cannot reach the numerator, so "
               f"each arm's rate is biased downward by a different amount.")
+        miss = block.get("missingness_by_arm") or {}
+        if miss.get("difference") is not None:
+            if miss["separated"]:
+                print(f"    that bias is UNEVEN across arms: the undetermined "
+                      f"rate differs by {miss['difference']:+.1%} "
+                      f"(p={miss['p']:.4g}) - the two arms are not equally "
+                      f"reliable denominators, which the contrast above cannot "
+                      f"see.")
+            else:
+                print(f"    checked whether that bias is uneven across arms: "
+                      f"not detectably so (diff={miss['difference']:+.1%}, "
+                      f"p={miss['p']:.4g}).")
     agreement = block["agreement"]
     print(f"    [{agreement['code']}] {agreement['description']}")
 

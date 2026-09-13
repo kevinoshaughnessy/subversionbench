@@ -10,6 +10,44 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v190
+
+**Whether an episode's exclusion from a scheming numerator is itself uneven
+across arms - checked, not just disclosed.** Question 1's per-act block
+already reported `n_scheming_undetermined` (episodes whose concealment
+could not be determined, kept in the denominator, unable to reach the
+numerator) split by oversight-present / oversight-absent, and already said
+in words that this biases each arm's rate downward by a different amount.
+It never asked whether that difference was itself more than sampling
+noise - so a reader had no way to tell "biased downward, roughly evenly"
+from "biased downward, mostly in one arm", which is the case where the
+composite's own effect estimate is confounded by a measurement failure
+rather than by the manipulation.
+
+No new statistical primitive: `_contrast` already wraps Fisher exact and
+already computes this exact composite's own arm contrast two lines above,
+so the check is the same call with `n_scheming_undetermined` in place of
+`n_scheming` - reuse rather than a second test. Wired into
+`_common_support_block` (`missingness_by_arm`, scheming kind only, same
+reason `n_scheming_undetermined` itself is withheld from the misalignment
+variant: that numerator does not need a concealment verdict) and printed
+two-directionally beside the existing caveat, the way the Breslow-Day
+verdict and the arm-exclusion warning both already are.
+
+Five new tests, three plant-verified against the exact defect (reverting
+the field or its wiring) with KeyError/AssertionError.
+
+Splitting `test_report_questions.py`: 988 lines before this change, and
+the new tests pushed it to 1038 - over `TestNoFileIsOverTheLimit`'s hard
+cap. Questions 11-12 (`test_report_questions_paired.py`, ~360 lines) split
+out cleanly along the module boundary the file's own docstring already
+named - paired-phrasing questions reached through no field an
+independent-arm question also reads - leaving both files under the limit
+with room to spare.
+
+ruff clean, 3794 passed, fingerprints recompute unchanged (this change
+touches no rollout or collection code).
+
 ## v189
 
 **Breslow-Day now reports I-squared alongside its p-value.** `p` only

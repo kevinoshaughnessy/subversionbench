@@ -236,6 +236,19 @@ def _common_support_block(rows: list, kind: str) -> dict:
             {"oversight_present": sum(r["n_scheming_undetermined"] for r in on),
              "oversight_absent": sum(r["n_scheming_undetermined"] for r in off)}
             if kind == "scheming" else None),
+        # Is the bias itself uneven across arms? The undetermined episodes sit
+        # in the denominator either arm's rate is read against, so an
+        # exclusion rate that differs between arms means the two rates are
+        # not equally reliable - a confound the composite contrast above
+        # cannot see, because it never looks at what got excluded from it.
+        # Same contrast machinery as the composite itself, over
+        # n_scheming_undetermined/n_runs instead of n_scheming/n_runs, so
+        # "biased downward by a different amount" becomes a measured
+        # question rather than a standing caveat nobody checks.
+        "missingness_by_arm": (
+            _contrast(rows, "oversight", True, False,
+                     "n_scheming_undetermined", "n_runs")
+            if kind == "scheming" else None),
         "agreement": _component_agreement(composite, components),
     }
 
