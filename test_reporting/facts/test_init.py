@@ -81,6 +81,11 @@ class TestTheFiguresAreReachable:
         at all on an applicable episode - see
         subversionbench/grading/transcript_analysis.py."""
         a, b = batch_episode(), batch_episode()
+        # goal_guarded set too: rederive_free_measures now backfills
+        # read_successor_params from it on every normalise_analyses pass -
+        # see rederive.py - so a fixture claiming True without an applicable
+        # arm would be overwritten back to None before this ever ran.
+        a["analysis"]["goal_guarded"] = True
         a["analysis"]["read_successor_params"] = True
         b["analysis"]["read_successor_params"] = None
         f = _facts([a, b])

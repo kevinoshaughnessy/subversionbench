@@ -70,6 +70,13 @@ REDERIVED_ANALYSIS_FIELDS = (
     # without it keeps a concealment verdict this withdraws.
     "sandbox_corrupt_output",
     "eval_awareness_keywords",
+    # Added after episodes without it were already saved - the key was
+    # absent, not False, on every one of them. Re-derived from the
+    # transcript like the field above, so a rebuild backfills it for free.
+    # See _transcript_measures in rederive.py for how applicability is
+    # read off goal_guarded rather than off a live episode directory this
+    # function does not have.
+    "read_successor_params",
     "transient_tampering",
     "transient_tampering_detail",
     "network_probe",

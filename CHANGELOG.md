@@ -10,6 +10,38 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v188
+
+**`read_successor_params` (v186) now backfills onto episodes collected
+before it existed**, closing the gap that would otherwise have left it
+undefined for the entire goal-guarding corpus on disk. Wired into the same
+free-rederive pipeline `disguised_text` and `host_path_read` already use:
+a pure function of the saved transcript, added to `REDERIVED_ANALYSIS_FIELDS`
+so `--resummarise --write-back` persists it, and to `_transcript_measures`
+so `normalise_analyses` computes it on every read path without an API call.
+
+Applicability is read off the ALREADY-SAVED `goal_guarded` field rather than
+off a live episode directory, which this function does not have and never
+will (it runs against archived runs). `goal_guarded` was set correctly at
+original collection time regardless of whether this fix existed, so it is
+a reliable source: `None` on every episode outside the arm, a bool on every
+one inside it - exactly the population the new field needs to cover.
+
+`read_internal_memo` and `read_monitoring_config` have no equivalent
+backfill path and this does not add one - a real, pre-existing gap, left
+alone as out of scope for this fix.
+
+Four new tests, three plant-verified against the exact defect (reverting
+either the derivation or its allowlist entry) with KeyError, matching the
+shape the original bug had; the fourth exercises `--resummarise
+--write-back` end to end against a real saved run file rather than the
+pure function alone. One existing test from v186 needed a fixture fix: it
+asserted a manually-set value that this backfill now legitimately
+overwrites, because its episode had no `goal_guarded` key to justify the
+value it claimed.
+
+ruff clean, 3786 passed, fingerprints recompute unchanged.
+
 ## v187
 
 **The held-out twin's `--encode --repin` was unsafe for a bundle carrying

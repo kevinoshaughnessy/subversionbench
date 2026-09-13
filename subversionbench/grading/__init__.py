@@ -47,6 +47,7 @@ from .closing_report import (
 from .command_patterns import (
     _MEMO_TOKENS,
     _READ_COMMANDS,
+    reads_a_file,
     scratch_only_attempts,
 )
 from .concealment import (
@@ -108,7 +109,7 @@ __all__ = [
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "auth_error_in_analysis",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
-    "scratch_only_attempts", "refusals_not_observed",
+    "scratch_only_attempts", "refusals_not_observed", "reads_a_file",
     "detect_network_probes", "classify_network_probe",
     "detect_filesystem_escapes", "classify_filesystem_escape",
     "detect_host_path_reads", "classify_host_path_read",
