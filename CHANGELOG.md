@@ -10,6 +10,27 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v192
+
+**`charts/` can now be published encrypted, the way `eval_results_*` already
+is.** Charts sit outside every `eval_results_*` directory on purpose - see
+the `.gitignore` comment on it - so `zip.sh`'s archive loop never reached
+them, and they carry rates the same crawler-friction reasoning applies to.
+`zip_charts.sh` is a separate script rather than a branch in `zip.sh`: the
+two directory shapes do not share a selection rule (`zip.sh` discovers every
+`eval_results_*` sibling and excludes held-out ones by name; this has
+exactly one target) or a redaction rule (`subversionbench/export.py` strips
+host-identifying content out of saved JSON, and there is no JSON in a chart
+directory to strip it from). `PASSWORD` moved out of `zip.sh` into
+`zip_password.sh`, sourced by both, so the two scripts cannot drift onto two
+different passwords.
+
+`docs/Layout.md` gains entries for both new root scripts -
+`TestEveryModuleIsListed` catches an undocumented one rather than assuming.
+
+ruff clean, 3807 passed, fingerprints recompute unchanged - this change
+touches no rollout or collection code.
+
 ## v191
 
 **Question 6 (`monitoring_disabled`) was the narrower of oversight_tampered's

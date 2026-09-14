@@ -199,6 +199,14 @@ export_accepted.txt  findings reviewed and approved for publication
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results).
                    zip.sh never archives a held-out corpus - not by default and
                    not when named - because it makes the published artefact
+zip_charts.sh      the same encryption for charts/, which zip.sh does not
+                   reach - charts sit outside every eval_results_* directory
+                   on purpose, so archiving them needs its own small script
+                   rather than teaching zip.sh's held-out/redaction logic to
+                   no-op for a chart directory
+zip_password.sh    the one PASSWORD both zip scripts source, so it is a
+                   single line to change rather than two copies to keep in
+                   step
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
 heldout_tool.py    the same for the held-out scenario - a reworded twin of the
