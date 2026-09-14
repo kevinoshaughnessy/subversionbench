@@ -144,7 +144,7 @@ class TestTheArmsAreNamedInWords:
         source = inspect.getsource(run_report.build_report)
         called = [n for n in dir(run_report)
                   if n.startswith("question_") and f"{n}(" in source]
-        assert len(called) == 14
+        assert len(called) == 17
         for name in called:
             # Defined in one of the three question modules, not merely reachable
             # through the package. This was `== "run_report"` while the report
@@ -329,7 +329,7 @@ class TestTheReportRunsWithAndWithoutCharts:
                 charting.default_chart_dir(out))
             with open(os.path.join(out, "r.json")) as f:
                 report = json.load(f)
-            assert len(report["questions"]) == 14
+            assert len(report["questions"]) == 17
             assert "charts" not in report
 
     def test_the_json_records_the_charts_it_wrote(self, monkeypatch):

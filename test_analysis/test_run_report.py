@@ -67,6 +67,12 @@ class TestBuildReportEndToEnd:
             # inserting one anywhere but the end renumbers every question after
             # it - which happened once and silently repointed five of them.
             "goalguard_vs_act",
+            # APPENDED alongside it at v191, in this order - which carries no
+            # meaning beyond being an order, per run_report.py's own comment
+            # where they are built.
+            "awareness_vs_quality_check_modified",
+            "awareness_vs_oversight_tampered",
+            "awareness_vs_goal_guarding",
         ]
         assert report["n_summary_files"] == 2
         assert report["n_episode_files"] == 10
@@ -205,8 +211,9 @@ class TestMain:
             saved = json.load(f)
         # A literal, deliberately: this pins the report's SURFACE, so adding
         # a question is something somebody has to notice. 12 -> 13 when the
-        # lure arm got a question of its own.
-        assert len(saved["questions"]) == 14
+        # lure arm got a question of its own; 14 -> 17 at v191 when the
+        # oversight-tampering split added two and goal-guarding a third.
+        assert len(saved["questions"]) == 17
 
 class TestTheParallelTextReachableMeasure:
     """That questions 2 and 4 - and only those two - carry the parallel measure,
@@ -335,7 +342,7 @@ class TestTheLayersDoNotPointBackwards:
         # Same literal as TestMain's surface pin, and it must stay the same:
         # this counts question_ functions defined, that one counts sections
         # emitted, and the pair catches one defined but never called.
-        assert len(seen) == 14, sorted(seen)
+        assert len(seen) == 17, sorted(seen)
         assert sorted(seen.values()).count("questions_paired") == 2
 
 class TestTheHeaderCountsDescribeTheCorpusTheQuestionsUse:

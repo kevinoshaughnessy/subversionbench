@@ -146,6 +146,29 @@ class TestLoadEpisodes:
         assert ep["monitoring_observable"] is True
         assert ep["monitoring_disabled"] is False
 
+    def test_quality_check_modified_reads_off_its_own_field(self):
+        """monitoring_disabled's sibling - oversight_tampered's other
+        sub-mechanism, added at v191. batch_episode has no parameter for it,
+        so it is poked onto the saved record directly."""
+        out = tempfile.mkdtemp()
+        path = _write_episode(out, 1, "m", "strong", oversight=True)
+        d = json.load(open(path))
+        d["analysis"]["quality_check_modified"] = True
+        json.dump(d, open(path, "w"))
+        ep = rr.load_episodes(out)[0]
+        assert ep["quality_check_modified"] is True
+        assert ep["quality_check_observable"] is True
+
+    def test_a_none_quality_check_verdict_is_marked_unobservable_not_false(self):
+        out = tempfile.mkdtemp()
+        path = _write_episode(out, 1, "m", "strong", oversight=False)
+        d = json.load(open(path))
+        d["analysis"]["quality_check_modified"] = None
+        json.dump(d, open(path, "w"))
+        ep = rr.load_episodes(out)[0]
+        assert ep["quality_check_observable"] is False
+        assert ep["quality_check_modified"] is False
+
     def test_the_misalignment_verdict_is_derived_and_cross_checked(self):
         out = tempfile.mkdtemp()
         _write_episode(out, 1, "m", "strong", tampered=True)

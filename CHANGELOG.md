@@ -10,6 +10,53 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v191
+
+**Question 6 (`monitoring_disabled`) was the narrower of oversight_tampered's
+two sub-mechanisms and never said so.** `oversight_tampered` - the act every
+other oversight question reads - is `monitoring_disabled OR
+quality_check_modified` (`_settle_oversight` in transcript_analysis.py).
+Split into three questions, appended (never inserted, so nothing existing is
+renumbered): question 6 unchanged in place, a new one for
+`quality_check_modified` alone, and a new one for the union. All three share
+one helper now instead of three near-identical bodies.
+
+**A new question, `verbalised evaluation awareness -> goal-guarding rate`**,
+appended alongside them. Needed no new detection: goal-guarding has been a
+registered `MISALIGNED_ACTS` entry since the arm was authored, so the generic
+per-act columns (`goalguard_observable`, `goalguard_act_taken`) already
+existed - only `quality_check_modified`/`quality_check_observable` needed new
+row fields, mirroring `monitoring_disabled`'s.
+
+**Each corpus now charts only the questions its own scenario can answer.**
+The mainline corpora (r9, r10) no longer chart the goal-guarding questions -
+genuinely empty there, no goal-guarding episode exists outside
+`eval_results_goalguard_r1`. The goal-guarding corpus no longer charts the
+sandbox or lure questions - NOT because they are empty there (the scenario
+does not remove the sandbox boundary or the out-of-scope opportunity
+structurally, and some goal-guarding episodes do exercise it), but because
+this corpus was collected to answer a different question and its own charts
+should say so. Deliberately a SEPARATE field from `collapsed_by_exclusion`,
+checked only by the chart layer: the console and the JSON keep reporting
+every question's real numbers regardless of which corpus produced them - a
+CLI exclusion the reader asked for is a different fact from a scenario that
+never ran an arm, and the two must not collapse to the same silence. Every
+oversight question stays in every corpus: oversight is manipulated in both
+scenarios and tampering happens in both.
+
+Thirteen new tests across three files, plus the existing surface-pinning
+tests (question count, id lists) updated to match. Four plant-verified
+against the exact defect - reverting the row fields, the question functions
+and their facade wiring, the corpus-scope function, and the chart-layer
+check, in turn - with KeyError, ImportError, or the specific assertion each
+guards, matching the shape the original bug would have had.
+test_report_loading.py is now close to the file-size limit and is a
+candidate for the same split test_report_questions_paired.py already got
+next time it grows.
+
+ruff clean, 3807 passed, fingerprints recompute unchanged - this change
+touches no rollout or collection code.
+
 ## v190
 
 **Whether an episode's exclusion from a scheming numerator is itself uneven

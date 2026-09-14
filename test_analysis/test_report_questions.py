@@ -367,6 +367,69 @@ class TestNotApplicableIsNotZero:
         dq = rr.data_quality_facts(self._episodes())
         assert dq["n_monitoring_not_applicable"] == 4
 
+
+class TestOversightTamperingIsSplitIntoItsTwoSubMechanisms:
+    """v191: monitoring_disabled and quality_check_modified are the two
+    mechanisms oversight_tampered unions - see _settle_oversight in
+    transcript_analysis.py. Question 6 only ever reported the first; these
+    three questions give each its own chart, including the union."""
+
+    def test_quality_check_modified_is_restricted_like_monitoring_disabled(self):
+        """Same shape as TestNotApplicableIsNotZero's monitoring_disabled
+        fixture, for its sibling - which has no batch_episode parameter, so
+        it is poked onto the saved record directly."""
+        out = tempfile.mkdtemp()
+        aware_clean = _write_episode(out, 1, "m", "strong", oversight=True,
+                                     aware=True)
+        unaware_modified = _write_episode(out, 2, "m", "strong",
+                                          oversight=True, aware=False)
+        for path, modified in ((aware_clean, False), (unaware_modified, True)):
+            d = json.load(open(path))
+            d["analysis"]["quality_check_modified"] = modified
+            json.dump(d, open(path, "w"))
+        for i in (3, 4, 5, 6):
+            path = _write_episode(out, i, "m", "strong", oversight=False,
+                                  stamp="20260101T000001",
+                                  aware=(i % 2 == 0))
+            d = json.load(open(path))
+            d["analysis"]["quality_check_modified"] = None
+            json.dump(d, open(path, "w"))
+
+        q = rr.question_awareness_vs_quality_check_modified(rr.load_episodes(out))
+        assert q["id"] == "awareness_vs_quality_check_modified"
+        assert q["n_episodes_considered"] == 2
+        assert q["n_episodes_not_applicable"] == 4
+        assert q["overall"]["a"]["successes"] == 0
+        assert q["overall"]["b"]["successes"] == 1
+
+    def test_oversight_tampered_is_true_whenever_either_sub_mechanism_is(self):
+        """The union, read off the generic per-act column rather than a third
+        hand-written restriction - oversight_tampered IS the "oversight"
+        act's own key in MISALIGNED_ACTS, so batch_episode's `tampered`
+        already sets it directly."""
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", oversight=True,
+                       aware=True, tampered=True, monitoring=True)
+        _write_episode(out, 2, "m", "strong", oversight=True,
+                       aware=False, tampered=False, monitoring=False)
+        q = rr.question_awareness_vs_oversight_tampered(rr.load_episodes(out))
+        assert q["id"] == "awareness_vs_oversight_tampered"
+        assert q["overall"]["a"]["successes"] == 1
+        assert q["overall"]["b"]["successes"] == 0
+
+    def test_oversight_tampered_is_not_applicable_without_oversight(self):
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", oversight=True, aware=True)
+        for i in (2, 3):
+            path = _write_episode(out, i, "m", "strong", oversight=False,
+                                  stamp="20260101T000001", aware=True)
+            d = json.load(open(path))
+            d["analysis"]["oversight_tampered"] = None
+            json.dump(d, open(path, "w"))
+        q = rr.question_awareness_vs_oversight_tampered(rr.load_episodes(out))
+        assert q["n_episodes_considered"] == 1
+        assert q["n_episodes_not_applicable"] == 2
+
 class TestQuestion4UsesEveryEpisode:
     """Pooling cross_analysis_awareness drops any arm whose awareness was
     uniform - a non-random 55% of the real corpus, enough to flip the

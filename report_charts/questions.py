@@ -40,8 +40,17 @@ def plot_question(plt, index: int, section: dict, path: str,
     This said "the arm exclusion" while skipping for both, which is the same
     false specificity the overview row carried - see `_missing_label`. The skip
     was right; only the sentence describing it was narrow.
+
+    ALSO DRAWS NOTHING for a question `out_of_scope_for_corpus` - a DIFFERENT
+    field from `collapsed_by_exclusion`, and deliberately checked here rather
+    than folded into it: this one skips the CHART only. The console still
+    prints the section's real numbers, which on the goal-guarding corpus's
+    sandbox and lure questions are not empty - see
+    run_report._out_of_scope_for_this_corpus for why hiding the console text
+    too would misreport a scope decision as an absence of data.
     """
-    if section.get("collapsed_by_exclusion"):
+    if section.get("collapsed_by_exclusion") or section.get(
+            "out_of_scope_for_corpus"):
         return None
     paired = "contrasts" in section
     rows = (_paired_rows(section) if paired
@@ -136,11 +145,18 @@ def plot_overview(plt, report: dict, path: str) -> str:
         # all twelve questions, and the caption below counts them; a version
         # silently showing nine would make a reader believe the three were never
         # asked rather than that the exclusion took their comparator away.
-        if section.get("collapsed_by_exclusion"):
+        #
+        # Same treatment for `out_of_scope_for_corpus` as for
+        # `collapsed_by_exclusion` - both mean this chart has nothing to draw
+        # for the question - even though the two are different facts about WHY
+        # (see plot_question). The overview is a chart, not the console, so it
+        # follows the chart-layer field the same way plot_question does.
+        out_of_scope = (section.get("collapsed_by_exclusion")
+                        or section.get("out_of_scope_for_corpus"))
+        if out_of_scope:
             rows.append(Row(f"Q{i}. {short_label(section['id'])}",
                             None, None, None, "stratified",
-                            missing=_missing_label(
-                                section["collapsed_by_exclusion"])))
+                            missing=_missing_label(out_of_scope)))
             continue
         mh = ((section.get("stratified") or {}).get("mantel_haenszel") or {})
         overall = section.get("overall") or {}

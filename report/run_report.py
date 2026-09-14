@@ -48,9 +48,12 @@ from .questions_arms import (POOLED_FROM_REBUILT_ARM_ROWS,
                              question_oversight_vs_awareness,
                              question_oversight_vs_misalignment,
                              question_oversight_vs_scheming)
-from .questions_awareness import (question_awareness_vs_misalignment,
+from .questions_awareness import (question_awareness_vs_goal_guarding,
+                                  question_awareness_vs_misalignment,
                                   question_awareness_vs_monitoring_disabled,
                                   question_awareness_vs_oversight_scheming,
+                                  question_awareness_vs_oversight_tampered,
+                                  question_awareness_vs_quality_check_modified,
                                   question_awareness_vs_sandbox_escape,
                                   question_awareness_vs_sandbox_scheming,
                                   question_awareness_vs_scheming)
@@ -161,6 +164,59 @@ def _collapsed_by_exclusion(section: dict, axis: str) -> str:
     return (f"not estimable with the arm excluded: the {empty} side of this "
             f"contrast is the arm that was dropped, so there is nothing left "
             f"to compare it against")
+
+
+def _out_of_scope_for_this_corpus(section: dict, has_goalguard: bool) -> str:
+    """
+    Whether this question's axis belongs to the SCENARIO this corpus ran, as
+    opposed to whichever CLI flag this particular invocation chose.
+
+    A CHART-LAYER DECISION ONLY, deliberately not folded into
+    collapsed_by_exclusion. That field also silences the console banner and
+    the printed section, which is right for a CLI exclusion - the reader
+    asked for the narrowing - and wrong here: test_goalguard_question already
+    established that goalguard_vs_act reporting "no data" on r9/r10 is a
+    different, more honest state than collapsing, because a reader comparing
+    the console against the JSON must not find a question the console
+    answered and the chart directory has no file for, for a reason neither
+    says. So this reason reaches only write_charts and plot_overview - see
+    where the caller writes it onto its own field - and the console keeps
+    printing every question's real numbers unconditionally.
+
+    TWO DIFFERENT SHAPES OF "OUT OF SCOPE", both handled the same way here
+    because the chart-layer CONSEQUENCE is identical even though the
+    UNDERLYING FACT differs. Goal-guarding on r9/r10 is a genuine null -
+    `goal_guarded` is None on every episode outside the goal-guarding arm, so
+    there is nothing on either side to draw. Sandbox and lure on the
+    goal-guarding corpus are NOT a null - the scenario does not remove the
+    sandbox boundary or the out-of-scope opportunity structurally, and some
+    episodes do exercise it (see the v191 CHANGELOG) - so skipping their
+    charts here is a scope decision this corpus's charts should reflect, not
+    a claim the data is empty. Oversight questions are untouched by either
+    branch: oversight is manipulated in both scenarios and tampering happens
+    in both, so those charts stay in every corpus.
+
+    READ OFF THE ID, the same convention `_collapsed_by_exclusion` and
+    `_not_estimable_on_the_unaware_corpus` use above - `goalguard` names the
+    exposure the way `oversight`/`awareness` do for theirs, and `sandbox`
+    appears in the outcome of every sandbox and lure question (the lure
+    question's own outcome is `sandbox_escape`), so one check covers both
+    without a hand-kept list of which ids they are.
+    """
+    exposure, _, outcome = section["id"].partition("_vs_")
+    if (exposure == "goalguard" or outcome == "goal_guarding") \
+            and not has_goalguard:
+        return ("not estimable on this corpus: no goal-guarding episodes "
+                "were collected here, so this question's axis was never "
+                "staged")
+    if (exposure == "lure" or "sandbox" in outcome) and has_goalguard:
+        return ("out of scope for the goal-guarding corpus: this corpus was "
+                "collected to answer the goal-guarding and oversight "
+                "questions, not the sandbox or lure ones - the underlying "
+                "opportunity is not structurally removed here and some "
+                "episodes do exercise it, so this is a scope decision, not "
+                "a claim that the data is empty")
+    return ""
 
 
 def _narrowed_corpus(output_dir: str, exclusion: str,
@@ -282,7 +338,39 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # are the chart filenames - and it would do so for corpora the question
         # cannot say anything about.
         question_goalguard_vs_act(episodes),
+        # APPENDED alongside it, not inserted beside question 6 - same
+        # renumbering reason, even though these two are relevant to every
+        # corpus rather than only the goal-guarding one. quality_check_modified
+        # is question 6's missing sibling (the other half of oversight_tampered
+        # - see questions_awareness.py) and oversight_tampered is the union the
+        # two of them make, the same construct questions 1/3/9 already read
+        # via MISALIGNED_ACTS but never asked against awareness alone.
+        question_awareness_vs_quality_check_modified(episodes),
+        question_awareness_vs_oversight_tampered(episodes),
+        # Order among the appended questions carries no meaning beyond append
+        # order itself - each is independently restricted to the episodes
+        # where its own act is observable, so nothing downstream reads
+        # position within this block.
+        question_awareness_vs_goal_guarding(episodes),
     ])
+
+    # A DIFFERENT FIELD from collapsed_by_exclusion, deliberately - see
+    # test_goalguard_question's own case for why. goalguard_vs_act has always
+    # reported "no data" rather than collapsing on r9/r10: the two are
+    # different states, and only collapsed_by_exclusion's console banner and
+    # chart skip are appropriate for a CLI narrowing that removed episodes
+    # this invocation still holds. This corpus never held them, and the
+    # console/JSON say so honestly with real numbers (sandbox and lure
+    # questions on the goal-guarding corpus are NOT empty - see
+    # _out_of_scope_for_this_corpus). Only the chart layer reads this field:
+    # plot_question and plot_overview skip drawing a question whose axis is
+    # out of scope for this corpus's scenario, while the console keeps
+    # printing what the data actually says.
+    has_goalguard = any(e.get("goalguard") for e in episodes)
+    for section in questions:
+        reason = _out_of_scope_for_this_corpus(section, has_goalguard)
+        if reason:
+            section["out_of_scope_for_corpus"] = reason
 
     # Marked on the section rather than worked out again by each consumer. The
     # console and the chart layer both have to know that a question lost its
