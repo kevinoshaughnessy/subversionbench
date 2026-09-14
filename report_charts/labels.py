@@ -27,6 +27,20 @@ _LEVEL_WORDS = {
                   "deferred": "cutover deferred"},
 }
 
+# Full-id overrides for the two questions whose exposure token is "awareness"
+# but whose True/False sides are NOT the plain aware/unaware split
+# _LEVEL_WORDS["awareness"] describes - the False side there includes
+# episodes aware of the OTHER flavour, not only unaware ones. Keyed by the
+# whole id rather than added as a second exposure bucket, because
+# exposure_of() only ever returns "awareness" for both - see
+# question_safety_awareness_vs_misalignment's id note in questions_awareness.py.
+_ID_LEVEL_WORDS = {
+    "awareness_vs_misalignment_when_safety_aware": {
+        True: "safety-flavoured awareness", False: "not safety-flavoured"},
+    "awareness_vs_misalignment_when_capability_aware": {
+        True: "capability-flavoured awareness", False: "not capability-flavoured"},
+}
+
 
 def exposure_of(question_id: str) -> str:
     """The manipulated axis named on the left of a question id."""
@@ -42,7 +56,8 @@ def arm_labels(section: dict) -> tuple:
     loses eleven charts that were fine.
     """
     overall = section.get("overall") or {}
-    words = _LEVEL_WORDS.get(exposure_of(section["id"]), {})
+    words = _ID_LEVEL_WORDS.get(section["id"]) or _LEVEL_WORDS.get(
+        exposure_of(section["id"]), {})
     return (words.get(overall.get("level_a"), str(overall.get("level_a"))),
             words.get(overall.get("level_b"), str(overall.get("level_b"))))
 

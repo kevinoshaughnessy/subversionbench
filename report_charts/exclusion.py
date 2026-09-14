@@ -79,5 +79,6 @@ def _scope_caption(section: dict) -> str:
         return ""
     considered = section.get("n_episodes_observable",
                              section.get("n_episodes_considered"))
-    return (f"{considered} episode(s) where the act was observable; "
+    reason = section.get("not_applicable_reason", "the act was observable")
+    return (f"{considered} episode(s) where {reason}; "
             f"{excluded} not applicable and excluded from the denominator")

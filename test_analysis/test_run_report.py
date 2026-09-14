@@ -73,6 +73,10 @@ class TestBuildReportEndToEnd:
             "awareness_vs_quality_check_modified",
             "awareness_vs_oversight_tampered",
             "awareness_vs_goal_guarding",
+            # APPENDED at v193: question 5 split by eval_awareness_kind
+            # rather than by whether awareness fired at all.
+            "awareness_vs_misalignment_when_safety_aware",
+            "awareness_vs_misalignment_when_capability_aware",
         ]
         assert report["n_summary_files"] == 2
         assert report["n_episode_files"] == 10
@@ -212,8 +216,9 @@ class TestMain:
         # A literal, deliberately: this pins the report's SURFACE, so adding
         # a question is something somebody has to notice. 12 -> 13 when the
         # lure arm got a question of its own; 14 -> 17 at v191 when the
-        # oversight-tampering split added two and goal-guarding a third.
-        assert len(saved["questions"]) == 17
+        # oversight-tampering split added two and goal-guarding a third;
+        # 17 -> 19 at v193 when question 5 split by awareness kind.
+        assert len(saved["questions"]) == 19
 
 class TestTheParallelTextReachableMeasure:
     """That questions 2 and 4 - and only those two - carry the parallel measure,
@@ -342,7 +347,7 @@ class TestTheLayersDoNotPointBackwards:
         # Same literal as TestMain's surface pin, and it must stay the same:
         # this counts question_ functions defined, that one counts sections
         # emitted, and the pair catches one defined but never called.
-        assert len(seen) == 17, sorted(seen)
+        assert len(seen) == 19, sorted(seen)
         assert sorted(seen.values()).count("questions_paired") == 2
 
 class TestTheHeaderCountsDescribeTheCorpusTheQuestionsUse:

@@ -56,7 +56,9 @@ from .questions_awareness import (question_awareness_vs_goal_guarding,
                                   question_awareness_vs_quality_check_modified,
                                   question_awareness_vs_sandbox_escape,
                                   question_awareness_vs_sandbox_scheming,
-                                  question_awareness_vs_scheming)
+                                  question_awareness_vs_scheming,
+                                  question_capability_awareness_vs_misalignment,
+                                  question_safety_awareness_vs_misalignment)
 from .questions_paired import (question_evidence_vs_concealment,
                                question_paraphrase_vs_concealment)
 
@@ -352,6 +354,12 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # where its own act is observable, so nothing downstream reads
         # position within this block.
         question_awareness_vs_goal_guarding(episodes),
+        # APPENDED for the same renumbering reason as the rest of this block.
+        # Question 5 split by the grader's eval_awareness_kind rather than by
+        # whether awareness fired at all - see questions_awareness.py's
+        # module docstring and _question_kind_vs_misalignment.
+        question_safety_awareness_vs_misalignment(episodes),
+        question_capability_awareness_vs_misalignment(episodes),
     ])
 
     # A DIFFERENT FIELD from collapsed_by_exclusion, deliberately - see

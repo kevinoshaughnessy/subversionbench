@@ -199,8 +199,103 @@ def plot_overview(plt, report: dict, path: str) -> str:
         (WILSON_NOTE, "#777777"),
     ] + _exclusion_captions(report)
     return draw._draw_forest(
-        plt, rows, "All twelve research questions: effect and 95% interval"
+        plt, rows, "All research questions: effect and 95% interval"
         + _exclusion_title_suffix(report),
         captions, path,
         "difference in rate, percentage points (exposed minus unexposed)",
+        legend=True, bold_pooled=False)
+
+
+# The three awareness-vs-misalignment readings that share one outcome: no
+# flavour restriction, safety-flavoured, capability-flavoured. Order is the
+# reading order a caption below explains - the top row's union, then its two
+# non-overlapping halves - not question order, which is why this is a tuple
+# of ids rather than a slice of `report["questions"]`.
+_AWARENESS_KIND_IDS = (
+    "awareness_vs_misalignment",
+    "awareness_vs_misalignment_when_safety_aware",
+    "awareness_vs_misalignment_when_capability_aware",
+)
+_AWARENESS_KIND_LABELS = {
+    "awareness_vs_misalignment": "any flavour (question 5)",
+    "awareness_vs_misalignment_when_safety_aware": "safety-flavoured",
+    "awareness_vs_misalignment_when_capability_aware": "capability-flavoured",
+}
+
+
+def plot_awareness_kind_comparison(plt, report: dict, path: str) -> str:
+    """
+    The three awareness-vs-misalignment readings side by side.
+
+    A FILTERED plot_overview, not a new chart type: the same
+    stratified-else-crude pooled estimate per question, on the same Row and
+    forest machinery, scoped to the three questions sharing this outcome so a
+    reader can compare them without assembling three separately-numbered
+    charts by hand. Question 5's row is not the sum of the other two -
+    unspecified/ambiguous-flavoured episodes count toward it and toward
+    neither flavour row - so the caption says so rather than let three rows
+    read as one number split in half.
+
+    Missing gracefully: a report built before the two flavour questions
+    existed, or one where the flavour split collapsed for an exclusion
+    reason, draws whichever rows it can with the reason in place of a bar -
+    see plot_overview's own handling, mirrored here.
+    """
+    if not report.get("questions"):
+        return None
+    sections = {s["id"]: s for s in report["questions"]}
+    rows = []
+    flagged = False
+    for qid in _AWARENESS_KIND_IDS:
+        label = _AWARENESS_KIND_LABELS[qid]
+        section = sections.get(qid)
+        if section is None:
+            rows.append(Row(label, None, None, None, "stratified",
+                            missing="not in this report"))
+            continue
+        out_of_scope = (section.get("collapsed_by_exclusion")
+                        or section.get("out_of_scope_for_corpus"))
+        if out_of_scope:
+            rows.append(Row(label, None, None, None, "stratified",
+                            missing=_missing_label(out_of_scope)))
+            continue
+        mh = ((section.get("stratified") or {}).get("mantel_haenszel") or {})
+        overall = section.get("overall") or {}
+        diff = mh.get("risk_difference")
+        ci = mh.get("risk_difference_ci95") or (None, None)
+        kind = "stratified"
+        if diff is None:
+            diff, kind = overall.get("difference"), "crude"
+            ci = overall.get("difference_ci95") or (None, None)
+        if _divergence_caption(section):
+            label += "  *"
+            flagged = True
+        if diff is None:
+            rows.append(Row(label, None, None, None, kind,
+                            missing="no estimate"))
+            continue
+        rows.append(Row(label, diff, ci[0], ci[1], kind,
+                        marked=bool(mh.get("separated") if kind == "stratified"
+                                    else overall.get("separated"))))
+    if not any(r.diff is not None for r in rows):
+        return None
+    captions = [
+        ("stratified (Mantel-Haenszel) estimate where a row has one, crude "
+         "pooled where it does not - same convention as the overview chart",
+         "#555555"),
+        ("the top row is the union of the other two plus every "
+         "unspecified/ambiguous-flavoured episode; the other two restrict to "
+         "episodes whose flavour could be told and do not overlap each "
+         "other - three separate contrasts, not one split in half",
+         "#b00020"),
+        ("* crude and stratified estimates diverge on this row - see its own "
+         "chart" if flagged else "", "#b00020"),
+        (WILSON_NOTE, "#777777"),
+    ] + _exclusion_captions(report)
+    return draw._draw_forest(
+        plt, rows, "Misalignment rate by awareness flavour"
+        + _exclusion_title_suffix(report),
+        captions, path,
+        "difference in misalignment rate, percentage points (aware minus "
+        "not, within each flavour)",
         legend=True, bold_pooled=False)

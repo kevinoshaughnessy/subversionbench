@@ -137,6 +137,22 @@ class TestTheArmsAreNamedInWords:
         for question_id in ids:
             assert rc.exposure_of(question_id) in rc.labels._LEVEL_WORDS, question_id
 
+    def test_the_flavour_split_questions_do_not_read_as_plain_awareness(self):
+        """exposure_of() returns "awareness" for both of these ids - same as
+        question 5 - but their False side is NOT "no verbalised awareness": it
+        also holds episodes aware of the OTHER flavour. Falling through to
+        _LEVEL_WORDS["awareness"] would draw an axis claiming the plain
+        awareness contrast on a chart that restricts to one flavour."""
+        safety = rc.arm_labels(
+            _section(id="awareness_vs_misalignment_when_safety_aware"))
+        capability = rc.arm_labels(
+            _section(id="awareness_vs_misalignment_when_capability_aware"))
+        assert safety == ("safety-flavoured awareness", "not safety-flavoured")
+        assert capability == ("capability-flavoured awareness",
+                              "not capability-flavoured")
+        assert "no verbalised awareness" not in safety
+        assert "no verbalised awareness" not in capability
+
     def test_the_question_ids_here_are_the_ones_run_report_builds(self):
         """Pins the list above against the source rather than against a memory
         of it: the level words are only safe while this list is complete."""
@@ -144,7 +160,7 @@ class TestTheArmsAreNamedInWords:
         source = inspect.getsource(run_report.build_report)
         called = [n for n in dir(run_report)
                   if n.startswith("question_") and f"{n}(" in source]
-        assert len(called) == 17
+        assert len(called) == 19
         for name in called:
             # Defined in one of the three question modules, not merely reachable
             # through the package. This was `== "run_report"` while the report
@@ -286,6 +302,141 @@ class TestTheChartsRender:
             charting.import_pyplot = original
 
 
+class TestTheAwarenessKindComparisonChart:
+    """The one chart that puts question 5 and its two flavour-restricted
+    siblings on one axis, so a reader can compare them without assembling
+    three separately-numbered charts by hand."""
+
+    def _report(self, **overrides):
+        questions = [
+            _section(id="awareness_vs_misalignment"),
+            _section(id="awareness_vs_misalignment_when_safety_aware"),
+            _section(id="awareness_vs_misalignment_when_capability_aware"),
+        ]
+        questions = [q for q in questions
+                    if q["id"] not in (overrides.get("drop") or ())]
+        return {"questions": questions}
+
+    def test_draws_when_all_three_are_present(self):
+        _plt()
+        rows = []
+        original = rc.draw._draw_forest
+
+        def capture(plot, drawn, *args, **kwargs):
+            rows.append(drawn)
+            return original(plot, drawn, *args, **kwargs)
+
+        rc.draw._draw_forest = capture
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                written = rc.write_charts(self._report(), out)
+        finally:
+            rc.draw._draw_forest = original
+        assert any("awareness_kind_comparison.png" in p for p in written)
+        kind_rows = rows[-1]
+        assert [r.label for r in kind_rows] == [
+            "any flavour (question 5)", "safety-flavoured",
+            "capability-flavoured"]
+
+    def test_skipped_when_none_of_the_three_are_in_the_report(self):
+        """A report built for a batch predating the flavour split has none of
+        the three ids - the chart must not draw three empty "missing" rows in
+        that ordinary case, only when at least one carries a real number."""
+        _plt()
+        report = {"questions": [_section()]}  # oversight_vs_scheming only
+        with tempfile.TemporaryDirectory() as out:
+            written = rc.write_charts(report, out)
+        assert not any("awareness_kind_comparison" in p for p in written)
+
+    def test_a_missing_flavour_question_is_a_gap_not_a_silent_drop(self):
+        """One flavour question collapsed (or was never asked) while the
+        other two have real numbers - the row must say why rather than
+        disappear, the same convention plot_overview uses."""
+        _plt()
+        report = self._report(
+            drop=("awareness_vs_misalignment_when_capability_aware",))
+        rows = []
+        original = rc.draw._draw_forest
+
+        def capture(plot, drawn, *args, **kwargs):
+            rows.append(drawn)
+            return original(plot, drawn, *args, **kwargs)
+
+        rc.draw._draw_forest = capture
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                rc.write_charts(report, out)
+        finally:
+            rc.draw._draw_forest = original
+        kind_rows = [r for r in rows
+                    if [x.label.split("  *")[0] for x in r] ==
+                    ["any flavour (question 5)", "safety-flavoured",
+                     "capability-flavoured"]][0]
+        capability_row = kind_rows[2]
+        assert capability_row.diff is None
+        assert capability_row.missing == "not in this report"
+
+    def test_a_collapsed_flavour_question_says_why_rather_than_vanishing(self):
+        """Different from the not-in-this-report case above: the question
+        exists in the report but an exclusion emptied its comparator. Same
+        gap-not-drop convention, different reason string."""
+        _plt()
+        report = self._report()
+        for q in report["questions"]:
+            if q["id"] == "awareness_vs_misalignment_when_safety_aware":
+                q["collapsed_by_exclusion"] = (
+                    "not estimable with the arm excluded: no comparator left")
+        rows = []
+        with tempfile.TemporaryDirectory() as out:
+            path = os.path.join(out, "k.png")
+            original = rc.draw._draw_forest
+
+            def capture(plot, drawn, *args, **kwargs):
+                rows.append(drawn)
+                return original(plot, drawn, *args, **kwargs)
+
+            rc.draw._draw_forest = capture
+            try:
+                rc.plot_awareness_kind_comparison(_plt(), report, path)
+            finally:
+                rc.draw._draw_forest = original
+        safety_row = rows[0][1]
+        assert safety_row.diff is None
+        assert safety_row.missing == "not estimable with the arm excluded"
+
+    def test_a_diverging_flavour_question_marks_its_own_row(self):
+        """Same crude-vs-stratified divergence check plot_overview applies,
+        scoped to these three rows - a reader comparing crude and stratified
+        forest rows here must see the same warning the question's own chart
+        carries, not a clean-looking bar that hides the disagreement."""
+        _plt()
+        report = self._report()
+        for q in report["questions"]:
+            if q["id"] == "awareness_vs_misalignment":
+                q["crude_vs_stratified"] = {
+                    "warning": "CONFOUNDED: the crude estimate runs the "
+                              "other way"}
+        rows = []
+        captions = []
+        with tempfile.TemporaryDirectory() as out:
+            path = os.path.join(out, "k.png")
+            original = rc.draw._draw_forest
+
+            def capture(plot, drawn, title, caps, *args, **kwargs):
+                rows.append(drawn)
+                captions.extend(text for text, _colour in caps)
+                return original(plot, drawn, title, caps, *args, **kwargs)
+
+            rc.draw._draw_forest = capture
+            try:
+                rc.plot_awareness_kind_comparison(_plt(), report, path)
+            finally:
+                rc.draw._draw_forest = original
+        assert rows[0][0].label.endswith("*")
+        assert any("crude and stratified estimates diverge" in c
+                   for c in captions)
+
+
 class TestTheReportRunsWithAndWithoutCharts:
 
     def _corpus(self, out):
@@ -329,7 +480,7 @@ class TestTheReportRunsWithAndWithoutCharts:
                 charting.default_chart_dir(out))
             with open(os.path.join(out, "r.json")) as f:
                 report = json.load(f)
-            assert len(report["questions"]) == 17
+            assert len(report["questions"]) == 19
             assert "charts" not in report
 
     def test_the_json_records_the_charts_it_wrote(self, monkeypatch):

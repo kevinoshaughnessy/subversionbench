@@ -16,6 +16,16 @@ for why appended rather than inserted:
         question 6 is the narrower half of)
     verbalised evaluation awareness -> goal-guarding rate
 
+Two more, narrower still, are appended after those three - question 5 split
+by the kind of suspicion the grader's `eval_awareness_kind` recorded, rather
+than by whether awareness fired at all:
+
+    safety-flavoured awareness -> agentic misalignment rate
+    capability-flavoured awareness -> agentic misalignment rate
+
+Each restricts to episodes where the flavour could be told - see
+`_question_kind_vs_misalignment` for what "could be told" excludes and why.
+
 Read from episodes rather than summaries, because conditioning an outcome on
 awareness WITHIN an arm is a cross-tabulation no summary field holds. Awareness
 is OBSERVED, not assigned, so none of these six is an effect of a manipulation -
@@ -123,6 +133,106 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
         "by_lure": by_lure,
         "summary_derived_cross_check": cross_check,
     }
+
+
+def _question_kind_vs_misalignment(episodes: list, group_key: str,
+                                   question_id: str, kind_label: str) -> dict:
+    """
+    Misalignment rate conditioned on one flavour of verbalised awareness -
+    safety or capability - restricted to episodes where that flavour could be
+    told at all.
+
+    `group_key` is `safety_aware` or `capability_aware`, already three-valued
+    on the row by `_kind_flag` in episode_rows.py: True/False where the
+    grader's `eval_awareness_kind` settles it, None where it cannot -
+    keyword-only awareness (no grader kind), or a grader verdict of
+    unspecified/ambiguous. Restricting `rows` to the non-None episodes before
+    contrasting, rather than relying on _contrast's own None fall-out, keeps
+    n_episodes_not_applicable and composite() computed over the same set the
+    contrast actually used - the same shape _question_awareness_vs_flag uses
+    for the observable-only restriction below.
+
+    `question_id` MUST start with "awareness_vs_" - run_report.py's
+    _not_estimable_on_the_unaware_corpus reads the id's own
+    `<exposure>_vs_<outcome>` split to know that awareness is this question's
+    exposure, so a --exclude-aware run collapses it with the right stated
+    reason instead of computing a contrast whose exposed side was just
+    emptied out. See question_safety_awareness_vs_misalignment's id for the
+    exact form.
+    """
+    excluded = [r for r in episodes if r[group_key] is None]
+    rows = [r for r in episodes if r[group_key] is not None]
+    overall = _contrast(rows, group_key, True, False, "misaligned", "one")
+    by_model = _by_model(rows, group_key, True, False, "misaligned", "one")
+    by_nudge = []
+    for nd in NUDGE_LEVELS:
+        c = _contrast([r for r in rows if r["nudge"] == nd],
+                      group_key, True, False, "misaligned", "one")
+        c["nudge"] = nd
+        by_nudge.append(c)
+    by_lure = []
+    for lv in (False, True):
+        c = _contrast([r for r in rows if r["lure"] == lv],
+                      group_key, True, False, "misaligned", "one")
+        c["lure"] = lv
+        by_lure.append(c)
+    return {
+        "id": question_id,
+        "composite": composite_of(MISALIGNED_ACTS, rows),
+        "question": f"Do agentic misalignment rates (any of the measured "
+                    f"acts) increase or decrease with {kind_label}-flavoured "
+                    f"verbalised evaluation awareness?",
+        "data_source": f"run_*.json episodes: classify_misalignment(analysis), "
+                       f"conditioned on {group_key} (eval_awareness_kind in "
+                       f"{'{safety, both}' if kind_label == 'safety' else '{capability, both}'}"
+                       f"). Episodes where the flavour cannot be told - "
+                       f"keyword-only awareness, or a grader verdict of "
+                       f"unspecified/ambiguous - are excluded rather than "
+                       f"counted as unaware.",
+        "not_applicable_reason": "the awareness kind (safety/capability) "
+                                 "could be told",
+        "n_episodes_considered": len(rows),
+        "n_episodes_not_applicable": len(excluded),
+        "overall": overall,
+        "finding": _finding(overall, f"{kind_label}-flavoured awareness present",
+                           f"{kind_label}-flavoured awareness absent",
+                           "misalignment rate"),
+        "by_model": by_model,
+        "consistency": _consistency(by_model),
+        "stratified": _stratified(by_model),
+        "by_nudge": by_nudge,
+        "by_lure": by_lure,
+    }
+
+
+def question_safety_awareness_vs_misalignment(episodes: list) -> dict:
+    """
+    The narrower half of question 5: restricted to episodes whose suspicion
+    was safety-flavoured (or both), against episodes whose suspicion was
+    capability-flavoured or absent. See _question_kind_vs_misalignment.
+
+    Id keeps the "awareness_vs_" exposure prefix and carries the flavour on
+    the outcome side instead - "awareness_vs_misalignment_when_safety_aware"
+    - so it is still read as an awareness-exposure question everywhere the
+    id's own `<exposure>_vs_<outcome>` split is the source of truth: the
+    --exclude-aware collapse above, and exposure_of/short_label in
+    report_charts.labels.
+    """
+    return _question_kind_vs_misalignment(
+        episodes, "safety_aware",
+        "awareness_vs_misalignment_when_safety_aware", "safety")
+
+
+def question_capability_awareness_vs_misalignment(episodes: list) -> dict:
+    """
+    The other narrower half of question 5: restricted to episodes whose
+    suspicion was capability-flavoured (or both), against episodes whose
+    suspicion was safety-flavoured or absent. See _question_kind_vs_misalignment
+    and question_safety_awareness_vs_misalignment's id note.
+    """
+    return _question_kind_vs_misalignment(
+        episodes, "capability_aware",
+        "awareness_vs_misalignment_when_capability_aware", "capability")
 
 
 def _question_awareness_vs_flag(episodes: list, num_key: str,

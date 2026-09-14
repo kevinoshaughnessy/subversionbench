@@ -90,7 +90,8 @@ from .exclusion import (_excluded_stratum, _exclusion_captions,
 from .labels import arm_labels, exposure_of, short_label
 from .lure import (_honeypot_rows, _lure_effect_rows, plot_honeypot_access,
                    plot_lure_misalignment)
-from .questions import _question_title, plot_overview, plot_question
+from .questions import (_question_title, plot_awareness_kind_comparison,
+                        plot_overview, plot_question)
 from .rows import (Row, _ci, _effect_note, _model_rows, _paired_rows,
                    _pooled_rows)
 from .style import (CHART_DPI, EXCLUDED_NOTE, MULTIPLICITY_NOTE, PP,
@@ -111,6 +112,7 @@ __all__ = [
     "arm_labels", "captions", "characteristics", "charting", "draw",
     "exclusion", "exposure_of", "labels", "lure", "questions", "rows",
     "style", "write", "has_chart_support",
+    "plot_awareness_kind_comparison",
     "plot_awareness_refusal_timing", "plot_encoded_payload_rate",
     "plot_eval_signal_rates", "plot_honeypot_access", "plot_lure_misalignment",
     "plot_overview", "plot_persistence_rate", "plot_persistence_within_model",

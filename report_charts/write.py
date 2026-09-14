@@ -12,7 +12,8 @@ from .characteristics import (plot_awareness_refusal_timing,
                               plot_persistence_rate,
                               plot_persistence_within_model)
 from .lure import plot_honeypot_access, plot_lure_misalignment
-from .questions import plot_overview, plot_question
+from .questions import (plot_awareness_kind_comparison, plot_overview,
+                        plot_question)
 
 
 def write_charts(report: dict, chart_dir: str) -> list:
@@ -42,6 +43,9 @@ def write_charts(report: dict, chart_dir: str) -> list:
     overview = os.path.join(chart_dir, "questions_overview.png")
     if plot_overview(plt, report, overview):
         written.append(overview)
+    kind_path = os.path.join(chart_dir, "awareness_kind_comparison.png")
+    if plot_awareness_kind_comparison(plt, report, kind_path):
+        written.append(kind_path)
     # After the questions, mirroring where _print_characteristics prints in
     # run_report.py: a footnote to the twelve, not a thirteenth one. `.get`
     # throughout both plot_ functions, so a report built without a

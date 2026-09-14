@@ -120,7 +120,7 @@ class TestTheUnawareCorpusReading:
         assert "nudge_vs_awareness" in blocked
         assert all(q["id"] in blocked for q in cut["questions"]
                    if q["id"].startswith("awareness_vs_"))
-        assert len(blocked) == 11, sorted(blocked)
+        assert len(blocked) == 13, sorted(blocked)
 
     def test_the_questions_the_reading_can_answer_are_left_alone(self):
         """The point of the reading. Questions 1 and 3 contrast an arm against

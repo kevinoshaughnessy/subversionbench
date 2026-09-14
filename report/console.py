@@ -496,7 +496,8 @@ def _print_question_header(section: dict) -> bool:
     if "n_episodes_not_applicable" in section:
         considered = section.get("n_episodes_observable",
                                  section.get("n_episodes_considered"))
-        print(f"Scope: {considered} episode(s) where the act was observable; "
+        reason = section.get("not_applicable_reason", "the act was observable")
+        print(f"Scope: {considered} episode(s) where {reason}; "
               f"{section['n_episodes_not_applicable']} not-applicable and "
               f"excluded from the denominator")
     if section.get("n_episodes_concealment_undetermined"):

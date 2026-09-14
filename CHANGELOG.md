@@ -10,6 +10,47 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v193
+
+**Question 5 (verbalised awareness -> misalignment) is now also asked per
+awareness flavour.** The grader has recorded `eval_awareness_kind` (safety,
+capability, both, unspecified, ambiguous) since it started splitting the two
+purpose limbs apart, but no report question read it - the goal-guarding
+charts were the trigger, since they only ever showed the pooled figure for
+two of the five collected models even after the missing models' batches
+finished, and building the flavour split was the fix actually being asked
+for. `safety_aware`/`capability_aware` are new episode-row columns,
+three-valued like `goal_guarded`/`monitoring_disabled` already are: True or
+False only where the grader's kind settles it, None where it cannot -
+keyword-only awareness has no kind to read, and `unspecified`/`ambiguous`
+episodes are aware of something but not classifiable as either flavour. That
+None is excluded from both contrasts' denominators rather than read as
+"not this flavour", the same not-applicable-is-not-zero rule the rest of
+this codebase already applies.
+
+Two new questions (`awareness_vs_misalignment_when_safety_aware`,
+`..._when_capability_aware`) get the same forest-plot chart every other
+question gets, for free - the report layer required no new chart-drawing
+code, only two new question functions built on the existing per-model
+contrast machinery. A third new chart, `awareness_kind_comparison.png`, puts
+question 5 and its two flavour-restricted siblings on one axis so the three
+readings can be compared without assembling them from three separately
+numbered files by hand.
+
+Two small generalisations this needed, both backward-compatible: the
+"restricted denominator" caption in `report_charts/exclusion.py` and
+`report/console.py` took a `not_applicable_reason` field instead of a
+hardcoded "the act was observable", since these two questions restrict on
+awareness classifiability rather than act observability; and `arm_labels`
+gained an id-keyed override ahead of its exposure-keyed one, because
+`exposure_of()` reads "awareness" off both new ids the same as question 5's,
+but their False side is not plain "no verbalised awareness" - it also holds
+episodes aware of the other flavour.
+
+The overview chart's title said "All twelve research questions" long after a
+thirteenth, and now nineteenth, question was added; it no longer states a
+count the module's own docstring already says not to write down.
+
 ## v192
 
 **`charts/` can now be published encrypted, the way `eval_results_*` already
