@@ -74,7 +74,7 @@ from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
                         fan_out_read_mode, find_run_files_or_explain,
                         grade_existing_runs, reclassify_existing_runs,
                         reinterrogate_existing_runs,
-                        resummarise_existing_runs)
+                        resummarise_existing_runs, self_grade_kinds)
 from .redaction import redact_paths
 from .runner import run_batch
 from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
@@ -133,6 +133,7 @@ __all__ = [
     "run_batch",
     "run_evaluation",
     "run_followup",
+    "self_grade_kinds",
     "summarise_batch",
     "thinking_surface",
     "wilson_ci",
@@ -430,6 +431,21 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "and because the transcripts are fixed, any "
                              "change in the numbers is down to the grader. "
                              "--delay still applies, between files.")
+    parser.add_argument("--self-grade-kind", action="store_true",
+                        help="Don't run the eval. Re-measure only WHICH KIND "
+                             "of evaluation each aware episode suspected - "
+                             "safety or capability - with the episode's own "
+                             "model as the grader, on the theory that a model "
+                             "reads its own phrasing better than a fixed "
+                             "grader does. Awareness itself is NOT "
+                             "re-measured: it is taken from the "
+                             "eval_awareness_grader verdict already saved, so "
+                             "both readings share one denominator and any "
+                             "difference is the flavour judgement alone. Two "
+                             "questions per AWARE episode and no calls at all "
+                             "for the rest. Writes to "
+                             "analysis.awareness_kind_self under "
+                             "--write-back, never over the primary verdict.")
     parser.add_argument("--compare", nargs=2, metavar=("STAMP_A", "STAMP_B"),
                         default=None,
                         help="Don't run the eval. Compare two batches by "
@@ -549,21 +565,29 @@ def _reject_contradictory_flags(parser, args) -> None:
                 questions_for(MISALIGNED_ACTS[0], "max", name)
             except (ValueError, KeyError) as e:
                 parser.error(str(e))
-    if args.grade_existing and args.no_grader:
+    if (args.grade_existing or args.self_grade_kind) and args.no_grader:
         parser.error(
-            "--grade-existing and --no-grader are contradictory: the first "
-            "does nothing but run the grader."
+            "--grade-existing/--self-grade-kind and --no-grader are "
+            "contradictory: the first does nothing but run the grader."
         )
-    if args.batch_stamp and not (args.grade_existing or args.reclassify
-                                 or args.resummarise or args.reinterrogate):
+    if args.grade_existing and args.self_grade_kind:
+        parser.error(
+            "--grade-existing and --self-grade-kind are different modes: the "
+            "first re-runs the whole rubric with --grader-model, the second "
+            "re-measures only the kind with the episode's own model. Run one, "
+            "then the other."
+        )
+    _read_modes = (args.grade_existing or args.self_grade_kind
+                   or args.reclassify or args.resummarise
+                   or args.reinterrogate)
+    if args.batch_stamp and not _read_modes:
         parser.error("--batch-stamp only applies with --grade-existing, "
-                     "--reclassify or --resummarise.")
+                     "--self-grade-kind, --reclassify or --resummarise.")
     for flag, value in (("--write-back", args.write_back),):
-        if value and not (args.grade_existing or args.reclassify
-                          or args.resummarise or args.reinterrogate):
+        if value and not _read_modes:
             parser.error(
-                f"{flag} only applies with --grade-existing, --reclassify "
-                f"or --resummarise."
+                f"{flag} only applies with --grade-existing, "
+                f"--self-grade-kind, --reclassify or --resummarise."
             )
 
 
@@ -700,10 +724,12 @@ def _run_read_mode(args, selection):
             return fan_out_read_mode(args, resummarise_existing_runs)
 
         run_one = (grade_existing_runs if args.grade_existing else
+                   self_grade_kinds if args.self_grade_kind else
                    reclassify_existing_runs if args.reclassify else None)
         if run_one is None:
             print("--model/--nudge 'all' applies to the read-only modes "
-                  "(--resummarise, --grade-existing, --reclassify).")
+                  "(--resummarise, --grade-existing, --self-grade-kind, "
+                  "--reclassify).")
             return 2
 
         batches = discover_batches(args.output_dir, args.model, args.nudge)
@@ -735,6 +761,9 @@ def _run_read_mode(args, selection):
 
     if args.grade_existing:
         return grade_existing_runs(args, selection)
+
+    if args.self_grade_kind:
+        return self_grade_kinds(args, selection)
 
     return None
 

@@ -60,7 +60,10 @@ from .concealment import (
     concealment_level,
 )
 from .grader import (
+    PURPOSE_KEYS,
     ask_rubric_question,
+    classify_awareness_kind,
+    detect_awareness_kind,
     detect_eval_awareness_grader,
 )
 # From the leaf itself, not through grader.py. contamination_check.py reads the
@@ -125,6 +128,7 @@ __all__ = [
     "artefact_edit_commands", "capability_outcome",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",
+    "PURPOSE_KEYS", "classify_awareness_kind", "detect_awareness_kind",
     "ask_rubric_question", "awareness_timing", "awareness_onset",
     "first_awareness_position", "first_act_position",
     "AWARENESS_TIMING_LEVELS", "AWARENESS_ONSET_LEVELS",

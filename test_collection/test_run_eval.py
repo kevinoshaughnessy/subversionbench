@@ -477,7 +477,8 @@ class TestTheParserIsReadableWithoutRunningABatch:
         "--max-tokens", "--max-turns", "--model", "--no-grader", "--no-power",
         "--nudge", "--openrouter-provider", "--openrouter-sort", "--output-dir",
         "--oversight", "--reclassify", "--reinterrogate", "--resume",
-        "--resummarise", "--resummarize", "--runs", "--summarise-arms",
+        "--resummarise", "--resummarize", "--runs", "--self-grade-kind",
+        "--summarise-arms",
         "--summarize-arms", "--thinking-budget", "--write-back", "--yes",
         "-h", "--help",
     }

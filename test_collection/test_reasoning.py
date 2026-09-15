@@ -186,6 +186,48 @@ class TestGraderThinking:
 
         kwargs, tokens = short_call_thinking_kwargs("x-ai/grok-4.5", 200)
         assert kwargs == {}
+
+    def test_an_openrouter_grader_gets_room_to_answer_after_reasoning(self):
+        """THIS ASSERTED `tokens == 200` AND WAS WRONG, on a reading of
+        `surface is None` as "this model does not reason". It means the ROUTE
+        accepts no reasoning parameter - so thinking cannot be turned off,
+        which is the case that needs room, not the case that does not.
+        OPENROUTER_REASONING_CONFIG says so in reasoning.py itself: "It has
+        one; this does not send it, and omitting it suppresses nothing."
+
+        Measured: self-grading pointed the rubric grader at
+        google/gemini-3.5-flash over OpenRouter and every one of the 9
+        questions failed to parse on every episode of a batch. The replies
+        were correct JSON severed mid-token - '{"answer": true, "quote":' at
+        25 characters - with the whole 200 spent reasoning."""
+        from subversionbench.reasoning import (MIN_TOKENS_WHEN_THINKING_FORCED,
+                                               short_call_thinking_kwargs)
+
+        for model in ("x-ai/grok-4.5", "google/gemini-3.5-flash",
+                      "qwen/qwen3.8-flash"):
+            kwargs, tokens = short_call_thinking_kwargs(model, 200)
+            assert kwargs == {}, model
+            assert tokens == MIN_TOKENS_WHEN_THINKING_FORCED, model
+
+    def test_a_caller_asking_for_more_than_the_floor_keeps_it(self):
+        """The floor raises a ceiling that is too low; it must not lower one
+        that is already higher. contamination_check.py asks for 2000 on the
+        forced-choice probe and 1500 on the continuation, for its own
+        reasons."""
+        from subversionbench.reasoning import short_call_thinking_kwargs
+
+        _kwargs, tokens = short_call_thinking_kwargs("x-ai/grok-4.5", 8192)
+        assert tokens == 8192
+
+    def test_the_default_grader_is_untouched_by_that_floor(self):
+        """The control, and the reason this change could not move a published
+        figure: claude-opus-5 on the native route still turns thinking off and
+        still asks for 200, so every batch already graded was graded the same
+        way it would be graded now."""
+        from subversionbench.reasoning import short_call_thinking_kwargs
+
+        kwargs, tokens = short_call_thinking_kwargs("claude-opus-5", 200)
+        assert kwargs["thinking"] == {"type": "disabled"}
         assert tokens == 200
 
 class TestOpenAIEffortDefault:

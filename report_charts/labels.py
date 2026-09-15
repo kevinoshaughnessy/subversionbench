@@ -39,6 +39,12 @@ _ID_LEVEL_WORDS = {
         True: "safety-flavoured awareness", False: "not safety-flavoured"},
     "awareness_vs_misalignment_when_capability_aware": {
         True: "capability-flavoured awareness", False: "not capability-flavoured"},
+    "awareness_vs_misalignment_when_safety_aware_self": {
+        True: "safety-flavoured (self-graded)",
+        False: "not safety-flavoured (self-graded)"},
+    "awareness_vs_misalignment_when_capability_aware_self": {
+        True: "capability-flavoured (self-graded)",
+        False: "not capability-flavoured (self-graded)"},
 }
 
 

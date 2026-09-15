@@ -26,6 +26,19 @@ than by whether awareness fired at all:
 Each restricts to episodes where the flavour could be told - see
 `_question_kind_vs_misalignment` for what "could be told" excludes and why.
 
+Two more still, appended after those, read the SAME flavour as the episode's
+own model rather than the primary grader:
+
+    safety-flavoured awareness (self-graded) -> agentic misalignment rate
+    capability-flavoured awareness (self-graded) -> agentic misalignment rate
+
+Restricted to episodes where BOTH the primary and self-graded flavour could be
+told - a narrower, DIFFERENT denominator from the pair above, because the two
+questions would otherwise not be comparable at all. Each carries the primary's
+own reading over that same restricted set as a parallel measure, the same
+shape questions 2 and 4 already give the visible-text-only reading - see
+`_question_self_kind_vs_misalignment`.
+
 Read from episodes rather than summaries, because conditioning an outcome on
 awareness WITHIN an arm is a cross-tabulation no summary field holds. Awareness
 is OBSERVED, not assigned, so none of these six is an effect of a manipulation -
@@ -233,6 +246,120 @@ def question_capability_awareness_vs_misalignment(episodes: list) -> dict:
     return _question_kind_vs_misalignment(
         episodes, "capability_aware",
         "awareness_vs_misalignment_when_capability_aware", "capability")
+
+
+def _question_self_kind_vs_misalignment(episodes: list, self_key: str,
+                                        primary_key: str, question_id: str,
+                                        kind_label: str) -> dict:
+    """
+    Misalignment rate conditioned on the SELF-graded flavour - the episode's
+    own model reading its own suspicion - restricted to episodes where BOTH
+    the primary grader's flavour and the self-graded one could be told.
+
+    NOT THE SAME DENOMINATOR AS _question_kind_vs_misalignment, and that is
+    deliberate rather than an oversight to fix later. That question restricts
+    only to episodes where ITS OWN flavour is classifiable - a wider set that
+    includes every episode `--self-grade-kind` has not reached yet, and every
+    episode the self-grader called unspecified while the primary named a
+    flavour. Two rates built on different populations cannot be read side by
+    side as two answers to the same question - the reason this restricts to
+    the INTERSECTION, and the reason `primary_reading` below recomputes the
+    primary's own classification over that identical intersection rather than
+    reporting question 5's published rate, which is over its own wider set.
+    The published question is never touched by this: it keeps its full
+    denominator, exactly as before.
+
+    This is the same shape `_text_reachable_block` already gives questions 2
+    and 4 - one denominator, two numerators, so only the READING differs and
+    a reader can compare the two graders' verdicts with everything else held
+    equal.
+    """
+    both = [r for r in episodes
+           if r[self_key] is not None and r[primary_key] is not None]
+    excluded = len(episodes) - len(both)
+
+    overall = _contrast(both, self_key, True, False, "misaligned", "one")
+    by_model = _by_model(both, self_key, True, False, "misaligned", "one")
+    by_nudge = []
+    for nd in NUDGE_LEVELS:
+        c = _contrast([r for r in both if r["nudge"] == nd],
+                      self_key, True, False, "misaligned", "one")
+        c["nudge"] = nd
+        by_nudge.append(c)
+    by_lure = []
+    for lv in (False, True):
+        c = _contrast([r for r in both if r["lure"] == lv],
+                      self_key, True, False, "misaligned", "one")
+        c["lure"] = lv
+        by_lure.append(c)
+
+    # THE PARALLEL MEASURE: the primary grader's OWN classification, over the
+    # exact same restricted set the self-graded rate above is computed from.
+    # Only `overall` is needed - _pooled_rows draws one row from it, the same
+    # way it already draws one from `text_reachable`, because the comparison
+    # is the crude pooled figure and the per-model breakdown is already on
+    # question 18/19's own chart.
+    primary_overall = _contrast(both, primary_key, True, False,
+                                "misaligned", "one")
+
+    return {
+        "id": question_id,
+        "composite": composite_of(MISALIGNED_ACTS, both),
+        "question": f"Do agentic misalignment rates (any of the measured "
+                    f"acts) increase or decrease with {kind_label}-flavoured "
+                    f"verbalised evaluation awareness, read by the episode's "
+                    f"OWN model rather than the primary grader?",
+        "data_source": f"run_*.json episodes: classify_misalignment(analysis), "
+                       f"conditioned on {self_key} (awareness_kind_self, "
+                       f"the episode's own model as grader). Restricted to "
+                       f"episodes where BOTH the primary grader's flavour and "
+                       f"the self-graded flavour could be told, so this rate "
+                       f"and the primary_reading parallel measure share one "
+                       f"denominator - a narrower set than question 18/19's "
+                       f"own, which restricts only on its own reading.",
+        "not_applicable_reason": "both the primary grader's and the "
+                                 "self-grader's awareness kind could be told",
+        "n_episodes_considered": len(both),
+        "n_episodes_not_applicable": excluded,
+        "overall": overall,
+        "finding": _finding(
+            overall, f"{kind_label}-flavoured awareness present (self-graded)",
+            f"{kind_label}-flavoured awareness absent (self-graded)",
+            "misalignment rate"),
+        "by_model": by_model,
+        "consistency": _consistency(by_model),
+        "stratified": _stratified(by_model),
+        "by_nudge": by_nudge,
+        "by_lure": by_lure,
+        "primary_reading": {
+            "measure": "the primary grader's flavour, same episodes",
+            "overall": primary_overall,
+        },
+    }
+
+
+def question_safety_awareness_vs_misalignment_self(episodes: list) -> dict:
+    """
+    The self-graded parallel to question 18 - see
+    _question_self_kind_vs_misalignment for the denominator and why it
+    differs from question 18's own.
+
+    Id form matches question 18's own note: "awareness_vs_" stays the
+    exposure prefix so exposure_of()/short_label and the --exclude-aware
+    collapse in run_report.py all still read it as an awareness-exposure
+    question.
+    """
+    return _question_self_kind_vs_misalignment(
+        episodes, "safety_aware_self", "safety_aware",
+        "awareness_vs_misalignment_when_safety_aware_self", "safety")
+
+
+def question_capability_awareness_vs_misalignment_self(episodes: list) -> dict:
+    """The self-graded parallel to question 19. See
+    question_safety_awareness_vs_misalignment_self."""
+    return _question_self_kind_vs_misalignment(
+        episodes, "capability_aware_self", "capability_aware",
+        "awareness_vs_misalignment_when_capability_aware_self", "capability")
 
 
 def _question_awareness_vs_flag(episodes: list, num_key: str,

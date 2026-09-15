@@ -148,6 +148,19 @@ def _pooled_rows(section: dict) -> list:
         rows.append(Row("PARALLEL: awareness in visible text only",
                         p_overall["difference"], lo, hi, "parallel",
                         marked=bool(p_overall.get("separated"))))
+    # The two self-graded questions only. The primary grader's OWN
+    # classification, recomputed over the exact episodes the self-graded rate
+    # above is drawn from - not question 18/19's own published rate, which is
+    # over a wider denominator. Same shape as `text_reachable`: one
+    # denominator, two numerators, so the row differs from the headline only
+    # in which grader's reading it counts.
+    primary = section.get("primary_reading") or {}
+    pr_overall = primary.get("overall") or {}
+    if pr_overall.get("difference") is not None:
+        lo, hi = _ci(pr_overall)
+        rows.append(Row("PARALLEL: primary grader's reading, same episodes",
+                        pr_overall["difference"], lo, hi, "parallel",
+                        marked=bool(pr_overall.get("separated"))))
     return rows
 
 

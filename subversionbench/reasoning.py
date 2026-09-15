@@ -383,11 +383,33 @@ def short_call_thinking_kwargs(model: str, max_tokens: int):
     Returns (kwargs, max_tokens).
     """
     surface = thinking_surface(model)
-    if surface is None or surface.mode == "budget":
-        # No reasoning parameter, or a model where unset already means off.
+    if surface is not None and surface.mode == "budget":
+        # Unset really does mean off here, so the answer has the whole budget.
         return {}, max_tokens
-    if surface.can_disable:
+    if surface is not None and surface.can_disable:
         return {"thinking": {"type": "disabled"}}, max_tokens
+    # THINKING CANNOT BE SUPPRESSED, so the answer needs room after it. Two
+    # different cases reach this, and they used to be split: a surface that
+    # says so outright, and `surface is None`, which was grouped with the
+    # budget case above under "no reasoning parameter, or a model where unset
+    # already means off". Those are not the same fact. A route that accepts no
+    # reasoning parameter is one where thinking cannot be turned OFF, not one
+    # where it is already off - OPENROUTER_REASONING_CONFIG says as much in
+    # this file: "It has one; this does not send it, and omitting it
+    # suppresses nothing."
+    #
+    # Measured, not reasoned about: self-grading pointed the rubric grader at
+    # google/gemini-3.5-flash over OpenRouter and 9 of 9 questions failed to
+    # parse on every episode of a batch. The replies were not malformed - they
+    # were correct JSON severed mid-token at 18 and 25 characters, the whole
+    # 200 having gone on reasoning. contamination_check.py hit this first and
+    # fixed it the same way for its own calls (FORCED_CHOICE_TOKENS), for the
+    # reason it gives there: the route is why, and room to answer is the only
+    # lever left.
+    #
+    # A ceiling is not a spend. A model that emits its JSON and stops is
+    # byte-identical under a higher one, so no call that already succeeded can
+    # change and no published figure moves; only calls that were failing do.
     return {}, max(max_tokens, MIN_TOKENS_WHEN_THINKING_FORCED)
 
 

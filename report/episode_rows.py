@@ -104,6 +104,60 @@ def _kind_flag(aware_source: str, kind, member_kinds: tuple):
     return False
 
 
+def _self_awareness_columns(analysis: dict, aware, aware_source: str) -> tuple:
+    """
+    The kind as the episode's OWN model read it, from `awareness_kind_self` -
+    readmodes/kind_self.py's `--self-grade-kind`.
+
+    Returns (eval_awareness_kind_self, safety_aware_self,
+    capability_aware_self). There is deliberately no `aware_self`: that pass
+    does not re-measure awareness at all. Whether an episode is aware is a
+    judgement a capable grader gets right; which words imply a SAFETY rather
+    than a CAPABILITY suspicion is the reading that varies between models, so
+    only that is asked again.
+
+    AWARENESS COMES FROM THE PRIMARY READING, for both columns, which is what
+    makes them comparable with `safety_aware`/`capability_aware` at all: the
+    two share a denominator, so a difference between them is the flavour
+    judgement and nothing else. Three cases, and the middle one is the reason
+    this takes `aware` as an argument rather than reading only its own block:
+
+      - the primary has no usable verdict -> None, exactly as the primary
+        columns are None. Nothing to condition on.
+      - the primary found NO awareness -> False for both flavours, with no
+        block needed and no API call ever made. An unaware episode is
+        definitely not safety-flavoured under either reading, so the self
+        columns can say so for free; asking a model to categorise a suspicion
+        it never had would be spend with no reachable finding.
+      - the primary found awareness -> read the block, or None where the pass
+        has not reached this episode yet.
+
+    A PARALLEL measure, never a replacement. Nothing downstream may pool
+    `..._self` with the primary columns; that would silently mix two
+    instruments the way a stale grader column already has before - see
+    docs/methodology.md#validating-the-grader.
+    """
+    if aware_source != "grader":
+        # No usable primary verdict. The primary columns are None here too -
+        # _kind_flag returns None on exactly this test - so returning anything
+        # else would give the two readings different denominators, which is
+        # the one property this pass exists to preserve.
+        return None, None, None
+    if not aware:
+        return None, False, False
+    block = analysis.get("awareness_kind_self") or {}
+    kind_self = block.get("eval_awareness_kind")
+    if kind_self is None:
+        # Not collected, or collected and undetermined - see
+        # detect_awareness_kind, which refuses to name a kind off a purpose
+        # question that did not answer. Either way this episode has no
+        # re-measured flavour, which is not evidence against one.
+        return None, None, None
+    return (kind_self,
+            _kind_flag("grader", kind_self, SAFETY_KINDS),
+            _kind_flag("grader", kind_self, CAPABILITY_KINDS))
+
+
 def _awareness_columns(analysis: dict, d: dict) -> tuple:
     """Both awareness screens, and what each can be read to mean.
 
@@ -462,6 +516,9 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
     (aware, aware_source, aware_union, aware_union_source, channels,
      aware_text, eval_awareness_kind, safety_aware,
      capability_aware) = _awareness_columns(analysis, d)
+    (eval_awareness_kind_self, safety_aware_self,
+     capability_aware_self) = _self_awareness_columns(analysis, aware,
+                                                      aware_source)
     (strategy_seq, pressure_turn, first_check, switched, switch_turns,
      after_refusal, persisted, refusal_index, refusal_shown) = (
         _decision_columns(analysis, d))
@@ -529,6 +586,17 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
         # where the value is None fall out of a level_a/level_b comparison on
         # their own, which is the point of using None rather than False here.
         "safety_aware": safety_aware, "capability_aware": capability_aware,
+        # The same flavour, as the episode's OWN model read it - see
+        # _self_awareness_columns. Only the flavour: `--self-grade-kind` does
+        # not re-measure awareness, so there is no `aware_self` here and both
+        # columns share the primary's awareness verdict with the two above.
+        # None on an aware episode the pass has not reached, which is most of
+        # the corpus today; False wherever the primary found no awareness,
+        # which costs no call. Never pooled with the fields above - a
+        # different instrument, not a replacement.
+        "eval_awareness_kind_self": eval_awareness_kind_self,
+        "safety_aware_self": safety_aware_self,
+        "capability_aware_self": capability_aware_self,
         # Secondary: aware if EITHER screen says so - see above. Carried
         # beside the primary rather than replacing it, because the
         # sensitivity reading is published as a second reading and both

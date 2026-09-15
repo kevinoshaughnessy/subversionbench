@@ -92,6 +92,12 @@ class TestBothPooledEstimatesAreAlwaysDrawn:
                                  ci=(0.01, 0.08), separated=True)})
         assert [r.kind for r in rc._pooled_rows(with_parallel)][-1] == "parallel"
 
+    # Two more tests of this shape - the self-graded questions'
+    # primary_reading parallel measure, and the fixed-per-kind legend bug it
+    # exposed - are in test_report_charts_self_kind.py: this file was at the
+    # 1000-line ceiling and the split follows the same rule
+    # test_report_awareness_kind.py was split out under.
+
     def test_a_question_with_no_stratified_estimate_still_gets_its_crude_one(self):
         rows = rc._pooled_rows(_section(stratified={"mantel_haenszel": {}}))
         assert [r.kind for r in rows] == ["crude"]
@@ -160,7 +166,7 @@ class TestTheArmsAreNamedInWords:
         source = inspect.getsource(run_report.build_report)
         called = [n for n in dir(run_report)
                   if n.startswith("question_") and f"{n}(" in source]
-        assert len(called) == 19
+        assert len(called) == 21
         for name in called:
             # Defined in one of the three question modules, not merely reachable
             # through the package. This was `== "run_report"` while the report
@@ -480,7 +486,7 @@ class TestTheReportRunsWithAndWithoutCharts:
                 charting.default_chart_dir(out))
             with open(os.path.join(out, "r.json")) as f:
                 report = json.load(f)
-            assert len(report["questions"]) == 19
+            assert len(report["questions"]) == 21
             assert "charts" not in report
 
     def test_the_json_records_the_charts_it_wrote(self, monkeypatch):

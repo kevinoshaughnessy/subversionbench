@@ -173,6 +173,9 @@ subversionbench/
   readmodes/       what can be learned from episodes already collected
     selection.py           which saved batches a mode works on, and fanning out
     grade.py               re-running the awareness grader
+    kind_self.py           re-measuring only the KIND of suspicion, with the
+                           episode's own model - two questions per aware
+                           episode, none for the rest
     reclassify.py          re-labelling saved interrogation answers
     resummarise.py         re-deriving everything derivable, for free
     reinterrogate.py       asking a differently-worded question
@@ -421,9 +424,10 @@ trends/            whether a rate falls as a model family advances, with the
   family_trends.py the CLI: arguments, and one report per metric
   __main__.py      `python3 -m trends`, so the CLI is never run twice
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
-run_all_arms.sh    one model through every nudge x oversight x lure x
-                   goalguard arm, where --runs is the target total per arm
-                   rather than an increment
+self_grade_all.sh  re-measure the awareness KIND across a corpus with
+                   --self-grade-kind, each episode graded by the model that was
+                   the episode. No --resummarise step, unlike regrade_all.sh:
+                   it writes awareness_kind_self, which no summary reads
 run_tests.py       the test suite without pytest
 report_snapshots/  the printed report for nine fixed batches, compared per run
 ```

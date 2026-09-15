@@ -119,7 +119,6 @@ def _legend_handles(rows: list) -> list:
     from matplotlib.lines import Line2D
     names = {"model": "per model", "crude": "crude pooled",
              "stratified": "stratified (Mantel-Haenszel)",
-             "parallel": "parallel measure (visible text only)",
              "paired": "paired contrast (exact McNemar)"}
 
     def _swatch(kind):
@@ -128,12 +127,24 @@ def _legend_handles(rows: list) -> list:
         Taken from a row rather than from _COLOURS, because a demoted row is
         grey: a legend saying "crude pooled" beside an orange line, over a
         chart whose crude diamond is grey, is the same fault as the caption
-        that used to contradict the marks."""
+        that used to contradict the marks.
+
+        "parallel" has no entry in `names`: two different measures share the
+        kind now - text_reachable and primary_reading - each with its own
+        row.label already saying which ("PARALLEL: awareness in visible text
+        only" vs "PARALLEL: primary grader's reading, same episodes"). A
+        fixed string here was right while only one existed and silently wrong
+        the moment a second row of the same kind was drawn with a different
+        meaning - the label is read off the row instead, for every kind that
+        is not a per-row category to begin with.
+        """
         row = next((r for r in rows if r.kind == kind and r.diff is not None),
                    None)
+        label = (row.label[len("PARALLEL: "):] if kind == "parallel" and row
+                 else names.get(kind, kind))
         if row is not None and row.demoted:
-            return _DEMOTED_COLOUR, names[kind] + " - see caption", "white"
-        return _COLOURS[kind], names[kind], _COLOURS[kind]
+            return _DEMOTED_COLOUR, label + " - see caption", "white"
+        return _COLOURS[kind], label, _COLOURS[kind]
 
     handles = []
     for k in ("model", "crude", "stratified", "parallel", "paired"):

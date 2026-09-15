@@ -58,7 +58,9 @@ from .questions_awareness import (question_awareness_vs_goal_guarding,
                                   question_awareness_vs_sandbox_scheming,
                                   question_awareness_vs_scheming,
                                   question_capability_awareness_vs_misalignment,
-                                  question_safety_awareness_vs_misalignment)
+                                  question_capability_awareness_vs_misalignment_self,
+                                  question_safety_awareness_vs_misalignment,
+                                  question_safety_awareness_vs_misalignment_self)
 from .questions_paired import (question_evidence_vs_concealment,
                                question_paraphrase_vs_concealment)
 
@@ -360,6 +362,12 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # module docstring and _question_kind_vs_misalignment.
         question_safety_awareness_vs_misalignment(episodes),
         question_capability_awareness_vs_misalignment(episodes),
+        # APPENDED for the same renumbering reason. The self-graded parallel
+        # to the pair above - see questions_awareness.py's module docstring
+        # and _question_self_kind_vs_misalignment for why these restrict to a
+        # DIFFERENT, narrower denominator than the pair they parallel.
+        question_safety_awareness_vs_misalignment_self(episodes),
+        question_capability_awareness_vs_misalignment_self(episodes),
     ])
 
     # A DIFFERENT FIELD from collapsed_by_exclusion, deliberately - see
@@ -379,6 +387,27 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         reason = _out_of_scope_for_this_corpus(section, has_goalguard)
         if reason:
             section["out_of_scope_for_corpus"] = reason
+
+    # THE SAME FIELD, for the SAME reason, for a third kind of fact:
+    # --self-grade-kind is a follow-up pass a caller opts into per model, so a
+    # corpus nothing has been run against yet would otherwise draw the two
+    # self-graded questions as a wall of "no data on one side" rows - one per
+    # model, none of them saying anything plot_question's own per-model gap
+    # does not already say better. Checked corpus-WIDE rather than per model:
+    # a corpus with even one self-graded episode gets its chart, with the
+    # untouched models' own rows showing the gap honestly, which is real
+    # information (this model has not been through the pass) that a
+    # corpus-wide skip must not hide.
+    has_self_kind_data = any(
+        e.get("safety_aware_self") is not None
+        or e.get("capability_aware_self") is not None
+        for e in episodes)
+    if not has_self_kind_data:
+        for section in questions:
+            if section["id"].endswith("_aware_self"):
+                section["out_of_scope_for_corpus"] = (
+                    "not estimable yet: no episode in this corpus has been "
+                    "through --self-grade-kind")
 
     # Marked on the section rather than worked out again by each consumer. The
     # console and the chart layer both have to know that a question lost its

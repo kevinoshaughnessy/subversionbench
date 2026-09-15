@@ -77,6 +77,11 @@ class TestBuildReportEndToEnd:
             # rather than by whether awareness fired at all.
             "awareness_vs_misalignment_when_safety_aware",
             "awareness_vs_misalignment_when_capability_aware",
+            # APPENDED at v195: the self-graded parallel to the pair above,
+            # restricted to a different, narrower denominator - see
+            # questions_awareness.py's module docstring.
+            "awareness_vs_misalignment_when_safety_aware_self",
+            "awareness_vs_misalignment_when_capability_aware_self",
         ]
         assert report["n_summary_files"] == 2
         assert report["n_episode_files"] == 10
@@ -218,7 +223,7 @@ class TestMain:
         # lure arm got a question of its own; 14 -> 17 at v191 when the
         # oversight-tampering split added two and goal-guarding a third;
         # 17 -> 19 at v193 when question 5 split by awareness kind.
-        assert len(saved["questions"]) == 19
+        assert len(saved["questions"]) == 21
 
 class TestTheParallelTextReachableMeasure:
     """That questions 2 and 4 - and only those two - carry the parallel measure,
@@ -347,7 +352,7 @@ class TestTheLayersDoNotPointBackwards:
         # Same literal as TestMain's surface pin, and it must stay the same:
         # this counts question_ functions defined, that one counts sections
         # emitted, and the pair catches one defined but never called.
-        assert len(seen) == 19, sorted(seen)
+        assert len(seen) == 21, sorted(seen)
         assert sorted(seen.values()).count("questions_paired") == 2
 
 class TestTheHeaderCountsDescribeTheCorpusTheQuestionsUse:

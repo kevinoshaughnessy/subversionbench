@@ -10,6 +10,113 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v195
+
+**Two more questions chart the self-graded kind, and they are not the same denominator as
+question 18/19.** `awareness_vs_misalignment_when_safety_aware` restricts to episodes where
+ITS OWN flavour is classifiable - a set that includes every episode `--self-grade-kind`
+has not reached yet, and every episode the self-grader called unspecified while the primary
+named a flavour. Building the new questions on that same rule would have made "18 vs
+18-self" look like two answers to one question while actually resting on two different
+populations.
+
+So the self-graded pair restricts to the INTERSECTION - episodes where BOTH the primary's
+and the self-grader's flavour could be told - and each carries a `primary_reading` parallel
+measure: the primary grader's own classification, recomputed over that identical
+intersection. One denominator, two numerators, the same shape `_text_reachable_block`
+already gives questions 2 and 4 against the reasoning channel. Drawn as a second "PARALLEL"
+row on the same chart rather than a chart of its own, for the same reason that pair is.
+
+That reuse surfaced a real bug in the row it reused: `_legend_handles` held one fixed
+string per row KIND, correct while `text_reachable` was the only thing ever drawn as
+"parallel" and silently wrong the moment a second, differently-labelled row shared the
+kind - a chart carrying both would have called the primary-reading row "visible text only"
+in its own legend. Fixed by reading the legend text off the row's own label instead.
+
+**The two questions are skipped at the chart layer, corpus-wide, until at least one episode
+has been through `--self-grade-kind`** - the same `out_of_scope_for_corpus` field
+`goalguard_vs_act` already uses for "this corpus never held the axis", now covering "this
+corpus never ran the pass" too. Checked once for the whole corpus rather than per model: a
+corpus with even one self-graded episode gets the real chart, with the untouched models'
+own rows still showing the gap - which is itself information a corpus-wide skip must not
+hide.
+
+## v194
+
+**A short grader call over OpenRouter asked for 200 tokens and could not turn thinking
+off, so the answer was severed mid-token.** `short_call_thinking_kwargs` grouped
+`surface is None` with the budget-mode models under "no reasoning parameter, or a model
+where unset already means off". Those are not the same fact: a route that accepts no
+reasoning parameter is one where thinking cannot be turned OFF, which is the case that
+needs room after the reasoning, not the case that does not - `OPENROUTER_REASONING_CONFIG`
+in that same file already said so ("It has one; this does not send it, and omitting it
+suppresses nothing"). So the `MIN_TOKENS_WHEN_THINKING_FORCED` floor, which exists for
+exactly this condition, sat below an early return that the case needing it always took.
+
+Invisible until now because the rubric grader had only ever run as `claude-opus-5` on the
+native route, where thinking CAN be disabled and 200 tokens was always ample. Self-grading
+pointed it at a model over OpenRouter and it failed immediately: 9 of 9 rubric questions
+unparseable on all 10 episodes of a batch, reported as `REGRADE FAILED`. The replies were
+not malformed - they were correct JSON cut off mid-token, `{"answer": true, "quote":` at
+25 characters and ```` ```json\n{"answer": ```` at 18, the whole budget having gone on
+reasoning. `contamination_check.py` hit the same thing first and fixed it the same way for
+its own calls (`FORCED_CHOICE_TOKENS`), for the reason it records there: the route is why,
+and room to answer is the only lever left.
+
+No figure already published can move. `claude-opus-5` on the native route still sends
+`thinking={"type": "disabled"}` with 200 tokens, and budget-mode models still get 200, so
+every batch already graded was graded exactly as it would be graded now. A ceiling is not
+a spend either: a model that emits its JSON and stops is byte-identical under a higher one,
+so the only calls this changes are the ones that were failing.
+
+Parse failures now carry the reply that caused them. `json.JSONDecodeError`'s own `str()`
+is a line and column with no text at that position, and `_parse_first_json` truncated to 80
+characters - between them, enough to say a reply was unreadable and not enough to tell a
+model that ignored the JSON instruction from one that was truncated mid-string from one
+whose quoted text broke the syntax around it. Diagnosing the defect above needed exactly
+that distinction. Validation is unchanged: a reply that does not parse still scores `None`
+and still is not written back.
+
+**`--self-grade-kind` re-measures only WHICH KIND of evaluation an aware episode
+suspected - safety or capability - with the episode's own model as the grader.** Whether
+an episode is eval-aware at all is a judgement a capable grader gets right, and the five
+rubric questions deciding it are not what varies between models; which words imply
+suspicion of a safety test rather than a capability one turns on what a model meant by its
+own phrasing, and the model that wrote the phrase has a claim to read it better than a
+fixed third party. So awareness is taken from the `eval_awareness_grader` verdict already
+saved and only the two purpose questions are asked again - the pair already held outside
+`_EVAL_SIGNAL_KEYS` so that it could not move the awareness rate.
+
+Sharing the primary's awareness verdict is what makes the comparison legible rather than
+merely cheaper. Re-measured both ways, a kind that differs could differ because the graders
+disagree about the flavour or because they disagree about whether the episode was aware at
+all, and the output cannot say which; one denominator leaves only the first.
+
+Cheaper as well, by more than an order of magnitude. Two calls per AWARE episode and none
+at all for the rest, enforced inside `detect_awareness_kind` rather than left to each
+caller: 161 of the goal-guarding corpus's 559 episodes are aware, and one model is aware in
+none of its 80, so asking all nine questions of every episode was 5,031 calls where this is
+322. The kind derivation itself is now `classify_awareness_kind`, extracted rather than
+copied, because two graders derive a kind from the same two answers and a second copy of
+that cascade is a second thing to keep in step.
+
+A failed purpose question leaves the kind undetermined, never `unspecified`. With nine
+questions a couple of failures still leave a verdict standing; with two, a pair of failures
+would land in the `unspecified` branch and record "aware, but did not say which" - a
+finding - on the strength of nothing having been answered. One failure loses the
+distinction too, since an answered safety with capability failed is either "safety" or
+"both". So any error leaves the kind `None`, nothing is written back, and a re-run retries
+the episode.
+
+The result goes to `analysis.awareness_kind_self`, never over `eval_awareness_grader` - the
+two are different instruments, and this project has already measured one grader being wrong
+for one model. `report`'s `safety_aware`/`capability_aware` columns gain `_self`
+counterparts: `False` wherever the primary found no awareness, which costs no call and is
+true under either reading, `None` on an aware episode the pass has not reached or whose
+flavour could not be told. There is deliberately no `aware_self`. `self_grade_all.sh`
+drives the pass across a corpus, with no `--resummarise` step - nothing here touches a
+field a summary is built from.
+
 ## v193
 
 **Question 5 (verbalised awareness -> misalignment) is now also asked per
