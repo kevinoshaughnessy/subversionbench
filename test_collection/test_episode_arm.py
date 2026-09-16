@@ -267,6 +267,20 @@ class TestBothEpisodeRecordsCarryTheSameArm:
                 for o in (True, False) for lure in (True, False)}
         assert len(set(seen.values())) == 4, seen
 
+    def test_none_and_strong_share_a_fingerprint_but_max_does_not(self):
+        """_fingerprint() used to call fingerprint_for(oversight, lure) with no
+        nudge at all, so a max-nudge PLAIN episode was stamped with the
+        none/strong pin - a silent mislabelling, not a refusal, because nothing
+        ever compared the stamped value against a live max-nudge hash. none and
+        strong assemble byte-identically (scenario_for's own docstring), so
+        they must still share one value; max swaps in the coercive
+        interrogation questions and must not share it."""
+        none_fp = self._built(nudge="none")["rollout_fingerprint"]
+        strong_fp = self._built(nudge="strong")["rollout_fingerprint"]
+        max_fp = self._built(nudge="max")["rollout_fingerprint"]
+        assert none_fp == strong_fp
+        assert max_fp != strong_fp
+
     def test_neither_record_redeclares_an_identity_field(self):
         """The point of the shared builder. A key set in a record literal AND in
         arm_identity is a second copy that can disagree with the first, which is

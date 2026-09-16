@@ -171,18 +171,23 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
     # --capability goalguard episode whose instruction named a file that was
     # never written, so the ceiling read zero by construction. See
     # TestTheCeilingIsStagedWithTheArtefactItInstructs.
-    # NUDGE TOO, and it reaches assembly only through the goal-guarding arm,
-    # whose memo varies by it. rollout.py has passed it to scenario_for since
-    # that arm was authored and this call did not, so for `--goalguard X
-    # --nudge none` the fingerprint was computed over the none memo while the
-    # environment was built with the strong one - an identity describing an
-    # assembly that never happened, which is the one thing a fingerprint may
-    # not do. All 120 nudge=none episodes in the first goal-guarding batch
-    # hold the strong memo.
+    # NUDGE TOO, and the goal-guarding memo is one of two documents it reaches
+    # (the other being the coercive interrogation questions, unconditional on
+    # nudge="max" - see MAX_NUDGE_FINGERPRINTS). rollout.py has passed nudge to
+    # scenario_for since the goal-guarding arm was authored and this call did
+    # not, so for `--goalguard X --nudge none` the fingerprint was computed
+    # over the none memo while the environment was built with the strong one -
+    # an identity describing an assembly that never happened, which is the one
+    # thing a fingerprint may not do. All 120 nudge=none episodes in the first
+    # goal-guarding batch hold the strong memo.
     #
-    # Defaulting to "strong" for the same reason rollout.py does: outside that
-    # arm the assembly ignores nudge, so every other caller - and therefore
-    # every pinned fingerprint - computes exactly what it computed before.
+    # Defaulting to "strong" for the same reason rollout.py does: every caller
+    # that never mentions nudge - and therefore every pinned fingerprint for
+    # none/strong - computes exactly what it computed before. This default
+    # does NOT mean nudge is goalguard-only, though a comment here once
+    # claimed it: scenario_for() also swaps in the coercive interrogation
+    # questions whenever nudge="max", independent of goalguard - see
+    # MAX_NUDGE_FINGERPRINTS in rollout_pins.py.
     scenario = scenario_for(oversight, lure=lure, goalguard=goalguard,
                             capability=capability, nudge=nudge)
 

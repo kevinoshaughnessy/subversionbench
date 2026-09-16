@@ -27,7 +27,7 @@ import time
 from .artefact_dates import DEFAULT as _DATE_DEFAULT
 from .batch import BatchIdentity, unique_batch_stamp
 from .blocks import serialise_messages
-from .config import ROLLOUT_FINGERPRINTS, capability_fingerprint_for
+from .config import capability_fingerprint_for, fingerprint_for
 from .environment import create_episode_root
 from .episode import EpisodeAPIError, run_evaluation
 from .grading import MISALIGNED_ACTS, auth_error_in_analysis
@@ -570,7 +570,11 @@ def _rollout_matches_its_pin(args) -> bool:
     elif dated:
         expected = date_fingerprint_for(date_mode, args.oversight, args.lure)
     else:
-        expected = ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)]
+        # Nudge-aware, not a direct table lookup: fingerprint_for() reads
+        # MAX_NUDGE_FINGERPRINTS for nudge="max" and ROLLOUT_FINGERPRINTS
+        # otherwise, because the plain arm's own assembly differs by nudge
+        # too - see that table's comment in rollout_pins.py.
+        expected = fingerprint_for(args.oversight, args.lure, args.nudge)
 
     drift = rollout_drift_error(
         expected, args.oversight, args.isolation, args.lure, args.capability,

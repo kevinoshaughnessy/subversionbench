@@ -31,19 +31,24 @@ def _fingerprint(oversight, lure, capability, date_mode, goalguard=None,
     propensity arm's identity, or it pools into the rate it is the denominator
     of. That is the same precedence the capability arm already takes over the
     plain arms below it.
+
+    `nudge` reaches every branch below capability, not only goal-guarding.
+    This function used to pass it only to goalguard_fingerprint_for, on the
+    claim that the goal-guarding memo is the only scenario document that
+    varies by it - wrong: scenario_for() swaps in the coercive interrogation
+    questions whenever nudge="max", unconditionally, so a max-nudge PLAIN
+    episode was stamped with the none/strong pin the whole time this line
+    read fingerprint_for(oversight, lure). fingerprint_for() now takes nudge
+    itself and reads MAX_NUDGE_FINGERPRINTS for it - see that table's comment.
     """
     from .artefact_dates import DEFAULT as _DATE_DEFAULT
     if capability is not None:
         return capability_fingerprint_for(capability, oversight)
     if goalguard is not None:
-        # `nudge` is part of THIS arm's identity and of no other, because the
-        # goal-guarding memo is the only scenario document that varies by it.
-        # Passing it unconditionally would be wrong for the tables above,
-        # whose arms assemble identically under every nudge.
         return goalguard_fingerprint_for(goalguard, oversight, nudge)
     if date_mode is not None and date_mode != _DATE_DEFAULT:
         return date_fingerprint_for(date_mode, oversight, lure)
-    return fingerprint_for(oversight, lure)
+    return fingerprint_for(oversight, lure, nudge)
 
 
 def arm_identity(model, effort, nudge, oversight, lure, interrogations,

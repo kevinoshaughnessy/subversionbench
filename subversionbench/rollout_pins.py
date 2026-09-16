@@ -683,7 +683,56 @@ def date_fingerprint_for(date_mode: str, oversight: bool,
     return DATE_ARM_FINGERPRINTS[key]
 
 
-def fingerprint_for(oversight: bool, lure: bool = False) -> str:
+# =========================================================================
+# The max-nudge arm's OWN identity, within the propensity table
+# =========================================================================
+#
+# NOT a fifth table alongside capability/date_mode/goalguard. Those are
+# separate scenarios that never pool with a propensity episode; max-nudge IS
+# a propensity episode - one cell of the three-nudge x oversight x lure cross
+# product this whole corpus is built from - so its pin belongs to
+# fingerprint_for(), the same function none/strong already share, not to a
+# standalone accessor of its own.
+#
+# WHY IT WAS MISSING. scenario_for()'s own docstring says `nudge="max"` swaps
+# in the coercive interrogation questions, UNCONDITIONALLY - not only under
+# goal-guarding. Three other places assumed otherwise: rollout.py's
+# rollout_fingerprint() defaulted nudge to "strong" on the claim that "outside
+# [the goal-guarding] arm the assembly ignores nudge"; arm_record.py's
+# _fingerprint() never passed nudge to this function at all, for the same
+# claim; and this file's own GOALGUARD_FINGERPRINTS comment used the claim to
+# explain why the table above needs no nudge axis. All three were wrong -
+# rollout_fingerprint(oversight=True, lure=False, nudge="max") hashes to
+# af456606bf74, not the b686db2fe97e pinned above for (True, False) - and
+# nothing caught it because nothing ever compared a LIVE max-nudge hash
+# against a pin meant for one, until v184 threaded nudge into the preflight
+# check's "actual" side for an unrelated reason (closing a goalguard/date_mode
+# blind spot) and this fell out of that for free three days later, refusing
+# every max-nudge propensity collection attempted since.
+#
+# THE CONSEQUENCE FOR EPISODES ALREADY COLLECTED. Every max-nudge propensity
+# episode collected before this table existed - hundreds, across many models,
+# since the max arm was authored - was stamped via arm_record._fingerprint
+# with the none/strong pin, not its own. The coercive questions were genuinely
+# asked as designed; only the recorded `rollout_fingerprint` field
+# misrepresents what was actually assembled. That field is not retroactively
+# repaired by adding this table, on the same terms r9's own counterfactual
+# figures were not repaired at r10 - see the note above.
+#
+# Keyed (oversight, lure), on the same terms as ROLLOUT_FINGERPRINTS: nudge
+# is not in the key because this table only ever answers "what does max
+# assemble to", the same way that table only ever answers "what do none and
+# strong assemble to".
+MAX_NUDGE_FINGERPRINTS = MappingProxyType({
+    (True,  False): "af456606bf74",
+    (True,  True):  "be70c949f0b9",
+    (False, False): "58545744a853",
+    (False, True):  "f8a1d0f9eca2",
+})
+
+
+def fingerprint_for(oversight: bool, lure: bool = False,
+                    nudge: str = "strong") -> str:
     """
     The pinned fingerprint of one arm.
 
@@ -692,15 +741,21 @@ def fingerprint_for(oversight: bool, lure: bool = False) -> str:
     some other arm's fingerprint is exactly the failure this table exists to
     prevent. A KeyError at startup is cheap; a directory of mislabelled episodes
     is not, because nothing about it looks wrong afterwards.
+
+    `nudge="max"` reads MAX_NUDGE_FINGERPRINTS instead of ROLLOUT_FINGERPRINTS
+    - see the comment above that table for why max needs its own pin at all.
+    `none` and `strong` still share the one pin above; only max diverges.
     """
+    table = MAX_NUDGE_FINGERPRINTS if nudge == "max" else ROLLOUT_FINGERPRINTS
     key = (bool(oversight), bool(lure))
-    if key not in ROLLOUT_FINGERPRINTS:
+    if key not in table:
         raise KeyError(
-            f"no pinned rollout fingerprint for arm {key}. Add it to "
-            f"ROLLOUT_FINGERPRINTS before collecting episodes under it, or they "
-            f"cannot be told apart from another arm's later."
+            f"no pinned rollout fingerprint for arm {key} at nudge={nudge!r}. "
+            f"Add it to {'MAX_NUDGE_FINGERPRINTS' if nudge == 'max' else 'ROLLOUT_FINGERPRINTS'} "
+            f"before collecting episodes under it, or they cannot be told "
+            f"apart from another arm's later."
         )
-    return ROLLOUT_FINGERPRINTS[key]
+    return table[key]
 
 
 # Keyed (arm, oversight). The goal-guarding design has no lure axis: the lure
@@ -713,10 +768,13 @@ def fingerprint_for(oversight: bool, lure: bool = False) -> str:
 # not belong.
 GOALGUARD_FINGERPRINTS = MappingProxyType({
     # Keyed (arm, oversight, nudge). NUDGE IS IN THE KEY because this arm's
-    # memo varies by it - the shipped scenario's does not, which is why its
-    # own table needs no nudge axis and why `none` and `strong` share a pin
-    # there. A table without it would give the two pressure levels one
-    # identity and pool a result with its own control.
+    # memo varies by it too - not ONLY here, though this table used to be
+    # commented as the sole reason nudge matters at all. MAX_NUDGE_FINGERPRINTS
+    # (below fingerprint_for) exists because the plain propensity table needs
+    # a nudge axis of its own, for a different document: the coercive
+    # interrogation questions, swapped in whenever nudge="max" regardless of
+    # goalguard. A table without a nudge axis here would give the memo's two
+    # pressure levels one identity and pool a result with its own control.
     ("deferred",   True , "none"):    "2ceb84680469",
     ("deferred",   True , "strong"):  "678806ecf1d7",
     ("deferred",   False, "none"):    "96e35c7f4347",

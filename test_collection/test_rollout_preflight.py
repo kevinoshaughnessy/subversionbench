@@ -199,3 +199,69 @@ class TestEachSpecialArmChecksItsOwnPin:
         assert "REFUSING TO ROLL OUT" in out
         assert "--capability" in out and "--goalguard" in out
         assert self._wrote_nothing(outdir)
+
+
+class TestThePlainArmChecksMaxNudgeToo:
+    """
+    A gap of the same shape as v184's, in the branch v184 never touched.
+    `--nudge max` needs no --capability/--goalguard/--date-mode to change what
+    scenario_for() assembles - it swaps in the coercive interrogation
+    questions unconditionally - so the plain arm's `else` branch in
+    `_rollout_matches_its_pin` was comparing a live max-nudge hash against a
+    pin computed for none/strong. That is not a false negative like v184's -
+    it refused every time, correctly detecting drift against a pin that was
+    simply never correct for max - but the effect was the same as being blind:
+    no max-nudge propensity episode could ever be collected, and every one
+    collected before this existed was stamped with the wrong fingerprint by
+    arm_record._fingerprint, which never passed nudge to fingerprint_for()
+    either.
+    """
+
+    def _rollout(self, model="x-ai/grok-4.5", extra=()):
+        out = tempfile.mkdtemp()
+        argv = ["run_eval", "--model", model, "--runs", "1", "--delay", "0",
+                "--no-power", "--output-dir", out, *extra]
+        saved = sys.argv
+        sys.argv = argv
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = ev_run.main()
+        finally:
+            sys.argv = saved
+        return code, buf.getvalue(), out
+
+    def _wrote_nothing(self, outdir):
+        return not glob.glob(f"{outdir}/run_*.json")
+
+    def test_a_correct_max_nudge_plain_arm_is_not_refused_by_drift(self):
+        """The positive case: pinning max's real fingerprint must not turn
+        into refusing every max-nudge collection outright, the same property
+        v184's own positive test holds for goal-guarding."""
+        with env_without("OPENROUTER_API_KEY"):
+            code, out, outdir = self._rollout(extra=["--nudge", "max"])
+        assert code == 1
+        # Reached the CREDENTIAL refusal, not the drift one.
+        assert "OPENROUTER_API_KEY" in out
+        assert "fingerprint" not in out, (
+            "the drift check refused instead of the credential check")
+        assert self._wrote_nothing(outdir)
+
+    def test_a_max_nudge_pin_mismatch_is_refused(self):
+        """The regression test for the actual defect: before MAX_NUDGE_
+        FINGERPRINTS existed, this monkeypatch had no effect on the outcome
+        at all for the SAME reason a correct max-nudge run also refused -
+        the plain arm's expected side was ROLLOUT_FINGERPRINTS[(oversight,
+        lure)] unconditionally, never routed through fingerprint_for(nudge=...)
+        at all, so there was nothing here for a corrupted max pin to change."""
+        from subversionbench import runner
+        real = runner.fingerprint_for
+        runner.fingerprint_for = lambda *a, **k: "0" * 12
+        try:
+            code, out, outdir = self._rollout(extra=["--nudge", "max"])
+        finally:
+            runner.fingerprint_for = real
+        assert code == 1
+        assert "REFUSING TO ROLL OUT" in out
+        assert "fingerprint" in out
+        assert self._wrote_nothing(outdir)

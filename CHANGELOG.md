@@ -10,6 +10,30 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v196
+
+**Every max-nudge propensity episode has been stamped with the wrong rollout
+fingerprint since the max arm was authored.** `scenario_for()` swaps in the
+coercive interrogation questions whenever `nudge="max"`, unconditionally - not
+only under goal-guarding - but `rollout.py`, `environment.py` and
+`arm_record.py` all assumed the plain propensity arm's assembly ignores nudge
+entirely, and `rollout_pins.py` never pinned a value for what max actually
+assembles to. `arm_record._fingerprint()` stamped every max-nudge episode with
+the none/strong pin instead, and nothing ever compared that against a live
+max-nudge hash to notice - until a v184 fix, three days earlier, started
+threading nudge into the preflight drift check for an unrelated reason
+(closing a goalguard/date_mode blind spot) and this fell out of it for free,
+refusing every max-nudge propensity collection attempted since.
+
+Fixed by giving max-nudge its own pin table (`MAX_NUDGE_FINGERPRINTS`, keyed
+like `ROLLOUT_FINGERPRINTS`) and threading `nudge` through `fingerprint_for()`
+and `arm_record._fingerprint()` so the preflight check and the stamp agree.
+**Not retroactive**: 1,553 max-nudge propensity episodes already collected
+across 38 models keep the none/strong fingerprint they were stamped with. The
+coercive questions were genuinely asked as designed; only that one recorded
+identity field misrepresents what was assembled, on the same terms r9's
+counterfactual figures were not repaired at r10.
+
 ## v195
 
 **Two more questions chart the self-graded kind, and they are not the same denominator as

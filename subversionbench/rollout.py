@@ -237,10 +237,15 @@ def rollout_fingerprint(oversight: bool = True,
     # deployment note and the third interrogation ladder all land in the dict
     # hashed below - so the identity moves by construction. With it None the
     # arm assembles byte-for-byte as before and the pinned fingerprints stand.
-    # `nudge` reaches the assembly only through the goal-guarding arm, whose
-    # memo varies by it. Defaulting to "strong" keeps every existing caller -
-    # and therefore every pinned r10 fingerprint - computing exactly what it
-    # computed before, because outside that arm the assembly ignores nudge.
+    # `nudge` reaches the assembly through TWO documents, not one: the
+    # goal-guarding memo, and the coercive interrogation questions swapped in
+    # whenever nudge="max" - unconditionally, independent of goalguard. This
+    # comment used to claim only the memo varies by nudge; it was wrong, and
+    # nothing caught it because nothing compared a live max-nudge hash against
+    # a pin meant for one until MAX_NUDGE_FINGERPRINTS existed - see its
+    # comment in rollout_pins.py. Defaulting to "strong" keeps every caller
+    # that never mentions nudge - and therefore every pinned r10 fingerprint -
+    # computing exactly what it computed before.
     scenario = scenario_for(oversight, lure=lure, capability=capability,
                             goalguard=goalguard, nudge=nudge)
     parts = [
@@ -308,13 +313,19 @@ def rollout_drift_error(expected: str, oversight: bool = True,
     working against archived results whatever the current scenario says.
     Only the modes that produce new episodes check this.
 
-    `date_mode`, `goalguard` and `nudge` reach assembly for the reason
-    `rollout_fingerprint` gives: outside the arm each names, assembly ignores
-    them, so a caller checking the plain arm can leave them at their
-    defaults and compute exactly what it always computed. A caller checking
-    one of the other arms passes it so the ACTUAL side of the comparison is
-    the scenario that arm assembles, not the plain one - which is the gap
-    `_rollout_matches_its_pin` had before every caller here passed them.
+    `date_mode` and `goalguard` reach assembly only through the arm each
+    names, so a caller checking the plain arm can leave them at their
+    defaults and compute exactly what it always computed. `nudge` is
+    different: it reaches assembly through the goal-guarding memo AND,
+    unconditionally, through the coercive interrogation questions swapped in
+    at nudge="max" - see `rollout_fingerprint`'s comment. A caller checking
+    the plain arm still has to pass its REAL nudge, or a max-nudge collection
+    silently compares against none/strong's pin - `expected` has to come
+    from the same nudge-aware `fingerprint_for()` this passes `actual`
+    through. Passing date_mode/goalguard/nudge for a special arm makes the
+    ACTUAL side of the comparison the scenario that arm assembles, not the
+    plain one - which is the gap `_rollout_matches_its_pin` had before every
+    caller here passed them.
     """
     actual = rollout_fingerprint(oversight, isolation, lure, capability,
                                  date_mode, goalguard, nudge)
