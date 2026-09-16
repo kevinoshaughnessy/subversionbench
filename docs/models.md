@@ -33,6 +33,7 @@ twelve-arm cross product.
 - [deepseek/deepseek-v4-flash-0731](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-pro](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-pro-0813](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
+- [deepseek/deepseek-v4.1-flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash)
 - [google/gemini-3-flash-preview](https://openrouter.ai/google/gemini-3-flash-preview) †
 - [google/gemini-3.1-flash-lite](https://deepmind.google/models/model-cards/gemini-3-1-flash-lite/)
 - [google/gemini-3.5-flash](https://deepmind.google/models/model-cards/gemini-3-5-flash/)
