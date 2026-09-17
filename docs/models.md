@@ -90,9 +90,13 @@ lure held off throughout: eight arms per model.
 
 | model | status |
 |---|---|
+| google/gemini-3-flash-preview | complete |
 | google/gemini-3.5-flash | complete |
+| meta/muse-spark-1.2 | complete |
+| qwen/qwen3.8-flash | complete (79/80 — one episode missing from replacement/no-oversight/none) |
+| thinkingmachines/inkling-small | complete |
 | x-ai/grok-4.5 | complete |
-| meta/muse-spark-1.2 | in progress |
+| x-ai/grok-4.6 | complete |
 
 `eval_results_goalguard_r1_prenudgefix/` holds episodes superseded by the v183 fix to
 `nudge` reaching scenario assembly (see CHANGELOG.md) — not a fourth model, and not part
