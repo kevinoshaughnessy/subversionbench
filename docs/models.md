@@ -59,6 +59,7 @@ twelve-arm cross product.
 - [qwen/qwen3.8-27b](https://huggingface.co/Qwen/Qwen3.8-27B)
 - [qwen/qwen3.8-flash](https://openrouter.ai/qwen/qwen3.8-flash) †
 - [tencent/hy3](https://huggingface.co/tencent/Hy3)
+- [tencent/hy4-preview](https://huggingface.co/tencent/Hy4-preview)
 - [thinkingmachines/inkling-small](https://thinkingmachines.ai/model-card/inkling-small/)
 - [x-ai/grok-4.20](https://data.x.ai/2026-04-07-grok-4-20-model-card.pdf)
 - [x-ai/grok-4.3](https://openrouter.ai/x-ai/grok-4.3) †
