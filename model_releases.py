@@ -133,6 +133,7 @@ RELEASE_DATES = {
 
     # tencent
     "tencent/hy3": date(2026, 7, 6),
+    "tencent/hy-mt2-1.8b": date(2026, 8, 20),
     "tencent/hy4-preview": date(2026, 8, 28),
 
     # thinkingmachines - `inkling-small` only. The unnamed-size `inkling` is a
