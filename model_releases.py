@@ -62,6 +62,11 @@ RELEASE_DATES = {
     # Safe for the stem fallback as long as no prefixed twin is ever added
     # beside it - which is the invariant test_no_two_keys_share_a_stem holds.
     "claude-haiku-4-5-20251001": date(2025, 10, 15),
+    # Also bare, and also a distinct route from the anthropic/-prefixed entry
+    # below: this corpus reached it as the native Anthropic API's own ID,
+    # spelled with dashes rather than the OpenRouter listing's dot, so the
+    # stem fallback does not - and must not - unify the two.
+    "claude-sonnet-4-6": date(2026, 2, 17),
     "anthropic/claude-sonnet-4.6": date(2026, 2, 17),
     "anthropic/claude-opus-4.8": date(2026, 5, 27),
     "anthropic/claude-sonnet-5": date(2026, 6, 30),
@@ -140,6 +145,9 @@ RELEASE_DATES = {
     # DIFFERENT model and was never evaluated here; see the deliberately
     # unmatched entry for it in the sad_oversight.py bundle.
     "thinkingmachines/inkling-small": date(2026, 7, 30),
+
+    # unbiased
+    "unbiased/pareto": date(2026, 9, 17),
 
     # x-ai
     "x-ai/grok-4.20": date(2026, 3, 31),

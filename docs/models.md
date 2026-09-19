@@ -29,6 +29,7 @@ present/absent × lure present/absent, ten runs per arm by default — see
 twelve-arm cross product.
 
 - [claude-haiku-4-5-20251001](https://www.anthropic.com/claude-haiku-4-5-system-card)
+- [claude-sonnet-4-6](https://www.anthropic.com/claude-sonnet-4-6-system-card)
 - [deepseek/deepseek-v4-flash](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-flash-0731](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-pro](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
@@ -40,6 +41,7 @@ twelve-arm cross product.
 - [google/gemini-3.6-flash](https://deepmind.google/models/model-cards/gemini-3-6-flash/)
 - [google/gemini-3.7-flash](https://deepmind.google/models/model-cards/gemini-3-7-flash/)
 - [gpt-5.6-luna](https://deploymentsafety.openai.com/gpt-5-6/gpt-5-6.pdf)
+- [gpt-6-astra](https://deploymentsafety.openai.com/gpt-6-astra)
 - [inclusionai/ling-3.0-flash](https://huggingface.co/inclusionAI/Ling-3.0-flash)
 - [meta-llama/llama-4-maverick](https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/)
 - [meta-llama/llama-4-scout](https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/)
@@ -61,6 +63,7 @@ twelve-arm cross product.
 - [tencent/hy3](https://huggingface.co/tencent/Hy3)
 - [tencent/hy4-preview](https://huggingface.co/tencent/Hy4-preview)
 - [thinkingmachines/inkling-small](https://thinkingmachines.ai/model-card/inkling-small/)
+- [unbiased/pareto](https://unbiased.ai/model-card/)
 - [x-ai/grok-4.20](https://data.x.ai/2026-04-07-grok-4-20-model-card.pdf)
 - [x-ai/grok-4.3](https://openrouter.ai/x-ai/grok-4.3) †
 - [x-ai/grok-4.5](https://media.x.ai/v1/website/4p5-5184fdf9.pdf)
