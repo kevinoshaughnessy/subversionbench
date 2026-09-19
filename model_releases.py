@@ -70,7 +70,12 @@ RELEASE_DATES = {
     "anthropic/claude-sonnet-4.6": date(2026, 2, 17),
     "anthropic/claude-opus-4.8": date(2026, 5, 27),
     "anthropic/claude-sonnet-5": date(2026, 6, 30),
-    "anthropic/claude-opus-5": date(2026, 7, 24),
+    # Bare, not anthropic/-prefixed: unlike claude-sonnet-4-6 above, this
+    # model's bare native ID and its OpenRouter stem are spelled identically
+    # ("claude-opus-5" either way), so keeping both here would give
+    # release_date() two dates for one stem. Only the bare route was ever
+    # actually run, so it is the one keyed - see test_no_two_keys_share_a_stem.
+    "claude-opus-5": date(2026, 7, 24),
     "anthropic/claude-fable-5.1": date(2026, 9, 1),
 
     # deepseek

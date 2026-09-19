@@ -29,6 +29,7 @@ present/absent × lure present/absent, ten runs per arm by default — see
 twelve-arm cross product.
 
 - [claude-haiku-4-5-20251001](https://www.anthropic.com/claude-haiku-4-5-system-card)
+- [claude-opus-5](https://www-cdn.anthropic.com/c5fbac3f0b1280a933ebd26d3cb8bb9f5bdeaf48/Claude%20Opus%205%20System%20Card.pdf)
 - [claude-sonnet-4-6](https://www.anthropic.com/claude-sonnet-4-6-system-card)
 - [deepseek/deepseek-v4-flash](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-flash-0731](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
