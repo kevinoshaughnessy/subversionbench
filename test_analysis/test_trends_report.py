@@ -409,6 +409,53 @@ class TestTheReleaseSpan:
         assert ft._member_release_date({}) is None
 
 
+class TestAReleaseChartCanExcludeAMemberWithoutLosingItsData:
+    """claude-sonnet-4-5 has a real recorded release date but is excluded from
+    calendar-axis charts specifically - see _RELEASE_CHART_EXCLUDED in
+    trends/report.py. The report's own `released` field, and anything that
+    reads a date independently of the charts (disagreements(), the JSON),
+    must still carry the true date; only _member_release_date's own callers
+    (the release charts and release_span) must not."""
+
+    def test_the_report_still_carries_its_real_release_date(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "claude-sonnet-4-5", "strong", n_runs=10)
+            _write_summary(out, "claude-sonnet-4-6", "strong", n_runs=10)
+            members = ft.build_report(out)["families"][0]["members"]
+        member = next(m for m in members if m["model"] == "claude-sonnet-4-5")
+        assert member["released"] == "2025-09-29"
+
+    def test_member_release_date_returns_none_for_it_regardless(self):
+        assert ft._member_release_date(
+            {"model": "claude-sonnet-4-5", "released": "2025-09-29"}) is None
+
+    def test_an_unexcluded_model_with_the_same_date_is_unaffected(self):
+        """Keyed by model id, not by date - a coincidence of release dates
+        must not sweep in an unrelated model."""
+        assert ft._member_release_date(
+            {"model": "anthropic/claude-sonnet-4.5",
+             "released": "2025-09-29"}) == date(2025, 9, 29)
+
+    def test_it_is_dropped_from_its_familys_release_fit(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "claude-sonnet-4-5", "strong", n_runs=10)
+            _write_summary(out, "claude-sonnet-4-6", "strong", n_runs=10)
+            fit = ft.build_report(out)["families"][0]["release_fit"]
+        # One real dated point once the excluded one is dropped - two points
+        # would fit a line (test_two_points_are_fitted_but_flagged above),
+        # one fits none at all (test_one_dated_member_is_no_fit_at_all).
+        assert fit is None
+
+    def test_it_does_not_pull_the_shared_release_span_back(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_summary(out, "claude-sonnet-4-5", "strong", n_runs=10)
+            _write_summary(out, "claude-sonnet-4-6", "strong", n_runs=10)
+            report = ft.build_report(out)
+        span = geometry.release_span(report)
+        assert span[0] == ft.RELEASE_AXIS_START
+        assert span[0] > date(2025, 9, 29)
+
+
 class TestAMissingReleaseDateIsAnErrorNotAStop:
     """
     Every rate, interval, trend and p-value here is computed from version

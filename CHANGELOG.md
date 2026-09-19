@@ -10,6 +10,22 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v198
+
+**A release-calendar chart can now exclude one family member from the shared
+axis without losing its data.** `claude-sonnet-4-5` released well ahead of
+its next family member and carries a partial batch, not a complete one -
+plotting it on the shared release-date axis would have pulled every release
+chart in the corpus back to seat a single early, partial-data point, the
+tradeoff `RELEASE_AXIS_START`'s own comment already weighed and rejected for
+a complete batch (kimi-k2-thinking). `_member_release_date` now reads a new
+`_RELEASE_CHART_EXCLUDED` set and returns `None` for a listed model id,
+which reaches every calendar-axis consumer that already goes through it
+(the per-family release chart, its `release_fit`, and the shared
+`release_span`) without touching the version-index charts, which never call
+it. The report's own `released` field, and `disagreements()`, are
+unaffected: both read the model's real recorded date independently.
+
 ## v197
 
 **`--use-opencode` reaches an OpenRouter-shaped model ID through OpenCode Zen

@@ -56,6 +56,12 @@ from datetime import date
 RELEASE_DATES = {
     # anthropic
     "anthropic/claude-sonnet-4.5": date(2025, 9, 29),
+    # Also bare, and also a distinct route from the anthropic/-prefixed entry
+    # above: this corpus reached it as the native Anthropic API's own id,
+    # spelled with dashes rather than the OpenRouter listing's dot, so the
+    # stem fallback does not - and must not - unify the two. Same story as
+    # claude-sonnet-4-6 below.
+    "claude-sonnet-4-5": date(2025, 9, 29),
     # Bare on purpose. This IS the model's ID for the Anthropic API, which is
     # how this corpus reached it; the `anthropic/` prefix is an OpenRouter
     # convention, and adding one here would record a route that was never used.
