@@ -55,7 +55,8 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
                  openrouter_sort, openrouter_provider,
                  isolation=DEFAULT_ISOLATION, max_turns=None,
                  capability=None, date_mode=None,
-                 artefact_dates=None, goalguard=None) -> dict:
+                 artefact_dates=None, goalguard=None,
+                 use_opencode=False) -> dict:
     """
     The fields that say WHICH experiment this episode belongs to.
 
@@ -225,4 +226,15 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # a reader treats a missing value as that scenario's id.
         "scenario_id": scenario_id_for(
             scenario_acts_for(goalguard, capability)),
+        # APPENDED, for the same reason as every field above it since
+        # `date_mode`. False on every episode collected before --use-opencode
+        # existed and on every run that did not opt in - the same "not asked
+        # for, or not applicable" state openrouter_sort/openrouter_provider
+        # already collapse to None, spelled as a bool here because there is
+        # no equivalent "which gateway" value worth naming beyond "OpenCode
+        # answered this" versus not. Recorded because it changes WHICH
+        # gateway - and so potentially which backend model - actually served
+        # the episode, the same fact openrouter_provider already exists to
+        # capture one level down.
+        "use_opencode": use_opencode,
     }

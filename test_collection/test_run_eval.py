@@ -243,6 +243,47 @@ class TestOpenRouterProviderFlag:
         assert "openrouter-provider" not in out.lower()
 
 
+class TestUseOpencodeFlag:
+    """--use-opencode reaches the model UNDER TEST through OpenCode Zen
+    instead of OpenRouter, for the same OpenRouter-shaped ids - same
+    opt-in/never-fatal/non-OpenRouter-warns-not-refuses shape as
+    --openrouter-sort/--openrouter-provider above, plus its own warning when
+    combined with either of them (both become no-ops OpenCode has no
+    equivalent of)."""
+
+    def test_warns_but_does_not_refuse_for_a_non_openrouter_model(self):
+        code, out = _main("--use-opencode", *_read_mode_argv("--resummarise"))
+        assert code != 2, out
+        assert "--use-opencode" in out and "does not apply" in out
+
+    def test_no_warning_for_an_openrouter_model(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--use-opencode",
+                          "--resummarise", "--output-dir", tempfile.mkdtemp())
+        assert "does not apply" not in out
+
+    def test_silent_when_not_requested(self):
+        code, out = _main(*_read_mode_argv("--resummarise"))
+        assert "use-opencode" not in out.lower()
+
+    def test_warns_when_combined_with_openrouter_sort(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--use-opencode",
+                          "--openrouter-sort", "throughput", "--resummarise",
+                          "--output-dir", tempfile.mkdtemp())
+        assert "--openrouter-sort" in out and "no effect" in out
+
+    def test_warns_when_combined_with_openrouter_provider(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--use-opencode",
+                          "--openrouter-provider", "deepinfra", "--resummarise",
+                          "--output-dir", tempfile.mkdtemp())
+        assert "--openrouter-provider" in out and "no effect" in out
+
+    def test_no_no_effect_warning_without_use_opencode(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--openrouter-sort",
+                          "throughput", "--resummarise",
+                          "--output-dir", tempfile.mkdtemp())
+        assert "no effect" not in out
+
+
 class TestTheArmIsResolvedFromStringsToBooleans:
     def test_oversight_and_lure_arrive_as_strings_and_are_converted(self):
         """They are `--oversight true|false` rather than store_true, so that a
@@ -479,7 +520,8 @@ class TestTheParserIsReadableWithoutRunningABatch:
         "--oversight", "--reclassify", "--reinterrogate", "--resume",
         "--resummarise", "--resummarize", "--runs", "--self-grade-kind",
         "--summarise-arms",
-        "--summarize-arms", "--thinking-budget", "--write-back", "--yes",
+        "--summarize-arms", "--thinking-budget", "--use-opencode",
+        "--write-back", "--yes",
         "-h", "--help",
     }
 

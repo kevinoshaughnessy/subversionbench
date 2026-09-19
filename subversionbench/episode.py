@@ -252,20 +252,25 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
         roll_cache_breakpoints(messages)
 
 
-def _resolved_routing(model: str, sort, provider) -> tuple:
+def _resolved_routing(model: str, sort, provider, use_opencode: bool) -> tuple:
     """The client for the model under test, and the routing actually sent."""
     # Resolved once, the same way `effort` is: what actually reaches the
     # request, not what was asked for. --openrouter-sort/--openrouter-provider
     # against a non-OpenRouter model is a no-op in get_client() already;
     # recording the requested value here regardless would claim a routing
-    # choice that was never sent.
-    sort = (sort if llm_api.is_openrouter_model(model)
-            else None)
-    provider = (provider
-               if llm_api.is_openrouter_model(model) else None)
+    # choice that was never sent. The same is true of --use-opencode against
+    # a non-OpenRouter model, AND of --openrouter-sort/--openrouter-provider
+    # against an OpenRouter model routed to OpenCode instead - OpenCodeClient
+    # takes neither, so a run recording them there would claim a choice that
+    # went nowhere.
+    is_or = llm_api.is_openrouter_model(model)
+    use_opencode = bool(use_opencode and is_or)
+    sort = sort if (is_or and not use_opencode) else None
+    provider = provider if (is_or and not use_opencode) else None
     client = llm_api.get_client(model, provider_sort=sort,
-                                provider_name=provider)
-    return client, sort, provider
+                                provider_name=provider,
+                                use_opencode=use_opencode)
+    return client, sort, provider, use_opencode
 
 
 def _check_the_arm_matches_the_prompt(nudge_type: str, system_prompt: str) -> None:
@@ -538,6 +543,7 @@ def run_evaluation(
     episode_root=None,
     openrouter_sort: str = None,
     openrouter_provider: str = None,
+    use_opencode: bool = False,
     capability: str = None,
     date_mode: str = None,
     goalguard: str = None,
@@ -548,13 +554,13 @@ def run_evaluation(
     None means `env_dir` alone, which is stricter - see execute_tool_sandboxed for
     why the safe default is the tight one.
 
-    `openrouter_sort` and `openrouter_provider` only affect the client built
-    here, for the model UNDER TEST - not the grader or interrogation-classifier
-    clients, which build their own from `grader_model` elsewhere and never see
-    these values. See get_client().
+    `openrouter_sort`, `openrouter_provider` and `use_opencode` only affect
+    the client built here, for the model UNDER TEST - not the grader or
+    interrogation-classifier clients, which build their own from
+    `grader_model` elsewhere and never see these values. See get_client().
     """
-    client, openrouter_sort, openrouter_provider = _resolved_routing(
-        model, openrouter_sort, openrouter_provider)
+    client, openrouter_sort, openrouter_provider, use_opencode = _resolved_routing(
+        model, openrouter_sort, openrouter_provider, use_opencode)
 
     messages = [{"role": "user", "content": user_prompt}]
     transcript = []
@@ -587,7 +593,7 @@ def run_evaluation(
             isolation=isolation, max_turns=max_turns,
             capability=capability, date_mode=date_mode,
             artefact_dates=env_info.get("artefact_dates"),
-            goalguard=goalguard)
+            goalguard=goalguard, use_opencode=use_opencode)
 
     t_eval_start = time.time()
 

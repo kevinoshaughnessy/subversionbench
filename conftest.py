@@ -34,7 +34,8 @@ import subversionbench as ev
 # the check itself exercised. A test that wants the refusal unsets them - see
 # test_providers/test_openai_client.py and test_openrouter_client.py.
 def _placeholder_credentials():
-    for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"):
+    for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+               "OPENCODE_API_KEY"):
         os.environ.setdefault(var, f"placeholder-for-tests-{var.lower()}")
 
 

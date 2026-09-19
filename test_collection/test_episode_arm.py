@@ -217,6 +217,76 @@ class TestOpenRouterProviderIsRecordedAsSent:
         assert result["openrouter_provider"] is None
 
 
+class TestUseOpencodeIsRecordedAsSent:
+    """Same story as TestOpenRouterSortIsRecordedAsSent above, for
+    `use_opencode`: recorded only when it actually reached an OpenRouter-
+    shaped model, never merely because it was requested. Also covers the
+    reverse interaction: --openrouter-sort/--openrouter-provider must be
+    nulled out once --use-opencode is set, because OpenCodeClient takes
+    neither and a saved run recording them would claim a routing choice
+    that never reached anything - the same failure mode `effort` was fixed
+    for, one level along."""
+
+    def _episode(self, model, use_opencode=False, openrouter_sort=None,
+                openrouter_provider=None):
+        import tempfile
+        import io
+        import contextlib
+        from subversionbench.environment import create_hardened_environment
+        from subversionbench.config import SYSTEM_PROMPT_NO_NUDGE
+
+        env_dir = tempfile.mkdtemp()
+        env_info = create_hardened_environment(env_dir)
+
+        class Fake:
+            class _M:
+                def create(self, **kw):
+                    return types.SimpleNamespace(
+                        content=[types.SimpleNamespace(
+                            type="text", text="I recommend the balanced option.")],
+                        stop_reason="end_turn",
+                        usage=types.SimpleNamespace(input_tokens=1, output_tokens=1))
+            messages = _M()
+
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: Fake()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = ev_run.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_NO_NUDGE, user_prompt="Do the task.",
+                    env_dir=env_dir, env_info=env_info, model=model,
+                    max_turns=2, use_grader=False, nudge="none",
+                    use_opencode=use_opencode, openrouter_sort=openrouter_sort,
+                    openrouter_provider=openrouter_provider)
+        finally:
+            ev_llm.get_client = orig
+        return result
+
+    def test_recorded_for_an_openrouter_model(self):
+        result = self._episode("x-ai/grok-4.5", use_opencode=True)
+        assert result["use_opencode"] is True
+
+    def test_false_when_not_requested(self):
+        result = self._episode("x-ai/grok-4.5")
+        assert result["use_opencode"] is False
+
+    def test_dropped_for_a_non_openrouter_model_even_if_requested(self):
+        result = self._episode("m", use_opencode=True)
+        assert result["use_opencode"] is False
+
+    def test_openrouter_sort_is_nulled_out_once_opencode_is_requested(self):
+        result = self._episode("x-ai/grok-4.5", use_opencode=True,
+                               openrouter_sort="throughput")
+        assert result["openrouter_sort"] is None
+        assert result["use_opencode"] is True
+
+    def test_openrouter_provider_is_nulled_out_once_opencode_is_requested(self):
+        result = self._episode("x-ai/grok-4.5", use_opencode=True,
+                               openrouter_provider="deepinfra")
+        assert result["openrouter_provider"] is None
+        assert result["use_opencode"] is True
+
+
 class TestBothEpisodeRecordsCarryTheSameArm:
     """A completed episode and a failed one are both saved, and both are read by
     the same analyses. They used to build their identity fields separately.
@@ -239,7 +309,8 @@ class TestBothEpisodeRecordsCarryTheSameArm:
                 "rollout_fingerprint", "analysis_version", "model", "effort",
                 "openrouter_sort", "openrouter_provider", "nudge",
                 "isolation", "max_turns", "toolchain", "capability",
-                "date_mode", "artefact_dates", "goalguard", "scenario_id")
+                "date_mode", "artefact_dates", "goalguard", "scenario_id",
+                "use_opencode")
 
     def _built(self, **kw):
         from subversionbench.arm_record import arm_identity

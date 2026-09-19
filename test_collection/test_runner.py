@@ -129,7 +129,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
             yes=False, openrouter_sort=None, openrouter_provider=None,
-            capability=None)
+            use_opencode=False, capability=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -209,7 +209,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
             yes=False, openrouter_sort=None, openrouter_provider=None,
-            capability=None)
+            use_opencode=False, capability=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -677,7 +677,7 @@ class TestTheConcurrentLoopEndsEarly:
             concurrency=concurrency, interrogations=("default",),
             write_back=False, batch_stamp=None, yes=False,
             openrouter_sort=None, openrouter_provider=None,
-            capability=None)
+            use_opencode=False, capability=None)
 
     def _episode(self, with_auth_error, sleep=0.0):
         """A run_evaluation stand-in: one saved episode, optionally carrying

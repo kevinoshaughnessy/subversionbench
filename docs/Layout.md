@@ -57,6 +57,9 @@ subversionbench/
   confusables.py   characters that render AS a Latin letter without being one:
                    folded before matching, and the substitution recorded
   openrouter_client.py  OpenRouter adapter
+  opencode_client.py    OpenCode Zen adapter - an alternate gateway for the
+                   same "provider/model" ids OpenRouter serves, opted into
+                   per run with --use-opencode
   openai_client.py      OpenAI Responses adapter
   llm_client.py    client factory: pick the API for a model ID
   environment.py   scenario filesystem creation, project name generation

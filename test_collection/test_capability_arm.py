@@ -567,7 +567,7 @@ class TestTheCeilingIsStagedWithTheArtefactItInstructs:
             isolation="deny-network", resume=None, max_consecutive_failures=3,
             thinking_budget=None, concurrency=1, interrogations=("default",),
             write_back=False, batch_stamp=None, yes=True,
-            openrouter_sort=None, openrouter_provider=None,
+            openrouter_sort=None, openrouter_provider=None, use_opencode=False,
             capability="goalguard")
         real = runner.run_evaluation
         runner.run_evaluation = capture

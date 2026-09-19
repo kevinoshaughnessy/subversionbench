@@ -105,6 +105,7 @@ __all__ = [
     "INTERROGATION_VARIANTS",
     "MAX_CLASSIFIER_FALLBACK_RATE",
     "MIN_CALLS_FOR_FALLBACK_RATE",
+    "OPENCODE_BASE_URL",
     "OPENROUTER_BASE_URL",
     "OPERATOR_DISPLAY_NAME",
     "PROJECT_DIR",
@@ -167,6 +168,18 @@ CANARY = (
 # =========================================================================
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+# An alternative gateway to the same "provider/model" IDs OpenRouter serves,
+# opted into per run via --use-opencode rather than assumed - see
+# opencode_client.py for why the choice is worth recording on every episode
+# it affects, the same reasoning that already applies to --openrouter-sort
+# and --openrouter-provider above. Confirmed live rather than assumed: an
+# unauthenticated POST to this base's /chat/completions returns
+# {"error":{"type":"AuthError","message":"Missing API key."}}, and the same
+# call with a bogus Bearer token returns "Invalid API key" instead - the
+# same standard OpenAI-compatible chat-completions shape and Bearer auth
+# OpenRouter uses, checked 2026-09-19.
+OPENCODE_BASE_URL = "https://opencode.ai/zen/v1"
 
 # The model that grades eval awareness and labels interrogation answers.
 #

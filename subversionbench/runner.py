@@ -293,6 +293,7 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
             episode_root=episode_root,
             openrouter_sort=args.openrouter_sort,
             openrouter_provider=args.openrouter_provider,
+            use_opencode=args.use_opencode,
             capability=args.capability,
         )
     except Exception as e:
@@ -605,9 +606,16 @@ def _credentials_are_present(args) -> bool:
     # recorded on all 401 answers.
     #
     # Checked against the environment, so it costs nothing and cannot itself fail.
-    for role, model in (("--model", args.model),
-                        ("--grader-model", args.grader_model)):
-        var = missing_credential(model)
+    # use_opencode only ever applies to the model UNDER TEST - the grader and
+    # interrogation-classifier clients are built from grader_model elsewhere
+    # and never see it, the same scoping --openrouter-sort/--openrouter-
+    # provider already have - so it is passed for --model's row and not
+    # --grader-model's.
+    for role, model, use_opencode in (
+        ("--model", args.model, getattr(args, "use_opencode", False)),
+        ("--grader-model", args.grader_model, False),
+    ):
+        var = missing_credential(model, use_opencode=use_opencode)
         if var:
             print(f"\n{'='*60}")
             print("REFUSING TO ROLL OUT")

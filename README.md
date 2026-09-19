@@ -77,11 +77,11 @@ not been installed fails with `ModuleNotFoundError: No module named 'anthropic'`
 tool reads its own arguments. Where a command below is described as calling no API, that
 means no network request and no spend; it does not mean the install can be skipped.
 
-To evaluate models through [OpenRouter](https://openrouter.ai) or OpenAI's own API as well
-as the native Anthropic API:
+To evaluate models through [OpenRouter](https://openrouter.ai), [OpenCode Zen](https://opencode.ai)
+or OpenAI's own API as well as the native Anthropic API:
 
 ```bash
-pip install -e '.[openrouter,openai,test]'
+pip install -e '.[openrouter,opencode,openai,test]'
 ```
 
 To reproduce the exact stack a published rollout was collected with, rather than the
@@ -137,7 +137,7 @@ then, inside the Ubuntu shell:
 sudo apt update && sudo apt install -y bubblewrap python3-venv git
 git clone <this repo> && cd subversionbench
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e '.[openrouter,openai,test]'
+pip install -e '.[openrouter,opencode,openai,test]'
 python -m subversionbench.run_eval --model claude-sonnet-5 --runs 1
 ```
 
@@ -173,7 +173,11 @@ The installed console script `subversionbench` takes the same arguments. Run wit
 `--help` for the full list.
 
 A model ID containing `/` is routed through OpenRouter; a bare `gpt-*` or `o<n>` ID goes to
-OpenAI's own API; anything else goes to the Anthropic API.
+OpenAI's own API; anything else goes to the Anthropic API. Pass `--use-opencode` to reach a
+`/`-shaped model ID through [OpenCode Zen](https://opencode.ai) instead of OpenRouter - an
+alternate gateway to the same corpus of IDs (its own vendor prefix is stripped before the
+request is sent), authenticating with `OPENCODE_API_KEY` rather than `OPENROUTER_API_KEY`.
+OpenRouter remains the default; nothing changes unless the flag is passed.
 
 The OpenAI split is deliberate rather than automatic, because **the route changes what is
 measured**: the same model returns a reasoning summary on one route and nothing at all on the

@@ -83,10 +83,46 @@ def _to_openai_tool(tool: dict) -> dict:
     }
 
 
+def _base_request_kwargs(model, max_tokens, system, tools, messages) -> dict:
+    """The Anthropic-shaped call, translated to a plain OpenAI-compatible
+    chat-completions body - the part both OpenRouterClient and
+    OpenCodeClient send identically. What differs between the two gateways
+    (OpenRouter's `extra_body.provider` routing hints, which Zen has no
+    equivalent of) is added by the caller, not here."""
+    oa_messages = []
+    if system:
+        # `system` is usually a plain string, but callers may also pass
+        # Anthropic-style content blocks (e.g. to attach `cache_control`
+        # for prompt caching, which has no OpenRouter equivalent) -
+        # collapse that down to plain text rather than forwarding a
+        # block list of unknown shape to an OpenAI-compatible endpoint.
+        if isinstance(system, str):
+            system_text = system
+        else:
+            system_text = "\n".join(
+                _block_attr(b, "text") for b in system
+                if _block_type(b) == "text"
+            )
+        oa_messages.append({"role": "system", "content": system_text})
+    for msg in messages or []:
+        oa_messages.extend(_to_openai_messages(msg))
+
+    kwargs = {"model": model, "max_tokens": max_tokens, "messages": oa_messages}
+    if tools:
+        kwargs["tools"] = [_to_openai_tool(t) for t in tools]
+    return kwargs
+
+
 class OpenRouterClient:
     """Adapter exposing an Anthropic-Messages-style `.messages.create(...)`
     interface, backed by OpenRouter's OpenAI-compatible chat completions
     API."""
+
+    # Named in the two diagnostics below, which used to hardcode "OpenRouter"
+    # even after OpenCodeClient started inheriting them - a gateway's own
+    # error naming a different gateway is exactly the stale-comment defect
+    # AGENTS.md warns about, just in an f-string instead of a comment.
+    _GATEWAY_NAME = "OpenRouter"
 
     def __init__(self, provider_sort: str = None, provider_name: str = None):
         import openai
@@ -129,27 +165,7 @@ class OpenRouterClient:
 
     def _request_kwargs(self, model, max_tokens, system, tools, messages) -> dict:
         """The Anthropic-shaped call, translated to an OpenAI-compatible one."""
-        oa_messages = []
-        if system:
-            # `system` is usually a plain string, but callers may also pass
-            # Anthropic-style content blocks (e.g. to attach `cache_control`
-            # for prompt caching, which has no OpenRouter equivalent) -
-            # collapse that down to plain text rather than forwarding a
-            # block list of unknown shape to an OpenAI-compatible endpoint.
-            if isinstance(system, str):
-                system_text = system
-            else:
-                system_text = "\n".join(
-                    _block_attr(b, "text") for b in system
-                    if _block_type(b) == "text"
-                )
-            oa_messages.append({"role": "system", "content": system_text})
-        for msg in messages or []:
-            oa_messages.extend(_to_openai_messages(msg))
-
-        kwargs = {"model": model, "max_tokens": max_tokens, "messages": oa_messages}
-        if tools:
-            kwargs["tools"] = [_to_openai_tool(t) for t in tools]
+        kwargs = _base_request_kwargs(model, max_tokens, system, tools, messages)
 
         # Built independently of `tools`: require_parameters only makes sense
         # alongside tools, but --openrouter-sort applies to every call this
@@ -188,8 +204,8 @@ class OpenRouterClient:
         except json.JSONDecodeError:
             status, body = _status_and_body(raw_response)
             raise RuntimeError(
-                f"OpenRouter returned a non-JSON response for model "
-                f"'{model}' (HTTP {status}). This usually means the "
+                f"{self._GATEWAY_NAME} returned a non-JSON response for "
+                f"model '{model}' (HTTP {status}). This usually means the "
                 f"upstream provider returned an error page, a "
                 f"streaming/SSE body when a plain response was "
                 f"requested, or the connection was interrupted "
@@ -210,8 +226,8 @@ class OpenRouterClient:
         if not completion.choices:
             status, body = _status_and_body(raw_response)
             raise RuntimeError(
-                f"OpenRouter returned a response with no choices for model "
-                f"'{model}' (HTTP {status}). This usually means the "
+                f"{self._GATEWAY_NAME} returned a response with no choices "
+                f"for model '{model}' (HTTP {status}). This usually means the "
                 f"upstream provider returned an error body that still "
                 f"parses as valid JSON - a moderation block, a rate limit, "
                 f"or a provider-side failure - rather than a completion. "

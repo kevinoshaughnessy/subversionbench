@@ -411,6 +411,26 @@ def _add_model_arguments(parser: argparse.ArgumentParser) -> None:
                              "or fastest one (what --openrouter-sort would "
                              "pick) is the broken one. Ignored (with no "
                              "error) for a non-OpenRouter model.")
+    parser.add_argument("--use-opencode", action="store_true",
+                        help="Reach the model UNDER TEST (not the grader) "
+                             "through OpenCode Zen (opencode.ai) instead of "
+                             "OpenRouter, for the same 'provider/model' ids - "
+                             "an alternative gateway to the same corpus of "
+                             "ids, not a new one. Authenticates with "
+                             "OPENCODE_API_KEY rather than "
+                             "OPENROUTER_API_KEY. Zen's own model ids carry "
+                             "no vendor prefix, so the vendor segment ahead "
+                             "of the first '/' is stripped before the "
+                             "request is sent; not every id in this corpus "
+                             "is on Zen's curated list, and one that is not "
+                             "fails at request time with Zen's own error "
+                             "rather than silently answering from a "
+                             "different model. --openrouter-sort and "
+                             "--openrouter-provider are OpenRouter-only "
+                             "concepts with no OpenCode equivalent and are "
+                             "ignored (with no error) when this is set. "
+                             "Ignored (with no error) for a non-OpenRouter "
+                             "model.")
 
 
 def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
@@ -660,6 +680,21 @@ def _warn_about_inapplicable_routing(args) -> None:
         print(f"[WARNING] --openrouter-provider {args.openrouter_provider} "
               f"does not apply to {args.model}: that flag only affects "
               f"OpenRouter models (an id containing '/').")
+
+    if args.use_opencode and not is_openrouter_model(args.model):
+        print(f"[WARNING] --use-opencode does not apply to {args.model}: "
+              f"that flag only affects OpenRouter-shaped models (an id "
+              f"containing '/').")
+
+    if args.use_opencode and is_openrouter_model(args.model):
+        if args.openrouter_sort:
+            print(f"[WARNING] --openrouter-sort {args.openrouter_sort} has "
+                  f"no effect with --use-opencode: OpenCode has no "
+                  f"equivalent of OpenRouter's backend-sort routing.")
+        if args.openrouter_provider:
+            print(f"[WARNING] --openrouter-provider {args.openrouter_provider} "
+                  f"has no effect with --use-opencode: OpenCode has no "
+                  f"equivalent of OpenRouter's pin-to-backend routing.")
 
 
 

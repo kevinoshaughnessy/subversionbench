@@ -10,7 +10,27 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
-## v196
+## v197
+
+**`--use-opencode` reaches an OpenRouter-shaped model ID through OpenCode Zen
+(opencode.ai) instead of OpenRouter.** A second gateway to the same corpus of
+"provider/model" IDs, not a new ID shape: Zen's own `/chat/completions`
+endpoint is the identical OpenAI-compatible, Bearer-authenticated request
+OpenRouterClient already sends (checked live before writing any code, not
+assumed), so `OpenCodeClient` subclasses it and inherits every translation
+unchanged - messages, tools, tool-call recovery, reasoning capture, the
+non-JSON and no-choices diagnostics. What differs: the credential
+(`OPENCODE_API_KEY`) and base URL, Zen's model IDs carry no vendor prefix so
+one is stripped before the request is sent, and OpenRouter's
+`extra_body.provider` routing hints are never built at all, since there is no
+evidence Zen understands that OpenRouter-specific extension.
+
+OpenRouter remains the default; nothing changes unless the flag is passed.
+Scoped the same way `--openrouter-sort`/`--openrouter-provider` already are -
+the model UNDER TEST only, never the grader - and recorded per episode
+(`use_opencode`, appended to `arm_identity`) on the same reasoning
+`openrouter_sort`/`openrouter_provider` already are: which gateway answered
+is a fact about the episode's collection, not a preference.
 
 **Every max-nudge propensity episode has been stamped with the wrong rollout
 fingerprint since the max arm was authored.** `scenario_for()` swaps in the

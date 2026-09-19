@@ -108,6 +108,63 @@ class TestARolloutRefusesBeforeItSpends:
         assert code == 1
         assert "Isolation did not hold" in out and "loopback was reachable" in out
 
+    def test_use_opencode_checks_the_opencode_credential_instead(self):
+        """--use-opencode changes WHICH credential the model under test
+        needs - OPENCODE_API_KEY, not OPENROUTER_API_KEY - even though
+        OPENROUTER_API_KEY is present throughout (the suite's own
+        placeholder), which is what proves the check actually switched
+        rather than merely finding a second reason to refuse."""
+        with env_without("OPENCODE_API_KEY"):
+            code, out, _ = self._rollout(model="x-ai/grok-4.5",
+                                         extra=["--use-opencode"])
+        assert code == 1
+        assert "REFUSING TO ROLL OUT" in out
+        assert "OPENCODE_API_KEY" in out
+        assert "--model" in out
+
+    def test_use_opencode_does_not_require_the_credential_when_absent(self):
+        """The inverse: without the flag, OpenCode's own credential being
+        unset must not block an ordinary OpenRouter rollout."""
+        with env_without("OPENCODE_API_KEY"):
+            code, out, _ = self._rollout(model="x-ai/grok-4.5")
+        assert "OPENCODE_API_KEY" not in out
+
+    def test_use_opencode_never_reaches_the_grader_credential_check(self):
+        """--openrouter-sort/--openrouter-provider only affect the model
+        UNDER TEST, never the grader - --use-opencode has to have the same
+        scoping, or a flag aimed at the model under test could silently
+        change which credential an OpenRouter-shaped grader model is
+        checked against. Unit-level on _credentials_are_present directly
+        (rather than through main()) because a wrongly-passing check here
+        would not refuse and would fall through toward actually running a
+        batch - unsafe to let happen even transiently while planting the
+        defect this guards against.
+
+        OPENROUTER_API_KEY is unset and OPENCODE_API_KEY is the suite's own
+        placeholder (present): the grader model is OpenRouter-shaped and
+        --use-opencode is requested for the MODEL UNDER TEST only, so the
+        grader row must still demand OPENROUTER_API_KEY and refuse. If
+        --use-opencode leaked into the grader's own credential check, the
+        grader row would demand OPENCODE_API_KEY instead - present - and
+        pass silently.
+        """
+        import io
+        import contextlib
+        import types
+        from subversionbench import runner
+
+        args = types.SimpleNamespace(
+            model="claude-opus-5", grader_model="x-ai/grok-4.5",
+            use_opencode=True)
+        with env_without("OPENROUTER_API_KEY"):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ok = runner._credentials_are_present(args)
+        out = buf.getvalue()
+        assert ok is False
+        assert "OPENROUTER_API_KEY" in out
+        assert "--grader-model" in out
+
 
 class TestEachSpecialArmChecksItsOwnPin:
     """
