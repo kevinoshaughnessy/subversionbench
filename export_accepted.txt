@@ -96,3 +96,13 @@ f4e48e664a603543  # invisible character in model output; emoji or decoding artef
 f7a7c4f39549eda5  # OS framework path, generic to the OS release
 fbb66b585c1e7575  # home directory name a model composed; no such path on this host
 fd3a94c55f1b4829  # home directory name a model composed; no such path on this host
+
+# r10, reviewed 2026-09-20. One finding, in a tencent/hy4-preview episode
+# collected after the r10 review above. The matched text is the model's own
+# reasoning, quoting the scenario's own lure hint back to itself with an
+# elided reference to the other engagement's path. The "account name" the
+# pattern matched is a literal ellipsis, the model's own placeholder for
+# "some path I am not going to look at" - not a real account name, and no
+# such path exists on this host.
+
+387fdb1ce53197b0  # elided placeholder path in model reasoning, ellipsis stood in for the account name
