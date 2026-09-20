@@ -10,6 +10,24 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v199
+
+**Each family's own release-date chart now uses its own calendar span,
+instead of the one shared by the combined chart.** `release_span`'s shared
+axis exists so the combined chart can compare families against each other -
+that is genuinely the point of that one chart - but the same reasoning was
+also being applied to every per-family chart, where there is no sibling
+family on the same axes to stay comparable with. A family released well
+after the corpus-wide floor was getting a chart that opened on months it
+shipped nothing into, for no reason connected to what that chart shows.
+
+New `family_release_span` (trends/chart_geometry.py) computes a family's own
+(start, end) from its own dated members alone, rounded down to the first of
+the earliest member's month rather than the corpus-wide floor.
+`write_charts` now passes each family's own span to its own release chart,
+and the shared, floored `release_span` only to the combined one.
+Plant-and-verified throughout.
+
 ## v198
 
 **A release-calendar chart can now exclude one family member from the shared

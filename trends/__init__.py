@@ -46,7 +46,7 @@ from .chart_geometry import (_COMBINED_AXIS_PT, _DATE_LABEL_CEILING,
                              _PER_FAMILY_AXIS_PT, RELEASE_AXIS_START,
                              _date_label_layout, _label_extent, _label_layout,
                              _lower_error, _point_label, _upper_error,
-                             axis_top, release_span)
+                             axis_top, family_release_span, release_span)
 from .chart_style import (CHART_DPI, FIT_NOTE, WILSON_NOTE,
                           WILSON_NOTE_BRACKETS_ONLY, WILSON_NOTE_WITH_BRACKETS,
                           _BRAND_COLOURS, _family_colours)
@@ -93,7 +93,8 @@ __all__ = [
     "_print_release_fit", "_print_report", "_release_point_name",
     "_report_one_metric", "_slope_label", "_upper_error", "_verdict",
     "_wrap_caption",
-    "axis_top", "build_report", "data_quality", "family_key", "family_trend",
+    "axis_top", "build_report", "data_quality", "family_key",
+    "family_release_span", "family_trend",
     "group_families", "main", "model_exposure", "model_rates",
     "ordering_is_ambiguous", "parse_model_id", "release_fit", "release_span",
     "version_sort_key", "write_charts",

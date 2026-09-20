@@ -409,6 +409,55 @@ class TestTheReleaseSpan:
         assert ft._member_release_date({}) is None
 
 
+class TestTheFamilyReleaseSpan:
+    """family_release_span, the per-chart counterpart to release_span above.
+    Deliberately NOT the same rule: a family's own release chart is read
+    alone, with no other family's spacing to stay comparable with, so this
+    one packs tight around the family's own dates instead of sharing the
+    corpus-wide floor."""
+
+    def _family(self, *dates):
+        return {"members": [{"released": d} for d in dates]}
+
+    def test_it_starts_at_the_first_of_the_earliest_members_month(self):
+        """tencent/hy's own case: hy3 released 2026-07-06, so its chart
+        starts 2026-07-01 rather than mid-month or exactly on the release."""
+        span = ft.family_release_span(
+            self._family("2026-07-06", "2026-08-28"))
+        assert span == (date(2026, 7, 1), date(2026, 8, 28))
+
+    def test_it_ends_at_the_familys_own_release_exactly(self):
+        """No padding on the end, the same rule release_span uses: the axis
+        stops where this family's newest release is."""
+        span = ft.family_release_span(
+            self._family("2026-01-01", "2026-04-20"))
+        assert span[1] == date(2026, 4, 20)
+
+    def test_it_ignores_the_corpus_wide_floor(self):
+        """The defining difference from release_span: a family released
+        entirely after RELEASE_AXIS_START must not have its chart start
+        pulled back to that floor - there is no other family on this chart
+        to stay comparable with, so the width would only be wasted."""
+        span = ft.family_release_span(
+            self._family("2026-06-15", "2026-08-01"))
+        assert span[0] == date(2026, 6, 1)
+        assert span[0] > ft.RELEASE_AXIS_START
+
+    def test_no_recorded_date_in_the_family_is_none(self):
+        assert ft.family_release_span(self._family(None, None)) is None
+        assert ft.family_release_span({"members": []}) is None
+
+    def test_a_family_with_one_dated_release_gets_a_usable_width(self):
+        """matplotlib cannot draw a zero-width or inverted axis."""
+        span = ft.family_release_span(self._family("2026-06-15"))
+        assert span[1] > span[0]
+
+    def test_a_malformed_stamp_is_dropped_rather_than_raised(self):
+        assert ft.family_release_span(
+            self._family("not-a-date", "2026-06-15")) == (
+            date(2026, 6, 1), date(2026, 6, 15))
+
+
 class TestAReleaseChartCanExcludeAMemberWithoutLosingItsData:
     """claude-sonnet-4-5 has a real recorded release date but is excluded from
     calendar-axis charts specifically - see _RELEASE_CHART_EXCLUDED in

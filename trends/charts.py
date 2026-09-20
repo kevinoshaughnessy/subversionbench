@@ -10,7 +10,7 @@ never recorded: both are worked around and neither is an error.
 
 import os
 
-from .chart_geometry import release_span
+from .chart_geometry import family_release_span, release_span
 from subversionbench import charting
 
 from .chart_style import _family_colours
@@ -63,9 +63,15 @@ def write_charts(report: dict, chart_dir: str) -> list:
     for family, colour in zip(drawn, colours, strict=True):
         slug = family["family"].replace("/", "_")
         path = os.path.join(chart_dir, f"release_{metric}_{slug}.png")
-        if _plot_family_dates(plt, family, report["metric_label"],
-                              report["metric_denominator_label"], colour,
-                              span, path, metric):
+        # Each family's OWN span, not the shared one above: a lone chart has
+        # no other family's spacing to stay comparable with, so anchoring it
+        # to the corpus-wide floor only wastes width on months this family
+        # shipped nothing into. See family_release_span's own docstring.
+        family_span = family_release_span(family)
+        if family_span and _plot_family_dates(
+                plt, family, report["metric_label"],
+                report["metric_denominator_label"], colour,
+                family_span, path, metric):
             written.append(path)
     combined_dates = _plot_all_family_dates(
         plt, report, colours, span,

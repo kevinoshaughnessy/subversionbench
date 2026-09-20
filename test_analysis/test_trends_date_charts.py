@@ -68,6 +68,36 @@ class TestTheReleaseCharts:
             names = [os.path.basename(p) for p in written]
             assert len(names) == len(set(names)) == 6
 
+    def test_each_familys_own_chart_gets_its_own_span_not_the_shared_one(self):
+        """grok's earliest release (2026-03-31) and kimi's (2026-01-27) both
+        postdate RELEASE_AXIS_START (2025-12-01), so the shared span used by
+        the combined chart and each family's own span must differ - and must
+        differ from EACH OTHER, since a lone chart has no sibling family's
+        spacing to stay comparable with."""
+        self._skip_without_matplotlib()
+        import trends.charts as charts_mod
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as out:
+            report = ft.build_report(self._dated_corpus(out))
+            shared_span = ft.release_span(report)
+            spans_seen = {}
+            real = charts_mod._plot_family_dates
+
+            def _capture(plt, family, *args):
+                spans_seen[family["family"]] = args[3]
+                return real(plt, family, *args)
+
+            with mock.patch.object(charts_mod, "_plot_family_dates", _capture):
+                ft.write_charts(report, os.path.join(out, "charts"))
+
+        assert set(spans_seen) == {"x-ai/grok", "moonshotai/kimi-k"}
+        for family_key, span in spans_seen.items():
+            fam = next(f for f in report["families"]
+                      if f["family"] == family_key)
+            assert span == ft.family_release_span(fam)
+            assert span != shared_span
+
     def _rendered(self, out, plotter):
         """
         The axes a release plotter actually drew on.

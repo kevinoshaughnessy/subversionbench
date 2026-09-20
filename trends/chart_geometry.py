@@ -1,8 +1,9 @@
 """
 Where things go on a chart, in numbers, before anything is drawn.
 
-Axis tops, error-bar lengths, the calendar span every release chart shares, and
-the two label layout passes. All of it is arithmetic over the report: no pyplot,
+Axis tops, error-bar lengths, the calendar spans the release charts use (one
+shared across every family for the combined chart, one per family for its own),
+and the two label layout passes. All of it is arithmetic over the report: no pyplot,
 no figure, no file. That is the point of the seam - the layouts are the part of
 the chart code most likely to be wrong, and this way they can be asserted on
 directly by a suite that never imports the optional dependency.
@@ -238,12 +239,16 @@ def axis_top(values) -> float:
 
 def release_span(report: dict):
     """
-    The (start, end) the release charts share, or None if no date is known.
+    The (start, end) the COMBINED release chart shares across every family, or
+    None if no date is known.
 
-    ONE span across every chart in the run, computed from every plotted family
-    rather than per chart. Per-family calendars would each be scaled to their own
-    family's dates, and then the whole point - that grok's four releases are
-    tighter together than gemini's four - would be scaled away.
+    ONE span across every family drawn together, because that chart's whole
+    point is a comparison ACROSS families - that grok's four releases are
+    tighter together than gemini's four - and scaling each family to its own
+    dates would draw that difference away. `family_release_span` below is the
+    opposite choice, deliberately, for the chart where that comparison does not
+    apply: a family's own, separate release chart is read alone, so there is
+    nothing left for a shared axis to preserve, only chart width it wastes.
 
     The end is the latest release plotted, with no padding: the axis stops where
     the newest model is, and labels near that edge are written leftward instead.
@@ -256,6 +261,32 @@ def release_span(report: dict):
     end = max(dates)
     # A corpus whose models all predate the floor would otherwise ask matplotlib
     # for a zero-width or inverted axis.
+    return (start, end if end > start else start + timedelta(days=30))
+
+
+def family_release_span(family: dict):
+    """
+    The (start, end) ONE family's own release chart uses, or None if none of
+    its members carry a release date.
+
+    Unlike release_span above, this never reads RELEASE_AXIS_START or any
+    other family's dates: a lone chart has no other family's spacing to stay
+    comparable with, so anchoring it to the corpus-wide floor only wastes the
+    width on months this family shipped nothing into - tencent/hy's chart
+    does not need to start in December just because some OTHER family's
+    earliest release does.
+
+    Rounded down to the first of the month rather than the exact earliest
+    date, so the chart reads as "this family, this calendar range" instead of
+    stopping arbitrarily mid-month one axis label short of where the first
+    marker sits. The end stays exact, as release_span's does: no padding, the
+    axis stops where the family's own newest release is.
+    """
+    dates = [d for m in family["members"] if (d := _member_release_date(m))]
+    if not dates:
+        return None
+    start = date(min(dates).year, min(dates).month, 1)
+    end = max(dates)
     return (start, end if end > start else start + timedelta(days=30))
 
 
