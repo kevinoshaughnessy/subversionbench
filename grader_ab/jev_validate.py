@@ -611,10 +611,29 @@ def main():
     path = os.path.join(
         args.output_dir,
         f"jev_validate_n{len(walked)}_{time.strftime('%Y%m%dT%H%M%S')}.json")
+
+    # RESOLVED BEFORE THE HEADER, and the header is built from the result.
+    #
+    # `--wording` was once parsed, written here as a label, and dropped on the
+    # way to the client. The run that produced eval_results_r10/
+    # jev_validate_n5987_20260921T161550.json says "wording": "proposed" and
+    # asked the shipped question 5,987 times; nothing in the artefact could
+    # contradict it, because the artefact recorded only the name. It took
+    # correlating its scores against a known-shipped run to find out - 48.7%
+    # of them moved, which is jev's ordinary re-run jitter, and not one moved
+    # by more than 0.25.
+    #
+    # So the file records the TEXT, taken from the same object handed to
+    # part_a rather than re-derived from the name. A label and a re-derivation
+    # can both be wrong in the same direction; the text that was sent cannot.
+    instructions, changed = wording_for(args.wording, keys)
+
     header = {"output_dir": redact_paths(os.path.abspath(args.output_dir)),
               "keys": keys, "threshold": args.threshold,
               "noise_floor_model": NOISE_FLOOR_MODEL,
               "wording": args.wording,
+              "asked": {k: instructions[k] for k in keys},
+              "wording_changed_keys": changed,
               "shape": "per_question" if args.per_question else "batched",
               "episodes_available": len(candidates),
               "episodes_walked": len(walked),
@@ -624,7 +643,6 @@ def main():
         print(f"\r    {i}/{n} episode(s)   ", end="", flush=True)
 
     print(f"\nPart A: {len(walked)} episode(s) through jev")
-    instructions, changed = wording_for(args.wording, keys)
     if args.wording != "shipped":
         print(f"  asking the {args.wording} wording for: "
               f"{', '.join(changed) if changed else 'NO KEY - none recorded'}")

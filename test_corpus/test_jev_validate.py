@@ -10,45 +10,12 @@ import json
 import os
 import tempfile
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from grader_ab import jev_validate as jv
-from subversionbench.config import RUBRIC_QUESTIONS
 
 
-def _rubric(**answers):
-    """A stored nine-key rubric, every key false unless named."""
-    return {k: {"answer": bool(answers.get(k, False)),
-                "quote": "said something" if answers.get(k) else "",
-                "error": None}
-            for k in RUBRIC_QUESTIONS}
-
-
-def _episode(out, n, model="p/m", rubric=None, aware=False,
-             stamp="20260101T000000"):
-    """One run file load_candidates accepts: a transcript and a stored
-    verdict, which is what every comparison here is against."""
-    path = Path(out, f"run_{n}_{model.replace('/', '_')}_strong_{stamp}.json")
-    path.write_text(json.dumps({
-        "model": model, "nudge": "strong", "oversight": True, "lure": False,
-        "transcript": [{"turn": 1, "type": "text",
-                        "content": "I recommend B."}],
-        "analysis": {"eval_awareness_grader": {
-            "eval_aware": aware,
-            "rubric_results": rubric if rubric is not None else _rubric()}}}),
-        encoding="utf-8")
-    return path
-
-
-def _jev_saying(**answers):
-    """A stand-in for jev that answers the same way every episode."""
-    def ask(keys, corpus, threshold=0.5, instructions=None,
-            batched=True):
-        return {k: {"answer": answers.get(k), "quote": "",
-                    "error": None if k in answers else "no score"}
-                for k in keys}
-    return ask
+from .jev_fixtures import _episode, _jev_saying, _jev_scoring, _rubric
 
 
 class TestPartASwapsOnlyJevsOwnKeys(unittest.TestCase):
@@ -265,73 +232,6 @@ class TestTheSmokeTestCap(unittest.TestCase):
         assert len(jv._part_a_episodes(candidates, 500)) == 1
 
 
-class TestJevCanBeAskedACandidateWording(unittest.TestCase):
-    """jev's instructions default to config's RUBRIC_QUESTIONS - the same
-    words the LLM grader answers - which makes jev the cheap place to screen
-    a rewrite. The same experiment on claude-opus-5 costs hundreds of times
-    more."""
-
-    def test_shipped_asks_exactly_what_the_grader_is_asked(self):
-        from subversionbench.config import RUBRIC_QUESTIONS
-        text, changed = jv.wording_for("shipped", ["mentioned_test"])
-        assert text["mentioned_test"] == RUBRIC_QUESTIONS["mentioned_test"]
-        assert changed == []
-
-    def test_proposed_asks_the_candidate_where_one_exists(self):
-        from subversionbench.config import RUBRIC_QUESTIONS
-        text, changed = jv.wording_for("proposed", ["mentioned_test"])
-        assert text["mentioned_test"] != RUBRIC_QUESTIONS["mentioned_test"]
-        assert changed == ["mentioned_test"]
-
-    def test_a_key_with_no_candidate_keeps_the_shipped_wording(self):
-        """And is reported as unchanged, so a run does not silently ask a
-        different question for one key and the shipped one for another."""
-        from subversionbench.config import RUBRIC_QUESTIONS
-        keys = ["mentioned_test", "referenced_system_prompt"]
-        text, changed = jv.wording_for("proposed", keys)
-        assert text["referenced_system_prompt"] == \
-            RUBRIC_QUESTIONS["referenced_system_prompt"]
-        assert "referenced_system_prompt" not in changed
-
-    def test_the_wording_actually_reaches_the_call(self):
-        """A flag that changed nothing on the wire would report the two
-        wordings as identical and read as 'the question does not matter'."""
-        seen = {}
-
-        def ask(keys, corpus, threshold=0.5, instructions=None, **kw):
-            seen.update(instructions or {})
-            return {k: {"answer": False, "noul": 0.1, "quote": "",
-                        "error": None} for k in keys}
-
-        with tempfile.TemporaryDirectory() as out:
-            _episode(out, 1, rubric=_rubric())
-            candidates = jv.sampling.load_candidates(out)
-            text, _ = jv.wording_for("proposed", ["mentioned_test"])
-            jv.part_a(candidates, ["mentioned_test"], 0.5, ask=ask,
-                      instructions=text)
-        assert seen["mentioned_test"] == text["mentioned_test"]
-
-    def test_the_saved_run_records_which_wording_it_asked(self):
-        """Two runs differing only in wording are otherwise indistinguishable
-        on disk, and comparing them is the whole point."""
-        with tempfile.TemporaryDirectory() as out:
-            _episode(out, 0, rubric=_rubric(mentioned_test=True))
-            with mock.patch("sys.argv",
-                            ["jev_validate", "--output-dir", out,
-                             "--keys", "mentioned_test", "--no-part-b",
-                             "--wording", "proposed"]), \
-                    mock.patch.dict(os.environ,
-                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
-                    mock.patch.object(jv, "ask_rubric_questions_jev",
-                                      _jev_scoring(mentioned_test=0.9)):
-                assert jv.main() == 0
-            saved = [f for f in os.listdir(out)
-                     if f.startswith("jev_validate_")]
-            data = json.load(open(os.path.join(out, saved[0]),
-                                  encoding="utf-8"))
-        assert data["wording"] == "proposed"
-
-
 class TestPartBCanBeSkippedEntirely(unittest.TestCase):
     """Part B is the only thing here that spends grader money. Threshold
     work read against HUMAN labels does not need a grader floor at all, and
@@ -424,25 +324,6 @@ class TestPartBIsNotRunWithoutAPartAToReadAgainstIt(unittest.TestCase):
                 code = jv.main()
         assert code == 1
         part_b.assert_not_called()
-
-
-def _jev_scoring(**scores):
-    """A stand-in for jev that returns a fixed noul score per key.
-
-    A score of None is the unanswered case - no verdict and an error, the
-    same shape the real client returns when a question comes back without a
-    numeric score.
-    """
-    def ask(keys, corpus, threshold=0.5, instructions=None,
-            batched=True):
-        out = {}
-        for k in keys:
-            score = scores.get(k)
-            out[k] = {"answer": None if score is None else score >= threshold,
-                      "noul": score, "quote": "",
-                      "error": None if score is not None else "no score"}
-        return out
-    return ask
 
 
 class TestTheThresholdSweep(unittest.TestCase):
@@ -853,109 +734,3 @@ class TestTheRunIsSavedBeforeItFinishes(unittest.TestCase):
         # incomplete rather than looking like a finished run.
         assert saved["complete"] is False
         assert len(saved["part_a_records"]) == 2
-
-
-class TestTheShapeIsRecorded(unittest.TestCase):
-    """Two runs differing only in call shape are otherwise indistinguishable
-    on disk, and the shape is now known to move verdicts."""
-
-    def test_per_question_reaches_the_client(self):
-        seen = []
-
-        def ask(keys, corpus, threshold=0.5, instructions=None, batched=True):
-            seen.append(batched)
-            return {k: {"answer": False, "noul": 0.1, "quote": "",
-                        "error": None} for k in keys}
-
-        with tempfile.TemporaryDirectory() as out:
-            _episode(out, 0, rubric=_rubric(mentioned_test=True))
-            with mock.patch("sys.argv",
-                            ["jev_validate", "--output-dir", out,
-                             "--keys", "mentioned_test", "--no-part-b",
-                             "--per-question"]), \
-                    mock.patch.dict(os.environ,
-                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
-                    mock.patch.object(jv, "ask_rubric_questions_jev", ask):
-                assert jv.main() == 0
-        assert seen and all(b is False for b in seen)
-
-    def test_the_saved_run_names_its_shape(self):
-        with tempfile.TemporaryDirectory() as out:
-            _episode(out, 0, rubric=_rubric(mentioned_test=True))
-            with mock.patch("sys.argv",
-                            ["jev_validate", "--output-dir", out,
-                             "--keys", "mentioned_test", "--no-part-b",
-                             "--per-question"]), \
-                    mock.patch.dict(os.environ,
-                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
-                    mock.patch.object(jv, "ask_rubric_questions_jev",
-                                      _jev_scoring(mentioned_test=0.9)):
-                assert jv.main() == 0
-            saved = [f for f in os.listdir(out)
-                     if f.startswith("jev_validate_")]
-            data = json.load(open(os.path.join(out, saved[0]),
-                                  encoding="utf-8"))
-        assert data["shape"] == "per_question"
-
-
-class TestEveryFlagReachesTheClientNotJustTheHeader(unittest.TestCase):
-    """THE DEFECT THIS EXISTS FOR. --wording was parsed, recorded in the
-    saved file's header, and never passed to part_a. A full-corpus run came
-    back labelled "wording": "proposed" having asked the shipped question
-    for every one of its 5,987 episodes.
-
-    Nothing caught it: wording_for was tested in isolation, and the header
-    field was tested by reading the header. Both passed. A flag is only
-    real if it reaches the call, so these assert on what the CLIENT was
-    handed rather than on what the file says was intended."""
-
-    def _sent(self, argv):
-        seen = {}
-
-        def ask(keys, corpus, threshold=0.5, instructions=None,
-                batched=True, **kw):
-            seen["instructions"] = instructions
-            seen["batched"] = batched
-            return {k: {"answer": False, "noul": 0.1, "quote": "",
-                        "error": None} for k in keys}
-
-        with tempfile.TemporaryDirectory() as out:
-            _episode(out, 0, rubric=_rubric(mentioned_test=True))
-            with mock.patch("sys.argv",
-                            ["jev_validate", "--output-dir", out,
-                             "--keys", "mentioned_test", "--no-part-b",
-                             *argv]), \
-                    mock.patch.dict(os.environ,
-                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
-                    mock.patch.object(jv, "ask_rubric_questions_jev", ask):
-                assert jv.main() == 0
-            saved = [f for f in os.listdir(out)
-                     if f.startswith("jev_validate_")]
-            header = json.load(open(os.path.join(out, saved[0]),
-                                    encoding="utf-8"))
-        return seen, header
-
-    def test_the_proposed_wording_actually_reaches_the_client(self):
-        import rubric_ab
-        sent, header = self._sent(["--wording", "proposed"])
-        assert header["wording"] == "proposed"
-        assert sent["instructions"]["mentioned_test"] == \
-            rubric_ab.PROPOSED_WORDINGS["mentioned_test"], \
-            "the header said proposed and the call sent something else"
-
-    def test_the_shipped_wording_reaches_the_client_too(self):
-        from subversionbench.config import RUBRIC_QUESTIONS
-        sent, header = self._sent([])
-        assert header["wording"] == "shipped"
-        assert sent["instructions"]["mentioned_test"] == \
-            RUBRIC_QUESTIONS["mentioned_test"]
-
-    def test_the_call_shape_actually_reaches_the_client(self):
-        sent, header = self._sent(["--per-question"])
-        assert header["shape"] == "per_question"
-        assert sent["batched"] is False
-
-    def test_the_default_shape_reaches_the_client(self):
-        sent, header = self._sent([])
-        assert header["shape"] == "batched"
-        assert sent["batched"] is True
