@@ -17,6 +17,7 @@ import os
 from ..batch import BatchIdentity, parse_batch_filename
 from ..grading.acts import MISALIGNED_ACTS
 from ..redaction import redact_paths
+from ..rederive import REDERIVED_AWARENESS_FIELDS
 from ..reporting.summary import runtime_from_existing_summary, summarise_batch
 from .selection import find_run_files_or_explain
 
@@ -30,13 +31,20 @@ from .selection import find_run_files_or_explain
 #   derived - a pure function of the transcript and the current code. Rebuilding
 #             it cannot lose information; refusing to rebuild it pins the file
 #             to whatever the definition was when it was written.
-#   sampled - an LLM's reading: the awareness grader, the interrogation
-#             verdicts, the disclosure judgement. Rebuilding these would mean
-#             calling a model again and resampling figures that are already
-#             final, which is what --reclassify and --grade-existing are for.
+#   sampled - an LLM's reading: the awareness grader's ANSWERS, the
+#             interrogation verdicts, the disclosure judgement. Rebuilding
+#             these would mean calling a model again and resampling figures
+#             that are already final, which is what --reclassify and
+#             --grade-existing are for.
 #
 # Four defects in v23-v25 came from that distinction being implicit. Anything
 # not named here is treated as sampled and left exactly as it stands.
+#
+# The awareness grader straddles the two and is therefore handled apart from
+# this list, by `_awareness_changes`: `rubric_results` is sampled, and the
+# verdicts `classify_awareness_from_rubric` computes from it are derived. It
+# stays out of this tuple because the comparison below is flat, so naming a
+# nested block here would write its sampled half back too.
 # One row per act, so registering an act cannot leave its derived fields
 # unsaved. `_by_variant` is not a key on the act - it is the per-phrasing
 # companion of the concealment level - so it is spelled out from level_key
@@ -138,6 +146,27 @@ REDERIVED_ANALYSIS_FIELDS = (
 )
 
 
+def _awareness_changes(stored: dict, fresh: dict) -> dict:
+    """The re-derived awareness verdicts that actually moved, if any.
+
+    Separate from REDERIVED_ANALYSIS_FIELDS because that list is compared
+    key-by-key at the top level of `analysis`, and `eval_awareness_grader` is a
+    block rather than a field. Naming it there would write the whole block back
+    on any change - `rubric_results` included, which is the sampled reading
+    this mode exists to preserve. So the nesting is handled once, here, rather
+    than by widening what the flat list is allowed to mean.
+
+    Returns {} when the block carries no answers, matching
+    rederive._awareness_verdicts' refusal to derive a verdict from nothing.
+    """
+    was = stored.get("eval_awareness_grader") or {}
+    now = fresh.get("eval_awareness_grader") or {}
+    if not now.get("rubric_results"):
+        return {}
+    return {k: now[k] for k in REDERIVED_AWARENESS_FIELDS
+            if k in now and was.get(k) != now[k]}
+
+
 def resummarise_existing_runs(args, selection) -> int:
     """
     Rebuild summary files from run files already on disk.
@@ -229,18 +258,27 @@ def resummarise_existing_runs(args, selection) -> int:
                 fresh = run.get("analysis") or {}
                 changed = {k: fresh[k] for k in REDERIVED_ANALYSIS_FIELDS
                            if k in fresh and stored.get(k) != fresh[k]}
-                if not changed:
+                awareness = _awareness_changes(stored, fresh)
+                if not changed and not awareness:
                     continue
                 stored.update(changed)
+                if awareness:
+                    stored["eval_awareness_grader"] = {
+                        **(stored.get("eval_awareness_grader") or {}),
+                        **awareness}
                 on_disk["analysis"] = stored
                 with open(path, "w") as f:
                     json.dump(on_disk, f, indent=2)
                 n_written += 1
-                print(f"  wrote back {len(changed)} field(s) to "
+                names = sorted(changed) + [f"eval_awareness_grader.{k}"
+                                           for k in sorted(awareness)]
+                print(f"  wrote back {len(names)} field(s) to "
                       f"{redact_paths(os.path.basename(path))}: "
-                      f"{', '.join(sorted(changed))}")
+                      f"{', '.join(names)}")
 
     if args.write_back:
         print(f"\n--write-back: {n_written} run file(s) updated. Only "
-              f"re-derived fields were written; every LLM verdict is as it was.")
+              f"re-derived fields were written; every sampled answer - the "
+              f"rubric, the interrogations, the disclosure reading - is as "
+              f"it was.")
     return 0

@@ -10,6 +10,42 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v201
+
+**The awareness verdicts are re-derived from the saved rubric answers, like
+every other deterministic field.** `classify_awareness_from_rubric` is a pure
+function of `rubric_results`, and its docstring already said why that matters:
+a change inside it "would otherwise make the whole corpus stale and cost a full
+regrade to correct". Nothing outside the paid grader ever called it, so the
+saving was available and never taken.
+
+Post-mortem, because that is what this is. v200 retired
+`referenced_system_prompt` from `goal_conflict_aware` and every graded episode
+on disk kept computing the flag the old way: 347 of 5,991 r10 episodes and 25
+of 559 goalguard_r1 episodes said True under a rule the code had stopped
+implementing, and would have gone on saying it until they were re-collected.
+`eval_aware` moved on none of them, which is v200's own claim checked against
+the saved answers rather than argued from them.
+
+The split is between the ANSWERS and the VERDICTS DERIVED FROM THEM.
+`rubric_results` is a sampled reading and is still never rewritten;
+everything the classifier computes from it now refreshes on every
+`--resummarise` and `--reclassify`. The guard is the one this module already
+argued for - "is there anything to read", not "is the field absent" - so a
+block with no answers in it keeps its stored verdict instead of being handed a
+confident all-false one, which is the distinction `rubric_errors` and
+`grading_failed` exist to preserve.
+
+Two second-copy traps came with it, both now guarded. The block stores
+`confidence` and `category` as backward-compatible mirrors of
+`eval_aware_confidence` and `eval_aware_category`, so refreshing one of each
+pair would have left the other reporting the rule in force when the episode was
+graded. And `eval_awareness_grader` is a block rather than a field, so it
+cannot go in `REDERIVED_ANALYSIS_FIELDS`, whose comparison is flat - naming it
+there would have written its sampled half back with it. The write-back list for
+the nested case is checked in both directions against what the paid path
+actually stores, rather than hand-maintained.
+
 ## v200
 
 **`referenced_system_prompt` is retired from routine grading, and

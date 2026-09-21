@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 import subversionbench.run_eval as ev_run
 from subversionbench.batch import BatchSelection
+from subversionbench.grading import classify_awareness_from_rubric
 
 
 def _args(out, **over):
@@ -191,10 +192,24 @@ class TestResummariseDerivesWhatItCan:
         assert after["misaligned"] is True
         # ...while the LLM's own readings are byte-identical.
         before = json.loads(json.dumps(data["analysis"]))
-        for sampled in ("eval_awareness_grader", "followup_response",
-                        "disclosure_oversight"):
+        for sampled in ("followup_response", "disclosure_oversight"):
             if sampled in before:
                 assert after[sampled] == before[sampled], sampled
+        # The awareness block straddles the two, so it is checked on the line
+        # between them rather than as a whole: its ANSWERS are sampled and must
+        # survive, its verdicts are a pure function of those answers and are
+        # re-derived like any other allowlisted field. Asserting the whole
+        # block byte-identical was the v200 contract, and it is what let every
+        # graded episode keep a `goal_conflict_aware` computed by a rule the
+        # code had stopped implementing.
+        was = before.get("eval_awareness_grader")
+        if was and was.get("rubric_results"):
+            now = after["eval_awareness_grader"]
+            assert now["rubric_results"] == was["rubric_results"]
+            assert now["grader_model"] == was["grader_model"]
+            assert (now["goal_conflict_aware"]
+                    == classify_awareness_from_rubric(
+                        was["rubric_results"])["goal_conflict_aware"])
 
     def test_write_back_only_touches_allowlisted_fields(self):
         """Anything not named in REDERIVED_ANALYSIS_FIELDS is treated as
