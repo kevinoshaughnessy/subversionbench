@@ -202,6 +202,47 @@ class TestABrokenRouteStopsRatherThanGrindingOn(unittest.TestCase):
         assert "ABORTING" not in printed
 
 
+class TestACappedRunSaysSoInItsOwnName(unittest.TestCase):
+
+    def test_the_filename_counts_what_was_walked_not_what_was_available(self):
+        """A three-episode smoke test and a whole-corpus pass land in the
+        same directory. Naming both for the corpus size makes the run that
+        proves nothing indistinguishable from the run that decides whether
+        jev is adopted."""
+        with tempfile.TemporaryDirectory() as out:
+            for i in range(4):
+                _episode(out, i)
+
+            def ask_opus(question, corpus, model, client, channel_id=None):
+                return {"answer": False, "quote": "", "error": None,
+                        "cache": None}
+
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test",
+                             "--max-episodes", "2", "--per-model", "1"]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x",
+                                     "ANTHROPIC_API_KEY": "y"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev",
+                                      _jev_saying(mentioned_test=False)), \
+                    mock.patch.object(jv, "ask_rubric_question", ask_opus), \
+                    mock.patch.object(jv.llm_client, "get_client",
+                                      return_value=object()):
+                assert jv.main() == 0
+
+            saved = [f for f in os.listdir(out)
+                     if f.startswith("jev_validate_")]
+            assert len(saved) == 1
+            name = saved[0]
+            data = json.load(open(os.path.join(out, name), encoding="utf-8"))
+
+        assert "_n2_" in name, f"walked 2 of 4, but the name says {name}"
+        assert data["episodes_walked"] == 2
+        assert data["episodes_available"] == 4
+        assert data["max_episodes"] == 2
+
+
 class TestTheSmokeTestCap(unittest.TestCase):
     """--max-episodes: proving the route answers at all should cost a
     handful of calls, not a pass over the whole corpus."""

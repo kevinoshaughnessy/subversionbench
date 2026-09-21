@@ -386,17 +386,25 @@ def main():
             print(f"{var} is not set")
         return 1
 
+    walked = _part_a_episodes(candidates, args.max_episodes)
+
+    # Named for what was WALKED, not for what was available. A three-episode
+    # smoke test and a whole-corpus pass otherwise land the same `n5987` in
+    # the same directory, and the one that proves nothing is indistinguishable
+    # from the one that decides whether jev is adopted.
     path = os.path.join(
         args.output_dir,
-        f"jev_validate_n{len(candidates)}_{time.strftime('%Y%m%dT%H%M%S')}.json")
+        f"jev_validate_n{len(walked)}_{time.strftime('%Y%m%dT%H%M%S')}.json")
     header = {"output_dir": redact_paths(os.path.abspath(args.output_dir)),
               "keys": keys, "threshold": args.threshold,
-              "noise_floor_model": NOISE_FLOOR_MODEL}
+              "noise_floor_model": NOISE_FLOOR_MODEL,
+              "episodes_available": len(candidates),
+              "episodes_walked": len(walked),
+              "max_episodes": args.max_episodes}
 
     def tick(i, n):
         print(f"\r    {i}/{n} episode(s)   ", end="", flush=True)
 
-    walked = _part_a_episodes(candidates, args.max_episodes)
     print(f"\nPart A: {len(walked)} episode(s) through jev")
     records = part_a(walked, keys, args.threshold, save_path=path,
                      progress=tick)
