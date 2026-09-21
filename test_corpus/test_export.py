@@ -224,7 +224,9 @@ class TestNothingIsSilentlyLeftOut:
                 return None          # walked, deliberately not written
             return original(s, d)
 
-        Path(src, "notes.keep").write_text("x")
+        # Named so the allowlist admits it: a file the rule withholds is never
+        # walked as far as copy2, so it could not exercise this at all.
+        Path(src, "family_trends_aware_20260101T000000.keep").write_text("x")
         export.shutil.copy2 = skip_one
         try:
             with pytest.raises(ExportRefused, match="incomplete"):
@@ -293,7 +295,10 @@ class TestTheStagingRunReportsWhatItDid:
         questions: how much was rewritten, and how much went through
         untouched."""
         src = _corpus()
-        Path(src, "notes.txt").write_text("nothing host-specific here\n")
+        # A corpus file that is not JSON, so it takes the copy branch. A
+        # working note would be withheld before reaching it.
+        Path(src, "family_trends_aware_20260101T000000.csv").write_text(
+            "nothing host-specific here\n")
         into = tempfile.mkdtemp()
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -338,3 +343,95 @@ class TestTheStagingRunReportsWhatItDid:
         assert "... and " in text and "more" in text
         shown = [ln for ln in text.splitlines() if ln.strip().startswith("run_")]
         assert len(shown) <= 10, f"{len(shown)} files listed, expected at most 10"
+
+
+class TestOnlyTheCorpusIsPublished:
+    """An allowlist, checked in both directions.
+
+    The archive's password is published in the README by design, so anything
+    reaching it is readable by anyone who wants to read it. The results
+    directory also accumulates working notes - an operator's adjudication
+    reasoning, dumps of full episode text assembled for judging - which nothing
+    downstream reads and which were never meant to ship.
+
+    One direction says no corpus file is lost; the other says no working note
+    slips in. A one-directional version of this passes while doing nothing:
+    an allowlist that accepts everything loses no corpus file either.
+    """
+
+    # The shapes that ARE the published corpus, taken from eval_results_r10 as
+    # actually archived rather than from what this module would like to be
+    # true. Every one of these appears inside that zip.
+    CORPUS = (
+        "run_1_m_strong_20260101T000000.json",
+        "failed_run_2_m_strong_20260101T000000.json",
+        "summary_m_strong_20260101T000000.json",
+        "summary_of_summaries_m.json",
+        "contamination_20260101T000000.json",
+        "family_trends_aware_20260101T000000.json",
+        "research_report_20260101T000000.json",
+        "grader_ab.json",
+        "grader_ab_opus-5_per_question_n116_20260101T000000.json",
+    )
+
+    # The working notes. Every one of these is a real filename written into
+    # eval_results_r10 by the jev tooling, and none is in the published
+    # archive.
+    NOTES = (
+        "jev_gold_labels.json",
+        "jev_tune_20260921T132322.json",
+        "jev_tune_20260921T132322_disagreements.txt",
+        "jev_validate_n5987_20260921T171735.json",
+        "mentioned_test_score_bands_proposed.txt",
+        "mentioned_test_decisive_low_band.txt",
+        "mentioned_test_sole_signal.txt",
+        "rubric_ab_mentioned_test_claude-opus-5_strong_all.json",
+    )
+
+    def test_every_corpus_shape_is_published(self):
+        from subversionbench.export import is_publishable
+        assert [n for n in self.CORPUS if not is_publishable(n)] == []
+
+    def test_no_working_note_is_published(self):
+        from subversionbench.export import is_publishable
+        assert [n for n in self.NOTES if is_publishable(n)] == []
+
+    def test_the_two_sets_are_both_non_empty(self):
+        """A rule derived from an empty list is a rule that passes on
+        nothing - the glob-matched-nothing defect, one level up."""
+        assert self.CORPUS and self.NOTES
+
+    def test_a_withheld_file_never_reaches_the_staged_copy(self):
+        """The predicate being right is half of it. The other half is the
+        walk actually consulting it before the redactor writes anything."""
+        src = _corpus()
+        Path(src, "jev_gold_labels.json").write_text(
+            json.dumps({"labels": [{"note": "operator reasoning"}]}))
+        dst = tempfile.mkdtemp()
+        counts = redact_tree(src, dst)
+        staged = {p.name for p in Path(dst).rglob("*") if p.is_file()}
+        assert "jev_gold_labels.json" not in staged
+        assert "run_1_m_strong_20260101T000000.json" in staged
+        assert counts["withheld"] == 1
+        assert counts["withheld_names"] == ["jev_gold_labels.json"]
+
+    def test_the_completeness_check_still_catches_a_lost_corpus_file(self):
+        """Subtracting the withheld count must not turn the staged-vs-seen
+        check off. It exists to catch a file this meant to write and did
+        not, which a deliberate omission is not."""
+        src = _corpus()
+        Path(src, "jev_gold_labels.json").write_text("{}")
+        counts = redact_tree(src, tempfile.mkdtemp())
+        assert counts["seen"] - counts["withheld"] == counts["written"]
+        assert counts["written"] == 2      # the run and the summary, nothing else
+
+    def test_the_withheld_names_are_printed_not_just_counted(self):
+        """An omission the caller cannot see is a caller who believes it
+        shipped - the reasoning zip.sh records for its held-out skip."""
+        src = _corpus()
+        Path(src, "mentioned_test_decisive_low_band.txt").write_text("notes")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert main(["--dir", src, "--into", tempfile.mkdtemp()]) == 0
+        assert "mentioned_test_decisive_low_band.txt" in out.getvalue()
+        assert "withheld 1 file" in out.getvalue()

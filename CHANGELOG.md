@@ -10,6 +10,34 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v202
+
+**The published archive holds the corpus and nothing else, by allowlist.** A
+results directory accumulates two kinds of file: the episodes and the figures
+derived from them, and working notes - an operator's adjudication reasoning,
+dumps of full episode text assembled for judging. Only the first kind was ever
+meant to ship. `export.py` copied every non-JSON file verbatim and redacted
+every JSON one, so the second kind would have gone into the next archive
+without anything saying so.
+
+The direction is the point. A denylist naming the current notes would need
+extending every time a tool learns to write something new - the
+hand-written-list defect recorded throughout this repository - and its failure
+mode is a silent leak into an artefact whose password is published in the
+README by design. The allowlist's failure mode is a missing file, and every
+withheld name is printed rather than counted.
+
+Validated against the r10 archive as actually published rather than against
+taste: staging the live corpus under the new rule produces exactly the file set
+already inside the zip, none lost and none added, and withholds nineteen
+working notes that were never in it.
+
+The staged-versus-walked completeness check is kept and narrowed rather than
+dropped. It exists to catch a file the copy meant to write and did not, which a
+deliberate omission is not, so withheld files are subtracted from the
+comparison and counted separately - both facts stay checkable instead of one
+being traded for the other.
+
 ## v201
 
 **The awareness verdicts are re-derived from the saved rubric answers, like

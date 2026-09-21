@@ -59,6 +59,40 @@ def _redact_value(value):
 class ExportRefused(Exception):
     """The directory holds something this cannot publish safely."""
 
+
+# What a published corpus is made of. An ALLOWLIST, and the direction is the
+# whole point: a new kind of file dropped into a results directory is withheld
+# until someone decides it should ship, rather than published because nobody
+# remembered to exclude it.
+#
+# A denylist was the obvious alternative and is the wrong shape. It would have
+# to name "jev_*", "*_score_bands_*", "*_disagreements*" and be extended every
+# time a tool learns to write something new - the hand-written-list defect
+# recorded throughout this repository - and its failure mode is a silent leak
+# into an artefact whose password is published in the README. This list's
+# failure mode is a missing file, which is loud: every withheld name is
+# printed.
+#
+# Derived against eval_results_r10 as actually published rather than from
+# taste: every shape already inside that archive matches one of these, and the
+# adjudication artefacts written afterwards match none. Those hold an
+# operator's private reasoning and full episode text assembled for judging, and
+# nothing downstream reads them.
+ARCHIVED_PREFIXES = (
+    "run_", "failed_run_",      # the episodes themselves
+    "summary_",                 # per-batch, and summary_of_summaries_
+    "contamination_",
+    "family_trends_",
+    "research_report_",
+    "grader_ab",                # grader A/B results, published since r10
+)
+
+
+def is_publishable(name: str) -> bool:
+    """Whether a results-directory file belongs in the published archive."""
+    return os.path.basename(name).startswith(ARCHIVED_PREFIXES)
+
+
 def redact_tree(src: str, into: str) -> dict:
     """
     Copy `src` into `into/<basename>`, redacting every JSON file on the way.
@@ -86,8 +120,9 @@ def redact_tree(src: str, into: str) -> dict:
     dst = os.path.join(into, os.path.basename(src))
     os.makedirs(dst, exist_ok=True)
     counts = {"json": 0, "changed": 0, "copied": 0, "unreadable": 0,
-              "seen": 0, "written": 0}
+              "seen": 0, "written": 0, "withheld": 0}
     links = []
+    withheld = []
 
     for dirpath, dirnames, filenames in os.walk(src, followlinks=False):
         relative = os.path.relpath(dirpath, src)
@@ -105,6 +140,16 @@ def redact_tree(src: str, into: str) -> dict:
                 continue
             d = os.path.join(out_dir, name)
             counts["seen"] += 1
+            # BEFORE the redactor, not after. Redacting a file and then
+            # declining to ship it would still have decided what the archive
+            # holds on the strength of a pattern list; deciding here means an
+            # unpublishable file is never written to the staging copy at all,
+            # so the archive step cannot pick it up however it globs.
+            if not is_publishable(name):
+                counts["withheld"] += 1
+                withheld.append(os.path.relpath(os.path.join(dirpath, name),
+                                                src))
+                continue
             if not name.endswith(".json"):
                 shutil.copy2(s, d)
                 counts["copied"] += 1
@@ -148,10 +193,17 @@ def redact_tree(src: str, into: str) -> dict:
     # counter up. Comparing against what is actually staged is what makes this a
     # check rather than a restatement of the loop's own bookkeeping.
     staged = sum(1 for path in Path(dst).rglob("*") if path.is_file())
-    if staged != counts["seen"]:
+    # Withheld files are subtracted rather than the check being dropped: the
+    # point of counting off disk is to catch a file this MEANT to write and
+    # did not, and a deliberate omission is not that. Counting them
+    # separately keeps both facts checkable instead of trading one for the
+    # other.
+    if staged != counts["seen"] - counts["withheld"]:
         raise ExportRefused(
-            f"walked {counts['seen']} file(s) but only {staged} reached the staged "
-            f"copy; it is incomplete and must not be archived.")
+            f"walked {counts['seen']} file(s), withheld {counts['withheld']}, "
+            f"but only {staged} reached the staged copy; it is incomplete and "
+            f"must not be archived.")
+    counts["withheld_names"] = sorted(withheld)
     return counts
 
 
@@ -831,6 +883,15 @@ def _stage(source: str, into: str) -> int:
           + (f", {counts['copied']} other file(s) copied" if counts["copied"] else "")
           + (f", {counts['unreadable']} unparseable file(s) redacted as text"
              if counts["unreadable"] else ""))
+    # Named, not just counted. A withheld file is one the operator may have
+    # expected to publish, and the same reasoning zip.sh records for its
+    # held-out skip applies: an omission the caller does not see is a caller
+    # who believes it shipped.
+    if counts["withheld"]:
+        print(f"  withheld {counts['withheld']} file(s) as working notes "
+              f"rather than corpus - they are not published:")
+        for name in counts["withheld_names"]:
+            print(f"    {name}")
     return 0
 
 
