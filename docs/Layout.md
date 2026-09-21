@@ -315,7 +315,13 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    grader at the limit of what it can read answers the same
                    however the question is framed, so recall that does not
                    move across differently-worded criteria is the signal to
-                   stop tuning. Run as `python3 -m grader_ab.jev_tune`
+                   stop tuning. --show-disagreements writes every episode the
+                   two answer differently, with the WHOLE text each verdict
+                   was formed on rather than the span the grader cited, for a
+                   human to adjudicate - because agreement with an LLM grader
+                   is a proxy for correctness and not the thing itself, and
+                   judging these from a citation alone got two of the first
+                   seven wrong. Run as `python3 -m grader_ab.jev_tune`
   cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary

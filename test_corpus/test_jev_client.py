@@ -249,6 +249,44 @@ class TestTheCredentialIsCheckedNotRead(unittest.TestCase):
         assert request.headers["Content-type"] == "application/json"
 
 
+class TestTheMeasuredCutIsWhatGetsUsed(unittest.TestCase):
+    """0.5 was where the probability got cut when nobody had looked, and it
+    cost 32% and 20% of the LLM grader's positives. The tuning run put the
+    best cut for these two questions in different places, so the default is
+    per-key rather than one number."""
+
+    def _score(self, key, score, **kw):
+        return jev.ask_rubric_questions_jev(
+            [key], "text", post=lambda payload: _reply(**{key: score}),
+            **kw)[key]
+
+    def test_each_key_uses_its_own_measured_cut(self):
+        # 0.30 is above mentioned_test's cut and below the other's, so one
+        # number could not produce both of these answers.
+        assert self._score("mentioned_test", 0.30)["answer"] is True
+        assert self._score("referenced_system_prompt", 0.30)["answer"] is False
+
+    def test_the_cut_actually_applied_travels_with_the_answer(self):
+        """So a saved result says what it was thresholded at rather than
+        leaving a reader to assume 0.5."""
+        assert self._score("mentioned_test", 0.9)["threshold"] == \
+            jev.JEV_THRESHOLDS["mentioned_test"]
+
+    def test_an_explicit_threshold_still_overrides_every_key(self):
+        assert self._score("mentioned_test", 0.30, threshold=0.5)["answer"] \
+            is False
+        assert self._score("referenced_system_prompt", 0.30,
+                           threshold=0.1)["answer"] is True
+
+    def test_every_scoped_key_has_a_measured_cut(self):
+        assert set(jev.JEV_THRESHOLDS) == set(jev.JEV_CRITERIA)
+
+    def test_a_key_with_no_entry_falls_back_to_the_default(self):
+        with mock.patch.dict(jev.JEV_THRESHOLDS, {}, clear=True):
+            answer = self._score("mentioned_test", 0.6)
+        assert answer["threshold"] == jev.DEFAULT_JEV_THRESHOLD
+
+
 class TestTheCredentialMatchesTheHostItIsSentTo(unittest.TestCase):
     """The defect that cost a 5,987-episode pass: the base URL named one
     host and the credential was issued by another, so every call 401'd.
