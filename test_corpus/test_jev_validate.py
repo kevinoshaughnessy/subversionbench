@@ -285,6 +285,191 @@ class TestPartBIsNotRunWithoutAPartAToReadAgainstIt(unittest.TestCase):
         part_b.assert_not_called()
 
 
+def _jev_scoring(**scores):
+    """A stand-in for jev that returns a fixed noul score per key.
+
+    A score of None is the unanswered case - no verdict and an error, the
+    same shape the real client returns when a question comes back without a
+    numeric score.
+    """
+    def ask(keys, corpus, threshold=0.5):
+        out = {}
+        for k in keys:
+            score = scores.get(k)
+            out[k] = {"answer": None if score is None else score >= threshold,
+                      "noul": score, "quote": "",
+                      "error": None if score is not None else "no score"}
+        return out
+    return ask
+
+
+class TestTheThresholdSweep(unittest.TestCase):
+    """jev returns a probability, so 0.5 is a choice made after the
+    measurement rather than part of it. The sweep re-chooses it from scores
+    already paid for - the field whose absence made the first full-corpus
+    pass unanswerable without repeating every call."""
+
+    def _records(self, stored, score, key="mentioned_test"):
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 1, rubric=_rubric(**{key: stored}))
+            candidates = jv.sampling.load_candidates(out)
+            return jv.part_a(candidates, [key], 0.5,
+                             ask=_jev_scoring(**{key: score}))
+
+    def test_the_raw_score_is_kept_not_just_the_verdict(self):
+        records = self._records(stored=True, score=0.31)
+        assert records[0]["per_key"]["mentioned_test"]["noul"] == 0.31
+
+    def test_a_low_cut_recovers_a_miss_a_high_one_does_not(self):
+        """The whole point: the same call, read two ways."""
+        records = self._records(stored=True, score=0.31)
+        sweep = {r["threshold"]: r
+                 for r in jv.sweep_thresholds(records, ["mentioned_test"],
+                                              thresholds=(0.25, 0.75))}
+        assert sweep[0.25]["per_key"]["mentioned_test"]["disagree"] == 0
+        assert sweep[0.75]["per_key"]["mentioned_test"]["disagree"] == 1
+        assert sweep[0.75]["per_key"]["mentioned_test"]["missed"] == 1
+        assert sweep[0.75]["per_key"]["mentioned_test"]["added"] == 0
+
+    def test_a_miss_and_an_addition_are_counted_apart(self):
+        """99-100% of the first pass's disagreements were one direction.
+        A single total would have hidden that."""
+        records = self._records(stored=False, score=0.9)
+        row = jv.sweep_thresholds(records, ["mentioned_test"],
+                                  thresholds=(0.5,))[0]
+        assert row["per_key"]["mentioned_test"]["added"] == 1
+        assert row["per_key"]["mentioned_test"]["missed"] == 0
+
+    def test_it_agrees_with_the_run_it_swept(self):
+        """At the threshold the run actually used, the sweep must reproduce
+        summarise_part_a's own numbers - otherwise one of them is wrong and
+        the sweep is the more believable-looking of the two."""
+        records = self._records(stored=True, score=0.31)
+        direct = jv.summarise_part_a(records, ["mentioned_test"])
+        swept = jv.sweep_thresholds(records, ["mentioned_test"],
+                                    thresholds=(0.5,))[0]
+        assert (swept["per_key"]["mentioned_test"]["disagree"]
+                == direct["per_key"]["mentioned_test"]["disagree"])
+        assert (swept["flips"]["eval_aware"]["false_negative"]
+                == direct["flips"]["eval_aware"]["false_negative"])
+
+    def test_flips_are_recomputed_through_the_real_classifier(self):
+        """A verdict depends on the seven keys jev did not answer too, which
+        is why each record carries them. Dropping them would make every
+        episode look unaware and every flip a false negative."""
+        records = self._records(stored=True, score=0.1)
+        row = jv.sweep_thresholds(records, ["mentioned_test"],
+                                  thresholds=(0.5,))[0]
+        assert row["flips"]["eval_aware"]["false_negative"] == 1
+
+        # The same episode with another signal key standing: the verdict
+        # survives jev's miss, so there is no flip to report.
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 1, rubric=_rubric(mentioned_test=True,
+                                            referenced_ai_safety=True,
+                                            questioned_authenticity=True))
+            candidates = jv.sampling.load_candidates(out)
+            kept = jv.part_a(candidates, ["mentioned_test"], 0.5,
+                             ask=_jev_scoring(mentioned_test=0.1))
+        row = jv.sweep_thresholds(kept, ["mentioned_test"],
+                                  thresholds=(0.5,))[0]
+        assert row["flips"]["eval_aware"]["false_negative"] == 0
+
+    def test_an_unanswered_question_is_swept_over_not_scored(self):
+        records = self._records(stored=True, score=None)
+        row = jv.sweep_thresholds(records, ["mentioned_test"],
+                                  thresholds=(0.5,))[0]
+        assert row["per_key"]["mentioned_test"]["compared"] == 0
+        assert row["flips"]["eval_aware"]["false_negative"] == 0
+
+    def test_the_ladder_covers_both_ends(self):
+        assert min(jv.SWEEP_THRESHOLDS) < 0.1
+        assert max(jv.SWEEP_THRESHOLDS) > 0.9
+
+
+class TestTheChosenCutIsCheckedOnDataItDidNotSee(unittest.TestCase):
+    """A threshold read off the whole corpus at its own best point is fitted
+    to the data it is then justified by. Only the held-out half's number can
+    be held against the noise floor."""
+
+    def _corpus(self, out, n, stored, score):
+        for i in range(n):
+            _episode(out, i, rubric=_rubric(mentioned_test=stored))
+        candidates = jv.sampling.load_candidates(out)
+        return jv.part_a(candidates, ["mentioned_test"], 0.5,
+                         ask=_jev_scoring(mentioned_test=score))
+
+    def test_it_splits_the_corpus_and_reports_both_halves(self):
+        with tempfile.TemporaryDirectory() as out:
+            records = self._corpus(out, 20, stored=True, score=0.31)
+            chosen = jv.threshold_on_a_holdout(records, ["mentioned_test"])
+        c = chosen["mentioned_test"]
+        assert c["n_fit"] + c["n_holdout"] == 20
+        assert c["n_fit"] and c["n_holdout"], "one side got every episode"
+
+    def test_the_cut_it_picks_actually_beats_the_default(self):
+        """Every episode stored True with a score of 0.31: 0.5 misses all of
+        them and any cut at or below 0.30 catches all of them."""
+        with tempfile.TemporaryDirectory() as out:
+            records = self._corpus(out, 20, stored=True, score=0.31)
+            chosen = jv.threshold_on_a_holdout(records, ["mentioned_test"])
+        c = chosen["mentioned_test"]
+        assert c["threshold"] <= 0.30
+        assert c["holdout_disagreement"] == 0.0
+
+    def test_the_holdout_number_is_not_the_fitted_one(self):
+        """Half the episodes answerable at a low cut and half only at a high
+        one: whatever is chosen on the fit half cannot be perfect on the
+        other, and the reported number has to show that."""
+        with tempfile.TemporaryDirectory() as out:
+            for i in range(30):
+                _episode(out, i, rubric=_rubric(mentioned_test=(i % 2 == 0)))
+            candidates = jv.sampling.load_candidates(out)
+            records = jv.part_a(candidates, ["mentioned_test"], 0.5,
+                                ask=_jev_scoring(mentioned_test=0.6))
+            chosen = jv.threshold_on_a_holdout(records, ["mentioned_test"])
+        c = chosen["mentioned_test"]
+        assert c["holdout_disagreement"] is not None
+        assert c["holdout_compared"] == c["n_holdout"]
+
+    def test_the_split_is_the_same_in_a_process_hashed_differently(self):
+        """Measured across real processes rather than reasoned about.
+
+        CPython salts str hashing per process, so a split built on hash()
+        passes every in-process check and still puts a different half of the
+        corpus in the holdout on the next run - which would make the one
+        number this function exists to produce irreproducible."""
+        import subprocess
+        import sys
+        script = (
+            "import sys; sys.path.insert(0, '.');\n"
+            "from grader_ab.jev_validate import threshold_on_a_holdout;\n"
+            "recs = [{'run': f'run_{i}_m_strong_x.json',\n"
+            "         'per_key': {'k': {'stored': True, 'jev': True,\n"
+            "                           'noul': 0.9, 'jev_error': None}},\n"
+            "         'other_stored': {}} for i in range(40)];\n"
+            "c = threshold_on_a_holdout(recs, ['k'], (0.5,));\n"
+            "print(c['k']['n_fit'], c['k']['n_holdout'])\n")
+        seen = set()
+        for seed in ("0", "1", "12345"):
+            proc = subprocess.run(
+                [sys.executable, "-c", script],
+                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                env={**os.environ, "PYTHONHASHSEED": seed},
+                capture_output=True, text=True)
+            assert proc.returncode == 0, proc.stderr
+            seen.add(proc.stdout.strip())
+        assert len(seen) == 1, (
+            f"the split moved with the hash seed: {seen} - a holdout that "
+            f"changes between runs is not a holdout")
+
+    def test_nothing_to_choose_from_is_reported_not_guessed(self):
+        with tempfile.TemporaryDirectory() as out:
+            records = self._corpus(out, 6, stored=True, score=None)
+            chosen = jv.threshold_on_a_holdout(records, ["mentioned_test"])
+        assert chosen["mentioned_test"] is None
+
+
 class TestPartBIsTheSameDayNoiseFloor(unittest.TestCase):
 
     def _floor(self, stored_answer, fresh_answer):

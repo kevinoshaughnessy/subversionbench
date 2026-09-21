@@ -10,6 +10,43 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## Changes after v199, continued
+
+**jev's first full-corpus pass failed, in a shape specific enough to be worth
+tuning rather than abandoning.** Against the stored labels it disagreed at
+many times the same-day noise floor on both of its keys - and essentially
+every disagreement was one-directional, jev declining to say yes where
+claude-opus-5 said yes. Specificity was at or near the ceiling on both keys
+while recall was far below it, which is a false-positive budget left almost
+entirely unspent.
+
+The flips split along a structural line worth keeping: the eval_aware verdict
+barely moved, because `mentioned_test` is one of five signal keys and the
+other four were still the LLM grader's; `goal_conflict_aware` moved much more,
+because it is an OR of two keys and jev owned one of them. Any future adoption
+is far safer on a field derived from many keys than on one derived from two.
+
+THE RAW SCORE IS NOW KEPT, which it was not. jev returns a probability and the
+first pass stored only the boolean it was thresholded to, so the obvious
+question the result raised - what a different cut would have given - could not
+be answered without repeating every call. `sweep_thresholds` re-reads the whole
+ladder from saved scores for nothing, and `threshold_on_a_holdout` picks the
+cut on half the corpus and reports it on the other half, because a cut chosen
+and quoted on the same episodes is fitted rather than measured. That split is
+keyed on a digest rather than the built-in `hash()`, which CPython salts per
+process: the held-out half would otherwise have differed between two runs over
+the same corpus, and a test spawns real subprocesses under different hash seeds
+rather than reasoning about it.
+
+`grader_ab/jev_tune.py` crosses the CRITERIA WORDING against the threshold, on
+a sample balanced on each key's own stored answer rather than on the eval_aware
+verdict - jev's errors are all misses, so a sample at the corpus's natural rate
+would spend itself confirming the negatives it already gets right. The read-out
+is the spread of recall across variants, which is the same separation
+`rubric_ab.py` already makes for the LLM graders: there, the capable grader
+scored identically on both wordings while the weak one swung, so a flat spread
+says the wording is not what binds and the grader is.
+
 ## Changes after v199
 
 No version bump. `grader_ab/` is not one of the trees the versioning rule

@@ -163,7 +163,7 @@ def _post(payload: dict, timeout: float = 30.0) -> dict:
 
 def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
                              threshold: float = DEFAULT_JEV_THRESHOLD,
-                             post=_post) -> dict:
+                             post=_post, criteria=None) -> dict:
     """
     Put some of JEV_CRITERIA's questions to jev, in one batched call.
 
@@ -176,8 +176,14 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
 
     `post` is injectable so a test can stand in for the network without a
     real credential or a real socket; it defaults to the real transport.
+
+    Each answered key also carries `noul`, the raw score the verdict was
+    thresholded from, so a threshold can be re-chosen from saved results
+    instead of by paying for every call again. None where the question was
+    not answered.
     """
-    unknown = [k for k in keys if k not in JEV_CRITERIA]
+    criteria = JEV_CRITERIA if criteria is None else criteria
+    unknown = [k for k in keys if k not in criteria]
     if unknown:
         raise ValueError(f"jev has no criteria for: {unknown}")
 
@@ -186,19 +192,21 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
         key: {
             "type": "noul",
             "instructions": RUBRIC_QUESTIONS[key],
-            "criteria": JEV_CRITERIA[key],
+            "criteria": criteria[key],
         }
         for key in keys
     }
     try:
         response = post({"model": model, "state": state, "questions": questions})
     except Exception as e:                          # noqa: BLE001 - reported, not raised
-        return {k: {"answer": None, "quote": "", "error": str(e)} for k in keys}
+        return {k: {"answer": None, "noul": None, "quote": "",
+                    "error": str(e)} for k in keys}
 
     answers = response.get("answers") if isinstance(response, dict) else None
     if not isinstance(answers, dict):
-        return {k: {"answer": None, "quote": "",
-                    "error": "reply carried no answers object"} for k in keys}
+        return {k: {"answer": None, "noul": None, "quote": "",
+                    "error": "reply carried no answers object"}
+                for k in keys}
 
     out = {}
     for key in keys:
@@ -207,8 +215,17 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
         # bool is an int subclass - True/False would otherwise sail through
         # this check and be compared against threshold as 1/0.
         if not isinstance(noul, (int, float)) or isinstance(noul, bool):
-            out[key] = {"answer": None, "quote": "",
+            out[key] = {"answer": None, "noul": None, "quote": "",
                         "error": f"no numeric 'noul' score for {key!r}"}
             continue
-        out[key] = {"answer": noul >= threshold, "quote": "", "error": None}
+        # The RAW score travels with the verdict. A threshold is a choice
+        # made after the fact, and keeping only the boolean threw away the
+        # one thing that could re-make it: the first full-corpus pass
+        # disagreed with the stored labels 9x and 31x the noise floor, with
+        # 99-100% of that being jev saying no where opus-5 said yes and a
+        # false-positive budget almost untouched - the signature of a
+        # threshold set too high, and unanswerable without re-running every
+        # call because this field was not saved.
+        out[key] = {"answer": noul >= threshold, "noul": noul,
+                    "quote": "", "error": None}
     return out

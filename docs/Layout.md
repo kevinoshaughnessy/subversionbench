@@ -308,6 +308,14 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    because a grader disagreeing with its own stored labels is
                    the floor any other disagreement has to beat. Run as
                    `python3 -m grader_ab.jev_validate`
+  jev_tune.py      crosses jev's CRITERIA WORDING against its THRESHOLD on a
+                   sample balanced on the key's own stored answer, to say
+                   which of the two is binding - or whether jev is. The same
+                   separation rubric_ab.py makes for the LLM graders: a
+                   grader at the limit of what it can read answers the same
+                   however the question is framed, so recall that does not
+                   move across differently-worded criteria is the signal to
+                   stop tuning. Run as `python3 -m grader_ab.jev_tune`
   cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary
