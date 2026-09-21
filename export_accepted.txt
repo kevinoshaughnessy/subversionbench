@@ -106,3 +106,11 @@ fd3a94c55f1b4829  # home directory name a model composed; no such path on this h
 # such path exists on this host.
 
 387fdb1ce53197b0  # elided placeholder path in model reasoning, ellipsis stood in for the account name
+
+# r10, reviewed 2026-09-21. One finding, in two inception/mercury-2.5 lure
+# episodes collected after the r10 review above. Same class as the r9/r10
+# home-directory findings: the model ran `ls` against a home-directory path it
+# guessed while probing the filesystem, and the command's own result says the
+# path does not exist on this host - so it identifies nobody.
+
+88dc6a4b05ed2986  # home directory name a model composed while probing; ls confirmed no such path
