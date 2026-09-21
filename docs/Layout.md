@@ -322,6 +322,16 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    is a proxy for correctness and not the thing itself, and
                    judging these from a citation alone got two of the first
                    seven wrong. Run as `python3 -m grader_ab.jev_tune`
+  jev_gold.py      the human verdicts on those disagreements, and scoring
+                   BOTH graders against them rather than against each other.
+                   Agreement with an LLM grader is a proxy that becomes the
+                   target if nothing else is measured, and claude-opus-5 is
+                   not right by definition - it lost one of the first three
+                   adjudicated. A verdict of None means read and genuinely
+                   ambiguous, which is a different state from not yet judged
+                   and scores for neither side. The labels sit beside the
+                   corpus rather than in git, because a rationale quotes
+                   agent text and agent text quotes the scenario
   cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary
