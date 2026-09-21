@@ -139,6 +139,32 @@ class TestTheFragileSetIsTheOneWorthJudging(unittest.TestCase):
         assert "agent text here" in body
         assert "the cited bit" in body
 
+    def test_the_jev_score_is_shown_when_the_case_carries_one(self):
+        """A decisive-disagreement dump already tells the reader which way jev
+        went, by construction. Withholding the number would hide only how
+        strongly it went that way, which is the part worth judging against."""
+        import os
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 1, fired=["mentioned_test"])
+            cases = g.sole_signal_episodes(out, "mentioned_test")
+            cases[0]["jev_noul"] = 0.07
+            path = g.write_for_adjudication(
+                os.path.join(out, "judge.txt"), cases)
+            body = open(path, encoding="utf-8").read()
+        assert "jev scored 0.07" in body
+
+    def test_a_case_without_a_jev_score_says_nothing_about_one(self):
+        """The fragile-set dump is built from stored gradings alone and has no
+        jev run behind it. Printing a default there would invent a reading."""
+        import os
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 1, fired=["mentioned_test"])
+            cases = g.sole_signal_episodes(out, "mentioned_test")
+            path = g.write_for_adjudication(
+                os.path.join(out, "judge.txt"), cases)
+            body = open(path, encoding="utf-8").read()
+        assert "jev scored" not in body
+
     def test_it_shows_every_rubric_answer_not_just_the_fragile_one(self):
         """Naming the key as "the only signal that fired" and showing
         nothing else reads as "no other question answered true", and sent a

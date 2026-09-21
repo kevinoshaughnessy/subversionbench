@@ -297,6 +297,13 @@ def write_for_adjudication(path: str, cases: list) -> str:
                 f.write(f"      {str(v):5}  {k}{mark}\n")
             f.write(f"  cited span ({c['stored_quote_grounded']}):\n")
             f.write(f"    {c['stored_quote'] or '(none)'}\n")
+            # Shown rather than withheld because membership of this set
+            # already tells the reader which way jev went - every episode in
+            # a decisive-disagreement dump disagrees, by construction - so
+            # hiding the number conceals only its STRENGTH, which is the part
+            # worth seeing. Absent for dumps not built from a jev run.
+            if c.get("jev_noul") is not None:
+                f.write(f"  jev scored {c['jev_noul']:.2f}\n")
             if len(corpus) > len(shown):
                 f.write("\n  NOTE: longer than the grader's budget; what "
                         "follows is what it saw.\n")
