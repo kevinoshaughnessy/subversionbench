@@ -71,7 +71,20 @@ class TestJevCanBeAskedACandidateWording(unittest.TestCase):
 
     def _saved_run(self, out, wording):
         """main() with the client stubbed, returning both what was SAVED and
-        what the client was HANDED - so the two can be compared."""
+        what the client was HANDED - so the two can be compared.
+
+        PINNED TO --primitive noul, which is what --wording actually affects.
+        A score question carries its own instructions (JEV_SCORE_INSTRUCTIONS)
+        and every key that has score levels has them, so the rubric wording
+        never reaches the wire on a score run and this comparison would be
+        between two different questions.
+
+        That is also why the stub cannot police the score path: it captures
+        the argument, and the substitution happens inside the client
+        afterwards. TestTheRecordedQuestionIsTheOneOnTheWire in
+        test_jev_client_score.py asserts against the built payload instead,
+        which is the only place the two are comparable.
+        """
         sent = {}
 
         def ask(keys, corpus, threshold=0.5, instructions=None, **kw):
@@ -83,6 +96,7 @@ class TestJevCanBeAskedACandidateWording(unittest.TestCase):
         with mock.patch("sys.argv",
                         ["jev_validate", "--output-dir", out,
                          "--keys", "mentioned_test", "--no-part-b",
+                         "--primitive", "noul",
                          "--wording", wording]), \
                 mock.patch.dict(os.environ,
                                 {"OPENROUTER_API_KEY": "x"}, clear=True), \
@@ -377,3 +391,108 @@ class TestTheDryRunDoesNotOverstateGraderSpend(unittest.TestCase):
         assert "asked as a score" in self._plan(["--no-part-b"])
         assert "asked as a noul" in self._plan(
             ["--no-part-b", "--primitive", "noul"])
+
+
+class TestAScoreRunsHeaderNamesTheScoreQuestion(unittest.TestCase):
+    """The gap the first attempt at this left open.
+
+    The --wording guards are pinned to --primitive noul, where the resolver
+    returns its argument unchanged - so reverting the header to the wording
+    passed in is a no-op there and nothing goes red. On a score run it is not
+    a no-op: the client sends JEV_SCORE_INSTRUCTIONS and the header would
+    name the rubric question, which is the defect this was all about.
+    """
+
+    def _header(self, argv):
+        def ask(keys, corpus, threshold=0.5, instructions=None, **kw):
+            return {k: {"answer": True, "primitive": kw.get("primitive"),
+                        "raw": 2.0, "noul": None, "score": 2.0,
+                        "quote": "", "error": None} for k in keys}
+
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--no-part-b",
+                             *argv]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev", ask):
+                assert jv.main() == 0
+            saved = [f for f in os.listdir(out)
+                     if f.startswith("jev_validate_")]
+            return json.load(open(os.path.join(out, saved[0]),
+                                  encoding="utf-8"))
+
+    def test_it_records_the_score_instructions(self):
+        from grader_ab.jev_client import JEV_SCORE_INSTRUCTIONS
+        data = self._header(["--primitive", "score"])
+        assert (data["asked"]["mentioned_test"]
+                == JEV_SCORE_INSTRUCTIONS["mentioned_test"])
+
+    def test_it_records_them_even_when_a_wording_was_requested(self):
+        """--wording is inert on a score run, because every key with score
+        levels has its own instructions. A header echoing the requested
+        rubric wording would name a question that never went on the wire."""
+        from subversionbench.config import RUBRIC_QUESTIONS
+        from grader_ab.jev_client import JEV_SCORE_INSTRUCTIONS
+        data = self._header(["--primitive", "score",
+                             "--wording", "proposed"])
+        assert (data["asked"]["mentioned_test"]
+                == JEV_SCORE_INSTRUCTIONS["mentioned_test"])
+        assert (data["asked"]["mentioned_test"]
+                != RUBRIC_QUESTIONS["mentioned_test"])
+
+    def test_a_noul_run_still_records_the_rubric_wording(self):
+        """So the guard can answer no rather than always expecting the score
+        text."""
+        from subversionbench.config import RUBRIC_QUESTIONS
+        data = self._header(["--primitive", "noul"])
+        assert (data["asked"]["mentioned_test"]
+                == RUBRIC_QUESTIONS["mentioned_test"])
+
+
+class TestTheRunRecordsTheCutThatTookEffect(unittest.TestCase):
+    """--threshold unset requests a different cut per key and per primitive,
+    so a file recording only the request cannot say what its own booleans
+    mean. jev_validate_n5987_20260921T224225.json records threshold 0.5 and
+    is the run that defect produced."""
+
+    def _header(self, argv):
+        def ask(keys, corpus, threshold=None, instructions=None, **kw):
+            return {k: {"answer": True, "primitive": kw.get("primitive"),
+                        "raw": 2.0, "noul": None, "score": 2.0,
+                        "quote": "", "error": None} for k in keys}
+
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--no-part-b",
+                             *argv]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev", ask):
+                assert jv.main() == 0
+            saved = [f for f in os.listdir(out)
+                     if f.startswith("jev_validate_")]
+            return json.load(open(os.path.join(out, saved[0]),
+                                  encoding="utf-8"))
+
+    def test_an_unset_threshold_records_the_level_cut_not_a_probability(self):
+        from grader_ab.jev_client import JEV_SCORE_THRESHOLDS
+        data = self._header(["--primitive", "score"])
+        assert data["threshold"] is None
+        assert (data["thresholds_applied"]["mentioned_test"]
+                == JEV_SCORE_THRESHOLDS["mentioned_test"] >= 1.0)
+
+    def test_a_noul_run_records_its_own_measured_cut(self):
+        from grader_ab.jev_client import JEV_THRESHOLDS
+        data = self._header(["--primitive", "noul"])
+        assert (data["thresholds_applied"]["mentioned_test"]
+                == JEV_THRESHOLDS["mentioned_test"])
+
+    def test_an_explicit_threshold_is_recorded_as_applied(self):
+        data = self._header(["--primitive", "score", "--threshold", "3.0"])
+        assert data["threshold"] == 3.0
+        assert data["thresholds_applied"]["mentioned_test"] == 3.0

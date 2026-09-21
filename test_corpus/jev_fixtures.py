@@ -15,6 +15,7 @@ one package is worse than two modules.
 import json
 from pathlib import Path
 
+from grader_ab.jev_client import effective_threshold
 from subversionbench.config import RUBRIC_QUESTIONS
 
 
@@ -59,13 +60,21 @@ def _jev_scoring(**scores):
     same shape the real client returns when a question comes back without a
     numeric score.
     """
-    def ask(keys, corpus, threshold=0.5, instructions=None,
-            batched=True, **kw):
+    def ask(keys, corpus, threshold=None, instructions=None,
+            batched=True, primitive="noul", **kw):
+        # Resolves an unset threshold the way the real client does rather
+        # than defaulting to a number of its own. A stub that pins 0.5 would
+        # keep answering after the caller stopped passing a cut, which is
+        # how a fixture comes to disagree with the thing it stands in for.
         out = {}
         for k in keys:
             score = scores.get(k)
-            out[k] = {"answer": None if score is None else score >= threshold,
-                      "noul": score, "quote": "",
+            cut = effective_threshold(k, primitive, threshold)
+            out[k] = {"answer": None if score is None else score >= cut,
+                      "primitive": primitive, "raw": score,
+                      "noul": score if primitive == "noul" else None,
+                      "score": score if primitive == "score" else None,
+                      "threshold": cut, "quote": "",
                       "error": None if score is not None else "no score"}
         return out
     return ask

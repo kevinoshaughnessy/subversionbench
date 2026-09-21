@@ -51,6 +51,7 @@ from subversionbench.redaction import redact_paths
 from . import sampling
 from .cost import cell_cost
 from .jev_client import (JEV_CRITERIA, ask_rubric_questions_jev,
+                         effective_instructions, effective_threshold,
                          missing_credential, raw_score)
 from .prices import HARD_PHRASING_MODELS
 
@@ -90,9 +91,15 @@ def _build_parser():
     parser.add_argument("--keys", nargs="+", default=sorted(JEV_CRITERIA),
                         choices=sorted(JEV_CRITERIA),
                         help="which rubric questions jev answers")
-    parser.add_argument("--threshold", type=float, default=0.5,
-                        help="noul score at or above which jev's answer is "
-                             "true (default: %(default)s)")
+    parser.add_argument("--threshold", type=float, default=None,
+                        help="the cut at or above which jev's answer is true, "
+                             "applied to every key. DEFAULTS TO UNSET, which "
+                             "is not the same as 0.5: unset means each key "
+                             "uses the measured cut for the primitive it was "
+                             "asked on - JEV_SCORE_THRESHOLDS or "
+                             "JEV_THRESHOLDS. A literal 0.5 default is what "
+                             "thresholded a whole score pass below level 1 "
+                             "on a 0-4 scale")
     parser.add_argument("--per-model", type=int, default=4,
                         help="Part B sample per model, before oversampling "
                              "(default: %(default)s)")
@@ -688,7 +695,15 @@ def main():
     instructions, changed = wording_for(args.wording, keys)
 
     header = {"output_dir": redact_paths(os.path.abspath(args.output_dir)),
-              "keys": keys, "threshold": args.threshold,
+              "keys": keys,
+              # What was REQUESTED and what TOOK EFFECT, because unset
+              # requests a different cut per key and per primitive, and a
+              # file recording only the request cannot say what its own
+              # booleans mean.
+              "threshold": args.threshold,
+              "thresholds_applied": {
+                  k: effective_threshold(k, args.primitive, args.threshold)
+                  for k in keys},
               "noise_floor_model": NOISE_FLOOR_MODEL,
               "wording": args.wording,
               # Recorded beside the wording for the same reason, and the
@@ -698,7 +713,12 @@ def main():
               # answered on, and the two together say what the numbers in
               # this file actually are.
               "primitive": args.primitive,
-              "asked": {k: instructions[k] for k in keys},
+              # Resolved through the client's own resolver, not from the
+              # text passed in: under --primitive score the client sends
+              # JEV_SCORE_INSTRUCTIONS, and recording the rubric wording
+              # here named a question that never went on the wire.
+              "asked": effective_instructions(keys, args.primitive,
+                                              instructions),
               "wording_changed_keys": changed,
               "shape": "per_question" if args.per_question else "batched",
               "episodes_available": len(candidates),

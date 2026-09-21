@@ -225,3 +225,101 @@ class TestFailuresKeepTheContract(unittest.TestCase):
             assert "vibes" in str(e)
         else:
             raise AssertionError("expected a refusal")
+
+
+class TestTheRecordedQuestionIsTheOneOnTheWire(unittest.TestCase):
+    """THE DEFECT THIS EXISTS FOR, and it was introduced the same day the
+    --wording one was fixed.
+
+    The client substituted JEV_SCORE_INSTRUCTIONS for a score question while
+    jev_validate recorded the text it had passed IN, so a score run's header
+    named the rubric question and the wire carried a different one. The guard
+    written for --wording could not see it: it stubs the client and captures
+    the argument, never the substitution the client makes afterwards.
+
+    So these assert against the payload the client BUILDS, which is the only
+    place the two can be compared.
+    """
+
+    def _wire(self, primitive, instructions=None):
+        sent = {}
+        jev.ask_rubric_questions_jev(
+            ["mentioned_test"], "text", primitive=primitive,
+            instructions=instructions,
+            post=lambda p: (sent.update(p),
+                            {"answers": {"mentioned_test":
+                                         {"score": 2.0, "noul": 0.5}}})[1])
+        return sent["questions"]["mentioned_test"]["instructions"]
+
+    def test_the_resolver_returns_what_a_score_call_puts_on_the_wire(self):
+        asked = jev.effective_instructions(["mentioned_test"], "score")
+        assert asked["mentioned_test"] == self._wire("score")
+
+    def test_it_holds_when_a_caller_passes_its_own_wording(self):
+        """The case that actually broke: --wording proposed resolves a rubric
+        candidate, hands it in, and the client sends the score instructions
+        instead. A resolver that ignored its argument would pass the test
+        above and fail here."""
+        mine = {"mentioned_test": "some candidate rubric wording"}
+        asked = jev.effective_instructions(["mentioned_test"], "score", mine)
+        assert asked["mentioned_test"] == self._wire("score", mine)
+
+    def test_a_noul_call_still_sends_the_wording_it_was_given(self):
+        """The other direction, so the resolver cannot just always return the
+        score text: under noul the caller's wording is the question."""
+        mine = {"mentioned_test": "some candidate rubric wording"}
+        asked = jev.effective_instructions(["mentioned_test"], "noul", mine)
+        assert asked["mentioned_test"] == mine["mentioned_test"]
+        assert asked["mentioned_test"] == self._wire("noul", mine)
+
+    def test_the_two_primitives_do_not_resolve_to_the_same_text(self):
+        """A resolver returning one text for both would satisfy every
+        assertion above while recording the wrong question for one of them."""
+        mine = {"mentioned_test": "some candidate rubric wording"}
+        assert (jev.effective_instructions(["mentioned_test"], "score", mine)
+                != jev.effective_instructions(["mentioned_test"], "noul", mine))
+
+
+class TestAnUnsetThresholdMeansTheMeasuredCut(unittest.TestCase):
+    """THE DEFECT: jev_validate's --threshold defaulted to the literal 0.5,
+    so `threshold is None` was never true and JEV_SCORE_THRESHOLDS never
+    applied. A whole-corpus score pass ran at 0.5 on a 0-4 scale - below
+    level 1 - marking almost everything true and reporting 2,204 false
+    positives. The raw scores survived and the sweep re-derived from them,
+    so the run was salvageable; its booleans were not.
+
+    0.5 is a plausible-looking number on both scales, which is why nothing
+    looked wrong. Guarded by what the cut RESOLVES TO, never by whether a
+    default was written down."""
+
+    def test_unset_resolves_to_the_score_cut_on_a_score_run(self):
+        assert (jev.effective_threshold("mentioned_test", "score", None)
+                == jev.JEV_SCORE_THRESHOLDS["mentioned_test"])
+
+    def test_unset_resolves_to_the_noul_cut_on_a_noul_run(self):
+        assert (jev.effective_threshold("mentioned_test", "noul", None)
+                == jev.JEV_THRESHOLDS["mentioned_test"])
+
+    def test_the_two_resolve_differently(self):
+        """A resolver returning one number for both would satisfy a
+        one-sided guard and reintroduce the bug on the other scale."""
+        assert (jev.effective_threshold("mentioned_test", "score", None)
+                != jev.effective_threshold("mentioned_test", "noul", None))
+
+    def test_an_explicit_cut_still_wins(self):
+        assert jev.effective_threshold("mentioned_test", "score", 0.9) == 0.9
+
+    def test_the_score_cut_is_above_level_one(self):
+        """The specific thing that went wrong. Any cut below 1.0 on this
+        scale marks every episode that is not a flat zero as true."""
+        assert jev.effective_threshold("mentioned_test", "score", None) >= 1.0
+
+    def test_an_unset_call_thresholds_on_the_level_scale(self):
+        """End to end through the client, not just the resolver: a score of
+        1.0 is under the level-2 cut and must answer false."""
+        assert _ask(score=1.0, threshold=None)["answer"] is False
+        assert _ask(score=2.5, threshold=None)["answer"] is True
+
+    def test_the_cut_applied_travels_with_the_answer(self):
+        cell = _ask(score=2.5, threshold=None)
+        assert cell["threshold"] == jev.JEV_SCORE_THRESHOLDS["mentioned_test"]

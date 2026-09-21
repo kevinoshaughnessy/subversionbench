@@ -333,10 +333,15 @@ class TestTheThresholdSweep(unittest.TestCase):
     pass unanswerable without repeating every call."""
 
     def _records(self, stored, score, key="mentioned_test"):
+        # PINNED TO NOUL, because the numbers here are probabilities: 0.31
+        # against a 0.5 cut. Run on the score scale those same numbers are
+        # positions below level 1, and the sweep's ladder would be the wrong
+        # one - the test would still pass and would be measuring something
+        # else.
         with tempfile.TemporaryDirectory() as out:
             _episode(out, 1, rubric=_rubric(**{key: stored}))
             candidates = jv.sampling.load_candidates(out)
-            return jv.part_a(candidates, [key], 0.5,
+            return jv.part_a(candidates, [key], 0.5, primitive="noul",
                              ask=_jev_scoring(**{key: score}))
 
     def test_the_raw_score_is_kept_not_just_the_verdict(self):

@@ -283,6 +283,48 @@ def _post(payload: dict, timeout: float = 30.0) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
+def effective_threshold(key: str, primitive: str = "score", threshold=None):
+    """The cut that will ACTUALLY be applied to this key.
+
+    Same shape as effective_instructions and for the same reason: a caller
+    that records what it REQUESTED rather than what took effect writes an
+    artefact that cannot be checked.
+
+    The defect it was written for: jev_validate's --threshold defaulted to
+    0.5, so `threshold is None` was never true and JEV_SCORE_THRESHOLDS never
+    applied. A whole-corpus score pass was thresholded at 0.5 on a 0-4 scale -
+    below level 1 - which marked almost every episode true and reported 2,204
+    false positives. The raw scores were unharmed and the sweep re-derived
+    from them, so the run survived; the booleans in it did not.
+    """
+    if threshold is not None:
+        return threshold
+    if primitive == "score":
+        return JEV_SCORE_THRESHOLDS.get(key, DEFAULT_JEV_SCORE_THRESHOLD)
+    return JEV_THRESHOLDS.get(key, DEFAULT_JEV_THRESHOLD)
+
+
+def effective_instructions(keys, primitive: str = "score", instructions=None):
+    """The question text that will ACTUALLY be sent, per key.
+
+    ONE RESOLVER, used by the payload builder below and by any caller that
+    records what was asked. It exists because the two disagreed: the client
+    substituted JEV_SCORE_INSTRUCTIONS for a score question while
+    jev_validate recorded the text it had passed IN, so a score run's header
+    named the rubric question and the wire carried a different one.
+
+    That is the --wording defect exactly - a label describing an intent
+    rather than an act - reintroduced one layer down on the day it was fixed,
+    and the guard written for it could not see this because it stubs the
+    client and captures the argument, never the substitution the client makes
+    after. A resolver both sides call cannot disagree with itself.
+    """
+    instructions = RUBRIC_QUESTIONS if instructions is None else instructions
+    if primitive != "score":
+        return {k: instructions[k] for k in keys}
+    return {k: JEV_SCORE_INSTRUCTIONS.get(k, instructions[k]) for k in keys}
+
+
 def raw_score(cell: dict):
     """The number a cut applies to, whichever primitive produced the cell.
 
@@ -409,12 +451,12 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
                "mentioned_test has them" if primitive == "score" else ""))
 
     state = _truncate_for_grader(corpus)
+    asked = effective_instructions(keys, primitive, instructions)
     if primitive == "score":
         questions = {
             key: {
                 "type": "score",
-                "instructions": JEV_SCORE_INSTRUCTIONS.get(
-                    key, instructions[key]),
+                "instructions": asked[key],
                 "criteria": JEV_SCORE_LEVELS[key],
             }
             for key in keys
@@ -423,7 +465,7 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
         questions = {
             key: {
                 "type": "noul",
-                "instructions": instructions[key],
+                "instructions": asked[key],
                 "criteria": criteria[key],
             }
             for key in keys
@@ -456,12 +498,7 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
         # false-positive budget almost untouched - the signature of a
         # threshold set too high, and unanswerable without re-running every
         # call because this field was not saved.
-        if threshold is not None:
-            cut = threshold
-        elif primitive == "score":
-            cut = JEV_SCORE_THRESHOLDS.get(key, DEFAULT_JEV_SCORE_THRESHOLD)
-        else:
-            cut = JEV_THRESHOLDS.get(key, DEFAULT_JEV_THRESHOLD)
+        cut = effective_threshold(key, primitive, threshold)
 
         # `raw` is the number the cut was applied to, whichever scale that
         # was, so one downstream column works for both. `noul` and `score`
