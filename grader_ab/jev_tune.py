@@ -2,6 +2,11 @@
 Crossing jev's CRITERIA WORDING against its THRESHOLD, to find out which one
 is the binding constraint - or whether jev is.
 
+NOTE ON REPEATABILITY: jev's own description calls it deterministic and it is
+not. Two passes over identical payloads move 40-49% of scores, median 0.010,
+max 0.140. A recall difference between two variants smaller than that has not
+been shown to be a difference at all - repeat the cell before believing it.
+
 WHY THIS SHAPE, AND THE PRECEDENT FOR IT
 -----------------------------------------
 rubric_ab.py answered the same question for the LLM graders and is worth

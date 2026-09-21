@@ -43,7 +43,8 @@ def _episode(out, n, model="p/m", rubric=None, aware=False,
 
 def _jev_saying(**answers):
     """A stand-in for jev that answers the same way every episode."""
-    def ask(keys, corpus, threshold=0.5, instructions=None):
+    def ask(keys, corpus, threshold=0.5, instructions=None,
+            batched=True):
         return {k: {"answer": answers.get(k), "quote": "",
                     "error": None if k in answers else "no score"}
                 for k in keys}
@@ -161,7 +162,7 @@ class TestABrokenRouteStopsRatherThanGrindingOn(unittest.TestCase):
             return records, buf.getvalue()
 
     def _always_failing(self, message="HTTP Error 401: Unauthorized"):
-        def ask(keys, corpus, threshold=0.5, instructions=None):
+        def ask(keys, corpus, threshold=0.5, instructions=None, **kw):
             return {k: {"answer": None, "quote": "", "error": message}
                     for k in keys}
         return ask
@@ -189,7 +190,7 @@ class TestABrokenRouteStopsRatherThanGrindingOn(unittest.TestCase):
         summarise_part_a already excludes honestly."""
         calls = {"n": 0}
 
-        def ask(keys, corpus, threshold=0.5, instructions=None):
+        def ask(keys, corpus, threshold=0.5, instructions=None, **kw):
             calls["n"] += 1
             if calls["n"] > 6:
                 return {k: {"answer": None, "quote": "", "error": "flaky"}
@@ -294,7 +295,7 @@ class TestJevCanBeAskedACandidateWording(unittest.TestCase):
         wordings as identical and read as 'the question does not matter'."""
         seen = {}
 
-        def ask(keys, corpus, threshold=0.5, instructions=None):
+        def ask(keys, corpus, threshold=0.5, instructions=None, **kw):
             seen.update(instructions or {})
             return {k: {"answer": False, "noul": 0.1, "quote": "",
                         "error": None} for k in keys}
@@ -412,8 +413,7 @@ class TestPartBIsNotRunWithoutAPartAToReadAgainstIt(unittest.TestCase):
                                     {"OPENROUTER_API_KEY": "x",
                                      "ANTHROPIC_API_KEY": "y"}, clear=True), \
                     mock.patch.object(jv, "ask_rubric_questions_jev",
-                                      lambda keys, corpus, threshold=0.5,
-                                      instructions=None: {
+                                      lambda keys, corpus, threshold=0.5, **kw: {
                                           k: {"answer": None, "quote": "",
                                               "error": "HTTP Error 401"}
                                           for k in keys}), \
@@ -430,7 +430,8 @@ def _jev_scoring(**scores):
     same shape the real client returns when a question comes back without a
     numeric score.
     """
-    def ask(keys, corpus, threshold=0.5, instructions=None):
+    def ask(keys, corpus, threshold=0.5, instructions=None,
+            batched=True):
         out = {}
         for k in keys:
             score = scores.get(k)
@@ -849,3 +850,109 @@ class TestTheRunIsSavedBeforeItFinishes(unittest.TestCase):
         # incomplete rather than looking like a finished run.
         assert saved["complete"] is False
         assert len(saved["part_a_records"]) == 2
+
+
+class TestTheShapeIsRecorded(unittest.TestCase):
+    """Two runs differing only in call shape are otherwise indistinguishable
+    on disk, and the shape is now known to move verdicts."""
+
+    def test_per_question_reaches_the_client(self):
+        seen = []
+
+        def ask(keys, corpus, threshold=0.5, instructions=None, batched=True):
+            seen.append(batched)
+            return {k: {"answer": False, "noul": 0.1, "quote": "",
+                        "error": None} for k in keys}
+
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--no-part-b",
+                             "--per-question"]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev", ask):
+                assert jv.main() == 0
+        assert seen and all(b is False for b in seen)
+
+    def test_the_saved_run_names_its_shape(self):
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--no-part-b",
+                             "--per-question"]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev",
+                                      _jev_scoring(mentioned_test=0.9)):
+                assert jv.main() == 0
+            saved = [f for f in os.listdir(out)
+                     if f.startswith("jev_validate_")]
+            data = json.load(open(os.path.join(out, saved[0]),
+                                  encoding="utf-8"))
+        assert data["shape"] == "per_question"
+
+
+class TestEveryFlagReachesTheClientNotJustTheHeader(unittest.TestCase):
+    """THE DEFECT THIS EXISTS FOR. --wording was parsed, recorded in the
+    saved file's header, and never passed to part_a. A full-corpus run came
+    back labelled "wording": "proposed" having asked the shipped question
+    for every one of its 5,987 episodes.
+
+    Nothing caught it: wording_for was tested in isolation, and the header
+    field was tested by reading the header. Both passed. A flag is only
+    real if it reaches the call, so these assert on what the CLIENT was
+    handed rather than on what the file says was intended."""
+
+    def _sent(self, argv):
+        seen = {}
+
+        def ask(keys, corpus, threshold=0.5, instructions=None,
+                batched=True, **kw):
+            seen["instructions"] = instructions
+            seen["batched"] = batched
+            return {k: {"answer": False, "noul": 0.1, "quote": "",
+                        "error": None} for k in keys}
+
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--no-part-b",
+                             *argv]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev", ask):
+                assert jv.main() == 0
+            saved = [f for f in os.listdir(out)
+                     if f.startswith("jev_validate_")]
+            header = json.load(open(os.path.join(out, saved[0]),
+                                    encoding="utf-8"))
+        return seen, header
+
+    def test_the_proposed_wording_actually_reaches_the_client(self):
+        import rubric_ab
+        sent, header = self._sent(["--wording", "proposed"])
+        assert header["wording"] == "proposed"
+        assert sent["instructions"]["mentioned_test"] == \
+            rubric_ab.PROPOSED_WORDINGS["mentioned_test"], \
+            "the header said proposed and the call sent something else"
+
+    def test_the_shipped_wording_reaches_the_client_too(self):
+        from subversionbench.config import RUBRIC_QUESTIONS
+        sent, header = self._sent([])
+        assert header["wording"] == "shipped"
+        assert sent["instructions"]["mentioned_test"] == \
+            RUBRIC_QUESTIONS["mentioned_test"]
+
+    def test_the_call_shape_actually_reaches_the_client(self):
+        sent, header = self._sent(["--per-question"])
+        assert header["shape"] == "per_question"
+        assert sent["batched"] is False
+
+    def test_the_default_shape_reaches_the_client(self):
+        sent, header = self._sent([])
+        assert header["shape"] == "batched"
+        assert sent["batched"] is True

@@ -140,7 +140,12 @@ class TestTheRequestJevActuallyReceives(unittest.TestCase):
             assert question["instructions"] == RUBRIC_QUESTIONS[key]
             assert set(question["criteria"]) == {"true", "false"}
 
-    def test_both_questions_go_in_ONE_call(self):
+    def test_both_questions_go_in_ONE_call_by_default(self):
+        """Which is cheap and which COUPLES the answers - see
+        TestTheCallShapeIsAChoiceBecauseBatchingCouples below. Asserted as
+        the default rather than as the right answer: pass batched=False when
+        a comparison varies a question, because a payload carrying both
+        cannot attribute a change to either."""
         calls = []
 
         def post(payload):
@@ -149,8 +154,7 @@ class TestTheRequestJevActuallyReceives(unittest.TestCase):
 
         jev.ask_rubric_questions_jev(
             ["mentioned_test", "referenced_system_prompt"], "text", post=post)
-        assert len(calls) == 1, ("jev takes many questions per call; asking "
-                                 "them one at a time pays the state twice")
+        assert len(calls) == 1
 
     def test_the_state_is_truncated_the_way_every_grader_call_is(self):
         """The same budget the LLM graders are held to, reused rather than
@@ -329,3 +333,75 @@ class TestJevNeverRoutesThroughTheModelFactory(unittest.TestCase):
                 ["mentioned_test"], "text",
                 post=lambda payload: _reply(mentioned_test=0.9))
         get_client.assert_not_called()
+
+
+class TestTheCallShapeIsAChoiceBecauseBatchingCouples(unittest.TestCase):
+    """Batching is what makes a corpus pass cost pennies, and it couples the
+    answers. Measured, not suspected: changing only mentioned_test's wording
+    moved 2,249 referenced_system_prompt scores and flipped 29 of its
+    verdicts corpus-wide, on a question whose text never changed. jev is
+    deterministic, so a shared payload is the only thing that can do it."""
+
+    def _calls(self, keys, **kw):
+        seen = []
+
+        def post(payload):
+            seen.append(sorted(payload["questions"]))
+            return {"answers": {k: {"type": "noul", "noul": 0.3}
+                                for k in payload["questions"]}}
+
+        out = jev.ask_rubric_questions_jev(keys, "text", post=post, **kw)
+        return seen, out
+
+    def test_batched_sends_every_question_in_one_payload(self):
+        seen, _ = self._calls(["mentioned_test", "referenced_system_prompt"])
+        assert seen == [["mentioned_test", "referenced_system_prompt"]]
+
+    def test_per_question_sends_each_alone(self):
+        """The only way to attribute a change to the question it was made
+        to - a payload carrying both cannot."""
+        seen, _ = self._calls(["mentioned_test", "referenced_system_prompt"],
+                              batched=False)
+        assert seen == [["mentioned_test"], ["referenced_system_prompt"]]
+
+    def test_both_shapes_answer_every_key(self):
+        for batched in (True, False):
+            _, out = self._calls(["mentioned_test",
+                                  "referenced_system_prompt"],
+                                 batched=batched)
+            assert set(out) == {"mentioned_test", "referenced_system_prompt"}
+            assert all(v["answer"] is not None for v in out.values())
+
+    def test_one_key_is_one_call_either_way(self):
+        """Nothing is gained by splitting a single question, and a second
+        call would be paid for nothing."""
+        for batched in (True, False):
+            seen, _ = self._calls(["mentioned_test"], batched=batched)
+            assert seen == [["mentioned_test"]]
+
+    def test_per_question_still_applies_each_keys_own_cut(self):
+        """The split must not quietly lose the per-key thresholds."""
+        def post(payload):
+            return {"answers": {k: {"type": "noul", "noul": 0.30}
+                                for k in payload["questions"]}}
+
+        out = jev.ask_rubric_questions_jev(
+            ["mentioned_test", "referenced_system_prompt"], "text",
+            post=post, batched=False)
+        # 0.30 is above mentioned_test's cut and below the other's.
+        assert out["mentioned_test"]["answer"] is True
+        assert out["referenced_system_prompt"]["answer"] is False
+
+    def test_a_failure_in_one_question_does_not_lose_the_other(self):
+        """Batched, one bad reply costs every answer. Split, it should not."""
+        def post(payload):
+            if "mentioned_test" in payload["questions"]:
+                raise OSError("connection reset")
+            return {"answers": {k: {"type": "noul", "noul": 0.9}
+                                for k in payload["questions"]}}
+
+        out = jev.ask_rubric_questions_jev(
+            ["mentioned_test", "referenced_system_prompt"], "text",
+            post=post, batched=False)
+        assert out["mentioned_test"]["answer"] is None
+        assert out["referenced_system_prompt"]["answer"] is True

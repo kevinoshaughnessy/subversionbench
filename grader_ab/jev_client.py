@@ -1,5 +1,5 @@
 """
-Calling typesafe/jev-1.13: a deterministic classifier, not an LLM grader.
+Calling typesafe/jev-1.13: a classifier rather than an LLM grader.
 
 Lives here, not in subversionbench/grading/ or llm_client.py, for the same
 reason grader_ab/shapes.py's batched call shape does not live in grader.py:
@@ -189,7 +189,8 @@ def _post(payload: dict, timeout: float = 30.0) -> dict:
 def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
                              threshold=None,
                              post=_post, criteria=None,
-                             instructions=None) -> dict:
+                             instructions=None,
+                             batched: bool = True) -> dict:
     """
     Put some of JEV_CRITERIA's questions to jev, in one batched call.
 
@@ -207,6 +208,28 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
     `post` is injectable so a test can stand in for the network without a
     real credential or a real socket; it defaults to the real transport.
 
+    `batched` sends every key in ONE call, which is what jev's `questions`
+    dict is for and what makes a corpus pass cost pennies. Whether it also
+    COUPLES the answers is OPEN, and the reasoning that appeared to settle
+    it was wrong: two corpus passes were compared, one of them mislabelled,
+    and the movement in a question whose text had not changed was read as
+    contamination on the premise that jev is deterministic. It is not - see
+    below - so that movement is jev's own variance and says nothing about
+    batching.
+
+    Coupling remains plausible: grader_ab watches for it on the LLM side,
+    where "batched, question seven is answered having just written question
+    three". batched=False is how it would be measured - ask each question
+    alone, repeat, and compare the spread against jev's own noise floor
+    rather than against zero.
+
+    JEV IS NOT DETERMINISTIC, contrary to what its own description says and
+    to what several comments here used to claim. Two passes over the same
+    5,987 episodes with byte-identical payloads moved 40-49% of scores, a
+    median of 0.010 and as much as 0.140. That last figure matters for the
+    thresholds: a cut at 0.30 sits well inside the range a score can move
+    on its own.
+
     `instructions` overrides the question text jev is asked, which defaults
     to config's RUBRIC_QUESTIONS - the same words the LLM grader answers. It
     is a parameter because jev is the cheap place to test a rubric rewrite:
@@ -220,6 +243,14 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
     """
     criteria = JEV_CRITERIA if criteria is None else criteria
     instructions = RUBRIC_QUESTIONS if instructions is None else instructions
+
+    if not batched and len(keys) > 1:
+        answered = {}
+        for key in keys:
+            answered.update(ask_rubric_questions_jev(
+                [key], corpus, model, threshold, post, criteria,
+                instructions, batched=True))
+        return answered
     unknown = [k for k in keys if k not in criteria]
     if unknown:
         raise ValueError(f"jev has no criteria for: {unknown}")

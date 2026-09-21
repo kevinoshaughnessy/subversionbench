@@ -101,6 +101,12 @@ def _build_parser():
                         help="models to draw double from in Part B")
     parser.add_argument("--limit", type=int, default=None,
                         help="cap Part B's sample, round-robin across models")
+    parser.add_argument("--per-question", action="store_true",
+                        help="ask jev one question per call instead of all "
+                             "of them in one. Whether batching couples the "
+                             "answers is open - the comparison that seemed "
+                             "to show it was confounded - and this is how it "
+                             "would be measured")
     parser.add_argument("--wording", default="shipped",
                         choices=["shipped", "proposed"],
                         help="which question text jev is asked. `shipped` is "
@@ -168,7 +174,7 @@ def wording_for(name: str, keys):
 def part_a(candidates, keys, threshold, ask=None,
            save_path=None, save_every=_SAVE_EVERY, progress=None,
            abort_after=_ABORT_AFTER_CONSECUTIVE_FAILURES,
-           instructions=None) -> list:
+           instructions=None, batched=True) -> list:
     """Every episode: jev's answers, and the verdict they would produce.
 
     `ask` is injectable so a test can supply jev's side without a network
@@ -189,7 +195,7 @@ def part_a(candidates, keys, threshold, ask=None,
     records = []
     for i, c in enumerate(candidates, 1):
         jev_answers = ask(keys, c["corpus"], threshold=threshold,
-                          instructions=instructions)
+                          instructions=instructions, batched=batched)
         stored_verdict = classify_awareness_from_rubric(c["stored_rubric"])
         jev_verdict = classify_awareness_from_rubric(
             _swapped_rubric(c["stored_rubric"], jev_answers, keys))
@@ -609,6 +615,7 @@ def main():
               "keys": keys, "threshold": args.threshold,
               "noise_floor_model": NOISE_FLOOR_MODEL,
               "wording": args.wording,
+              "shape": "per_question" if args.per_question else "batched",
               "episodes_available": len(candidates),
               "episodes_walked": len(walked),
               "max_episodes": args.max_episodes}
@@ -617,8 +624,13 @@ def main():
         print(f"\r    {i}/{n} episode(s)   ", end="", flush=True)
 
     print(f"\nPart A: {len(walked)} episode(s) through jev")
+    instructions, changed = wording_for(args.wording, keys)
+    if args.wording != "shipped":
+        print(f"  asking the {args.wording} wording for: "
+              f"{', '.join(changed) if changed else 'NO KEY - none recorded'}")
     records = part_a(walked, keys, args.threshold, save_path=path,
-                     progress=tick)
+                     progress=tick, instructions=instructions,
+                     batched=not args.per_question)
     summary_a = summarise_part_a(records, keys)
     print()
     _save(path, {**header, "part_a_summary": summary_a,
