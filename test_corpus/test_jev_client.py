@@ -1,6 +1,12 @@
 """
 jev's client: the threshold, the error contract, and the absent quote.
 
+THESE EXERCISE THE NOUL PATH, which is no longer the default - see
+test_jev_client_score.py for the primitive that is. Every call below
+names primitive="noul" explicitly rather than relying on a default,
+because that default moved once already and a test that follows it is
+testing whatever is current rather than the path it describes.
+
 Every test here stubs the transport. Nothing may reach a real socket or read
 a real credential, which is the same rule the rest of the suite holds for the
 paid routes.
@@ -29,7 +35,8 @@ class TestTheNoulThresholdDecidesTheAnswer(unittest.TestCase):
     def _answer(self, score, threshold=0.5):
         out = jev.ask_rubric_questions_jev(
             ["mentioned_test"], "some text", threshold=threshold,
-            post=lambda payload: _reply(mentioned_test=score))
+            post=lambda payload: _reply(mentioned_test=score),
+            primitive="noul")
         return out["mentioned_test"]["answer"]
 
     def test_a_score_above_the_threshold_is_true(self):
@@ -57,7 +64,8 @@ class TestTheQuoteIsNeverFabricated(unittest.TestCase):
     def test_a_true_answer_carries_an_empty_quote(self):
         out = jev.ask_rubric_questions_jev(
             ["mentioned_test"], "the agent said this is a test",
-            post=lambda payload: _reply(mentioned_test=0.99))
+            post=lambda payload: _reply(mentioned_test=0.99),
+            primitive="noul")
         assert out["mentioned_test"]["answer"] is True
         assert out["mentioned_test"]["quote"] == ""
 
@@ -66,7 +74,8 @@ class TestTheQuoteIsNeverFabricated(unittest.TestCase):
             raise OSError("connection reset")
 
         out = jev.ask_rubric_questions_jev(["mentioned_test"], "text",
-                                           post=boom)
+                                           post=boom,
+            primitive="noul")
         assert out["mentioned_test"]["quote"] == ""
 
 
@@ -80,14 +89,16 @@ class TestAFailureBecomesAnUnansweredQuestion(unittest.TestCase):
             raise OSError("connection reset")
 
         out = jev.ask_rubric_questions_jev(
-            ["mentioned_test", "referenced_system_prompt"], "text", post=boom)
+            ["mentioned_test", "referenced_system_prompt"], "text", post=boom,
+            primitive="noul")
         for key in ("mentioned_test", "referenced_system_prompt"):
             assert out[key]["answer"] is None
             assert "connection reset" in out[key]["error"]
 
     def test_a_reply_with_no_answers_object_answers_none(self):
         out = jev.ask_rubric_questions_jev(
-            ["mentioned_test"], "text", post=lambda payload: {"usage": {}})
+            ["mentioned_test"], "text", post=lambda payload: {"usage": {}},
+            primitive="noul")
         assert out["mentioned_test"]["answer"] is None
         assert out["mentioned_test"]["error"]
 
@@ -96,7 +107,8 @@ class TestAFailureBecomesAnUnansweredQuestion(unittest.TestCase):
         other's verdict, nor quietly disappear from the result."""
         out = jev.ask_rubric_questions_jev(
             ["mentioned_test", "referenced_system_prompt"], "text",
-            post=lambda payload: _reply(mentioned_test=0.9))
+            post=lambda payload: _reply(mentioned_test=0.9),
+            primitive="noul")
         assert out["mentioned_test"]["answer"] is True
         assert out["referenced_system_prompt"]["answer"] is None
         assert "referenced_system_prompt" in \
@@ -106,7 +118,8 @@ class TestAFailureBecomesAnUnansweredQuestion(unittest.TestCase):
         out = jev.ask_rubric_questions_jev(
             ["mentioned_test"], "text",
             post=lambda payload: {"answers": {
-                "mentioned_test": {"type": "noul", "noul": "high"}}})
+                "mentioned_test": {"type": "noul", "noul": "high"}}},
+            primitive="noul")
         assert out["mentioned_test"]["answer"] is None
 
     def test_a_boolean_score_answers_none_rather_than_comparing_as_one(self):
@@ -115,7 +128,8 @@ class TestAFailureBecomesAnUnansweredQuestion(unittest.TestCase):
         out = jev.ask_rubric_questions_jev(
             ["mentioned_test"], "text",
             post=lambda payload: {"answers": {
-                "mentioned_test": {"type": "noul", "noul": True}}})
+                "mentioned_test": {"type": "noul", "noul": True}}},
+            primitive="noul")
         assert out["mentioned_test"]["answer"] is None
 
 
@@ -128,7 +142,7 @@ class TestTheRequestJevActuallyReceives(unittest.TestCase):
             captured.update(payload)
             return _reply(**dict.fromkeys(keys, 0.1))
 
-        jev.ask_rubric_questions_jev(list(keys), corpus, post=post)
+        jev.ask_rubric_questions_jev(list(keys), corpus, post=post, primitive="noul")
         return captured
 
     def test_every_asked_key_carries_its_instructions_and_criteria(self):
@@ -153,7 +167,8 @@ class TestTheRequestJevActuallyReceives(unittest.TestCase):
             return _reply(mentioned_test=0.1, referenced_system_prompt=0.1)
 
         jev.ask_rubric_questions_jev(
-            ["mentioned_test", "referenced_system_prompt"], "text", post=post)
+            ["mentioned_test", "referenced_system_prompt"], "text", post=post,
+            primitive="noul")
         assert len(calls) == 1
 
     def test_the_state_is_truncated_the_way_every_grader_call_is(self):
@@ -174,7 +189,8 @@ class TestAKeyWithNoCriteriaIsRefused(unittest.TestCase):
     def test_an_unscoped_rubric_key_raises(self):
         with self.assertRaises(ValueError):
             jev.ask_rubric_questions_jev(["suspects_safety_eval"], "text",
-                                         post=lambda payload: _reply())
+                                         post=lambda payload: _reply(),
+            primitive="noul")
 
     def test_the_scoped_set_excludes_every_span_dependent_question(self):
         """classify_awareness_kind disambiguates its two purpose questions by
@@ -262,7 +278,8 @@ class TestTheMeasuredCutIsWhatGetsUsed(unittest.TestCase):
     def _score(self, key, score, **kw):
         return jev.ask_rubric_questions_jev(
             [key], "text", post=lambda payload: _reply(**{key: score}),
-            **kw)[key]
+            **kw,
+            primitive="noul")[key]
 
     def test_each_key_uses_its_own_measured_cut(self):
         # 0.30 is above mentioned_test's cut and below the other's, so one
@@ -331,7 +348,8 @@ class TestJevNeverRoutesThroughTheModelFactory(unittest.TestCase):
         with mock.patch.object(ev_llm, "get_client") as get_client:
             jev.ask_rubric_questions_jev(
                 ["mentioned_test"], "text",
-                post=lambda payload: _reply(mentioned_test=0.9))
+                post=lambda payload: _reply(mentioned_test=0.9),
+            primitive="noul")
         get_client.assert_not_called()
 
 
@@ -350,7 +368,7 @@ class TestTheCallShapeIsAChoiceBecauseBatchingCouples(unittest.TestCase):
             return {"answers": {k: {"type": "noul", "noul": 0.3}
                                 for k in payload["questions"]}}
 
-        out = jev.ask_rubric_questions_jev(keys, "text", post=post, **kw)
+        out = jev.ask_rubric_questions_jev(keys, "text", post=post, **kw, primitive="noul")
         return seen, out
 
     def test_batched_sends_every_question_in_one_payload(self):
@@ -387,7 +405,8 @@ class TestTheCallShapeIsAChoiceBecauseBatchingCouples(unittest.TestCase):
 
         out = jev.ask_rubric_questions_jev(
             ["mentioned_test", "referenced_system_prompt"], "text",
-            post=post, batched=False)
+            post=post, batched=False,
+            primitive="noul")
         # 0.30 is above mentioned_test's cut and below the other's.
         assert out["mentioned_test"]["answer"] is True
         assert out["referenced_system_prompt"]["answer"] is False
@@ -402,6 +421,7 @@ class TestTheCallShapeIsAChoiceBecauseBatchingCouples(unittest.TestCase):
 
         out = jev.ask_rubric_questions_jev(
             ["mentioned_test", "referenced_system_prompt"], "text",
-            post=post, batched=False)
+            post=post, batched=False,
+            primitive="noul")
         assert out["mentioned_test"]["answer"] is None
         assert out["referenced_system_prompt"]["answer"] is True

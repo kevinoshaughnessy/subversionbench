@@ -142,7 +142,8 @@ class TestTheShapeIsRecorded(unittest.TestCase):
     def test_per_question_reaches_the_client(self):
         seen = []
 
-        def ask(keys, corpus, threshold=0.5, instructions=None, batched=True):
+        def ask(keys, corpus, threshold=0.5, instructions=None,
+                batched=True, **kw):
             seen.append(batched)
             return {k: {"answer": False, "noul": 0.1, "quote": "",
                         "error": None} for k in keys}
@@ -239,3 +240,140 @@ class TestEveryFlagReachesTheClientNotJustTheHeader(unittest.TestCase):
         sent, header = self._sent([])
         assert header["shape"] == "batched"
         assert sent["batched"] is True
+
+
+class TestThePrimitiveReachesTheClientAndTheFile(unittest.TestCase):
+    """--primitive is the third flag on this path, and the first two each
+    failed once: --wording was parsed and dropped, and the call shape was
+    recorded without being sent. So this is guarded the way those are now -
+    on what the CLIENT was handed, never on the header alone."""
+
+    def _run(self, argv):
+        seen = []
+
+        def ask(keys, corpus, threshold=0.5, instructions=None,
+                batched=True, primitive="score", **kw):
+            seen.append(primitive)
+            return {k: {"answer": False, "primitive": primitive, "raw": 1.0,
+                        "noul": None, "score": 1.0, "quote": "",
+                        "error": None} for k in keys}
+
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--no-part-b",
+                             *argv]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev", ask):
+                assert jv.main() == 0
+            saved = [f for f in os.listdir(out)
+                     if f.startswith("jev_validate_")]
+            data = json.load(open(os.path.join(out, saved[0]),
+                                  encoding="utf-8"))
+        return data, seen
+
+    def test_score_is_what_a_default_run_asks_for(self):
+        data, seen = self._run([])
+        assert seen == ["score"]
+        assert data["primitive"] == "score"
+
+    def test_asking_for_noul_reaches_the_client(self):
+        data, seen = self._run(["--primitive", "noul"])
+        assert seen == ["noul"]
+        assert data["primitive"] == "noul"
+
+    def test_the_record_carries_the_scale_each_number_is_on(self):
+        """A column of numbers with no scale beside it is the thing that
+        cost a day: 0.9 is near-certain on one scale and just below the
+        first level on the other."""
+        data, _ = self._run([])
+        cell = data["part_a_records"][0]["per_key"]["mentioned_test"]
+        assert cell["primitive"] == "score"
+        assert cell["raw"] == 1.0
+
+
+class TestTheSweepRunsOnTheScaleItWasScoredOn(unittest.TestCase):
+    """The noul ladder is 0.05 to 0.95. JEV_SCORE_LEVELS runs 0 to 4, so
+    every one of those cuts sits below level 1: a score run swept on it
+    would print nineteen plausible rows that all say 'level 0 against
+    everything else' and name the flattest of them the best cut."""
+
+    def _records(self, primitive, raw):
+        return [{"run": "run_1_m_strong_S.json", "model": "m",
+                 "per_key": {"mentioned_test": {
+                     "stored": True, "jev": True, "primitive": primitive,
+                     "raw": raw, "jev_error": None}},
+                 "other_stored": {}, "eval_aware": {"stored": True},
+                 "goal_conflict_aware": {"stored": False}}]
+
+    def test_a_score_run_is_swept_on_the_level_ladder(self):
+        rows = jv.sweep_thresholds(self._records("score", 2.0),
+                                   ["mentioned_test"])
+        cuts = [r["threshold"] for r in rows]
+        assert max(cuts) > 1.0, cuts
+        assert cuts == list(jv.SWEEP_SCORE_THRESHOLDS)
+
+    def test_a_noul_run_is_swept_on_the_probability_ladder(self):
+        rows = jv.sweep_thresholds(self._records("noul", 0.4),
+                                   ["mentioned_test"])
+        assert [r["threshold"] for r in rows] == list(jv.SWEEP_THRESHOLDS)
+
+    def test_a_record_saved_before_the_change_sweeps_as_a_noul_run(self):
+        """Every full-corpus run on disk predates the score primitive and
+        carries no `primitive` at all. Defaulting them to the score ladder
+        would re-sweep real results on the wrong axis."""
+        old = [{"run": "r.json", "model": "m",
+                "per_key": {"mentioned_test": {"stored": True, "jev": True,
+                                               "noul": 0.4, "jev_error": None}},
+                "other_stored": {}, "eval_aware": {"stored": True},
+                "goal_conflict_aware": {"stored": False}}]
+        rows = jv.sweep_thresholds(old, ["mentioned_test"])
+        assert [r["threshold"] for r in rows] == list(jv.SWEEP_THRESHOLDS)
+
+    def test_the_ladders_actually_differ(self):
+        """A guard comparing two identical tuples passes with the split
+        removed."""
+        assert set(jv.SWEEP_SCORE_THRESHOLDS) != set(jv.SWEEP_THRESHOLDS)
+
+
+class TestTheDryRunDoesNotOverstateGraderSpend(unittest.TestCase):
+    """The operator's stated constraint is opus-5 spend, not jev spend, so
+    the Part B line is the only figure on this plan anyone is watching. It
+    printed the full sample cost under --no-part-b, which is the wrong
+    direction to be wrong in for that one number."""
+
+    def _plan(self, argv):
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            buf = io.StringIO()
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--dry-run", *argv]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
+                    contextlib.redirect_stdout(buf):
+                assert jv.main() == 0
+            return buf.getvalue()
+
+    def test_no_part_b_plans_zero_grader_calls(self):
+        out = self._plan(["--no-part-b"])
+        assert "Part B      0 claude-opus-5" in out, out
+
+    def test_it_still_says_what_part_b_would_have_cost(self):
+        """Zero with no context reads as 'Part B is free', which would make
+        the flag look like it costs nothing to drop."""
+        assert "would be needed without it" in self._plan(["--no-part-b"])
+
+    def test_a_run_that_will_spend_says_so(self):
+        out = self._plan([])
+        assert "Part B      0 claude-opus-5" not in out
+        assert "claude-opus-5 call(s)" in out
+
+    def test_the_plan_names_the_primitive_it_will_ask(self):
+        assert "asked as a score" in self._plan(["--no-part-b"])
+        assert "asked as a noul" in self._plan(
+            ["--no-part-b", "--primitive", "noul"])

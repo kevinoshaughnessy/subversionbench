@@ -45,7 +45,7 @@ def _episode(out, n, model="p/m", rubric=None, aware=False,
 def _jev_saying(**answers):
     """A stand-in for jev that answers the same way every episode."""
     def ask(keys, corpus, threshold=0.5, instructions=None,
-            batched=True):
+            batched=True, **kw):
         return {k: {"answer": answers.get(k), "quote": "",
                     "error": None if k in answers else "no score"}
                 for k in keys}
@@ -60,7 +60,7 @@ def _jev_scoring(**scores):
     numeric score.
     """
     def ask(keys, corpus, threshold=0.5, instructions=None,
-            batched=True):
+            batched=True, **kw):
         out = {}
         for k in keys:
             score = scores.get(k)

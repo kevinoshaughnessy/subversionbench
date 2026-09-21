@@ -38,6 +38,8 @@ unrecordable.
 import json
 import os
 
+from .jev_client import raw_score
+
 GOLD_FILE = "jev_gold_labels.json"
 
 # A verdict of None means READ AND NOT SETTLED - which is a real outcome and
@@ -171,7 +173,7 @@ def stratified_by_score(output_dir: str, validate_file: str, key: str,
     bands = {}
     for r in records:
         cell = (r.get("per_key") or {}).get(key) or {}
-        noul = cell.get("noul")
+        noul = raw_score(cell)
         if noul is None or not (lo <= noul < hi):
             continue
         if (r["run"], key) in already:

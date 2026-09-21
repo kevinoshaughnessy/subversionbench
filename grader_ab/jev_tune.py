@@ -83,7 +83,7 @@ from subversionbench.redaction import redact_paths
 from . import sampling
 from subversionbench.grading.grader_io import _truncate_for_grader
 
-from .jev_client import (JEV_CRITERIA, ask_rubric_questions_jev,
+from .jev_client import (JEV_CRITERIA, ask_rubric_questions_jev, raw_score,
                          missing_credential)
 from .jev_validate import SWEEP_THRESHOLDS
 
@@ -320,7 +320,7 @@ def run_variant(sample, key, criteria, ask=None) -> list:
         out.append({
             "run": c["run"],
             "stored": (c["stored_rubric"].get(key) or {}).get("answer"),
-            "noul": answered.get("noul"),
+            "noul": raw_score(answered),
             "error": answered["error"],
         })
     return out
