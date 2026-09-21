@@ -165,6 +165,7 @@ RELEASE_DATES = {
     "x-ai/grok-4.3": date(2026, 5, 1),
     "x-ai/grok-4.5": date(2026, 7, 8),
     "x-ai/grok-4.6": date(2026, 8, 12),
+    "x-ai/grok-4.7": date(2026, 9, 21),
 
     # z-ai
     "z-ai/glm-5": date(2026, 2, 11),
