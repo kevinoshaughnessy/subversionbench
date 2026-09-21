@@ -331,7 +331,13 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    ambiguous, which is a different state from not yet judged
                    and scores for neither side. The labels sit beside the
                    corpus rather than in git, because a rationale quotes
-                   agent text and agent text quotes the scenario
+                   agent text and agent text quotes the scenario. Also finds
+                   the FRAGILE episodes - those whose eval_aware verdict
+                   rests on a single signal question, where a grading error
+                   actually moves the published rate. 87.5% of aware
+                   episodes fire two or more, so one wrong answer there
+                   changes nothing; the rest are few enough to adjudicate
+                   exhaustively rather than sample
   cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary
