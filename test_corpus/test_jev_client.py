@@ -187,13 +187,52 @@ class TestAKeyWithNoCriteriaIsRefused(unittest.TestCase):
 
 class TestTheCredentialIsCheckedNotRead(unittest.TestCase):
 
-    def test_missing_credential_names_the_variable_when_absent(self):
+    def test_missing_credential_names_both_variables_when_neither_is_set(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            assert jev.missing_credential() == "TYPESAFE_API_KEY"
+            named = jev.missing_credential()
+        assert "TYPESAFE_API_KEY" in named
+        assert "OPENROUTER_API_KEY" in named
 
-    def test_missing_credential_is_none_when_set(self):
-        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "x"}):
+    def test_missing_credential_is_none_when_jevs_own_key_is_set(self):
+        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "x"},
+                             clear=True):
             assert jev.missing_credential() is None
+
+    def test_the_openrouter_key_is_accepted_as_the_fallback(self):
+        """What the operator actually exports. Requiring a second variable
+        holding the same secret would be a setup step that buys nothing."""
+        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "x"},
+                             clear=True):
+            assert jev.missing_credential() is None
+
+    def test_jevs_own_key_wins_where_both_are_set(self):
+        """So a dedicated key can retire the cross-host send of an
+        OpenRouter credential without a code change."""
+        with mock.patch.dict(os.environ,
+                             {"TYPESAFE_API_KEY": "jevs-own",
+                              "OPENROUTER_API_KEY": "openrouters"},
+                             clear=True):
+            assert jev._api_key() == "jevs-own"
+
+    def test_the_fallback_is_used_only_when_jevs_own_key_is_absent(self):
+        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "openrouters"},
+                             clear=True):
+            assert jev._api_key() == "openrouters"
+
+    def test_a_variable_set_to_empty_reads_as_missing(self):
+        """`export TYPESAFE_API_KEY=` leaves it set and empty. Counting that
+        as present would pass the pre-flight check and then fail every call
+        of the run - the exact shape llm_client.missing_credential exists to
+        stop, where a batch ran every episode against a key it never had."""
+        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": ""}, clear=True):
+            assert jev.missing_credential() is not None
+
+    def test_an_empty_first_variable_falls_through_to_the_second(self):
+        with mock.patch.dict(os.environ,
+                             {"TYPESAFE_API_KEY": "",
+                              "OPENROUTER_API_KEY": "openrouters"},
+                             clear=True):
+            assert jev._api_key() == "openrouters"
 
     def test_the_real_transport_refuses_before_opening_a_socket(self):
         """No key, no request: the failure has to happen here rather than as

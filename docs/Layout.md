@@ -295,7 +295,10 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    "provider/model" id would otherwise be routed to OpenRouter
                    by get_client. Scoped to the two rubric questions whose
                    criteria are written here; the span-dependent ones are
-                   refused rather than answered without a quote
+                   refused rather than answered without a quote. Reads
+                   TYPESAFE_API_KEY, falling back to OPENROUTER_API_KEY -
+                   which does send one host's credential to another, and is
+                   why a dedicated key wins where it is set
   jev_validate.py  what adopting jev would do to a published verdict, before
                    it answers anything in production. Swaps jev's keys into
                    each episode's stored rubric and recomputes through the

@@ -57,7 +57,18 @@ from subversionbench.config import RUBRIC_QUESTIONS
 from subversionbench.grading.grader_io import _truncate_for_grader
 
 JEV_BASE_URL = "https://api.typesafe.ai/v1/systemone"
-_CREDENTIAL_ENV = "TYPESAFE_API_KEY"
+
+# In preference order. TYPESAFE_API_KEY is jev's own documented variable and
+# wins where it is set; OPENROUTER_API_KEY is the fallback because that is
+# what this project's operator actually exports, and requiring a second
+# variable holding the same secret is a setup step that buys nothing.
+#
+# WORTH KNOWING rather than buried: the fallback sends a credential issued by
+# one host in an Authorization header to ANOTHER - api.typesafe.ai. That is
+# deliberate and was raised before it was written, but it is the reason the
+# order is this way round, so a dedicated key can retire the cross-host send
+# without a code change.
+_CREDENTIAL_ENV = ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY")
 
 DEFAULT_JEV_MODEL = "typesafe/jev-1.13"
 DEFAULT_JEV_THRESHOLD = 0.5
@@ -98,24 +109,41 @@ JEV_CRITERIA = {
 }
 
 
+def _api_key() -> str | None:
+    """The first credential in _CREDENTIAL_ENV that is set, or None.
+
+    Returns the value because the caller has to send it. Nothing here or
+    above may print, log or otherwise echo it - presence is what gets
+    reported, never the secret.
+    """
+    for var in _CREDENTIAL_ENV:
+        value = os.environ.get(var)
+        if value:
+            return value
+    return None
+
+
 def missing_credential() -> str | None:
-    """The env var jev's credential is missing from, or None.
+    """The variables jev could have read a credential from, or None if one
+    of them is set.
 
     Checked against the environment rather than by calling anything, so a
     batch's own pre-flight check can refuse before spending anything - see
     llm_client.missing_credential for why a route should fail before a run
     starts rather than one call at a time into it.
     """
-    return None if os.environ.get(_CREDENTIAL_ENV) else _CREDENTIAL_ENV
+    if _api_key():
+        return None
+    return " or ".join(_CREDENTIAL_ENV)
 
 
 def _post(payload: dict, timeout: float = 30.0) -> dict:
     """One POST to jev's endpoint. Raises on any transport, HTTP, or JSON
     failure; callers translate that into the per-key error contract rather
     than calling this directly."""
-    api_key = os.environ.get(_CREDENTIAL_ENV)
+    api_key = _api_key()
     if not api_key:
-        raise RuntimeError(f"{_CREDENTIAL_ENV} is not set")
+        raise RuntimeError(f"{' or '.join(_CREDENTIAL_ENV)} is not set")
     body = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         JEV_BASE_URL, data=body, method="POST",

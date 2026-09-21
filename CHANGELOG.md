@@ -44,6 +44,16 @@ would be silently answered by OpenRouter if it ever reached `get_client` - the
 new code never calls it, and a test asserts that by running it rather than by
 grepping the module.
 
+THE CREDENTIAL FALLS BACK TO `OPENROUTER_API_KEY`, which is what this
+project's operator exports; `TYPESAFE_API_KEY` is jev's own documented
+variable and wins where it is set. Stated rather than buried, because the
+fallback sends a credential issued by one host to another - that is the
+reason for the order, so a dedicated key retires the cross-host send with no
+code change. A variable set to empty reads as missing: counting `export
+KEY=` as present would pass the pre-flight check and then fail every call of
+the run, which is the shape `llm_client.missing_credential` already exists
+to stop.
+
 `grader_ab/jev_validate.py` measures what adopting jev would do. Part A replaces
 jev's keys in each episode's stored rubric and recomputes the published verdict
 through the real classifier, which costs no grader calls at all because
