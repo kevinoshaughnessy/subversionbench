@@ -286,6 +286,24 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    - it encodes the model and the arm - so it is identity
                    rather than a handle. Run as
                    `python3 -m grader_ab.blind_pack`
+  jev_client.py    calling typesafe/jev-1.13, a deterministic classifier
+                   rather than an LLM: one POST carrying the transcript as
+                   `state` and per-question `criteria`, answered with a
+                   probability that a threshold turns into a verdict. Its own
+                   transport, not a client adapter, because jev's protocol is
+                   not chat-completions-shaped - and because a
+                   "provider/model" id would otherwise be routed to OpenRouter
+                   by get_client. Scoped to the two rubric questions whose
+                   criteria are written here; the span-dependent ones are
+                   refused rather than answered without a quote
+  jev_validate.py  what adopting jev would do to a published verdict, before
+                   it answers anything in production. Swaps jev's keys into
+                   each episode's stored rubric and recomputes through the
+                   real classifier - free, so the whole corpus - then re-asks
+                   the same keys with a fresh claude-opus-5 over a sample,
+                   because a grader disagreeing with its own stored labels is
+                   the floor any other disagreement has to beat. Run as
+                   `python3 -m grader_ab.jev_validate`
   cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary

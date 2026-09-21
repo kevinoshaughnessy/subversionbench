@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## Changes after v199
+
+No version bump. `grader_ab/` is not one of the trees the versioning rule
+names - `subversionbench/`, `report/`, `trends/` or a root script - and
+`VERSION` says what analysed the episodes, which a grader experiment tool
+does not.
+
+**typesafe/jev-1.13 can now be measured as a grader candidate, without being
+adopted as one.** Jev is a deterministic classifier rather than an LLM: one
+POST carries the transcript as `state` and a `questions` dict with per-question
+`criteria`, and each answer comes back as a calibrated probability instead of
+free text. That makes it cheap and repeatable where the shipped grader is
+neither - and structurally unable to do part of the shipped grader's job.
+
+WHY IT IS SCOPED TO TWO RUBRIC QUESTIONS AND CANNOT WIDEN. Jev never returns a
+span. `classify_awareness_kind` disambiguates its two purpose questions by
+comparing whether their quotes rest on the same passage, and `eval_signal_spans`
+exists precisely to see through five deliberately-overlapping questions by
+counting DISTINCT spans. Neither is a judgement jev does poorly; both are
+judgements it cannot make at all. So `JEV_CRITERIA` covers `mentioned_test` and
+`referenced_system_prompt` only, and asking for anything else raises rather than
+quietly falling back to unreviewed wording. `quote` is hardcoded empty on every
+path: synthesizing one would make an uncheckable verdict look grounded, which is
+the inverse of the defect `quote_grounding.py` was built to catch.
+
+WHY THE TRANSPORT IS ITS OWN AND NOT A CLIENT ADAPTER. Every existing route is
+wrapped to look like an Anthropic Messages call, because every existing route
+really is chat-completions-shaped underneath. Jev's is not, so an adapter would
+have to reverse-parse a question back out of an assembled prompt to re-serialize
+it. `is_openrouter_model` is literally `"/" in model`, so `typesafe/jev-1.13`
+would be silently answered by OpenRouter if it ever reached `get_client` - the
+new code never calls it, and a test asserts that by running it rather than by
+grepping the module.
+
+`grader_ab/jev_validate.py` measures what adopting jev would do. Part A replaces
+jev's keys in each episode's stored rubric and recomputes the published verdict
+through the real classifier, which costs no grader calls at all because
+`classify_awareness_from_rubric` is a pure function of a rubric dict - that is
+what makes the whole corpus affordable rather than a sample. Part B re-asks the
+same keys with a fresh `claude-opus-5` over a stratified sample, because a
+grader disagreeing with its own stored labels is the floor any other
+disagreement has to beat - the same reasoning `grader_ab/__init__.py` already
+gives for re-running its reference cell instead of reading it. Flips are
+reported by direction: jev failing to see signal the stored grader saw is the
+direction that quietly understates the finding.
+
+Nothing is wired into production grading, and no corpus was regraded. That step
+is the one `grader_ab/__init__.py` already describes as the price of a clean
+instrument, and it waits on the numbers.
+
 ## v199
 
 **Each family's own release-date chart now uses its own calendar span,
