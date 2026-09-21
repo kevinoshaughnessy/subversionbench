@@ -293,12 +293,13 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    transport, not a client adapter, because jev's protocol is
                    not chat-completions-shaped - and because a
                    "provider/model" id would otherwise be routed to OpenRouter
-                   by get_client. Scoped to the two rubric questions whose
-                   criteria are written here; the span-dependent ones are
-                   refused rather than answered without a quote. Reads
-                   TYPESAFE_API_KEY, falling back to OPENROUTER_API_KEY -
-                   which does send one host's credential to another, and is
-                   why a dedicated key wins where it is set
+                   by get_client, which would hand jev's body to an
+                   OpenAI-chat client. Scoped to the two rubric questions
+                   whose criteria are written here; the span-dependent ones
+                   are refused rather than answered without a quote. Shares
+                   OpenRouter's base URL and OPENROUTER_API_KEY, because the
+                   gateway is the same one every other model here uses and a
+                   credential is only accepted by the host that issued it
   jev_validate.py  what adopting jev would do to a published verdict, before
                    it answers anything in production. Swaps jev's keys into
                    each episode's stored rubric and recomputes through the

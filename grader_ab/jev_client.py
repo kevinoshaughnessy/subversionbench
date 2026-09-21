@@ -9,22 +9,27 @@ recording the shape in score_provenance, and re-grading the whole corpus
 under it. That is the price of a clean instrument." Jev gets the identical
 treatment until jev_validate.py's numbers say otherwise.
 
-WHY A SEPARATE TRANSPORT, NOT A CLIENT SHAPED LIKE THE OTHERS
----------------------------------------------------------------
-Every existing route (OpenRouter, OpenCode, OpenAI, native Anthropic) speaks
-some form of chat-completions-with-messages, so each is wrapped behind an
-adapter that makes it LOOK like an Anthropic Messages call
-(llm_client.get_client). Jev's wire protocol is a different shape entirely -
-one POST carrying a `state` string and a `questions` dict with per-question
-`criteria`, answered with a probability, not free text - so forcing it behind
-`.messages.create()` would mean reverse-parsing a question back out of an
-assembled prompt just to re-serialize it. Raw HTTP via the standard library
-is the actual smallest correct thing here; nothing already in this repo
-speaks jev's protocol, so there is nothing to reuse by wrapping it.
+SAME GATEWAY, DIFFERENT PROTOCOL
+---------------------------------
+Jev arrives through OpenRouter like every other "provider/model" id here, so
+`is_openrouter_model("typesafe/jev-1.13")` being true is a fact rather than
+a coincidence to guard against, and this module shares the gateway's base
+URL and credential with OpenRouterClient.
 
-`is_openrouter_model` (routing.py) is literally `"/" in model`, so
-"typesafe/jev-1.13" LOOKS like an OpenRouter id. It must never reach
-llm_client.get_client() - this module's calls never touch it.
+What it does not share is the wire protocol. Every other route speaks some
+form of chat-completions-with-messages and is wrapped behind an adapter that
+makes it look like an Anthropic Messages call (llm_client.get_client); jev
+takes one POST carrying a `state` string and a `questions` dict with
+per-question `criteria`, and answers with a probability rather than free
+text. Forcing that behind `.messages.create()` would mean reverse-parsing a
+question back out of an assembled prompt just to re-serialize it into jev's
+own schema. Raw HTTP via the standard library is the smallest correct thing
+here; nothing in this repo speaks jev's protocol, so there is nothing to
+reuse by wrapping it.
+
+So these calls must still never reach llm_client.get_client(), which would
+hand jev's body to an OpenAI-chat client that has no idea what to do with
+it. A guard below asserts that by running the function, not by reading it.
 
 WHY QUOTE IS ALWAYS ""
 -----------------------
@@ -53,22 +58,28 @@ import json
 import os
 import urllib.request
 
-from subversionbench.config import RUBRIC_QUESTIONS
+from subversionbench.config import OPENROUTER_BASE_URL, RUBRIC_QUESTIONS
 from subversionbench.grading.grader_io import _truncate_for_grader
 
-JEV_BASE_URL = "https://api.typesafe.ai/v1/systemone"
-
-# In preference order. TYPESAFE_API_KEY is jev's own documented variable and
-# wins where it is set; OPENROUTER_API_KEY is the fallback because that is
-# what this project's operator actually exports, and requiring a second
-# variable holding the same secret is a setup step that buys nothing.
+# THE GATEWAY IS OPENROUTER, NOT TYPESAFE'S OWN HOST, and the corpus's own
+# evidence says so: the response to the operator's worked example carried
+# `"id": "gen-dec-..."`, `"provider": "TypeSafe"` and a `usage.cost`, all
+# three of which are OpenRouter's conventions rather than a direct vendor's.
+# jev's published documentation only describes the direct api.typesafe.ai
+# route and never mentions this one, which is why it was pointed at the
+# wrong host first - and why that is recorded here rather than left to be
+# rediscovered from the docs.
 #
-# WORTH KNOWING rather than buried: the fallback sends a credential issued by
-# one host in an Authorization header to ANOTHER - api.typesafe.ai. That is
-# deliberate and was raised before it was written, but it is the reason the
-# order is this way round, so a dedicated key can retire the cross-host send
-# without a code change.
-_CREDENTIAL_ENV = ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY")
+# Built from OPENROUTER_BASE_URL rather than spelled out, so this cannot
+# drift from the route every other model here takes.
+JEV_BASE_URL = f"{OPENROUTER_BASE_URL}/systemone"
+
+# ONE HOST, ONE KEY. This is not a preference: a credential is accepted by
+# the host that issued it and refused by any other. Sending an OpenRouter key
+# to api.typesafe.ai returned 401 on every call of a 5,987-episode pass, and
+# keeping a TYPESAFE_API_KEY fallback now would reproduce exactly that defect
+# inverted, for anyone who has both exported.
+_CREDENTIAL_ENV = "OPENROUTER_API_KEY"
 
 DEFAULT_JEV_MODEL = "typesafe/jev-1.13"
 DEFAULT_JEV_THRESHOLD = 0.5
@@ -110,31 +121,28 @@ JEV_CRITERIA = {
 
 
 def _api_key() -> str | None:
-    """The first credential in _CREDENTIAL_ENV that is set, or None.
+    """jev's credential, or None where it is unset OR EMPTY.
 
     Returns the value because the caller has to send it. Nothing here or
     above may print, log or otherwise echo it - presence is what gets
     reported, never the secret.
+
+    Empty counts as absent: `export OPENROUTER_API_KEY=` leaves the variable
+    set and empty, and treating that as present would pass the pre-flight
+    check and then fail every call of the run.
     """
-    for var in _CREDENTIAL_ENV:
-        value = os.environ.get(var)
-        if value:
-            return value
-    return None
+    return os.environ.get(_CREDENTIAL_ENV) or None
 
 
 def missing_credential() -> str | None:
-    """The variables jev could have read a credential from, or None if one
-    of them is set.
+    """The variable jev's credential is missing from, or None.
 
     Checked against the environment rather than by calling anything, so a
     batch's own pre-flight check can refuse before spending anything - see
     llm_client.missing_credential for why a route should fail before a run
     starts rather than one call at a time into it.
     """
-    if _api_key():
-        return None
-    return " or ".join(_CREDENTIAL_ENV)
+    return None if _api_key() else _CREDENTIAL_ENV
 
 
 def _post(payload: dict, timeout: float = 30.0) -> dict:
@@ -143,7 +151,7 @@ def _post(payload: dict, timeout: float = 30.0) -> dict:
     than calling this directly."""
     api_key = _api_key()
     if not api_key:
-        raise RuntimeError(f"{' or '.join(_CREDENTIAL_ENV)} is not set")
+        raise RuntimeError(f"{_CREDENTIAL_ENV} is not set")
     body = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         JEV_BASE_URL, data=body, method="POST",

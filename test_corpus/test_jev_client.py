@@ -187,52 +187,35 @@ class TestAKeyWithNoCriteriaIsRefused(unittest.TestCase):
 
 class TestTheCredentialIsCheckedNotRead(unittest.TestCase):
 
-    def test_missing_credential_names_both_variables_when_neither_is_set(self):
+    def test_missing_credential_names_the_variable_when_absent(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            named = jev.missing_credential()
-        assert "TYPESAFE_API_KEY" in named
-        assert "OPENROUTER_API_KEY" in named
+            assert jev.missing_credential() == "OPENROUTER_API_KEY"
 
-    def test_missing_credential_is_none_when_jevs_own_key_is_set(self):
-        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "x"},
-                             clear=True):
-            assert jev.missing_credential() is None
-
-    def test_the_openrouter_key_is_accepted_as_the_fallback(self):
-        """What the operator actually exports. Requiring a second variable
-        holding the same secret would be a setup step that buys nothing."""
+    def test_missing_credential_is_none_when_set(self):
         with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "x"},
                              clear=True):
             assert jev.missing_credential() is None
 
-    def test_jevs_own_key_wins_where_both_are_set(self):
-        """So a dedicated key can retire the cross-host send of an
-        OpenRouter credential without a code change."""
-        with mock.patch.dict(os.environ,
-                             {"TYPESAFE_API_KEY": "jevs-own",
-                              "OPENROUTER_API_KEY": "openrouters"},
-                             clear=True):
-            assert jev._api_key() == "jevs-own"
-
-    def test_the_fallback_is_used_only_when_jevs_own_key_is_absent(self):
-        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "openrouters"},
-                             clear=True):
-            assert jev._api_key() == "openrouters"
-
     def test_a_variable_set_to_empty_reads_as_missing(self):
-        """`export TYPESAFE_API_KEY=` leaves it set and empty. Counting that
-        as present would pass the pre-flight check and then fail every call
-        of the run - the exact shape llm_client.missing_credential exists to
-        stop, where a batch ran every episode against a key it never had."""
-        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": ""}, clear=True):
-            assert jev.missing_credential() is not None
-
-    def test_an_empty_first_variable_falls_through_to_the_second(self):
-        with mock.patch.dict(os.environ,
-                             {"TYPESAFE_API_KEY": "",
-                              "OPENROUTER_API_KEY": "openrouters"},
+        """`export OPENROUTER_API_KEY=` leaves it set and empty. Counting
+        that as present would pass the pre-flight check and then fail every
+        call of the run - the exact shape llm_client.missing_credential
+        exists to stop, where a batch ran every episode against a key it
+        never had."""
+        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": ""},
                              clear=True):
-            assert jev._api_key() == "openrouters"
+            assert jev.missing_credential() is not None
+            assert jev._api_key() is None
+
+    def test_a_typesafe_key_is_not_consulted_for_an_openrouter_host(self):
+        """A credential is accepted by the host that issued it and refused
+        by any other. Sending an OpenRouter key to api.typesafe.ai returned
+        401 on every call of a 5,987-episode pass; honouring TYPESAFE_API_KEY
+        now that the route IS OpenRouter would reproduce that inverted."""
+        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "wrong-host"},
+                             clear=True):
+            assert jev._api_key() is None
+            assert jev.missing_credential() == "OPENROUTER_API_KEY"
 
     def test_the_real_transport_refuses_before_opening_a_socket(self):
         """No key, no request: the failure has to happen here rather than as
@@ -254,7 +237,8 @@ class TestTheCredentialIsCheckedNotRead(unittest.TestCase):
             def read(self):
                 return json.dumps(_reply(mentioned_test=0.2)).encode("utf-8")
 
-        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "secret"}), \
+        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"},
+                               clear=True), \
                 mock.patch("urllib.request.urlopen",
                            return_value=_Body()) as urlopen:
             jev._post({"model": "m", "state": "s", "questions": {}})
@@ -265,16 +249,37 @@ class TestTheCredentialIsCheckedNotRead(unittest.TestCase):
         assert request.headers["Content-type"] == "application/json"
 
 
-class TestJevNeverRoutesThroughTheModelFactory(unittest.TestCase):
-    """`is_openrouter_model` is literally `"/" in model`, so
-    "typesafe/jev-1.13" looks exactly like an OpenRouter id. If a jev call
-    ever reached get_client it would be answered by OpenRouter, silently."""
+class TestTheCredentialMatchesTheHostItIsSentTo(unittest.TestCase):
+    """The defect that cost a 5,987-episode pass: the base URL named one
+    host and the credential was issued by another, so every call 401'd.
 
-    def test_the_default_model_id_would_be_misrouted_by_the_factory(self):
+    These two facts have to move together, which is why they are asserted
+    together rather than each being obviously right on its own."""
+
+    def test_the_gateway_is_openrouter_not_typesafes_own_host(self):
+        from subversionbench.config import OPENROUTER_BASE_URL
+        assert jev.JEV_BASE_URL.startswith(OPENROUTER_BASE_URL)
+
+    def test_the_credential_is_the_one_that_gateway_issues(self):
+        assert jev._CREDENTIAL_ENV == "OPENROUTER_API_KEY", (
+            "the key must be the one the host in JEV_BASE_URL issued - a "
+            "mismatch here is a 401 on every call, not a failure at startup")
+
+    def test_the_base_url_is_not_rebuilt_by_hand(self):
+        """Derived from the shared constant, so jev cannot drift onto a
+        different gateway than the rest of the harness."""
+        from subversionbench.config import OPENROUTER_BASE_URL
+        assert jev.JEV_BASE_URL == f"{OPENROUTER_BASE_URL}/systemone"
+
+
+class TestJevNeverRoutesThroughTheModelFactory(unittest.TestCase):
+    """Jev shares OpenRouter's gateway but NOT its protocol: get_client
+    returns an OpenAI-chat client, which would have no idea what to do with
+    jev's `state`/`questions` body."""
+
+    def test_the_model_id_really_is_an_openrouter_shaped_one(self):
         from subversionbench.routing import is_openrouter_model
-        assert is_openrouter_model(jev.DEFAULT_JEV_MODEL), (
-            "the hazard this module avoids has changed shape - re-read "
-            "whether get_client could now be reached safely")
+        assert is_openrouter_model(jev.DEFAULT_JEV_MODEL)
 
     def test_asking_jev_never_reaches_the_factory(self):
         """Asserted by running it, not by grepping the source: a guard that

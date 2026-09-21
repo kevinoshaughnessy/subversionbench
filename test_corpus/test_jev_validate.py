@@ -141,6 +141,109 @@ class TestPartACountsTheVerdictFlips(unittest.TestCase):
         assert per_key["n_unanswered"] == 1
 
 
+class TestABrokenRouteStopsRatherThanGrindingOn(unittest.TestCase):
+    """The incident this exists for: a base URL naming one host and a key
+    issued by another 401'd every call, and the tool walked 2,800 episodes
+    recording each as an unanswered question - which a summary renders as a
+    clean sheet rather than as a run that never happened."""
+
+    def _run(self, n_episodes, ask, abort_after=5):
+        with tempfile.TemporaryDirectory() as out:
+            for i in range(n_episodes):
+                _episode(out, i)
+            candidates = jv.sampling.load_candidates(out)
+            import contextlib
+            import io
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                records = jv.part_a(candidates, ["mentioned_test"], 0.5,
+                                    ask=ask, abort_after=abort_after)
+            return records, buf.getvalue()
+
+    def _always_failing(self, message="HTTP Error 401: Unauthorized"):
+        def ask(keys, corpus, threshold=0.5):
+            return {k: {"answer": None, "quote": "", "error": message}
+                    for k in keys}
+        return ask
+
+    def test_it_gives_up_instead_of_walking_the_whole_corpus(self):
+        records, _ = self._run(40, self._always_failing(), abort_after=5)
+        assert len(records) == 5, (
+            "every call failed, so the remaining 35 episodes were known to "
+            "fail identically before they were made")
+
+    def test_it_reports_the_reason_once_rather_than_per_episode(self):
+        _, printed = self._run(40, self._always_failing())
+        assert printed.count("HTTP Error 401: Unauthorized") == 1
+        assert "ABORTING" in printed
+
+    def test_a_working_route_is_not_aborted(self):
+        """The count is a route check, not a tolerance - it must not fire on
+        a run that is answering."""
+        records, printed = self._run(20, _jev_saying(mentioned_test=False))
+        assert len(records) == 20
+        assert "ABORTING" not in printed
+
+    def test_a_failure_after_the_opening_run_is_recorded_not_aborted(self):
+        """Sporadic later failures are unanswered questions, which is what
+        summarise_part_a already excludes honestly."""
+        calls = {"n": 0}
+
+        def ask(keys, corpus, threshold=0.5):
+            calls["n"] += 1
+            if calls["n"] > 6:
+                return {k: {"answer": None, "quote": "", "error": "flaky"}
+                        for k in keys}
+            return {k: {"answer": False, "quote": "", "error": None}
+                    for k in keys}
+
+        records, printed = self._run(20, ask)
+        assert len(records) == 20
+        assert "ABORTING" not in printed
+
+
+class TestTheSmokeTestCap(unittest.TestCase):
+    """--max-episodes: proving the route answers at all should cost a
+    handful of calls, not a pass over the whole corpus."""
+
+    def test_it_caps_part_a_from_the_front(self):
+        candidates = [{"run": f"r{i}"} for i in range(10)]
+        assert len(jv._part_a_episodes(candidates, 3)) == 3
+        assert jv._part_a_episodes(candidates, 3)[0]["run"] == "r0"
+
+    def test_no_cap_walks_everything(self):
+        candidates = [{"run": f"r{i}"} for i in range(10)]
+        assert len(jv._part_a_episodes(candidates, None)) == 10
+
+    def test_a_cap_above_the_corpus_size_is_harmless(self):
+        candidates = [{"run": "r0"}]
+        assert len(jv._part_a_episodes(candidates, 500)) == 1
+
+
+class TestPartBIsNotRunWithoutAPartAToReadAgainstIt(unittest.TestCase):
+
+    def test_a_part_a_that_answered_nothing_skips_the_paid_floor(self):
+        """A noise floor is only meaningful beside a rate. Spending real
+        grader money to measure one for an empty result buys nothing."""
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 1)
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test"]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x",
+                                     "ANTHROPIC_API_KEY": "y"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev",
+                                      lambda keys, corpus, threshold=0.5: {
+                                          k: {"answer": None, "quote": "",
+                                              "error": "HTTP Error 401"}
+                                          for k in keys}), \
+                    mock.patch.object(jv, "part_b") as part_b:
+                code = jv.main()
+        assert code == 1
+        part_b.assert_not_called()
+
+
 class TestPartBIsTheSameDayNoiseFloor(unittest.TestCase):
 
     def _floor(self, stored_answer, fresh_answer):
@@ -205,7 +308,7 @@ class TestTheRunRefusesBeforeItSpends(unittest.TestCase):
     def test_an_empty_directory_is_refused(self):
         with tempfile.TemporaryDirectory() as out:
             assert self._main(["--output-dir", out],
-                              {"TYPESAFE_API_KEY": "x",
+                              {"OPENROUTER_API_KEY": "x",
                                "ANTHROPIC_API_KEY": "y"}) == 1
 
     def test_a_missing_credential_stops_it_before_part_a(self):
@@ -215,7 +318,7 @@ class TestTheRunRefusesBeforeItSpends(unittest.TestCase):
             _episode(out, 1)
             with mock.patch.object(jv, "part_a") as part_a:
                 code = self._main(["--output-dir", out],
-                                  {"TYPESAFE_API_KEY": "x"})   # no anthropic
+                                  {"OPENROUTER_API_KEY": "x"})   # no anthropic
             assert code == 1
             part_a.assert_not_called()
 
@@ -339,7 +442,7 @@ class TestAWholeRunEndToEnd(unittest.TestCase):
                             ["jev_validate", "--output-dir", out,
                              "--keys", "mentioned_test", "--per-model", "1"]), \
                     mock.patch.dict(os.environ,
-                                    {"TYPESAFE_API_KEY": "x",
+                                    {"OPENROUTER_API_KEY": "x",
                                      "ANTHROPIC_API_KEY": "y"}, clear=True), \
                     mock.patch.object(jv, "ask_rubric_questions_jev",
                                       _jev_saying(mentioned_test=False)), \

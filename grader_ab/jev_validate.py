@@ -65,6 +65,13 @@ PRIOR_OPUS5_SELF_DISAGREEMENT = {
     "referenced_system_prompt": 0 / 115,
 }
 
+# How many opening episodes may answer NOTHING before Part A gives up. A
+# broken route fails every call the same way, so this is a route check rather
+# than a tolerance: past the opening run the count is never consulted again,
+# and sporadic failures later are recorded as unanswered questions the way
+# they should be.
+_ABORT_AFTER_CONSECUTIVE_FAILURES = 5
+
 # Part A writes after every this-many episodes rather than only at the end.
 # The corpus is thousands of episodes and a killed run should keep what it
 # already paid for - the same reasoning as cli.py's per-cell save, at the
@@ -93,6 +100,12 @@ def _build_parser():
                         help="models to draw double from in Part B")
     parser.add_argument("--limit", type=int, default=None,
                         help="cap Part B's sample, round-robin across models")
+    parser.add_argument("--max-episodes", type=int, default=None,
+                        help="cap Part A at this many episodes. For proving "
+                             "the route works on a handful of real calls "
+                             "before committing to the whole corpus - a wrong "
+                             "base URL or key 401s every call, and that is "
+                             "cheaper to discover at 3 episodes than at 5,987")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the episode and call counts, make no calls")
     return parser
@@ -116,7 +129,8 @@ def _swapped_rubric(stored: dict, jev_answers: dict, keys) -> dict:
 
 
 def part_a(candidates, keys, threshold, ask=None,
-           save_path=None, save_every=_SAVE_EVERY, progress=None) -> list:
+           save_path=None, save_every=_SAVE_EVERY, progress=None,
+           abort_after=_ABORT_AFTER_CONSECUTIVE_FAILURES) -> list:
     """Every episode: jev's answers, and the verdict they would produce.
 
     `ask` is injectable so a test can supply jev's side without a network
@@ -125,6 +139,13 @@ def part_a(candidates, keys, threshold, ask=None,
     would leave the real, paid, networked client in place and a test
     believing it had stubbed it - the same reason test_project/test_init.py
     insists a stub point resolves at call time in the module that owns it.
+
+    STOPS EARLY IF THE ROUTE IS UNUSABLE. A wrong base URL or a key the
+    gateway did not issue fails every call identically, and this walked 2,800
+    episodes of `HTTP Error 401` before a human noticed - each one duly
+    recorded as an unanswered question, which a summary renders as a clean
+    sheet rather than as a run that never happened. grader_ab/cli.py already
+    aborts its cells for exactly this reason; this had not inherited it.
     """
     ask = ask or ask_rubric_questions_jev
     records = []
@@ -154,7 +175,30 @@ def part_a(candidates, keys, threshold, ask=None,
             progress(i, len(candidates))
         if save_path and save_every and i % save_every == 0:
             _save(save_path, {"part_a_records": records, "complete": False})
+        if (abort_after and i >= abort_after
+                and all(_every_question_failed(r) for r in records)):
+            print(f"\n  ABORTING: the first {i} episode(s) answered nothing. "
+                  f"One reason, reported once:")
+            print(f"    {_first_error(records)}")
+            print("  The route is refusing every call rather than this being "
+                  "a run with\n  findings - check JEV_BASE_URL and that the "
+                  "credential was issued by\n  that host. Nothing further was "
+                  "called.")
+            break
     return records
+
+
+def _every_question_failed(record) -> bool:
+    return all(v["jev_error"] is not None
+               for v in record["per_key"].values())
+
+
+def _first_error(records) -> str:
+    for r in records:
+        for v in r["per_key"].values():
+            if v["jev_error"]:
+                return v["jev_error"]
+    return "no error recorded"
 
 
 def summarise_part_a(records, keys) -> dict:
@@ -289,14 +333,30 @@ def _print_report(summary_a, summary_b, keys, n_episodes, n_sample) -> None:
           "understates the\n  finding, so it is worth more than the total.")
 
 
+def _part_a_episodes(candidates, max_episodes):
+    """The episodes Part A actually walks.
+
+    Capped from the FRONT rather than sampled: --max-episodes exists to prove
+    the route answers at all, and a smoke test wants the fewest calls that
+    can show a 401, not a representative draw.
+    """
+    if max_episodes is None:
+        return candidates
+    return candidates[:max_episodes]
+
+
 def _print_plan(args, candidates, keys) -> None:
     sample = sampling.stratified_sample(candidates, args.per_model,
                                         oversample=set(args.oversample),
                                         limit=args.limit)
+    walked = _part_a_episodes(candidates, args.max_episodes)
+    capped = ("" if args.max_episodes is None
+              else f"   (capped from {len(candidates)} by --max-episodes)")
     print(f"{len(candidates)} episode(s) with a stored verdict in "
           f"{redact_paths(args.output_dir)}/")
-    print(f"  Part A  {len(candidates):5} jev call(s)        "
-          f"({len(keys)} question(s) each, one batched call per episode)")
+    print(f"  Part A  {len(walked):5} jev call(s)        "
+          f"({len(keys)} question(s) each, one batched call per "
+          f"episode){capped}")
     print(f"  Part B  {len(sample) * len(keys):5} {NOISE_FLOOR_MODEL} call(s)  "
           f"({len(sample)} episode(s) x {len(keys)} question(s))")
     print("\n--dry-run: nothing was called. Drop the flag to run it.")
@@ -336,13 +396,23 @@ def main():
     def tick(i, n):
         print(f"\r    {i}/{n} episode(s)   ", end="", flush=True)
 
-    print(f"\nPart A: {len(candidates)} episode(s) through jev")
-    records = part_a(candidates, keys, args.threshold, save_path=path,
+    walked = _part_a_episodes(candidates, args.max_episodes)
+    print(f"\nPart A: {len(walked)} episode(s) through jev")
+    records = part_a(walked, keys, args.threshold, save_path=path,
                      progress=tick)
     summary_a = summarise_part_a(records, keys)
     print()
     _save(path, {**header, "part_a_summary": summary_a,
                  "part_a_records": records, "complete": False})
+
+    # Part B is a floor for Part A to be read against. With nothing answered
+    # there is no number to hold against it, so spending real grader money on
+    # one would buy a reading of an empty result.
+    if not any(p["compared"] for p in summary_a["per_key"].values()):
+        print(f"\nPart A answered nothing, so Part B was not run - a noise "
+              f"floor is only meaningful\nbeside a rate to read against it. "
+              f"Partial records saved to {redact_paths(path)}.")
+        return 1
 
     print(f"Part B: the same keys, fresh {NOISE_FLOOR_MODEL}")
     sample, fresh, usage = part_b(candidates, keys, args.per_model,

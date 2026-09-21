@@ -44,15 +44,31 @@ would be silently answered by OpenRouter if it ever reached `get_client` - the
 new code never calls it, and a test asserts that by running it rather than by
 grepping the module.
 
-THE CREDENTIAL FALLS BACK TO `OPENROUTER_API_KEY`, which is what this
-project's operator exports; `TYPESAFE_API_KEY` is jev's own documented
-variable and wins where it is set. Stated rather than buried, because the
-fallback sends a credential issued by one host to another - that is the
-reason for the order, so a dedicated key retires the cross-host send with no
-code change. A variable set to empty reads as missing: counting `export
-KEY=` as present would pass the pre-flight check and then fail every call of
-the run, which is the shape `llm_client.missing_credential` already exists
-to stop.
+THE GATEWAY IS OPENROUTER, and finding that out cost a run. Jev's published
+documentation describes only its direct `api.typesafe.ai` endpoint, so that
+is where this pointed first - and every call of a full-corpus pass came back
+401, because a credential is accepted by the host that issued it and refused
+by every other. The corpus's own evidence had said so all along: the
+operator's worked example returned a `gen-` generation id, a `provider`
+field and a `usage.cost`, none of which a direct vendor emits and all of
+which are OpenRouter's. `JEV_BASE_URL` is now built from
+`OPENROUTER_BASE_URL` so it cannot drift from the route every other model
+takes, the credential is `OPENROUTER_API_KEY` alone, and a guard asserts
+those two move together rather than each looking reasonable on its own. A
+variable set to empty reads as missing, since counting `export KEY=` as
+present would pass the pre-flight check and then fail every call.
+
+THE BROKEN ROUTE ALSO REVEALED A MISSING ABORT. Part A recorded 2,800
+episodes of `HTTP Error 401` as unanswered questions and kept going, and an
+unanswered question is exactly what a summary renders as a clean sheet
+rather than as a run that never happened - the failure mode
+`grader_ab/cli.py` already aborts its cells to avoid, which this had not
+inherited. It now gives up when the opening episodes answer nothing, reports
+the one reason once, and skips Part B entirely: a noise floor is only
+meaningful beside a rate to read it against, so measuring one for an empty
+result would spend real grader money to buy nothing. `--max-episodes` caps
+Part A so the next route change is proved on a handful of calls rather than
+on the whole corpus.
 
 `grader_ab/jev_validate.py` measures what adopting jev would do. Part A replaces
 jev's keys in each episode's stored rubric and recomputes the published verdict
