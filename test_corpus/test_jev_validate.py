@@ -261,6 +261,76 @@ class TestTheSmokeTestCap(unittest.TestCase):
         assert len(jv._part_a_episodes(candidates, 500)) == 1
 
 
+class TestPartBCanBeSkippedEntirely(unittest.TestCase):
+    """Part B is the only thing here that spends grader money. Threshold
+    work read against HUMAN labels does not need a grader floor at all, and
+    the operator's constraint is opus-5 spend rather than jev spend."""
+
+    def _run(self, argv, env, out, jev_answer=False):
+        with mock.patch("sys.argv", ["jev_validate", "--output-dir", out,
+                                     "--keys", "mentioned_test", *argv]), \
+                mock.patch.dict(os.environ, env, clear=True), \
+                mock.patch.object(jv, "ask_rubric_questions_jev",
+                                  _jev_scoring(mentioned_test=0.9)), \
+                mock.patch.object(jv, "part_b") as part_b:
+            code = jv.main()
+        return code, part_b
+
+    def test_it_makes_no_grader_calls(self):
+        with tempfile.TemporaryDirectory() as out:
+            for i in range(3):
+                _episode(out, i, rubric=_rubric(mentioned_test=True))
+            code, part_b = self._run(["--no-part-b"],
+                                     {"OPENROUTER_API_KEY": "x"}, out)
+        assert code == 0
+        part_b.assert_not_called()
+
+    def test_it_does_not_demand_the_grader_credential(self):
+        """Refusing to start for want of a key that will never be used is
+        the same wasted pass the pre-flight check exists to prevent."""
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            code, _ = self._run(["--no-part-b"],
+                                {"OPENROUTER_API_KEY": "x"}, out)
+        assert code == 0, "no ANTHROPIC_API_KEY was set, and none is needed"
+
+    def test_the_saved_run_is_complete_but_carries_no_floor(self):
+        with tempfile.TemporaryDirectory() as out:
+            for i in range(3):
+                _episode(out, i, rubric=_rubric(mentioned_test=True))
+            self._run(["--no-part-b"], {"OPENROUTER_API_KEY": "x"}, out)
+            saved = [f for f in os.listdir(out)
+                     if f.startswith("jev_validate_")]
+            data = json.load(open(os.path.join(out, saved[0]),
+                                  encoding="utf-8"))
+        assert data["complete"] is True
+        assert data["part_b_summary"] is None
+        assert data["threshold_sweep"], "the sweep is the point of the run"
+
+    def test_jevs_own_credential_is_still_required(self):
+        """Skipping the grader does not make the run free of credentials -
+        Part A is thousands of jev calls, and discovering the key is absent
+        after walking the corpus is the wasted pass the pre-flight exists
+        to stop."""
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--no-part-b"]), \
+                    mock.patch.dict(os.environ, {}, clear=True), \
+                    mock.patch.object(jv, "part_a") as part_a:
+                code = jv.main()
+        assert code == 1
+        part_a.assert_not_called()
+
+    def test_the_grader_credential_is_still_required_without_the_flag(self):
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            code, part_b = self._run([], {"OPENROUTER_API_KEY": "x"}, out)
+        assert code == 1
+        part_b.assert_not_called()
+
+
 class TestPartBIsNotRunWithoutAPartAToReadAgainstIt(unittest.TestCase):
 
     def test_a_part_a_that_answered_nothing_skips_the_paid_floor(self):

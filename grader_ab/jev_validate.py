@@ -101,6 +101,13 @@ def _build_parser():
                         help="models to draw double from in Part B")
     parser.add_argument("--limit", type=int, default=None,
                         help="cap Part B's sample, round-robin across models")
+    parser.add_argument("--no-part-b", action="store_true",
+                        help="skip the fresh claude-opus-5 noise floor and "
+                             "collect jev's scores alone. Part B is the only "
+                             "thing here that spends grader money; threshold "
+                             "work read against HUMAN labels does not need "
+                             "it, and a floor measured last week is still a "
+                             "floor for comparing two jev wordings")
     parser.add_argument("--max-episodes", type=int, default=None,
                         help="cap Part A at this many episodes. For proving "
                              "the route works on a handful of real calls "
@@ -549,8 +556,10 @@ def main():
     # Both credentials checked before either part spends anything: Part B's
     # sample is real money, and discovering its key is absent only after Part
     # A has finished is a wasted pass over the whole corpus.
-    absent = [v for v in (missing_credential(),
-                          llm_client.missing_credential(NOISE_FLOOR_MODEL)) if v]
+    needed = [missing_credential()]
+    if not args.no_part_b:
+        needed.append(llm_client.missing_credential(NOISE_FLOOR_MODEL))
+    absent = [v for v in needed if v]
     if absent:
         for var in absent:
             print(f"{var} is not set")
@@ -582,6 +591,21 @@ def main():
     print()
     _save(path, {**header, "part_a_summary": summary_a,
                  "part_a_records": records, "complete": False})
+
+    if args.no_part_b:
+        sweep = sweep_thresholds(records, keys)
+        chosen = threshold_on_a_holdout(records, keys)
+        _print_sweep(sweep, keys, {})
+        _print_holdout(chosen, {}, keys)
+        _save(path, {**header, "part_a_summary": summary_a,
+                     "part_a_records": records, "threshold_sweep": sweep,
+                     "threshold_on_a_holdout": chosen,
+                     "part_b_summary": None, "complete": True})
+        print(f"\nSaved to {redact_paths(path)}")
+        print("  Part B skipped, so no same-day noise floor was measured - "
+              "the rates above\n  have nothing to be read against except "
+              "human labels.")
+        return 0
 
     # Part B is a floor for Part A to be read against. With nothing answered
     # there is no number to hold against it, so spending real grader money on

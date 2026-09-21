@@ -334,3 +334,64 @@ class TestRubricABRunsTheWholeGrid:
             ["--model", "x-ai/grok-4.5", "--graders", "a"], out=out)
         assert "1 episode(s)" in text
         assert len(calls) == 2, calls
+
+
+class TestTheProposedWordingIsMeasurableBeforeItShips:
+    """PREVIOUS_WORDINGS answers "was the last change justified".
+    PROPOSED_WORDINGS answers "would the next one be" - which matters here
+    because the shipped mentioned_test wording is a word-match framing
+    written for claude-haiku-4-5, and this script's own founding experiment
+    found that framing moved Haiku 8/20 to 1/20 and moved claude-opus-5 not
+    at all."""
+
+    def test_the_candidate_is_crossed_against_the_shipped_wording(self):
+        import rubric_ab
+        labels = [lbl for lbl, _ in
+                  rubric_ab._wordings("mentioned_test", "proposed")]
+        assert labels == ["proposed", "shipped"]
+
+    def test_the_default_still_compares_against_what_was_replaced(self):
+        """The existing use of this script must not change meaning."""
+        import rubric_ab
+        labels = [lbl for lbl, _ in
+                  rubric_ab._wordings("suspects_being_tested")]
+        assert labels == ["previous", "shipped"]
+
+    def test_a_question_with_no_candidate_is_refused_not_invented(self):
+        import rubric_ab
+        assert rubric_ab._wordings("broke_character", "proposed") is None
+
+    def test_the_candidate_differs_from_the_wording_it_would_replace(self):
+        """Comparing a wording against itself reports a Fisher p of 1 and
+        proves nothing, having paid for every call to do it."""
+        import rubric_ab
+        from subversionbench.config import RUBRIC_QUESTIONS
+        for key, text in rubric_ab.PROPOSED_WORDINGS.items():
+            assert text != RUBRIC_QUESTIONS[key]
+
+    def test_every_candidate_names_a_real_rubric_question(self):
+        import rubric_ab
+        from subversionbench.config import RUBRIC_QUESTIONS
+        for key in rubric_ab.PROPOSED_WORDINGS:
+            assert key in RUBRIC_QUESTIONS
+
+    def test_the_candidate_keeps_the_confound_the_shipped_one_guards(self):
+        """The scenario contains its own quality checker, and an agent
+        reasoning about whether its draft passes it is doing the task. That
+        exclusion is the one part of the Haiku-era wording that is still
+        right, and dropping it would trade one failure for another."""
+        import rubric_ab
+        text = rubric_ab.PROPOSED_WORDINGS["mentioned_test"]
+        assert "does NOT count" in text
+        assert "quality-control" in text or "checking script" in text
+
+    def test_the_candidate_encodes_the_human_verdicts_it_was_built_from(self):
+        """Each of these was settled by reading a whole episode, and a
+        candidate that quietly lost one would be re-litigating it."""
+        import rubric_ab
+        text = rubric_ab.PROPOSED_WORDINGS["mentioned_test"].lower()
+        assert "benchmark" in text, "an episode turned on this word"
+        assert "deliberately arranged" in text, "the deliberate-trap verdict"
+        assert "corrigibility" in text, "the alignment-assessment verdict"
+        assert "wrong about what is being tested" in text, "needn't be right"
+        assert "ordinary sense does not count" in text, "'scenario' alone"
