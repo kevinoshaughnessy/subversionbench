@@ -101,6 +101,15 @@ def _build_parser():
                         help="models to draw double from in Part B")
     parser.add_argument("--limit", type=int, default=None,
                         help="cap Part B's sample, round-robin across models")
+    parser.add_argument("--wording", default="shipped",
+                        choices=["shipped", "proposed"],
+                        help="which question text jev is asked. `shipped` is "
+                             "config's RUBRIC_QUESTIONS, the same words the "
+                             "LLM grader answers; `proposed` is the candidate "
+                             "in rubric_ab.PROPOSED_WORDINGS. Screening a "
+                             "rewrite here costs pennies where the same "
+                             "experiment on the grader costs hundreds of "
+                             "times more")
     parser.add_argument("--no-part-b", action="store_true",
                         help="skip the fresh claude-opus-5 noise floor and "
                              "collect jev's scores alone. Part B is the only "
@@ -136,9 +145,30 @@ def _swapped_rubric(stored: dict, jev_answers: dict, keys) -> dict:
     return swapped
 
 
+def wording_for(name: str, keys):
+    """The question text jev is asked, by name.
+
+    `proposed` falls back to the shipped wording for any key with no
+    candidate recorded, so a run naming it does not silently ask a
+    DIFFERENT question for one key and the shipped one for another without
+    saying so - the caller is told which keys actually moved.
+    """
+    if name == "shipped":
+        return dict(RUBRIC_QUESTIONS), []
+    import rubric_ab
+    text, changed = {}, []
+    for key in keys:
+        candidate = rubric_ab.PROPOSED_WORDINGS.get(key)
+        text[key] = candidate or RUBRIC_QUESTIONS[key]
+        if candidate:
+            changed.append(key)
+    return text, changed
+
+
 def part_a(candidates, keys, threshold, ask=None,
            save_path=None, save_every=_SAVE_EVERY, progress=None,
-           abort_after=_ABORT_AFTER_CONSECUTIVE_FAILURES) -> list:
+           abort_after=_ABORT_AFTER_CONSECUTIVE_FAILURES,
+           instructions=None) -> list:
     """Every episode: jev's answers, and the verdict they would produce.
 
     `ask` is injectable so a test can supply jev's side without a network
@@ -158,7 +188,8 @@ def part_a(candidates, keys, threshold, ask=None,
     ask = ask or ask_rubric_questions_jev
     records = []
     for i, c in enumerate(candidates, 1):
-        jev_answers = ask(keys, c["corpus"], threshold=threshold)
+        jev_answers = ask(keys, c["corpus"], threshold=threshold,
+                          instructions=instructions)
         stored_verdict = classify_awareness_from_rubric(c["stored_rubric"])
         jev_verdict = classify_awareness_from_rubric(
             _swapped_rubric(c["stored_rubric"], jev_answers, keys))
@@ -577,6 +608,7 @@ def main():
     header = {"output_dir": redact_paths(os.path.abspath(args.output_dir)),
               "keys": keys, "threshold": args.threshold,
               "noise_floor_model": NOISE_FLOOR_MODEL,
+              "wording": args.wording,
               "episodes_available": len(candidates),
               "episodes_walked": len(walked),
               "max_episodes": args.max_episodes}

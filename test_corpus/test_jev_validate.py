@@ -43,7 +43,7 @@ def _episode(out, n, model="p/m", rubric=None, aware=False,
 
 def _jev_saying(**answers):
     """A stand-in for jev that answers the same way every episode."""
-    def ask(keys, corpus, threshold=0.5):
+    def ask(keys, corpus, threshold=0.5, instructions=None):
         return {k: {"answer": answers.get(k), "quote": "",
                     "error": None if k in answers else "no score"}
                 for k in keys}
@@ -161,7 +161,7 @@ class TestABrokenRouteStopsRatherThanGrindingOn(unittest.TestCase):
             return records, buf.getvalue()
 
     def _always_failing(self, message="HTTP Error 401: Unauthorized"):
-        def ask(keys, corpus, threshold=0.5):
+        def ask(keys, corpus, threshold=0.5, instructions=None):
             return {k: {"answer": None, "quote": "", "error": message}
                     for k in keys}
         return ask
@@ -189,7 +189,7 @@ class TestABrokenRouteStopsRatherThanGrindingOn(unittest.TestCase):
         summarise_part_a already excludes honestly."""
         calls = {"n": 0}
 
-        def ask(keys, corpus, threshold=0.5):
+        def ask(keys, corpus, threshold=0.5, instructions=None):
             calls["n"] += 1
             if calls["n"] > 6:
                 return {k: {"answer": None, "quote": "", "error": "flaky"}
@@ -259,6 +259,73 @@ class TestTheSmokeTestCap(unittest.TestCase):
     def test_a_cap_above_the_corpus_size_is_harmless(self):
         candidates = [{"run": "r0"}]
         assert len(jv._part_a_episodes(candidates, 500)) == 1
+
+
+class TestJevCanBeAskedACandidateWording(unittest.TestCase):
+    """jev's instructions default to config's RUBRIC_QUESTIONS - the same
+    words the LLM grader answers - which makes jev the cheap place to screen
+    a rewrite. The same experiment on claude-opus-5 costs hundreds of times
+    more."""
+
+    def test_shipped_asks_exactly_what_the_grader_is_asked(self):
+        from subversionbench.config import RUBRIC_QUESTIONS
+        text, changed = jv.wording_for("shipped", ["mentioned_test"])
+        assert text["mentioned_test"] == RUBRIC_QUESTIONS["mentioned_test"]
+        assert changed == []
+
+    def test_proposed_asks_the_candidate_where_one_exists(self):
+        from subversionbench.config import RUBRIC_QUESTIONS
+        text, changed = jv.wording_for("proposed", ["mentioned_test"])
+        assert text["mentioned_test"] != RUBRIC_QUESTIONS["mentioned_test"]
+        assert changed == ["mentioned_test"]
+
+    def test_a_key_with_no_candidate_keeps_the_shipped_wording(self):
+        """And is reported as unchanged, so a run does not silently ask a
+        different question for one key and the shipped one for another."""
+        from subversionbench.config import RUBRIC_QUESTIONS
+        keys = ["mentioned_test", "referenced_system_prompt"]
+        text, changed = jv.wording_for("proposed", keys)
+        assert text["referenced_system_prompt"] == \
+            RUBRIC_QUESTIONS["referenced_system_prompt"]
+        assert "referenced_system_prompt" not in changed
+
+    def test_the_wording_actually_reaches_the_call(self):
+        """A flag that changed nothing on the wire would report the two
+        wordings as identical and read as 'the question does not matter'."""
+        seen = {}
+
+        def ask(keys, corpus, threshold=0.5, instructions=None):
+            seen.update(instructions or {})
+            return {k: {"answer": False, "noul": 0.1, "quote": "",
+                        "error": None} for k in keys}
+
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 1, rubric=_rubric())
+            candidates = jv.sampling.load_candidates(out)
+            text, _ = jv.wording_for("proposed", ["mentioned_test"])
+            jv.part_a(candidates, ["mentioned_test"], 0.5, ask=ask,
+                      instructions=text)
+        assert seen["mentioned_test"] == text["mentioned_test"]
+
+    def test_the_saved_run_records_which_wording_it_asked(self):
+        """Two runs differing only in wording are otherwise indistinguishable
+        on disk, and comparing them is the whole point."""
+        with tempfile.TemporaryDirectory() as out:
+            _episode(out, 0, rubric=_rubric(mentioned_test=True))
+            with mock.patch("sys.argv",
+                            ["jev_validate", "--output-dir", out,
+                             "--keys", "mentioned_test", "--no-part-b",
+                             "--wording", "proposed"]), \
+                    mock.patch.dict(os.environ,
+                                    {"OPENROUTER_API_KEY": "x"}, clear=True), \
+                    mock.patch.object(jv, "ask_rubric_questions_jev",
+                                      _jev_scoring(mentioned_test=0.9)):
+                assert jv.main() == 0
+            saved = [f for f in os.listdir(out)
+                     if f.startswith("jev_validate_")]
+            data = json.load(open(os.path.join(out, saved[0]),
+                                  encoding="utf-8"))
+        assert data["wording"] == "proposed"
 
 
 class TestPartBCanBeSkippedEntirely(unittest.TestCase):
@@ -345,7 +412,8 @@ class TestPartBIsNotRunWithoutAPartAToReadAgainstIt(unittest.TestCase):
                                     {"OPENROUTER_API_KEY": "x",
                                      "ANTHROPIC_API_KEY": "y"}, clear=True), \
                     mock.patch.object(jv, "ask_rubric_questions_jev",
-                                      lambda keys, corpus, threshold=0.5: {
+                                      lambda keys, corpus, threshold=0.5,
+                                      instructions=None: {
                                           k: {"answer": None, "quote": "",
                                               "error": "HTTP Error 401"}
                                           for k in keys}), \
@@ -362,7 +430,7 @@ def _jev_scoring(**scores):
     same shape the real client returns when a question comes back without a
     numeric score.
     """
-    def ask(keys, corpus, threshold=0.5):
+    def ask(keys, corpus, threshold=0.5, instructions=None):
         out = {}
         for k in keys:
             score = scores.get(k)

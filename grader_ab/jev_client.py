@@ -188,7 +188,8 @@ def _post(payload: dict, timeout: float = 30.0) -> dict:
 
 def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
                              threshold=None,
-                             post=_post, criteria=None) -> dict:
+                             post=_post, criteria=None,
+                             instructions=None) -> dict:
     """
     Put some of JEV_CRITERIA's questions to jev, in one batched call.
 
@@ -206,12 +207,19 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
     `post` is injectable so a test can stand in for the network without a
     real credential or a real socket; it defaults to the real transport.
 
+    `instructions` overrides the question text jev is asked, which defaults
+    to config's RUBRIC_QUESTIONS - the same words the LLM grader answers. It
+    is a parameter because jev is the cheap place to test a rubric rewrite:
+    the same experiment on claude-opus-5 costs hundreds of times more, so a
+    candidate wording can be screened here first and confirmed there once.
+
     Each answered key also carries `noul`, the raw score the verdict was
     thresholded from, so a threshold can be re-chosen from saved results
     instead of by paying for every call again. None where the question was
     not answered.
     """
     criteria = JEV_CRITERIA if criteria is None else criteria
+    instructions = RUBRIC_QUESTIONS if instructions is None else instructions
     unknown = [k for k in keys if k not in criteria]
     if unknown:
         raise ValueError(f"jev has no criteria for: {unknown}")
@@ -220,7 +228,7 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
     questions = {
         key: {
             "type": "noul",
-            "instructions": RUBRIC_QUESTIONS[key],
+            "instructions": instructions[key],
             "criteria": criteria[key],
         }
         for key in keys

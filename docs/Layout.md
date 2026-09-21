@@ -337,7 +337,13 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    actually moves the published rate. 87.5% of aware
                    episodes fire two or more, so one wrong answer there
                    changes nothing; the rest are few enough to adjudicate
-                   exhaustively rather than sample
+                   exhaustively rather than sample. And draws episodes
+                   STRATIFIED BY JEV'S SCORE through the crossover, which is
+                   what a threshold needs and what disagreement-drawn labels
+                   cannot give: those carry whatever class balance the
+                   disagreements happened to have, so a cut that fires on
+                   everything scores well on a mostly-true set without
+                   reading anything
   cli.py           the sample, the cells, the abort, and the advice
 restage_model.py   copy one model's poolable episodes from an older results
                    directory into a newer one, so report/trends/arms_summary

@@ -239,3 +239,87 @@ class TestTheScoreboardIsHonestAboutWhatItMeasures(unittest.TestCase):
         out = self._printed({"jev_right": 1, "llm_right": 2, "settled": 3,
                              "unsettled": 1, "unlabelled": 3})
         assert "not yet judged" in out
+
+
+class TestSamplingByScoreRatherThanByDisagreement(unittest.TestCase):
+    """Labels drawn from disagreements cannot set a threshold: their class
+    mix is whatever the disagreements happened to be, so a cut that fires on
+    everything scores well on a mostly-true set and one that never fires
+    scores well on a mostly-false set. Both look like accuracy. Sampling by
+    score removes that by giving every band the same weight."""
+
+    def _validate_file(self, out, scores, key="mentioned_test"):
+        """A jev_validate result carrying one record per score."""
+        import os
+        records = []
+        for i, noul in enumerate(scores):
+            run = f"run_{i}_p_m_s_2026.json"
+            _episode(out, i, fired=[key])
+            records.append({"run": run, "model": "p/m",
+                            "per_key": {key: {"stored": True, "jev": True,
+                                              "noul": noul,
+                                              "jev_error": None}}})
+        path = os.path.join(out, "validate.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"part_a_records": records}, f)
+        return path
+
+    def test_every_band_contributes_the_same_number(self):
+        """The property that makes this usable for a threshold at all."""
+        with tempfile.TemporaryDirectory() as out:
+            vf = self._validate_file(
+                out, [0.16, 0.17, 0.18, 0.19, 0.26, 0.27, 0.28, 0.29])
+            got = g.stratified_by_score(out, vf, "mentioned_test",
+                                        per_band=2, lo=0.15, hi=0.35)
+        bands = sorted({round(c["band"], 2) for c in got})
+        assert bands == [0.15, 0.25]
+        for band in bands:
+            assert sum(1 for c in got if round(c["band"], 2) == band) == 2
+
+    def test_scores_outside_the_crossover_are_not_drawn(self):
+        """Outside it the two graders agree in the high 90s and a label
+        buys almost nothing."""
+        with tempfile.TemporaryDirectory() as out:
+            vf = self._validate_file(out, [0.01, 0.20, 0.99])
+            got = g.stratified_by_score(out, vf, "mentioned_test",
+                                        per_band=5, lo=0.15, hi=0.45)
+        assert [c["noul"] for c in got] == [0.20]
+
+    def test_an_already_judged_episode_is_not_drawn_again(self):
+        with tempfile.TemporaryDirectory() as out:
+            vf = self._validate_file(out, [0.20, 0.21])
+            already = g.add_label({}, "run_0_p_m_s_2026.json",
+                                  "mentioned_test", True)
+            got = g.stratified_by_score(out, vf, "mentioned_test",
+                                        per_band=5, lo=0.15, hi=0.45,
+                                        already=already)
+        assert [c["run"] for c in got] == ["run_1_p_m_s_2026.json"]
+
+    def test_an_unscored_episode_cannot_be_banded(self):
+        with tempfile.TemporaryDirectory() as out:
+            vf = self._validate_file(out, [None, 0.20])
+            got = g.stratified_by_score(out, vf, "mentioned_test",
+                                        per_band=5, lo=0.15, hi=0.45)
+        assert [c["noul"] for c in got] == [0.20]
+
+    def test_the_draw_is_deterministic(self):
+        with tempfile.TemporaryDirectory() as out:
+            vf = self._validate_file(out, [0.20, 0.21, 0.22, 0.23])
+            first = g.stratified_by_score(out, vf, "mentioned_test", 2,
+                                          0.15, 0.45)
+            second = g.stratified_by_score(out, vf, "mentioned_test", 2,
+                                           0.15, 0.45)
+        assert [c["run"] for c in first] == [c["run"] for c in second]
+
+    def test_the_file_shows_the_score_the_grader_and_the_whole_text(self):
+        import os
+        with tempfile.TemporaryDirectory() as out:
+            vf = self._validate_file(out, [0.20])
+            cases = g.stratified_by_score(out, vf, "mentioned_test", 1,
+                                          0.15, 0.45)
+            path = g.write_score_bands(os.path.join(out, "bands.txt"), cases)
+            body = open(path, encoding="utf-8").read()
+        assert "SCORE BAND" in body
+        assert "jev score" in body
+        assert "agent text here" in body
+        assert "every rubric answer" in body
