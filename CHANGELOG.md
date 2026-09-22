@@ -10,6 +10,41 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v205
+
+**`--grade-existing --only-failed` recovers the episodes that carry no verdict,
+without resampling the ones that do.** Selection is per batch, so recovering a
+single failed grading meant regrading its healthy siblings - and under
+`--write-back`, replacing their settled verdicts with fresh draws. The money
+was the smaller half of that: `--resummarise`'s own policy is that a sampled
+judgement is rebuilt only by calling a model again, which resamples figures
+already final.
+
+In r10 that was four episodes, each alone in a batch of ten: 320 grader calls
+to recover four, with 36 good verdicts resampled on the way. The filter makes
+it 32 calls and no resampling.
+
+The predicate is the one `readmodes/kind_self.py` already asks before it will
+trust a stored verdict, rather than a second rule free to drift from it. It
+also catches episodes collected with `--no-grader`, whose block was never
+written at all - 120 of those in r10, which is the larger use.
+
+A clean corpus exits 0, not 1. Running it after the failures are fixed is how
+you check none are left, and a non-zero exit would make a clean corpus look
+like a broken command.
+
+FIXED ALONGSIDE, because the flag would have made it prominent: a grading that
+FAILED stored `eval_aware: False`, since the classifier reads an unanswered
+question as "no signal". The regrade read that back as a prior verdict, so the
+drift report claimed the grader had changed its mind about an episode no
+grader ever answered. Under `--only-failed` every episode is one of these, so
+the whole section would have been that error.
+
+The first two guards on that fix were non-discriminating and the plant said
+so: they handed `_grader_drift` a dict they had built themselves, so they
+passed whatever the regrade actually stored. Reverting the fix left them
+green. A third exercises the real path and goes red.
+
 ## v204
 
 **Three indicators added, five candidates rejected, and both halves recorded

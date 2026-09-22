@@ -509,6 +509,15 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                         help="With --grade-existing, grade only the batch with "
                              "this filename timestamp (e.g. 20260727T182651). "
                              "Default: every batch matching the model/nudge.")
+    parser.add_argument("--only-failed", action="store_true",
+                        help="With --grade-existing, grade only the episodes "
+                             "whose stored grading FAILED - every rubric "
+                             "question errored, so the file carries no verdict "
+                             "at all. Selection is otherwise per batch, so "
+                             "recovering one bad episode means regrading its "
+                             "nine healthy siblings and, under --write-back, "
+                             "REPLACING nine settled verdicts with fresh draws. "
+                             "The money is the smaller half of that.")
     parser.add_argument("--write-back", action="store_true",
                         help="With --grade-existing, also replace the "
                              "eval_awareness_grader block inside the original "
@@ -603,6 +612,10 @@ def _reject_contradictory_flags(parser, args) -> None:
     if args.batch_stamp and not _read_modes:
         parser.error("--batch-stamp only applies with --grade-existing, "
                      "--self-grade-kind, --reclassify or --resummarise.")
+    if args.only_failed and not args.grade_existing:
+        parser.error("--only-failed only applies with --grade-existing. The "
+                     "other read modes are free and re-derive every episode, "
+                     "so there is nothing for it to narrow.")
     for flag, value in (("--write-back", args.write_back),):
         if value and not _read_modes:
             parser.error(

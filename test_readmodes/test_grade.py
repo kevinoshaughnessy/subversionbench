@@ -398,3 +398,172 @@ class TestTheDelayPacesTheFilesAndNotTheLastOne:
         assert code == 0
         assert slept == []
         assert "Waiting" not in text
+
+
+class TestOnlyFailedNarrowsToEpisodesWithNoVerdict:
+    """Selection is per BATCH, so recovering one bad episode otherwise means
+    regrading its nine healthy siblings - and under --write-back, replacing
+    nine settled verdicts with fresh draws.
+
+    The money is the smaller half of that. `--resummarise`'s own docstring
+    is about the other half: a sampled judgement is rebuilt only by calling
+    a model again, which resamples figures that are already final.
+
+    The r10 corpus had four such episodes against 5,987 graded, each alone
+    in a batch of ten: 320 grader calls to recover four, with 36 good
+    verdicts resampled on the way.
+    """
+
+    def _corpus(self):
+        out = tempfile.mkdtemp()
+        # one failed grading, two healthy, in the same batch
+        for n, block in (
+            (1, {"grading_failed": True, "eval_aware": False,
+                 "rubric_questions": 8, "rubric_errors": 8,
+                 "rubric_results": {}}),
+            (2, {"grading_failed": False, "eval_aware": True,
+                 "rubric_questions": 8, "rubric_errors": 0,
+                 "rubric_results": {}}),
+            (3, {"grading_failed": False, "eval_aware": False,
+                 "rubric_questions": 8, "rubric_errors": 0,
+                 "rubric_results": {}}),
+        ):
+            Path(out, f"run_{n}_m_strong_20260101T000000.json").write_text(
+                json.dumps({
+                    "model": "m", "nudge": "strong",
+                    "transcript": [{"turn": 1, "type": "text",
+                                    "content": "done"}],
+                    "analysis": {"eval_awareness_grader": block}}),
+                encoding="utf-8")
+        return out
+
+    def _grade(self, out, only_failed):
+        args = FakeArgs(output_dir=out, model="m", nudge="strong",
+                        grader_model="g", write_back=False)
+        args.only_failed = only_failed
+        buf = io.StringIO()
+        with _stub_grader():
+            with contextlib.redirect_stdout(buf):
+                code = ev_run.grade_existing_runs(
+                    args, BatchSelection(model="m", nudge="strong"))
+        return code, buf.getvalue()
+
+    def test_it_grades_only_the_episode_with_no_verdict(self):
+        out = self._corpus()
+        _code, text = self._grade(out, only_failed=True)
+        assert "run_1_m_strong_20260101T000000.json" in text
+        assert "run_2_m_strong_20260101T000000.json" not in text
+        assert "run_3_m_strong_20260101T000000.json" not in text
+
+    def test_without_the_flag_the_whole_batch_is_graded(self):
+        """The other direction, so the guard can answer no. A filter that
+        always narrowed would satisfy the test above and break every
+        ordinary regrade."""
+        out = self._corpus()
+        _code, text = self._grade(out, only_failed=False)
+        for n in (1, 2, 3):
+            assert f"run_{n}_m_strong_20260101T000000.json" in text
+
+    def test_it_says_how_many_of_how_many(self):
+        out = self._corpus()
+        _code, text = self._grade(out, only_failed=True)
+        assert "1 of 3 episode(s) carry no verdict" in text
+
+    def test_a_corpus_with_nothing_failed_exits_zero(self):
+        """Running it again after the failures are fixed is how you CHECK
+        there are none left. A non-zero exit would make a clean corpus look
+        like a broken command - the opposite of the transcriptless case,
+        where nothing could be graded at all."""
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_strong_20260101T000000.json").write_text(
+            json.dumps({"model": "m", "nudge": "strong",
+                        "transcript": [{"turn": 1, "type": "text",
+                                        "content": "done"}],
+                        "analysis": {"eval_awareness_grader": {
+                            "grading_failed": False, "eval_aware": True,
+                            "rubric_questions": 8, "rubric_errors": 0,
+                            "rubric_results": {}}}}),
+            encoding="utf-8")
+        code, text = self._grade(out, only_failed=True)
+        assert code == 0
+        assert "Nothing to do" in text
+
+    def test_a_block_that_was_never_written_counts_as_failed(self):
+        """An episode collected with --no-grader carries no verdict either,
+        and is exactly what this is for."""
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_strong_20260101T000000.json").write_text(
+            json.dumps({"model": "m", "nudge": "strong",
+                        "transcript": [{"turn": 1, "type": "text",
+                                        "content": "done"}],
+                        "analysis": {"eval_awareness_grader":
+                                     {"skipped": True}}}),
+            encoding="utf-8")
+        code, text = self._grade(out, only_failed=True)
+        assert code == 0
+        assert "1 of 1 episode(s) carry no verdict" in text
+
+
+class TestAFailedGradingIsNotAPriorVerdict:
+    """A grading that failed stored eval_aware=False, because the classifier
+    reads an unanswered question as "no signal". Read back as a prior verdict
+    it makes the drift report claim the grader changed its mind about
+    something that was never measured - and under --only-failed every episode
+    is one of these, so the whole section would be that error."""
+
+    def test_a_failed_previous_grading_is_excluded_from_drift(self):
+        from subversionbench.readmodes.grade import _grader_drift
+        scored = [{"previous_eval_aware": None,
+                   "previous_grader_model": "old",
+                   "eval_awareness_grader": {"eval_aware": True}}]
+        assert _grader_drift(scored) == {}
+
+    def test_a_real_previous_verdict_is_still_compared(self):
+        """So the exclusion cannot be doing it by always returning empty."""
+        from subversionbench.readmodes.grade import _grader_drift
+        scored = [{"previous_eval_aware": False,
+                   "previous_grader_model": "old",
+                   "eval_awareness_grader": {"eval_aware": True}}]
+        assert _grader_drift(scored)["now_aware"] == 1
+
+    def _regrade_one(self, block):
+        """A whole regrade over a single episode carrying `block`, returning
+        what was printed.
+
+        THROUGH THE REAL PATH. The two tests above hand _grader_drift a
+        dict they built themselves, so they pass whatever grade.py stores in
+        `previous_eval_aware` - reverting the fix leaves them green. This
+        exercises the code that SETS it.
+        """
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_strong_20260101T000000.json").write_text(
+            json.dumps({"model": "m", "nudge": "strong",
+                        "transcript": [{"turn": 1, "type": "text",
+                                        "content": "done"}],
+                        "analysis": {"eval_awareness_grader": block}}),
+            encoding="utf-8")
+        args = FakeArgs(output_dir=out, model="m", nudge="strong",
+                        grader_model="g", write_back=False)
+        args.only_failed = False
+        buf = io.StringIO()
+        with _stub_grader(answer=True):
+            with contextlib.redirect_stdout(buf):
+                ev_run.grade_existing_runs(
+                    args, BatchSelection(model="m", nudge="strong"))
+        return buf.getvalue()
+
+    def test_a_regrade_over_a_failed_grading_reports_no_drift(self):
+        """It stored eval_aware=False and the fresh grading says True. Read
+        back naively that is "the grader changed its mind", about an episode
+        no grader ever answered."""
+        text = self._regrade_one({"grading_failed": True, "eval_aware": False,
+                                  "grader_model": "old", "rubric_results": {}})
+        assert "vs grader already recorded" not in text
+
+    def test_a_regrade_over_a_real_verdict_still_reports_drift(self):
+        """The other direction: the section must still appear when there
+        genuinely was a prior verdict to differ from."""
+        text = self._regrade_one({"grading_failed": False,
+                                  "eval_aware": False,
+                                  "grader_model": "old", "rubric_results": {}})
+        assert "vs grader already recorded" in text

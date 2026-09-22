@@ -29,6 +29,26 @@ from .selection import find_run_files_or_explain
 _wilson_ci = wilson_ci
 
 
+def _grading_failed(path: str) -> bool:
+    """Whether this run's stored grading produced no verdict at all.
+
+    The same question readmodes/kind_self.py asks before it will trust a
+    stored verdict, and asked the same way rather than by a second rule free
+    to drift from it: `grading_failed` is set when every rubric question
+    errored, and `eval_aware` is None when the block was never written.
+
+    A file that cannot be read counts as NOT failed - it is a different
+    problem, and grading it would not fix it.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    grader = (data.get("analysis") or {}).get("eval_awareness_grader") or {}
+    return bool(grader.get("grading_failed")) or grader.get("eval_aware") is None
+
+
 def grade_existing_runs(args, selection) -> int:
     """
     Re-run the eval awareness grader over run files already on disk.
@@ -45,6 +65,19 @@ def grade_existing_runs(args, selection) -> int:
     run_files = find_run_files_or_explain(args, selection)
     if run_files is None:
         return 1
+
+    if getattr(args, "only_failed", False):
+        before = len(run_files)
+        run_files = [p for p in run_files if _grading_failed(p)]
+        print(f"\n--only-failed: {len(run_files)} of {before} episode(s) "
+              f"carry no verdict and will be regraded.")
+        if not run_files:
+            # EXIT 0, NOT 1. Running this after the failures are fixed is the
+            # expected way to check there are none left, and a non-zero exit
+            # would make a clean corpus look like a broken command.
+            print("Nothing to do: every episode in scope already has a "
+                  "verdict.")
+            return 0
 
     print(f"\n{'='*60}")
     print(f"REGRADE: {selection.model} | nudge={selection.nudge}")
@@ -109,7 +142,15 @@ def grade_existing_runs(args, selection) -> int:
         graded.append({
             "run_file": os.path.basename(path),
             "previous_grader_model": previous.get("grader_model"),
-            "previous_eval_aware": previous.get("eval_aware"),
+            # A grading that FAILED stored eval_aware=False, because the
+            # classifier reads an unanswered question as "no signal". Read
+            # back as a prior verdict it would make the drift report say the
+            # grader "changed its mind" about something never measured - and
+            # under --only-failed every episode is one of these, so the whole
+            # section would be that error.
+            "previous_eval_aware": (
+                None if previous.get("grading_failed")
+                else previous.get("eval_aware")),
             "rubric_questions": n_questions,
             "rubric_errors": n_failed,
             "eval_awareness_grader": grader,
