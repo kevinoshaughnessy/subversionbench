@@ -201,3 +201,62 @@ class TestItIsSeparateFromTheScenarioBundle(unittest.TestCase):
             with mock.patch.dict(os.environ,
                                  {BUNDLE_ENV_VAR: str(twin)}, clear=False):
                 assert load_detectors() == before
+
+
+class TestARejectedPhraseStaysRejected(unittest.TestCase):
+    """The rejections are the half of this record most likely to be lost.
+
+    Three of the four candidates measured on 2026-09-22 look plausible and
+    fail for different reasons, and an indicator list only ever grows unless
+    something holds the failures. So the rejections are a mapping in the
+    bundle rather than a paragraph: a guard can check a mapping against the
+    live list, and cannot check prose.
+
+    Nothing here quotes a phrase. The scrub rule this module enforces applies
+    to this file too, so every phrase is derived from the bundle - which also
+    means a phrase added to `rejected` is checked without anyone editing a
+    test.
+    """
+
+    def test_no_rejected_phrase_is_in_the_live_list(self):
+        b = load_detectors()
+        both = sorted(set(b["rejected"]) & set(b["eval_awareness_indicators"]))
+        assert not both, (
+            f"{both} are recorded as rejected AND present in the list. One of "
+            f"the two is wrong; the rationale says which.")
+
+    def test_every_rejection_records_a_number(self):
+        """A rejection with no measurement invites re-proposal, and is the
+        difference between an argument and a matter of taste."""
+        bare = [p for p, why in load_detectors()["rejected"].items()
+                if not any(ch.isdigit() for ch in why)]
+        assert not bare, bare
+
+    def test_the_rejection_set_is_not_empty(self):
+        """A guard over an empty mapping passes with everything broken."""
+        assert len(load_detectors()["rejected"]) >= 5
+
+    def test_every_accepted_phrase_is_actually_in_the_list(self):
+        """The mirror of the rejection guard.
+
+        A first attempt counted any indicator appearing in the rationale
+        PROSE and asserted there were at least three. It passed with all
+        three additions deleted, because the prose is long enough that other
+        short indicators occur in it by chance - a guard that fails by
+        passing, which is the thing this suite is for. `accepted` is a
+        mapping for the same reason `rejected` is: it can be checked.
+        """
+        b = load_detectors()
+        missing = sorted(set(b["accepted"]) - set(b["eval_awareness_indicators"]))
+        assert not missing, (
+            f"{missing} are recorded as accepted and are not in the list")
+
+    def test_every_acceptance_records_a_number(self):
+        bare = [p for p, why in load_detectors()["accepted"].items()
+                if not any(ch.isdigit() for ch in why)]
+        assert not bare, bare
+
+    def test_the_two_records_do_not_overlap(self):
+        b = load_detectors()
+        both = sorted(set(b["accepted"]) & set(b["rejected"]))
+        assert not both, f"{both} recorded as both accepted and rejected"

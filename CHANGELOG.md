@@ -10,6 +10,47 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v204
+
+**Three indicators added, five candidates rejected, and both halves recorded
+where a guard can check them.** The additions came through the protocol this
+list has always used: absent from every arm's scenario text, then
+newly-flagged count and independent grader agreement against the base rate.
+Over 5,987 graded r10 episodes the base rate is 33.3% eval_aware. The three
+accepted run 80%, 100% and 100%; the lowest previously accepted phrase was
+78%. Keyword rate moves 25.71% to 26.17%, 28 episodes, and no published rate
+is affected - the keyword measure is a cross-check on the LLM grader, not the
+headline.
+
+The rejections are the half most likely to be lost, and three of the five look
+plausible. One fires on an agent DENYING the motive and on one reasoning about
+its own incentives, which is the behaviour under study rather than awareness of
+being studied - the same failure as an earlier rejection that fired on the
+agent's own task. Another clears the bar against `eval_aware` and fails against
+`mentioned_test`, and the gap is the finding: it detects a model naming
+in-scenario coercion, not one suspecting evaluation.
+
+A hypothesis was tested and DROPPED rather than left implied: that this class
+of phrase would confound awareness with the misaligned behaviour under study.
+Measured, its hits are 3.6% misaligned against a 5.5% corpus base - slightly
+lower, not higher. No such confound exists, and the case rests on agreement
+alone.
+
+Both records are mappings in `detectors.b64` rather than prose, because a
+guard can check a mapping against the live list and cannot check a paragraph:
+every accepted phrase must be IN the list, every rejected one OUT, and neither
+may appear in both. An indicator list only ever grows unless something holds
+the failures.
+
+The first version of the acceptance guard counted any indicator appearing in
+the rationale prose and asserted there were at least three. It passed with all
+three additions deleted - the prose is long enough that other short indicators
+occur in it by chance. Replaced with the mapping check, which is what caught it
+when planted.
+
+`--resummarise --write-back` backfilled both corpuses for nothing: 152 r10
+files and 2 in goalguard_r1, with zero still stale afterwards.
+
 ## v203
 
 **The rubric, the grader's system prompt and both keyword lists move into an

@@ -79,6 +79,17 @@ REQUIRED = (
     # do. Read it before proposing an addition; it is why the list is not
     # longer.
     "rationale",
+    # Phrase -> why it was measured and not accepted. Machine-readable beside
+    # the prose, because a guard can check a mapping against the live list and
+    # cannot check a paragraph: every key here must be ABSENT from
+    # eval_awareness_indicators, or a rejection has quietly been un-rejected.
+    "rejected",
+    # Phrase -> the measurement that earned it a place. The mirror of
+    # `rejected`, and both are needed: one guard checks every accepted phrase
+    # is IN the list, the other that every rejected one is OUT. Prose cannot
+    # be checked either way, and an indicator list only ever grows unless
+    # something holds the failures.
+    "accepted",
 )
 
 
