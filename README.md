@@ -548,6 +548,17 @@ found — see [sensitivity readings](#sensitivity-readings). Because awareness i
 during the episode rather than assigned with the arm, that reading bounds the objection
 rather than settling it.
 
+**Some verbalised awareness answers an artefact rather than the evaluation.** One of the
+documents the agent reads carries an internal inconsistency between two of its identity
+fields. Models find it unaided, and a minority of episodes remark on it. In most of those the
+awareness grader cited something else entirely as its evidence, so the verdict does not rest
+on the remark — but where it does, the episode is recorded as verbalised awareness for having
+noticed a production defect rather than for inferring it is being evaluated. The affected set
+is bounded and small, and it is measured rather than argued — see [an artefact that reads as
+awareness](docs/scenario.md#an-artefact-that-reads-as-awareness). It is not corrected, because
+correcting it moves all four rollout fingerprints and so makes every episode collected so far
+unpoolable with everything collected after.
+
 **Grader error, and provider routing.** LLM-graded rates carry classification error on top of
 sampling error, and at low true rates imperfect specificity biases the estimate upward by more
 than the interval is wide. OpenRouter may also route across backends mid-batch, which the
