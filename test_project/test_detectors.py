@@ -44,14 +44,23 @@ _MAX_PER_FILE = 4
 # offend, AND everything inside it must still offend - an entry that stops
 # offending is deleted rather than left as a permanent exemption.
 #
-# This file builds its fixtures from literal indicator phrases, which is the
-# largest remaining reproduction in tracked source. Left as debt rather than
-# fixed blind: the phrases are load-bearing for what each test asserts about
-# matching, and rewriting them to index into the constant would couple every
-# assertion to the list's ORDER, which is not a property anything guarantees.
-_BASELINE = {
-    "test_grading/test_awareness_keywords.py",
-}
+# IT IS EMPTY, and the mechanism is kept rather than removed so that a future
+# offender is recorded here instead of the rule being switched off.
+#
+# It held one entry for an afternoon: test_grading/test_awareness_keywords.py
+# built its fixtures from sixteen literal phrases. The fear was that rewriting
+# them would couple every assertion to the list's ORDER. It did not - the
+# fixtures select by SHAPE (a phrase ending in a bare pronoun, a two-word
+# phrase, one carrying an apostrophe), so each test now asserts its RULE
+# against whichever indicator currently has the shape that rule is about,
+# rather than against one remembered example.
+#
+# That refactor also found a defect the literal version had hidden: widening
+# the scenario-absence gate from two named phrases to the whole list showed
+# one indicator DOES occur in the scenario text, inside a longer word, and
+# that the gate had been asking `phrase in text` where it should have been
+# asking the matcher.
+_BASELINE = set()
 
 
 def _distinctive():
