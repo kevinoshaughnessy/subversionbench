@@ -232,6 +232,130 @@ class _BelowAxes:
             self._LINE * (wrapped.count("\n") + 1) + self._GAP)
 
 
+def _plot_rate_rows(ax, rows: list) -> list:
+    """One marker per row plus its Wilson interval, onto an EXISTING axes.
+
+    Extracted so a chart that composes this panel with another (the misuse
+    figure) draws its markers by the same rule rather than by a second copy
+    of this loop - which is how an open marker came to mean one thing on one
+    chart and another elsewhere. Returns the y positions it used, top-first,
+    so a caller can set its own ticks.
+    """
+    ys = list(range(len(rows) - 1, -1, -1))
+    for y, row in zip(ys, rows, strict=True):
+        colour = _COLOURS["model"]
+        if row.lo is not None and row.hi is not None:
+            ax.plot([row.lo * PP, row.hi * PP], [y, y], color=colour,
+                    linewidth=1.3, alpha=0.75, zorder=3)
+        ax.plot([row.diff * PP], [y], marker=_MODEL_MARKER, markersize=5.5,
+                color=colour,
+                markerfacecolor=colour if row.marked else "white",
+                markeredgecolor=colour, markeredgewidth=1.3, zorder=4)
+        if row.note:
+            ax.text(1.005, y, row.note, transform=ax.get_yaxis_transform(),
+                    va="center", fontsize=7, color="#666666")
+    return ys
+
+
+# The decomposition's three bands, darkest where the claim is strongest. Not
+# a diverging or categorical scale: the bands are ORDERED by how much of the
+# verdict rests on misuse language, so one hue light-to-dark is the honest
+# encoding and a categorical palette would imply they are unrelated classes.
+_EVIDENCE_COLOURS = ("#c6d3e8", "#7f9dc9", "#2f4b7c")
+
+
+def _draw_misuse_chart(plt, bands: list, rows: list, title: str,
+                       captions: list, path: str, ref: float = None) -> str:
+    """
+    Two panels: what the grader cited on the aware episodes, then the plain
+    per-model rate.
+
+    WHY BOTH, AND IN THIS ORDER. The per-model rate alone invites the reading
+    the measure exists to prevent - misuse and awareness rates correlate at
+    about +0.77 across models, so a reader shown only the rates concludes
+    they are the same measure. The decomposition on top is what shows they
+    are not, and it carries the number that bears on a published figure. The
+    rate below is the descriptive detail, which is why it is second and not
+    first.
+
+    `bands` is (label, count, share) top-first. `rows` are Row objects as
+    _draw_rate_chart takes them.
+    """
+    if not bands or not rows:
+        return None
+    top_in = 1.6
+    lower = _FIGURE_MARGIN + _ROW_HEIGHT * len(rows)
+    height = lower + top_in
+    # hspace is a fraction of the MEAN axes height, and these two differ by an
+    # order of magnitude - so the value that gives a sane gap between two equal
+    # panels opens a three-inch hole between these. Solved for the gap we want
+    # in inches instead of guessed as a ratio.
+    gap_in = 0.55
+    fig, (top, ax) = plt.subplots(
+        2, 1, figsize=(_FIGURE_WIDTH, height),
+        gridspec_kw={"height_ratios": [top_in, lower],
+                     "hspace": gap_in / ((top_in + lower) / 2)})
+
+    left = 0.0
+    for (_label, _count, share), colour in zip(bands, _EVIDENCE_COLOURS,
+                                               strict=True):
+        width = share * PP
+        top.barh([0], [width], left=[left], height=0.5, color=colour,
+                 # A surface-coloured edge, so adjacent segments read as two
+                 # bands rather than one continuous bar.
+                 edgecolor="white", linewidth=1.5, zorder=3)
+        # Labelled only where the segment can hold the text. A number printed
+        # on a 3% sliver overlaps its neighbour and is unreadable; those are
+        # named in the legend instead.
+        #
+        # Ink chosen against the BAND, not fixed to white: the lightest band is
+        # pale enough that white on it fails contrast, which is how the first
+        # render came out. The ramp is ordered light-to-dark, so the first band
+        # takes dark ink and the rest take white.
+        if width >= 12:
+            top.text(left + width / 2, 0, f"{share * PP:.1f}%", ha="center",
+                     va="center", fontsize=8, zorder=4,
+                     color="#22303f" if colour == _EVIDENCE_COLOURS[0]
+                     else "white")
+        left += width
+    top.set_xlim(0, 100)
+    top.set_ylim(-0.6, 0.6)
+    top.set_yticks([])
+    top.set_xlabel("share of verbalised-aware episodes (%)", fontsize=8)
+    top.tick_params(axis="x", labelsize=7)
+    top.set_title(_wrap(title, _TITLE_WRAP), fontsize=10, loc="left")
+    for side in ("top", "right", "left"):
+        top.spines[side].set_visible(False)
+    # NO LEGEND BOX. It has to sit somewhere, and between two panels of wildly
+    # different heights every somewhere collides - under the bar it landed on
+    # the x-label, above it on the title. The band key goes in the caption
+    # stack instead, which already owns the space below the figure and lays
+    # itself out. The caller writes that line, since it holds the counts.
+
+    ys = _plot_rate_rows(ax, rows)
+    if ref is not None:
+        ax.axvline(ref * PP, color="#333333", linewidth=1.0, linestyle="--",
+                   alpha=0.7, zorder=1)
+        ax.text(ref * PP, len(rows) - 0.2, "  corpus rate", fontsize=7,
+                color="#333333", va="bottom")
+    reach = [v * PP for r in rows for v in (r.diff, r.hi) if v is not None]
+    ax.set_xlim(0, min(100, max(reach or [100]) * 1.05))
+    ax.set_yticks(ys)
+    ax.set_yticklabels([r.label for r in rows], fontsize=8)
+    ax.set_ylim(-0.8, len(rows) - 0.2)
+    ax.set_xlabel("episodes naming the situation as an attack (%)", fontsize=9)
+    ax.grid(axis="x", alpha=0.25)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    inches = _BelowAxes(fig, ax, height)
+    for caption, colour in captions:
+        inches.caption(caption, colour)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 def _draw_rate_chart(plt, rows: list, title: str, captions: list, path: str,
                      xlabel: str, ref: float = None, ref_label: str = "",
                      xmax_pp: float = 100) -> str:
@@ -262,19 +386,7 @@ def _draw_rate_chart(plt, rows: list, title: str, captions: list, path: str,
     xmax = min(100, xmax * 1.05) if xmax < 100 else 100
     height = _FIGURE_MARGIN + _ROW_HEIGHT * max(len(rows), 1)
     fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, height))
-    ys = list(range(len(rows) - 1, -1, -1))
-    for y, row in zip(ys, rows, strict=True):
-        colour = _COLOURS["model"]
-        if row.lo is not None and row.hi is not None:
-            ax.plot([row.lo * PP, row.hi * PP], [y, y], color=colour,
-                    linewidth=1.3, alpha=0.75, zorder=3)
-        ax.plot([row.diff * PP], [y], marker=_MODEL_MARKER, markersize=5.5,
-                color=colour,
-                markerfacecolor=colour if row.marked else "white",
-                markeredgecolor=colour, markeredgewidth=1.3, zorder=4)
-        if row.note:
-            ax.text(1.005, y, row.note, transform=ax.get_yaxis_transform(),
-                    va="center", fontsize=7, color="#666666")
+    ys = _plot_rate_rows(ax, rows)
     if ref is not None:
         ax.axvline(ref * PP, color="#333333", linewidth=1.0, linestyle="--",
                    alpha=0.7, zorder=1)

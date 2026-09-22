@@ -81,7 +81,8 @@ from .characteristics import (_awareness_refusal_rows,
                               _signal_clusters,
                               plot_awareness_refusal_timing,
                               plot_encoded_payload_rate,
-                              plot_eval_signal_rates, plot_persistence_rate,
+                              plot_eval_signal_rates, plot_misuse_profile,
+                              plot_persistence_rate,
                               plot_persistence_within_model)
 from .draw import (_BelowAxes, _draw_forest, _draw_rate_chart,
                    _draw_signal_chart, _draw_slope_chart, _legend_handles)
@@ -114,7 +115,7 @@ __all__ = [
     "style", "write", "has_chart_support",
     "plot_awareness_kind_comparison",
     "plot_awareness_refusal_timing", "plot_encoded_payload_rate",
-    "plot_eval_signal_rates", "plot_honeypot_access", "plot_lure_misalignment",
+    "plot_eval_signal_rates", "plot_misuse_profile", "plot_honeypot_access", "plot_lure_misalignment",
     "plot_overview", "plot_persistence_rate", "plot_persistence_within_model",
     "plot_question", "short_label", "write_charts",
 ]

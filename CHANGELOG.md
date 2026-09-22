@@ -10,6 +10,47 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v210
+
+**The misuse measure gets a figure, in two panels.** The top one decomposes
+the verbalised-aware set by what the grader actually QUOTED: evidence
+unrelated to misuse, some of it misuse language, all of it. The darkest band
+is the ceiling on measured awareness that is really suspicion of an attack.
+The bottom one is the plain per-model rate with Wilson intervals.
+
+The order is the argument. Per-model misuse and awareness rates correlate at
+about +0.77, so a reader shown only the rates would reasonably conclude the
+two measures are the same thing - which is the conflation the measure exists
+to undo. The decomposition is what shows they are not, so it goes first and
+the descriptive detail second.
+
+The bands read the stored quote, never the transcript. An episode can name an
+attack all the way through its reasoning and still be graded aware on
+something else entirely, and only the quote says which happened.
+
+The figure has no legend box. Between two panels of very different heights
+every position for one collides - under the bar it lands on the axis label,
+above it on the title - so the band key is a caption, where the layout is
+already handled. Three drawing defects were fixed by looking at the rendered
+image rather than by reasoning: `hspace` is a fraction of the MEAN axes
+height, so the value that suits two equal panels opened a three-inch hole
+between these; the percentage on the lightest band was drawn in white on pale
+blue; and the legend sat in the gap between panels.
+
+`misuse_evidence` is None for an episode that is not verbalised-aware, because
+"how much of this verdict is misuse-suspicion" does not arise where there is
+no verdict. That keeps the three bands a decomposition of the aware set rather
+than of the corpus, and the two blocks' denominators deliberately differ.
+
+`_plot_rate_rows` is extracted so both this chart and `_draw_rate_chart` draw
+their markers by one rule - an open marker meaning one thing on one chart and
+another elsewhere is the drift worth not introducing.
+
+Eight defects were planted against the new guards. Two initially passed: one
+was a bad plant anchor, and the other was a real gap - a graded episode that
+answered no to every question reaches a check that an ungraded one returns
+before, and nothing covered it.
+
 ## v209
 
 **Suspicion of misuse is now its own measure, and one phrase moved into it.**

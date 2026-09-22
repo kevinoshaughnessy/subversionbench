@@ -9,6 +9,7 @@ from subversionbench import charting
 from .characteristics import (plot_awareness_refusal_timing,
                               plot_encoded_payload_rate,
                               plot_eval_signal_rates,
+                              plot_misuse_profile,
                               plot_persistence_rate,
                               plot_persistence_within_model)
 from .lure import plot_honeypot_access, plot_lure_misalignment
@@ -60,6 +61,9 @@ def write_charts(report: dict, chart_dir: str) -> list:
     signal_path = os.path.join(chart_dir, "eval_signal_rates.png")
     if plot_eval_signal_rates(plt, report, signal_path):
         written.append(signal_path)
+    misuse_path = os.path.join(chart_dir, "misuse_profile.png")
+    if plot_misuse_profile(plt, report, misuse_path):
+        written.append(misuse_path)
     encoded_path = os.path.join(chart_dir, "encoded_payload_rate.png")
     if plot_encoded_payload_rate(plt, report, encoded_path):
         written.append(encoded_path)

@@ -287,6 +287,65 @@ def plot_awareness_refusal_timing(plt, report: dict, path: str) -> str:
         ref_label=f"all models: {ref:.0%}" if ref is not None else "")
 
 
+_EVIDENCE_LABELS = {
+    "unrelated": "cited evidence unrelated to misuse",
+    "partial": "some cited evidence is misuse language",
+    "all": "ALL cited evidence is misuse language",
+}
+
+
+def plot_misuse_profile(plt, report: dict, path: str) -> str:
+    """Suspicion of misuse: what the grader cited, then the per-model rate."""
+    profile = (report.get("characteristics") or {}).get("misuse_profile") or {}
+    n_aware = profile.get("n_aware") or 0
+    evidence = profile.get("evidence") or {}
+    if not n_aware or not profile.get("by_model"):
+        return None
+
+    bands = [(_EVIDENCE_LABELS[b], evidence.get(b, 0),
+              evidence.get(b, 0) / n_aware)
+             for b in profile.get("evidence_bands") or []]
+    # Filtered by has_chart_support and MARKED by underpowered, the same two
+    # different statements every other chart here keeps apart: the filter is
+    # whether the model belongs on the figure at all, the marker whether its
+    # own rate clears the informative denominator.
+    rows = [Row(r["model"], r["rate"],
+                *wilson_ci(r["n_true"], r["n_resolved"]),
+                marked=not r["underpowered"],
+                note=f"{r['n_true']}/{r['n_resolved']}")
+            for r in profile["by_model"]
+            if r["rate"] is not None and has_chart_support(r["n_resolved"])]
+    rows.sort(key=lambda r: (-(r.diff or 0), r.label))
+
+    key = "  |  ".join(
+        f"{shade}: {label} {count} ({share * PP:.1f}%)"
+        for shade, (label, count, share) in zip(
+            ("lightest", "mid", "darkest"), bands, strict=True))
+    captions = [
+        (profile.get("interpretation", "") + ".", "#555555"),
+        ("TOP bands, left to right - " + key, "#333333"),
+        (f"TOP: the {n_aware} verbalised-aware episodes, split by what the "
+         f"grader QUOTED - not by what the transcript contains. An episode can "
+         f"name an attack throughout and still be graded aware on something "
+         f"else, and only the stored quote says which happened. The darkest "
+         f"band is the ceiling on measured awareness that is really suspicion "
+         f"of an attack.", "#b00020"),
+        ("Reported, NOT subtracted. Narrowing the rubric question that merges "
+         "the two would move a published rate and is a separate, deliberate "
+         "decision.", "#b00020"),
+        ("BOTTOM: the plain rate, per model, 95% Wilson. An open marker is a "
+         f"model with fewer than {MIN_INFORMATIVE_DENOMINATOR} resolved "
+         f"episodes. Descriptive: this is a keyword floor over a fixed "
+         f"vocabulary, so a model naming an attack in words nobody listed "
+         f"reads as not suspecting one.", "#555555"),
+    ] + _exclusion_captions(report)
+    return draw._draw_misuse_chart(
+        plt, bands, rows,
+        "Suspicion of misuse, and how far awareness rests on it"
+        + _exclusion_title_suffix(report),
+        captions, path, ref=profile.get("rate"))
+
+
 def plot_eval_signal_rates(plt, report: dict, path: str) -> str:
     """Every eval-awareness rubric question, each its own rate per model."""
     profile = (report.get("characteristics") or {}).get("eval_signal_rates") or {}
