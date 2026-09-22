@@ -7,8 +7,9 @@ checking it - the module iterates whatever the report emits.
 """
 
 from . import draw
-from .captions import (_composite_caption, _divergence_caption,
-                       _model_count_caption, _rate_caption)
+from .captions import (_act_ordering_caption, _composite_caption,
+                       _divergence_caption, _model_count_caption,
+                       _rate_caption, _timing_caption)
 from .exclusion import (_exclusion_captions, _exclusion_title_suffix,
                         _scope_caption)
 from .labels import arm_labels, short_label
@@ -87,6 +88,11 @@ def plot_question(plt, index: int, section: dict, path: str,
             (_model_count_caption(section), "#333333"),
             (MULTIPLICITY_NOTE, "#555555"),
             (_divergence_caption(section), "#b00020"),
+            # Beneath the divergence warning and in the same colour:
+            # both qualify the pooled estimate directly above them, and
+            # a reader who takes either bar at face value needs both.
+            (_timing_caption(section), "#b00020"),
+            (_act_ordering_caption(section), "#555555"),
         ]
     captions.append((WILSON_NOTE, "#777777"))
     captions += _exclusion_captions(report)

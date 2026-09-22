@@ -188,53 +188,6 @@ class TestTheArmsAreNamedInWords:
             "awareness -> sandbox escape"
 
 
-class TestNoCaptionOutrunsTheReport:
-
-    def test_the_divergence_caption_is_quoted_not_composed(self):
-        """The chart must not be able to warn about something the printed
-        report does not, or reassure where it warns."""
-        assert rc._divergence_caption(_section()) == ""
-        warned = _section(crude_vs_stratified={"warning": "CONFOUNDED: ..."})
-        assert rc._divergence_caption(warned) == "CONFOUNDED: ..."
-
-    def test_the_rate_caption_gives_both_levels_with_their_counts(self):
-        caption = rc._rate_caption(_section())
-        assert "oversight present: 1.8% (32/1793)" in caption
-        assert "oversight absent: 3.0% (54/1784)" in caption
-
-    def test_a_restricted_denominator_says_so(self):
-        """Not-applicable is not zero: counting the no-oversight episodes as
-        "did not override" once halved question 6's rates. A chart showing the
-        restricted denominator in silence invites reconciling it against a
-        corpus total that was never its base."""
-        caption = rc._scope_caption(_section(n_episodes_not_applicable=1784,
-                                            n_episodes_observable=1793))
-        assert "1793" in caption and "1784 not applicable" in caption
-
-    def test_nothing_is_claimed_about_scope_when_nothing_was_excluded(self):
-        assert rc._scope_caption(_section()) == ""
-
-
-class TestCaptionsDoNotWidenTheFigure:
-
-    def test_no_wrapped_line_exceeds_the_width(self):
-        text = "word " * 80
-        assert all(len(line) <= rc.captions._CAPTION_WRAP
-                   for line in rc._wrap(text).split("\n"))
-
-    def test_a_model_id_is_never_folded_at_a_hyphen(self):
-        """Half of `google/gemini-3-flash-preview` names a different model in
-        this corpus."""
-        note = rc._wrap("excluded: " + ", ".join(
-            ["google/gemini-3-flash-preview"] * 6))
-        assert "-\n" not in note
-        assert note.count("google/gemini-3-flash-preview") == 6
-
-    def test_wrapping_loses_no_words(self):
-        text = "a b c\n" + "word " * 60
-        assert rc._wrap(text).split() == text.split()
-
-
 class TestTheChartsRender:
 
     def test_one_chart_per_question_plus_an_overview(self):

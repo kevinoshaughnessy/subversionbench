@@ -95,6 +95,45 @@ def _divergence_caption(section: dict) -> str:
     return divergence.get("warning") or ""
 
 
+def _timing_caption(section: dict) -> str:
+    """The temporal caveat on an act-independent awareness exposure.
+
+    ON THE CHART, not only in the printed report. The figure is what gets
+    lifted into a slide or a paper, and a caveat that lives only in console
+    output is one the reader of the figure never sees - which is how the
+    sign-reversal warning came to be drawn here too.
+
+    Derived from the section rather than re-counted, for the same reason
+    `_divergence_caption` quotes rather than re-derives: the chart must not be
+    able to say something the report does not.
+    """
+    caveat = section.get("awareness_timing_caveat") or {}
+    after = caveat.get("n_not_aware_before_acting")
+    if not after:
+        return ""
+    total = caveat.get("n_aware_and_misaligned")
+    return (f"TIMING: {after} of {total} exposed-and-misaligned episodes "
+            f"verbalised awareness only AFTER acting, where it cannot have "
+            f"influenced the act. Reported, not reclassified - the test "
+            f"reaches only episodes that acted, and acting is the outcome.")
+
+
+def _act_ordering_caption(section: dict) -> str:
+    """How many located acts were preceded by verbalised awareness.
+
+    Descriptive by force: misalignment IS committing a measured act, so within
+    actors the outcome is constant and no rate contrast exists. Said on the
+    figure so the counts are not mistaken for one.
+    """
+    order = section.get("act_ordering") or {}
+    n = order.get("n_acts_located")
+    if not n:
+        return ""
+    return (f"act ordering (descriptive, not a rate): of {n} located acts, "
+            f"{order.get('aware_before_the_act')} were preceded by verbalised "
+            f"awareness and {order.get('not_aware_before_the_act')} were not.")
+
+
 def _composite_caption(section: dict) -> str:
     """What a union-of-acts outcome is made of, and how it is pooled.
 

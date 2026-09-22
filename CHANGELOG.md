@@ -10,6 +10,35 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v208
+
+**The timing caveat is drawn on the figure, not only printed.** v207 put it in
+the console and the JSON. The chart is what gets lifted into a slide or a
+paper, and it carried the Simpson's-paradox warning while saying nothing about
+the fifth of the exposed cell that verbalised only after acting - so a reader
+of the figure saw one caveat and not the other.
+
+Both captions sit directly beneath the divergence warning and in the same
+colour, because both qualify the pooled estimate immediately above them. The
+act-ordering line is grey and says "descriptive, not a rate" on its face:
+counts printed on a forest plot read as a contrast unless they say otherwise,
+and within actors no contrast exists.
+
+A caption stays SILENT where it does not apply. "TIMING: 0 of N" on every other
+question would train readers to skip the line on the one question where it
+matters.
+
+The guard that the captions actually reach the drawing call asserts on what
+plot_question HANDS the renderer, not on a search of its source. The first
+version grepped the module - a guard against a location, which AGENTS.md names
+as the repeat defect class here, and which would not have noticed a caption
+being built and then dropped. Both forms of that were planted; only the
+behavioural one goes red.
+
+test_report_charts.py crossed the 1000-line limit and split along the division
+it already carried: the rows - what gets a line, what it is labelled, where it
+sits - from the words underneath them.
+
 ## v207
 
 **The awareness-vs-misalignment question now carries its temporal caveat, and
