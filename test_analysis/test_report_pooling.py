@@ -332,3 +332,116 @@ class TestARateThatCouldNotBeComputedPrintsItsCountsAnyway:
         must not be formatted like 0/0."""
         from report.console import _fmt_rate
         assert _fmt_rate({"successes": 0, "n": 40, "rate": 0.0}) == "0/40=0.0%"
+
+
+class TestTheAwarenessExposureCarriesItsTemporalCaveat:
+    """`aware` answers "did this model ever verbalise awareness", which is
+    act-independent and so usable as an exposure. It does NOT answer "was it
+    aware when it acted", and on r10 a fifth of the aware-and-misaligned cell
+    verbalised only after the act.
+
+    The caveat is reported and the episodes are NOT reclassified. Applying the
+    temporal test would reach only episodes that acted - and acting is the
+    outcome - so it would condition the exposure on the dependent variable,
+    which on this corpus moves the headline from -0.6pp to -2.2pp. That number
+    would be manufactured.
+    """
+
+    def _q(self):
+        import os
+        import unittest
+
+        from report.loading import load_episodes, load_summaries
+        from report.questions_awareness import (
+            question_awareness_vs_misalignment)
+        out = "eval_results_r10"
+        if not os.path.isdir(out):
+            # A corpus-absent skip, which AGENTS.md allows; SUBVERSIONBENCH_
+            # NO_SKIPS turns only optional-DEPENDENCY skips into failures.
+            raise unittest.SkipTest(f"{out} not present")
+        return question_awareness_vs_misalignment(load_episodes(out),
+                                                  load_summaries(out))
+
+    def test_the_caveat_counts_the_post_act_episodes(self):
+        c = self._q()["awareness_timing_caveat"]
+        assert c["n_not_aware_before_acting"] > 0
+        assert c["n_not_aware_before_acting"] < c["n_aware_and_misaligned"]
+
+    def test_the_headline_cell_is_unchanged_by_it(self):
+        """The whole point: reported, not reclassified. The exposed cell must
+        still hold every aware-and-misaligned episode."""
+        q = self._q()
+        c = q["awareness_timing_caveat"]
+        assert c["n_aware_and_misaligned"] == q["overall"]["a"]["successes"]
+
+    def test_the_act_ordering_is_descriptive_not_a_contrast(self):
+        """A contrast here cannot exist: misalignment IS committing an act,
+        so within actors the outcome is constant. Written as one first, and
+        it returned difference 0.0 with p 1.0."""
+        o = self._q()["act_ordering"]
+        assert set(o) >= {"aware_before_the_act", "not_aware_before_the_act"}
+        assert "difference" not in o and "p" not in o
+
+    def test_the_orderings_account_for_every_located_act(self):
+        o = self._q()["act_ordering"]
+        assert (o["aware_before_the_act"] + o["not_aware_before_the_act"]
+                + o["ordering_undeterminable"]) == o["n_acts_located"]
+
+
+class TestAwareBeforeActIsTriValued:
+    """None means "the question does not arise" - no act, or an act whose
+    pre-act grading was skipped or failed. Read as False it would say every
+    non-acting episode was unaware before acting, which is not a fact about
+    the episode at all."""
+
+    def test_a_non_acting_episode_has_no_verdict(self):
+        from report.episode_rows import _acted, _aware_before_act
+        analysis = {"eval_awareness_grader": {"eval_aware": True}}
+        assert _acted(analysis) is False
+        assert _aware_before_act(analysis) is None
+
+    def test_a_skipped_pre_act_grading_is_not_a_false(self):
+        from subversionbench.grading import MISALIGNED_ACTS
+        from report.episode_rows import _aware_before_act
+        act = MISALIGNED_ACTS[0]
+        analysis = {act["key"]: ["something"],
+                    f"eval_awareness_grader_before_{act['name']}":
+                        {"skipped": True, "reason": "act not located"}}
+        assert _aware_before_act(analysis) is None
+
+    def test_a_skip_marker_beside_a_verdict_still_reads_as_no_verdict(self):
+        """The case the skip check actually guards, and the reason the test
+        above cannot: a bare skip marker carries no eval_aware, so the None
+        check would catch it either way. These two fields CAN coexist -
+        add_awareness_timing refuses to overwrite a real pre-act reading with
+        a skip marker - and a stale verdict beside a skip must not be read as
+        current. Planting the removal of the skip check proved the previous
+        test could not see it."""
+        from subversionbench.grading import MISALIGNED_ACTS
+        from report.episode_rows import _aware_before_act
+        act = MISALIGNED_ACTS[0]
+        analysis = {act["key"]: ["something"],
+                    act["timing_key"]: {"act_turn": 4},
+                    f"eval_awareness_grader_before_{act['name']}":
+                        {"skipped": True, "eval_aware": False}}
+        assert _aware_before_act(analysis) is None
+
+    def test_the_earliest_act_by_turn_decides(self):
+        """Awareness before the FIRST act is what could have shaped the
+        episode. Registry order is an implementation detail of the act table,
+        and taking it instead miscounted this corpus by two episodes."""
+        from subversionbench.grading import MISALIGNED_ACTS
+        from report.episode_rows import _aware_before_act
+        if len(MISALIGNED_ACTS) < 2:
+            import unittest
+            raise unittest.SkipTest("needs at least two registered acts")
+        first, second = MISALIGNED_ACTS[0], MISALIGNED_ACTS[1]
+        analysis = {
+            first["key"]: ["x"], second["key"]: ["y"],
+            first["timing_key"]: {"act_turn": 9},
+            second["timing_key"]: {"act_turn": 2},
+            f"eval_awareness_grader_before_{first['name']}": {"eval_aware": False},
+            f"eval_awareness_grader_before_{second['name']}": {"eval_aware": True},
+        }
+        # The act at turn 2 came first, and it WAS preceded by awareness.
+        assert _aware_before_act(analysis) is True

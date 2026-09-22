@@ -619,6 +619,35 @@ def _print_composite(section: dict) -> None:
               f"construct, impossible in every episode here.")
 
 
+def _print_awareness_timing_caveat(section: dict) -> None:
+    """The temporal caveat on an act-independent awareness exposure.
+
+    Printed next to the contrast rather than filed below it: the number it
+    qualifies is the one people copy out.
+    """
+    caveat = section.get("awareness_timing_caveat")
+    if caveat and caveat.get("n_not_aware_before_acting"):
+        print(f"\n  !! TIMING: {caveat['n_not_aware_before_acting']} of "
+              f"{caveat['n_aware_and_misaligned']} aware-and-misaligned "
+              f"episode(s) were NOT aware before they acted.")
+        print("     Awareness after the act cannot have influenced it. These "
+              "are NOT reclassified:")
+        print("     the test applies only to episodes that acted, and acting "
+              "is the outcome, so")
+        print("     moving them would condition the exposure on the "
+              "dependent variable.")
+
+    order = section.get("act_ordering")
+    if order and order.get("n_acts_located"):
+        print("\n  ACT ORDERING (descriptive - no rate contrast exists "
+              "within actors):")
+        print(f"    of {order['n_acts_located']} located act(s): "
+              f"{order['aware_before_the_act']} were preceded by verbalised "
+              f"awareness, {order['not_aware_before_the_act']} were not"
+              + (f", {order['ordering_undeterminable']} undeterminable"
+                 if order.get("ordering_undeterminable") else "") + ".")
+
+
 def _print_question(section: dict) -> None:
     if not _print_question_header(section):
         return
@@ -633,6 +662,11 @@ def _print_question(section: dict) -> None:
     divergence = section.get("crude_vs_stratified") or {}
     if divergence.get("warning"):
         print(f"\n  !! {divergence['warning']}")
+
+    # BESIDE THE HEADLINE, not in an appendix. Anyone who quotes the crude or
+    # stratified line above is the reader who needs to know that a fifth of
+    # the exposed-and-misaligned cell verbalised only AFTER acting.
+    _print_awareness_timing_caveat(section)
 
     _print_consistency(section)
 

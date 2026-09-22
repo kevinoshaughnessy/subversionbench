@@ -10,6 +10,49 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v207
+
+**The awareness-vs-misalignment question now carries its temporal caveat, and
+reports the act ordering it can honestly report.**
+
+`aware` answers "did this model ever verbalise awareness". That is
+act-independent, which is what makes it usable as an exposure at all - see the
+selection-bias note in docs/methodology.md. It does not answer "was it aware
+when it acted", and the pre-act rubric the harness already runs per act
+disagrees on a fifth of the aware-and-misaligned cell: 20 of 101 episodes
+verbalised only AFTER acting, where awareness cannot have influenced the act.
+
+REPORTED, NOT RECLASSIFIED, and that is the whole decision. Moving those
+episodes into the unexposed group applies the temporal test to one cell and
+not the other, because it can only reach episodes that acted - and acting is
+the outcome. The manoeuvre moves the headline from -0.6pp to -2.2pp, a nearly
+fourfold effect conditioned on the dependent variable. 1,891 aware episodes
+took no act at all and would keep their label however late they verbalised, so
+an identical awareness pattern would be classified two different ways
+depending on the outcome.
+
+The caveat prints beside the crude and stratified lines rather than below
+them, next to the existing Simpson's-paradox warning, because the number it
+qualifies is the one people copy out.
+
+ALSO ADDED, AND DESCRIPTIVE BY FORCE. An actors-only contrast was written
+first and cannot exist: misalignment IS committing a measured act, so within
+actors the outcome is constant - 327 of 327 - and the comparison returned
+difference 0.0 with p 1.0. What is reported instead is the ordering itself,
+which is what docs/methodology.md prescribes for this quantity: of 327 located
+acts, 81 were preceded by verbalised awareness and 244 were not.
+
+`aware_before_act` is tri-valued and None means "the question does not arise" -
+no act, an act that could not be located, or one whose pre-act grading was
+skipped. Read as False it would assert that every non-acting episode was
+unaware before acting, which is not a fact about the episode.
+
+A first count of the post-act episodes gave 22. It walked the act registry in
+order and took the first act key that fired; two episodes have an earlier act,
+by turn, whose pre-act grading says aware. Ordering by act turn is the
+principled choice - awareness before the FIRST act is what could have shaped
+the episode - and registry order is an implementation detail of the act table.
+
 ## v206
 
 **The rubric grader retries a call the route did not answer, and

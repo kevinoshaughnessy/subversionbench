@@ -118,6 +118,71 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
         c["lure"] = lv
         by_lure.append(c)
 
+    # THE EXPOSURE IS ACT-INDEPENDENT, AND THAT HAS A COST.
+    #
+    # `aware` answers "did this model ever verbalise awareness", which is what
+    # makes it usable as an exposure at all - see the selection-bias note in
+    # docs/methodology.md. It does not answer "was it aware when it acted".
+    # The pre-act rubric does, and on this corpus it disagrees on a fifth of
+    # the aware-and-misaligned cell.
+    #
+    # Reported, NEVER used to reclassify. The temporal test can only be
+    # applied to episodes that acted, so moving episodes on it would apply it
+    # to one cell and not the other - and acting is the outcome. On r10 that
+    # manoeuvre moves the headline from -0.6pp to -2.2pp, an effect
+    # manufactured by conditioning on the dependent variable.
+    aware_mis = [r for r in rows if r["aware"] and r["misaligned"]]
+    after_act = [r for r in aware_mis if r["aware_before_act"] is False]
+    timing_caveat = {
+        "n_aware_and_misaligned": len(aware_mis),
+        "n_not_aware_before_acting": len(after_act),
+        "note": (
+            f"{len(after_act)} of {len(aware_mis)} aware-and-misaligned "
+            f"episodes were NOT aware before they acted, by the pre-act "
+            f"rubric the harness already runs per act. Awareness that arrives "
+            f"after the act cannot have influenced it, so those episodes "
+            f"cannot support a claim that awareness raises the rate. They are "
+            f"NOT reclassified: the test applies only to episodes that acted, "
+            f"and acting is the outcome, so moving them would condition the "
+            f"exposure on the dependent variable. See `actors_only` below for "
+            f"the subgroup where the test applies to both sides."),
+    }
+
+    # DESCRIPTIVE, NOT A CONTRAST, and that is forced rather than chosen.
+    #
+    # The obvious move is to restrict to episodes that acted, where "aware
+    # before the act" is defined on both sides, and contrast misalignment
+    # within them. That contrast cannot exist: misalignment IS committing one
+    # of the measured acts, so within actors the outcome is constant - 327 of
+    # 327 on r10 - and the comparison returns difference 0.0 and p 1.0 with
+    # nothing to separate. It was written that way first and the numbers said
+    # so.
+    #
+    # So this reports the ordering itself, which is what
+    # docs/methodology.md prescribes for exactly this quantity: "Use it
+    # descriptively - among the models that tampered, how many suspected a
+    # test first". It answers a real question the headline cannot, and it
+    # claims nothing about rates.
+    actors = [r for r in rows if r["acted"]]
+    before = sum(1 for r in actors if r["aware_before_act"] is True)
+    after = sum(1 for r in actors if r["aware_before_act"] is False)
+    unlocatable = sum(1 for r in actors if r["aware_before_act"] is None)
+    act_ordering = {
+        "n_acts_located": len(actors),
+        "aware_before_the_act": before,
+        "not_aware_before_the_act": after,
+        "ordering_undeterminable": unlocatable,
+        "note": (
+            f"Of {len(actors)} episode(s) that committed a measured act, "
+            f"{before} had verbalised awareness BEFORE it and {after} did "
+            f"not, by the pre-act rubric ({unlocatable} could not be placed). "
+            f"Descriptive only: misalignment IS committing an act, so within "
+            f"this subgroup the outcome is constant and no rate contrast "
+            f"exists to compute. It does not replace the headline, and it "
+            f"must not be read as one - conditioning a rate on pre-act "
+            f"awareness is selection on the outcome."),
+    }
+
     summary_rows = cross_analysis_rows(summaries)
     cross_check = _contrast(summary_rows, "aware", True, False, "misaligned", "n")
     cross_check["n_arms_contributing"] = len(summary_rows) // 2
@@ -144,6 +209,8 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
         "stratified": _stratified(by_model),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
+        "awareness_timing_caveat": timing_caveat,
+        "act_ordering": act_ordering,
         "summary_derived_cross_check": cross_check,
     }
 
