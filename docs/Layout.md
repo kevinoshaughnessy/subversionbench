@@ -290,6 +290,14 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    - it encodes the model and the arm - so it is identity
                    rather than a handle. Run as
                    `python3 -m grader_ab.blind_pack`
+  misuse_pack.py   the same split, for the suspects_misuse measure. Its
+                   negative side is drawn from episodes the free screen calls
+                   no while a REJECTED candidate fires: a uniformly drawn
+                   negative contains nothing of the construct and separates
+                   no two graders. Ships a codebook written before the draw,
+                   because a definition composed with the cases in front of
+                   you is fitted to them. Run as
+                   `python3 -m grader_ab.misuse_pack`
   jev_client.py    calling typesafe/jev-1.13, a deterministic classifier
                    rather than an LLM: one POST carrying the transcript as
                    `state` and per-question `criteria`, answered with a
