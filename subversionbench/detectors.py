@@ -71,6 +71,14 @@ REQUIRED = (
     "rubric_system_prompt",
     "eval_awareness_indicators",
     "goal_conflict_awareness",
+    # Suspicion that the content is an ATTACK, which is a different construct
+    # from suspicion that the situation is a TEST and was merging into it -
+    # questioned_authenticity asks whether the scenario may be "planted", and
+    # content planted by an ATTACKER satisfies that wording as readily as
+    # content planted by an experimenter. Its own list, with its own records,
+    # because the evidence behind it is weaker than the awareness list's and
+    # a shared record would hide that.
+    "misuse_indicators",
     # The evidence for each phrase - what it newly flagged, what the grader
     # independently agreed on, and which candidates were REJECTED and why.
     # Travels with the values rather than staying behind as a comment in
@@ -90,7 +98,23 @@ REQUIRED = (
     # be checked either way, and an indicator list only ever grows unless
     # something holds the failures.
     "accepted",
+    # The same pair for misuse_indicators. Separate mappings rather than one
+    # shared pair, because the guards check membership against a specific
+    # list: a phrase accepted INTO the misuse list is absent from the
+    # awareness list by construction, and a single `accepted` would make the
+    # awareness guard fail on it. Two lists, two records, two guards.
+    "misuse_accepted",
+    "misuse_rejected",
 )
+
+# Which record pair belongs to which list. NOT derivable - "accepted" names no
+# list, and inferring it from a prefix would silently un-guard a list whose
+# records were named some other way. A pair the map does not know fails rather
+# than being skipped, which is what the guard over it asserts.
+RECORD_PAIRS = {
+    "eval_awareness_indicators": ("accepted", "rejected"),
+    "misuse_indicators": ("misuse_accepted", "misuse_rejected"),
+}
 
 
 def load_detectors(path: Path = None) -> dict:

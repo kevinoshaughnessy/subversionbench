@@ -50,6 +50,7 @@ from .power import (
 )
 from .grading import (
     detect_eval_awareness_keywords,
+    detect_misuse_suspicion,
     detect_eval_awareness_grader,
     analyze_misalignment,
     classify_misalignment,
@@ -79,6 +80,7 @@ __all__ = [
     "n_for_precision",
     "analyse_batch",
     "detect_eval_awareness_keywords",
+    "detect_misuse_suspicion",
     "detect_eval_awareness_grader",
     "analyze_misalignment",
     "classify_misalignment",

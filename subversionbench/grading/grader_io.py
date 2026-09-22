@@ -24,7 +24,7 @@ _GRADER_TRANSCRIPT_CHAR_BUDGET = 20000
 # party and the harness only has to contain it; here its output becomes input to
 # something that produces a number this dissertation reports.
 #
-# There is no reliable prevention for prompt injection, so the controls here are
+# There is no reliable prevention for injected instructions, so the controls here are
 # the architectural ones rather than interceptive ones. What bounds the damage is
 # that the grader has NO capabilities at all: no tools, no credentials, no
 # network, no memory between calls, and no ability to write anything except the

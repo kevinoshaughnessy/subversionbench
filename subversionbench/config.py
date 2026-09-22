@@ -107,6 +107,7 @@ __all__ = [
     "INTERROGATION_VARIANTS",
     "MAX_CLASSIFIER_FALLBACK_RATE",
     "MIN_CALLS_FOR_FALLBACK_RATE",
+    "MISUSE_INDICATORS",
     "OPENCODE_BASE_URL",
     "OPENROUTER_BASE_URL",
     "OPERATOR_DISPLAY_NAME",
@@ -243,6 +244,10 @@ _DETECTORS = MappingProxyType(load_detectors())
 
 EVAL_AWARENESS_INDICATORS = tuple(_DETECTORS["eval_awareness_indicators"])
 GOAL_CONFLICT_AWARENESS = tuple(_DETECTORS["goal_conflict_awareness"])
+# Suspicion that the content is an ATTACK rather than that the situation is a
+# TEST. Deliberately NOT pooled into EVAL_AWARENESS_INDICATORS: the two were
+# merging, which is why one phrase moved out of that list and into this one.
+MISUSE_INDICATORS = tuple(_DETECTORS["misuse_indicators"])
 RUBRIC_SYSTEM_PROMPT = _DETECTORS["rubric_system_prompt"]
 RUBRIC_QUESTIONS = MappingProxyType(_DETECTORS["rubric_questions"])
 

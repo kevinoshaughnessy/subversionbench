@@ -22,8 +22,8 @@ from pathlib import Path
 from subversionbench.config import (EVAL_AWARENESS_INDICATORS,
                                     GOAL_CONFLICT_AWARENESS, RUBRIC_QUESTIONS,
                                     RUBRIC_SYSTEM_PROMPT)
-from subversionbench.detectors import (REQUIRED, encode_detectors,
-                                       load_detectors)
+from subversionbench.detectors import (RECORD_PAIRS, REQUIRED,
+                                       encode_detectors, load_detectors)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -107,6 +107,39 @@ class TestTheDetectorIsNotInTrackedSource(unittest.TestCase):
         """A guard built on a filter that matches nothing passes with
         everything broken."""
         assert len(_distinctive()) > 20
+
+    def test_no_misuse_indicator_appears_in_tracked_source_at_all(self):
+        """No distinctiveness floor and no per-file budget: ONE occurrence of
+        ONE phrase fails.
+
+        The awareness list needs both, because it holds ordinary vocabulary
+        this repository uses constantly for other reasons - "conflict" is the
+        subject of the benchmark - so only a concentration of long phrases
+        signals a reproduction. The misuse list holds no such word: every
+        phrase in it names an attack, and none of them has an innocent reason
+        to appear in tracked source.
+
+        WRITTEN BECAUSE THE FLOOR HAS A HOLE AND THE HOLE WAS WALKED INTO.
+        Creating this list leaked three of its four phrases into tracked
+        source in the same change - two in comments explaining the split, one
+        in a test fixture that had quoted the phrase since long before it was
+        an indicator. The 15-character floor caught none of them: one phrase
+        is 9 characters, and the others sat one per file, under the
+        four-per-file budget. A short, specific phrase is exactly as
+        disclosing as a long one.
+        """
+        phrases = [p.lower() for p in load_detectors()["misuse_indicators"]]
+        assert phrases, "an empty list passes this guard with everything broken"
+        offenders = {f: [p for p in phrases if p in text]
+                     for f in _tracked_text_files()
+                     if (text := (ROOT / f).read_text(
+                         encoding="utf-8", errors="ignore").lower())
+                     and any(p in text for p in phrases)}
+        assert not offenders, (
+            f"these tracked files name a misuse indicator: "
+            f"{ {f: len(v) for f, v in offenders.items()} }. Describe the "
+            f"shape instead of quoting the matched value, and derive the "
+            f"phrase from the bundle in tests.")
 
     def test_no_rubric_question_appears_in_tracked_source(self):
         """Longer and far more distinctive than an indicator; even a 60
@@ -227,25 +260,28 @@ class TestARejectedPhraseStaysRejected(unittest.TestCase):
     test.
     """
 
-    def test_no_rejected_phrase_is_in_the_live_list(self):
-        b = load_detectors()
-        both = sorted(set(b["rejected"]) & set(b["eval_awareness_indicators"]))
-        assert not both, (
-            f"{both} are recorded as rejected AND present in the list. One of "
-            f"the two is wrong; the rationale says which.")
+    def test_no_rejected_phrase_is_in_its_live_list(self):
+        for live, (_acc, rej) in RECORD_PAIRS.items():
+            b = load_detectors()
+            both = sorted(set(b[rej]) & set(b[live]))
+            assert not both, (
+                f"{both} are recorded in {rej} AND present in {live}. One of "
+                f"the two is wrong; the rationale says which.")
 
     def test_every_rejection_records_a_number(self):
         """A rejection with no measurement invites re-proposal, and is the
         difference between an argument and a matter of taste."""
-        bare = [p for p, why in load_detectors()["rejected"].items()
-                if not any(ch.isdigit() for ch in why)]
-        assert not bare, bare
+        for _live, (_acc, rej) in RECORD_PAIRS.items():
+            bare = [p for p, why in load_detectors()[rej].items()
+                    if not any(ch.isdigit() for ch in why)]
+            assert not bare, (rej, bare)
 
-    def test_the_rejection_set_is_not_empty(self):
+    def test_no_rejection_set_is_empty(self):
         """A guard over an empty mapping passes with everything broken."""
-        assert len(load_detectors()["rejected"]) >= 5
+        for _live, (_acc, rej) in RECORD_PAIRS.items():
+            assert len(load_detectors()[rej]) >= 5, rej
 
-    def test_every_accepted_phrase_is_actually_in_the_list(self):
+    def test_every_accepted_phrase_is_actually_in_its_list(self):
         """The mirror of the rejection guard.
 
         A first attempt counted any indicator appearing in the rationale
@@ -254,18 +290,53 @@ class TestARejectedPhraseStaysRejected(unittest.TestCase):
         short indicators occur in it by chance - a guard that fails by
         passing, which is the thing this suite is for. `accepted` is a
         mapping for the same reason `rejected` is: it can be checked.
+
+        Per LIST, which is what caught the misuse split: moving a phrase out
+        of the awareness list while its acceptance record stayed behind left
+        a phrase recorded as accepted into a list it was no longer in.
         """
         b = load_detectors()
-        missing = sorted(set(b["accepted"]) - set(b["eval_awareness_indicators"]))
-        assert not missing, (
-            f"{missing} are recorded as accepted and are not in the list")
+        for live, (acc, _rej) in RECORD_PAIRS.items():
+            missing = sorted(set(b[acc]) - set(b[live]))
+            assert not missing, (
+                f"{missing} are recorded in {acc} and are not in {live}")
 
     def test_every_acceptance_records_a_number(self):
-        bare = [p for p, why in load_detectors()["accepted"].items()
-                if not any(ch.isdigit() for ch in why)]
-        assert not bare, bare
+        for _live, (acc, _rej) in RECORD_PAIRS.items():
+            bare = [p for p, why in load_detectors()[acc].items()
+                    if not any(ch.isdigit() for ch in why)]
+            assert not bare, (acc, bare)
 
     def test_the_two_records_do_not_overlap(self):
         b = load_detectors()
-        both = sorted(set(b["accepted"]) & set(b["rejected"]))
-        assert not both, f"{both} recorded as both accepted and rejected"
+        for _live, (acc, rej) in RECORD_PAIRS.items():
+            both = sorted(set(b[acc]) & set(b[rej]))
+            assert not both, f"{both} recorded as both accepted and rejected"
+
+    def test_every_record_mapping_in_the_bundle_is_covered_by_a_pair(self):
+        """The guard over the guards.
+
+        Every check above iterates RECORD_PAIRS, so a list whose records are
+        not in that map is silently unguarded - the hand-written-list defect
+        AGENTS.md names, one level up. The map cannot be derived (`accepted`
+        names no list), so instead this asserts nothing escapes it: a record
+        mapping added to the bundle without an entry here fails rather than
+        being skipped.
+        """
+        b = load_detectors()
+        recorded = {k for k in b
+                    if k.endswith(("accepted", "rejected"))}
+        covered = {name for pair in RECORD_PAIRS.values() for name in pair}
+        assert recorded == covered, (
+            f"records in the bundle but not in RECORD_PAIRS: "
+            f"{sorted(recorded - covered)}; in the map but not the bundle: "
+            f"{sorted(covered - recorded)}")
+        assert RECORD_PAIRS, "an empty map passes every guard above"
+
+    def test_the_two_keyword_lists_are_disjoint(self):
+        """A phrase in both measures both constructs, which is the merge the
+        misuse list exists to undo."""
+        b = load_detectors()
+        both = sorted(set(b["eval_awareness_indicators"])
+                      & set(b["misuse_indicators"]))
+        assert not both, f"{both} is in both keyword lists"

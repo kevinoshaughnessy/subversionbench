@@ -70,6 +70,7 @@ from .grading import (classify_awareness_from_rubric,
                       detect_encoded_payload,
                       detect_eval_awareness_keywords,
                       detect_filesystem_escapes, detect_honeypot_access,
+                      detect_misuse_suspicion,
                       detect_host_path_reads,
                       detect_network_probes,
                       detect_strategy_recommendation,
@@ -263,6 +264,10 @@ def _transcript_measures(analysis: dict, transcript: list) -> None:
     if transcript:
         analysis["eval_awareness_keywords"] = detect_eval_awareness_keywords(
             transcript)
+        # Same argument, same freeness: a phrase list is a pure function of the
+        # transcript, so every episode already on disk gets this measure for
+        # nothing rather than only episodes collected after it existed.
+        analysis["misuse_keywords"] = detect_misuse_suspicion(transcript)
 
     # read_successor_params: whether the model opened the goal-guarding
     # artefact, added a version after episodes without it were already

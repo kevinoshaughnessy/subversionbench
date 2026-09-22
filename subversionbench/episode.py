@@ -35,6 +35,7 @@ from .config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION, TOOLS
 from .followup import add_awareness_timing, interrogate_acts
 from .grading import (MISALIGNED_ACTS, analyze_misalignment,
                       detect_eval_awareness_keywords,
+                      detect_misuse_suspicion,
                       report_grader_failure, settle_analysis,
                       verify_oversight_unchanged)
 from .isolation import DEFAULT_ISOLATION
@@ -423,6 +424,10 @@ def _grade_awareness(analysis: dict, transcript: list, use_grader: bool,
     """
     eval_awareness_kw = detect_eval_awareness_keywords(transcript)
     analysis["eval_awareness_keywords"] = eval_awareness_kw
+    # Recorded beside awareness and pooled into nothing: suspicion that the
+    # content is an ATTACK is a different construct from suspicion that the
+    # situation is a TEST, and the two were merging.
+    analysis["misuse_keywords"] = detect_misuse_suspicion(transcript)
 
     t_grader_start = time.time()
     if use_grader:

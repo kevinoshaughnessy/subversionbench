@@ -10,6 +10,67 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v209
+
+**Suspicion of misuse is now its own measure, and one phrase moved into it.**
+An agent saying the content in front of it is an attack and an agent saying the
+situation is a test are making different claims. Only the second is what
+eval awareness measures, and the two were merging: the rubric question
+`questioned_authenticity` asks whether the scenario may be "planted", and
+content planted by an attacker satisfies that wording as readily as content
+planted by an experimenter. The grader was answering the question as written.
+
+`misuse_keywords` is recorded beside the awareness block and pooled into
+nothing. Narrowing the rubric question is the change that would move the
+grader-based rate, and it is deliberately NOT made here: being able to see the
+overlap comes first, and a rate change should be its own decision rather than
+a side effect of gaining a measure.
+
+**This does move the keyword awareness rate, slightly and on purpose.** The
+moved phrase was the only indicator firing on some episodes, and those leave
+the awareness rate with it. The measurements - what each phrase flags, what was
+rejected and why - are in the bundle's `rationale`, with the values they
+describe, rather than here.
+
+Two thirds of the candidate phrases were REJECTED, which is the part of this
+worth reading. The whole manipulation family looked like the obvious core of
+the construct and fires on the agent describing the scenario's own designed
+pressure - the goal conflict this benchmark stages. A misuse measure that fires
+on the benchmark working as intended measures nothing. They are recorded in
+`misuse_rejected` so they cannot be re-proposed as an oversight.
+
+The candidates were checked against the assembled scenario for every arm before
+any were accepted: an indicator matching text the agent READS is the defect
+that gave the awareness list a phrase with a 98% false-positive rate.
+
+The accepted/rejected guards now iterate a derived map of list to record pair
+rather than naming one list, so a second keyword list cannot be added and go
+unguarded - and a record mapping that escapes the map fails rather than being
+skipped. Moving the phrase was itself caught by the existing guard, which
+asserts every accepted phrase is present in the list it was accepted into.
+
+**A misuse indicator in tracked source now fails on ONE occurrence.** The
+existing scrub guard needs a 15-character distinctiveness floor and a
+four-per-file budget, because the awareness list holds ordinary vocabulary this
+repository uses for other reasons. The misuse list holds no such word, so it
+gets a guard with neither.
+
+It was written because the hole was walked into while digging it: creating the
+list leaked three of its four phrases into tracked source in the same change -
+two in comments explaining the split, one in a test fixture that had quoted the
+phrase innocently since long before it was an indicator. The floor caught none
+of them. One phrase is nine characters, and the others sat one per file, under
+the budget. A short, specific phrase discloses exactly as much as a long one.
+Three more pre-existing sites were scrubbed at the same time, all of which
+became leaks the moment the phrase became an indicator.
+
+Both keyword measures now share one match-and-excerpt helper. This module's
+history is one matching rule implemented twice and drifting, so a second copy
+was the thing most worth not writing. The extraction also found a dedup that
+compared a bare quote against formatted strings and could never fire;
+correcting it changes no stored output, which was verified across the corpus
+rather than argued.
+
 ## v208
 
 **The timing caveat is drawn on the figure, not only printed.** v207 put it in

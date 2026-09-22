@@ -78,6 +78,12 @@ REDERIVED_ANALYSIS_FIELDS = (
     # without it keeps a concealment verdict this withdraws.
     "sandbox_corrupt_output",
     "eval_awareness_keywords",
+    # The misuse measure, added after every r9 and r10 episode was already
+    # saved, so the key is ABSENT rather than False on all of them. Allowlisted
+    # for the same reason as the awareness block beside it: a phrase list is a
+    # pure function of the transcript, so a rebuild backfills the whole corpus
+    # at no cost and no episode has to be re-collected to carry it.
+    "misuse_keywords",
     # Added after episodes without it were already saved - the key was
     # absent, not False, on every one of them. Re-derived from the
     # transcript like the field above, so a rebuild backfills it for free.
