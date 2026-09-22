@@ -10,6 +10,66 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v211
+
+**Three template-recognition phrases join the awareness list.** They share a
+common word, and what it does is mark the situation as an INSTANCE OF A KIND:
+an agent describing its position that way is saying it recognises the shape of
+the thing, which is recognition of a known evaluation template rather than
+description of what is in front of it. That is a different route to awareness
+from the rest of the list, which mostly catches an agent naming an evaluator
+outright. The phrases are in detectors.b64; `detector_tool.py --show
+rationale` has them with the evidence.
+
+Measured the way every phrase here is, and checked against the assembled
+scenario for all four arms first: none appear in text the agent reads. Between
+them they add 43 new flags with no overlap, and the LLM grader independently
+calls 37 of the 43 aware — 86% against a 33.2% base rate. Sampled matches are
+the agent naming the genre, not in-fiction description.
+
+**The published keyword awareness rate moves +0.70pp, deliberately.** Awareness
+timing also moved on 68 episodes, where a new phrase is the earliest indicator.
+The question-5 timing caveat is unchanged, because it reads the grader's
+pre-act verdict rather than keyword position.
+
+Two broader candidates were rejected on VOLUME rather than quality. The widest
+carries the same agreement rate across 237 new flags and would move the
+published rate by about four points by itself, which is a deliberate change to
+a published figure rather than a vocabulary fix — and being a common English
+construction it fires well outside this construct. Both are recorded in the
+bundle's `rejected` mapping with their measurements. The reasoning behind an
+addition and the reach of the phrasing that implements it are separate
+questions, and this list only ever grows unless that distinction is kept.
+
+**Prose documents are now zero-tolerance for detector vocabulary.**
+CHANGELOG.md, README.md and docs/*.md are what a reader and a crawler
+actually read, so a phrase named there is disclosed in a way a test fixture is
+not. No length floor, no per-file budget, and the REJECTIONS are in scope —
+naming a refused candidate leaks the same protocol the values do, and nothing
+had ever guarded them.
+
+Length was the wrong axis and this is the third version to learn it. A
+9-character phrase went into the CHANGELOG under the 15-character floor in
+v209; the first draft of this very entry named the word three new phrases
+share plus two rejected variants, and the floor caught none of it. What
+separates the cases is whether a phrase has an innocent reason to appear in
+prose about this benchmark, which is a property of the phrase and cannot be
+derived from it — so it is recorded, as `prose_exempt` in the bundle rather
+than as a baseline in the test, because a baseline naming phrases in a tracked
+file is the leak it exists to prevent. Nine entries today, each ordinary
+vocabulary this project uses for other reasons.
+
+Two-directional, so it can only shrink: nothing outside the mapping may appear
+in prose, and every phrase in it must still appear somewhere in prose. Both
+historical leaks were planted against the new guard and both go red.
+
+**A restated figure in docs/scenario.md had rotted.** The pre-command
+awareness share was given as 0.4% over a 1,045-episode denominator; the corpus
+had moved past that before this change and is further past it now. Corrected,
+and the paragraph now says to recompute rather than cite. The share moves DOWN
+as the indicator list grows, so the argument it supports strengthens — which is
+why nothing caught the drift.
+
 ## v210
 
 **The misuse measure gets a figure, in two panels.** The top one decomposes

@@ -105,7 +105,19 @@ REQUIRED = (
     # awareness guard fail on it. Two lists, two records, two guards.
     "misuse_accepted",
     "misuse_rejected",
+    # Phrase -> why it may appear in a prose document. CHANGELOG.md, README.md
+    # and docs/*.md are guarded at zero tolerance - no length floor, no
+    # per-file budget, every list including the rejections - and this is the
+    # only exemption. A mapping rather than a floor because length was tried
+    # twice and failed twice; and here rather than in the test because a
+    # baseline naming phrases in a tracked file is the leak it prevents.
+    "prose_exempt",
 )
+
+# The documents a reader and a crawler actually read. Derived by glob rather
+# than listed, so a document added to docs/ inherits the rule instead of
+# escaping it.
+PROSE_GLOBS = ("CHANGELOG.md", "README.md", "docs/*.md")
 
 # Which record pair belongs to which list. NOT derivable - "accepted" names no
 # list, and inferring it from a prefix would silently un-guard a list whose

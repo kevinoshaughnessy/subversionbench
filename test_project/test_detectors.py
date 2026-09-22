@@ -245,6 +245,110 @@ class TestItIsSeparateFromTheScenarioBundle(unittest.TestCase):
                 assert load_detectors() == before
 
 
+def _prose_documents():
+    """The documents a reader and a crawler actually read, by glob."""
+    from subversionbench.detectors import PROSE_GLOBS
+    return sorted(p for g in PROSE_GLOBS for p in ROOT.glob(g))
+
+
+def _every_phrase():
+    """Phrase -> which list holds it, across all four. Accepted AND rejected:
+    naming a rejection leaks the same protocol the values do."""
+    b = load_detectors()
+    out = {}
+    for group in ("eval_awareness_indicators", "misuse_indicators",
+                  "rejected", "misuse_rejected"):
+        for phrase in b[group]:
+            out[phrase] = group
+    return out
+
+
+def _phrases_in(path, phrases):
+    """Which of `phrases` the document matches, by the MATCHER rather than by
+    raw substring - so the boundary rule that keeps a phrase ending in a bare
+    letter off longer words applies here too, and prose is not failed for a
+    word that merely starts the same way."""
+    import re
+
+    from subversionbench.grading.awareness_keywords import (
+        _indicator_pattern, normalise_for_matching)
+    text = normalise_for_matching(path.read_text(encoding="utf-8",
+                                                 errors="ignore"))
+    return {p for p in phrases
+            if re.compile(_indicator_pattern(p)).search(text)}
+
+
+class TestNoPhraseIsNamedInAProseDocument(unittest.TestCase):
+    """Zero tolerance in CHANGELOG.md, README.md and docs/*.md.
+
+    No length floor and no per-file budget, unlike the source-wide guard
+    above, because those files are what gets read: a phrase named there is
+    disclosed in a way a test fixture is not.
+
+    WRITTEN AFTER THE SAME LEAK TWICE. A 9-character phrase went into the
+    CHANGELOG under the 15-character floor in one version; in the next, an
+    entry named the word shared by three new phrases and two rejected
+    variants besides, and the floor caught none of it. Length is not the axis
+    - whether a phrase has an innocent reason to appear in prose about this
+    benchmark is, and that is recorded in the bundle's `prose_exempt`.
+    """
+
+    def test_no_document_names_a_phrase_outside_the_exemption(self):
+        exempt = set(load_detectors()["prose_exempt"])
+        phrases = _every_phrase()
+        candidates = set(phrases) - exempt
+        offenders = {}
+        for doc in _prose_documents():
+            hit = _phrases_in(doc, candidates)
+            if hit:
+                offenders[doc.name] = sorted(phrases[p] for p in hit)
+        assert not offenders, (
+            f"these prose documents name a detector phrase: {offenders}. "
+            f"Describe the shape and point at `detector_tool.py --show "
+            f"rationale` instead of quoting the value. (The lists are named, "
+            f"not the phrases, so this message discloses nothing.)")
+
+    def test_the_document_set_is_not_empty(self):
+        """A glob that matches nothing empties the scope and the guard above
+        passes with everything named."""
+        docs = _prose_documents()
+        assert len(docs) >= 3, docs
+        assert any(d.name == "CHANGELOG.md" for d in docs)
+
+    def test_the_phrase_set_is_not_empty(self):
+        assert len(_every_phrase()) > 50
+
+    def test_the_rejections_are_in_scope(self):
+        """The half most likely to be forgotten: a rejected phrase names a
+        candidate that was measured and refused, which is protocol."""
+        b = load_detectors()
+        covered = set(_every_phrase())
+        assert set(b["rejected"]) <= covered
+        assert set(b["misuse_rejected"]) <= covered
+
+    def test_every_exemption_still_appears_in_prose(self):
+        """The second direction, so the list can only shrink. An entry whose
+        phrase has left the documents is deleted, not left standing."""
+        exempt = set(load_detectors()["prose_exempt"])
+        seen = set()
+        for doc in _prose_documents():
+            seen |= _phrases_in(doc, exempt)
+        stale = sorted(len(p) for p in exempt - seen)
+        assert not stale, (
+            f"{len(stale)} exemption(s) name a phrase no prose document uses "
+            f"any more (lengths {stale}) - delete them from prose_exempt "
+            f"rather than leaving an exemption behind.")
+
+    def test_every_exemption_names_a_phrase_some_list_holds(self):
+        """A stale record, not an exemption: the phrase left the lists and
+        the entry outlived it."""
+        exempt = set(load_detectors()["prose_exempt"])
+        orphans = sorted(len(p) for p in exempt - set(_every_phrase()))
+        assert not orphans, (
+            f"{len(orphans)} exemption(s) name a phrase no list holds "
+            f"(lengths {orphans})")
+
+
 class TestARejectedPhraseStaysRejected(unittest.TestCase):
     """The rejections are the half of this record most likely to be lost.
 

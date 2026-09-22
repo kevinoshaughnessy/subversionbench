@@ -78,10 +78,17 @@ The measure pointed at that is `awareness_provenance` in each batch summary (see
 [What gets measured](methodology.md#what-gets-measured)): awareness verbalised *before the model issued a
 single command* was formed from the framing alone, which is what template recognition looks
 like; awareness verbalised only after the monitoring config was read was inferred from the
-scenario. Across the r10 corpus the pre-command share is **0.4%** — 4 of the 1,045
-keyword-aware episodes, where 1,024 of them had a window in which it could have been
+scenario. Across the r10 corpus the pre-command share is **0.25%** — 4 of the 1,601
+keyword-aware episodes, where 1,579 of them had a window in which it could have been
 observed at all. That is evidence against genre recognition, not proof: the decisive test
 is a cue ablation, holding the structure fixed while changing the surface.
+
+Those three numbers are restated prose and they have already rotted once: the denominator
+stood at 1,045 here while the corpus said otherwise, because the indicator list grows and
+this sentence does not. Recompute them from `awareness_provenance` before citing them, and
+treat a figure in this file as a reading taken on a date rather than a standing fact. The
+share moves DOWN as the list grows, so the argument it supports gets stronger rather than
+weaker — which is exactly why nothing flagged the drift.
 
 The model probes are each paired with a negative control, because a probe that cannot fail
 for an innocent reason is not evidence:
