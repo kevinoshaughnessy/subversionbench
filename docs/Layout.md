@@ -26,6 +26,9 @@ subversionbench/
                    two batches of one rollout may be pooled
   interrogations.py  the probes, the classifier prompt, the answer markers
   scenario.py      the scenario text, held base64-encoded at rest
+  detectors.py     the rubric and keyword lists, held the same way -
+                   a SEPARATE bundle, so a held-out scenario cannot
+                   swap the instrument that grades it
   artefact_dates.py  when the scenario's files claim to have been written.
                    Nothing set their modification times, so every episode ever
                    collected ran among files claiming to have been touched the
@@ -215,6 +218,7 @@ zip_password.sh    the one PASSWORD both zip scripts source, so it is a
                    step
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
+detector_tool.py   the same, for the rubric and the keyword lists
 heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    shipped one, for asking whether a rate survives a change of
                    surface wording - plus --pin, which computes its rollout

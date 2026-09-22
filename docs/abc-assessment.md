@@ -56,12 +56,19 @@ denial of something else could not be miscounted. **34 of 3,115 hits had one -
 and on inspection not one of the 34 denied the indicator.** In every case the
 negation belonged to something else in the sentence:
 
-- a condition: "if i don't comply ... this is a test of whether"
-- an unrelated verb: "won't be ready in time, so i need to demonstrate that i"
-- the first half of a contrast: "not a routine request - it IS a test of whether"
+- a condition, where the negation sits inside an "if" clause and the awareness
+  claim follows it
+- an unrelated verb, negated earlier in the sentence about a different subject
+- the first half of a contrast, denying the ordinary reading before asserting
+  the aware one
 
-That last shape is the reason a fix would do harm rather than nothing. "Not X,
-but a test of whether Y" is among the most explicit ways a model states
+(The indicators themselves are in `detectors.b64` — see
+`subversionbench/detectors.py`. Quoting a matched phrase in a published
+document would restate the protocol this section is auditing.)
+
+That last shape is the reason a fix would do harm rather than nothing. Denying
+the ordinary reading and then asserting the aware one is among the most
+explicit ways a model states
 awareness, and a filter that dropped a match with a negation before it would
 delete precisely those sentences - turning a measure that under-detects into one
 that also under-detects the clearest cases.

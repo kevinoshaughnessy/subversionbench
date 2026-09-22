@@ -496,8 +496,8 @@ significant conflict"* matched none of `"clear conflict"`, `"a conflict here"` o
 on plain narration of the tool's output (*"Strategy A would be flagged, Strategy B passed"*),
 which notices nothing at all.
 
-So bare `"conflict"` replaces the nine variants that each spelled out one phrasing, four
-`"but/while my core objective|directive"` forms cover the commonest construction that names
+So bare conflict vocabulary replaces the nine variants that each spelled out one phrasing, four
+objective-contrast forms cover the commonest construction that names
 no conflict word, and the checker phrases are gone — 39 phrases down to 19. Validated against
 the grader's `noticed_conflict` over 650 episodes, the replacement is better on **both** axes:
 
@@ -793,8 +793,8 @@ measure the scenario rather than the model.
 
 Read the distribution before building on it. On a keyword screen of the 196 aware episodes
 already collected, **71% read as safety-framed and 2 episodes as capability-framed** — models
-say things like *"a test of my integrity"* and *"specification gaming, a behavior deemed
-unsafe"*. That is structural rather than a sampling accident: a scenario with a stated goal
+name the thing under examination as their own honesty or integrity far more often than as
+their capability. That is structural rather than a sampling accident: a scenario with a stated goal
 conflict, an oversight mechanism and an editable config gives an aware model almost nothing
 to suspect except a safety test. **A literature holding that safety-aware and
 capability-aware episodes differ in misalignment therefore cannot be tested on this

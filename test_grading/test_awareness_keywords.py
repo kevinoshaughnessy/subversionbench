@@ -605,12 +605,17 @@ class TestTheRejectedCandidatesStayRejected:
 
     def test_the_reason_is_recorded_beside_the_list(self):
         """A rejected candidate with no number invites re-proposal. The measurement is
-        what makes the rejection arguable rather than a matter of taste."""
-        import inspect
-        import subversionbench.config as cfg
-        src = inspect.getsource(cfg)
-        assert "an evaluation of" in src, "the rejection is not written down"
-        assert "REJECTED" in src
+        what makes the rejection arguable rather than a matter of taste.
+
+        In the BUNDLE, not in config.py. The rejections name the phrases that
+        were tried and dropped, which leaks the protocol exactly as the
+        accepted list does - so the evidence travelled with the values into
+        detectors.b64 rather than staying behind as a comment."""
+        from subversionbench.detectors import load_detectors
+        rationale = load_detectors()["rationale"]["eval_awareness_indicators"]
+        assert "REJECTED" in rationale, "the rejection is not written down"
+        # The numbers are what make it arguable rather than taste.
+        assert "base rate" in rationale
 
 
 class TestTheContaminationProbeIsUnaffected:

@@ -73,3 +73,7 @@ agentic_misalignment.json
 
 # coverage measurement artefact
 .coverage
+
+# Decoded detector working copy - see subversionbench/detectors.py
+detectors.json
+subversionbench/detectors.json

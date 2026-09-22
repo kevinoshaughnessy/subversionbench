@@ -17,4 +17,4 @@ field from what the episode saved: the transcript for most of them, and the
 stored rubric answers for the awareness verdicts.
 """
 
-VERSION = "v202"
+VERSION = "v203"
