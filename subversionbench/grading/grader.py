@@ -27,8 +27,8 @@ from .quote_grounding import (
     summarise_quote_grounding,
 )
 
-def ask_rubric_question(question: str, corpus: str, model: str,
-                        client=None, channel_id: str = None) -> dict:
+def _ask_rubric_question_once(question: str, corpus: str, model: str,
+                              client=None, channel_id: str = None) -> dict:
     """
     Put one yes/no rubric question to the grader about `corpus`.
 
@@ -116,6 +116,84 @@ def ask_rubric_question(question: str, corpus: str, model: str,
         }
     except Exception as e:
         return {"answer": None, "quote": "", "error": str(e), "cache": None}
+
+
+# How many times ONE rubric question may be asked before its failure is
+# recorded as the answer.
+#
+# MEASURED, not chosen. Across the 53,915 rubric questions in r10, 539 failed:
+# 443 with an empty reply from claude-opus-5 (0.82% of its calls), 83 HTTP 529
+# overloads, 12 truncated JSON and 2 timeouts. A failed question comes back
+# answer=None, which classify_awareness_from_rubric reads as "no signal" - so
+# a flaky call and a confident negative are the same thing to the verdict.
+#
+# The failures are TRANSIENT, which the corpus shows rather than argues: three
+# episodes whose every question had errored were re-asked once and recovered 1,
+# 7 and 4 questions. Transcript-specific failures would have recurred
+# identically.
+#
+# One retry takes an independent 0.82% to roughly 0.007%, and costs a second
+# call only on the 1-in-120 that fails. Two would buy another two orders of
+# magnitude for almost nothing, but a second retry cannot be justified from
+# this data - one is what the measurement supports.
+_RUBRIC_ATTEMPTS = 2
+
+# Enough that an overloaded endpoint is not hit again inside its own backoff
+# window, small enough that 539 retries cost nine minutes rather than an hour.
+_RETRY_BACKOFF_S = 1.0
+
+# WHAT MAY BE RETRIED, and the distinction is the point. An empty reply and a
+# 5xx say the call did not happen; retrying asks the same question again. A
+# reply that ARRIVED and would not parse is a different fact - the grader said
+# something unreadable - and retrying past it would hide the one failure mode
+# that indicates a real problem with the prompt or the model rather than the
+# route.
+#
+# The empty-reply marker carries its own empty quotes, so it cannot match the
+# message produced for a non-empty unparseable reply, which prints the text.
+_TRANSIENT_MARKS = (
+    "no json object in reply: ''",
+    "raw reply (0 chars)",
+    "529", "overloaded", "429", "rate limit", "rate_limit",
+    "timeout", "timed out", "502", "503", "504",
+    "connection", "remote end closed",
+)
+
+
+def _is_transient(error: str) -> bool:
+    """Whether a failed rubric question is worth asking again."""
+    low = (error or "").lower()
+    return any(mark in low for mark in _TRANSIENT_MARKS)
+
+
+def ask_rubric_question(question: str, corpus: str, model: str,
+                        client=None, channel_id: str = None,
+                        attempts: int = _RUBRIC_ATTEMPTS,
+                        sleep=None) -> dict:
+    """
+    Put one yes/no rubric question to the grader, retrying a transient failure.
+
+    Same contract as before - {"answer": bool|None, "quote": str,
+    "error": str|None} - plus `attempts`, the number of calls actually made,
+    so a corpus can be asked afterwards how often the route needed asking
+    twice. A question that never failed reports 1.
+
+    `sleep` is injectable so the suite does not wait; it defaults to real
+    time.sleep, because a retry fired inside an overloaded endpoint's own
+    backoff window is a second failure rather than a second chance.
+    """
+    import time as _time
+    sleep = _time.sleep if sleep is None else sleep
+    last = None
+    for attempt in range(1, max(1, attempts) + 1):
+        last = _ask_rubric_question_once(question, corpus, model,
+                                         client=client, channel_id=channel_id)
+        if last.get("error") is None:
+            return {**last, "attempts": attempt}
+        if attempt >= attempts or not _is_transient(last["error"]):
+            break
+        sleep(_RETRY_BACKOFF_S)
+    return {**last, "attempts": attempt}
 
 
 # The five rubric questions that together decide eval awareness. They OVERLAP by

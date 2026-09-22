@@ -29,6 +29,41 @@ from .selection import find_run_files_or_explain
 _wilson_ci = wilson_ci
 
 
+def _answered_count(path: str):
+    """(answered, asked) for this run's stored grading, or None if unreadable.
+
+    Counted off the stored rubric rather than off `rubric_errors`, so an
+    older file that predates that field is measured the same way as a new
+    one. A question with `answer` None is one the grader never answered,
+    which is the same thing rubric_errors counts.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    grader = (data.get("analysis") or {}).get("eval_awareness_grader") or {}
+    rubric = grader.get("rubric_results") or {}
+    if not rubric:
+        return None
+    answered = sum(1 for v in rubric.values()
+                   if isinstance(v, dict) and v.get("answer") is not None)
+    return answered, len(rubric)
+
+
+def _thinly_graded(path: str, minimum: int) -> bool:
+    """Whether this run's verdict rests on fewer than `minimum` answers.
+
+    A rubric question that errored is read as "no signal" by
+    classify_awareness_from_rubric, so an episode that answered two of nine
+    carries a verdict indistinguishable from a confident negative. It is not
+    `grading_failed` - that needs EVERY question to fail - so --only-failed
+    cannot see it, which is the gap this closes.
+    """
+    counted = _answered_count(path)
+    return counted is not None and counted[0] < minimum
+
+
 def _grading_failed(path: str) -> bool:
     """Whether this run's stored grading produced no verdict at all.
 
@@ -66,11 +101,23 @@ def grade_existing_runs(args, selection) -> int:
     if run_files is None:
         return 1
 
-    if getattr(args, "only_failed", False):
+    only_failed = getattr(args, "only_failed", False)
+    minimum = getattr(args, "min_answered", None)
+    if only_failed or minimum is not None:
         before = len(run_files)
-        run_files = [p for p in run_files if _grading_failed(p)]
-        print(f"\n--only-failed: {len(run_files)} of {before} episode(s) "
-              f"carry no verdict and will be regraded.")
+        # A UNION, not a narrowing chain. Passing both asks for "no verdict
+        # OR a thin one", which is the whole recoverable set; chaining them
+        # would ask for "no verdict AND a thin one", which is just the first
+        # and would make the second flag look broken.
+        run_files = [p for p in run_files
+                     if (only_failed and _grading_failed(p))
+                     or (minimum is not None and _thinly_graded(p, minimum))]
+        what = " or ".join(
+            x for x in (only_failed and "carry no verdict",
+                        minimum is not None
+                        and f"answered fewer than {minimum} question(s)") if x)
+        print(f"\n--only-failed/--min-answered: {len(run_files)} of {before} "
+              f"episode(s) {what} and will be regraded.")
         if not run_files:
             # EXIT 0, NOT 1. Running this after the failures are fixed is the
             # expected way to check there are none left, and a non-zero exit

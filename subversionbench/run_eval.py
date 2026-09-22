@@ -509,6 +509,16 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                         help="With --grade-existing, grade only the batch with "
                              "this filename timestamp (e.g. 20260727T182651). "
                              "Default: every batch matching the model/nudge.")
+    parser.add_argument("--min-answered", type=int, default=None,
+                        metavar="N",
+                        help="With --grade-existing, also select episodes "
+                             "whose stored grading answered FEWER than N of "
+                             "its rubric questions. --only-failed reaches the "
+                             "episodes that answered none; this reaches the "
+                             "ones resting on a handful, which carry a verdict "
+                             "and so are invisible to it. A rubric question "
+                             "that errored is read as 'no signal', so a thin "
+                             "verdict is a guess wearing a verdict's clothes.")
     parser.add_argument("--only-failed", action="store_true",
                         help="With --grade-existing, grade only the episodes "
                              "whose stored grading FAILED - every rubric "
@@ -612,6 +622,11 @@ def _reject_contradictory_flags(parser, args) -> None:
     if args.batch_stamp and not _read_modes:
         parser.error("--batch-stamp only applies with --grade-existing, "
                      "--self-grade-kind, --reclassify or --resummarise.")
+    if args.min_answered is not None and not args.grade_existing:
+        parser.error("--min-answered only applies with --grade-existing.")
+    if args.min_answered is not None and args.min_answered < 1:
+        parser.error("--min-answered must be at least 1; 0 would select "
+                     "nothing that --only-failed does not already reach.")
     if args.only_failed and not args.grade_existing:
         parser.error("--only-failed only applies with --grade-existing. The "
                      "other read modes are free and re-derive every episode, "

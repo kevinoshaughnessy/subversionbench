@@ -567,3 +567,105 @@ class TestAFailedGradingIsNotAPriorVerdict:
                                   "eval_aware": False,
                                   "grader_model": "old", "rubric_results": {}})
         assert "vs grader already recorded" in text
+
+
+class TestMinAnsweredReachesTheThinVerdicts:
+    """--only-failed means "no verdict at all", so it cannot see an episode
+    that answered one question of nine.
+
+    That episode is not `grading_failed` - which needs EVERY question to fail -
+    yet its verdict is indistinguishable from a confident negative, because
+    classify_awareness_from_rubric reads an unanswered question as "no signal".
+    r10 holds 250 episodes with at least one errored question and 19 resting on
+    half or fewer answers.
+    """
+
+    def _corpus(self):
+        out = tempfile.mkdtemp()
+        def write(n, answers):
+            rubric = {f"q{i}": ({"answer": a, "quote": ""} if a is not None
+                                else {"answer": None, "error": "boom"})
+                      for i, a in enumerate(answers)}
+            Path(out, f"run_{n}_m_strong_20260101T000000.json").write_text(
+                json.dumps({
+                    "model": "m", "nudge": "strong",
+                    "transcript": [{"turn": 1, "type": "text", "content": "x"}],
+                    "analysis": {"eval_awareness_grader": {
+                        "grading_failed": all(a is None for a in answers),
+                        "eval_aware": any(a for a in answers if a),
+                        "rubric_questions": len(answers),
+                        "rubric_errors": sum(1 for a in answers if a is None),
+                        "rubric_results": rubric}}}),
+                encoding="utf-8")
+        write(1, [None] * 4)                 # nothing answered
+        write(2, [True, None, None, None])   # thin: one answer of four
+        write(3, [True, True, True, True])   # clean
+        return out
+
+    def _grade(self, out, **flags):
+        args = FakeArgs(output_dir=out, model="m", nudge="strong",
+                        grader_model="g", write_back=False)
+        args.only_failed = flags.get("only_failed", False)
+        args.min_answered = flags.get("min_answered", None)
+        buf = io.StringIO()
+        with _stub_grader():
+            with contextlib.redirect_stdout(buf):
+                code = ev_run.grade_existing_runs(
+                    args, BatchSelection(model="m", nudge="strong"))
+        return code, buf.getvalue()
+
+    def _graded(self, text):
+        return {n for n in (1, 2, 3)
+                if f"Grading run_{n}_m_strong_20260101T000000.json" in text}
+
+    def test_only_failed_cannot_see_the_thin_one(self):
+        """The gap this closes, asserted rather than assumed."""
+        _c, text = self._grade(self._corpus(), only_failed=True)
+        assert self._graded(text) == {1}
+
+    def test_min_answered_selects_the_thin_one(self):
+        _c, text = self._grade(self._corpus(), min_answered=2)
+        assert 2 in self._graded(text)
+
+    def test_min_answered_leaves_the_clean_one_alone(self):
+        """The whole point is not resampling settled verdicts."""
+        _c, text = self._grade(self._corpus(), min_answered=2)
+        assert 3 not in self._graded(text)
+
+    def test_both_flags_are_a_union_not_a_narrowing(self):
+        """Chaining them would ask for "no verdict AND thin", which is just
+        the first - and would make the second flag look broken."""
+        _c, text = self._grade(self._corpus(), only_failed=True,
+                               min_answered=2)
+        assert self._graded(text) == {1, 2}
+
+    def test_a_threshold_above_every_episode_selects_all_of_them(self):
+        """So the guard can answer yes as well as no."""
+        _c, text = self._grade(self._corpus(), min_answered=99)
+        assert self._graded(text) == {1, 2, 3}
+
+    def test_neither_flag_grades_everything(self):
+        _c, text = self._grade(self._corpus())
+        assert self._graded(text) == {1, 2, 3}
+
+
+class TestTheNewFlagsAreRefusedOutsideARegrade:
+    """A flag that is accepted and then ignored is worse than one that is
+    refused: the caller believes the run was narrowed and pays for the whole
+    corpus."""
+
+    def test_min_answered_needs_grade_existing(self):
+        p = ev_run.build_parser()
+        args = p.parse_args(["--min-answered", "3"])
+        import pytest
+        with pytest.raises(SystemExit):
+            ev_run._reject_contradictory_flags(p, args)
+
+    def test_a_threshold_below_one_is_refused(self):
+        """Zero selects nothing --only-failed does not already reach, so
+        accepting it would be a flag that silently does nothing."""
+        p = ev_run.build_parser()
+        args = p.parse_args(["--grade-existing", "--min-answered", "0"])
+        import pytest
+        with pytest.raises(SystemExit):
+            ev_run._reject_contradictory_flags(p, args)

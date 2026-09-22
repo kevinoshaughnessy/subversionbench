@@ -10,6 +10,46 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v206
+
+**The rubric grader retries a call the route did not answer, and
+`--min-answered` reaches the verdicts that rest on almost nothing.**
+
+`ask_rubric_question` made one call and recorded any failure as the answer. A
+failed question comes back `answer=None`, which the classifier reads as "no
+signal", so a flaky call and a confident negative were the same thing to the
+verdict. Across r10's 53,915 rubric questions 539 failed: 443 an empty reply
+from claude-opus-5 (0.82% of its calls), 83 HTTP 529, 12 truncated JSON, 2
+timeouts.
+
+The failures are transient, and the corpus shows it rather than the argument
+doing so: three episodes whose every question had errored were re-asked once
+and recovered 1, 7 and 4 questions. Transcript-specific failures would have
+recurred identically. One retry takes an independent 0.82% to roughly 0.007%
+and costs a second call only on the 1-in-120 that fails.
+
+WHAT IS NOT RETRIED is the point. An empty reply or a 5xx says the call did not
+happen. A reply that ARRIVED and would not parse says the grader produced
+something unreadable - the one failure mode pointing at the prompt or the model
+rather than the route - and retrying past it would hide exactly that. The
+empty-reply marker carries its own empty quotes, so it cannot match the message
+produced for a non-empty unparseable reply.
+
+The number of calls made travels with each answer, so a corpus can be asked
+afterwards how often the route needed asking twice instead of the retry hiding
+a degrading endpoint.
+
+`--min-answered N` selects episodes that answered fewer than N rubric
+questions. `--only-failed` means "no verdict at all" and cannot see an episode
+resting on one answer of nine - it is not `grading_failed`, which needs every
+question to fail. Passing both is a UNION, not a narrowing chain: chaining
+would ask for "no verdict AND thin", which is just the first and would make the
+second flag look broken.
+
+On r10: `--only-failed` selects 120, `--min-answered 5` selects 19, and the
+union 139. The 12 truncated-JSON failures are NOT fixed by either - they are an
+output-token limit and would truncate again identically.
+
 ## v205
 
 **`--grade-existing --only-failed` recovers the episodes that carry no verdict,
