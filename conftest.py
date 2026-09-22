@@ -471,3 +471,22 @@ if HAS_PYTEST:
     @pytest.fixture
     def env_dir_only():
         return make_env_dir_only()
+
+
+# THE RUBRIC RETRY MUST NOT MAKE THE SUITE WAIT.
+#
+# ask_rubric_question backs off between attempts, because a retry fired inside
+# an overloaded endpoint's own backoff window is a second failure rather than a
+# second chance. Every test that exercises a failing grader therefore paid that
+# wait for real, and the full suite went from about 170 seconds to over ten
+# minutes before this was noticed.
+#
+# A plain assignment rather than an autouse fixture: run_tests.py is a
+# pytest-free runner and cannot interpret @pytest.fixture, so a fixture here
+# would neutralise the wait for one runner and not the other. A test that cares
+# about the backoff injects its own `sleep` and asserts on what it was handed,
+# which is what test_grading/test_rubric_retry.py does - so zeroing it here
+# cannot hide the behaviour from the guards that exist for it.
+from subversionbench.grading import grader as _grader_for_tests  # noqa: E402
+
+_grader_for_tests._RETRY_BACKOFF_S = 0.0

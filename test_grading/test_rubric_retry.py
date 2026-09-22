@@ -167,3 +167,39 @@ class TestTheBackoffIsRealButInjectable(unittest.TestCase):
         waited = []
         _ask("", "", sleep=waited.append)
         assert len(waited) == grader._RUBRIC_ATTEMPTS - 1
+
+
+class TestTheCallCountReachesTheSTOREDCell(unittest.TestCase):
+    """The claim v206 shipped with, which was false when it shipped.
+
+    _ask_rubric_subset rebuilds every rubric cell field by field, so a key it
+    does not name is dropped on the way to the run file. `attempts` came out
+    of ask_rubric_question and never reached the corpus - and the tests above
+    could not see it, because they assert on the function's return value and
+    the claim was about what is persisted.
+
+    So these assert on the rubric dict a grading actually produces.
+    """
+
+    def _rubric(self, *replies):
+        from unittest import mock
+        client, _calls = _client(*replies)
+        with mock.patch.object(grader, "check_quote_grounding",
+                               lambda *a, **k: "verbatim"):
+            results, _cache = grader._ask_rubric_subset(
+                [{"turn": 1, "type": "text", "content": "agent said this"}],
+                ["mentioned_test"], "claude-opus-5", client=client)
+        return results["mentioned_test"]
+
+    def test_a_first_time_answer_records_one_attempt(self):
+        assert self._rubric(GOOD)["attempts"] == 1
+
+    def test_a_retried_answer_records_two(self):
+        assert self._rubric("", GOOD)["attempts"] == 2
+
+    def test_a_failed_question_records_what_it_spent(self):
+        """The branch most worth knowing about, and a different code path -
+        the failure branch builds its own dict."""
+        cell = self._rubric("", "")
+        assert cell["answer"] is None
+        assert cell["attempts"] == grader._RUBRIC_ATTEMPTS

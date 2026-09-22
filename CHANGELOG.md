@@ -35,9 +35,12 @@ rather than the route - and retrying past it would hide exactly that. The
 empty-reply marker carries its own empty quotes, so it cannot match the message
 produced for a non-empty unparseable reply.
 
-The number of calls made travels with each answer, so a corpus can be asked
-afterwards how often the route needed asking twice instead of the retry hiding
-a degrading endpoint.
+The number of calls made travels with each answer AND into the stored rubric
+cell. It did not at first: `_ask_rubric_subset` rebuilds every cell field by
+field, so a key it does not name is dropped on the way to the run file, and the
+guards asserted on the function's return value while the claim was about what
+is persisted. Corrected in the same version, with the guard moved to the rubric
+a grading actually produces.
 
 `--min-answered N` selects episodes that answered fewer than N rubric
 questions. `--only-failed` means "no verdict at all" and cannot see an episode

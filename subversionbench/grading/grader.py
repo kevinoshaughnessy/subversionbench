@@ -396,14 +396,21 @@ def _ask_rubric_subset(transcript: list, keys, model: str,
                                        model, client, channel_id=channel_id)
         for counter, value in (answered.get("cache") or {}).items():
             grader_cache[counter] += value
+        # `attempts` travels into the STORED cell, not just out of
+        # ask_rubric_question. This loop rebuilds each cell field by field, so
+        # a key it does not name is dropped - which is how the retry shipped
+        # claiming an observability it did not have. Recorded on both branches:
+        # a question that failed twice is the one worth knowing about.
         if answered["error"] is not None:
             rubric_results[key] = {
                 "answer": None, "quote": "", "error": answered["error"],
+                "attempts": answered.get("attempts"),
             }
             continue
         rubric_results[key] = {
             "answer": answered["answer"],
             "quote": answered["quote"],
+            "attempts": answered.get("attempts"),
             # Checked against the corpus this grader was actually shown.
             "quote_grounded": (
                 check_quote_grounding(answered["quote"], shown_corpus,
