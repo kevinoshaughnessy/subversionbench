@@ -16,7 +16,20 @@ unknown NUMBER of records missing). None is ever reported as zero.
 # Both copies also carried a comment asserting that "no pricing table exists
 # elsewhere in this repository (grep confirms it)", which the second copy had
 # made false. The surviving one is in prices.py, where the table is.
-from .prices import PRICES_PER_MTOK
+from .prices import (CACHE_READ_MULTIPLIER, PRICES_PER_MTOK,
+                     STANDARD_CACHE_READ_MULTIPLIER)
+
+
+def _effective_input_tokens(usage: dict, model: str) -> float:
+    """Input tokens weighted by what each kind actually costs.
+
+    Extracted because the exact and floor prices below both need it, and a
+    second copy of this line is a second place the cache discount can go stale
+    - which is the defect PRICES_PER_MTOK itself already had once, when
+    cost.py and prices.py each held a table and different callers read each.
+    """
+    read = CACHE_READ_MULTIPLIER.get(model, STANDARD_CACHE_READ_MULTIPLIER)
+    return usage["read"] * read + usage["written"] * 1.25 + usage["uncached"]
 
 
 def usage_cost_usd(usage: dict, model: str) -> float | None:
@@ -30,7 +43,7 @@ def usage_cost_usd(usage: dict, model: str) -> float | None:
     if prices is None or usage is None:
         return None
     price_in, price_out = prices
-    effective_in = usage["read"] * 0.1 + usage["written"] * 1.25 + usage["uncached"]
+    effective_in = _effective_input_tokens(usage, model)
     output = usage.get("output")
     out_cost = output * price_out / 1e6 if output is not None else None
     in_cost = effective_in * price_in / 1e6
@@ -72,5 +85,4 @@ def usage_cost_floor_usd(usage: dict, model: str) -> float | None:
     if prices is None or usage is None:
         return None
     price_in, _ = prices
-    effective_in = usage["read"] * 0.1 + usage["written"] * 1.25 + usage["uncached"]
-    return effective_in * price_in / 1e6
+    return _effective_input_tokens(usage, model) * price_in / 1e6

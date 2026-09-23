@@ -158,10 +158,20 @@ class TestContaminationCheckAsk:
         on reasoning and returns nothing - which arrives here as an
         unparseable reply rather than as an obvious configuration error."""
         import contamination_check as cc
-        from subversionbench.reasoning import MIN_TOKENS_WHEN_THINKING_FORCED
+        from subversionbench.reasoning import THINKING_HEADROOM_TOKENS
         client = _RecordingClient(_Reply(_Block("text", "ok")))
         cc.ask(client, "claude-fable-5", "p", max_tokens=400)
-        assert client.calls[0]["max_tokens"] == MIN_TOKENS_WHEN_THINKING_FORCED
+        assert client.calls[0]["max_tokens"] == 400 + THINKING_HEADROOM_TOKENS
+
+    def test_the_model_under_test_is_not_asked_to_think_less(self):
+        """The probe measures what the model recalls, so it is not a grader
+        call: the low effort graders are sent would lower the very recall
+        being measured, and bias the verdict toward clean."""
+        import contamination_check as cc
+        client = _RecordingClient(_Reply(_Block("text", "ok")))
+        for model in ("claude-fable-5", "claude-opus-5-5", "gpt-6-sol"):
+            cc.ask(client, model, "p", max_tokens=400)
+        assert all("output_config" not in c for c in client.calls), client.calls
 
     def test_a_model_that_needs_no_room_is_given_exactly_what_was_asked(self):
         """The other direction of the same rule: raising every ceiling would

@@ -83,6 +83,11 @@ RELEASE_DATES = {
     # actually run, so it is the one keyed - see test_no_two_keys_share_a_stem.
     "claude-opus-5": date(2026, 7, 24),
     "anthropic/claude-fable-5.1": date(2026, 9, 1),
+    # Bare, for the same reason claude-opus-5 above is: the native route is the
+    # one that was run. Unlike that entry, a prefixed twin would be legal here -
+    # OpenRouter spells this generation with a dot, so "anthropic/claude-opus-5.5"
+    # has stem "claude-opus-5.5" and does not collide with the dashes.
+    "claude-opus-5-5": date(2026, 9, 22),
 
     # deepseek
     "deepseek/deepseek-v4-pro": date(2026, 4, 24),
@@ -124,6 +129,12 @@ RELEASE_DATES = {
     "openai/gpt-5.6-terra": date(2026, 7, 9),
     "openai/gpt-5.6-sol": date(2026, 7, 9),
     "openai/gpt-6-astra": date(2026, 9, 4),
+    # The first bare OpenAI key here: every entry above it carries the
+    # `openai/` prefix, which by routing.py means the OpenRouter route. This
+    # one is keyed for OpenAI's own API, matching how it is priced in
+    # grader_ab/prices.py. Its stem is distinct from "gpt-5.6-sol" above, so
+    # the two do not collide.
+    "gpt-6-sol": date(2026, 9, 22),
 
     # meta
     "meta-llama/llama-4-maverick": date(2025, 4, 5),

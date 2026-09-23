@@ -129,7 +129,7 @@ class TestTheBatchedCallRefusesAReplyItCannotRead:
     """Every one of these lands as an error on all nine keys rather than as a
     confident False, which is the property the shape is being measured on."""
 
-    def _client(self, content):
+    def _client(self, content, stop_reason=None):
         class Client:
             class messages:
                 @staticmethod
@@ -138,6 +138,7 @@ class TestTheBatchedCallRefusesAReplyItCannotRead:
                         pass
                     R.content = content
                     R.usage = None
+                    R.stop_reason = stop_reason
                     return R()
         return Client()
 
@@ -170,6 +171,18 @@ class TestTheBatchedCallRefusesAReplyItCannotRead:
             "every question must be present even when the reply was unusable")
         assert all(v["answer"] is None for v in got.values())
         assert all("did not parse" in v["error"] for v in got.values())
+
+    def test_an_omitted_question_says_why_the_reply_ended(self):
+        """A reply cut off by the ceiling can still close its JSON early, and
+        then arrives as omitted keys rather than a parse failure - the same
+        undiagnosable ending the stop reason was attached for elsewhere."""
+        keys = list(RUBRIC_QUESTIONS)
+        client = self._client([self._block(json.dumps(
+            {keys[0]: {"answer": True, "quote": "q"}}))], stop_reason="max_tokens")
+        got = ab.ask_rubric_batch("text", "m", client=client)
+        assert got[keys[0]]["answer"] is True
+        assert all("stop_reason='max_tokens'" in got[k]["error"]
+                   for k in keys[1:]), [got[k]["error"] for k in keys[1:]]
 
     def test_the_asker_builds_its_own_client_when_given_none(self):
         """main always passes one. The rubric harness and rubric_ab do not, so
@@ -444,6 +457,44 @@ class TestCostIsMeasuredNotGuessed:
 
     def test_the_floor_is_also_none_for_an_unpriced_model(self):
         assert ab.usage_cost_floor_usd(self._usage(), "some-new-model") is None
+
+
+class TestTheCacheReadDiscountIsPerModel:
+    """0.1x is the standard cache-read multiplier, not a universal one.
+
+    Claude Opus 5.5 reads at 0.05x - $0.20/MTok against its $4 base - so the
+    single hardcoded 0.1 these functions used to carry would price its reads at
+    twice their real rate. That is the wrong direction on the shape this script
+    leans on hardest: a per_question re-grade sends the same transcript nine
+    times, so cached reads are most of what it is billed for.
+    """
+
+    def _read_only(self, tokens):
+        return {"read": tokens, "written": 0, "uncached": 0, "output": 0}
+
+    def test_opus_5_5_reads_at_the_lower_multiplier(self):
+        got = ab.usage_cost_usd(self._read_only(1_000_000), "claude-opus-5-5")
+        assert abs(got - 0.20) < 1e-12, f"{got} - $0.40 means 0.1x was used"
+
+    def test_a_model_without_an_entry_keeps_the_standard_multiplier(self):
+        got = ab.usage_cost_usd(self._read_only(1_000_000), "claude-opus-5")
+        assert abs(got - 0.50) < 1e-12
+
+    def test_both_pricing_paths_agree_for_every_priced_model(self):
+        """Derived from the table, not a list of models.
+
+        The discount is read in two places - the exact price and the
+        input-only floor - and the defect this catches is a model whose
+        multiplier reaches one of them and not the other. Listing the models
+        here would leave the next one added uncovered, which is how the
+        grading package's guards fell two behind their own directory.
+        """
+        assert ab.PRICES_PER_MTOK, "an empty table would pass this vacuously"
+        usage = {"read": 10_000, "written": 1_000, "uncached": 500}
+        for model in ab.PRICES_PER_MTOK:
+            exact = ab.usage_cost_usd({**usage, "output": 0}, model)
+            floor = ab.usage_cost_floor_usd({**usage, "output": None}, model)
+            assert abs(exact - floor) < 1e-12, model
 
 
 class TestCellCostAccumulates:

@@ -16,6 +16,7 @@ from subversionbench.config import RUBRIC_QUESTIONS, RUBRIC_SYSTEM_PROMPT
 from subversionbench.grading import ask_rubric_question
 from subversionbench.grading.grader_io import (new_channel_id,
                                                parse_boolean_verdict,
+                                               why_it_stopped,
                                                wrap_untrusted)
 from subversionbench import llm_client
 from subversionbench.reasoning import short_call_thinking_kwargs
@@ -138,20 +139,24 @@ def _batched_rubric_call(corpus: str, model: str, client=None,
             usage_sink.append(token_counts(response))
         text_block = next((b for b in response.content if b.type == "text"), None)
         if text_block is None:
-            return failed("reply carried no text block", from_reply=True)
+            return failed(f"reply carried no text block "
+                          f"[{why_it_stopped(response)}]", from_reply=True)
         try:
             parsed = json.loads(_first_json_object(text_block.text))
         except (ValueError, TypeError) as e:
-            return failed(f"batched reply did not parse: {e}", from_reply=True)
+            return failed(f"batched reply did not parse: {e} "
+                          f"[{why_it_stopped(response)}]", from_reply=True)
         if not isinstance(parsed, dict):
-            return failed("batched reply was not a JSON object", from_reply=True)
+            return failed(f"batched reply was not a JSON object "
+                          f"[{why_it_stopped(response)}]", from_reply=True)
 
         out = {}
         for key in keys:
             entry = parsed.get(key)
             if entry is None:
                 out[key] = {"answer": None, "quote": "",
-                            "error": f"batched reply omitted {key}",
+                            "error": f"batched reply omitted {key} "
+                                     f"[{why_it_stopped(response)}]",
                             "error_kind": "reply"}
                 continue
             try:

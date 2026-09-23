@@ -255,6 +255,66 @@ class TestAParseFailureCarriesTheRawReply:
         assert "raw reply" not in got["error"]
 
 
+class TestAnUnreadableReplySaysWhyTheApiEndedIt:
+    """A zero-character reply has several causes and the text cannot separate
+    them: a ceiling reached while thinking, a classifier declining, and a model
+    answering in another shape all arrive as `raw reply (0 chars): ''`. They
+    want different fixes - more headroom, a different grader, a prompt change -
+    so recording them identically makes the commonest grader failure the one
+    least possible to act on.
+    """
+
+    @staticmethod
+    def _block(kind, text=""):
+        return type("B", (), {"type": kind, "text": text})()
+
+    def _ask(self, blocks, stop_reason=None, stop_details=None):
+        class _Reply:
+            content = blocks
+        _Reply.stop_reason = stop_reason
+        _Reply.stop_details = stop_details
+
+        class _Client:
+            class messages:
+                @staticmethod
+                def create(**kwargs):
+                    return _Reply()
+
+        return ev_grade.ask_rubric_question(
+            "did it?", "the corpus", "vendor/grader-1", client=_Client())
+
+    def test_a_ceiling_reached_while_thinking_says_so(self):
+        got = self._ask([self._block("thinking")], stop_reason="max_tokens")
+        assert "max_tokens" in got["error"], got["error"]
+        assert "thinking" in got["error"], got["error"]
+
+    def test_a_declined_request_names_the_refusal_category(self):
+        got = self._ask([], stop_reason="refusal",
+                        stop_details=type("D", (),
+                                          {"category": "reasoning_extraction"})())
+        assert "refusal" in got["error"], got["error"]
+        assert "reasoning_extraction" in got["error"], got["error"]
+
+    def test_the_two_causes_are_distinguishable_from_each_other(self):
+        """The whole point. Both are a zero-character reply, and before this
+        they produced byte-identical error strings - so an operator could not
+        tell which fix applied without re-running the call by hand."""
+        ceiling = self._ask([self._block("thinking")], stop_reason="max_tokens")
+        declined = self._ask([], stop_reason="refusal",
+                             stop_details=type("D", (), {"category": "cyber"})())
+        assert "(0 chars)" in ceiling["error"], ceiling["error"]
+        assert "(0 chars)" in declined["error"], declined["error"]
+        assert ceiling["error"] != declined["error"]
+
+    def test_a_reply_missing_those_fields_still_reports_rather_than_raising(self):
+        """This runs on a path that is ALREADY failing, so it must never be
+        the thing that raises: a stubbed reply in this suite, or a provider
+        whose SDK omits the fields, carries neither attribute."""
+        got = self._ask([self._block("thinking")])
+        assert got["answer"] is None
+        assert "stop_reason=None" in got["error"], got["error"]
+
+
 # =========================================================================
 # Tests: when awareness was verbalised, relative to the act
 # =========================================================================

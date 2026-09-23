@@ -110,6 +110,16 @@ class TestAnAnsweredButUnreadableReplyIsNotRetried(unittest.TestCase):
         assert not grader._is_transient(
             "no JSON object in reply: 'I think yes' | raw reply (11 chars)")
 
+    def test_an_empty_reply_the_api_explains_is_not_retried(self):
+        """Out of room while thinking, or declined, recurs on the same call -
+        the retry only buys a second full ceiling. An unexplained empty reply
+        is still retried, which is the control."""
+        empty = "no JSON object in reply: '' | raw reply (0 chars): ''"
+        assert grader._is_transient(f"{empty} [stop_reason=None, blocks=[]]")
+        for stop in ("max_tokens", "refusal", "incomplete:max_output_tokens"):
+            assert not grader._is_transient(
+                f"{empty} [stop_reason={stop!r}, blocks=['thinking']]"), stop
+
 
 class TestTheRetryIsBounded(unittest.TestCase):
 

@@ -64,7 +64,7 @@ from .openrouter_client import OpenRouterClient, _to_openai_messages, _to_openai
 from .reasoning import (
     EFFORT_LEVELS,
     MIN_THINKING_BUDGET,
-    MIN_TOKENS_WHEN_THINKING_FORCED,
+    THINKING_HEADROOM_TOKENS,
     is_known_anthropic_model,
     reasoning_flag_error,
     resolve_thinking_budget,
@@ -97,7 +97,7 @@ __all__ = [
     "reasoning_flag_error",
     "EFFORT_LEVELS",
     "MIN_THINKING_BUDGET",
-    "MIN_TOKENS_WHEN_THINKING_FORCED",
+    "THINKING_HEADROOM_TOKENS",
     "OpenRouterClient",
     "OpenCodeClient",
     "OpenAIClient",

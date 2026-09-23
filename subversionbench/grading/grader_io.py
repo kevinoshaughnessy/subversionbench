@@ -237,3 +237,32 @@ def report_grader_failure(result: dict, what: str = "awareness grader") -> bool:
     if len(errors) > 1:
         print(f"  [{what}] and {len(errors) - 1} other distinct error(s)")
     return True
+
+
+def why_it_stopped(response) -> str:
+    """What the API said about the end of a reply that could not be read.
+
+    An unreadable or absent reply has several causes that are indistinguishable
+    from the parsed content alone: the ceiling reached while thinking, a safety
+    classifier declining, and a model that answered in prose all arrive as
+    HTTP 200 with nothing usable in it. Recording only the symptom cost three
+    probes spent testing guesses the response object could have answered
+    outright - one of them against a reference grader erroring at a hundred
+    times its own established rate, with no way to say why.
+
+    Lives here rather than beside either caller because both grading/grader.py
+    and grader_ab need it and neither may import the other.
+
+    Defensive on every field. `stop_details` is populated only for a refusal
+    and is None otherwise, stubbed replies in the suite carry neither it nor
+    `stop_reason`, and this is only ever called on a path that is already
+    failing - so it must never be the thing that raises.
+    """
+    stop = getattr(response, "stop_reason", None)
+    blocks = [getattr(b, "type", "?")
+              for b in (getattr(response, "content", None) or [])]
+    note = f"stop_reason={stop!r}, blocks={blocks}"
+    detail = getattr(response, "stop_details", None)
+    if detail is not None:
+        note += f", refusal={getattr(detail, 'category', detail)!r}"
+    return note

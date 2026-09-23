@@ -15,6 +15,7 @@ from .grader_io import (
     _GRADER_TRANSCRIPT_CHAR_BUDGET,
     new_channel_id,
     parse_boolean_verdict,
+    why_it_stopped,
     wrap_untrusted,
 )
 from ..llm_client import short_call_thinking_kwargs
@@ -106,8 +107,16 @@ def _ask_rubric_question_once(question: str, corpus: str, model: str,
             # first 80 characters of exactly this text on every failure
             # today, and this reaches only a terminal and the gitignored
             # regrade_*.json beside the corpus - never a tracked file.
+            # The API's own account of the ending, alongside the reply text.
+            # An EMPTY raw_text is the case this was added for: it means no
+            # text block came back at all, and the text alone cannot separate
+            # a ceiling reached while thinking from a classifier declining
+            # from a model that answered in another shape. Those want
+            # different fixes, and this path was reporting all three
+            # identically as a zero-character reply.
             raise ValueError(f"{e} | raw reply ({len(raw_text)} chars): "
-                            f"{raw_text[:300]!r}") from e
+                            f"{raw_text[:300]!r} "
+                            f"[{why_it_stopped(response)}]") from e
         return {
             "answer": parsed["answer"],
             "quote": parsed["quote"],
@@ -159,10 +168,22 @@ _TRANSIENT_MARKS = (
     "connection", "remote end closed",
 )
 
+# An empty reply the API explains is not one where the call did not happen.
+# Out of room while thinking, or a classifier declining this transcript, recur
+# under the same settings - and a retry of the first spends a second full
+# ceiling, on the calls that were already most of a probe's cost. Written by
+# why_it_stopped, whose repr of the reason is what these match. OpenAI's
+# client spells the ceiling "incomplete:max_output_tokens" (openai_client
+# _stop_reason), so matched by its own name rather than Anthropic's.
+_DETERMINISTIC_STOPS = ("stop_reason='max_tokens'", "stop_reason='refusal'",
+                        "max_output_tokens")
+
 
 def _is_transient(error: str) -> bool:
     """Whether a failed rubric question is worth asking again."""
     low = (error or "").lower()
+    if any(stop in low for stop in _DETERMINISTIC_STOPS):
+        return False
     return any(mark in low for mark in _TRANSIENT_MARKS)
 
 

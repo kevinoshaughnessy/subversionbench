@@ -104,7 +104,8 @@ FORCED_CHOICE_TOKENS = 2000
 def ask(client, model, prompt, max_tokens=400):
     """One short completion. Returns (text, error)."""
     try:
-        thinking_kwargs, resolved = short_call_thinking_kwargs(model, max_tokens)
+        thinking_kwargs, resolved = short_call_thinking_kwargs(
+            model, max_tokens, steer_effort=False)
         response = client.messages.create(
             model=model,
             max_tokens=resolved,

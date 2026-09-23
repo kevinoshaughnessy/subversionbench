@@ -10,6 +10,73 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v212
+
+**Claude Opus 5.5 takes a reasoning surface of its own.** It was matching Opus
+5's row by prefix and inheriting the wrong thinking controls, so grader calls
+sent a parameter that model rejects. It is now forced-thinking like the Fable
+family, with the headroom that gives a grader room to think and still answer.
+The table's ordering rule was previously checked by naming pairs, which cannot
+fail for a model nobody has added yet; it is now checked over the whole table,
+and every native grader in the price table is checked for resolving to a row
+of its own rather than another version's.
+
+**A grader that cannot be told to stop thinking is now asked to think as
+little as its surface allows, and given room on top of its answer.** Two
+changes to the same call. The thinking allowance was a floor over the
+requested ceiling, so the answer's own tokens came out of the room left to
+think in — fine while the answer is small, and worse the larger it gets; the
+batched shape asks for nine answers at once and was starved by it. But a
+ceiling only bounds the waste, it does not reduce it: a model left at its
+default effort spends whatever it is given, and most of a probe's cost went
+on calls that returned no text at all. So the short grader and classifier
+calls now send effort `low` wherever the surface accepts it, which is the lever
+the API itself names when it refuses to have thinking disabled. A native
+OpenAI grader gets the same `low`, as the Responses API's own reasoning effort:
+having no row in the surface table, it was sent nothing and reasoned at its
+default, which made `gpt-6-sol` the most expensive grader tried despite its
+cheaper per-token rates. The `openai/` spelling routes through OpenRouter and
+still gets nothing. The
+contamination probe keeps the headroom but not the effort: it puts its short
+calls to the model under test, and lowering that model's effort would lower
+the recall it measures.
+
+The effort does change calls that already succeeded, so a forced-thinking or
+native OpenAI grader chosen with `--grader-model` or `--self-grade-kind` grades differently
+from this version on. The reference and default grader can turn thinking off,
+takes neither change, and is why no published figure moves.
+
+Both failures arrived as replies with no text block, or with the JSON severed
+part-way, and both are recorded as the grader's own failure — precisely the
+fragility this experiment tries to measure in the batched shape. The effect
+was not just lost answers but a thumb on the scale. It also narrows the gap to
+the reference cell, which grades with thinking off outright. Checked against
+both grader shapes rather than at one request size, since the defect was
+invisible at the smaller one, and against the surface table rather than a list
+of models.
+
+**An unreadable grader reply now records why the API ended it.** A reply with
+no text block has several causes that the reply text cannot tell apart — a
+ceiling reached while thinking, a safety classifier declining, a model
+answering in another shape — and all of them arrived as a zero-character
+reply. They call for different fixes, so the commonest grader failure was also
+the one least possible to act on. The stop reason, the block types present and
+the refusal category where there is one are now attached alongside the reply
+text, on every unreadable path of both grader shapes. An empty reply the API
+explains as out of room or declined is no longer retried: both recur under the
+same settings, and the first costs a second full ceiling. That covers OpenAI's
+spelling of the ceiling as well as Anthropic's. The helper is shared rather
+than copied, since the batched path and the
+shipped per-question path both need it and neither package may import the
+other. Read defensively throughout: it runs only on a path that is already
+failing, so it must never be the thing that raises.
+
+**Grader pricing re-checked against the published rates.** Opus 5.5 added, and
+the cache-read discount is now per-model rather than one hardcoded multiplier —
+its reads are priced differently from the rest of the table, and the exact and
+floor prices read that from one place instead of carrying separate copies.
+`claude-sonnet-5` was stale at $3/$15 and is now $2/$10.
+
 ## v211
 
 **Three template-recognition phrases join the awareness list.** They share a
