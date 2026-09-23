@@ -176,9 +176,14 @@ subversionbench/
                    three partial copies of it - the report path and two read
                    modes - each deriving a different subset, so which measures
                    an episode regained depended on which mode was run
+  graders.py       which grader said what: one entry per grader model in
+                   analysis.graders, the default's reading projected flat for
+                   every reader, and the one place the pre-array shape is read
   readmodes/       what can be learned from episodes already collected
     selection.py           which saved batches a mode works on, and fanning out
-    grade.py               re-running the awareness grader
+    rescore.py             re-scoring one grader's concealment reading, shared
+                           by the two paid modes; each keeps its own write-back
+    grade.py               re-running a grader's whole reading (--regrade)
     kind_self.py           re-measuring only the KIND of suspicion, with the
                            episode's own model - two questions per aware
                            episode, none for the rest

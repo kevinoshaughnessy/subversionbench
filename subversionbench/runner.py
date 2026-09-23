@@ -30,6 +30,7 @@ from .blocks import serialise_messages
 from .config import capability_fingerprint_for, fingerprint_for
 from .environment import create_episode_root
 from .episode import EpisodeAPIError, run_evaluation
+from .graders import view
 from .grading import MISALIGNED_ACTS, auth_error_in_analysis
 from .isolation import (confinement_available, isolation_available,
                         probe_isolation, profile_for, verify_confinement,
@@ -330,7 +331,10 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
         json.dump(result_to_save, f, indent=2, default=str)
     print(f"\nSaved: {redact_paths(run_file)}")
 
-    auth_error = auth_error_in_analysis(result.get("analysis") or {})
+    # The reading of the grader this batch ran, which is the one whose
+    # credentials an auth error would be about.
+    auth_error = auth_error_in_analysis(
+        view(result.get("analysis") or {}, args.grader_model))
     return {"ok": True, "run": i + 1, "result": result_to_save,
             "auth_error": auth_error, "env_dir": env_dir}
 

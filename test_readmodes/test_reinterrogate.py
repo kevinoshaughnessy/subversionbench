@@ -31,7 +31,7 @@ def _args(out, **over):
                 "batch_stamp": None, "effort": None, "oversight": True, "lure": False,
                 "interrogations": [DEFAULT_INTERROGATION, PARAPHRASE],
                 "write_back": False, "max_tokens": 8192, "thinking_budget": None,
-                "delay": 0}
+                "delay": 0, "regrade": "default"}
     base.update(over)
     return types.SimpleNamespace(**base)
 

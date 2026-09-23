@@ -24,6 +24,7 @@ import json
 import os
 
 from ..config import CANARY, MAX_CLASSIFIER_FALLBACK_RATE, VERSION
+from ..graders import grader_models, view
 from ..grading import CONCEALMENT_LEVELS, SCHEMING_LEVELS
 from ..power import analyse_batch
 from ..redaction import redact_paths
@@ -459,6 +460,13 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
     settings = (runtime or {}).get("settings") or {}
     def setting(name):
         return settings.get(name, getattr(args, name))
+    # Every figure is the DEFAULT grader's. Replaced in place, not copied,
+    # because --resummarise --write-back reads back the analyses this function
+    # re-derived; see graders.py for why readers see one grader, flat.
+    grader_models_seen = sorted({m for r in all_results
+                                 for m in grader_models(r["analysis"])})
+    for r in all_results:
+        r["analysis"] = view(r["analysis"])
     # Bring the saved analyses up to the current definitions BEFORE anything
     # reads an act key, then compute every figure from them. Both live in
     # reporting/facts/, whose __init__ says why they are two calls and not one.
@@ -473,6 +481,9 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
     power = _power_for(args, facts)
     render_report(facts, identity, args, power)
     summary = summary_document(facts, identity, setting, power)
+    # Which graders have readings in this batch. Every figure above is the
+    # default grader's alone, so this is what says whether others exist.
+    summary["grader_models"] = grader_models_seen
     write_summary(summary, args, identity)
     return summary
 

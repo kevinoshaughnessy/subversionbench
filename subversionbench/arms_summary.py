@@ -22,6 +22,7 @@ import os
 from collections import Counter, defaultdict
 
 from .batch import NO_OVERSIGHT_TAG, find_run_files_by_stamp, parse_batch_filename
+from .graders import view
 from .grading import SCHEMING_LEVELS
 from .power import compare_rates
 from .redaction import redact_paths
@@ -125,7 +126,7 @@ def _variant_concealment(output_dir: str, batch_stamp: str) -> dict:
                 run = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        analysis = run.get("analysis") or {}
+        analysis = view(run.get("analysis") or {})
         for act, field in (("sandbox", "concealment_sandbox_by_variant"),
                            ("oversight", "concealment_oversight_by_variant")):
             by_variant = analysis.get(field) or {}

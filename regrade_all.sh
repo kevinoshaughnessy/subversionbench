@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Re-grade every saved batch with the current --grader-model, then rebuild its
-# summary.
+# Re-grade every saved batch with one grader (--regrade), then rebuild its
+# summary. Each episode keeps one entry per grader, so this replaces only the
+# named grader's entry; the summaries are rebuilt from the default grader's.
 #
 # Needed because the awareness rate is only comparable across models if every
 # model was graded by the same grader. Changing the default from
@@ -20,7 +21,8 @@
 #   OUTPUT_DIR   results directory            (default: the current version's,
 #                                             so pass it explicitly to regrade
 #                                             batches collected under an older one)
-#   GRADER       --grader-model to grade with (default: the package default)
+#   GRADER       --regrade target: a model ID, or 'default' / 'all'
+#                (default: the package default grader)
 #   DELAY        seconds between files        (default 2)
 #   MIN_RUNS     skip batches smaller than N  (default 10, i.e. skip pilots)
 #   DRY_RUN      set to 1 to print and not spend
@@ -83,7 +85,7 @@ while IFS=$'\t' read -r model nudge stamp n; do
     [ -n "$stamp" ] && stamp_args=(--batch-stamp "$stamp")
 
     grade=(python -m subversionbench.run_eval --grade-existing --write-back
-           --grader-model "$GRADER" --model "$model" --nudge "$nudge"
+           --regrade "$GRADER" --model "$model" --nudge "$nudge"
            --output-dir "$OUTPUT_DIR" --delay "$DELAY" "${stamp_args[@]}")
     summarise=(python -m subversionbench.run_eval --resummarise
                --model "$model" --nudge "$nudge"

@@ -11,13 +11,16 @@ fields, and only those that actually differ, because it must never touch a sampl
 judgement.
 """
 
+import copy
 import json
 import os
 
 from ..batch import BatchIdentity, parse_batch_filename
+from ..config import DEFAULT_GRADER_MODEL
+from ..graders import grader_models, store, view
 from ..grading.acts import MISALIGNED_ACTS
 from ..redaction import redact_paths
-from ..rederive import REDERIVED_AWARENESS_FIELDS
+from ..rederive import REDERIVED_AWARENESS_FIELDS, rederive_free_measures
 from ..reporting.summary import runtime_from_existing_summary, summarise_batch
 from .selection import find_run_files_or_explain
 
@@ -173,6 +176,66 @@ def _awareness_changes(stored: dict, fresh: dict) -> dict:
             if k in now and was.get(k) != now[k]}
 
 
+def _apply_rederived(stored: dict, fresh: dict) -> list:
+    """Copy the allowlisted re-derived fields that moved from `fresh` onto
+    `stored`, in place. Returns their names, empty when nothing moved."""
+    changed = {k: fresh[k] for k in REDERIVED_ANALYSIS_FIELDS
+               if k in fresh and stored.get(k) != fresh[k]}
+    awareness = _awareness_changes(stored, fresh)
+    stored.update(changed)
+    if awareness:
+        stored["eval_awareness_grader"] = {
+            **(stored.get("eval_awareness_grader") or {}), **awareness}
+    return sorted(changed) + [f"eval_awareness_grader.{k}"
+                              for k in sorted(awareness)]
+
+
+def _per_grader_write_back(stored: dict, run: dict):
+    """The same allowlist, applied to each grader's reading of an array file.
+
+    summarise_batch re-derived the DEFAULT grader's view only, so every other
+    grader's settled verdicts and awareness block are re-derived here, one
+    view at a time, and folded back with graders.store. An array file with no
+    entry at all still has free fields to refresh, which the ungraded view of
+    the default carries.
+
+    Returns (analysis to save, names written).
+    """
+    names = []
+    for model in grader_models(stored) or [DEFAULT_GRADER_MODEL]:
+        was = view(stored, model)
+        fresh = rederive_free_measures(copy.deepcopy(was),
+                                       run.get("transcript") or [],
+                                       bool(run.get("lure")))
+        moved = _apply_rederived(was, fresh)
+        if moved:
+            stored = store(stored, was, model)
+            names += [f"{model}: {n}" for n in moved]
+    return stored, names
+
+
+def _write_back_one(path: str, run: dict):
+    """Save one run's re-derived fields, if any moved. Returns their names.
+
+    A file written before the grader array existed keeps its shape: the
+    analysis summarise_batch re-derived IS its one reading, so the flat
+    comparison this mode always made still applies to it unchanged.
+    """
+    with open(path) as f:
+        on_disk = json.load(f)
+    stored = on_disk.get("analysis") or {}
+    if "graders" in stored:
+        stored, names = _per_grader_write_back(stored, run)
+    else:
+        names = _apply_rederived(stored, run.get("analysis") or {})
+    if not names:
+        return []
+    on_disk["analysis"] = stored
+    with open(path, "w") as f:
+        json.dump(on_disk, f, indent=2)
+    return names
+
+
 def resummarise_existing_runs(args, selection) -> int:
     """
     Rebuild summary files from run files already on disk.
@@ -258,26 +321,10 @@ def resummarise_existing_runs(args, selection) -> int:
         # than rewritten with an identical payload.
         if args.write_back:
             for path, run in zip(batch_paths, all_results, strict=True):
-                with open(path) as f:
-                    on_disk = json.load(f)
-                stored = on_disk.get("analysis") or {}
-                fresh = run.get("analysis") or {}
-                changed = {k: fresh[k] for k in REDERIVED_ANALYSIS_FIELDS
-                           if k in fresh and stored.get(k) != fresh[k]}
-                awareness = _awareness_changes(stored, fresh)
-                if not changed and not awareness:
+                names = _write_back_one(path, run)
+                if not names:
                     continue
-                stored.update(changed)
-                if awareness:
-                    stored["eval_awareness_grader"] = {
-                        **(stored.get("eval_awareness_grader") or {}),
-                        **awareness}
-                on_disk["analysis"] = stored
-                with open(path, "w") as f:
-                    json.dump(on_disk, f, indent=2)
                 n_written += 1
-                names = sorted(changed) + [f"eval_awareness_grader.{k}"
-                                           for k in sorted(awareness)]
                 print(f"  wrote back {len(names)} field(s) to "
                       f"{redact_paths(os.path.basename(path))}: "
                       f"{', '.join(names)}")

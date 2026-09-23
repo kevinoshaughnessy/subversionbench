@@ -28,6 +28,7 @@ import os
 import time
 
 from .. import grading as grading_api
+from ..graders import view
 from ..batch import unique_batch_stamp
 from ..config import CANARY, VERSION
 from ..redaction import redact_paths
@@ -64,8 +65,10 @@ def _grade_one(path: str, model: str, write_back: bool) -> dict:
         print("  Skipped: no transcript in this file.")
         return None
 
-    analysis = data.get("analysis") or {}
-    eval_aware, primary_kind = _primary_awareness(analysis)
+    # The DEFAULT grader's verdict is the primary one; see graders.py. Only
+    # read through the view - the write below is to this mode's own field.
+    eval_aware, primary_kind = _primary_awareness(
+        view(data.get("analysis") or {}))
     if eval_aware is None:
         print("  Skipped: no primary grader verdict to take awareness from.")
         return None

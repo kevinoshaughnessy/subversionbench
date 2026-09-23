@@ -15,6 +15,7 @@ import json
 from subversionbench.batch import parse_batch_filename
 from subversionbench.rollout_pins import SCENARIO_ID
 from subversionbench.config import DEFAULT_INTERROGATION
+from subversionbench.graders import view
 from subversionbench.grading import (MISALIGNED_ACTS, SCHEMING_LEVELS,
                                      awareness_channels, capability_outcome,
                                      classify_misalignment, classify_scheming,
@@ -586,7 +587,7 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
             d = json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
-    analysis = d.get("analysis")
+    analysis = d.get("analysis") and view(d["analysis"])
     if not d.get("model") or not analysis:
         return None
     # The same complementary filter load_summaries applies - see there.

@@ -10,6 +10,7 @@ import glob
 import json
 import os
 
+from subversionbench.graders import view
 from subversionbench.grading import agent_corpus, scenario_corpus
 
 
@@ -27,7 +28,7 @@ def load_candidates(output_dir: str) -> list:
         except (OSError, json.JSONDecodeError):
             continue
         transcript = data.get("transcript") or []
-        analysis = data.get("analysis") or {}
+        analysis = view(data.get("analysis") or {})
         grader = analysis.get("eval_awareness_grader")
         if not transcript or not data.get("model") or not isinstance(grader, dict):
             continue

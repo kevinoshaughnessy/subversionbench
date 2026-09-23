@@ -31,6 +31,7 @@ import argparse
 
 from .arms_summary import write_summary_of_summaries
 from .compare import compare_batches
+from .graders import REGRADE_ALL, REGRADE_DEFAULT
 from .config import (
     CAPABILITY_TARGETS,
     GOALGUARD_ARMS,
@@ -530,7 +531,7 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "The money is the smaller half of that.")
     parser.add_argument("--write-back", action="store_true",
                         help="With --grade-existing, also replace the "
-                             "eval_awareness_grader block inside the original "
+                             "--regrade grader's entry inside the original "
                              "run files. Off by default: the regrade goes to "
                              "a separate regrade_*.json and the run files are "
                              "left untouched. With --resummarise, save the "
@@ -538,6 +539,24 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "they stop disagreeing with the summary built "
                              "from them; no API calls, and no LLM verdict is "
                              "touched.")
+
+
+def _add_regrade_argument(parser: argparse.ArgumentParser) -> None:
+    """Which grader entry the paid read modes act for. See graders.py."""
+    parser.add_argument("--regrade", default=REGRADE_DEFAULT,
+                        metavar=f"{{{REGRADE_DEFAULT},{REGRADE_ALL},MODEL}}",
+                        help="Which grader --grade-existing, --reclassify and "
+                             "--reinterrogate act for. Each episode keeps one "
+                             "entry per grader model in analysis.graders, and "
+                             "only the targeted entries are replaced. "
+                             f"'{REGRADE_DEFAULT}' (the default) is "
+                             f"{DEFAULT_GRADER_MODEL}, the grader every figure "
+                             "and chart reads; a MODEL ID re-grades that "
+                             "grader's entry, adding one if the episode has "
+                             f"none; '{REGRADE_ALL}' re-grades every grader the "
+                             "episode already has. Not 'all' with "
+                             "--reinterrogate: one grader's verdicts decide "
+                             "where a new ladder of questions stops.")
 
 
 def _add_analysis_arguments(parser: argparse.ArgumentParser) -> None:
@@ -578,6 +597,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_collection_arguments(parser)
     _add_model_arguments(parser)
     _add_read_mode_arguments(parser)
+    _add_regrade_argument(parser)
     _add_analysis_arguments(parser)
     return parser
 
@@ -637,6 +657,30 @@ def _reject_contradictory_flags(parser, args) -> None:
                 f"{flag} only applies with --grade-existing, "
                 f"--self-grade-kind, --reclassify or --resummarise."
             )
+    _reject_regrade_misuse(parser, args)
+
+
+def _reject_regrade_misuse(parser, args) -> None:
+    """--regrade and --grader-model, each where it means something.
+
+    --grader-model names the grader a COLLECTION runs. A read mode used to
+    take it as its target too; it now takes --regrade, and a non-default
+    --grader-model beside one is refused rather than ignored, so nobody
+    believes they chose a grader they did not. The default passed explicitly
+    targets the same grader --regrade does by default, so it is let through.
+    """
+    targeted = args.grade_existing or args.reclassify or args.reinterrogate
+    if args.regrade != REGRADE_DEFAULT and not targeted:
+        parser.error("--regrade only applies with --grade-existing, "
+                     "--reclassify or --reinterrogate.")
+    if args.reinterrogate and args.regrade == REGRADE_ALL:
+        parser.error(f"--reinterrogate takes one grader, not "
+                     f"--regrade {REGRADE_ALL}: that grader's verdicts decide "
+                     f"where each new ladder of questions stops.")
+    if targeted and args.grader_model != DEFAULT_GRADER_MODEL:
+        parser.error(f"--grader-model {args.grader_model} names the grader a "
+                     f"collection runs. To re-grade with it, use "
+                     f"--regrade {args.grader_model}.")
 
 
 def _resolve_reasoning(parser, args) -> tuple:

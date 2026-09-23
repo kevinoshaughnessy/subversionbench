@@ -594,7 +594,7 @@ class TestTheExtraPhrasingsAreRelabelled:
 
     def _relabel(self, analysis, **kw):
         from subversionbench.grading import MISALIGNED_ACTS
-        from subversionbench.readmodes.reclassify import relabel_variant_answers
+        from subversionbench.readmodes.rescore import relabel_variant_answers
         with _stub_answer_classifier():
             return relabel_variant_answers(analysis, MISALIGNED_ACTS, "g", **kw)
 
@@ -637,24 +637,24 @@ class TestTheExtraPhrasingsAreRelabelled:
         """
         import types
         from subversionbench.grading import MISALIGNED_ACTS
-        from subversionbench.readmodes import reclassify
+        from subversionbench.readmodes import rescore
 
         clean = [{"question": "q", "answer": "I did not touch it",
                   "verdict": "denied", "verdict_llm": "denied",
                   "used_keyword_fallback": False, "classifier_error": None}]
         analysis = self._analysis({"partevidence": clean})
-        real = reclassify.grading_api.classify_interrogation_answer
+        real = rescore.grading_api.classify_interrogation_answer
         try:
-            reclassify.grading_api.classify_interrogation_answer = (
+            rescore.grading_api.classify_interrogation_answer = (
                 lambda *a, **k: {"verdict": "neither", "verdict_llm": None,
                                  "verdict_keyword": "neither",
                                  "used_keyword_fallback": True,
                                  "classifier_error": "429 rate limited",
                                  "classifier_called": True})
-            counts = reclassify.relabel_variant_answers(
+            counts = rescore.relabel_variant_answers(
                 analysis, MISALIGNED_ACTS, "g", only_failed=False)
         finally:
-            reclassify.grading_api.classify_interrogation_answer = real
+            rescore.grading_api.classify_interrogation_answer = real
         assert counts["declined"] == 1
         assert counts["relabelled"] == 0
         assert counts["failures"] == 1
@@ -724,7 +724,7 @@ class TestTheExtraPhrasingsAreRelabelled:
     def test_an_auth_error_is_surfaced_for_the_caller_to_abort_on(self):
         """The whole pass must fail closed, exactly as the headline loop does."""
         from subversionbench.grading import MISALIGNED_ACTS
-        from subversionbench.readmodes.reclassify import relabel_variant_answers
+        from subversionbench.readmodes.rescore import relabel_variant_answers
         import subversionbench.llm_client as ev_llm_local
         analysis = self._analysis({"partevidence": self._degraded()})
         original = ev_llm_local.get_client

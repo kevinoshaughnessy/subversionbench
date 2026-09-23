@@ -38,6 +38,8 @@ unrecordable.
 import json
 import os
 
+from subversionbench.graders import view
+
 from .jev_client import raw_score
 
 GOLD_FILE = "jev_gold_labels.json"
@@ -107,7 +109,7 @@ def sole_signal_episodes(output_dir: str, key: str) -> list:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        grader = (data.get("analysis") or {}).get("eval_awareness_grader") or {}
+        grader = view(data.get("analysis") or {}).get("eval_awareness_grader") or {}
         rubric = grader.get("rubric_results") or {}
         if not rubric or grader.get("grading_failed"):
             continue
@@ -190,7 +192,7 @@ def stratified_by_score(output_dir: str, validate_file: str, key: str,
                 continue
             with open(found[0], encoding="utf-8") as f:
                 data = json.load(f)
-            rubric = ((data.get("analysis") or {})
+            rubric = (view(data.get("analysis") or {})
                       .get("eval_awareness_grader") or {}).get(
                           "rubric_results") or {}
             entry = rubric.get(key) or {}

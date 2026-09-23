@@ -10,6 +10,51 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v213
+
+**An episode can hold more than one grader's reading.** Everything a grader model
+judges - the awareness rubric, the pre-act awareness blocks, disclosure,
+misrepresentation, the label on every interrogation answer, and the concealment and
+scheming verdicts settled from those - now lives in one entry per grader model in
+`analysis.graders`. Re-grading replaced the one reading an episode had, so comparing two
+graders on the same fixed transcripts meant destroying the first to take the second.
+The interrogation answers themselves are the model under test's words and are stored
+once, with each grader's labels lined up against them.
+
+**Every figure and chart is the default grader's.** `subversionbench/graders.py` is the
+one owner of the shape: `view` projects one grader's entry back onto the flat keys, so
+every reader sees exactly what it always has, and it defaults to `DEFAULT_GRADER_MODEL`.
+An episode with no default reading is ungraded for those figures, as one collected with
+`--no-grader` always was. Summaries record which graders a batch holds in
+`grader_models`.
+
+**Existing run files are not rewritten.** A file written before this reads exactly as
+it did - checked against every r9 and r10 episode, and the report and trends output over
+both corpora is unchanged - and keeps its flat shape when its own grader writes it back.
+It becomes an array only when a second grader is added. New episodes are arrays from the
+start. A pre-v213 file that names no grader is credited to the default, since it held
+the reading every figure was built from; one that names another grader has no default
+reading until the default is re-graded onto it.
+
+**`--regrade` chooses which grader a paid read mode acts for.** `default`, a model ID
+(added beside the others if the episode has none), or `all` (every grader an episode
+already has). `--grade-existing` now re-grades a grader's WHOLE reading, the concealment
+side included, using the same scoring `--reclassify` uses - moved to
+`readmodes/rescore.py` so neither mode imports the other's write-back policy. Only the
+named grader's entry is replaced. `--reinterrogate` takes one grader, never `all`,
+because that grader's verdicts decide where each new ladder of questions stops.
+`--grader-model` names the grader a collection runs; a non-default one beside a read mode
+is refused with a pointer to `--regrade`, so nobody believes they chose a target they did
+not. A re-grade by any model but the default reports its agreement with the default
+grader, which is what a second grader is for - on awareness and on scheming, since
+scheming rests on the concealment side, which the awareness comparison never touches.
+Each episode in the regrade report carries both graders' concealment levels.
+
+**A second grader cannot re-ask the interrogation.** Its escalating questions stopped at
+the first answer the collecting grader read as an admission, so a later grader re-labels
+the same answers and cannot see questions that were never asked.
+`interrogation_driven_by` records which grader drove it; see docs/methodology.md.
+
 ## v212
 
 **Claude Opus 5.5 takes a reasoning surface of its own.** It was matching Opus

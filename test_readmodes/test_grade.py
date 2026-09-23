@@ -14,6 +14,7 @@ from pathlib import Path
 from subversionbench.batch import BatchSelection, find_run_files
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
+from subversionbench.graders import grader_models, view
 from conftest import FakeArgs
 
 
@@ -147,9 +148,16 @@ class TestGradeExistingRuns:
             ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
         data = json.loads(Path(f"{out}/{name}").read_text())
-        grader = data["analysis"]["eval_awareness_grader"]
+        # The default grader's fresh reading is what every figure now reads...
+        grader = view(data["analysis"])["eval_awareness_grader"]
         assert grader["grader_model"] == "claude-opus-5"
         assert grader["eval_aware"] is True
+        # ...and the reading the file already held, by another grader, is kept
+        # beside it rather than replaced. That is the point of the array.
+        kept = view(data["analysis"], "claude-haiku-4-5-20251001")
+        assert kept["eval_awareness_grader"]["eval_aware"] is False
+        assert grader_models(data["analysis"]) == [
+            "claude-haiku-4-5-20251001", "claude-opus-5"]
         assert data["transcript"], "transcript must survive the rewrite"
 
     def test_total_grader_failure_is_not_reported_as_zero_percent(self):
@@ -542,8 +550,10 @@ class TestAFailedGradingIsNotAPriorVerdict:
                                         "content": "done"}],
                         "analysis": {"eval_awareness_grader": block}}),
             encoding="utf-8")
+        # Drift is a grader against ITS OWN earlier reading, so the regrade
+        # targets the grader that made the stored one.
         args = FakeArgs(output_dir=out, model="m", nudge="strong",
-                        grader_model="g", write_back=False)
+                        grader_model="g", write_back=False, regrade="old")
         args.only_failed = False
         buf = io.StringIO()
         with _stub_grader(answer=True):

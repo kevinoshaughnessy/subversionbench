@@ -20,6 +20,7 @@ import json
 
 from .batch import find_run_files_by_stamp, unique_batch_stamp
 from .config import CANARY, VERSION
+from .graders import view
 from .grading import classify_misalignment, classify_scheming
 from .power import compare_rates, fisher_exact_p
 from .redaction import redact_paths
@@ -43,7 +44,9 @@ def _load_arm(output_dir: str, stamp: str) -> list:
     episodes = []
     for path in find_run_files_by_stamp(output_dir, stamp):
         with open(path) as f:
-            episodes.append(json.load(f))
+            episode = json.load(f)
+        episode["analysis"] = view(episode.get("analysis") or {})
+        episodes.append(episode)
     return episodes
 
 

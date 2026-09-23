@@ -519,7 +519,7 @@ class TestTheParserIsReadableWithoutRunningABatch:
         "--no-grader", "--no-power",
         "--nudge", "--only-failed", "--openrouter-provider",
         "--openrouter-sort", "--output-dir",
-        "--oversight", "--reclassify", "--reinterrogate", "--resume",
+        "--oversight", "--reclassify", "--regrade", "--reinterrogate", "--resume",
         "--resummarise", "--resummarize", "--runs", "--self-grade-kind",
         "--summarise-arms",
         "--summarize-arms", "--thinking-budget", "--use-opencode",

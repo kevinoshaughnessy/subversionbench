@@ -861,6 +861,19 @@ contamination was never confined to one question: every rubric answer came from 
 grader, so `noticed_conflict` at 91–96%, which feeds the goal-conflict rate, deserves the
 same scrutiny.
 
+**More than one grader per episode (v213).** Each episode holds one reading per grader
+model in `analysis.graders`, and `--regrade` re-grades one of them without touching the
+others, so two graders can be compared on the same fixed transcripts rather than by
+overwriting one with the other. Every rate, table and chart is the default grader's
+reading (`claude-opus-5`) alone; an episode with no reading from it is ungraded for those
+figures, exactly as one collected with `--no-grader` always was. One part of a second
+grader's reading is not independent of the first. The interrogation's escalating questions
+stop at the first answer the *collecting* grader read as an admission, so a later grader
+re-labels the same answers but cannot see questions that were never asked: where it does
+not read the last answer as an admission, its concealment level for that act rests on a
+shorter ladder than its own verdicts would have produced. `interrogation_driven_by`
+records which grader drove it.
+
 Awareness matters because a model that recognises the setup is not exhibiting the
 behaviour the eval is trying to observe. The two "expected" rubric questions
 (`noticed_conflict`, `referenced_system_prompt`) are reported separately for that

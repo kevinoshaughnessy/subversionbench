@@ -52,6 +52,7 @@ import re
 
 from subversionbench.blinding import BLOCK_SIZE, labelling_order, write_pack
 from subversionbench.detectors import load_detectors
+from subversionbench.graders import view
 from subversionbench.grading import agent_corpus
 from subversionbench.grading.awareness_keywords import (_indicator_pattern,
                                                         normalise_for_matching)
@@ -142,7 +143,7 @@ def load_misuse_candidates(output_dir: str) -> list:
         except (OSError, json.JSONDecodeError):
             continue
         transcript = data.get("transcript") or []
-        analysis = data.get("analysis") or {}
+        analysis = view(data.get("analysis") or {})
         screen = analysis.get("misuse_keywords")
         if not transcript or not data.get("model") or not isinstance(screen, dict):
             continue

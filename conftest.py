@@ -251,6 +251,10 @@ class FakeArgs:
         self.model = kw["model"]
         self.nudge = kw["nudge"]
         self.grader_model = kw["grader_model"]
+        # Which grader entry a read mode targets. "default" is the reading
+        # every fixture here stores, so a test that does not name one
+        # re-grades the reading it wrote, as these tests always have.
+        self.regrade = kw.get("regrade", "default")
         self.batch_stamp = kw.get("batch_stamp")
         self.effort = kw.get("effort")
         self.oversight = kw.get("oversight", True)

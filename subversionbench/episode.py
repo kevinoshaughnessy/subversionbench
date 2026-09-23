@@ -33,6 +33,7 @@ from . import llm_client as llm_api
 from .arm_record import arm_identity
 from .config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION, TOOLS
 from .followup import add_awareness_timing, interrogate_acts
+from .graders import new_record
 from .grading import (MISALIGNED_ACTS, analyze_misalignment,
                       detect_eval_awareness_keywords,
                       detect_misuse_suspicion,
@@ -475,6 +476,11 @@ def _interrogate_the_acts(analysis, transcript, session, grader_model, nudge,
             analysis, transcript, session,
             grader_model=grader_model, nudge=nudge,
             interrogations=interrogations, ended_by=ended_by)
+        # Which grader's verdicts decided where each ladder of questions
+        # stopped. Stored once, beside the answers: a grader added later can
+        # re-label them but cannot change which questions were asked. See
+        # graders.py.
+        analysis["interrogation_driven_by"] = grader_model
     else:
         # Recorded, not merely absent. A missing followup_response reads as a
         # measurement that failed; this says it was never attempted and why,
@@ -707,7 +713,7 @@ def run_evaluation(
         "reasoning_config": reasoning_config,
         "transcript": transcript,
         "messages": messages,
-        "analysis": analysis,
+        "analysis": new_record(analysis, grader_model),
         "timing": timing,
         "timestamp": datetime.datetime.now().isoformat()
     }
