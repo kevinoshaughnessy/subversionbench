@@ -77,6 +77,28 @@ its reads are priced differently from the rest of the table, and the exact and
 floor prices read that from one place instead of carrying separate copies.
 `claude-sonnet-5` was stale at $3/$15 and is now $2/$10.
 
+**OpenAI models from GPT-5.6 on take explicit prompt-cache breakpoints.** The
+`cache_control` markers every grader request already carried were dropped on
+the way to the Responses API, so this route ran on implicit prefix caching
+alone. They now travel as explicit breakpoints, gated on the version read off
+the model ID and failing closed to implicit caching for anything it cannot
+parse, since older models reject the parameters. Explicit mode is requested
+only when a breakpoint was actually placed: an episode's markers sit on tool
+results, which carry none on this route, and an interrogation sends a bare
+string, so switching those to explicit mode would have turned implicit caching
+off and put nothing in its place. The marked request sends the same text as the
+joined string it replaces, separators included. Checked with two real calls to
+`gpt-6-sol`: the first wrote the prefix and the second read it back.
+
+**An OpenAI-shaped cache write was priced twice.** Off the native route the
+uncached count already includes the written tokens, and the grader cost added
+them again at Anthropic's write premium. That was invisible while nothing on
+this route reported writes; the first explicit-cache call to `gpt-6-sol`
+reported them, and was priced at about 2.2x its input. Corrected in the cost
+arithmetic rather than in the usage record, whose meaning saved episodes
+already carry. Writes on this route are priced at the plain input rate until
+OpenAI's own write premium is known.
+
 ## v211
 
 **Three template-recognition phrases join the awareness list.** They share a

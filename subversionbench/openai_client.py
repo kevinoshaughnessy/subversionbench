@@ -14,8 +14,46 @@ is what this claimed until it was measured. See routing.py for the count.
 
 import json
 import os
+import re
 
 from .blocks import _Block, _Response, _block_attr, _block_type, _reasoning_usage
+
+# Explicit prompt-cache breakpoints, and the retention that comes with them,
+# are GPT-5.6 and later. Earlier models take implicit prefix caching only and
+# reject the parameters, so this reads the version off the ID and FAILS CLOSED:
+# anything it cannot parse gets implicit caching, which is what every call on
+# this route had before explicit mode existed. A wrong answer in the other
+# direction would be a 400 on every call to an older model.
+_EXPLICIT_CACHE_FLOOR = (5, 6)
+_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
+
+# The only value the API accepts, and worth sending: the grader puts nine
+# questions to one transcript, well inside half an hour. Episodes do not reach
+# explicit mode yet - their breakpoints sit on tool results, which carry none
+# on this route - so they keep implicit prefix caching.
+_CACHE_TTL = "30m"
+
+
+def _supports_explicit_cache(model: str) -> bool:
+    """Whether this model takes explicit cache breakpoints (GPT-5.6+)."""
+    match = _GPT_VERSION_RE.match(model.strip().lower().rpartition("/")[2])
+    if not match:
+        return False
+    return (int(match.group(1)),
+            int(match.group(2) or 0)) >= _EXPLICIT_CACHE_FLOOR
+
+
+def _is_cache_breakpoint(block) -> bool:
+    """Whether the harness marked this block as the end of a stable prefix.
+
+    Reads Anthropic's `cache_control`, which is where every caller already
+    states the intent, rather than inventing a second marker for this route to
+    be kept in step with. `_block_attr` raises on a dict without the key, so
+    the lookup is done defensively here.
+    """
+    if isinstance(block, dict):
+        return bool(block.get("cache_control"))
+    return bool(getattr(block, "cache_control", None))
 
 #
 # WHY A SECOND OPENAI-SHAPED CLIENT
@@ -42,13 +80,17 @@ from .blocks import _Block, _Response, _block_attr, _block_type, _reasoning_usag
 # full trace, and a batch run this way is not comparable with one run through
 # OpenRouter. `reasoning_config` records which was used.
 
-def _to_responses_input(msg: dict) -> list:
+def _to_responses_input(msg: dict, mark_cache: bool = False) -> list:
     """
     Translate one Anthropic-style message into Responses API input items.
 
     The Responses API does not nest tool calls inside an assistant message the
     way chat completions does; each is a sibling item in one flat list, and a
     result is matched to its call by `call_id`.
+
+    `mark_cache` carries the caller's `cache_control` markers through as
+    explicit cache breakpoints. Off by default, and ignored entirely on a
+    model that does not take them.
     """
     role = msg["role"]
     content = msg["content"]
@@ -90,8 +132,47 @@ def _to_responses_input(msg: dict) -> list:
         elif _block_type(block) == "text":
             text_parts.append(_block_attr(block, "text"))
     if any(t.strip() for t in text_parts):
-        items.append({"role": "user", "content": "\n".join(text_parts)})
+        marked = _marked_text_parts(content) if mark_cache else None
+        # Structured parts ONLY when there is a breakpoint to carry, so every
+        # other call keeps the single joined string it has always sent. A
+        # breakpoint has to hang off a content block, which a bare string has
+        # nowhere to put.
+        items.append({"role": "user",
+                      "content": marked or "\n".join(text_parts)})
     return items
+
+
+def _marked_text_parts(content):
+    """The text blocks as Responses parts, with the breakpoints kept, or None.
+
+    None when nothing is marked - the caller then sends the joined string it
+    sent before, so this changes the shape of a request only where it also
+    adds something to it.
+    """
+    if not any(_is_cache_breakpoint(b) for b in content
+               if _block_type(b) == "text"):
+        return None
+    parts = []
+    for block in content:
+        if _block_type(block) != "text":
+            continue
+        # The separator the joined string had, carried at the START of the
+        # next part so the model reads byte-identical text either way, and
+        # the cached prefix still ends exactly at the marked block.
+        text = ("\n" if parts else "") + _block_attr(block, "text")
+        part = {"type": "input_text", "text": text}
+        if _is_cache_breakpoint(block):
+            part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        parts.append(part)
+    return parts
+
+
+def _carries_breakpoint(items) -> bool:
+    """Whether any translated item holds an explicit cache breakpoint."""
+    return any(isinstance(item.get("content"), list)
+               and any("prompt_cache_breakpoint" in part
+                       for part in item["content"])
+               for item in items)
 
 
 def _to_responses_tool(tool: dict) -> dict:
@@ -141,9 +222,14 @@ class OpenAIClient:
                 _block_attr(b, "text") for b in system
                 if _block_type(b) == "text")
 
+        # Anthropic gets explicit breakpoints from cache_control and reads back
+        # 98.5% of its input from cache on this corpus; this route was running
+        # implicit prefix caching and reading back 56%. The markers are already
+        # in the request - they were simply being dropped on the way out.
+        explicit_cache = _supports_explicit_cache(model)
         items = []
         for msg in messages or []:
-            items.extend(_to_responses_input(msg))
+            items.extend(_to_responses_input(msg, mark_cache=explicit_cache))
 
         reasoning = {"summary": "auto"}
         effort = (output_config or {}).get("effort")
@@ -156,7 +242,20 @@ class OpenAIClient:
             "input": items,
             "reasoning": reasoning,
         }
+        # Only where a breakpoint was actually placed. An episode marks its
+        # tool_result blocks, which become function_call_output items with no
+        # breakpoint to carry, and an interrogation sends a bare string - so
+        # explicit mode on those would switch them off implicit prefix caching
+        # and put nothing in its place.
+        if _carries_breakpoint(items):
+            kwargs["prompt_cache_options"] = {"mode": "explicit",
+                                              "ttl": _CACHE_TTL}
         if system_text:
+            # Stays in `instructions` rather than moving into the input array
+            # as a markable developer message. It is a small block next to the
+            # transcript, so the breakpoint that matters is the one on the
+            # corpus, and moving the system prompt would change what the model
+            # is sent to win a rounding error.
             kwargs["instructions"] = system_text
         if tools:
             kwargs["tools"] = [_to_responses_tool(t) for t in tools]

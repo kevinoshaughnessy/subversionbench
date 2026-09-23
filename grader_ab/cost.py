@@ -16,8 +16,14 @@ unknown NUMBER of records missing). None is ever reported as zero.
 # Both copies also carried a comment asserting that "no pricing table exists
 # elsewhere in this repository (grep confirms it)", which the second copy had
 # made false. The surviving one is in prices.py, where the table is.
+from subversionbench.routing import is_openai_model, is_openrouter_model
+
 from .prices import (CACHE_READ_MULTIPLIER, PRICES_PER_MTOK,
                      STANDARD_CACHE_READ_MULTIPLIER)
+
+# What a cache write costs on the native Anthropic route, where `uncached`
+# excludes the written tokens and they are billed separately at this multiple.
+_ANTHROPIC_CACHE_WRITE_MULTIPLIER = 1.25
 
 
 def _effective_input_tokens(usage: dict, model: str) -> float:
@@ -27,9 +33,24 @@ def _effective_input_tokens(usage: dict, model: str) -> float:
     second copy of this line is a second place the cache discount can go stale
     - which is the defect PRICES_PER_MTOK itself already had once, when
     cost.py and prices.py each held a table and different callers read each.
+
+    WRITTEN TOKENS ARE ALREADY INSIDE `uncached` OFF THE NATIVE ROUTE, which
+    usage.py's docstring records and deliberately leaves in place. Adding
+    them again billed each one twice: a real explicit-cache call to gpt-6-sol
+    came back read 0, written 2812, uncached 2841 on a 2,841-token prompt,
+    and was priced at about 2.2x its input. Corrected here rather than in
+    usage.py, because saved episodes carry `uncached` under that meaning.
     """
     read = CACHE_READ_MULTIPLIER.get(model, STANDARD_CACHE_READ_MULTIPLIER)
-    return usage["read"] * read + usage["written"] * 1.25 + usage["uncached"]
+    if is_openai_model(model) or is_openrouter_model(model):
+        # ponytail: an OpenAI-shaped write is priced at the plain input rate
+        # it already carries inside `uncached`. OpenAI's explicit-cache write
+        # premium, if any, is not known here; when it is, add the excess over
+        # 1.0 as `written * (multiplier - 1)`.
+        return usage["read"] * read + usage["uncached"]
+    return (usage["read"] * read
+            + usage["written"] * _ANTHROPIC_CACHE_WRITE_MULTIPLIER
+            + usage["uncached"])
 
 
 def usage_cost_usd(usage: dict, model: str) -> float | None:

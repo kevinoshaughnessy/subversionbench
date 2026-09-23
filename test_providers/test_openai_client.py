@@ -340,3 +340,106 @@ class TestTheKeyIsCheckedBeforeAnythingIsSent:
         finally:
             if saved is not None:
                 os.environ["OPENAI_API_KEY"] = saved
+
+
+class TestExplicitPromptCaching:
+    """Anthropic reads 98.5% of its input back from cache on this corpus and
+    this route read 56%, because the `cache_control` markers already in every
+    request were dropped on the way out. GPT-5.6 and later take an explicit
+    breakpoint of their own; earlier models reject the parameters, so the gate
+    has to be right in both directions.
+    """
+
+    _MARKED = [{"type": "text", "text": "TRANSCRIPT",
+                "cache_control": {"type": "ephemeral"}},
+               {"type": "text", "text": "QUESTION"}]
+
+    def _sent(self, model, content=None, messages=None):
+        from subversionbench.openai_client import OpenAIClient
+        captured = {}
+
+        class _Fake:
+            class responses:
+                @staticmethod
+                def create(**kwargs):
+                    captured.update(kwargs)
+                    return types.SimpleNamespace(output=[], usage=None,
+                                                 status="completed")
+
+        client = OpenAIClient.__new__(OpenAIClient)
+        client._client = _Fake()
+        client.create(model=model, max_tokens=300, system="SYS",
+                      messages=messages or [{"role": "user", "content": content}])
+        return captured
+
+    def test_the_floor_is_read_off_the_version_in_both_directions(self):
+        """Derived from the version rather than a list of model names, and
+        checked below the floor as well as above it: sending these parameters
+        to a model that does not take them is a 400 on every call."""
+        from subversionbench.openai_client import _supports_explicit_cache
+
+        for model in ("gpt-5.6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-7"):
+            assert _supports_explicit_cache(model) is True, model
+        for model in ("gpt-5.4", "gpt-5", "gpt-4o", "gpt-4.1"):
+            assert _supports_explicit_cache(model) is False, model
+
+    def test_an_unreadable_id_falls_back_to_implicit_caching(self):
+        """Fails CLOSED. An ID this cannot parse gets what every call on this
+        route had before explicit mode existed, rather than a parameter the
+        model may reject."""
+        from subversionbench.openai_client import _supports_explicit_cache
+
+        for model in ("o3", "", "some-new-model", "claude-opus-5"):
+            assert _supports_explicit_cache(model) is False, model
+
+    def test_a_marked_block_carries_a_breakpoint(self):
+        sent = self._sent("gpt-6-sol", self._MARKED)
+        assert sent["prompt_cache_options"] == {"mode": "explicit",
+                                                "ttl": "30m"}
+        parts = sent["input"][0]["content"]
+        assert parts[0]["prompt_cache_breakpoint"] == {"mode": "explicit"}
+        assert parts[0]["text"] == "TRANSCRIPT"
+        assert "prompt_cache_breakpoint" not in parts[1], (
+            "the varying suffix must stay outside the cached prefix")
+
+    def test_an_older_model_is_sent_neither_parameter(self):
+        sent = self._sent("gpt-5.4", self._MARKED)
+        assert "prompt_cache_options" not in sent
+        assert sent["input"][0]["content"] == "TRANSCRIPT\nQUESTION", (
+            "below the floor the request must keep the shape it always had")
+
+    def test_an_unmarked_request_keeps_the_joined_string(self):
+        """The shape changes only where a breakpoint is added to it, so a
+        caller that never asked for caching sends what it always sent."""
+        sent = self._sent("gpt-6-sol", [{"type": "text", "text": "A"},
+                                        {"type": "text", "text": "B"}])
+        assert sent["input"][0]["content"] == "A\nB"
+
+    def test_the_text_survives_the_translation_either_way(self):
+        """The breakpoint must not cost, reorder or re-space any of the prompt
+        - the same text reaches the model whichever shape carries it. Compared
+        EXACTLY: an earlier version stripped every newline from both sides
+        before comparing, and so passed while the parts dropped the separator
+        the joined string had between blocks."""
+        marked = self._sent("gpt-6-sol", self._MARKED)["input"][0]["content"]
+        plain = self._sent("gpt-5.4", self._MARKED)["input"][0]["content"]
+        assert "".join(p["text"] for p in marked) == plain
+
+    def test_an_episode_turn_keeps_implicit_caching(self):
+        """An episode marks its newest tool_result, which becomes a
+        function_call_output with no breakpoint on this route. Explicit mode
+        with no breakpoint would switch the model under test off implicit
+        prefix caching and cache nothing instead."""
+        sent = self._sent("gpt-6-sol", messages=[
+            {"role": "user", "content": "the opening turn"},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "c1", "content": "ok",
+                 "cache_control": {"type": "ephemeral"}}]},
+        ])
+        assert "prompt_cache_options" not in sent
+
+    def test_a_bare_string_request_keeps_implicit_caching(self):
+        """The interrogation classifier's shape: its only marker is on the
+        system prompt, which travels as `instructions`."""
+        sent = self._sent("gpt-6-sol", "a plain prompt")
+        assert "prompt_cache_options" not in sent

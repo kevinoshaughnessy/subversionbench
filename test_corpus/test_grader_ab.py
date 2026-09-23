@@ -497,6 +497,43 @@ class TestTheCacheReadDiscountIsPerModel:
             assert abs(exact - floor) < 1e-12, model
 
 
+class TestAWrittenTokenIsBilledOnce:
+    """Off the native route, `uncached` already includes the written tokens -
+    usage.py records that and keeps it, since saved episodes carry the
+    meaning. Pricing them again as a separate write billed each one twice.
+
+    The numbers are the two real explicit-cache calls to gpt-6-sol that found
+    it: a 2,841-token prompt, written on the first call and read on the second.
+    """
+
+    _PROMPT = 2841
+    _FIRST = {"read": 0, "written": 2812, "uncached": 2841, "output": 22}
+    _SECOND = {"read": 2812, "written": 0, "uncached": 29, "output": 22}
+
+    def test_the_writing_call_costs_its_prompt_at_the_input_rate(self):
+        price_in, price_out = ab.PRICES_PER_MTOK["gpt-6-sol"]
+        expected = (self._PROMPT * price_in + 22 * price_out) / 1e6
+        got = ab.usage_cost_usd(self._FIRST, "gpt-6-sol")
+        assert abs(got - expected) < 1e-12, (
+            f"{got} against {expected} - the written tokens were counted "
+            f"on top of the uncached ones that already contain them")
+
+    def test_the_reading_call_is_unchanged(self):
+        """The control: a read was priced correctly before, and must still be."""
+        price_in, price_out = ab.PRICES_PER_MTOK["gpt-6-sol"]
+        expected = ((2812 * 0.1 + 29) * price_in + 22 * price_out) / 1e6
+        got = ab.usage_cost_usd(self._SECOND, "gpt-6-sol")
+        assert abs(got - expected) < 1e-12
+
+    def test_the_native_route_still_bills_its_write_premium(self):
+        """The other direction: there `uncached` excludes the writes, so they
+        are billed on top, at 1.25x."""
+        usage = {"read": 0, "written": 1_000_000, "uncached": 0, "output": 0}
+        price_in, _ = ab.PRICES_PER_MTOK["claude-opus-5"]
+        got = ab.usage_cost_usd(usage, "claude-opus-5")
+        assert abs(got - 1.25 * price_in) < 1e-12
+
+
 class TestCellCostAccumulates:
     def test_it_sums_exact_records(self):
         usages = [{"read": 0, "written": 0, "uncached": 1000, "output": 100}] * 3
