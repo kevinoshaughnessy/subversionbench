@@ -15,8 +15,25 @@ class _Block:
 
 class _Response:
     def __init__(self, content, usage=None, stop_reason=None,
-                 reasoning_details=None):
+                 reasoning_details=None, provider=None):
         self.content = content
+        # WHICH BACKEND ACTUALLY ANSWERED, as the router names it in its own
+        # response - not which one was asked for.
+        #
+        # `openrouter_provider` on the episode records the operator's REQUEST,
+        # and is None whenever none was pinned, which is most of the corpus.
+        # It therefore cannot answer the question the caveat in the README
+        # asks: OpenRouter may route across backends within a batch, and two
+        # backends serving one model differ in tool-calling reliability and in
+        # how much reasoning they return - both of which the awareness measure
+        # reads. Without this, an arm pooled across two backends is
+        # indistinguishable from one served entirely by either.
+        #
+        # None on every non-OpenRouter route, where there is one backend by
+        # construction and the question does not arise, and on any response
+        # that did not carry the field. None means "not recorded", never "one
+        # provider".
+        self.provider = provider
         # Why the model stopped, normalised to the provider's own word for it
         # (`finish_reason` on the OpenAI-shaped routes). Carried because a
         # response with no text block is otherwise indistinguishable from
@@ -121,6 +138,19 @@ def _reasoning_usage(completion) -> dict:
     tokens = getattr(details, "reasoning_tokens", None) if details else None
     if tokens is not None:
         out["reasoning_tokens"] = tokens
+    # THE CACHE COUNTERS, which this dropped entirely. Chat completions nest
+    # them under prompt_tokens_details and the Responses API under
+    # input_tokens_details, and both carry the same two names. Without them
+    # `cache` was zero on every non-Anthropic episode - not because caching
+    # failed, but because nothing read the numbers - so the field that exists
+    # to tell a working breakpoint from a no-op was blind on the route
+    # carrying most of the corpus.
+    prompt_details = (getattr(usage, "prompt_tokens_details", None)
+                      or getattr(usage, "input_tokens_details", None))
+    for field in ("cached_tokens", "cache_write_tokens"):
+        value = getattr(prompt_details, field, None) if prompt_details else None
+        if value is not None:
+            out[field] = value
     return out
 
 

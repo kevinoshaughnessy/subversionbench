@@ -9,9 +9,56 @@ import signal
 import subprocess
 import tempfile
 import time
+from dataclasses import dataclass
 
 from .config import SANDBOX_DISPLAY_PATH, SANDBOX_REFUSAL
 from .isolation import DEFAULT_ISOLATION, wrap_command
+
+
+@dataclass(frozen=True)
+class SandboxTiming:
+    """
+    How long the sandbox waits, in the two places where it waits.
+
+    WHY THESE ARE NAMED RATHER THAN LITERAL
+    ---------------------------------------
+    Both were bare numbers inside the functions that used them, which made the
+    guarantees they encode untestable except by waiting them out: proving that
+    a command times out took ten seconds, and proving that a SIGTERM-ignoring
+    process is escalated to took two more on top. Six tests spent about fifty
+    seconds a run doing nothing but waiting, which is time paid on every
+    developer run and every CI run to re-observe a constant.
+
+    Named, the WAITING and the VALUES become separate questions. The values are
+    pinned by an equality assertion that costs nothing; the behaviour they
+    drive - wait, then TimeoutExpired, then reap, then escalate - is identical
+    at any value, so it can be exercised in a second instead of twelve.
+
+    THE SHIPPED VALUES ARE `SANDBOX_TIMING` AND NOTHING MAY OVERRIDE THEM IN
+    PRODUCTION. `execute_tool_sandboxed` takes a `timing` argument for tests
+    only. An episode collected under a different command timeout is a
+    different rollout - a model gets more or less time to finish work - and
+    that is not something a caller should be able to vary. Nothing outside
+    this module and the suite passes it, and a test asserts so.
+
+    command_timeout   how long one command may run before it is abandoned and
+                      "Command timed out." is returned. Part of what the model
+                      experiences, hence the paragraph above.
+    escalation_grace  how long _reap_group waits after SIGTERM for the process
+                      group to actually empty before it sends SIGKILL. A
+                      harness-internal cleanup bound: the model never observes
+                      it, because by then its command has already returned.
+    """
+    command_timeout: float = 10.0
+    escalation_grace: float = 2.0
+
+
+# The shipped values, and the only ones any episode has ever been collected
+# under. Read through this name rather than through the dataclass defaults so
+# that a test can substitute a faster set at one seam and prove the seam is
+# actually consulted - a default that is correct and never read is the failure
+# an equality assertion alone would miss.
+SANDBOX_TIMING = SandboxTiming()
 
 
 def _as_text(raw: bytes) -> str:
@@ -86,7 +133,7 @@ def _group_emptied(proc, pgid: int, timeout: float) -> bool:
         time.sleep(0.05)
 
 
-def _reap_group(proc, pgid: int) -> int:
+def _reap_group(proc, pgid: int, grace: float = None) -> int:
     """
     Kill everything the command started, and confirm it is gone.
 
@@ -130,6 +177,12 @@ def _reap_group(proc, pgid: int) -> int:
     """
     if not pgid:
         return 0
+    # None rather than a literal default in the signature: the shipped value
+    # has to be read through SANDBOX_TIMING at CALL time, so a test that
+    # substitutes a faster one reaches this and a default bound at import
+    # would not.
+    if grace is None:
+        grace = SANDBOX_TIMING.escalation_grace
     sent = 0
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
@@ -137,7 +190,7 @@ def _reap_group(proc, pgid: int) -> int:
             sent += 1
         except (ProcessLookupError, OSError):
             break                   # group is empty; nothing left to kill
-        if _group_emptied(proc, pgid, timeout=2):
+        if _group_emptied(proc, pgid, timeout=grace):
             break                   # everything is gone; no SIGKILL needed
     return sent
 
@@ -830,7 +883,8 @@ def tool_input_cmd(tool_input: dict) -> str:
 
 def execute_tool_sandboxed(tool_input: dict, env_dir: str,
                            isolation: str = DEFAULT_ISOLATION,
-                           profile_path=None, episode_root=None) -> str:
+                           profile_path=None, episode_root=None,
+                           timing: SandboxTiming = None) -> str:
     """
     Execute a bash command with sandbox restrictions.
 
@@ -859,6 +913,13 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
     hand a test that built `env_dir` straight in the temp directory a policy
     permitting the whole temp directory, which is the exact hole this closes.
     """
+    # Resolved BEFORE the try below, because the `finally` reaps with it and a
+    # name bound inside the try would be missing on any early raise. Read off
+    # the module attribute at call time rather than defaulted in the signature,
+    # so substituting SANDBOX_TIMING reaches here - a signature default is
+    # bound once at import and would not.
+    timing = timing or SANDBOX_TIMING
+
     cmd = tool_input_cmd(tool_input)
 
     if would_be_blocked(cmd, env_dir):
@@ -906,11 +967,11 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
             pgid = _group_of(proc)
             timed_out = False
             try:
-                proc.wait(timeout=10)
+                proc.wait(timeout=timing.command_timeout)
             except subprocess.TimeoutExpired:
                 timed_out = True
             # Before reading, so that anything still writing is stopped first.
-            _reap_group(proc, pgid)
+            _reap_group(proc, pgid, timing.escalation_grace)
             if timed_out:
                 return "Command timed out."
             # Universal newlines by hand. The previous implementation passed
@@ -933,4 +994,4 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
         # Unconditional: a command can exit 0 having left a process behind, which
         # is the whole point of `&`, and the reap above is skipped on any raise.
         if proc is not None:
-            _reap_group(proc, pgid)
+            _reap_group(proc, pgid, timing.escalation_grace)

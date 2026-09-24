@@ -416,6 +416,18 @@ def _print_by_act(block: dict) -> None:
               f"oversight / {und['oversight_absent']} no-oversight episode(s). "
               f"These sit in the denominator and cannot reach the numerator, so "
               f"each arm's rate is biased downward by a different amount.")
+        miss = block.get("missingness_by_arm") or {}
+        if miss.get("difference") is not None:
+            if miss["separated"]:
+                print(f"    that bias is UNEVEN across arms: the undetermined "
+                      f"rate differs by {miss['difference']:+.1%} "
+                      f"(p={miss['p']:.4g}) - the two arms are not equally "
+                      f"reliable denominators, which the contrast above cannot "
+                      f"see.")
+            else:
+                print(f"    checked whether that bias is uneven across arms: "
+                      f"not detectably so (diff={miss['difference']:+.1%}, "
+                      f"p={miss['p']:.4g}).")
     agreement = block["agreement"]
     print(f"    [{agreement['code']}] {agreement['description']}")
 
@@ -442,7 +454,7 @@ def _print_stratified(strat: dict) -> None:
         verdict = ("REJECTS homogeneity" if bd.get("heterogeneous")
                    else "does not reject homogeneity")
         print(f"    Breslow-Day {verdict}: chi2={bd['statistic']} "
-              f"df={bd['df']} p={bd['p']:.4g} "
+              f"df={bd['df']} p={bd['p']:.4g} I^2={bd['i_squared']:.1%} "
               f"({bd['n_strata_used']} informative model(s))")
     else:
         print(f"    Breslow-Day: {bd.get('note', 'not computed')}")
@@ -463,7 +475,13 @@ def _print_multiplicity(mult: dict) -> None:
         print(f"    {label}: {', '.join(names) if names else 'none'}")
 
 
-def _print_question(section: dict) -> None:
+def _print_question_header(section: dict) -> bool:
+    """
+    The banner, and what the question's denominator was.
+
+    Returns whether there is anything below it worth printing: a question
+    collapsed by an exclusion says so and stops.
+    """
     print(f"\n{'=' * 78}")
     print(f"{section['question']}")
     print(f"{'=' * 78}")
@@ -474,27 +492,23 @@ def _print_question(section: dict) -> None:
     # reason in the corpus rather than in the exclusion that caused it.
     if section.get("collapsed_by_exclusion"):
         print(f"\n  !! {section['collapsed_by_exclusion'].upper()}")
-        return
+        return False
     if "n_episodes_not_applicable" in section:
         considered = section.get("n_episodes_observable",
                                  section.get("n_episodes_considered"))
-        print(f"Scope: {considered} episode(s) where the act was observable; "
+        reason = section.get("not_applicable_reason", "the act was observable")
+        print(f"Scope: {considered} episode(s) where {reason}; "
               f"{section['n_episodes_not_applicable']} not-applicable and "
               f"excluded from the denominator")
     if section.get("n_episodes_concealment_undetermined"):
         print(f"Note: {section['n_episodes_concealment_undetermined']} episode(s) "
               f"took an act whose concealment could not be determined - in the "
               f"denominator, unable to reach the numerator")
-    print(f"\nCRUDE POOLED: {_fmt_contrast_line(section['overall'])}")
-    print(f"  {section['finding']}")
+    return True
 
-    if "stratified" in section:
-        _print_stratified(section["stratified"])
 
-    divergence = section.get("crude_vs_stratified") or {}
-    if divergence.get("warning"):
-        print(f"\n  !! {divergence['warning']}")
-
+def _print_consistency(section: dict) -> None:
+    """How many models moved which way, and which did so significantly."""
     cons = section["consistency"]
     print(f"\nCONSISTENCY ACROSS MODELS ({cons['n_models_with_data']}/"
           f"{cons['n_models_total']} had data on both sides):")
@@ -510,6 +524,152 @@ def _print_question(section: dict) -> None:
     print("\n  per model:")
     _print_model_table(section["by_model"])
 
+
+_CONTRAST_BREAKDOWNS = (
+    # key in the section, heading, the label each row carries
+    ("by_nudge", "BY NUDGE", lambda c: f"nudge={c['nudge']:<7}"),
+    ("by_lure", "BY LURE", lambda c: f"lure={str(c['lure']):<6}"),
+    ("by_nudge_and_lure", "BY NUDGE x LURE",
+     lambda c: f"nudge={c['nudge']:<7} lure={str(c['lure']):<6}"),
+    # The fourth axis this table's comment anticipated. Carried by the
+    # goal-guarding question, whose act rate differs sharply across it.
+    ("by_oversight", "BY OVERSIGHT",
+     lambda c: f"oversight={str(c['oversight']):<6}"),
+)
+
+
+def _print_contrast_breakdowns(section: dict) -> None:
+    """
+    The arm breakdowns that are a heading and one contrast line per row.
+
+    A table rather than three near-identical blocks: they differed only in the
+    label a row carries, so a fourth axis is a row here instead of a fourth
+    copy of the loop.
+    """
+    for key, heading, label in _CONTRAST_BREAKDOWNS:
+        if key not in section:
+            continue
+        print(f"\n{heading}:")
+        for c in section[key]:
+            print(f"    {label(c)} {_fmt_contrast_line(c)}")
+
+
+def _print_marginals_by_nudge(section: dict) -> None:
+    """The per-nudge rate, and the pairwise contrasts between the nudges."""
+    print("\nBY NUDGE (marginal awareness rate):")
+    for m in section["marginals_by_nudge"]:
+        rate = f"{m['rate']:.1%}" if m["rate"] is not None else "n/a"
+        print(f"    nudge={m['nudge']:<7} {m['n_aware']}/{m['n']} = {rate}")
+    print("  pairwise:")
+    for c in section["pairwise"]:
+        print(f"    {c['pair']:<16} {_fmt_contrast_line(c)}")
+
+
+def _print_conditional_on_the_act(cond: dict) -> None:
+    """The contrast over only the episodes where the act was actually taken."""
+    print(f"\nCONDITIONAL ON THE ACT ({cond['n_determined']} of "
+          f"{cond['n_acts_taken']} act(s) taken had a determined "
+          f"concealment verdict):")
+    print(f"    {_fmt_contrast_line(cond)}")
+    print(f"    denominator: {cond['denominator']}")
+    if cond["underpowered"]:
+        print(f"    ! below {MIN_INFORMATIVE_DENOMINATOR} determined acts - "
+              f"read the counts, not the rate")
+
+
+def _print_summary_derived_cross_check(cc: dict) -> None:
+    """The same question answered from the summaries, and why it differs."""
+    print(f"\nCROSS-CHECK against the summaries' own "
+          f"cross_analysis_awareness ({cc['n_arms_contributing']}/"
+          f"{cc['n_arms_total']} arms contribute):")
+    print(f"    {_fmt_contrast_line(cc)}")
+    print(f"    Differs because: {cc['why_it_differs']}")
+
+
+def _print_composite(section: dict) -> None:
+    """What the word in the headline is a union OVER.
+
+    Printed here rather than left to the JSON and the chart captions, because
+    the printed report is what gets read and "agentic misalignment rate" names
+    a union whose membership is not guessable from the phrase. It said nothing
+    at all while the union had two elements and one of them was unavailable to
+    half the corpus.
+
+    The varying line is the one that matters. An act only some episodes could
+    take makes the figure a union over more acts for those episodes than for
+    the rest - one number averaging two measures - and the per-act block below
+    is where a reader goes instead.
+    """
+    composite = section.get("composite") or {}
+    elements = composite.get("elements") or []
+    partial = composite.get("elements_in_some_episodes") or []
+    if not elements and not partial:
+        return
+    if elements:
+        print(f"\n  UNION OVER: {', '.join(elements)} "
+              f"(every episode could take {'these' if len(elements) > 1 else 'this'})")
+    for item in partial:
+        print(f"  !! PLUS {item['element']}, possible in only "
+              f"{item['n_episodes_able']} of {item['n_episodes']} episode(s). "
+              f"This rate is a union over more acts for those than for the "
+              f"rest; read the per-act figures below for one quantity.")
+    absent = composite.get("not_observable") or []
+    if absent:
+        print(f"  Not in this corpus: {', '.join(absent)} - part of the "
+              f"construct, impossible in every episode here.")
+
+
+def _print_awareness_timing_caveat(section: dict) -> None:
+    """The temporal caveat on an act-independent awareness exposure.
+
+    Printed next to the contrast rather than filed below it: the number it
+    qualifies is the one people copy out.
+    """
+    caveat = section.get("awareness_timing_caveat")
+    if caveat and caveat.get("n_not_aware_before_acting"):
+        print(f"\n  !! TIMING: {caveat['n_not_aware_before_acting']} of "
+              f"{caveat['n_aware_and_misaligned']} aware-and-misaligned "
+              f"episode(s) were NOT aware before they acted.")
+        print("     Awareness after the act cannot have influenced it. These "
+              "are NOT reclassified:")
+        print("     the test applies only to episodes that acted, and acting "
+              "is the outcome, so")
+        print("     moving them would condition the exposure on the "
+              "dependent variable.")
+
+    order = section.get("act_ordering")
+    if order and order.get("n_acts_located"):
+        print("\n  ACT ORDERING (descriptive - no rate contrast exists "
+              "within actors):")
+        print(f"    of {order['n_acts_located']} located act(s): "
+              f"{order['aware_before_the_act']} were preceded by verbalised "
+              f"awareness, {order['not_aware_before_the_act']} were not"
+              + (f", {order['ordering_undeterminable']} undeterminable"
+                 if order.get("ordering_undeterminable") else "") + ".")
+
+
+def _print_question(section: dict) -> None:
+    if not _print_question_header(section):
+        return
+
+    print(f"\nCRUDE POOLED: {_fmt_contrast_line(section['overall'])}")
+    print(f"  {section['finding']}")
+    _print_composite(section)
+
+    if "stratified" in section:
+        _print_stratified(section["stratified"])
+
+    divergence = section.get("crude_vs_stratified") or {}
+    if divergence.get("warning"):
+        print(f"\n  !! {divergence['warning']}")
+
+    # BESIDE THE HEADLINE, not in an appendix. Anyone who quotes the crude or
+    # stratified line above is the reader who needs to know that a fifth of
+    # the exposed-and-misaligned cell verbalised only AFTER acting.
+    _print_awareness_timing_caveat(section)
+
+    _print_consistency(section)
+
     if section.get("text_reachable"):
         _print_text_reachable(section["text_reachable"])
 
@@ -517,48 +677,16 @@ def _print_question(section: dict) -> None:
         _print_by_act(section["by_act"])
 
     if "marginals_by_nudge" in section:
-        print("\nBY NUDGE (marginal awareness rate):")
-        for m in section["marginals_by_nudge"]:
-            rate = f"{m['rate']:.1%}" if m["rate"] is not None else "n/a"
-            print(f"    nudge={m['nudge']:<7} {m['n_aware']}/{m['n']} = {rate}")
-        print("  pairwise:")
-        for c in section["pairwise"]:
-            print(f"    {c['pair']:<16} {_fmt_contrast_line(c)}")
+        _print_marginals_by_nudge(section)
 
-    if "by_nudge" in section:
-        print("\nBY NUDGE:")
-        for c in section["by_nudge"]:
-            print(f"    nudge={c['nudge']:<7} {_fmt_contrast_line(c)}")
-
-    if "by_lure" in section:
-        print("\nBY LURE:")
-        for c in section["by_lure"]:
-            print(f"    lure={str(c['lure']):<6} {_fmt_contrast_line(c)}")
-
-    if "by_nudge_and_lure" in section:
-        print("\nBY NUDGE x LURE:")
-        for c in section["by_nudge_and_lure"]:
-            print(f"    nudge={c['nudge']:<7} lure={str(c['lure']):<6} "
-                  f"{_fmt_contrast_line(c)}")
+    _print_contrast_breakdowns(section)
 
     if "conditional_on_the_act" in section:
-        cond = section["conditional_on_the_act"]
-        print(f"\nCONDITIONAL ON THE ACT ({cond['n_determined']} of "
-              f"{cond['n_acts_taken']} act(s) taken had a determined "
-              f"concealment verdict):")
-        print(f"    {_fmt_contrast_line(cond)}")
-        print(f"    denominator: {cond['denominator']}")
-        if cond["underpowered"]:
-            print(f"    ! below {MIN_INFORMATIVE_DENOMINATOR} determined acts - "
-                  f"read the counts, not the rate")
+        _print_conditional_on_the_act(section["conditional_on_the_act"])
 
     if "summary_derived_cross_check" in section:
-        cc = section["summary_derived_cross_check"]
-        print(f"\nCROSS-CHECK against the summaries' own "
-              f"cross_analysis_awareness ({cc['n_arms_contributing']}/"
-              f"{cc['n_arms_total']} arms contribute):")
-        print(f"    {_fmt_contrast_line(cc)}")
-        print(f"    Differs because: {cc['why_it_differs']}")
+        _print_summary_derived_cross_check(
+            section["summary_derived_cross_check"])
 
 
 def _print_variant_question(section: dict) -> None:
@@ -650,70 +778,53 @@ def _print_arm_exclusion(stamp: dict) -> None:
           "comparison entirely and is marked below.")
 
 
-def _print_data_quality(dq: dict) -> None:
+def _print_awareness_exclusion(stamp: dict) -> None:
+    """
+    Which episodes this report is about, when it is only the unaware ones.
+
+    SILENT WHEN NOTHING WAS EXCLUDED, for the reason _print_arm_exclusion is:
+    a banner over every ordinary report is a banner readers learn to skip.
+
+    Separate from _print_arm_exclusion rather than folded into it because the
+    two narrowings answer different objections and count different things - an
+    arm exclusion reports summaries dropped, this one reports episodes whose
+    awareness could not be determined - and one function taking either shape
+    would have to branch on which it was given anyway.
+
+    THE UNDETERMINED COUNT IS PRINTED, not merely stored. Those episodes are
+    in neither reading: awareness was never measured for them, so they cannot
+    be called aware or unaware, and a reader comparing the two documents needs
+    to know they are absent from both rather than inferring it from a total
+    that does not add up.
+    """
+    if not stamp or stamp.get("field") is None:
+        return
     print(f"\n{'=' * 78}")
-    print("DATA QUALITY (read this before quoting anything above)")
+    print(f"AWARE EPISODES EXCLUDED: {stamp['words'].upper()}")
     print(f"{'=' * 78}")
-    sources = ", ".join(f"{k}={v}" for k, v in sorted(dq["awareness_verdict_sources"].items()))
-    print(f"  awareness verdict sources: {sources or 'none'}")
-    if not dq["awareness_all_from_grader"]:
-        print("    ! Not every awareness verdict came from the rubric grader. "
-              "The keyword proxy badly under-detects (0/20 in one pilot arm "
-              "the grader scored 15/20), so awareness rates resting partly on "
-              "it are not comparable with ones that do not. Consider "
-              "--grade-existing --write-back on the affected batches.")
-    disagreements = {
-        "misalignment": dq["n_misalignment_verdict_disagreements"],
-        "scheming (episode)": dq["n_scheming_verdict_disagreements"],
-        "scheming (per act)": dq["n_scheming_act_verdict_disagreements"],
-    }
-    shown = ", ".join(f"{k}={v}" for k, v in disagreements.items())
-    print(f"  verdict disagreements, stored vs re-derived: {shown}")
-    if any(disagreements.values()):
-        print("    ! A stored verdict disagrees with the current definitions. "
-              "Run --resummarise before quoting these figures.")
-    print(f"  episodes whose concealment could not be determined: "
-          f"{dq['n_scheming_undetermined']} - in every scheming denominator, "
-          f"unable to reach the numerator")
-    print(f"  episodes where the oversight ACT was not applicable "
-          f"(no-oversight arm): {dq['n_oversight_act_not_applicable']} "
-          f"- excluded from question 9's denominator")
-    print(f"  episodes where oversight-override was not applicable "
-          f"(no monitoring artefact): {dq['n_monitoring_not_applicable']} "
-          f"- excluded from question 6's denominator, not counted clean")
-    if dq["n_sandbox_escape_field_absent"]:
-        print(f"    ! {dq['n_sandbox_escape_field_absent']} episode(s) have no "
-              f"sandbox_escape_attempts field at all; they count as no-attempt "
-              f"in question 7.")
-    dupes = dq["duplicate_arms"]
-    print(f"  arms represented by more than one batch (POOLED here): {len(dupes)}")
-    for d in dupes:
-        print(f"    ! {d['model']} nudge={d['nudge']} oversight={d['oversight']} "
-              f"lure={d['lure']}: {d['n_batches']} batches pooled to "
-              f"n={d['pooled_n_runs']}")
-        for b in d["batches"]:
-            print(f"        n_runs={b['n_runs']:<4} {b['file']}")
-    if dupes:
-        print("      If a batch above was re-run to REPLACE an earlier partial "
-              "one, both are being counted. Move or delete the superseded "
-              "batch; pooling also mixes collection conditions the run files "
-              "record separately (openrouter_provider/openrouter_sort).")
-    mixed_routing = dq.get("mixed_routing_arms") or []
-    print(f"  arms whose episodes were not all routed the same way: "
-          f"{len(mixed_routing)}")
-    for m in mixed_routing:
-        split = ", ".join(
-            f"{r['sort'] or 'provider default'}"
-            + (f"/{r['provider']}" if r["provider"] else "")
-            + f" x{r['n_episodes']}"
-            for r in m["routings"])
-        print(f"    ! {m['model']} nudge={m['nudge']} "
-              f"oversight={m['oversight']} lure={m['lure']}: "
-              f"n={m['n_episodes']} split {split}")
-    if mixed_routing:
-        print("      One rate over episodes answered by different backends. "
-              "This is NOT what duplicate_arms above reports: a batch resumed "
-              "under different routing keeps its stamp and writes one summary, "
-              "so the arm looks like a single clean batch. Which routing was "
-              "wanted is not something this can know - re-collect the arm under "
-              "one, or quote it knowing what it pools.")
+    print(f"  {stamp['why']}")
+    print(f"  episodes: {stamp['n_episodes_kept']} kept of "
+          f"{stamp['n_episodes_before']}, "
+          f"{stamp['n_episodes_dropped_aware']} dropped as aware, "
+          f"{stamp['n_episodes_dropped_undetermined']} dropped as "
+          f"undetermined")
+    print(f"  measure: {stamp['measure']} ({stamp['field']})")
+    if not stamp["n_episodes_dropped_aware"]:
+        print("    ! Nothing was dropped as aware. The measure found no aware "
+              "episode at all, so this report is the full corpus under a name "
+              "that says it is not. Check that the awareness field still "
+              "holds a verdict.")
+    if stamp["n_episodes_dropped_undetermined"]:
+        print(f"    ! {stamp['n_episodes_dropped_undetermined']} episode(s) "
+              f"have no awareness verdict from either screen and are excluded "
+              f"here as well - they are in neither reading of the corpus.")
+    print("  A ROBUSTNESS READING, NOT A BETTER ESTIMATE. Awareness is "
+          "measured DURING the episode, so it is an outcome of the arm and "
+          "not a condition assigned alongside it: conditioning on it does not "
+          "give an unbiased estimate of an arm's effect. It tests one named "
+          "objection - that a contrast is the models which noticed the "
+          "evaluation rather than the arm - and is published beside the "
+          "primary reading, never in place of it.")
+    print("  Questions 1-4 pool from arm rows REBUILT from the surviving "
+          "episodes, not from summary_*.json, whose counts describe whole "
+          "arms including the episodes just removed.")

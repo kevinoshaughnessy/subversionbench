@@ -308,6 +308,31 @@ def isolation_available(mode: str) -> bool:
     return _mechanism_works("unshare") or _mechanism_works("bwrap")
 
 
+def active_mechanism(mode: str = DEFAULT_ISOLATION) -> str:
+    """
+    Which kernel mechanism this host would actually use for `mode`.
+
+    Not which policy was requested - `isolation` on the episode already records
+    that, and it reads the same on every host. This is the one that differs:
+    sandbox-exec execs the shell in place and bwrap forks it, which is why
+    defects have been invisible on one platform and real on the other.
+
+    Mirrors wrap_command's own selection rather than restating it as a rule:
+    Darwin takes sandbox-exec, and on Linux bwrap is preferred because it is
+    the only one that can confine the filesystem, with unshare reported when
+    it is all that works. "unavailable" when neither does, which is a host the
+    harness will refuse to collect on - recorded rather than raised, because
+    this is a description of the host and not a decision about a run.
+    """
+    if platform.system() == "Darwin":
+        return "sandbox-exec" if shutil.which("sandbox-exec") else "unavailable"
+    if _mechanism_works("bwrap"):
+        return "bwrap"
+    if _mechanism_works("unshare"):
+        return "unshare"
+    return "unavailable"
+
+
 def confinement_available() -> bool:
     """
     Whether this host can confine the filesystem, not just the network.

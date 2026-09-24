@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "127.0.0"
+version = "214.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -60,6 +60,7 @@ test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx", "PyYAML>=6.0", "ruff>=0.16",
         "coverage>=7.0"]
 charts = ["matplotlib>=3.8"]
 openrouter = ["openai>=1.0.0"]
+opencode = ["openai>=1.0.0"]
 openai = ["openai>=1.0.0"]
 
 [project.scripts]
@@ -82,17 +83,57 @@ omit = [
     "run_tests.py",
     ".venv/*",
     "*/site-packages/*",
+    # THE HELD-OUT TOOL AND ITS FIXTURE, which no runner can exercise. Both
+    # need the held-out bundle, and that bundle is gitignored on purpose: a
+    # held-out control is worth having only for as long as it has never been
+    # published. So their tests correctly skip wherever it is absent, which is
+    # everywhere except the machine it was authored on - and on any other
+    # machine heldout_tool.py measured 40%, 91 statements short, which is more
+    # than the whole floor's headroom.
+    #
+    # Omitted rather than the floor lowered: 91 units of unmeasurable code
+    # should not set the standard for the 15,900 that are measurable. The cost
+    # is that this file's real coverage is not enforced anywhere, and the check
+    # that stands in for it is that its tests exist and run wherever the bundle
+    # does.
+    "heldout_tool.py",
+    "*/heldout_fixtures.py",
 ]
 
 [tool.coverage.report]
-# THE FLOOR IS MEASURED, NOT ASPIRED TO. Both platforms report 91% at the time
-# it was set - macOS 616 statements missed, Linux 618, a two-statement spread -
-# so 90 leaves about a point of headroom and cannot flake between the runners.
+# THE FLOOR IS MEASURED, NOT ASPIRED TO. Raise it to what a local run actually
+# reports, rounded down; no figure is quoted here because a measurement written
+# beside the thing it measures goes stale the first time anyone adds a test.
 #
-# Set it higher only after measuring, and on both platforms: 24 of the sandbox
-# tests are macOS-only and the isolation module's branches divide the other way
-# on Linux, so a floor tuned to one platform is a floor that fails on the other.
-fail_under = 90
+# BOTH PLATFORMS CLEAR IT, and CI enforces it on Linux on every push to `main`
+# and to the working branch. That was not true until v158: the workflow
+# triggered on `main` alone, so twelve versions of branch work were checked on
+# one machine and one OS, and a hand dispatch found Linux failures no local run
+# could see. The counts and causes are in the CHANGELOG rather than here, for
+# the reason above - a measurement written beside the thing it measures rots,
+# and this note had gone stale in five separate ways before it was rewritten.
+#
+# TWO THINGS STAY TRUE and are worth knowing before changing this number.
+#
+# Linux is the tighter of the two totals, because isolation.py takes different
+# branches on each platform and neither can cover both. A local run is
+# therefore the looser check, and green locally is not green.
+#
+# heldout_tool.py and its fixture are omitted above, not merely uncovered: they
+# need a bundle that must never be published, so no runner can reach them.
+# Every other omission in this file is the suite measuring itself.
+#
+# If CI goes red on coverage alone, read the Linux figure from the failing job -
+# `coverage json` gives the percentage and the per-file missing lines - and
+# compare it against a local run rather than lowering this by reflex. A floor
+# that moves down whenever it is inconvenient is not a floor, which is the same
+# reasoning that set the ruff rule set below.
+#
+# What remains platform-dependent is isolation.py, which takes different
+# branches on each - roughly eighteen units - so the two totals still differ and
+# Linux is the tighter of the two. If CI goes red on coverage alone, read the
+# Linux figure from the failing job rather than lowering this by reflex.
+fail_under = 98
 skip_covered = true
 show_missing = true
 exclude_also = [
@@ -175,10 +216,11 @@ select = [
 #   EM, TRY, TID, PT style preferences that would fight the existing code.
 
 [tool.setuptools.packages.find]
-# `trends` and `report` are deliberately NOT included, even though both are
-# packages rather than root scripts. `report` imports report_charts and `trends`
-# imports model_releases, which ARE root scripts and are not installed, so
-# shipping either would install something that cannot import. Like the other
-# analysis entry points they run from a checkout: `python3 -m report`,
-# `python3 -m trends`.
+# Only `subversionbench` ships. `trends`, `report`, `report_charts`,
+# `agentic_misalignment` and `grader_ab` are packages too, and are deliberately
+# NOT included: each reaches something at the repository root that is not
+# installed - `trends` imports model_releases, `agentic_misalignment` imports
+# sad_oversight - so shipping one would install something that cannot import.
+# Like the other analysis entry points they run from a checkout:
+# `python3 -m report`, `python3 -m trends`.
 include = ["subversionbench*"]

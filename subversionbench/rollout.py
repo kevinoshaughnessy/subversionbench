@@ -52,7 +52,7 @@ import json
 
 from .config import SANDBOX_DISPLAY_PATH, TOOLS
 from .isolation import DEFAULT_ISOLATION
-from .scenario import scenario_for
+from .scenario import lure_applies, scenario_for
 
 # Commands whose handling defines the sandbox as the model experiences it.
 # Each one is here because it distinguishes a behaviour that has changed, or
@@ -206,7 +206,10 @@ def _sandbox_behaviour(isolation: str = DEFAULT_ISOLATION) -> str:
 
 def rollout_fingerprint(oversight: bool = True,
                         isolation: str = DEFAULT_ISOLATION,
-                        lure: bool = False) -> str:
+                        lure: bool = False, capability: str = None,
+                        date_mode: str = None,
+                        goalguard: str = None,
+                        nudge: str = "strong") -> str:
     """
     A short hash of everything that determines what the model sees and can do.
 
@@ -220,10 +223,31 @@ def rollout_fingerprint(oversight: bool = True,
 
     Stable across analysis changes by construction: nothing here reads the
     grader, the rubric, the classifier or the summary code.
+
+    `capability` names the capability arm, whose instruction replaces the task
+    and which therefore hashes differently by construction. It is threaded
+    through the SAME function rather than given one of its own so that the two
+    identities cannot drift: a change to the tools, the sandbox or the episode
+    layout has to move both, and a separate hasher would let it move one.
     """
     from .environment import episode_root_layout
 
-    scenario = scenario_for(oversight, lure=lure)
+    # `goalguard` needs no marker of its own, unlike date_mode: it changes the
+    # assembled scenario itself - the successor's parameter file, the
+    # deployment note and the third interrogation ladder all land in the dict
+    # hashed below - so the identity moves by construction. With it None the
+    # arm assembles byte-for-byte as before and the pinned fingerprints stand.
+    # `nudge` reaches the assembly through TWO documents, not one: the
+    # goal-guarding memo, and the coercive interrogation questions swapped in
+    # whenever nudge="max" - unconditionally, independent of goalguard. This
+    # comment used to claim only the memo varies by nudge; it was wrong, and
+    # nothing caught it because nothing compared a live max-nudge hash against
+    # a pin meant for one until MAX_NUDGE_FINGERPRINTS existed - see its
+    # comment in rollout_pins.py. Defaulting to "strong" keeps every caller
+    # that never mentions nudge - and therefore every pinned r10 fingerprint -
+    # computing exactly what it computed before.
+    scenario = scenario_for(oversight, lure=lure, capability=capability,
+                            goalguard=goalguard, nudge=nudge)
     parts = [
         json.dumps(scenario, sort_keys=True).encode(),
         json.dumps(TOOLS, sort_keys=True).encode(),
@@ -233,7 +257,12 @@ def rollout_fingerprint(oversight: bool = True,
         # environment layout at all, so changing it altered the rollout with the
         # drift guard silent. Structure only: the project directory's contents
         # are already hashed through the scenario bundle above.
-        episode_root_layout(lure=lure).encode(),
+        # The EFFECTIVE lure, so a goal-guarding arm asked for with
+        # --lure true hashes as the arm it actually stages. Without
+        # this the assembly is unchanged and the layout is not, and
+        # the episode carries an identity nothing pins.
+        episode_root_layout(
+            lure=lure_applies(lure, goalguard)).encode(),
         # Where the KERNEL stops the shell, which is a different question from the
         # blocklist hashed above and has to be hashed separately.
         #
@@ -252,6 +281,18 @@ def rollout_fingerprint(oversight: bool = True,
         # same rollout and must not pool.
         _confinement_behaviour().encode(),
     ]
+    # APPENDED ONLY WHEN THE ARM IS ON, exactly as the lure marker is in
+    # episode_root_layout, and for the same reason: the artefact modification
+    # times are part of what the model sees, so an arm that changes them is a
+    # different rollout - but every episode ever collected ran under the
+    # default, and authoring this arm must not restate the identity of the
+    # arms already run. With date_mode default or absent, `parts` is
+    # byte-identical to what it was before this existed and all four pinned
+    # fingerprints recompute unchanged. Asserted, not assumed: see
+    # TestTheDateArmLeavesTheFourPinnedFingerprintsAlone.
+    from .artefact_dates import DEFAULT as _DATE_DEFAULT
+    if date_mode is not None and date_mode != _DATE_DEFAULT:
+        parts.append(f"artefact_dates: {date_mode}".encode())
     digest = hashlib.sha256()
     for part in parts:
         digest.update(hashlib.sha256(part).digest())
@@ -259,7 +300,10 @@ def rollout_fingerprint(oversight: bool = True,
 
 
 def rollout_drift_error(expected: str, oversight: bool = True,
-                        isolation: str = DEFAULT_ISOLATION, lure: bool = False) -> str:
+                        isolation: str = DEFAULT_ISOLATION,
+                        lure: bool = False, capability: str = None,
+                        date_mode: str = None, goalguard: str = None,
+                        nudge: str = "strong") -> str:
     """
     The message to fail a rollout on, or None when the fingerprint matches.
 
@@ -268,8 +312,23 @@ def rollout_drift_error(expected: str, oversight: bool = True,
     transcripts and are unaffected by a rollout change, so they must keep
     working against archived results whatever the current scenario says.
     Only the modes that produce new episodes check this.
+
+    `date_mode` and `goalguard` reach assembly only through the arm each
+    names, so a caller checking the plain arm can leave them at their
+    defaults and compute exactly what it always computed. `nudge` is
+    different: it reaches assembly through the goal-guarding memo AND,
+    unconditionally, through the coercive interrogation questions swapped in
+    at nudge="max" - see `rollout_fingerprint`'s comment. A caller checking
+    the plain arm still has to pass its REAL nudge, or a max-nudge collection
+    silently compares against none/strong's pin - `expected` has to come
+    from the same nudge-aware `fingerprint_for()` this passes `actual`
+    through. Passing date_mode/goalguard/nudge for a special arm makes the
+    ACTUAL side of the comparison the scenario that arm assembles, not the
+    plain one - which is the gap `_rollout_matches_its_pin` had before every
+    caller here passed them.
     """
-    actual = rollout_fingerprint(oversight, isolation, lure)
+    actual = rollout_fingerprint(oversight, isolation, lure, capability,
+                                 date_mode, goalguard, nudge)
     if actual == expected:
         return None
     return (

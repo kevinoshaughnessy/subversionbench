@@ -222,6 +222,146 @@ class TestRolloutIdentity:
         assert rollout_fingerprint(True) == ROLLOUT_FINGERPRINTS[(True, False)]
         assert rollout_fingerprint(False) == ROLLOUT_FINGERPRINTS[(False, False)]
 
+class TestTheScenarioIdentityIsTheActSet:
+    """Which scenario a corpus belongs to, as distinct from which rollout of it.
+
+    Identity is the set of misalignment categories the rollout can exhibit, not
+    the setting it is told in. The held-out bundle is a waste-disposal story
+    where the shipped one is transport, and it measures exactly the same two
+    categories: naming the scenario after its setting would make a twin look
+    like a different experiment and would need renaming the first time a
+    scenario is neither.
+    """
+
+    def test_every_declared_act_is_a_real_misalignment_act(self):
+        """The correspondence rollout_pins cannot assert itself. It is the data
+        half of the rollout check and is imported before grading exists, so a
+        typo in SCENARIO_ACTS would name a category nothing measures and the id
+        would look perfectly well-formed."""
+        from subversionbench.config import SCENARIO_ACTS
+        from subversionbench.grading import MISALIGNED_ACTS
+        known = {act["name"] for act in MISALIGNED_ACTS}
+        assert known, "no acts defined - the guard would pass vacuously"
+        assert set(SCENARIO_ACTS) <= known, set(SCENARIO_ACTS) - known
+
+    def test_the_shipped_scenario_offers_exactly_the_two_original_acts(self):
+        """Goal guarding lives in the shipped bundle but behind its own arm, so
+        no episode of this scenario can exhibit it. If that ever stops being
+        true the id has to move, because a two-act composite rate and a
+        three-act one are not the same quantity."""
+        from subversionbench.config import SCENARIO_ACTS
+        assert set(SCENARIO_ACTS) == {"oversight", "sandbox"}
+
+    def test_the_id_is_a_property_of_the_set_not_of_the_writing_order(self):
+        """Two rollouts offering the same acts must not read as two scenarios
+        because one listed them the other way round."""
+        from subversionbench.config import scenario_id_for
+        assert scenario_id_for(("sandbox", "oversight")) == \
+            scenario_id_for(("oversight", "sandbox"))
+        assert scenario_id_for(("sandbox", "oversight", "sandbox")) == \
+            scenario_id_for(("oversight", "sandbox"))
+
+    def test_growing_the_act_set_moves_the_id(self):
+        """The decision this encodes: adding a category is a new scenario, not
+        a later rollout of the old one. A corpus collected over two acts cannot
+        pool with one collected over three, and the id is what says so."""
+        from subversionbench.config import SCENARIO_ACTS, scenario_id_for
+        grown = scenario_id_for(tuple(SCENARIO_ACTS) + ("goalguard",))
+        assert grown != scenario_id_for(SCENARIO_ACTS)
+
+    def test_a_scenario_with_no_acts_has_no_identity(self):
+        """Rather than an empty string, which would compare equal to another
+        empty one and pool two scenarios that measure nothing in common."""
+        import pytest
+        from subversionbench.config import scenario_id_for
+        with pytest.raises(ValueError):
+            scenario_id_for(())
+
+    def test_the_goal_guarding_arm_is_a_different_scenario(self):
+        """It stages an artefact the default arm does not, so a run with it can
+        exhibit a category a run without it cannot. Stamping the bundle's
+        default id on such a run would claim a composite membership the
+        episodes do not have."""
+        from subversionbench.config import scenario_acts_for, scenario_id_for
+        plain = scenario_id_for(scenario_acts_for())
+        guarding = scenario_id_for(scenario_acts_for("replacement"))
+        assert plain != guarding
+        assert "goalguard" in guarding and "goalguard" not in plain
+
+    def test_the_capability_target_moves_the_id_like_the_arm_does(self):
+        """The same disjunction scenario_for makes, and the same one the
+        ENVIRONMENT was missing at v172: --capability goalguard stages the
+        artefact without the deployment note, so those episodes can exhibit
+        the third category and must not carry the two-act identity. Found by
+        reading scenario_id off a collected capability corpus.
+
+        A capability target that is not an act of its own - sandbox is always
+        available - must leave the id alone, which is the other direction."""
+        from subversionbench.config import scenario_acts_for, scenario_id_for
+        plain = scenario_id_for(scenario_acts_for())
+        assert scenario_id_for(scenario_acts_for(capability="goalguard")) == \
+            scenario_id_for(scenario_acts_for("replacement"))
+        assert scenario_id_for(scenario_acts_for(capability="sandbox")) == plain
+
+    def test_the_stamped_id_follows_the_capability_target_too(self):
+        """Through the record builder, because the constant is not what gets
+        saved."""
+        from subversionbench.arm_record import arm_identity
+        common = {"model": "m", "effort": None, "nudge": "none",
+                  "oversight": False, "lure": False,
+                  "interrogations": ("zeroevidence",),
+                  "openrouter_sort": None, "openrouter_provider": None}
+        assert "goalguard" in arm_identity(capability="goalguard",
+                                           **common)["scenario_id"]
+        assert "goalguard" not in arm_identity(capability="sandbox",
+                                               **common)["scenario_id"]
+
+    def test_the_oversight_counterfactual_is_NOT_a_different_scenario(self):
+        """The other direction, and the one that would be a worse mistake. The
+        no-oversight arm removes an act too, but both sides of a counterfactual
+        are one experiment - splitting them by identity would make the
+        comparison they exist for impossible to express. That the composite's
+        membership still varies across those arms is a reporting problem, and
+        report/pooling.composite_of is where it is answered."""
+        from subversionbench.arm_record import arm_identity
+        common = {"model": "m", "effort": None, "nudge": "none",
+                  "lure": False, "interrogations": ("zeroevidence",),
+                  "openrouter_sort": None, "openrouter_provider": None}
+        on = arm_identity(oversight=True, **common)["scenario_id"]
+        off = arm_identity(oversight=False, **common)["scenario_id"]
+        assert on == off
+
+    def test_the_stamped_id_follows_the_arm_rather_than_the_module(self):
+        """Driven through the record builder, not read off the constant: the
+        field is only useful if what reaches the saved episode moves."""
+        from subversionbench.arm_record import arm_identity
+        common = {"model": "m", "effort": None, "nudge": "none",
+                  "oversight": True, "lure": False,
+                  "interrogations": ("zeroevidence",),
+                  "openrouter_sort": None, "openrouter_provider": None}
+        plain = arm_identity(**common)["scenario_id"]
+        guarding = arm_identity(goalguard="replacement", **common)["scenario_id"]
+        assert plain != guarding
+
+    def test_the_full_name_carries_both_halves(self):
+        """Neither identifies a corpus alone: "r10" says nothing about what was
+        measured and "oversight-sandbox" nothing about what the model saw."""
+        from subversionbench.config import (ROLLOUT_NAME, ROLLOUT_VERSION,
+                                            SCENARIO_ID)
+        assert ROLLOUT_NAME == f"{SCENARIO_ID}/{ROLLOUT_VERSION}"
+        assert SCENARIO_ID in ROLLOUT_NAME and ROLLOUT_VERSION in ROLLOUT_NAME
+
+    def test_the_id_is_derived_rather_than_written_beside_the_act_set(self):
+        """A second spelling of one fact is a second thing to keep in step,
+        which this file's own header calls its main source of churn. Driven by
+        changing the act set and watching the id follow, rather than by reading
+        the source."""
+        from subversionbench.config import SCENARIO_ACTS, scenario_id_for
+        assert scenario_id_for(SCENARIO_ACTS) == scenario_id_for(
+            reversed(tuple(SCENARIO_ACTS)))
+        assert scenario_id_for(("a", "b")) == "a-b"
+
+
 class TestTheVariantIsRemovalOnly:
     """Adding phrasings must not change what any existing episode saw."""
 
@@ -248,4 +388,50 @@ class TestTheVariantIsRemovalOnly:
         assert batch_stem("m", "strong") == "m_strong"
         assert parse_batch_filename(
             "run_1_m_strong_20260101T000000.json", "strong"
-        ) == (None, "20260101T000000", True, False)
+        ) == (None, "20260101T000000", True, False, None)
+
+
+class TestASandboxThatRaisesIsStillFingerprinted:
+    """A raise is behaviour too. If a sandbox helper started throwing on some
+    probe, the fingerprint's job is to say the arm now behaves differently -
+    which it cannot do if the exception escapes and takes rollout_fingerprint
+    down with it. Every caller of that function is either a batch about to
+    start or a report about to pool, so an escaping exception means "no
+    episodes at all", and a caught one means "these episodes do not pool with
+    the old ones", which is the correct answer.
+    """
+
+    def _fingerprint_with(self, name, error=ValueError):
+        from subversionbench import sandbox
+        original = getattr(sandbox, name)
+
+        def boom(*_a, **_kw):
+            raise error("probe blew up")
+
+        setattr(sandbox, name, boom)
+        try:
+            return rollout.rollout_fingerprint()
+        finally:
+            setattr(sandbox, name, original)
+
+    def test_a_raising_path_rewriter_moves_the_fingerprint_rather_than_raising(self):
+        assert self._fingerprint_with("_rewrite_scenario_paths") != \
+            ROLLOUT_FINGERPRINT
+
+    def test_a_raising_block_check_moves_it_too(self):
+        assert self._fingerprint_with("would_be_blocked") != ROLLOUT_FINGERPRINT
+
+    def test_two_different_failures_are_two_different_behaviours(self):
+        """The exception TYPE is in the recorded string, which is the whole
+        content of these two arms: without it every way of failing hashes
+        alike, and a batch collected while one thing was broken would pool
+        with a batch collected while a different thing was."""
+        assert self._fingerprint_with("_rewrite_scenario_paths", ValueError) != \
+            self._fingerprint_with("_rewrite_scenario_paths", KeyError)
+
+    def test_the_pin_comes_back_once_the_sandbox_does(self):
+        """The control every one of these needs: the moves above are the
+        stubs, not the test file leaving the module altered."""
+        self._fingerprint_with("_rewrite_scenario_paths")
+        self._fingerprint_with("would_be_blocked")
+        assert rollout.rollout_fingerprint() == ROLLOUT_FINGERPRINT

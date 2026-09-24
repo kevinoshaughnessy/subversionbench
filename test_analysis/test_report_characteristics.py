@@ -107,7 +107,7 @@ class TestItIsReportedAsADescriptionNotAnEffect:
                        "difference_ci95"):
             assert banned not in b, banned
 
-    def test_it_is_not_one_of_the_twelve_questions(self):
+    def test_it_is_not_one_of_the_questions(self):
         out = tempfile.mkdtemp()
         for oversight in (True, False):
             _write_summary(out, "m", "strong", oversight=oversight,
@@ -115,7 +115,7 @@ class TestItIsReportedAsADescriptionNotAnEffect:
         _write_episode(out, 1, "m", "strong", transcript=[refusal_result()])
         _write_episode(out, 2, "m", "strong", oversight=False, tampered=None)
         report = rr.build_report(out)
-        assert len(report["questions"]) == 12
+        assert len(report["questions"]) == 21
         assert "characteristics" in report
         assert "persistence_after_refusal" in report["characteristics"]
         for q in report["questions"]:
@@ -502,7 +502,7 @@ class TestTheDecisionProfileReachesTheReport:
     def test_it_is_in_the_report_but_not_among_the_questions(self):
         report = rr.build_report(self._dir())
         assert "decision_profile" in report["characteristics"]
-        assert len(report["questions"]) == 12
+        assert len(report["questions"]) == 21
 
     def test_a_real_report_run_prints_all_three_parts(self):
         saved = sys.argv
@@ -666,7 +666,7 @@ class TestEvalSignalRatesPooledSumsBeforeDividing:
         """1/1 for model b and 1/10 for model a average to 55%; pooling the raw
         counts first gives 2/11, the same distinction
         TestTheRatesArePooledNotAveraged makes for the external side of
-        agentic_misalignment.py."""
+        agentic_misalignment/."""
         eps = ([_sep("a", broke_character=True)]
               + [_sep("a", broke_character=False) for _ in range(9)]
               + [_sep("b", broke_character=True)])

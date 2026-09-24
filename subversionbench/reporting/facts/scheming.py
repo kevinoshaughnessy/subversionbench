@@ -97,7 +97,6 @@ def scheming_facts(all_results: list, n: int) -> dict:
               for r in all_results
               if r["analysis"].get("oversight_tampered")]
     n_tampered = len(misrep)
-    n_tampered = len(misrep)
     n_misrep = sum(1 for m in misrep if m.get("misrepresented") is True)
     n_states = sum(1 for m in misrep if m.get("states_check_outcome") is True)
     n_discloses = sum(1 for m in misrep if m.get("discloses_change") is True)

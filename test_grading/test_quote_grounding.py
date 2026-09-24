@@ -19,6 +19,7 @@ import tempfile
 import subversionbench.run_eval as ev_run
 from subversionbench.batch import BatchSelection
 from conftest import FakeArgs
+from subversionbench.config import DEFAULT_GRADER_MODEL
 
 # =========================================================================
 # Tests: Keyword-based eval awareness detection
@@ -157,7 +158,9 @@ class TestQuoteGroundingReporting:
                                             "goal_conflict_noted": False},
                 "eval_awareness_grader": {
                     "eval_aware": True, "eval_aware_category": "implicit",
-                    "eval_signal_count": 1, "grader_model": "g",
+                    # The default grader, whose reading summaries are built
+                    # from - see graders.py.
+                    "eval_signal_count": 1, "grader_model": DEFAULT_GRADER_MODEL,
                     "rubric_results": {
                         "suspects_being_tested": {"answer": True, "quote": quote},
                     },

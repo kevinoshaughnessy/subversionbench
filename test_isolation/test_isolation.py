@@ -167,3 +167,85 @@ class TestModesAreDeclared:
         from subversionbench.sandbox import execute_tool_sandboxed
         sig = inspect.signature(execute_tool_sandboxed)
         assert sig.parameters["isolation"].default == "deny-network"
+
+
+class TestTheMechanismProbeAsksWhetherItWorks:
+    """_mechanism_works answers "can this host actually do it", not "is the
+    binary installed".
+
+    THE DEFECT IT EXISTS FOR, from its own docstring: Ubuntu restricts
+    unprivileged user namespaces from 23.10, so `unshare` is on PATH and fails
+    at run time. Choosing it because shutil.which found it committed the
+    harness to a mechanism that could not work and skipped the bwrap fallback
+    that would have.
+
+    Untested until now, on either platform - the function that decides how
+    every command in every episode is confined.
+    """
+
+    def test_an_unknown_mechanism_is_never_chosen(self):
+        """Guards the lookup itself: an unrecognised name must not fall through
+        to a probe built from a partially-populated dict."""
+        from subversionbench.isolation import _mechanism_works
+        _mechanism_works.cache_clear()
+        assert _mechanism_works("nosuchmechanism") is False
+        assert _mechanism_works("") is False
+
+    def test_a_mechanism_absent_from_path_is_not_probed(self):
+        """shutil.which is necessary but not sufficient. It is still checked
+        first, because running a probe for a binary that is not there costs a
+        subprocess launch per call on every host that lacks it."""
+        import subversionbench.isolation as iso
+        calls = []
+        iso._mechanism_works.cache_clear()
+        real_which, real_run = iso.shutil.which, iso.subprocess.run
+        try:
+            iso.shutil.which = lambda name: None
+            iso.subprocess.run = lambda *a, **k: calls.append(a) or None
+            assert iso._mechanism_works("bwrap") is False
+            assert calls == [], "probed a mechanism that is not installed"
+        finally:
+            iso.shutil.which, iso.subprocess.run = real_which, real_run
+            iso._mechanism_works.cache_clear()
+
+    def test_a_probe_that_cannot_launch_is_not_a_working_mechanism(self):
+        """OSError from the probe means the kernel or the binary refused. That
+        is the AppArmor case reaching us as an exception rather than a nonzero
+        exit, and it must read as 'does not work', never propagate."""
+        import subversionbench.isolation as iso
+        real_which, real_run = iso.shutil.which, iso.subprocess.run
+        try:
+            iso.shutil.which = lambda name: f"/usr/bin/{name}"
+            for boom in (OSError("nope"),
+                         iso.subprocess.SubprocessError("nope")):
+                def _raise(*a, _b=boom, **k):
+                    raise _b
+                iso._mechanism_works.cache_clear()
+                iso.subprocess.run = _raise
+                assert iso._mechanism_works("unshare") is False
+        finally:
+            iso.shutil.which, iso.subprocess.run = real_which, real_run
+            iso._mechanism_works.cache_clear()
+
+    def test_the_exit_code_is_what_decides(self):
+        """Nonzero is the AppArmor symptom: installed, launches, refuses.
+
+        The cache is cleared between cases. _mechanism_works is
+        @functools.cache - probed once per mechanism per process, which is
+        correct in production and would otherwise make this test assert the
+        first stub's answer three times.
+        """
+        import subversionbench.isolation as iso
+        import types as _types
+        real_which, real_run = iso.shutil.which, iso.subprocess.run
+        try:
+            iso.shutil.which = lambda name: f"/usr/bin/{name}"
+            for code, expected in ((0, True), (1, False), (255, False)):
+                iso._mechanism_works.cache_clear()
+                iso.subprocess.run = (
+                    lambda *a, _c=code, **k: _types.SimpleNamespace(
+                        returncode=_c))
+                assert iso._mechanism_works("bwrap") is expected, code
+        finally:
+            iso.shutil.which, iso.subprocess.run = real_which, real_run
+            iso._mechanism_works.cache_clear()

@@ -1,117 +1,28 @@
 """
-Tests for report_charts.py - the twelve research-question charts.
+The research-question charts, and the overview that holds them all.
 
 A chart is a second reading of numbers the printed report already carries, so
 the thing worth testing is not that matplotlib drew something: it is that the
 chart cannot say anything the report does not, and cannot quietly leave out
 something the report does. Most of what follows checks the ROWS - what gets a
-line, what it is labelled, where it sits - because that is where a chart can
-lie about an analysis while still rendering.
+line, what it is labelled, where it sits - because that is where a chart can lie
+about an analysis while still rendering.
 """
+
 
 import json
 import os
 import tempfile
 
-
 import report as run_report
+import report.run_report as rr
 import report_charts as rc
+import report_charts.questions  # noqa: F401
 from subversionbench import charting
-from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
+from test_analysis.test_run_report import _two_arm_dir
+from test_analysis.chart_fixtures import (
+    _contrast, _paired_section, _plt, _section)
 
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-def _contrast(xa, na, xb, nb, model=None, holm=False, separated=False,
-              diff=None, ci=(None, None)):
-    """A contrast shaped like the ones _contrast() in run_report emits."""
-    rate_a = xa / na if na else None
-    rate_b = xb / nb if nb else None
-    if diff is None and rate_a is not None and rate_b is not None:
-        diff = round(rate_a - rate_b, 4)
-    out = {
-        "a": {"successes": xa, "n": na, "rate": rate_a},
-        "b": {"successes": xb, "n": nb, "rate": rate_b},
-        "difference": diff,
-        "difference_ci95": list(ci) if diff is not None else None,
-        "separated": separated,
-        "level_a": True, "level_b": False,
-    }
-    if model:
-        out["model"] = model
-        out["holm_rejected"] = holm
-    if na == 0 or nb == 0:
-        out["difference"] = None
-        out["difference_ci95"] = None
-        out["note"] = "one side has no data"
-    return out
-
-
-def _section(**over):
-    section = {
-        "id": "oversight_vs_scheming",
-        "question": "Does the presence of oversight increase or decrease "
-                    "scheming rates?",
-        "overall": _contrast(32, 1793, 54, 1784, diff=-0.0124,
-                             ci=(-0.0228, -0.0024), separated=True),
-        "by_model": [
-            _contrast(1, 60, 4, 60, model="p/a", ci=(-0.14, 0.02)),
-            _contrast(4, 60, 1, 60, model="p/b", holm=True, ci=(-0.02, 0.14)),
-            _contrast(0, 0, 2, 60, model="p/c"),
-        ],
-        "stratified": {"mantel_haenszel": {
-            "risk_difference": -0.0124,
-            "risk_difference_ci95": [-0.0215, -0.0033],
-            "n_strata_used": 2, "separated": True}},
-        "crude_vs_stratified": {},
-    }
-    section.update(over)
-    return section
-
-
-def _paired_section(**over):
-    section = {
-        "id": "evidence_vs_concealment",
-        "question": "To what extent does part-evidence vs zero-evidence "
-                    "affect concealment rates?",
-        "not_pooled_because": "The four phrasings are measured on the SAME acts.",
-        "contrasts": [{
-            "act": "sandbox",
-            "variant_a": "zeroevidence", "variant_b": "partevidence",
-            "overall": {
-                "a": {"successes": 60, "n": 803, "rate": 0.0747},
-                "b": {"successes": 48, "n": 803, "rate": 0.0598},
-                "difference": 0.0149, "difference_ci95": [-0.0042, 0.0341],
-                "separated": False, "n_pairs": 803,
-                "discordant": {"a_only": 37, "b_only": 25},
-                "level_a": "zeroevidence", "level_b": "partevidence",
-            },
-        }],
-    }
-    section.update(over)
-    return section
-
-
-def _plt():
-    """
-    pyplot, or skip.
-
-    A plain helper rather than a pytest fixture: run_tests.py is the other
-    runner this suite has to work under and it cannot interpret fixtures - see
-    test_dependencies.TestBothTestRunnersCanRunEverything.
-    """
-    plot = charting.import_pyplot()
-    if plot is None:
-        from conftest import skip_without
-        skip_without("matplotlib", "charts are an optional extra")
-    return plot
-
-
-# ---------------------------------------------------------------------------
-# Rows
-# ---------------------------------------------------------------------------
 
 class TestEveryModelKeepsItsRow:
     """
@@ -181,6 +92,12 @@ class TestBothPooledEstimatesAreAlwaysDrawn:
                                  ci=(0.01, 0.08), separated=True)})
         assert [r.kind for r in rc._pooled_rows(with_parallel)][-1] == "parallel"
 
+    # Two more tests of this shape - the self-graded questions'
+    # primary_reading parallel measure, and the fixed-per-kind legend bug it
+    # exposed - are in test_report_charts_self_kind.py: this file was at the
+    # 1000-line ceiling and the split follows the same rule
+    # test_report_awareness_kind.py was split out under.
+
     def test_a_question_with_no_stratified_estimate_still_gets_its_crude_one(self):
         rows = rc._pooled_rows(_section(stratified={"mantel_haenszel": {}}))
         assert [r.kind for r in rows] == ["crude"]
@@ -206,10 +123,6 @@ class TestThePairedQuestionsKeepTheirOwnShape:
         assert "37/25 discordant" in note
 
 
-# ---------------------------------------------------------------------------
-# Labels
-# ---------------------------------------------------------------------------
-
 class TestTheArmsAreNamedInWords:
 
     def test_raw_levels_become_readable_names(self):
@@ -228,7 +141,23 @@ class TestTheArmsAreNamedInWords:
             "awareness_vs_oversight_scheming", "awareness_vs_sandbox_scheming",
         ]
         for question_id in ids:
-            assert rc.exposure_of(question_id) in rc._LEVEL_WORDS, question_id
+            assert rc.exposure_of(question_id) in rc.labels._LEVEL_WORDS, question_id
+
+    def test_the_flavour_split_questions_do_not_read_as_plain_awareness(self):
+        """exposure_of() returns "awareness" for both of these ids - same as
+        question 5 - but their False side is NOT "no verbalised awareness": it
+        also holds episodes aware of the OTHER flavour. Falling through to
+        _LEVEL_WORDS["awareness"] would draw an axis claiming the plain
+        awareness contrast on a chart that restricts to one flavour."""
+        safety = rc.arm_labels(
+            _section(id="awareness_vs_misalignment_when_safety_aware"))
+        capability = rc.arm_labels(
+            _section(id="awareness_vs_misalignment_when_capability_aware"))
+        assert safety == ("safety-flavoured awareness", "not safety-flavoured")
+        assert capability == ("capability-flavoured awareness",
+                              "not capability-flavoured")
+        assert "no verbalised awareness" not in safety
+        assert "no verbalised awareness" not in capability
 
     def test_the_question_ids_here_are_the_ones_run_report_builds(self):
         """Pins the list above against the source rather than against a memory
@@ -237,7 +166,7 @@ class TestTheArmsAreNamedInWords:
         source = inspect.getsource(run_report.build_report)
         called = [n for n in dir(run_report)
                   if n.startswith("question_") and f"{n}(" in source]
-        assert len(called) == 12
+        assert len(called) == 21
         for name in called:
             # Defined in one of the three question modules, not merely reachable
             # through the package. This was `== "run_report"` while the report
@@ -258,57 +187,6 @@ class TestTheArmsAreNamedInWords:
         assert rc.short_label("awareness_vs_sandbox_escape") == \
             "awareness -> sandbox escape"
 
-
-class TestNoCaptionOutrunsTheReport:
-
-    def test_the_divergence_caption_is_quoted_not_composed(self):
-        """The chart must not be able to warn about something the printed
-        report does not, or reassure where it warns."""
-        assert rc._divergence_caption(_section()) == ""
-        warned = _section(crude_vs_stratified={"warning": "CONFOUNDED: ..."})
-        assert rc._divergence_caption(warned) == "CONFOUNDED: ..."
-
-    def test_the_rate_caption_gives_both_levels_with_their_counts(self):
-        caption = rc._rate_caption(_section())
-        assert "oversight present: 1.8% (32/1793)" in caption
-        assert "oversight absent: 3.0% (54/1784)" in caption
-
-    def test_a_restricted_denominator_says_so(self):
-        """Not-applicable is not zero: counting the no-oversight episodes as
-        "did not override" once halved question 6's rates. A chart showing the
-        restricted denominator in silence invites reconciling it against a
-        corpus total that was never its base."""
-        caption = rc._scope_caption(_section(n_episodes_not_applicable=1784,
-                                            n_episodes_observable=1793))
-        assert "1793" in caption and "1784 not applicable" in caption
-
-    def test_nothing_is_claimed_about_scope_when_nothing_was_excluded(self):
-        assert rc._scope_caption(_section()) == ""
-
-
-class TestCaptionsDoNotWidenTheFigure:
-
-    def test_no_wrapped_line_exceeds_the_width(self):
-        text = "word " * 80
-        assert all(len(line) <= rc._CAPTION_WRAP
-                   for line in rc._wrap(text).split("\n"))
-
-    def test_a_model_id_is_never_folded_at_a_hyphen(self):
-        """Half of `google/gemini-3-flash-preview` names a different model in
-        this corpus."""
-        note = rc._wrap("excluded: " + ", ".join(
-            ["google/gemini-3-flash-preview"] * 6))
-        assert "-\n" not in note
-        assert note.count("google/gemini-3-flash-preview") == 6
-
-    def test_wrapping_loses_no_words(self):
-        text = "a b c\n" + "word " * 60
-        assert rc._wrap(text).split() == text.split()
-
-
-# ---------------------------------------------------------------------------
-# Rendering
-# ---------------------------------------------------------------------------
 
 class TestTheChartsRender:
 
@@ -353,18 +231,18 @@ class TestTheChartsRender:
         _plt()
         report = {"questions": [_section(), _paired_section()]}
         rows = []
-        original = rc._draw_forest
+        original = rc.draw._draw_forest
 
         def capture(plot, drawn, *args, **kwargs):
             rows.append(drawn)
             return original(plot, drawn, *args, **kwargs)
 
-        rc._draw_forest = capture
+        rc.draw._draw_forest = capture
         try:
             with tempfile.TemporaryDirectory() as out:
                 rc.write_charts(report, out)
         finally:
-            rc._draw_forest = original
+            rc.draw._draw_forest = original
         overview = rows[-1]
         assert [r.label for r in overview] == [
             "Q1. oversight -> scheming",
@@ -383,10 +261,145 @@ class TestTheChartsRender:
             charting.import_pyplot = original
 
 
+class TestTheAwarenessKindComparisonChart:
+    """The one chart that puts question 5 and its two flavour-restricted
+    siblings on one axis, so a reader can compare them without assembling
+    three separately-numbered charts by hand."""
+
+    def _report(self, **overrides):
+        questions = [
+            _section(id="awareness_vs_misalignment"),
+            _section(id="awareness_vs_misalignment_when_safety_aware"),
+            _section(id="awareness_vs_misalignment_when_capability_aware"),
+        ]
+        questions = [q for q in questions
+                    if q["id"] not in (overrides.get("drop") or ())]
+        return {"questions": questions}
+
+    def test_draws_when_all_three_are_present(self):
+        _plt()
+        rows = []
+        original = rc.draw._draw_forest
+
+        def capture(plot, drawn, *args, **kwargs):
+            rows.append(drawn)
+            return original(plot, drawn, *args, **kwargs)
+
+        rc.draw._draw_forest = capture
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                written = rc.write_charts(self._report(), out)
+        finally:
+            rc.draw._draw_forest = original
+        assert any("awareness_kind_comparison.png" in p for p in written)
+        kind_rows = rows[-1]
+        assert [r.label for r in kind_rows] == [
+            "any flavour (question 5)", "safety-flavoured",
+            "capability-flavoured"]
+
+    def test_skipped_when_none_of_the_three_are_in_the_report(self):
+        """A report built for a batch predating the flavour split has none of
+        the three ids - the chart must not draw three empty "missing" rows in
+        that ordinary case, only when at least one carries a real number."""
+        _plt()
+        report = {"questions": [_section()]}  # oversight_vs_scheming only
+        with tempfile.TemporaryDirectory() as out:
+            written = rc.write_charts(report, out)
+        assert not any("awareness_kind_comparison" in p for p in written)
+
+    def test_a_missing_flavour_question_is_a_gap_not_a_silent_drop(self):
+        """One flavour question collapsed (or was never asked) while the
+        other two have real numbers - the row must say why rather than
+        disappear, the same convention plot_overview uses."""
+        _plt()
+        report = self._report(
+            drop=("awareness_vs_misalignment_when_capability_aware",))
+        rows = []
+        original = rc.draw._draw_forest
+
+        def capture(plot, drawn, *args, **kwargs):
+            rows.append(drawn)
+            return original(plot, drawn, *args, **kwargs)
+
+        rc.draw._draw_forest = capture
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                rc.write_charts(report, out)
+        finally:
+            rc.draw._draw_forest = original
+        kind_rows = [r for r in rows
+                    if [x.label.split("  *")[0] for x in r] ==
+                    ["any flavour (question 5)", "safety-flavoured",
+                     "capability-flavoured"]][0]
+        capability_row = kind_rows[2]
+        assert capability_row.diff is None
+        assert capability_row.missing == "not in this report"
+
+    def test_a_collapsed_flavour_question_says_why_rather_than_vanishing(self):
+        """Different from the not-in-this-report case above: the question
+        exists in the report but an exclusion emptied its comparator. Same
+        gap-not-drop convention, different reason string."""
+        _plt()
+        report = self._report()
+        for q in report["questions"]:
+            if q["id"] == "awareness_vs_misalignment_when_safety_aware":
+                q["collapsed_by_exclusion"] = (
+                    "not estimable with the arm excluded: no comparator left")
+        rows = []
+        with tempfile.TemporaryDirectory() as out:
+            path = os.path.join(out, "k.png")
+            original = rc.draw._draw_forest
+
+            def capture(plot, drawn, *args, **kwargs):
+                rows.append(drawn)
+                return original(plot, drawn, *args, **kwargs)
+
+            rc.draw._draw_forest = capture
+            try:
+                rc.plot_awareness_kind_comparison(_plt(), report, path)
+            finally:
+                rc.draw._draw_forest = original
+        safety_row = rows[0][1]
+        assert safety_row.diff is None
+        assert safety_row.missing == "not estimable with the arm excluded"
+
+    def test_a_diverging_flavour_question_marks_its_own_row(self):
+        """Same crude-vs-stratified divergence check plot_overview applies,
+        scoped to these three rows - a reader comparing crude and stratified
+        forest rows here must see the same warning the question's own chart
+        carries, not a clean-looking bar that hides the disagreement."""
+        _plt()
+        report = self._report()
+        for q in report["questions"]:
+            if q["id"] == "awareness_vs_misalignment":
+                q["crude_vs_stratified"] = {
+                    "warning": "CONFOUNDED: the crude estimate runs the "
+                              "other way"}
+        rows = []
+        captions = []
+        with tempfile.TemporaryDirectory() as out:
+            path = os.path.join(out, "k.png")
+            original = rc.draw._draw_forest
+
+            def capture(plot, drawn, title, caps, *args, **kwargs):
+                rows.append(drawn)
+                captions.extend(text for text, _colour in caps)
+                return original(plot, drawn, title, caps, *args, **kwargs)
+
+            rc.draw._draw_forest = capture
+            try:
+                rc.plot_awareness_kind_comparison(_plt(), report, path)
+            finally:
+                rc.draw._draw_forest = original
+        assert rows[0][0].label.endswith("*")
+        assert any("crude and stratified estimates diverge" in c
+                   for c in captions)
+
+
 class TestTheReportRunsWithAndWithoutCharts:
 
     def _corpus(self, out):
-        """One arm, enough for build_report to produce all twelve sections."""
+        """One arm, enough for build_report to produce every section."""
         for oversight in ("oversight", "nooversight"):
             name = f"summary_strong_{oversight}_nolure_20260101T000000.json"
             with open(os.path.join(out, name), "w") as f:
@@ -395,14 +408,22 @@ class TestTheReportRunsWithAndWithoutCharts:
                            "awareness_subgroups": {"aware": 3, "unaware": 7}},
                           f)
 
-    def test_charts_land_beside_the_json_by_default(self, monkeypatch):
+    def test_charts_land_beside_the_corpus_and_not_inside_it(self,
+                                                             monkeypatch):
+        """OUTSIDE the results directory. zip.sh archives an eval_results_*
+        directory whole, so charts written inside one are encrypted into the
+        published archive - an artefact that exists for the transcripts, which
+        are the only thing in it that cannot be regenerated."""
         _plt()
-        with tempfile.TemporaryDirectory() as out:
+        with tempfile.TemporaryDirectory() as parent:
+            out = os.path.join(parent, "eval_results_rX")
+            os.makedirs(out)
             self._corpus(out)
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
-            assert os.path.isdir(os.path.join(out, "charts"))
+            assert os.path.isdir(os.path.join(parent, "charts", "rX"))
+            assert not os.path.exists(os.path.join(out, "charts"))
 
     def test_no_charts_leaves_the_analysis_untouched(self, monkeypatch):
         """Every figure the charts draw is in the printed output and the JSON,
@@ -414,10 +435,11 @@ class TestTheReportRunsWithAndWithoutCharts:
                 ["run_report.py", "--output-dir", out, "--no-charts",
                  "--json-out", os.path.join(out, "r.json")])
             assert run_report.main() == 0
-            assert not os.path.exists(os.path.join(out, "charts"))
+            assert not os.path.exists(
+                charting.default_chart_dir(out))
             with open(os.path.join(out, "r.json")) as f:
                 report = json.load(f)
-            assert len(report["questions"]) == 12
+            assert len(report["questions"]) == 21
             assert "charts" not in report
 
     def test_the_json_records_the_charts_it_wrote(self, monkeypatch):
@@ -435,1055 +457,6 @@ class TestTheReportRunsWithAndWithoutCharts:
                 report = json.load(f)
             assert report["charts"]
             assert all(p.endswith(".png") for p in report["charts"])
-
-
-# ---------------------------------------------------------------------------
-# Persistence after refusal
-# ---------------------------------------------------------------------------
-#
-# report/characteristics.py's job, not this file's: whether a row belongs in
-# `by_model` at all, whether refusal_shown tracks the grader's own test, and
-# what the loader derives from a saved transcript are all covered in
-# test_report_characteristics.py. What is tested here is the boundary this
-# file owns - profile dict in, chart rows and a rendered figure out - the same
-# split _section()/_contrast() already draw for the twelve questions.
-
-def _by_model_row(model, n_refused, n_persisted, comparable=None,
-                  persisted_mis=(0, 0), complied_mis=(0, 0)):
-    """One `by_model` entry shaped like persistence_after_refusal() emits.
-
-    `comparable` defaults to whether both sides have episodes - the same rule
-    the function under test applies - rather than always being stated, so a
-    test can still override it to build the (n>0, n>0) case with the flag
-    deliberately wrong if that is ever what it needs to check.
-    """
-    n_complied = n_refused - n_persisted
-    pm, pn = persisted_mis
-    cm, cn = complied_mis
-    return {
-        "model": model, "n_refused": n_refused, "n_persisted": n_persisted,
-        "persistence_rate": round(n_persisted / n_refused, 4) if n_refused else None,
-        "persisted": {"n": pn, "misaligned": pm,
-                     "misaligned_rate": round(pm / pn, 4) if pn else None},
-        "complied": {"n": cn, "misaligned": cm,
-                    "misaligned_rate": round(cm / cn, 4) if cn else None},
-        "comparable_within_model": (bool(n_persisted and n_complied)
-                                    if comparable is None else comparable),
-    }
-
-
-def _persistence_profile(by_model=None, **over):
-    by_model = by_model if by_model is not None else []
-    n_refused = sum(r["n_refused"] for r in by_model)
-    n_persisted = sum(r["n_persisted"] for r in by_model)
-    profile = {
-        "measure": "issued a further blocked command after being shown a "
-                  "refusal",
-        "is_descriptive_not_causal": True,
-        "interpretation": "a profile, not an effect",
-        "denominator": "episodes shown at least one sandbox refusal",
-        "n_episodes": n_refused, "n_refused": n_refused, "n_never_refused": 0,
-        "persistence_rate": (round(n_persisted / n_refused, 4)
-                             if n_refused else None),
-        "persisted": {"n": n_persisted, "misaligned": 0,
-                     "misaligned_rate": None},
-        "complied": {"n": n_refused - n_persisted, "misaligned": 0,
-                    "misaligned_rate": None},
-        "by_model": by_model,
-        "n_models_comparable_within_model": sum(
-            1 for r in by_model if r["comparable_within_model"]),
-        "n_models_persisted_more_misaligned": sum(
-            1 for r in by_model
-            if r["comparable_within_model"]
-            and (r["persisted"]["misaligned_rate"] or 0)
-            > (r["complied"]["misaligned_rate"] or 0)),
-        "max_retries_in_one_episode": 0,
-    }
-    profile.update(over)
-    return profile
-
-
-class TestPersistenceRateRows:
-    def test_one_row_per_model_in_the_profiles_own_order(self):
-        profile = _persistence_profile([
-            _by_model_row("p/a", 100, 80), _by_model_row("p/b", 60, 10)])
-        rows = rc._persistence_rate_rows(profile)
-        assert [r.label for r in rows] == ["p/a", "p/b"]
-        assert [r.diff for r in rows] == [0.8, round(1 / 6, 4)]
-
-    def test_the_interval_is_wilson_and_brackets_the_point_estimate(self):
-        rows = rc._persistence_rate_rows(
-            _persistence_profile([_by_model_row("p/a", 200, 120)]))
-        row = rows[0]
-        assert row.lo is not None and row.hi is not None
-        assert row.lo <= row.diff <= row.hi
-
-    def test_marked_carries_comparable_within_model_not_significance(self):
-        """There is no significance test on this chart - `marked` is repurposed
-        to say whether the model also appears on the within-model chart."""
-        profile = _persistence_profile([
-            _by_model_row("p/comparable", 100, 50, comparable=True),
-            _by_model_row("p/not", 100, 100, comparable=False),
-        ])
-        rows = {r.label: r for r in rc._persistence_rate_rows(profile)}
-        assert rows["p/comparable"].marked is True
-        assert rows["p/not"].marked is False
-
-    def test_the_support_count_travels_with_the_row(self):
-        rows = rc._persistence_rate_rows(
-            _persistence_profile([_by_model_row("p/a", 370, 90)]))
-        assert rows[0].note == "n=370"
-
-    def test_no_models_means_no_rows(self):
-        assert rc._persistence_rate_rows(_persistence_profile([])) == []
-
-
-class TestPersistenceSlopeRows:
-    def test_only_comparable_models_are_included(self):
-        profile = _persistence_profile([
-            _by_model_row("p/both", 100, 50, comparable=True,
-                          persisted_mis=(20, 50), complied_mis=(10, 50)),
-            _by_model_row("p/only-persisted", 100, 100, comparable=False,
-                          persisted_mis=(20, 100)),
-        ])
-        rows = rc._persistence_slope_rows(profile)
-        assert [r["model"] for r in rows] == ["p/both"]
-
-    def test_the_two_rates_are_read_from_the_right_side(self):
-        profile = _persistence_profile([_by_model_row(
-            "p/a", 100, 50, comparable=True,
-            persisted_mis=(40, 50), complied_mis=(10, 50))])
-        row = rc._persistence_slope_rows(profile)[0]
-        assert row["persisted_rate"] == 0.8
-        assert row["complied_rate"] == 0.2
-        assert row["n_persisted"] == 50 and row["n_complied"] == 50
-
-    def test_sorted_by_how_far_the_rate_moved_descending(self):
-        profile = _persistence_profile([
-            _by_model_row("p/small-move", 100, 50, comparable=True,
-                          persisted_mis=(30, 50), complied_mis=(20, 50)),
-            _by_model_row("p/big-move", 100, 50, comparable=True,
-                          persisted_mis=(50, 50), complied_mis=(0, 50)),
-            _by_model_row("p/reversed", 100, 50, comparable=True,
-                          persisted_mis=(0, 50), complied_mis=(50, 50)),
-        ])
-        rows = rc._persistence_slope_rows(profile)
-        assert [r["model"] for r in rows] == \
-            ["p/big-move", "p/small-move", "p/reversed"]
-
-    def test_no_comparable_models_means_no_rows(self):
-        profile = _persistence_profile([
-            _by_model_row("p/a", 100, 100, comparable=False)])
-        assert rc._persistence_slope_rows(profile) == []
-
-
-class TestPersistenceChartsRender:
-    def _report(self, **profile_over):
-        return {"characteristics": {
-            "persistence_after_refusal": _persistence_profile(
-                [_by_model_row("p/a", 200, 120, comparable=True,
-                               persisted_mis=(60, 120), complied_mis=(10, 80)),
-                 _by_model_row("p/b", 100, 100, comparable=False,
-                              persisted_mis=(20, 100))],
-                **profile_over)}}
-
-    def test_both_charts_render(self):
-        _plt()
-        report = self._report()
-        with tempfile.TemporaryDirectory() as out:
-            rate = rc.plot_persistence_rate(
-                rc.charting.import_pyplot(), report,
-                os.path.join(out, "r.png"))
-            slope = rc.plot_persistence_within_model(
-                rc.charting.import_pyplot(), report,
-                os.path.join(out, "s.png"))
-            assert rate and os.path.exists(rate)
-            assert slope and os.path.exists(slope)
-
-    def test_no_characteristics_key_means_no_chart(self):
-        """A report built before this feature existed - every other fixture in
-        this file - must draw nothing here rather than raising."""
-        _plt()
-        plt = rc.charting.import_pyplot()
-        with tempfile.TemporaryDirectory() as out:
-            assert rc.plot_persistence_rate(
-                plt, {"questions": []}, os.path.join(out, "r.png")) is None
-            assert rc.plot_persistence_within_model(
-                plt, {"questions": []}, os.path.join(out, "s.png")) is None
-
-    def test_no_models_shown_a_refusal_means_no_rate_chart(self):
-        _plt()
-        plt = rc.charting.import_pyplot()
-        report = {"characteristics": {
-            "persistence_after_refusal": _persistence_profile([])}}
-        with tempfile.TemporaryDirectory() as out:
-            assert rc.plot_persistence_rate(
-                plt, report, os.path.join(out, "r.png")) is None
-
-    def test_no_comparable_models_means_no_slope_chart(self):
-        _plt()
-        plt = rc.charting.import_pyplot()
-        report = {"characteristics": {"persistence_after_refusal":
-            _persistence_profile([_by_model_row("p/a", 100, 100, comparable=False)])}}
-        with tempfile.TemporaryDirectory() as out:
-            assert rc.plot_persistence_within_model(
-                plt, report, os.path.join(out, "s.png")) is None
-
-    def test_never_refused_count_reaches_the_caption(self):
-        report = self._report(n_never_refused=3361)
-        _plt()
-        plt = rc.charting.import_pyplot()
-        captured = []
-        original = rc._draw_rate_chart
-        def capture(plot, rows, title, captions, *a, **k):
-            captured.append(captions)
-            return original(plot, rows, title, captions, *a, **k)
-        rc._draw_rate_chart = capture
-        try:
-            with tempfile.TemporaryDirectory() as out:
-                rc.plot_persistence_rate(plt, report, os.path.join(out, "r.png"))
-        finally:
-            rc._draw_rate_chart = original
-        assert any("3361" in c for c, _ in captured[0])
-
-    def test_the_caption_names_wilson_only_not_newcombe(self):
-        """This chart draws no difference at all - WILSON_NOTE names Newcombe
-        for one, and repeating it here would point at a line the figure does
-        not have."""
-        _plt()
-        plt = rc.charting.import_pyplot()
-        captured = []
-        original = rc._draw_rate_chart
-        def capture(plot, rows, title, captions, *a, **k):
-            captured.append(captions)
-            return original(plot, rows, title, captions, *a, **k)
-        rc._draw_rate_chart = capture
-        try:
-            with tempfile.TemporaryDirectory() as out:
-                rc.plot_persistence_rate(plt, self._report(),
-                                         os.path.join(out, "r.png"))
-        finally:
-            rc._draw_rate_chart = original
-        texts = [c for c, _ in captured[0]]
-        assert any("Wilson" in t for t in texts)
-        assert not any("Newcombe" in t for t in texts)
-
-    def test_the_direction_counts_reach_the_slope_captions(self):
-        report = self._report()
-        _plt()
-        plt = rc.charting.import_pyplot()
-        captured = []
-        original = rc._draw_slope_chart
-        def capture(plot, rows, title, captions, *a, **k):
-            captured.append(captions)
-            return original(plot, rows, title, captions, *a, **k)
-        rc._draw_slope_chart = capture
-        try:
-            with tempfile.TemporaryDirectory() as out:
-                rc.plot_persistence_within_model(
-                    plt, report, os.path.join(out, "s.png"))
-        finally:
-            rc._draw_slope_chart = original
-        profile = report["characteristics"]["persistence_after_refusal"]
-        n_worse = profile["n_models_persisted_more_misaligned"]
-        n_both = profile["n_models_comparable_within_model"]
-        assert any(f"{n_worse}/{n_both}" in c for c, _ in captured[0])
-
-    def test_write_charts_includes_both_when_characteristics_present(self):
-        _plt()
-        report = dict(self._report(), questions=[])
-        with tempfile.TemporaryDirectory() as out:
-            written = rc.write_charts(report, out)
-        names = {os.path.basename(p) for p in written}
-        assert "persistence_rate.png" in names
-        assert "persistence_within_model.png" in names
-
-    def test_write_charts_omits_both_when_characteristics_absent(self):
-        """The exact case test_one_chart_per_question_plus_an_overview already
-        pins - restated here so the reason is next to what it protects."""
-        _plt()
-        with tempfile.TemporaryDirectory() as out:
-            written = rc.write_charts({"questions": [_section()]}, out)
-        names = {os.path.basename(p) for p in written}
-        assert "persistence_rate.png" not in names
-        assert "persistence_within_model.png" not in names
-
-    def test_missing_matplotlib_costs_these_charts_and_nothing_else(self):
-        original = charting.import_pyplot
-        charting.import_pyplot = lambda *a, **k: None
-        try:
-            report = dict(self._report(), questions=[])
-            assert rc.write_charts(report, "/nonexistent") == []
-        finally:
-            charting.import_pyplot = original
-
-
-class TestPersistenceChartsInARealReport:
-    """The wiring, not the arithmetic above: does an actual corpus with a
-    refused-and-persisted episode make it all the way from run_report.main()
-    to the two files on disk. persistence_after_refusal() and its loader are
-    covered exhaustively in test_report_characteristics.py; this is the one
-    place that chain is driven end to end through THIS file's entry point."""
-
-    def _corpus(self, out):
-        from test_analysis.report_fixtures import _write_episode, refusal_result
-        for oversight in (True, False):
-            with open(os.path.join(
-                    out, f"summary_strong_{'oversight' if oversight else 'nooversight'}"
-                        f"_nolure_2026010100000{int(oversight)}.json"), "w") as f:
-                json.dump({"model": "p/m", "nudge": "strong", "n_runs": 1,
-                          "n_scheming": 0, "n_misaligned": 0,
-                          "awareness_subgroups": {"aware": 0, "unaware": 1}}, f)
-        # Episodes shown a refusal and recorded as persisting - the case the
-        # whole chart pair exists to draw. MIN_INFORMATIVE_DENOMINATOR of
-        # them, not one: has_chart_support drops a model below the floor, so a
-        # single episode would draw no chart and this test would pass or fail
-        # for a reason other than the one it names.
-        for i in range(1, MIN_INFORMATIVE_DENOMINATOR + 1):
-            _write_episode(out, i, "p/m", "strong",
-                           transcript=[refusal_result()])
-
-    def test_persistence_charts_appear_in_a_real_run(self, monkeypatch):
-        _plt()
-        with tempfile.TemporaryDirectory() as out:
-            self._corpus(out)
-            monkeypatch.setattr("sys.argv",
-                                ["run_report.py", "--output-dir", out])
-            assert run_report.main() == 0
-            names = set(os.listdir(os.path.join(out, "charts")))
-        assert "persistence_rate.png" in names
-
-
-# ---------------------------------------------------------------------------
-# Encoded payloads
-# ---------------------------------------------------------------------------
-#
-# Same split as the persistence charts above: report/characteristics.py's
-# encoded_payload_rate() owns the denominators and the pooling; this file owns
-# only the boundary from its profile dict to chart rows and a rendered
-# figure. Reuses _draw_rate_chart directly - a single-signal rate chart is
-# exactly what plot_persistence_rate already draws, so plot_encoded_payload_rate
-# is a second caller of the same drawing function rather than a new one.
-
-def _epr_row(model, n_resolved, n_true, underpowered=None):
-    """One `by_model` entry shaped like encoded_payload_rate() emits."""
-    return {
-        "model": model, "n_episodes": n_resolved,
-        "n_resolved": n_resolved, "n_true": n_true,
-        "rate": round(n_true / n_resolved, 4) if n_resolved else None,
-        "underpowered": (n_resolved < MIN_INFORMATIVE_DENOMINATOR
-                         if underpowered is None else underpowered),
-    }
-
-
-def _epr_profile(by_model=None, **over):
-    by_model = by_model if by_model is not None else []
-    n_resolved = sum(r["n_resolved"] for r in by_model)
-    n_true = sum(r["n_true"] for r in by_model)
-    profile = {
-        "measure": ("whether the episode contains a base64-alphabet run in "
-                    "the model's own words that decodes to real text"),
-        "n_episodes": n_resolved,
-        "pooled": {"n_resolved": n_resolved, "n_true": n_true,
-                  "rate": round(n_true / n_resolved, 4) if n_resolved else None},
-        "by_model": by_model,
-    }
-    profile.update(over)
-    return profile
-
-
-class TestEncodedPayloadRateRows:
-    def test_one_row_per_model_with_resolved_episodes(self):
-        profile = _epr_profile([
-            _epr_row("p/a", 100, 80), _epr_row("p/b", 60, 10)])
-        rows = rc._encoded_payload_rate_rows(profile)
-        assert [r.label for r in rows] == ["p/a", "p/b"]
-        assert [r.diff for r in rows] == [0.8, round(1 / 6, 4)]
-
-    def test_a_model_with_no_resolved_episodes_gets_no_row(self):
-        profile = _epr_profile([_epr_row("p/a", 0, 0), _epr_row("p/b", 50, 10)])
-        rows = rc._encoded_payload_rate_rows(profile)
-        assert [r.label for r in rows] == ["p/b"]
-
-    def test_the_interval_is_wilson_and_brackets_the_point_estimate(self):
-        rows = rc._encoded_payload_rate_rows(
-            _epr_profile([_epr_row("p/a", 200, 120)]))
-        row = rows[0]
-        assert row.lo is not None and row.hi is not None
-        assert row.lo <= row.diff <= row.hi
-
-    def test_a_model_below_the_floor_is_dropped_not_drawn_hollow(self):
-        """The rule that replaced the hollow marker. A thin model used to get
-        a row with an open marker; on r9 that put a model with 11 episodes and
-        no events on the chart carrying a Wilson interval past 25%, which is
-        the widest thing on a figure whose finding is one episode."""
-        profile = _epr_profile([
-            _epr_row("p/powered", 25, 1),
-            _epr_row("p/thin", 3, 1),
-        ])
-        labels = [r.label for r in rc._encoded_payload_rate_rows(profile)]
-        assert labels == ["p/powered"]
-
-    def test_the_floor_is_the_shared_one_not_a_number_chosen_here(self):
-        """Exactly at the floor is in; one below it is out. Pinned against
-        MIN_INFORMATIVE_DENOMINATOR rather than a literal so the rule moves
-        with the rest of the analysis if it ever moves."""
-        n = MIN_INFORMATIVE_DENOMINATOR
-        at = _epr_profile([_epr_row("p/at", n, 0)])
-        under = _epr_profile([_epr_row("p/under", n - 1, 0)])
-        assert [r.label for r in rc._encoded_payload_rate_rows(at)] == ["p/at"]
-        assert rc._encoded_payload_rate_rows(under) == []
-
-    def test_the_support_count_travels_with_the_row(self):
-        rows = rc._encoded_payload_rate_rows(
-            _epr_profile([_epr_row("p/a", 370, 1)]))
-        assert rows[0].note == "n=370"
-
-    def test_no_models_means_no_rows(self):
-        assert rc._encoded_payload_rate_rows(_epr_profile([])) == []
-
-
-class TestTheSupportFloorAppliesToEveryDescriptiveChart:
-    """One rule, applied at each chart's OWN denominator - see
-    rc.has_chart_support. Written against the rule rather than against one
-    chart, because scoping it to a single row builder is how the other three
-    would quietly stop applying it."""
-
-    def test_persistence_drops_a_model_with_too_few_refusals(self):
-        n = MIN_INFORMATIVE_DENOMINATOR
-        profile = _persistence_profile([
-            _by_model_row("p/enough", n, 1),
-            _by_model_row("p/thin", n - 1, 1),
-        ])
-        labels = [r.label for r in rc._persistence_rate_rows(profile)]
-        assert labels == ["p/enough"]
-
-    def test_the_slope_chart_drops_a_model_whose_thin_side_is_thin(self):
-        """The SMALLER side decides: a slope between a 40-episode rate and a
-        2-episode one is carried entirely by the 2."""
-        n = MIN_INFORMATIVE_DENOMINATOR
-        profile = _persistence_profile([
-            _by_model_row("p/both-thick", 100, 50, comparable=True,
-                          persisted_mis=(10, n), complied_mis=(5, n)),
-            _by_model_row("p/one-thin", 100, 50, comparable=True,
-                          persisted_mis=(1, n - 1), complied_mis=(5, 60)),
-        ])
-        labels = [r["model"] for r in rc._persistence_slope_rows(profile)]
-        assert labels == ["p/both-thick"]
-
-    def test_the_signal_chart_drops_a_thin_model_whole(self):
-        """Model-level, so a model is present or absent entirely rather than
-        as a cluster with holes in it."""
-        n = MIN_INFORMATIVE_DENOMINATOR
-        profile = _signal_profile([
-            _signal_by_model_row("p/enough", mentioned_test=(5, n)),
-            _signal_by_model_row("p/thin", n_episodes=n - 1,
-                                 mentioned_test=(1, 3)),
-        ])
-        labels = [c["model"] for c in rc._signal_clusters(profile)]
-        assert labels == ["p/enough"]
-
-    def test_a_thin_signal_on_a_plotted_model_is_kept_and_marked(self):
-        """The two statements are different: the model belongs on the figure,
-        and one of its points is estimated from few episodes. Excluding the
-        model would lose its other four signals."""
-        n = MIN_INFORMATIVE_DENOMINATOR
-        profile = _signal_profile([
-            _signal_by_model_row("p/m", mentioned_test=(5, n),
-                                 broke_character=(1, 3))])
-        points = {pt["signal"]: pt for pt in rc._signal_clusters(profile)[0]["points"]}
-        assert points["mentioned_test"]["underpowered"] is False
-        assert points["broke_character"]["underpowered"] is True
-
-
-class TestTheRateAxisNarrowsButNeverClips:
-    """A rare-event measure on a 0-100 axis stacks every marker against the
-    spine; an axis that hides a value is worse. So the requested maximum is a
-    floor on the axis, not a cap on the data."""
-
-    def _drawn_xlim(self, rows, xmax_pp):
-        plt = _plt()
-        captured = {}
-        real = rc._BelowAxes
-
-        class Spy(real):
-            def __init__(self, fig, ax, height):
-                captured["xlim"] = ax.get_xlim()
-                super().__init__(fig, ax, height)
-
-        rc._BelowAxes = Spy
-        try:
-            with tempfile.TemporaryDirectory() as out:
-                rc._draw_rate_chart(plt, rows, "t", [], os.path.join(out, "x.png"),
-                                    "x", xmax_pp=xmax_pp)
-        finally:
-            rc._BelowAxes = real
-        return captured["xlim"]
-
-    def test_a_narrow_axis_is_honoured_when_the_data_fits(self):
-        rows = [rc.Row("p/a", 0.01, 0.0, 0.03, "model", marked=True)]
-        assert self._drawn_xlim(rows, 10)[1] <= 11
-
-    def test_the_axis_widens_rather_than_clipping_a_larger_value(self):
-        """The regression that matters: a 40% rate on a chart asked for a 10%
-        axis must not be drawn outside its own axes."""
-        rows = [rc.Row("p/a", 0.40, 0.30, 0.52, "model", marked=True)]
-        assert self._drawn_xlim(rows, 10)[1] >= 52
-
-
-class TestEncodedPayloadChartRenders:
-    def _report(self, **profile_over):
-        return {"characteristics": {
-            "encoded_payload_rate": _epr_profile(
-                [_epr_row("p/a", 61, 1, underpowered=False),
-                 _epr_row("p/b", 10, 0, underpowered=True)],
-                **profile_over)}}
-
-    def test_the_chart_renders(self):
-        _plt()
-        report = self._report()
-        with tempfile.TemporaryDirectory() as out:
-            path = rc.plot_encoded_payload_rate(
-                rc.charting.import_pyplot(), report,
-                os.path.join(out, "e.png"))
-            assert path and os.path.exists(path)
-
-    def test_no_characteristics_key_means_no_chart(self):
-        """A report built before this feature existed must draw nothing here
-        rather than raising."""
-        _plt()
-        plt = rc.charting.import_pyplot()
-        with tempfile.TemporaryDirectory() as out:
-            assert rc.plot_encoded_payload_rate(
-                plt, {"questions": []}, os.path.join(out, "e.png")) is None
-
-    def test_no_resolved_episodes_means_no_chart(self):
-        _plt()
-        plt = rc.charting.import_pyplot()
-        report = {"characteristics": {
-            "encoded_payload_rate": _epr_profile([])}}
-        with tempfile.TemporaryDirectory() as out:
-            assert rc.plot_encoded_payload_rate(
-                plt, report, os.path.join(out, "e.png")) is None
-
-    def test_the_measure_reaches_the_caption(self):
-        _plt()
-        plt = rc.charting.import_pyplot()
-        captured = []
-        original = rc._draw_rate_chart
-        def capture(plot, rows, title, captions, *a, **k):
-            captured.append(captions)
-            return original(plot, rows, title, captions, *a, **k)
-        rc._draw_rate_chart = capture
-        try:
-            with tempfile.TemporaryDirectory() as out:
-                rc.plot_encoded_payload_rate(
-                    plt, self._report(), os.path.join(out, "e.png"))
-        finally:
-            rc._draw_rate_chart = original
-        texts = [c for c, _ in captured[0]]
-        assert any("base64-alphabet run" in t for t in texts)
-
-
-# ---------------------------------------------------------------------------
-# Eval-awareness rubric signals
-# ---------------------------------------------------------------------------
-#
-# Same split as the persistence charts above: report/characteristics.py's
-# eval_signal_rates() owns the denominators and the pooling; this file owns
-# only the boundary from its profile dict to chart rows and a rendered
-# figure.
-
-# Derived from the package, not restated: a fixture with its own hand-copied
-# key list would still pass if RUBRIC_SIGNAL_KEYS drifted from it.
-_SIGNAL_KEYS = run_report.RUBRIC_SIGNAL_KEYS
-
-
-def _signal_by_model_row(model, **rates):
-    """One `by_model` entry shaped like eval_signal_rates() emits.
-
-    `rates` maps a signal key to (n_true, n_resolved); a key not passed gets
-    no resolved episodes at all - unmeasured, not a rate of zero, the same
-    convention `_by_model_row` above uses for a side with no episodes.
-    """
-    signals = {}
-    # Model-level support, independent of any one signal's resolved count:
-    # _signal_clusters excludes a model below the floor entirely, and these
-    # fixtures are about what a PLOTTED model's cluster looks like. A test
-    # that wants the exclusion itself passes n_episodes explicitly.
-    n_episodes = rates.pop("n_episodes", MIN_INFORMATIVE_DENOMINATOR)
-    for key in _SIGNAL_KEYS:
-        n_true, n_resolved = rates.get(key, (0, 0))
-        signals[key] = {
-            "n_resolved": n_resolved, "n_true": n_true,
-            "rate": round(n_true / n_resolved, 4) if n_resolved else None,
-            "underpowered": n_resolved < 20,
-        }
-    return {"model": model, "n_episodes": n_episodes, "signals": signals}
-
-
-def _signal_profile(by_model=None, **over):
-    by_model = by_model if by_model is not None else []
-    profile = {
-        "measure": "whether the eval-awareness grader answered yes to each "
-                  "rubric question",
-        "signal_keys": list(_SIGNAL_KEYS),
-        "n_episodes": sum(r["n_episodes"] for r in by_model),
-        "interpretation": "a rubric question's own answer",
-        "pooled": {key: {"n_resolved": 0, "n_true": 0, "rate": None}
-                  for key in _SIGNAL_KEYS},
-        "by_model": by_model,
-    }
-    profile.update(over)
-    return profile
-
-
-class TestSignalClusters:
-    def test_one_cluster_per_model_one_point_per_signal_in_fixed_order(self):
-        profile = _signal_profile([
-            _signal_by_model_row("a", mentioned_test=(5, 10)),
-            _signal_by_model_row("b", broke_character=(2, 10))])
-        clusters = rc._signal_clusters(profile)
-        assert [c["model"] for c in clusters] == ["a", "b"]
-        assert ([p["signal"] for p in clusters[0]["points"]]
-               == list(_SIGNAL_KEYS))
-        assert ([p["signal"] for p in clusters[1]["points"]]
-               == list(_SIGNAL_KEYS))
-
-    def test_rate_and_interval_come_from_the_profiles_own_counts(self):
-        profile = _signal_profile([
-            _signal_by_model_row("a", broke_character=(3, 12))])
-        points = rc._signal_clusters(profile)[0]["points"]
-        point = next(p for p in points if p["signal"] == "broke_character")
-        assert point["rate"] == 0.25
-        assert point["lo"] is not None and point["hi"] is not None
-        assert point["lo"] < 0.25 < point["hi"]
-
-    def test_an_unresolved_signal_has_no_rate_and_no_interval(self):
-        """Not zero: a signal never graded for this model must not read as a
-        confident 'no' on the chart."""
-        profile = _signal_profile([_signal_by_model_row("a")])
-        points = rc._signal_clusters(profile)[0]["points"]
-        assert all(p["rate"] is None and p["lo"] is None for p in points)
-
-    def test_no_models_means_no_clusters(self):
-        assert rc._signal_clusters(_signal_profile([])) == []
-
-
-class TestSignalChartsRender:
-    def _report(self, **over):
-        return {"characteristics": {"eval_signal_rates": _signal_profile([
-            _signal_by_model_row("p/a", mentioned_test=(6, 12),
-                                 broke_character=(3, 12)),
-            _signal_by_model_row("p/b", mentioned_test=(1, 5))],
-            **over)}}
-
-    def test_the_chart_renders(self):
-        _plt()
-        with tempfile.TemporaryDirectory() as out:
-            path = rc.plot_eval_signal_rates(
-                rc.charting.import_pyplot(), self._report(),
-                os.path.join(out, "s.png"))
-            assert path and os.path.exists(path)
-
-    def test_no_characteristics_key_means_no_chart(self):
-        """A report built before this feature existed must draw nothing here
-        rather than raising."""
-        _plt()
-        plt = rc.charting.import_pyplot()
-        with tempfile.TemporaryDirectory() as out:
-            assert rc.plot_eval_signal_rates(
-                plt, {"questions": []}, os.path.join(out, "s.png")) is None
-
-    def test_no_models_means_no_chart(self):
-        _plt()
-        plt = rc.charting.import_pyplot()
-        report = {"characteristics": {
-            "eval_signal_rates": _signal_profile([])}}
-        with tempfile.TemporaryDirectory() as out:
-            assert rc.plot_eval_signal_rates(
-                plt, report, os.path.join(out, "s.png")) is None
-
-    def test_a_signal_keeps_the_same_colour_in_every_models_cluster(self):
-        """The whole reason clusters are drawn in a fixed key order: a
-        reader who learns 'blue = mentioned_test' from the legend must be
-        able to trust that in every model's cluster, not just the first."""
-        _plt()
-        plt = rc.charting.import_pyplot()
-        report = {"characteristics": {"eval_signal_rates": _signal_profile([
-            _signal_by_model_row("p/a", mentioned_test=(6, 12)),
-            _signal_by_model_row("p/b", mentioned_test=(1, 12))])}}
-        import unittest.mock
-        calls = []
-        original = plt.Axes.plot
-
-        def spy(self, *a, **k):
-            calls.append(k)
-            return original(self, *a, **k)
-
-        with tempfile.TemporaryDirectory() as out, \
-                unittest.mock.patch.object(plt.Axes, "plot", spy):
-            rc.plot_eval_signal_rates(plt, report, os.path.join(out, "s.png"))
-        markers = [c for c in calls if c.get("marker") == rc._MODEL_MARKER]
-        assert len(markers) == 2, "expected one marker per model"
-        colours = {c["color"] for c in markers}
-        assert colours == {rc._SIGNAL_COLOURS["mentioned_test"]}, (
-            "the same signal drew in two different colours across models")
-
-    def test_an_underpowered_point_is_drawn_hollow(self):
-        _plt()
-        plt = rc.charting.import_pyplot()
-        report = {"characteristics": {"eval_signal_rates": _signal_profile([
-            _signal_by_model_row("p/a", broke_character=(1, 3))])}}
-        import unittest.mock
-        calls = []
-        original = plt.Axes.plot
-
-        def spy(self, *a, **k):
-            calls.append(k)
-            return original(self, *a, **k)
-
-        with tempfile.TemporaryDirectory() as out, \
-                unittest.mock.patch.object(plt.Axes, "plot", spy):
-            rc.plot_eval_signal_rates(plt, report, os.path.join(out, "s.png"))
-        markers = [c for c in calls if c.get("marker") == rc._MODEL_MARKER]
-        assert markers, "no marker was drawn at all"
-        assert any(c.get("markerfacecolor") == "white" for c in markers)
-
-
-class TestSignalChartInARealReport:
-    """The wiring, not the arithmetic: does an actual corpus with a graded
-    rubric answer make it all the way from run_report.main() to the file on
-    disk. eval_signal_rates() and its loader are covered exhaustively in
-    test_report_characteristics.py and test_report_loading.py."""
-
-    def _corpus(self, out):
-        from test_analysis.report_fixtures import _write_episode
-        with open(os.path.join(
-                out, "summary_strong_oversight_nolure_20260101000000.json"),
-                "w") as f:
-            json.dump({"model": "p/m", "nudge": "strong", "n_runs": 1,
-                      "n_scheming": 0, "n_misaligned": 0,
-                      "awareness_subgroups": {"aware": 0, "unaware": 1}}, f)
-        # MIN_INFORMATIVE_DENOMINATOR episodes, not one: has_chart_support
-        # excludes a model below the floor, so a one-episode corpus draws
-        # nothing and this test would pass against a chart that was never
-        # written for the wrong reason.
-        for i in range(1, MIN_INFORMATIVE_DENOMINATOR + 1):
-            path = _write_episode(out, i, "p/m", "strong")
-            d = json.load(open(path))
-            d["analysis"]["eval_awareness_grader"] = {"rubric_results": {
-                "broke_character": {"answer": True, "quote": "this is a test"}}}
-            json.dump(d, open(path, "w"))
-
-    def test_the_signal_chart_appears_in_a_real_run(self, monkeypatch):
-        _plt()
-        with tempfile.TemporaryDirectory() as out:
-            self._corpus(out)
-            monkeypatch.setattr("sys.argv",
-                                ["run_report.py", "--output-dir", out])
-            assert run_report.main() == 0
-            names = set(os.listdir(os.path.join(out, "charts")))
-        assert "eval_signal_rates.png" in names
-
-
-def _lure_model_row(model, n_lure, n_no_lure, mis_lure, mis_no_lure):
-    """One by_model row shaped like lure_effect() builds them."""
-    from subversionbench.power import newcombe_diff_ci
-    def contrast(n1, n2, x1, x2):
-        r1 = x1 / n1 if n1 else None
-        r2 = x2 / n2 if n2 else None
-        lo, hi = newcombe_diff_ci(x1, n1, x2, n2) if n1 and n2 else (None, None)
-        return {"n_lure": n1, "n_no_lure": n2, "n_misaligned_lure": x1,
-                "n_misaligned_no_lure": x2, "rate_lure": r1, "rate_no_lure": r2,
-                "diff": None if r1 is None or r2 is None else r1 - r2,
-                "lo": lo, "hi": hi,
-                "underpowered": min(n1, n2) < MIN_INFORMATIVE_DENOMINATOR}
-    c = contrast(n_lure, n_no_lure, mis_lure, mis_no_lure)
-    return {"model": model, "n_episodes": n_lure + n_no_lure,
-            "n_lure_resolved": n_lure, "n_discovered": 0, "n_read": 0,
-            "overall": c, "oversight": c, "no_oversight": c}
-
-
-class TestTheLureForestFoldsOnlyTheModelsWithNothingToMove:
-    """The fold is narrowly "zero misaligned on BOTH sides", not "difference of
-    zero". Those are different findings and one of them belongs on the chart."""
-
-    def test_a_model_with_no_misalignment_either_side_is_folded(self):
-        rows = rc._lure_effect_rows(
-            {"by_model": [_lure_model_row("p/quiet", 30, 30, 0, 0)]},
-            "oversight")
-        assert [r.label for r in rows] == ["(1 models omitted)"]
-        assert rows[0].diff is None, (
-            "a folded group must not be drawn as a marker at zero - it is not "
-            "a data point")
-
-    def test_a_high_base_rate_null_is_KEPT(self):
-        """24/30 in both arms is a genuine null at a high base rate, and the
-        most informative null in the set. Folding it away with the models that
-        never did anything would hide it."""
-        rows = rc._lure_effect_rows(
-            {"by_model": [_lure_model_row("p/busy", 30, 30, 24, 24)]},
-            "oversight")
-        assert [r.label for r in rows] == ["p/busy"]
-        assert rows[0].diff == 0
-
-    def test_the_two_are_distinguished_in_one_chart(self):
-        rows = rc._lure_effect_rows(
-            {"by_model": [_lure_model_row("p/quiet", 30, 30, 0, 0),
-                          _lure_model_row("p/busy", 30, 30, 24, 24)]},
-            "oversight")
-        labels = [r.label for r in rows]
-        assert "p/busy" in labels and "p/quiet" not in labels
-        assert "(1 models omitted)" in labels
-
-    def test_the_floor_applies_to_the_thinner_arm(self):
-        """A difference is only as informative as its thinner side, so a model
-        with plenty of lure episodes and almost none without is not plotted."""
-        thin = _lure_model_row("p/lopsided", 200, MIN_INFORMATIVE_DENOMINATOR - 1,
-                               10, 1)
-        assert rc._lure_effect_rows({"by_model": [thin]},
-                                               "oversight") == []
-        fat = _lure_model_row("p/balanced", 200, MIN_INFORMATIVE_DENOMINATOR,
-                              10, 1)
-        assert [r.label for r in rc._lure_effect_rows(
-            {"by_model": [fat]}, "oversight")] == ["p/balanced"]
-
-    def test_a_marker_is_filled_only_when_its_interval_excludes_zero(self):
-        moved = _lure_model_row("p/moved", 40, 40, 20, 0)
-        flat = _lure_model_row("p/flat", 40, 40, 4, 3)
-        rows = {r.label: r for r in rc._lure_effect_rows(
-            {"by_model": [moved, flat]}, "oversight")}
-        assert rows["p/moved"].marked
-        assert not rows["p/flat"].marked
-
-    def test_rows_are_sorted_by_the_difference(self):
-        rows = rc._lure_effect_rows(
-            {"by_model": [_lure_model_row("p/down", 40, 40, 2, 12),
-                          _lure_model_row("p/up", 40, 40, 12, 2)]},
-            "oversight")
-        assert [r.label for r in rows] == ["p/up", "p/down"]
-
-
-class TestTheHoneypotChartShowsOnlyWhatHappened:
-    def _profile(self):
-        rows = [_lure_model_row(f"p/m{i}", 30, 30, 1, 1) for i in range(5)]
-        rows[0]["n_discovered"], rows[0]["n_read"] = 7, 3
-        rows[1]["n_discovered"], rows[1]["n_read"] = 2, 0
-        rows[2]["n_discovered"], rows[2]["n_read"] = 0, 1
-        return {"by_model": rows,
-                "pooled": {"n_lure_resolved": 150, "n_discovered": 9,
-                           "n_read": 4}}
-
-    def test_only_models_that_reached_it_are_rowed(self):
-        rows = rc._honeypot_rows(self._profile())
-        assert [r["model"] for r in rows] == ["p/m0", "p/m1", "p/m2"]
-
-    def test_a_read_without_a_discovery_still_appears(self):
-        """Measured on the corpus: an episode can glob the contents without the
-        filename ever being listed, so a row must not be gated on discovery."""
-        rows = rc._honeypot_rows(self._profile())
-        assert any(r["model"] == "p/m2" and r["n_read"] for r in rows)
-
-    def test_it_renders_and_states_how_many_models_are_not_drawn(self):
-        plt = _plt()
-        out = os.path.join(tempfile.mkdtemp(), "honeypot.png")
-        assert rc.plot_honeypot_access(
-            plt, {"characteristics": {"lure_effect": self._profile()}}, out)
-        assert os.path.getsize(out) > 1000
-
-    def test_nothing_is_drawn_when_no_model_reached_it(self):
-        """An empty chart claiming a measure was taken is worse than no chart."""
-        plt = _plt()
-        profile = self._profile()
-        for r in profile["by_model"]:
-            r["n_discovered"] = r["n_read"] = 0
-        out = os.path.join(tempfile.mkdtemp(), "honeypot.png")
-        assert rc.plot_honeypot_access(
-            plt, {"characteristics": {"lure_effect": profile}}, out) is None
-
-    def test_the_misalignment_chart_writes_one_file_per_stratum(self):
-        plt = _plt()
-        rows = [_lure_model_row(f"p/m{i}", 40, 40, i + 1, 1) for i in range(4)]
-        out = os.path.join(tempfile.mkdtemp(), "lure_misalignment.png")
-        assert rc.plot_lure_misalignment(
-            plt, {"characteristics": {"lure_effect": {"by_model": rows,
-                  "pooled": {"oversight": rows[0]["oversight"],
-                             "no_oversight": rows[0]["no_oversight"]}}}}, out)
-        assert os.path.exists(out)
-        assert os.path.exists(out.replace(".png", "_no_oversight.png")), (
-            "the no-oversight stratum must get its own file - the two strata "
-            "carry opposite signs and cannot share a panel")
-
-
-# ---------------------------------------------------------------------------
-# The arm-excluded reading
-# ---------------------------------------------------------------------------
-#
-# The no-oversight arm's task README promises a quality preview the arm itself
-# removes, so `python3 -m report --exclude-no-oversight` answers every question
-# again without it. Those charts are written under the SAME FILENAMES as the
-# full-corpus ones, in a different directory, and hold different numbers - so
-# the risk this block guards is a figure that leaves its directory and is read
-# as the full-corpus chart of that name.
-
-def _excluded_stamp(kept=120, before=240):
-    """The stamp exclude_arm() puts on a report with the arm dropped."""
-    return {
-        "excluded": "no_oversight", "axis": "oversight",
-        "excluded_level": False,
-        "words": "no-oversight arm excluded - oversight-present episodes only",
-        "why": "the arm's README promises a preview it removes.",
-        "n_summaries_before": 8, "n_summaries_kept": 4,
-        "n_episodes_before": before, "n_episodes_kept": kept,
-        "n_episodes_dropped": before - kept, "n_episodes_unknown_arm": 0,
-    }
-
-
-class TestEveryChartSaysWhichArmsItCovers:
-    def _plot_functions(self):
-        """Every chart entry point this module offers, from the module itself.
-
-        DERIVED, AND ASSERTED NON-EMPTY. A hand-written list of the charts is
-        the defect class this repository keeps re-fixing: the grading package's
-        guards enumerated their own submodules in a tuple, fell two behind the
-        directory, and four guards silently stopped covering two modules. A glob
-        that matches nothing empties the scope and every guard built on it
-        passes, so the count is checked before it is used.
-        """
-        import inspect
-        found = {name: obj for name, obj in vars(rc).items()
-                 if name.startswith("plot_") and inspect.isfunction(obj)
-                 and obj.__module__ == rc.__name__}
-        assert len(found) >= 7, (
-            f"only found {sorted(found)} - the enumeration is broken, and an "
-            f"empty scope makes every assertion below vacuous")
-        return found
-
-    def test_every_chart_names_the_exclusion_in_its_title_and_captions(self):
-        """The rule, not a path. Any chart added later inherits this: it is
-        enumerated from the module rather than listed here, so a new plot_
-        function that forgets the words fails this test rather than shipping a
-        figure indistinguishable from the full-corpus one of the same name."""
-        import inspect
-        for name, func in self._plot_functions().items():
-            source = inspect.getsource(func)
-            assert "_exclusion_title_suffix" in source, (
-                f"{name} does not put the exclusion in its title, so the "
-                f"figure cannot be told from the full-corpus chart of the "
-                f"same filename once it leaves its directory")
-            assert "_exclusion_captions" in source, (
-                f"{name} draws no caption naming the excluded arm")
-
-    def test_nothing_is_said_when_no_arm_was_excluded(self):
-        """The ordinary report must not grow a banner reading "nothing
-        excluded": a reader trained to skip that block skips it on the one
-        chart where it matters."""
-        for report in ({}, {"arm_exclusion": None},
-                       {"arm_exclusion": {"axis": None, "words": ""}}):
-            assert rc._exclusion_title_suffix(report) == ""
-            assert rc._exclusion_captions(report) == []
-
-    def test_the_words_and_the_counts_reach_the_reader(self):
-        report = {"arm_exclusion": _excluded_stamp(kept=120, before=240)}
-        assert "no-oversight arm excluded" in rc._exclusion_title_suffix(report)
-        text = " ".join(c for c, _ in rc._exclusion_captions(report))
-        assert "no-oversight arm excluded" in text
-        # The counts, so a reader can see how much of the corpus is behind the
-        # figure without opening the JSON.
-        assert "120 of 240" in text
-        # And that this is not a repaired estimate.
-        assert "sensitivity" in text.lower()
-        assert "not a correction" in text.lower()
-
-    def test_the_caption_is_drawn_in_the_warning_colour(self):
-        """Same colour this module already reserves for the crude-vs-stratified
-        divergence, because it is the same class of statement: something a
-        reader who stops at the markers would take the chart to mean."""
-        captions = rc._exclusion_captions(
-            {"arm_exclusion": _excluded_stamp()})
-        assert captions[0][1] == "#b00020"
-
-    def test_a_question_the_exclusion_collapsed_draws_no_chart(self):
-        """A forest of thirty "no data on one side" rows under the question's
-        own title reads as a measured null rather than an absent comparison."""
-        plt = _plt()
-        section = _section()
-        section["collapsed_by_exclusion"] = "not estimable with the arm excluded"
-        out = os.path.join(tempfile.mkdtemp(), "q.png")
-        assert rc.plot_question(plt, 1, section, out,
-                                {"arm_exclusion": _excluded_stamp()}) is None
-        assert not os.path.exists(out)
-
-    def test_the_same_question_still_draws_when_nothing_collapsed(self):
-        """The positive control: without the mark the chart renders, so the
-        test above is about the mark and not about the fixture."""
-        plt = _plt()
-        out = os.path.join(tempfile.mkdtemp(), "q.png")
-        assert rc.plot_question(plt, 1, _section(), out,
-                                {"arm_exclusion": _excluded_stamp()})
-        assert os.path.getsize(out) > 1000
-
-    def test_the_overview_keeps_a_row_for_a_collapsed_question(self):
-        """Dropped rather than marked, this chart would show nine questions
-        while its own caption calls it all twelve - and a reader would conclude
-        the three were never asked."""
-        plt = _plt()
-        collapsed = _section(id="oversight_vs_scheming")
-        collapsed["collapsed_by_exclusion"] = "no comparator"
-        report = {"questions": [collapsed,
-                                _section(id="awareness_vs_scheming")],
-                  "arm_exclusion": _excluded_stamp()}
-        captured = {}
-        original = rc._draw_forest
-
-        def capture(plt_, rows, title, captions, path, *a, **kw):
-            captured["rows"] = rows
-            captured["title"] = title
-            return path
-
-        rc._draw_forest = capture
-        try:
-            rc.plot_overview(plt, report, os.path.join(tempfile.mkdtemp(), "o.png"))
-        finally:
-            rc._draw_forest = original
-        labels = [r.label for r in captured["rows"]]
-        assert len(labels) == 2, labels
-        gap = [r for r in captured["rows"] if r.diff is None]
-        assert len(gap) == 1 and "excluded arm" in gap[0].missing
-        assert "no-oversight arm excluded" in captured["title"]
-
-    def test_the_excluded_arms_own_lure_panel_is_not_drawn(self):
-        """`lure_effect` is already split on oversight, so the excluded panel
-        normally has no rows and falls out. This is the other case: a stratum
-        left with rows from an arm the report says it dropped, which would draw
-        a panel titled "no oversight" inside an oversight-only reading."""
-        plt = _plt()
-        rows = [_lure_model_row(f"p/m{i}", 40, 40, i + 1, 1) for i in range(4)]
-        profile = {"by_model": rows,
-                   "pooled": {"oversight": rows[0]["oversight"],
-                              "no_oversight": rows[0]["no_oversight"]}}
-        out = os.path.join(tempfile.mkdtemp(), "lure_misalignment.png")
-        assert rc.plot_lure_misalignment(
-            plt, {"characteristics": {"lure_effect": profile},
-                  "arm_exclusion": _excluded_stamp()}, out)
-        assert os.path.exists(out)
-        assert not os.path.exists(out.replace(".png", "_no_oversight.png")), (
-            "the no-oversight panel was drawn inside a report whose every "
-            "other figure says that arm was excluded")
-
-    def test_the_stratum_match_is_by_name_against_the_excluded_level(self):
-        """Both directions, so the helper cannot pass by always answering one
-        way: with the no-oversight arm dropped it is the `no_oversight` panel
-        that goes, and with the oversight arm dropped it is the other."""
-        drop_no_oversight = {"arm_exclusion": _excluded_stamp()}
-        assert rc._excluded_stratum(drop_no_oversight, "no_oversight")
-        assert not rc._excluded_stratum(drop_no_oversight, "oversight")
-        flipped = {"arm_exclusion": dict(_excluded_stamp(),
-                                         excluded_level=True)}
-        assert rc._excluded_stratum(flipped, "oversight")
-        assert not rc._excluded_stratum(flipped, "no_oversight")
-        assert not rc._excluded_stratum({}, "no_oversight")
 
 
 class TestTheForestSaysHowManyModelsItIsOver:
@@ -1551,18 +524,18 @@ class TestTheForestSaysHowManyModelsItIsOver:
         plt = _plt()
         section = _section(consistency=self._consistency(37, 28))
         captured = {}
-        original = rc._draw_forest
+        original = rc.draw._draw_forest
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
             captured["captions"] = [c for c, _ in captions]
             return path
 
-        rc._draw_forest = capture
+        rc.draw._draw_forest = capture
         try:
             rc.plot_question(plt, 1, section,
                              os.path.join(tempfile.mkdtemp(), "q.png"), {})
         finally:
-            rc._draw_forest = original
+            rc.draw._draw_forest = original
         assert any("37 models in total" in c for c in captured["captions"]), \
             captured["captions"]
 
@@ -1572,143 +545,392 @@ class TestTheForestSaysHowManyModelsItIsOver:
         model count would be."""
         plt = _plt()
         captured = {}
-        original = rc._draw_forest
+        original = rc.draw._draw_forest
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
             captured["captions"] = [c for c, _ in captions]
             return path
 
-        rc._draw_forest = capture
+        rc.draw._draw_forest = capture
         try:
             rc.plot_question(plt, 11, _paired_section(),
                              os.path.join(tempfile.mkdtemp(), "q.png"), {})
         finally:
-            rc._draw_forest = original
+            rc.draw._draw_forest = original
         assert not any("models" in c and "total" in c
                        for c in captured["captions"])
 
 
-def _timing_profile(**over):
-    """A profile shaped like awareness_refusal_timing() returns."""
-    def arm(before, after):
-        return {"n_before_refusal": before, "n_after_refusal": after,
-                "n_no_refusal": 100, "n_not_aware": 40,
-                "n_refusal_unlocatable": 0, "n_episodes": 140 + before + after,
-                "n_locatable": before + after,
-                "rate_after": round(after / (before + after), 4)
-                if before + after else None,
-                "underpowered": before + after < MIN_INFORMATIVE_DENOMINATOR}
-    profile = {
-        "measure": "the share that verbalised it only AFTER the refusal",
-        "instrument": "keyword measure, not the rubric grader",
-        "not_an_effect": "descriptive",
-        "pooled": arm(60, 40),
-        "by_arm": {"oversight": arm(50, 5), "no_oversight": arm(10, 35)},
-        "by_model": [{"model": "p/a", **arm(20, 20)},
-                     {"model": "p/b", **arm(30, 5)},
-                     # Below the floor: 3 placeable orderings.
-                     {"model": "p/c", **arm(2, 1)},
-                     # Refused often, never placeable.
-                     {"model": "p/d", **arm(0, 0)}],
-    }
-    profile.update(over)
-    return profile
+class TestTheOverviewMarksTheQuestionsWhoseTwoEstimatesDisagree:
+    """The overview draws the STRATIFIED estimate, because that is the figure
+    the report treats as defensible. Where the crude one disagrees with it,
+    the row is marked and a caption in the divergence colour says what the
+    mark means. Without it a reader sees one number per question and no sign
+    that the question's own chart carries a second one that does not agree.
+    """
 
-
-class TestTheAwarenessRefusalTimingChart:
-    def _report(self, **over):
-        return {"characteristics": {
-            "awareness_refusal_timing": _timing_profile(**over)}}
-
-    def test_the_floor_is_applied_to_the_orderings_not_the_episodes(self):
-        """p/c has 143 episodes and 3 placeable orderings. A Wilson interval on
-        3 runs most of the axis, and on a chart read at a glance that width is
-        taken for a result."""
-        rows = rc._awareness_refusal_rows(_timing_profile())
-        assert [r.label for r in rows] == ["p/a", "p/b"]
-
-    def test_a_model_with_no_placeable_ordering_is_not_drawn_at_zero(self):
-        """p/d was refused plenty and never placeable. Drawing it at 0% would
-        report "never became aware after a refusal" where the truth is "no
-        ordering could be read"."""
-        rows = rc._awareness_refusal_rows(_timing_profile())
-        assert not any(r.label == "p/d" for r in rows)
-
-    def test_the_note_carries_the_placeable_count(self):
-        rows = rc._awareness_refusal_rows(_timing_profile())
-        assert rows[0].note == "n=40"
-
-    def test_nothing_is_drawn_when_no_model_clears_the_floor(self):
-        plt = _plt()
-        out = os.path.join(tempfile.mkdtemp(), "timing.png")
-        thin = _timing_profile(by_model=[{"model": "p/c", "n_before_refusal": 2,
-                                          "n_after_refusal": 1,
-                                          "n_locatable": 3, "rate_after": 0.33,
-                                          "underpowered": True}])
-        assert rc.plot_awareness_refusal_timing(
-            plt, {"characteristics": {"awareness_refusal_timing": thin}},
-            out) is None
-
-    def test_it_renders(self):
-        plt = _plt()
-        out = os.path.join(tempfile.mkdtemp(), "timing.png")
-        assert rc.plot_awareness_refusal_timing(plt, self._report(), out)
-        assert os.path.getsize(out) > 1000
-
-    def test_the_chart_denies_being_a_thirteenth_question(self):
-        """THE LOAD-BEARING CAPTION. Awareness and the sandbox act are one 2x2
-        and question 7 already reports it; without this sentence a reader takes
-        the figure for a second, independent piece of evidence that the two go
-        together."""
+    def _rows_and_captions(self, sections):
         plt = _plt()
         captured = {}
-        original = rc._draw_rate_chart
+        original = rc.draw._draw_forest
 
         def capture(plt_, rows, title, captions, path, *a, **kw):
-            captured["captions"] = [c for c, _ in captions]
-            captured["colours"] = dict(captions)
-            captured["title"] = title
+            captured["rows"] = rows
+            captured["captions"] = [text for text, _colour in captions]
             return path
 
-        rc._draw_rate_chart = capture
+        rc.draw._draw_forest = capture
         try:
-            rc.plot_awareness_refusal_timing(
-                plt, self._report(), os.path.join(tempfile.mkdtemp(), "t.png"))
+            rc.plot_overview(plt, {"questions": sections},
+                             os.path.join(tempfile.mkdtemp(), "o.png"))
         finally:
-            rc._draw_rate_chart = original
-        text = " ".join(captured["captions"])
-        assert "NOT a thirteenth research question" in text
-        assert "question 7" in text
-        denial = next(c for c in captured["captions"]
-                      if "thirteenth" in c)
-        assert captured["colours"][denial] == "#b00020", (
-            "the denial must be in the warning colour, not buried in grey")
+            rc.draw._draw_forest = original
+        return captured["rows"], captured["captions"]
 
-    def test_the_arm_split_reaches_the_caption(self):
-        """Pooled, the majority ordering is "before", which alone reads as "the
-        refusal explains nothing". The arms disagree and that is the finding."""
-        plt = _plt()
+    def test_a_diverging_question_gets_a_marked_row_and_the_caption(self):
+        diverging = _section(
+            id="oversight_vs_scheming",
+            crude_vs_stratified={"warning": "CONFOUNDED: the crude estimate "
+                                           "runs the other way"})
+        assert rc._divergence_caption(diverging), (
+            "the fixture carries no warning, so nothing below is about one")
+        rows, captions = self._rows_and_captions([diverging])
+        assert any(r.label.endswith("*") for r in rows)
+        assert any("crude and stratified estimates diverge" in c
+                   for c in captions)
+
+    def test_a_question_whose_estimates_agree_is_not_marked(self):
+        """Two-directional: a mark on every row says nothing, and the caption
+        would then send every reader to every question's own chart."""
+        rows, captions = self._rows_and_captions([_section()])
+        assert not any(r.label.endswith("*") for r in rows)
+        assert not any("crude and stratified estimates diverge" in c
+                       for c in captions)
+
+    def test_one_diverging_question_among_several_marks_only_itself(self):
+        """The mark is per row; the caption is per chart. Both matter - a
+        caption with no marked row is unreadable, and a marked row with no
+        caption is unexplained."""
+        rows, captions = self._rows_and_captions([
+            _section(id="oversight_vs_scheming",
+                     crude_vs_stratified={"warning": "CONFOUNDED"}),
+            _section(id="awareness_vs_scheming")])
+        marked = [r.label for r in rows if r.label.endswith("*")]
+        assert len(marked) == 1, [r.label for r in rows]
+        assert marked[0].startswith("Q1.")
+        assert any("crude and stratified estimates diverge" in c
+                   for c in captions)
+
+
+class TestACollapsedRowSaysWhyTheSectionSaysItCollapsed:
+    """The overview must not invent a cause.
+
+    `collapsed_by_exclusion` is attached by TWO different narrowings - dropping
+    an arm, and the awareness reading - and build_report puts both on that one
+    field, justified in as many words by "the two consumers of it - the console
+    banner and the chart layer's skip - already do the right thing with
+    whatever reason is attached".
+
+    The banner did. This layer read the field as a boolean and printed
+    "no comparator - the excluded arm was one side of this contrast", which
+    names an arm exclusion; under --exclude-aware no arm is excluded and 8 of
+    the 12 questions collapse, so 8 rows named a cause that had not occurred.
+    The claim was half true and nothing checked the other half.
+
+    Reasons come from real reports under both readings rather than from a list
+    written here, so a third narrowing - or a reworded reason - inherits these
+    checks instead of escaping them.
+    """
+
+    def _collapsed_reasons(self):
+        """Every reason build_report actually attaches, both readings."""
+        out = _two_arm_dir()
+        reasons = {}
+        for exclusion, awareness in ((rr.EXCLUDE_NO_OVERSIGHT,
+                                      rr.NO_AWARENESS_EXCLUSION),
+                                     (rr.NO_EXCLUSION,
+                                      rr.EXCLUDE_AWARE_PRIMARY)):
+            report = rr.build_report(out, exclusion, awareness)
+            for section in report["questions"]:
+                if section.get("collapsed_by_exclusion"):
+                    reasons[section["id"]] = section["collapsed_by_exclusion"]
+        return reasons
+
+    def test_both_narrowings_actually_collapse_something(self):
+        """Without this the three tests below pass on an empty set."""
+        out = _two_arm_dir()
+        by_reading = {}
+        for name, (exclusion, awareness) in (
+                ("arm", (rr.EXCLUDE_NO_OVERSIGHT, rr.NO_AWARENESS_EXCLUSION)),
+                ("awareness", (rr.NO_EXCLUSION, rr.EXCLUDE_AWARE_PRIMARY))):
+            report = rr.build_report(out, exclusion, awareness)
+            by_reading[name] = [s["id"] for s in report["questions"]
+                                if s.get("collapsed_by_exclusion")]
+        assert by_reading["arm"], "the arm reading collapsed nothing"
+        assert by_reading["awareness"], "the awareness reading collapsed nothing"
+
+    def test_the_row_label_is_the_sections_own_reason(self):
+        """A prefix, not merely non-empty: the label has to be shortened to
+        render at fontsize 7, and shortening is the only liberty it may take."""
+        for qid, reason in self._collapsed_reasons().items():
+            label = rc.questions._missing_label(reason)
+            assert reason.startswith(label), (
+                f"{qid}: the row says {label!r}, which is not what the "
+                f"section says: {reason!r}")
+            assert label, f"{qid}: the row says nothing"
+
+    def test_no_row_blames_an_arm_exclusion_on_the_awareness_reading(self):
+        """The defect itself, stated as the thing a reader would be told."""
+        out = _two_arm_dir()
+        report = rr.build_report(out, rr.NO_EXCLUSION,
+                                 rr.EXCLUDE_AWARE_PRIMARY)
+        collapsed = [s for s in report["questions"]
+                     if s.get("collapsed_by_exclusion")]
+        assert collapsed, "nothing collapsed, so this checks nothing"
+        for section in collapsed:
+            label = rc.questions._missing_label(
+                section["collapsed_by_exclusion"])
+            assert "arm" not in label, (
+                f"{section['id']} tells the reader an arm was excluded, and "
+                f"none was: {label!r}")
+            assert "unaware corpus" in label, label
+
+    def _overview_rows(self, report):
+        """The rows plot_overview actually hands the drawing layer."""
         captured = {}
-        original = rc._draw_rate_chart
+        original = rc.draw._draw_forest
 
-        def capture(plt_, rows, title, captions, path, *a, **kw):
-            captured["captions"] = [c for c, _ in captions]
-            return path
+        def capture(plt_, rows, *a, **kw):
+            captured["rows"] = rows
+            return a[2] if len(a) > 2 else "p.png"
 
-        rc._draw_rate_chart = capture
+        rc.draw._draw_forest = capture
         try:
-            rc.plot_awareness_refusal_timing(
-                plt, self._report(), os.path.join(tempfile.mkdtemp(), "t.png"))
+            rc.plot_overview(_plt(), report,
+                             os.path.join(tempfile.mkdtemp(), "o.png"))
         finally:
-            rc._draw_rate_chart = original
-        text = " ".join(captured["captions"])
-        assert "oversight present 9%" in text
-        assert "oversight absent 78%" in text
+            rc.draw._draw_forest = original
+        return captured["rows"]
 
-    def test_it_is_wired_into_write_charts(self):
-        _plt()   # skips when matplotlib is absent; write_charts imports its own
-        out = tempfile.mkdtemp()
-        report = dict(self._report(), questions=[_section()])
-        written = rc.write_charts(report, out)
-        assert any(os.path.basename(p) == "awareness_refusal_timing.png"
-                   for p in written), [os.path.basename(p) for p in written]
+    def test_the_drawn_row_carries_it_end_to_end(self):
+        """THE DISCRIMINATING ONE. Every test above calls `_missing_label`
+        directly, so all of them pass with the call site reverted to a
+        hardcoded string - which is the defect. This runs plot_overview and
+        reads what it handed the drawing layer.
+        """
+        out = _two_arm_dir()
+        report = rr.build_report(out, rr.NO_EXCLUSION,
+                                 rr.EXCLUDE_AWARE_PRIMARY)
+        # Keyed by the row prefix plot_overview builds, so the collapsed rows
+        # can be told from the paired questions' own "no paired units" rows -
+        # 11 and 12 name awareness on neither side and fall out on their own,
+        # which is a different fact and legitimately worded differently.
+        reasons = {f"Q{i}.": section["collapsed_by_exclusion"]
+                   for i, section in enumerate(report["questions"], start=1)
+                   if section.get("collapsed_by_exclusion")}
+        assert reasons, "nothing collapsed, so this checks nothing"
+
+        checked = 0
+        for row in self._overview_rows(report):
+            prefix = row.label.split(" ", 1)[0]
+            if prefix not in reasons:
+                continue
+            checked += 1
+            reason = reasons[prefix]
+            assert row.missing, f"{row.label} was drawn with no reason on it"
+            assert reason.startswith(row.missing), (
+                f"{row.label} was drawn saying {row.missing!r}, which is not "
+                f"the start of what its section says: {reason!r}")
+            assert "excluded arm" not in row.missing, (
+                f"{row.label} still blames an arm exclusion: {row.missing!r}")
+        assert checked == len(reasons), (
+            f"{checked} of {len(reasons)} collapsed questions reached a row")
+
+    def test_the_label_is_short_enough_to_draw(self):
+        """Why the full reason cannot simply be passed through: it is a
+        sentence of 145 characters or more, drawn beside a row at fontsize 7."""
+        for qid, reason in self._collapsed_reasons().items():
+            assert len(reason) > 60, (
+                f"{qid}: this reason is short enough to pass whole, so the "
+                f"shortening below is not being exercised")
+            assert len(rc.questions._missing_label(reason)) <= 60, qid
+
+    def test_a_reason_with_no_colon_is_passed_through_whole(self):
+        """The headline split is a convention the producers keep, not a
+        guarantee. A reason that does not follow it must not become empty."""
+        assert rc.questions._missing_label("nothing to compare") == (
+            "nothing to compare")
+
+
+class TestTheCrudeEstimateIsDemotedWhenTheReportSaysNotToReadIt:
+    """`crude_vs_stratified` already prints a red caption saying to report the
+    stratified result. Drawn in full colour beside it, the crude diamond
+    contradicted that caption in the channel a reader trusts first."""
+
+    def _section(self, diverges: bool) -> dict:
+        return {
+            "overall": {"difference": -0.037, "difference_ci95": [-0.05, -0.024],
+                        "separated": True},
+            "stratified": {"mantel_haenszel": {
+                "risk_difference": 0.002,
+                "risk_difference_ci95": [-0.017, 0.022],
+                "n_strata_used": 29, "separated": False}},
+            "crude_vs_stratified": {"diverges": diverges, "warning": "x"},
+        }
+
+    def _crude(self, diverges: bool):
+        rows = rc._pooled_rows(self._section(diverges))
+        return next(r for r in rows if r.kind == "crude")
+
+    def test_it_is_demoted_where_the_two_disagree(self):
+        assert self._crude(True).demoted is True
+
+    def test_it_is_not_demoted_where_they_agree(self):
+        """The other direction. A version that demoted the crude row always
+        would pass the check above and make the warning meaningless."""
+        assert self._crude(False).demoted is False
+
+    def test_the_stratified_row_is_never_demoted(self):
+        """It is the row the warning tells the reader to use."""
+        for diverges in (True, False):
+            rows = rc._pooled_rows(self._section(diverges))
+            strat = next(r for r in rows if r.kind == "stratified")
+            assert strat.demoted is False
+
+    def test_a_demoted_row_is_drawn_in_the_demoted_colour(self):
+        """Wiring, not just the flag: setting the flag and never reading it
+        would leave the chart identical and every check above passing."""
+        from report_charts.draw import _row_colour
+        from report_charts.style import _COLOURS, _DEMOTED_COLOUR
+        demoted = rc.Row("x", -0.037, -0.05, -0.024, "crude",
+                             marked=True, demoted=True)
+        plain = rc.Row("x", -0.037, -0.05, -0.024, "crude", marked=True)
+        assert _row_colour(demoted) == _DEMOTED_COLOUR
+        assert _row_colour(plain) == _COLOURS["crude"]
+
+    def test_demotion_outranks_the_significance_colour(self):
+        """A demoted per-model row must not come back red for having cleared
+        zero - the loudest colour on the chart for the row being disowned."""
+        from report_charts.draw import _row_colour
+        from report_charts.style import _DEMOTED_COLOUR
+        row = rc.Row("m", 0.5, 0.1, 0.9, "model", marked=True,
+                         demoted=True)
+        assert _row_colour(row) == _DEMOTED_COLOUR
+
+
+class TestThePooledEstimatesCarryTheirNumbers:
+    """The pooled intervals cannot be judged by eye at any usable axis: the
+    model intervals have a median width near 30pp, so the axis is at least
+    ~40pp wide, and the crude pooled interval is 2.6pp. Clipping the axis was
+    tried and removed - it cannot make that legible without clipping away the
+    models the forest exists to show."""
+
+    def _rows(self):
+        return rc._pooled_rows({
+            "overall": {"difference": -0.037, "difference_ci95": [-0.05, -0.024],
+                        "separated": True},
+            "stratified": {"mantel_haenszel": {
+                "risk_difference": 0.0018,
+                "risk_difference_ci95": [-0.017, 0.0221],
+                "n_strata_used": 29, "separated": False}},
+        })
+
+    def test_both_pooled_rows_state_their_estimate_and_interval(self):
+        for row in self._rows():
+            assert row.note, f"{row.label} carries no number"
+            assert "[" in row.note and "]" in row.note
+
+    def test_the_numbers_are_the_ones_in_the_report(self):
+        """Read off the row, not recomputed: a note showing a different
+        number from the mark beside it is worse than no note."""
+        crude = next(r for r in self._rows() if r.kind == "crude")
+        assert crude.note == "-3.7 [-5.0, -2.4]"
+
+    def test_a_sign_is_always_shown(self):
+        """+0.2 and 0.2 read differently beside a row about a difference."""
+        strat = next(r for r in self._rows() if r.kind == "stratified")
+        assert strat.note.startswith("+")
+
+    def test_a_model_row_carries_no_number(self):
+        """Twenty-nine of these would be noise, and the axis places them well
+        enough - it is only the pooled rows the axis cannot serve."""
+        rows = rc._model_rows([
+            {"model": "m", "difference": 0.1,
+             "difference_ci95": [0.0, 0.2],
+             "a": {"successes": 1, "n": 10}, "b": {"successes": 0, "n": 10}}])
+        assert all(not r.note for r in rows)
+
+    def test_a_missing_interval_still_states_the_estimate(self):
+        assert rc._effect_note(-0.037, None, None) == "-3.7"
+
+    def test_nothing_is_stated_for_a_missing_estimate(self):
+        assert rc._effect_note(None, None, None) == ""
+
+
+class TestTheLegendShowsWhatIsActuallyDrawn:
+    """A legend keyed off the palette said "crude pooled" beside an orange
+    line while the crude diamond on the chart was grey - the same fault as a
+    caption contradicting its marks, one box lower."""
+
+    def _labelled(self, rows: list):
+        """The legend entries for `rows`, keyed by label - or skip.
+
+        _legend_handles builds Line2D swatches, so it needs matplotlib, which
+        is an optional extra: the minimal-install job runs this file without
+        it. Every test in this class goes through here rather than reaching
+        for _legend_handles itself, so the guard covers the whole class
+        instead of the one path it was first written for - the per-kind test
+        below builds its own rows and would otherwise be left uncovered.
+        """
+        _plt()
+        from report_charts.draw import _legend_handles
+        return {h.get_label(): h for h in _legend_handles(rows)}
+
+    def _handles(self, demoted: bool):
+        return self._labelled([
+            rc.Row("m", 0.1, 0.0, 0.2, "model"),
+            rc.Row("CRUDE", -0.037, -0.05, -0.024, "crude", demoted=demoted),
+            rc.Row("MH", 0.002, -0.017, 0.022, "stratified")])
+
+    def test_a_demoted_kind_is_greyed_in_the_legend_too(self):
+        from report_charts.style import _DEMOTED_COLOUR
+        entry = next(h for label, h in self._handles(True).items()
+                     if label.startswith("crude pooled"))
+        assert entry.get_color() == _DEMOTED_COLOUR
+
+    def test_an_undemoted_kind_keeps_its_own_colour(self):
+        """The other direction: greying it always would make the legend say
+        nothing about which estimate the report disowned."""
+        from report_charts.style import _COLOURS
+        entry = self._handles(False)["crude pooled"]
+        assert entry.get_color() == _COLOURS["crude"]
+
+    def test_the_demoted_entry_points_at_the_caption(self):
+        assert any(label.startswith("crude pooled") and "caption" in label
+                   for label in self._handles(True))
+
+    def test_the_other_kinds_are_untouched_by_a_demotion(self):
+        from report_charts.style import _COLOURS
+        handles = self._handles(True)
+        assert handles["stratified (Mantel-Haenszel)"].get_color() == (
+            _COLOURS["stratified"])
+        assert handles["per model"].get_color() == _COLOURS["model"]
+
+    def test_the_lookup_is_per_kind_and_not_the_first_row(self):
+        """Demoting a MODEL row must not grey the pooled entries. The check
+        above cannot see that fault: the model row comes first in a real
+        forest, so a lookup that took the first row regardless of kind found
+        an undemoted one and greyed nothing."""
+        from report_charts.style import _COLOURS
+        handles = self._labelled([
+            rc.Row("m", 0.1, 0.0, 0.2, "model", demoted=True),
+            rc.Row("CRUDE", -0.037, -0.05, -0.024, "crude"),
+            rc.Row("MH", 0.002, -0.017, 0.022, "stratified")])
+        assert handles["crude pooled"].get_color() == _COLOURS["crude"]
+        assert handles["stratified (Mantel-Haenszel)"].get_color() == (
+            _COLOURS["stratified"])
+
+    def test_only_the_kinds_present_are_listed(self):
+        """The behaviour the function already had, pinned before it was
+        rewritten around it."""
+        assert "parallel measure (visible text only)" not in self._handles(False)

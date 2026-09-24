@@ -4,6 +4,21 @@
 eval_results_*/
 eval_results_*.zip
 
+# Charts. Derived pictures of numbers that are already in the JSON and the
+# printed tables, redrawn by every report and trends run, so nothing here is
+# recoverable only from this directory. It sits OUTSIDE eval_results_*/ on
+# purpose: zip.sh archives every eval_results_* directory whole, and charts
+# living inside one were being encrypted into the published archive, which
+# exists for the transcripts that cannot be regenerated.
+charts/
+
+# Blinded labelling packs. Built by subversionbench/blinding.py from a corpus,
+# so a pack holds transcripts and carries the same risk the corpus rule above
+# covers. It sits OUTSIDE eval_results_*/ deliberately: zip.sh archives every
+# eval_results_* directory, and a pack swept into the published archive would
+# put the blinding key beside the corpus it blinds.
+labelling/
+
 # Python
 .venv/
 __pycache__/
@@ -37,6 +52,14 @@ scenario.json
 # text, and this pattern matches the directory only.
 heldout/
 
+# Goal-guarding scenario, in draft. Holds scenario prose - the client's name
+# and the artefact text - so it falls under the same rule as scenario.json and
+# heldout/: nothing derived from a scenario bundle is ever committed in plain
+# text. This directory is where the bundle is authored and reviewed before it
+# is encoded; the encoded form is what gets tracked, the same way scenario.b64
+# is.
+goalguard/
+
 # Decoded working copy of the external leaderboard, for the same reason again:
 # publishing a third-party benchmark's results as plain text feeds the next
 # training crawl - see sad_oversight.py.
@@ -50,3 +73,7 @@ agentic_misalignment.json
 
 # coverage measurement artefact
 .coverage
+
+# Decoded detector working copy - see subversionbench/detectors.py
+detectors.json
+subversionbench/detectors.json

@@ -128,10 +128,12 @@ class TestTheTwoJobsTestOppositeThings:
         install = re.search(r"pip install -e \"\.\[([^\]]+)\]\"", run)
         assert install, f"no editable install with extras found in:\n{run}"
         named = {e.strip() for e in install.group(1).split(",")}
-        # `openai` and `openrouter` declare the same package, so either covers
-        # it; every other extra must be named.
+        # `openai`, `opencode` and `openrouter` all declare the identical
+        # package (the same openai>=1.0.0 SDK, pointed at a different base
+        # URL by each client), so any one of them covers the other two;
+        # every other extra must be named.
         missing = {e for e in extras if e not in named}
-        assert missing <= {"openai"}, (
+        assert missing <= {"openai", "opencode"}, (
             f"the fully-installed job does not install {sorted(missing)}, so a "
             f"test needing it would skip in the one job that forbids skipping")
 

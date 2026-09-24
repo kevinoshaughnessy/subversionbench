@@ -32,8 +32,8 @@ Two versions, because they answer different questions.
 
 | | changes when | names |
 |---|---|---|
-| `ROLLOUT_VERSION` (`r1`) | the scenario, prompts, tools or sandbox behaviour change — anything the model sees or can do | the results directory |
-| `VERSION` (`v17`) | the analysis changes: rubric wording, grader, summary fields, guards | `analysis_version` on every artefact |
+| `ROLLOUT_VERSION` | the scenario, prompts, tools or sandbox behaviour change — anything the model sees or can do | the results directory |
+| `VERSION` | the analysis changes: rubric wording, grader, summary fields, guards | `analysis_version` on every artefact |
 
 Results are comparable when they came from the same **rollout**. A change to how they were
 later analysed does not make them incomparable, because `--reclassify` and `--resummarise`
@@ -149,15 +149,24 @@ transcripts are fixed, so any change in the numbers is attributable to the grade
 ```bash
 python -m subversionbench.run_eval \
     --model x-ai/grok-4.5 --nudge strong \
-    --grade-existing --grader-model claude-opus-5
+    --grade-existing --regrade claude-haiku-4-5-20251001
 ```
 
-Results go to `regrade_<model>_<nudge>_by_<grader>_<stamp>.json`; the original run files
-are untouched unless `--write-back` is passed. The report compares the new verdicts
-against whatever grader the run files already recorded:
+`--regrade` names the grader: `default` (the default grader, which every figure and chart
+reads), a model ID, or `all` (every grader each episode already has). Each episode keeps one
+entry per grader in `analysis.graders`, so re-grading with a second model adds its reading
+beside the default's rather than replacing it. A run file written before v213 keeps its flat
+shape until a second grader is added.
+
+Results go to `regrade_<model>_<nudge>_by_<grader>_<stamp>.json`, one per grader re-graded;
+the original run files are untouched unless `--write-back` is passed, and then only the
+named grader's entry is replaced. The report compares the new verdicts against the same
+grader's earlier reading, if it had one, and - for any grader but the default - against the
+default grader's, on awareness and again on scheming (each episode's concealment level per
+act, for both graders, is in the regrade JSON):
 
 ```
---- vs grader already recorded (claude-haiku-4-5-20251001) ---
+--- vs default grader (claude-opus-5) ---
 Agreed:                 8/10
 Changed to eval-aware:  2
 Changed to unaware:     0

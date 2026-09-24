@@ -75,6 +75,14 @@ _MODEL_SURFACES = (
     ("claude-fable-5",        _Surface("adaptive", _EFFORT_FULL,     False, True)),
     ("claude-mythos-5",       _Surface("adaptive", _EFFORT_FULL,     False, True)),
     ("claude-mythos-preview", _Surface("adaptive", _EFFORT_FULL,     False, True)),
+    # Before "claude-opus-5", which is a prefix of it. Forced-thinking like the
+    # Fable family: the API answers thinking={"type": "disabled"} with a 400
+    # naming the model, not the effort, so this is not Opus 5's narrower rule
+    # of disabling being refused only above "high". Inheriting Opus 5's row
+    # cost 1,908 consecutive failed grader calls - every call of a cell - each
+    # one a 400 that the run recorded as an unanswered question rather than as
+    # a configuration error.
+    ("claude-opus-5-5",       _Surface("adaptive", _EFFORT_FULL,     False, True)),
     ("claude-opus-5",         _Surface("adaptive", _EFFORT_FULL,     True,  True)),
     ("claude-opus-4-8",       _Surface("adaptive", _EFFORT_FULL,     True,  True)),
     ("claude-opus-4-7",       _Surface("adaptive", _EFFORT_FULL,     True,  True)),
@@ -183,7 +191,24 @@ MIN_THINKING_BUDGET = 1024
 # On a model where thinking cannot be turned off, thinking tokens come out of
 # the same max_tokens as the answer, so a 200-token grader call would spend
 # its whole budget reasoning and return no verdict.
-MIN_TOKENS_WHEN_THINKING_FORCED = 4096
+#
+# ADDED to what the caller asked for, not used as a floor over it. A floor
+# makes the answer's own tokens come out of the thinking allowance, which
+# holds while the answer is small and fails as it grows: at a floor of 4096
+# the single-answer grader shape kept 3,896 tokens to think in, while the
+# batched shape - which asks for the same 200 tokens nine times - kept 2,296.
+# The batched cell then failed 432 of 1,908 answers, 378 of them replies that
+# carried no text block at all and 54 severed mid-JSON. Those are recorded as
+# `reply` errors, which this experiment reads as the grader's own fragility
+# under batching, so a budget that narrows with the size of the request does
+# not merely lose answers - it answers the question the experiment is asking.
+THINKING_HEADROOM_TOKENS = 4096
+
+# Asked for on the short JSON grader and classifier calls, on any surface that
+# accepts an effort and cannot be told to stop thinking altogether. The work is
+# reading a transcript against a fixed rubric and emitting the shape back, not
+# open-ended reasoning, and the headroom above is what catches the rest.
+SHORT_CALL_EFFORT = "low"
 
 
 def resolve_thinking_budget(requested, max_tokens: int):
@@ -369,7 +394,8 @@ def resolve_thinking_kwargs(model: str, requested_budget=None,
     return kwargs, f"{detail}{effort_note}", warnings
 
 
-def short_call_thinking_kwargs(model: str, max_tokens: int):
+def short_call_thinking_kwargs(model: str, max_tokens: int,
+                               steer_effort: bool = True):
     """
     Reasoning config for the short JSON-only grader and classifier calls.
 
@@ -380,14 +406,75 @@ def short_call_thinking_kwargs(model: str, max_tokens: int):
     off for these calls where the model allows it, and give the answer room
     where it does not.
 
+    `steer_effort=False` keeps the headroom but sends no effort, for a caller
+    whose short call is put to the model UNDER TEST rather than to a grader:
+    contamination_check.py measures what the model recalls, and lowering its
+    effort would lower the thing being measured.
+
     Returns (kwargs, max_tokens).
     """
     surface = thinking_surface(model)
-    if surface is None or surface.mode == "budget":
-        # No reasoning parameter, or a model where unset already means off.
+    if surface is not None and surface.mode == "budget":
+        # Unset really does mean off here, so the answer has the whole budget.
         return {}, max_tokens
-    if surface.can_disable:
+    if surface is not None and surface.can_disable:
         return {"thinking": {"type": "disabled"}}, max_tokens
-    return {}, max(max_tokens, MIN_TOKENS_WHEN_THINKING_FORCED)
+    # THINKING CANNOT BE SUPPRESSED, so the answer needs room after it. Two
+    # different cases reach this, and they used to be split: a surface that
+    # says so outright, and `surface is None`, which was grouped with the
+    # budget case above under "no reasoning parameter, or a model where unset
+    # already means off". Those are not the same fact. A route that accepts no
+    # reasoning parameter is one where thinking cannot be turned OFF, not one
+    # where it is already off - OPENROUTER_REASONING_CONFIG says as much in
+    # this file: "It has one; this does not send it, and omitting it
+    # suppresses nothing."
+    #
+    # Measured, not reasoned about: self-grading pointed the rubric grader at
+    # google/gemini-3.5-flash over OpenRouter and 9 of 9 questions failed to
+    # parse on every episode of a batch. The replies were not malformed - they
+    # were correct JSON severed mid-token at 18 and 25 characters, the whole
+    # 200 having gone on reasoning. contamination_check.py hit this first and
+    # fixed it the same way for its own calls (FORCED_CHOICE_TOKENS), for the
+    # reason it gives there: on THAT route the model cannot be told how much
+    # to think, so room to answer is the only lever left.
+    #
+    # A ceiling is not a spend. A model that emits its JSON and stops is
+    # byte-identical under a higher one, so raising it changes only calls that
+    # were failing. The EFFORT below is different: it changes calls that
+    # already succeeded, so a forced-thinking or native OpenAI grader
+    # (--self-grade-kind, or --grader-model on Fable/Mythos/Opus 5.5/gpt-*)
+    # grades differently from v212 on.
+    # The reference and default grader, claude-opus-5, can disable thinking
+    # and never reaches this branch, which is why no published figure moves.
+    #
+    # BUT A CEILING ALONE IS NOT ENOUGH, because a model that does not stop
+    # spends whatever it is given. On a native route that takes an effort
+    # there is a second lever, and the API named it itself when it rejected
+    # thinking={"type": "disabled"}: "use output_config.effort to control
+    # thinking behavior". These calls emit a fixed JSON shape and need almost
+    # no reasoning to do it.
+    #
+    # Measured: at the default effort, two of eight batched grader calls to
+    # claude-opus-5-5 spent the whole ceiling thinking and returned no text
+    # block at all - and those two were 87% of that probe's spend, so raising
+    # the ceiling buys more of the waste rather than less of it.
+    #
+    # It also narrows the gap to the reference cell instead of widening it.
+    # That cell grades with thinking disabled outright, so a candidate left at
+    # its default effort would differ from the reference by reasoning depth as
+    # well as by model - a confound inside the comparison the experiment
+    # exists to make.
+    #
+    # OpenAI's own route takes the same lever, as reasoning.effort, which
+    # OpenAIClient translates output_config into. It has no surface row, so
+    # it was sent nothing and reasoned at its default: gpt-6-sol graded at
+    # 3x the cost of Opus 5 and 5x Opus 5.5 despite cheaper per-token rates.
+    # OpenRouter's "openai/..." IDs are not is_openai_model and still get
+    # nothing - that route takes no reasoning parameter here.
+    kwargs = {}
+    if steer_effort and (is_openai_model(model) or (
+            surface is not None and SHORT_CALL_EFFORT in surface.effort)):
+        kwargs["output_config"] = {"effort": SHORT_CALL_EFFORT}
+    return kwargs, max_tokens + THINKING_HEADROOM_TOKENS
 
 

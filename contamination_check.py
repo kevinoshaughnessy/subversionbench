@@ -68,7 +68,8 @@ from subversionbench.contamination import (
     summarise_contamination,
 )
 from subversionbench.grading import _parse_first_json
-from subversionbench.llm_client import get_client, short_call_thinking_kwargs
+from subversionbench import llm_client
+from subversionbench.llm_client import short_call_thinking_kwargs
 from subversionbench.redaction import redact_paths
 
 
@@ -103,7 +104,8 @@ FORCED_CHOICE_TOKENS = 2000
 def ask(client, model, prompt, max_tokens=400):
     """One short completion. Returns (text, error)."""
     try:
-        thinking_kwargs, resolved = short_call_thinking_kwargs(model, max_tokens)
+        thinking_kwargs, resolved = short_call_thinking_kwargs(
+            model, max_tokens, steer_effort=False)
         response = client.messages.create(
             model=model,
             max_tokens=resolved,
@@ -118,7 +120,7 @@ def ask(client, model, prompt, max_tokens=400):
 
 def probe_model(model, items, continuations, delay, keep_prompts):
     """Run all four probe families against one model."""
-    client = get_client(model)
+    client = llm_client.get_client(model)
 
     print(f"\n{'='*60}")
     print(f"CONTAMINATION PROBE: {model}")

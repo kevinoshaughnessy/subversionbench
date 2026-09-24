@@ -139,8 +139,16 @@ class TestAgainstTheVersionOrder:
         are the independent evidence that the correction was right."""
         families = self._families()
         grok = [m.raw for m in families["x-ai/grok"]]
-        assert grok == ["x-ai/grok-4.20", "x-ai/grok-4.3", "x-ai/grok-4.5",
-                        "x-ai/grok-4.6"]
+        # The PROPERTY, not the membership. This listed the family verbatim
+        # and so failed the day grok-4.7 was recorded - for no reason
+        # connected to what it guards, which is the same defect as the
+        # ROLLOUT_VERSION == "r9" assertion AGENTS.md records. A
+        # package-manager reading sorts 4.20 last; the decimal reading sorts
+        # it first, and that is the whole claim.
+        assert grok[0] == "x-ai/grok-4.20", grok
+        assert len(grok) > 1, "a one-member family cannot show an ordering"
+        # And the dates agree with that order, which is the independent
+        # evidence the docstring is about.
         assert "x-ai/grok" not in mr.disagreements(families)
 
     def test_the_dated_deepseek_snapshots_sort_after_their_undated_siblings(self):

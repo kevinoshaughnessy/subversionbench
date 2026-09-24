@@ -20,9 +20,18 @@
 
 name: tests
 
+# WHICH BRANCHES. `main` alone meant that twelve versions of work on a feature
+# branch were verified on one developer machine and one OS, and the three Linux
+# failures they contained sat there the whole time - fifteen more tests errored
+# rather than skipping because a gitignored directory does not exist on a
+# runner, and nothing said so until this workflow was dispatched by hand.
+#
+# September2026 is named rather than every branch, because the long-lived
+# branches are the ones where the gap can grow. A short-lived branch is covered
+# by `pull_request` when it is proposed.
 on:
   push:
-    branches: [main]
+    branches: [main, September2026]
   pull_request:
   workflow_dispatch:
 

@@ -151,6 +151,71 @@ class TestThinkingSurface:
         assert not is_known_anthropic_model("claude-opus-6")
         assert is_known_anthropic_model("claude-opus-5")
 
+    def test_no_entry_is_shadowed_by_an_earlier_prefix(self):
+        """The ordering rule the table states, checked over the whole table.
+
+        `_MODEL_SURFACES` is matched first-hit, so a row whose prefix is also a
+        prefix of a row BELOW it makes that lower row unreachable. The test
+        above checks the same rule by naming pairs, which only ever covers the
+        pairs someone thought of.
+        """
+        from subversionbench.reasoning import _MODEL_SURFACES
+
+        assert _MODEL_SURFACES, "an empty table would pass this vacuously"
+        shadowed = [(later, earlier)
+                    for i, (earlier, _) in enumerate(_MODEL_SURFACES)
+                    for later, _ in _MODEL_SURFACES[i + 1:]
+                    if later.startswith(earlier)]
+        assert not shadowed, (
+            "unreachable rows - the earlier prefix always wins:\n  "
+            + "\n  ".join(f"{lo!r} is shadowed by {hi!r}" for lo, hi in shadowed))
+
+    def test_a_grader_model_does_not_inherit_another_version_s_surface(self):
+        """The defect the row above this one was added for.
+
+        A model absent from the table resolves by prefix, and the ordering
+        guard cannot see that: there is no row to be shadowed. What separates
+        a legitimate inheritance from a wrong one is WHAT the prefix leaves
+        over. "claude-haiku-4-5-20251001" over "claude-haiku-4-5" leaves a
+        date, and a dated snapshot really does share its family's surface.
+        "claude-opus-5-5" over "claude-opus-5" leaves "-5" - a different
+        model, silently taking Opus 5's `can_disable=True` and failing every
+        call with a 400.
+
+        Scoped to the models this repo actually drives a grader with, because
+        those are the IDs a wrong surface spends money on.
+        """
+        import re
+
+        import grader_ab as ab
+        from subversionbench.reasoning import _MODEL_SURFACES, _normalise_model
+        from subversionbench.routing import is_openai_model, is_openrouter_model
+
+        # NATIVE ANTHROPIC ONLY. The other two routes have no row by design and
+        # must not be read as inheriting one: `thinking_surface` returns None
+        # for both, and for OpenAI that is the whole point - reasoning.py says
+        # so, "without the OpenAI case here, a bare gpt-5.4 falls through to
+        # the assumed-modern default and the harness sends Anthropic's
+        # thinking={'type': 'adaptive'} to the Responses API". Scoping this to
+        # "not OpenRouter" flagged the first bare OpenAI grader added to the
+        # price table as a model inheriting the wrong surface.
+        graders = [m for m in ab.PRICES_PER_MTOK
+                   if not is_openrouter_model(m) and not is_openai_model(m)]
+        assert graders, "no grader models to check - the scope is empty"
+        wrong = []
+        for model in graders:
+            name = _normalise_model(model)
+            prefix = next((p for p, _ in _MODEL_SURFACES
+                           if name.startswith(p)), None)
+            rest = name[len(prefix):] if prefix else None
+            if prefix is None or not (rest == ""
+                                      or re.fullmatch(r"-\d{6,8}", rest)):
+                wrong.append(f"{model!r} -> {prefix!r} (leftover {rest!r})")
+        assert not wrong, (
+            "these grader models take another entry's reasoning surface. Add "
+            "a row for each, above the prefix it is matching:\n  "
+            + "\n  ".join(wrong))
+
 class TestGraderThinking:
     """The grader asks for 200 tokens of JSON. Thinking is on by default from
     Sonnet 5 / Opus 5 onwards, so leaving the parameter unset lets a grader
@@ -174,11 +239,15 @@ class TestGraderThinking:
 
     def test_a_forced_thinking_grader_gets_room_for_its_answer(self):
         """Fable/Mythos cannot turn thinking off, and thinking comes out of the
-        same max_tokens as the answer."""
-        from subversionbench.reasoning import short_call_thinking_kwargs
+        same max_tokens as the answer - so it gets room, and it is also asked
+        to think as little as the surface allows. No `thinking` key either
+        way: an explicit "disabled" is a 400 on these."""
+        from subversionbench.reasoning import (SHORT_CALL_EFFORT,
+                                               short_call_thinking_kwargs)
 
         kwargs, tokens = short_call_thinking_kwargs("claude-fable-5", 200)
-        assert kwargs == {}
+        assert "thinking" not in kwargs
+        assert kwargs["output_config"] == {"effort": SHORT_CALL_EFFORT}
         assert tokens >= 4096
 
     def test_openrouter_grader_gets_no_parameter(self):
@@ -186,6 +255,134 @@ class TestGraderThinking:
 
         kwargs, tokens = short_call_thinking_kwargs("x-ai/grok-4.5", 200)
         assert kwargs == {}
+
+    def test_an_openrouter_grader_gets_room_to_answer_after_reasoning(self):
+        """THIS ASSERTED `tokens == 200` AND WAS WRONG, on a reading of
+        `surface is None` as "this model does not reason". It means the ROUTE
+        accepts no reasoning parameter - so thinking cannot be turned off,
+        which is the case that needs room, not the case that does not.
+        OPENROUTER_REASONING_CONFIG says so in reasoning.py itself: "It has
+        one; this does not send it, and omitting it suppresses nothing."
+
+        Measured: self-grading pointed the rubric grader at
+        google/gemini-3.5-flash over OpenRouter and every one of the 9
+        questions failed to parse on every episode of a batch. The replies
+        were correct JSON severed mid-token - '{"answer": true, "quote":' at
+        25 characters - with the whole 200 spent reasoning."""
+        from subversionbench.reasoning import (THINKING_HEADROOM_TOKENS,
+                                               short_call_thinking_kwargs)
+
+        for model in ("x-ai/grok-4.5", "google/gemini-3.5-flash",
+                      "qwen/qwen3.8-flash"):
+            kwargs, tokens = short_call_thinking_kwargs(model, 200)
+            assert kwargs == {}, model
+            assert tokens == 200 + THINKING_HEADROOM_TOKENS, model
+
+    def test_a_caller_asking_for_more_keeps_all_of_it(self):
+        """The allowance is added to the request, never substituted for it.
+        contamination_check.py asks for 2000 on the forced-choice probe and
+        1500 on the continuation, for its own reasons, and those tokens are
+        for its answer - not a budget thinking may eat into."""
+        from subversionbench.reasoning import (THINKING_HEADROOM_TOKENS,
+                                               short_call_thinking_kwargs)
+
+        _kwargs, tokens = short_call_thinking_kwargs("x-ai/grok-4.5", 8192)
+        assert tokens == 8192 + THINKING_HEADROOM_TOKENS
+
+    def test_a_forced_thinking_model_gets_headroom_on_top_of_the_answer(self):
+        """The allowance was a floor - max(requested, 4096) - so the answer's
+        own tokens were taken OUT of the room left to think in. That holds
+        while the answer is small and fails as it grows, which is why it
+        surfaced on the batched grader shape and not the single-answer one.
+
+        Derived from the shapes the graders actually use, rather than spot
+        checking a number: the defect was invisible at the size the earlier
+        tests happened to pass in, and a guard that only ever asks for 200
+        tokens cannot see a bug about the request getting larger.
+        """
+        from grader_ab.prices import _TOKENS_PER_ANSWER
+        from subversionbench.config import RUBRIC_QUESTIONS
+        from subversionbench.reasoning import (THINKING_HEADROOM_TOKENS,
+                                               short_call_thinking_kwargs)
+
+        asked = {"per_question": _TOKENS_PER_ANSWER,
+                 "batched": _TOKENS_PER_ANSWER * len(RUBRIC_QUESTIONS)}
+        assert all(asked.values()), "a zero-token shape would pass vacuously"
+        for shape, requested in asked.items():
+            _kw, granted = short_call_thinking_kwargs("claude-opus-5-5",
+                                                      requested)
+            assert granted - requested >= THINKING_HEADROOM_TOKENS, (
+                f"{shape}: asked for {requested}, granted {granted} - only "
+                f"{granted - requested} tokens left to think in")
+
+    def test_a_forced_thinking_grader_is_asked_for_the_lowest_effort(self):
+        """Room to answer is not the only lever where the surface has one.
+
+        A ceiling only bounds the waste; it does not reduce it, and a model
+        left at its default effort spends whatever it is given. Measured on
+        claude-opus-5-5: two of eight batched grader calls returned no text
+        block at all and were 87% of that probe's spend.
+
+        Derived from the table, so a forced-thinking model added later
+        inherits the rule instead of reasoning at its default until someone
+        notices the bill.
+        """
+        from subversionbench.reasoning import (_MODEL_SURFACES,
+                                               SHORT_CALL_EFFORT,
+                                               short_call_thinking_kwargs)
+
+        forced = [m for m, s in _MODEL_SURFACES
+                  if s.mode == "adaptive" and not s.can_disable and s.effort]
+        assert forced, "no forced-thinking surface with an effort to check"
+        for model in forced:
+            kwargs, _tokens = short_call_thinking_kwargs(model, 200)
+            assert kwargs.get("output_config") == {"effort": SHORT_CALL_EFFORT}, (
+                f"{model} cannot be told to stop thinking and was sent no "
+                f"effort, so it reasons at its default on a call that only "
+                f"has to emit a fixed JSON shape")
+
+    def test_a_native_openai_grader_is_asked_for_the_low_effort_too(self):
+        """OpenAI has no surface row, so the table-derived test above cannot
+        see it - and it was sent nothing: gpt-6-sol graded at 3x Opus 5's cost
+        and 5x Opus 5.5's despite cheaper per-token rates, reasoning at its
+        default. Derived from the price table, so the next bare OpenAI grader
+        inherits the rule. The OpenRouter spelling of the same model is the
+        control: that route takes no reasoning parameter here."""
+        import grader_ab as ab
+        from subversionbench.reasoning import (SHORT_CALL_EFFORT,
+                                               short_call_thinking_kwargs)
+        from subversionbench.routing import is_openai_model
+
+        native = [m for m in ab.PRICES_PER_MTOK if is_openai_model(m)]
+        assert native, "no native OpenAI grader priced - the scope is empty"
+        for model in native:
+            kwargs, _tokens = short_call_thinking_kwargs(model, 200)
+            assert kwargs == {"output_config": {"effort": SHORT_CALL_EFFORT}}, (
+                model)
+            routed, _tokens = short_call_thinking_kwargs(f"openai/{model}", 200)
+            assert routed == {}, model
+
+    def test_the_reference_grader_is_sent_no_effort_at_all(self):
+        """The other direction, and the reason this change cannot move a
+        published figure: the reference cell turns thinking off outright, so
+        it takes neither the headroom nor the effort. A forced-thinking grader
+        chosen with --grader-model or --self-grade-kind DOES grade differently
+        from v212 on; the published corpus was graded by this one."""
+        from subversionbench.reasoning import short_call_thinking_kwargs
+
+        kwargs, tokens = short_call_thinking_kwargs("claude-opus-5", 1800)
+        assert kwargs == {"thinking": {"type": "disabled"}}
+        assert tokens == 1800
+
+    def test_the_default_grader_is_untouched_by_that_floor(self):
+        """The control, and the reason this change could not move a published
+        figure: claude-opus-5 on the native route still turns thinking off and
+        still asks for 200, so every batch already graded was graded the same
+        way it would be graded now."""
+        from subversionbench.reasoning import short_call_thinking_kwargs
+
+        kwargs, tokens = short_call_thinking_kwargs("claude-opus-5", 200)
+        assert kwargs["thinking"] == {"type": "disabled"}
         assert tokens == 200
 
 class TestOpenAIEffortDefault:

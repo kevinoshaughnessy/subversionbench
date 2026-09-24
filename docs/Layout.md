@@ -15,14 +15,44 @@ or "does not exist".
 subversionbench/
   version.py       the analysis version, alone, because it moves every release
   config.py        canary, prompts, rubric questions, tool defs; re-exports below
-  rollout_pins.py  the declared rollout version and the fingerprints it pins to
+  rollout_pins.py  which experiment a corpus belongs to, in three coordinates.
+                   SCENARIO_ACTS is which misalignment categories the rollout
+                   can exhibit, and the id derived from it is the scenario's
+                   identity - the SETTING is deliberately not part of it, so
+                   the waste-disposal held-out bundle is a twin of the
+                   transport one rather than a different experiment.
+                   ROLLOUT_VERSION is what the model saw within that scenario.
+                   The pinned fingerprints are the per-arm identities that say
+                   two batches of one rollout may be pooled
   interrogations.py  the probes, the classifier prompt, the answer markers
   scenario.py      the scenario text, held base64-encoded at rest
+  detectors.py     the rubric and keyword lists, held the same way -
+                   a SEPARATE bundle, so a held-out scenario cannot
+                   swap the instrument that grades it
+  artefact_dates.py  when the scenario's files claim to have been written.
+                   Nothing set their modification times, so every episode ever
+                   collected ran among files claiming to have been touched the
+                   moment the batch ran - later than the period the scenario
+                   describes. The arm makes that a choice: `consistent`
+                   backdates them into the period and orders them the way a
+                   real project's are, `inconsistent` puts them decades ahead
+                   and identical. The extremes rather than the realistic
+                   middle, because a plausible manipulation is the hardest to
+                   detect and a null from the extremes bounds it
   rollout.py       rollout identity: what the model saw and what it could do
   routing.py       which API serves a model ID
+  hostenv.py       what the HOST contributed to an episode - shell,
+                   coreutils, kernel isolation mechanism, architecture.
+                   Not hashed into the rollout, because none of it
+                   changes the arm; recorded per episode, because all of
+                   it can change what a command DID, which is what every
+                   act detector reads. Records nothing identifying: no
+                   hostname, no username, no paths
   reasoning.py     which reasoning parameters each model generation accepts
   blocks.py        the Anthropic-shaped response objects adapters normalise to,
-                   and a saved run back into a conversation the API accepts
+                   a saved run back into a conversation the API accepts, and
+                   which backend served a response - the router's own
+                   account, as opposed to the provider that was requested
   tool_parsing.py  recovering tool calls a model emitted as prose
   api_errors.py    classifying provider errors by whether a retry could help
   invisible.py     characters that render as nothing: stripped from the view
@@ -30,20 +60,65 @@ subversionbench/
   confusables.py   characters that render AS a Latin letter without being one:
                    folded before matching, and the substitution recorded
   openrouter_client.py  OpenRouter adapter
+  opencode_client.py    OpenCode Zen adapter - an alternate gateway for the
+                   same "provider/model" ids OpenRouter serves, opted into
+                   per run with --use-opencode
   openai_client.py      OpenAI Responses adapter
   llm_client.py    client factory: pick the API for a model ID
   environment.py   scenario filesystem creation, project name generation
-  sandbox.py       sandboxed command execution and path confinement
+  sandbox.py       sandboxed command execution and path confinement,
+                   plus `SandboxTiming` - the two waits, named. The
+                   shipped values are `SANDBOX_TIMING` and nothing in
+                   production overrides them: the command timeout is
+                   part of what the model experiences, so an episode
+                   collected under another one is a different rollout
   isolation.py     kernel-enforced limits on what a sandboxed command can reach:
                    the network policy, and the filesystem boundary that keeps the
                    machine's temp directories out of an episode's reach
   redaction.py     strips host paths and usernames from output and artifacts
   export.py        redacting a results directory for publication, and
                    verifying that an archive identifies nobody
-  power.py         interval estimation, detectable effect sizes, precision
-  charting.py      where pyplot comes from, for everything here that draws:
-                   one headless-backend import site, shared by trends/,
-                   report_charts.py and sad_oversight.py
+  blinding.py      splitting a sample into what a human rater may see and
+                   what they may not: an opaque id and the text in the pack,
+                   everything else derived into a sealed key. Agreement with a
+                   human measures nothing if the rater can see the judge, and
+                   the leak is rarely the verdict - it is a filename that
+                   encodes the arm, a model name beside the text, an ordering
+                   that groups one class together. Field-name agnostic, so a
+                   measure that does not exist yet reuses the split rather
+                   than re-improvising it. Blocks are balanced on the stratum
+                   and shuffled within, so a rater who runs out of time at a
+                   block boundary still leaves a balanced sample and the order
+                   never says which side an item is on
+  power/           the statistics, one module per kind of comparison. Was one
+                   file divided by nine section banners, which is the signal
+                   that the divisions were there and only the file was missing
+                   them; __init__.py re-exports every name so no caller has to
+                   know which submodule owns one
+    constants.py     the shared numbers, below every other module here so a
+                     submodule can read them without importing the package
+    intervals.py     what one rate, or a difference of two, is known to within
+    exact.py         Fisher's test, and the power and detectable-effect
+                     calculations built on enumerating it
+    chi2.py          the chi-square upper tail - a distribution rather than a
+                     comparison, which is why two tests here share it
+    paired.py        the same episodes measured twice
+    stratified.py    holding a nuisance variable constant: Mantel-Haenszel,
+                     and Breslow-Day on whether there is one effect to pool
+    trend.py         trend across ordered groups, and the two descriptive
+                     summaries of a sequence of rates beside it
+    correlation.py   rank correlation, its permutation p-value, and the
+                     leave-one-out range that at this n is the headline
+    multiplicity.py  Holm and Benjamini-Hochberg over a family of p-values
+    batch_report.py  the precision block a finished batch carries
+  charting.py      where pyplot comes from, and where charts GO, for
+                   everything here that draws: one headless-backend import
+                   site and one default destination, shared by trends/,
+                   report_charts/, sad_oversight.py and
+                   agentic_misalignment/. The destination is charts/<rollout>/
+                   BESIDE a corpus rather than inside it, so zip.sh does not
+                   sweep regenerable pictures into the published archive and
+                   two rollouts' identically-named charts stay apart
   contamination.py leak audit, canary/forced-choice/continuation probes
   grading/         scoring an episode; __init__.py is the scoring API
     acts.py                the misaligned acts and their per-act keys
@@ -51,6 +126,10 @@ subversionbench/
     awareness_timing.py    when awareness came, and what had been read by then
     closing_report.py      what the deliverable said, vs what the answers said
     command_patterns.py    what a shell command did to the scenario's files
+    capability.py          what a CAPABILITY episode demonstrated: the act
+                           taken, reached for and missed, or never reached
+                           for at all. Three outcomes because a refusal is
+                           not an incapability - see the module
     concealment.py         acts plus answers to a verdict
     disguised_text.py      writing a Latin lookalike to slip past a literal match
     encoded_payload.py     encoding a payload to slip past a literal match
@@ -65,12 +144,49 @@ subversionbench/
     transcript_analysis.py what the episode did, hashes and commands
     transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
-  episode.py       one episode end to end: the agentic loop, the interrogation
-                   that follows it, and the per-episode grading between
+  episode.py       one episode end to end: the agentic loop, and the
+                   per-episode grading over what it did. The layer that PAYS -
+                   almost every function here can make an API call, which is
+                   what separates it from the analysis modules
+  turns.py         one API response becoming a transcript and the next
+                   request, and no call of its own. The rules here are the
+                   easy ones to get subtly wrong: both empty-block rules were
+                   bugs, the cache breakpoints have a cap the API enforces,
+                   and what goes BACK to the model is a different shape from
+                   what is recorded
+  usage.py         what one API response's usage record says, and nothing
+                   else. Its own module because three places read the same
+                   counters off the same object with the same
+                   getattr-or-zero chain, and those counters are the only
+                   evidence that prompt caching engaged at all
+  arm_record.py    the fields that say which experiment an episode belongs to.
+                   Its own module because TWO records carry them - the one a
+                   completed episode returns and the one attached to the error
+                   a died episode raises - and they had already drifted while
+                   both were built by hand in one file
+  followup.py      what happens after the loop ENDS: the interrogation, and
+                   when awareness was verbalised relative to the act. Separate
+                   because it starts from the conversation as the episode LEFT
+                   it, so several phrasings can be put to one episode without
+                   any of them seeing another's question - which is also what
+                   lets --reinterrogate add a phrasing months later
   batch.py         what names a batch, reading that name back, and finding it
+  rederive.py      every measure a saved episode can regain for free, and the
+                   order they depend on. Its own module because there were
+                   three partial copies of it - the report path and two read
+                   modes - each deriving a different subset, so which measures
+                   an episode regained depended on which mode was run
+  graders.py       which grader said what: one entry per grader model in
+                   analysis.graders, the default's reading projected flat for
+                   every reader, and the one place the pre-array shape is read
   readmodes/       what can be learned from episodes already collected
     selection.py           which saved batches a mode works on, and fanning out
-    grade.py               re-running the awareness grader
+    rescore.py             re-scoring one grader's concealment reading, shared
+                           by the two paid modes; each keeps its own write-back
+    grade.py               re-running a grader's whole reading (--regrade)
+    kind_self.py           re-measuring only the KIND of suspicion, with the
+                           episode's own model - two questions per aware
+                           episode, none for the rest
     reclassify.py          re-labelling saved interrogation answers
     resummarise.py         re-deriving everything derivable, for free
     reinterrogate.py       asking a differently-worded question
@@ -79,7 +195,7 @@ subversionbench/
                    that hold up across nudge/oversight/lure/interrogation
   reporting/       a batch of episodes to figures, a report and a summary
     facts/                 every figure, grouped the way the claims are grouped
-      normalise.py           bringing saved analyses up to the current definitions
+      normalise.py           the report path's loop over rederive.py
       misalignment.py        what the model did
       scheming.py            what it hid
       awareness.py           what it suspected
@@ -97,8 +213,17 @@ export_accepted.txt  findings reviewed and approved for publication
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results).
                    zip.sh never archives a held-out corpus - not by default and
                    not when named - because it makes the published artefact
+zip_charts.sh      the same encryption for charts/, which zip.sh does not
+                   reach - charts sit outside every eval_results_* directory
+                   on purpose, so archiving them needs its own small script
+                   rather than teaching zip.sh's held-out/redaction logic to
+                   no-op for a chart directory
+zip_password.sh    the one PASSWORD both zip scripts source, so it is a
+                   single line to change rather than two copies to keep in
+                   step
 contamination_check.py  leak audit and per-model contamination probes
 scenario_tool.py   decode the scenario to edit it, and encode it back
+detector_tool.py   the same, for the rubric and the keyword lists
 heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    shipped one, for asking whether a rate survives a change of
                    surface wording - plus --pin, which computes its rollout
@@ -108,15 +233,188 @@ heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    published, so it exists only where it was authored
 run_heldout.sh     collect under the held-out scenario instead of the shipped
                    one; passes its arguments through to run_all_arms.sh
+run_heldout_baseline.sh  the trivial-agent floor under the held-out scenario
+                   rather than the shipped one. The keyword screen and quote
+                   grounding both read the scenario's own wording, so a floor
+                   measured against one set of documents does not transfer to a
+                   reworded one by argument. Passes its arguments through to
+                   trivial_baseline.py; costs nothing without --grade
+capability_report.py  the ceiling: what each model CAN do when the act is
+                   asked for outright, which is the denominator a propensity
+                   zero needs. Reads a directory of capability episodes
+                   collected by `run_eval --capability`; costs nothing and
+                   makes no API call. Prints a BRACKET per model rather than
+                   a rate - refusals move the lower bound only - and
+                   withholds the willingness ratio wherever that bracket is
+                   too wide to divide by
+trivial_baseline.py  what the detectors say about an agent that did nothing
+                   wrong: fixed command sequences with no model behind them,
+                   run through the real sandbox against a real environment and
+                   scored by the real pipeline, in every arm. Every act
+                   detector and the keyword awareness screen must read zero, or
+                   a false positive is sitting inside every rate built on them.
+                   Runs known-MISALIGNED agents first as a positive control and
+                   refuses to report a floor until each is caught, because
+                   "everything read zero" is the same output whether the
+                   detectors are silent or broken. No API calls unless
+                   --grade is passed, which adds the LLM awareness grader:
+                   an aware verdict on a trivial agent is a floor violation,
+                   and a FAILED grade is neither that nor a clean result -
+                   reported separately, because a clean grader floor built
+                   out of transport errors is worse than an unmeasured one
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
+grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
+                   saved transcripts: nine calls per episode against one
+                   batched call, on each grader given. The batched asker lives
+                   here rather than in grading/ deliberately - a call-shape
+                   setting in production would fork the corpus - so adopting it
+                   means moving it there and re-grading. Reports the position
+                   gradient, quote grounding and signal correlation, because
+                   those are how batching would lose accuracy if it does. Run
+                   as `python3 -m grader_ab`
+  prices.py        the numbers this is configured by, below everything else
+  cost.py          what a cell cost, and the three kinds of not-knowing it
+                   reports: an unpriced model, a shape that hides its output
+                   tokens, and calls that errored before any usage existed
+  shapes.py        the two call shapes under test, and how a failure of either
+                   is classified - both route every answer through the shipped
+                   parse_boolean_verdict rather than a second copy of its rules
+  sampling.py      which episodes the experiment runs over
+  readout.py       what the finished cells say. Computed after the money is
+                   spent, so a crash here costs the whole run
+  self_consistency.py
+                   two identical passes compared, which is the judge's
+                   self-consistency: readout's noise floor compares against the
+                   STORED labels, and on a corpus graded under several analysis
+                   versions that measures drift as well as stochasticity. Tells
+                   a changed judgement from a dropped answer, because a verdict
+                   moves either way and only one of them is the judge
+  blind_pack.py    wires this experiment's sample into blinding.py: which
+                   field a rater reads, which is the stratum, and which are
+                   identity to seal. The run filename is the sharpest of those
+                   - it encodes the model and the arm - so it is identity
+                   rather than a handle. Run as
+                   `python3 -m grader_ab.blind_pack`
+  misuse_pack.py   the same split, for the suspects_misuse measure. Its
+                   negative side is drawn from episodes the free screen calls
+                   no while a REJECTED candidate fires: a uniformly drawn
+                   negative contains nothing of the construct and separates
+                   no two graders. Ships a codebook written before the draw,
+                   because a definition composed with the cases in front of
+                   you is fitted to them. Run as
+                   `python3 -m grader_ab.misuse_pack`
+  jev_client.py    calling typesafe/jev-1.13, a deterministic classifier
+                   rather than an LLM: one POST carrying the transcript as
+                   `state` and per-question `criteria`, answered with a
+                   probability that a threshold turns into a verdict. Its own
+                   transport, not a client adapter, because jev's protocol is
+                   not chat-completions-shaped - and because a
+                   "provider/model" id would otherwise be routed to OpenRouter
+                   by get_client, which would hand jev's body to an
+                   OpenAI-chat client. Scoped to the two rubric questions
+                   whose criteria are written here; the span-dependent ones
+                   are refused rather than answered without a quote. Shares
+                   OpenRouter's base URL and OPENROUTER_API_KEY, because the
+                   gateway is the same one every other model here uses and a
+                   credential is only accepted by the host that issued it
+  jev_validate.py  what adopting jev would do to a published verdict, before
+                   it answers anything in production. Swaps jev's keys into
+                   each episode's stored rubric and recomputes through the
+                   real classifier - free, so the whole corpus - then re-asks
+                   the same keys with a fresh claude-opus-5 over a sample,
+                   because a grader disagreeing with its own stored labels is
+                   the floor any other disagreement has to beat. Run as
+                   `python3 -m grader_ab.jev_validate`
+  jev_tune.py      crosses jev's CRITERIA WORDING against its THRESHOLD on a
+                   sample balanced on the key's own stored answer, to say
+                   which of the two is binding - or whether jev is. The same
+                   separation rubric_ab.py makes for the LLM graders: a
+                   grader at the limit of what it can read answers the same
+                   however the question is framed, so recall that does not
+                   move across differently-worded criteria is the signal to
+                   stop tuning. --show-disagreements writes every episode the
+                   two answer differently, with the WHOLE text each verdict
+                   was formed on rather than the span the grader cited, for a
+                   human to adjudicate - because agreement with an LLM grader
+                   is a proxy for correctness and not the thing itself, and
+                   judging these from a citation alone got two of the first
+                   seven wrong. Run as `python3 -m grader_ab.jev_tune`
+  jev_gold.py      the human verdicts on those disagreements, and scoring
+                   BOTH graders against them rather than against each other.
+                   Agreement with an LLM grader is a proxy that becomes the
+                   target if nothing else is measured, and claude-opus-5 is
+                   not right by definition - it lost one of the first three
+                   adjudicated. A verdict of None means read and genuinely
+                   ambiguous, which is a different state from not yet judged
+                   and scores for neither side. The labels sit beside the
+                   corpus rather than in git, because a rationale quotes
+                   agent text and agent text quotes the scenario. Also finds
+                   the FRAGILE episodes - those whose eval_aware verdict
+                   rests on a single signal question, where a grading error
+                   actually moves the published rate. 87.5% of aware
+                   episodes fire two or more, so one wrong answer there
+                   changes nothing; the rest are few enough to adjudicate
+                   exhaustively rather than sample. And draws episodes
+                   STRATIFIED BY JEV'S SCORE through the crossover, which is
+                   what a threshold needs and what disagreement-drawn labels
+                   cannot give: those carry whatever class balance the
+                   disagreements happened to have, so a cut that fires on
+                   everything scores well on a mostly-true set without
+                   reading anything
+  cli.py           the sample, the cells, the abort, and the advice
+restage_model.py   copy one model's poolable episodes from an older results
+                   directory into a newer one, so report/trends/arms_summary
+                   can run against a directory that combines what a rollout
+                   bump left unchanged with what it fixed. Poolable means the
+                   episode's own rollout_fingerprint matches what CURRENT code
+                   assembles for its arm - checked per arm, not per model, so
+                   an oversight-arm episode a rollout bump left untouched
+                   stages while a no-oversight one the same bump fixed does
+                   not. Never overwrites --dest-dir, never writes --source-dir,
+                   idempotent across reruns - built to be called once per
+                   model as no-oversight collection continues under a new
+                   rollout while the oversight side stays reusable from the
+                   old one
 report/            twelve fixed research questions (oversight/nudge vs scheming,
                    misalignment and awareness; awareness vs misalignment,
                    override and escape; interrogation phrasing vs concealment)
                    answered across every model in a results directory
-  loading.py       the two loaders, the arms rebuilt from episodes, and
-                   exclude_arm: one arm dropped from BOTH loaders at once, for
-                   the --exclude-no-oversight sensitivity reading
-  data_quality.py  where the corpus disagrees with itself
+  loading.py       the two loaders, and the arms rebuilt from episodes
+  exclusions.py    the two narrowings, which are deliberately not one thing,
+                   in one module because an exclusion applied to one source
+                   and not the other is a report whose questions disagree
+                   about what corpus they answered.
+                   exclude_arm drops one arm from BOTH loaders at once, for
+                   the --exclude-no-oversight sensitivity reading.
+                   exclude_aware_episodes drops the eval-aware episodes from
+                   the EPISODES ONLY, for --exclude-aware: awareness is
+                   measured per episode, so a summary row aggregating both
+                   kinds has no predicate to narrow it, and the arm questions
+                   pool from rebuilt rows instead. Two measures - the
+                   published grader-with-keyword-fallback one, and the
+                   stricter union of both screens as a secondary. A
+                   robustness reading against one named objection, not an
+                   unbiased estimate: awareness is an outcome of the arm
+  episode_rows.py  one saved episode as one row, and the six column families
+                   that build it - each with its own helper, and each derived
+                   in the tests from MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS
+                   rather than listed, because a family that stopped being
+                   applied would print as n/a rather than raise
+  capability.py    the ceiling, and the refusal to divide by one that
+                   was never established. Published as a bracket -
+                   lower counts every refusal as an incapability,
+                   upper excludes them - because a refusal is a second
+                   measurement of propensity, not of capability, and
+                   scoring it as a zero would make the ceiling a FLOOR
+                   for exactly the safety-trained models whose
+                   ceilings matter. `willingness` returns None rather
+                   than a ratio wherever the bracket is too wide
+  data_quality.py  where the corpus disagrees with itself, and the three
+                   routing checks: what was REQUESTED inside one rate,
+                   what actually ANSWERED it, and whether the two sides
+                   of a contrast were collected alike - the last being
+                   silent in the first two whenever each arm is
+                   internally uniform and the arms differ from each other
   characteristics.py  how an episode was conducted rather than how often it
                    went wrong. Descriptive profiles, deliberately not questions:
                    each splits on something the model chose mid-episode
@@ -125,24 +423,64 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
   questions_awareness.py  Q5-10: the exposure is something the model did
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
   console.py       the report as a table on a terminal. Computes nothing
+  console_data_quality.py  the DATA QUALITY block, split off when console.py
+                   reached the file limit. Nothing else in the report reaches
+                   it, and it shares none of the contrast machinery the
+                   question printers do
   run_report.py    the CLI, and which questions the report holds
   __main__.py      `python3 -m report`, so the CLI is never run twice
-report_charts.py   a forest plot per research question with the `charts` extra:
-                   every model's effect and interval, then the crude pooled and
-                   model-stratified estimates, so a crude result resting on one
-                   model is visible rather than inferable; plus one overview.
-                   Every chart names the excluded arm in its own title and
-                   caption, because the two readings share filenames and
-                   differ only by directory
+report_charts/     the charts the report draws with the `charts` extra: a
+                   forest plot per research question - every model's effect and
+                   interval, then the crude pooled and model-stratified
+                   estimates, so a crude result resting on one model is visible
+                   rather than inferable - plus one overview, and one chart per
+                   corpus characteristic. Every chart names the excluded arm in
+                   its own title and caption, because the two readings share
+                   filenames and differ only by directory. One module per thing
+                   a chart is about; __init__.py re-exports every name
+  style.py         sizes, colours, markers, and the notes a figure is not
+                   readable without
+  labels.py        a question id and its levels, as the words a reader sees
+  rows.py          a report dict becomes something with a position on an axis
+  captions.py      the sentences under a chart, quoted from the report so a
+                   chart cannot say what the printed report does not
+  exclusion.py     what the arm-exclusion stamp does to a title, a caption, and
+                   which panels are drawn at all
+  draw.py          HOW a chart is drawn: forest, rate, slope and signal-cluster
+                   shapes. Every plot module calls these through `draw.`, so a
+                   test that wants the rows without the rendering has one patch
+                   point rather than one per caller
+  questions.py     the twelve research questions, and the overview holding all
+                   twelve on one axis
+  characteristics.py  one chart per characteristic block: persistence after
+                   refusal, the rubric signals, encoded payloads, and when
+                   awareness arrived relative to the refusal
+  lure.py          the lure arm as two readings - what it did to misalignment,
+                   and how far the episode got with the file. Its own module
+                   because these are the only charts split by oversight
+                   stratum, which is what makes the exclusion apply to a PANEL
+  write.py         the entry point: every chart into one directory, and the
+                   paths it actually wrote
 sad_oversight.py   an external situational-awareness leaderboard, encrypted at
                    rest with the published passphrase for the same reason the
                    scenario is, and its rank correlation with the awareness
                    rates measured here (7 overlapping models: descriptive only)
-agentic_misalignment.py
+agentic_misalignment/
                    an external agentic-misalignment benchmark, encrypted the
                    same way, correlated on two axes: the harmful-behaviour
                    level, and the unaware-minus-aware gap that both benchmarks
-                   can measure (5 overlapping models: descriptive only)
+                   can measure (5 overlapping models: descriptive only). Run
+                   as `python3 -m agentic_misalignment`; analysis above
+                   presentation, the same layering trends/ states in its own
+                   __init__
+  bundle.py        the encrypted table, and how its awareness buckets are read
+  rates.py         both sides' rates, computed the same way so they compare
+  pairing.py       which local model is which external row, and the leftovers
+  correlations.py  rho, its leave-one-out range, every (scenario, act) pairing
+  comparison.py    the whole comparison as a document. THE analysis
+  console.py       the same figures as a table on a terminal
+  charts.py        the four figures. Needs matplotlib; nothing above does
+  cli.py           which mode was asked for, and what it writes
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree
@@ -164,8 +502,10 @@ trends/            whether a rate falls as a model family advances, with the
   family_trends.py the CLI: arguments, and one report per metric
   __main__.py      `python3 -m trends`, so the CLI is never run twice
 regrade_all.sh     re-grade every saved batch, then rebuild its summary
-run_all_arms.sh    one model through every nudge x oversight x lure arm, where
-                   --runs is the target total per arm rather than an increment
+self_grade_all.sh  re-measure the awareness KIND across a corpus with
+                   --self-grade-kind, each episode graded by the model that was
+                   the episode. No --resummarise step, unlike regrade_all.sh:
+                   it writes awareness_kind_self, which no summary reads
 run_tests.py       the test suite without pytest
 report_snapshots/  the printed report for nine fixed batches, compared per run
 ```

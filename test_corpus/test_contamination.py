@@ -14,6 +14,7 @@ import conftest
 from pathlib import Path
 
 import subversionbench.contamination as cont
+import subversionbench.llm_client as ev_llm
 from subversionbench.scenario import SCENARIO
 
 
@@ -93,30 +94,47 @@ class TestLeakAudit:
         a comment reproducing it defeats that as completely as committing the
         plaintext would. This is the guard that makes the encoding worth having.
 
+        UNTRACKED FILES ARE AUDITED TOO, and that is not a refinement. A file
+        being written now is not in the index yet, so an audit over `git
+        ls-files` alone passes on it, and the leak only appears once it has
+        been committed - which is exactly the moment it stops being possible
+        to remove quietly. The check has to fire while the file is still a
+        working-tree change, so the list is tracked files PLUS everything
+        `--others --exclude-standard` reports: untracked and not ignored, which
+        is precisely the set about to become tracked. Ignored files are left
+        out on purpose; the decoded scenario and the corpora live there and are
+        supposed to hold this text.
+
         Skipped rather than failed outside a git checkout: the file list comes
-        from `git ls-files`, and an installed copy has no index to read.
+        from git, and an installed copy has no index to read.
         """
         import subprocess
 
-        try:
-            out = subprocess.run(["git", "ls-files"], capture_output=True,
-                                 text=True, timeout=30)
-        except (OSError, subprocess.SubprocessError):
-            import pytest
-            pytest.skip("git is not available")
-        if out.returncode != 0 or not out.stdout.strip():
-            import pytest
-            pytest.skip("not a git checkout")
+        def _git(*args):
+            try:
+                done = subprocess.run(["git", *args], capture_output=True,
+                                      text=True, timeout=30)
+            except (OSError, subprocess.SubprocessError):
+                return None
+            return done.stdout if done.returncode == 0 else None
 
-        paths = [p for p in out.stdout.splitlines() if p]
+        tracked = _git("ls-files")
+        if tracked is None or not tracked.strip():
+            import pytest
+            pytest.skip("not a git checkout, or git is unavailable")
+        pending = _git("ls-files", "--others", "--exclude-standard") or ""
+
+        paths = sorted({p for p in (tracked + "\n" + pending).splitlines()
+                        if p})
         report = cont.audit_paths(paths)
         # Paths only. Naming the shingles would print the leak in order to
         # report it, which is the mistake test_the_report_contains_no_scenario
         # _text exists to prevent.
         leaks = [(f["path"], f["shingles"]) for f in report["findings"]]
         assert not leaks, (
-            f"these tracked files reproduce scenario text: {leaks}. "
-            f"Paraphrase the quotation or move it into the bundle.")
+            f"these files reproduce scenario text: {leaks}. Paraphrase the "
+            f"quotation, or take the text from the environment at run time "
+            f"instead of writing it here.")
 
     def test_findings_are_worst_first(self):
         out = tempfile.mkdtemp()
@@ -428,7 +446,7 @@ class TestTheProbeRunnerSurvivesOneBadReply:
                 return "An analysis of the options", None   # the bad one
             return '{"choice": 0}', None
 
-        mod.get_client = lambda model: object()
+        ev_llm.get_client = lambda model: object()
         mod.ask = reply
         canary, fc, continuations = mod.probe_model(
             "p/m", items, [], delay=0, keep_prompts=False)
@@ -445,7 +463,7 @@ class TestTheProbeRunnerSurvivesOneBadReply:
         mod = self._module()
         items = cont.build_forced_choice(k=4, seed=0, limit=2)
         continuations = cont.build_continuations()[:1]
-        mod.get_client = lambda model: object()
+        ev_llm.get_client = lambda model: object()
         mod.ask = lambda c, m, p, max_tokens=400: ("not json at all", None)
         _canary, fc, cont_results = mod.probe_model(
             "p/m", items, continuations, delay=0, keep_prompts=False)
@@ -480,3 +498,75 @@ class TestTheItemFloorIsAnnouncedBeforeSpending:
         per_arm = min(sum(1 for i in items if i["source"] == s)
                       for s in ("scenario", "control"))
         assert per_arm >= cont.MIN_ITEMS_FOR_VERDICT
+
+
+class TestTheDelayPacesEveryProbeFamily:
+    """`--delay` exists because these probes fire back to back against one
+    model, and a throttled call is recorded as an error - which in this script
+    reads as the model declining to continue a document, i.e. as evidence
+    about contamination rather than about the connection.
+
+    Three loops, so three sleeps, and each is isolated here by running the
+    other two empty: a single total would be satisfied by any redistribution
+    of the same number of sleeps across the families.
+
+    Counted rather than timed. An absolute wall-clock assertion would have to
+    be tuned to one machine and would flake on a slower one.
+    """
+
+    def _module(self):
+        import importlib.util
+        path = conftest.PROJECT_ROOT / "contamination_check.py"
+        spec = importlib.util.spec_from_file_location("contamination_check",
+                                                      path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def _run(self, delay, limit=0, n_continuations=0):
+        """(what was slept, how many canary probes ran, how many items)."""
+        import contextlib
+        import io
+        mod = self._module()
+        slept = []
+        mod.time = type("Clock", (), {"sleep": staticmethod(slept.append)})()
+        ev_llm.get_client = lambda model: object()
+        mod.ask = lambda c, m, p, max_tokens=400: ('{"choice": 0}', None)
+        # `limit` caps per source rather than overall, so the item count is
+        # taken from what was actually built - a test that assumed it would
+        # be measuring its own arithmetic instead of the pacing.
+        items = cont.build_forced_choice(k=4, seed=0, limit=limit) if limit else []
+        continuations = cont.build_continuations()[:n_continuations]
+        with contextlib.redirect_stdout(io.StringIO()):
+            canary, fc, cont_results = mod.probe_model(
+                "p/m", items, continuations, delay=delay, keep_prompts=False)
+        assert len(cont_results) == n_continuations
+        return slept, len(canary), len(fc)
+
+    def test_no_delay_means_no_sleeping(self):
+        """The control for everything below: without it a count assertion
+        could pass against a script that slept on a schedule of its own."""
+        slept, n_canary, n_items = self._run(0, limit=2, n_continuations=1)
+        assert n_canary and n_items, "no probe ran, so nothing was measured"
+        assert slept == []
+
+    def test_every_canary_probe_is_paced(self):
+        slept, n_canary, n_items = self._run(0.25)
+        assert n_canary and not n_items
+        assert slept == [0.25] * n_canary
+
+    def test_every_forced_choice_item_but_the_last_is_paced(self):
+        """The one place the pacing is asymmetric, and deliberately: a sleep
+        after the final item paces nothing, since the next call belongs to the
+        continuation probe and carries its own delay."""
+        slept, n_canary, n_items = self._run(0.25, limit=3)
+        assert n_items > 1, "one item cannot show an off-by-one"
+        assert len(slept) == n_canary + n_items - 1
+        assert set(slept) == {0.25}
+
+    def test_every_continuation_document_is_paced(self):
+        one, n_canary, _ = self._run(0.25, n_continuations=1)
+        two, n_canary_2, _ = self._run(0.25, n_continuations=2)
+        assert n_canary == n_canary_2
+        assert len(one) == n_canary + 1
+        assert len(two) == n_canary + 2

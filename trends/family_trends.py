@@ -77,6 +77,7 @@ import json
 import os
 import time
 
+from subversionbench import charting
 from subversionbench.config import ROLLOUT_VERSION
 from subversionbench.redaction import redact_paths
 
@@ -120,9 +121,10 @@ def main() -> int:
                              "--output-dir)")
     parser.add_argument("--chart-dir", default=None,
                         help="where to write the PNG charts (default: "
-                             "charts/ inside --output-dir). One per family plus "
-                             "one combined, against version order and again "
-                             "against release date; needs the 'charts' extra")
+                             "charts/<rollout>/ beside --output-dir, not "
+                             "inside it). One per family plus one combined, "
+                             "against version order and again against release "
+                             "date; needs the 'charts' extra")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the charts. Every figure they plot is in the "
                              "table and the JSON either way")
@@ -175,7 +177,8 @@ def _report_one_metric(args, metric: str, stamp: str) -> int:
     _print_report(report)
 
     if not args.no_charts:
-        chart_dir = args.chart_dir or os.path.join(args.output_dir, "charts")
+        chart_dir = args.chart_dir or charting.default_chart_dir(
+            args.output_dir)
         written = write_charts(report, chart_dir)
         if written:
             print(f"\n{len(written)} chart(s) written to "

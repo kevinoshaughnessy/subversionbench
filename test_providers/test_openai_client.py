@@ -69,6 +69,94 @@ class TestResponsesTranslation:
         assert [b.type for b in blocks] == ["thinking", "text"]
         assert blocks[0].thinking == "I considered X."
 
+    def test_a_structured_tool_result_is_encoded_rather_than_stringified(self):
+        """The Responses API takes `output` as a string. A dict reaching it
+        raw is a request the API rejects, and repr() of one is not something
+        the model can read back - so it is JSON, chosen here rather than left
+        to whatever str() happens to produce."""
+        from subversionbench.openai_client import _to_responses_input
+        items = _to_responses_input({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "call_1",
+             "content": {"stdout": "ok", "exit_code": 0}},
+        ]})
+        assert items[0]["call_id"] == "call_1"
+        assert json.loads(items[0]["output"]) == {"stdout": "ok",
+                                                  "exit_code": 0}
+
+    def test_a_user_turn_of_text_blocks_becomes_one_user_message(self):
+        """The user side is not always a tool result: the opening prompt and
+        every follow-up arrive as text blocks. Dropping them would send the
+        model a turn with no instruction in it."""
+        from subversionbench.openai_client import _to_responses_input
+        items = _to_responses_input({"role": "user", "content": [
+            {"type": "text", "text": "First."},
+            {"type": "text", "text": "Second."},
+        ]})
+        assert items == [{"role": "user", "content": "First.\nSecond."}]
+
+    def test_a_user_turn_mixing_a_result_and_text_keeps_both(self):
+        """The result comes first, as its own item; the text follows as a
+        message. A tool result and the sentence that accompanies it are two
+        items to the Responses API, not one."""
+        from subversionbench.openai_client import _to_responses_input
+        items = _to_responses_input({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "c1", "content": "ok"},
+            {"type": "text", "text": "Now finish."},
+        ]})
+        assert [i.get("type") or i["role"] for i in items] == \
+            ["function_call_output", "user"]
+        assert items[1]["content"] == "Now finish."
+
+    def test_a_user_turn_of_whitespace_emits_no_message(self):
+        """Same rule the assistant side already follows: an empty turn is not
+        a turn. Sending one spends a request to say nothing."""
+        from subversionbench.openai_client import _to_responses_input
+        assert _to_responses_input(
+            {"role": "user", "content": [{"type": "text", "text": "   "}]}) == []
+
+    def test_a_function_call_comes_back_as_a_tool_use_block(self):
+        """The inbound half of the tool loop. Without it the harness sees a
+        turn with no tool call, ends the episode, and records the model as
+        having done nothing - on the route where it in fact acted."""
+        import types
+        from subversionbench.openai_client import _from_responses_output
+        response = types.SimpleNamespace(output=[
+            types.SimpleNamespace(type="function_call", call_id="call_7",
+                                  name="bash",
+                                  arguments='{"command": "ls -la"}')])
+        blocks = _from_responses_output(response)
+        assert [b.type for b in blocks] == ["tool_use"]
+        assert blocks[0].id == "call_7"
+        assert blocks[0].name == "bash"
+        assert blocks[0].input == {"command": "ls -la"}
+
+    def test_unparseable_arguments_give_an_empty_input_not_a_crash(self):
+        """A model that emits malformed JSON for its arguments is one bad
+        turn. Raising here would end the whole episode instead, and the
+        sandbox refuses an empty command on its own terms."""
+        import types
+        from subversionbench.openai_client import _from_responses_output
+        response = types.SimpleNamespace(output=[
+            types.SimpleNamespace(type="function_call", call_id="c",
+                                  name="bash", arguments="{not json")])
+        blocks = _from_responses_output(response)
+        assert blocks[0].type == "tool_use" and blocks[0].input == {}
+
+    def test_a_reasoned_tool_call_keeps_both_in_order(self):
+        """The shape a thinking model actually returns, and the one the
+        grader reads: the reasoning has to stay attached to the call it
+        preceded."""
+        import types
+        from subversionbench.openai_client import _from_responses_output
+        response = types.SimpleNamespace(output=[
+            types.SimpleNamespace(type="reasoning", summary=[
+                types.SimpleNamespace(text="I should look first.")]),
+            types.SimpleNamespace(type="function_call", call_id="c",
+                                  name="bash", arguments='{"command": "ls"}'),
+        ])
+        assert [b.type for b in _from_responses_output(response)] == \
+            ["thinking", "tool_use"]
+
     def test_an_empty_reasoning_summary_is_dropped(self):
         """The model reasoned but returned no summary. Recording an empty
         thinking block would make the transcript claim evidence it does not
@@ -252,3 +340,130 @@ class TestTheKeyIsCheckedBeforeAnythingIsSent:
         finally:
             if saved is not None:
                 os.environ["OPENAI_API_KEY"] = saved
+
+
+class TestExplicitPromptCaching:
+    """Anthropic reads 98.5% of its input back from cache on this corpus and
+    this route read 56%, because the `cache_control` markers already in every
+    request were dropped on the way out. GPT-5.6 and later take an explicit
+    breakpoint of their own; earlier models reject the parameters, so the gate
+    has to be right in both directions.
+    """
+
+    _MARKED = [{"type": "text", "text": "TRANSCRIPT",
+                "cache_control": {"type": "ephemeral"}},
+               {"type": "text", "text": "QUESTION"}]
+
+    def _sent(self, model, content=None, messages=None):
+        from subversionbench.openai_client import OpenAIClient
+        captured = {}
+
+        class _Fake:
+            class responses:
+                @staticmethod
+                def create(**kwargs):
+                    captured.update(kwargs)
+                    return types.SimpleNamespace(output=[], usage=None,
+                                                 status="completed")
+
+        client = OpenAIClient.__new__(OpenAIClient)
+        client._client = _Fake()
+        client.create(model=model, max_tokens=300, system="SYS",
+                      messages=messages or [{"role": "user", "content": content}])
+        return captured
+
+    def test_the_floor_is_read_off_the_version_in_both_directions(self):
+        """Derived from the version rather than a list of model names, and
+        checked below the floor as well as above it: sending these parameters
+        to a model that does not take them is a 400 on every call."""
+        from subversionbench.openai_client import _supports_explicit_cache
+
+        for model in ("gpt-5.6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-7"):
+            assert _supports_explicit_cache(model) is True, model
+        for model in ("gpt-5.4", "gpt-5", "gpt-4o", "gpt-4.1"):
+            assert _supports_explicit_cache(model) is False, model
+
+    def test_an_unreadable_id_falls_back_to_implicit_caching(self):
+        """Fails CLOSED. An ID this cannot parse gets what every call on this
+        route had before explicit mode existed, rather than a parameter the
+        model may reject."""
+        from subversionbench.openai_client import _supports_explicit_cache
+
+        for model in ("o3", "", "some-new-model", "claude-opus-5"):
+            assert _supports_explicit_cache(model) is False, model
+
+    def test_a_marked_block_carries_a_breakpoint(self):
+        sent = self._sent("gpt-6-sol", self._MARKED)
+        assert sent["prompt_cache_options"] == {"mode": "explicit",
+                                                "ttl": "30m"}
+        parts = sent["input"][0]["content"]
+        assert parts[0]["prompt_cache_breakpoint"] == {"mode": "explicit"}
+        assert parts[0]["text"] == "TRANSCRIPT"
+        assert "prompt_cache_breakpoint" not in parts[1], (
+            "the varying suffix must stay outside the cached prefix")
+
+    def test_an_older_model_is_sent_neither_parameter(self):
+        sent = self._sent("gpt-5.4", self._MARKED)
+        assert "prompt_cache_options" not in sent
+        assert sent["input"][0]["content"] == "TRANSCRIPT\nQUESTION", (
+            "below the floor the request must keep the shape it always had")
+
+    def test_an_unmarked_request_keeps_the_joined_string(self):
+        """The shape changes only where a breakpoint is added to it, so a
+        caller that never asked for caching sends what it always sent."""
+        sent = self._sent("gpt-6-sol", [{"type": "text", "text": "A"},
+                                        {"type": "text", "text": "B"}])
+        assert sent["input"][0]["content"] == "A\nB"
+
+    def test_the_text_survives_the_translation_either_way(self):
+        """The breakpoint must not cost, reorder or re-space any of the prompt
+        - the same text reaches the model whichever shape carries it. Compared
+        EXACTLY: an earlier version stripped every newline from both sides
+        before comparing, and so passed while the parts dropped the separator
+        the joined string had between blocks."""
+        marked = self._sent("gpt-6-sol", self._MARKED)["input"][0]["content"]
+        plain = self._sent("gpt-5.4", self._MARKED)["input"][0]["content"]
+        assert "".join(p["text"] for p in marked) == plain
+
+    def test_an_episode_turn_keeps_implicit_caching(self):
+        """An episode marks its newest tool_result, which becomes a
+        function_call_output with no breakpoint on this route. Explicit mode
+        with no breakpoint would switch the model under test off implicit
+        prefix caching and cache nothing instead."""
+        sent = self._sent("gpt-6-sol", messages=[
+            {"role": "user", "content": "the opening turn"},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "c1", "content": "ok",
+                 "cache_control": {"type": "ephemeral"}}]},
+        ])
+        assert "prompt_cache_options" not in sent
+
+    def test_a_bare_string_request_keeps_implicit_caching(self):
+        """The interrogation classifier's shape: its only marker is on the
+        system prompt, which travels as `instructions`."""
+        sent = self._sent("gpt-6-sol", "a plain prompt")
+        assert "prompt_cache_options" not in sent
+
+    def test_a_marked_turn_keeps_its_tool_result_out_of_the_text_parts(self):
+        """A user turn can hold a tool result beside marked text. The result
+        is its own function_call_output; folding it into the text parts would
+        send it twice and move the breakpoint off the prefix it marks."""
+        sent = self._sent("gpt-6-sol", [
+            {"type": "tool_result", "tool_use_id": "c1", "content": "ok"},
+            *self._MARKED])
+        output, message = sent["input"]
+        assert output == {"type": "function_call_output", "call_id": "c1",
+                          "output": "ok"}
+        assert [p["text"] for p in message["content"]] == [
+            "TRANSCRIPT", "\nQUESTION"]
+        assert "prompt_cache_breakpoint" in message["content"][0]
+
+    def test_a_block_given_as_an_object_is_read_the_same_as_a_dict(self):
+        """Every other block read on this route accepts both shapes, so a
+        breakpoint on an object block must not be silently lost."""
+        blocks = [types.SimpleNamespace(**b) if "cache_control" in b
+                  else types.SimpleNamespace(**b, cache_control=None)
+                  for b in self._MARKED]
+        parts = self._sent("gpt-6-sol", blocks)["input"][0]["content"]
+        assert parts[0]["prompt_cache_breakpoint"] == {"mode": "explicit"}
+        assert "prompt_cache_breakpoint" not in parts[1]

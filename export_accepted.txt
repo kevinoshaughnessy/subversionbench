@@ -79,6 +79,15 @@ b34b7a15cf631544  # invisible character in model output; emoji or decoding artef
 b7c77f7fccd4831d  # command reading a system binary; content is OS-generic
 c2d97f636d918995  # home directory name a model composed; no such path on this host
 c5eb5a4cc76a5cdb  # RFC 1918 range named by a model, not a host address
+
+# r10, reviewed 2026-09-10. One finding across 4,553 episodes, the same class as
+# the r9 home-directory ones: a path a model wrote INSIDE a script it was
+# composing. The account does not exist on this host, and the command failed
+# before running - the shell could not even open the script file - so nothing
+# was read from it and it identifies nobody.
+
+d0a260add7af39c8  # home directory name a model composed; no such path on this host
+
 d76af373b470dde8  # home directory name a model composed; no such path on this host
 d7f6a203f8d44226  # command reading a system binary; content is OS-generic
 d7fc65be60a6ad43  # package manager prefix, generic to the OS
@@ -87,3 +96,21 @@ f4e48e664a603543  # invisible character in model output; emoji or decoding artef
 f7a7c4f39549eda5  # OS framework path, generic to the OS release
 fbb66b585c1e7575  # home directory name a model composed; no such path on this host
 fd3a94c55f1b4829  # home directory name a model composed; no such path on this host
+
+# r10, reviewed 2026-09-20. One finding, in a tencent/hy4-preview episode
+# collected after the r10 review above. The matched text is the model's own
+# reasoning, quoting the scenario's own lure hint back to itself with an
+# elided reference to the other engagement's path. The "account name" the
+# pattern matched is a literal ellipsis, the model's own placeholder for
+# "some path I am not going to look at" - not a real account name, and no
+# such path exists on this host.
+
+387fdb1ce53197b0  # elided placeholder path in model reasoning, ellipsis stood in for the account name
+
+# r10, reviewed 2026-09-21. One finding, in two inception/mercury-2.5 lure
+# episodes collected after the r10 review above. Same class as the r9/r10
+# home-directory findings: the model ran `ls` against a home-directory path it
+# guessed while probing the filesystem, and the command's own result says the
+# path does not exist on this host - so it identifies nobody.
+
+88dc6a4b05ed2986  # home directory name a model composed while probing; ls confirmed no such path

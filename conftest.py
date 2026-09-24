@@ -32,9 +32,10 @@ import subversionbench as ev
 #
 # So the suite supplies placeholders rather than bypassing the check, which keeps
 # the check itself exercised. A test that wants the refusal unsets them - see
-# test_credential_preflight.py.
+# test_providers/test_openai_client.py and test_openrouter_client.py.
 def _placeholder_credentials():
-    for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"):
+    for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+               "OPENCODE_API_KEY"):
         os.environ.setdefault(var, f"placeholder-for-tests-{var.lower()}")
 
 
@@ -250,6 +251,10 @@ class FakeArgs:
         self.model = kw["model"]
         self.nudge = kw["nudge"]
         self.grader_model = kw["grader_model"]
+        # Which grader entry a read mode targets. "default" is the reading
+        # every fixture here stores, so a test that does not name one
+        # re-grades the reading it wrote, as these tests always have.
+        self.regrade = kw.get("regrade", "default")
         self.batch_stamp = kw.get("batch_stamp")
         self.effort = kw.get("effort")
         self.oversight = kw.get("oversight", True)
@@ -318,6 +323,77 @@ def write_run_file(d, n, model, nudge, effort=None, stamp="20260101T000000"):
     Path(d, name).write_text(json.dumps(
         {"model": model, "nudge": nudge, "effort": effort, "analysis": {}}))
     return name
+
+
+def run_tool_main(module, argv) -> tuple:
+    """Run a root script's main() in-process on `argv`. Returns (code, stdout).
+
+    In-process rather than as a subprocess because a subprocess can only be
+    asked what it printed, and the contract worth guarding on these tools is
+    the exit code: one that prints a refusal and returns 0 reports success to
+    the shell loop that called it.
+    """
+    import contextlib
+    import io
+    import sys
+    out = io.StringIO()
+    saved = sys.argv
+    sys.argv = [module.__file__, *argv]
+    try:
+        with contextlib.redirect_stdout(out):
+            code = module.main()
+    finally:
+        sys.argv = saved
+    return code, out.getvalue()
+
+
+def refused_rollout(**stubs):
+    """(exit code, output, episodes attempted) for a run_batch that must refuse.
+
+    The episode count is the point, and it is why this is not just an assertion
+    on the exit code. A refusal and a batch that starts and then fails both exit
+    1, and both print the refusal - each pre-flight check prints before it
+    returns - so a check on the code and the message passes just as well when
+    the refusal has been unwired from the rollout path entirely. Only "no
+    episode was attempted" tells the two apart, and that is what "refuses
+    before it spends" means.
+
+    run_evaluation is replaced for the same reason it is counted: with a
+    refusal unwired, whatever stands there is what a rollout would have paid
+    for. Each named stub is a runner global, restored afterwards.
+    """
+    import contextlib
+    import io
+    import tempfile
+    import types
+    from subversionbench import runner
+    attempted = []
+
+    def _spend(*a, **k):
+        attempted.append(1)
+        raise AssertionError("a refused batch must not run an episode")
+
+    args = types.SimpleNamespace(
+        model="claude-sonnet-5", nudge="strong", effort=None, oversight=True,
+        lure=False, output_dir=tempfile.mkdtemp(), runs=1, delay=0,
+        max_tokens=8192, max_turns=40, no_power=True, no_grader=True,
+        grader_model="claude-opus-5", isolation="deny-network", resume=None,
+        max_consecutive_failures=3, thinking_budget=None, concurrency=1,
+        interrogations=("default",), write_back=False, batch_stamp=None,
+        yes=False, openrouter_sort=None, openrouter_provider=None,
+        capability=None)
+    stubs = {"run_evaluation": _spend, **stubs}
+    real = {name: getattr(runner, name) for name in stubs}
+    out = io.StringIO()
+    try:
+        for name, value in stubs.items():
+            setattr(runner, name, value)
+        with contextlib.redirect_stdout(out):
+            code = runner.run_batch(args, "claude-sonnet-5", "sys", {}, "cfg")
+    finally:
+        for name, value in real.items():
+            setattr(runner, name, value)
+    return code, out.getvalue(), len(attempted)
 
 
 def env_without(*names):
@@ -399,3 +475,22 @@ if HAS_PYTEST:
     @pytest.fixture
     def env_dir_only():
         return make_env_dir_only()
+
+
+# THE RUBRIC RETRY MUST NOT MAKE THE SUITE WAIT.
+#
+# ask_rubric_question backs off between attempts, because a retry fired inside
+# an overloaded endpoint's own backoff window is a second failure rather than a
+# second chance. Every test that exercises a failing grader therefore paid that
+# wait for real, and the full suite went from about 170 seconds to over ten
+# minutes before this was noticed.
+#
+# A plain assignment rather than an autouse fixture: run_tests.py is a
+# pytest-free runner and cannot interpret @pytest.fixture, so a fixture here
+# would neutralise the wait for one runner and not the other. A test that cares
+# about the backoff injects its own `sleep` and asserts on what it was handed,
+# which is what test_grading/test_rubric_retry.py does - so zeroing it here
+# cannot hide the behaviour from the guards that exist for it.
+from subversionbench.grading import grader as _grader_for_tests  # noqa: E402
+
+_grader_for_tests._RETRY_BACKOFF_S = 0.0

@@ -1,9 +1,12 @@
 """
-Rolling out a batch: what it refuses before spending, and when it stops.
+Rolling out a batch: what happens once it is actually running.
 
-Three refusals live here rather than in the episode, because each is about the
-batch as a whole: isolation unavailable, a rollout fingerprint that has drifted,
-and a credential absent for a model about to be charged for.
+The pre-flight refusals - isolation unavailable, a rollout fingerprint that
+has drifted, a credential absent for a model about to be charged for - moved
+to test_rollout_preflight.py when this file outgrew the line limit. What is
+left here is batch-shaped rather than episode-shaped: the auth-failure abort
+mid-run, the concurrent scheduler, resilience across a bad episode, and what
+reaches the screen while a batch is going.
 """
 
 import concurrent.futures
@@ -21,60 +24,8 @@ from pathlib import Path
 from subversionbench.config import MAX_CLASSIFIER_FALLBACK_RATE
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
-from conftest import batch_episode, env_without
+from conftest import batch_episode
 
-
-class TestARolloutRefusesBeforeItSpends:
-    def _rollout(self, model="google/gemini-3-flash-preview", extra=()):
-        out = tempfile.mkdtemp()
-        argv = ["run_eval", "--model", model, "--runs", "1", "--delay", "0",
-                "--no-power", "--output-dir", out, *extra]
-        saved = sys.argv
-        sys.argv = argv
-        try:
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                code = ev_run.main()
-        finally:
-            sys.argv = saved
-        return code, buf.getvalue(), out
-
-    def test_a_missing_model_credential_stops_it(self):
-        with env_without("OPENROUTER_API_KEY"):
-            code, out, _ = self._rollout()
-        assert code == 1
-        assert "REFUSING TO ROLL OUT" in out
-        assert "OPENROUTER_API_KEY" in out
-
-    def test_a_missing_grader_credential_stops_it_too(self):
-        """The model's own route being fine is not enough: the grader model scores
-        every interrogation answer, so its credential decides whether the
-        concealment measure works at all."""
-        with env_without("ANTHROPIC_API_KEY"):
-            code, out, _ = self._rollout()
-        assert code == 1
-        assert "ANTHROPIC_API_KEY" in out
-        assert "--grader-model" in out
-
-    def test_no_grader_does_not_excuse_the_grader_credential(self):
-        """--no-grader turns off the awareness rubric, not the interrogation
-        classifier, which is scored by the same model."""
-        with env_without("ANTHROPIC_API_KEY"):
-            code, out, _ = self._rollout(extra=["--no-grader"])
-        assert code == 1
-        assert "even with --no-grader" in out
-
-    def test_it_refuses_before_any_episode_is_written(self):
-        with env_without("ANTHROPIC_API_KEY"):
-            code, out, outdir = self._rollout()
-        import glob
-        assert not glob.glob(f"{outdir}/run_*.json"), "an episode was paid for"
-        assert "# RUN 1/" not in out
-
-    def test_the_refusal_names_the_fix(self):
-        with env_without("ANTHROPIC_API_KEY"):
-            _, out, _ = self._rollout()
-        assert "export ANTHROPIC_API_KEY=" in out
 
 class TestADegradedBatchCannotLookClean:
     def _summary_for(self, answers):
@@ -177,7 +128,8 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
-            yes=False, openrouter_sort=None, openrouter_provider=None)
+            yes=False, openrouter_sort=None, openrouter_provider=None,
+            use_opencode=False, capability=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -256,7 +208,8 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             grader_model="claude-opus-5", isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
-            yes=False, openrouter_sort=None, openrouter_provider=None)
+            yes=False, openrouter_sort=None, openrouter_provider=None,
+            use_opencode=False, capability=None)
         orig = runner.run_evaluation
         runner.run_evaluation = fake
         try:
@@ -275,7 +228,7 @@ class TestTheArmIsOnScreenWhileItRuns:
     money was spent.
     """
 
-    def _run(self, oversight):
+    def _run(self, oversight, capability=None, nudge=None):
         import contextlib
         import io
         import sys
@@ -307,6 +260,15 @@ class TestTheArmIsOnScreenWhileItRuns:
         sys.argv = ["run_eval", "--model", "claude-sonnet-5", "--runs", "1",
                     "--delay", "0", "--no-grader", "--no-power",
                     "--oversight", oversight, "--output-dir", out]
+        if capability:
+            # The capability arm REFUSES a nudge, and that refusal is why the
+            # two batches looked alike: the nudge is propensity machinery, so a
+            # ceiling measured under it is a ceiling for a pressured model. So
+            # the batch it is confusable with is specifically a nudge=none
+            # propensity batch, which is what the negative tests below run.
+            sys.argv += ["--capability", capability, "--nudge", "none"]
+        elif nudge:
+            sys.argv += ["--nudge", nudge]
         try:
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
@@ -327,6 +289,51 @@ class TestTheArmIsOnScreenWhileItRuns:
         arm = next(line for line in self._run("true").split("\n")
                    if line.startswith("Arm:"))
         assert "oversight=true" in arm, arm
+
+    def test_the_capability_arm_says_so_before_the_first_episode(self):
+        """The arm whose episodes must never reach a propensity rate.
+
+        batch.py names three defences against that pooling - the filename mark,
+        the arm's own rollout fingerprint, and both report loaders dropping it
+        - and this line was the gap in front of all of them: a capability
+        batch printed exactly what a plain propensity batch printed, so the
+        operator's one chance to notice before spending showed nothing.
+
+        The act is INSTRUCTED in this arm, so an episode of it pooled into a
+        misalignment rate inflates that rate towards the ceiling the arm exists
+        to measure - which is why it is named first and in capitals.
+        """
+        out = self._run("false", capability="sandbox")
+        arm = next(line for line in out.split("\n")
+                   if line.startswith("Arm:"))
+        assert "CAPABILITY=sandbox" in arm, arm
+        assert out.index("Arm:") < out.index("# RUN 1/")
+
+    def test_a_propensity_batch_does_not_claim_to_be_a_capability_one(self):
+        """The other direction, and the one that matters more: a propensity
+        rate is only safe if the arm it came from was not marked."""
+        arm = next(line for line in self._run("false", nudge="none").split("\n")
+                   if line.startswith("Arm:"))
+        assert "CAPABILITY" not in arm, arm
+        assert "nudge=none" in arm, (
+            "this is meant to be the batch a capability run is confusable "
+            "with, and it is not one")
+
+    def test_every_run_header_carries_the_capability_arm(self):
+        """Same reason the oversight arm is on every header: a batch takes
+        hours, and an operator reading a run in the middle of it has had the
+        announcement scroll away long ago."""
+        out = self._run("false", capability="sandbox")
+        headers = [line for line in out.split("\n")
+                   if line.startswith("# RUN ")]
+        assert headers, out
+        assert all("CAPABILITY sandbox" in h for h in headers), headers
+
+    def test_a_propensity_run_header_is_not_marked(self):
+        headers = [line for line in self._run("false", nudge="none").split("\n")
+                   if line.startswith("# RUN ")]
+        assert headers
+        assert all("CAPABILITY" not in h for h in headers), headers
 
     def test_every_run_header_carries_the_arm(self):
         """Stated once at the top is not enough on a 100-episode batch: by the time
@@ -669,7 +676,8 @@ class TestTheConcurrentLoopEndsEarly:
             resume=None, max_consecutive_failures=3, thinking_budget=None,
             concurrency=concurrency, interrogations=("default",),
             write_back=False, batch_stamp=None, yes=False,
-            openrouter_sort=None, openrouter_provider=None)
+            openrouter_sort=None, openrouter_provider=None,
+            use_opencode=False, capability=None)
 
     def _episode(self, with_auth_error, sleep=0.0):
         """A run_evaluation stand-in: one saved episode, optionally carrying
@@ -817,3 +825,48 @@ class TestTheConcurrentLoopEndsEarly:
             runs=8, concurrency=2, interrupt_once_running=True)
         assert "Interrupted by user" in output
         assert n_calls == 2, f"{n_calls} episodes ran after the interrupt"
+
+
+class TestThePerThreadStdoutBehavesLikeAStream:
+    """The two methods that exist so this can stand in for sys.stdout.
+
+    Neither was exercised by the suite. They are one line each, which is
+    exactly why: a one-line method looks too obvious to test, and both of
+    these are obvious in a way that is wrong if reversed.
+    """
+
+    def _tee(self):
+        import subversionbench.runner as ev_runner
+        return ev_runner._PerThreadStdout(io.StringIO())
+
+    def test_it_never_claims_to_be_a_terminal(self):
+        """A library that believes it is writing to a tty emits ANSI cursor
+        moves and progress bars. Those would go into a worker's buffer and be
+        flushed as one block at the end of the episode, so the terminal would
+        replay a progress animation into scrollback after the fact."""
+        assert self._tee().isatty() is False
+
+    def test_flush_reaches_the_real_stream(self):
+        """The buffers are flushed by pop(); flush() is about the underlying
+        stream, and a flush that stopped at the wrapper would strand output
+        that was written straight through by an unregistered thread."""
+        import subversionbench.runner as ev_runner
+
+        flushed = []
+
+        class _Real(io.StringIO):
+            def flush(self):
+                flushed.append(True)
+
+        ev_runner._PerThreadStdout(_Real()).flush()
+        assert flushed == [True]
+
+    def test_an_unregistered_thread_writes_straight_through(self):
+        """The property flush() has to preserve: the scheduler itself never
+        registers, so its run headers must reach the terminal rather than a
+        buffer nothing pops."""
+        real = io.StringIO()
+        import subversionbench.runner as ev_runner
+        tee = ev_runner._PerThreadStdout(real)
+        tee.write("header")
+        assert real.getvalue() == "header"

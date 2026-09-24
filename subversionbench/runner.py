@@ -24,11 +24,13 @@ import sys
 import threading
 import time
 
+from .artefact_dates import DEFAULT as _DATE_DEFAULT
 from .batch import BatchIdentity, unique_batch_stamp
 from .blocks import serialise_messages
-from .config import ROLLOUT_FINGERPRINTS
+from .config import capability_fingerprint_for, fingerprint_for
 from .environment import create_episode_root
 from .episode import EpisodeAPIError, run_evaluation
+from .graders import view
 from .grading import MISALIGNED_ACTS, auth_error_in_analysis
 from .isolation import (confinement_available, isolation_available,
                         probe_isolation, profile_for, verify_confinement,
@@ -37,6 +39,7 @@ from .llm_client import missing_credential
 from .redaction import redact_paths
 from .reporting.summary import summarise_batch
 from .rollout import rollout_drift_error
+from .rollout_pins import date_fingerprint_for, goalguard_fingerprint_for
 from .scenario import scenario_for
 
 
@@ -260,7 +263,11 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
     """
     run_file = identity.filename(args.output_dir, f"run_{i + 1}")
     episode_root, env_dir, env_info = create_episode_root(
-        args.oversight, lure=args.lure)
+        args.oversight, lure=args.lure,
+        date_mode=getattr(args, "date_mode", None),
+        goalguard=getattr(args, "goalguard", None),
+        capability=getattr(args, "capability", None),
+        nudge=args.nudge)
 
     try:
         result = run_evaluation(
@@ -273,6 +280,8 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
             max_tokens=args.max_tokens,
             reasoning_kwargs=reasoning_kwargs,
             reasoning_config=reasoning_config,
+            date_mode=getattr(args, "date_mode", None),
+            goalguard=getattr(args, "goalguard", None),
             effort=effective_effort,
             use_grader=not args.no_grader,
             grader_model=args.grader_model,
@@ -285,6 +294,8 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
             episode_root=episode_root,
             openrouter_sort=args.openrouter_sort,
             openrouter_provider=args.openrouter_provider,
+            use_opencode=args.use_opencode,
+            capability=args.capability,
         )
     except Exception as e:
         cause = e.cause if isinstance(e, EpisodeAPIError) else e
@@ -320,7 +331,10 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
         json.dump(result_to_save, f, indent=2, default=str)
     print(f"\nSaved: {redact_paths(run_file)}")
 
-    auth_error = auth_error_in_analysis(result.get("analysis") or {})
+    # The reading of the grader this batch ran, which is the one whose
+    # credentials an auth error would be about.
+    auth_error = auth_error_in_analysis(
+        view(result.get("analysis") or {}, args.grader_model))
     return {"ok": True, "run": i + 1, "result": result_to_save,
             "auth_error": auth_error, "env_dir": env_dir}
 
@@ -440,46 +454,17 @@ def _run_episodes_concurrently(args, identity, system_prompt, user_prompt,
             progress.interrupted, total_wait[0])
 
 
-def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
-              reasoning_config: str) -> int:
+def _enforce_network_boundary(args) -> tuple:
     """
-    Collect one batch and summarise it. Returns a process exit code.
+    The network policy, applied and verified, or a refusal.
 
-    `reasoning_kwargs` and `reasoning_config` are what the CLI resolved from the
-    model's API generation - the parameters actually sent, and the human-readable
-    form of them recorded in the summary. The effort level is derived from the
-    former rather than passed, because the level SENT is the only one this batch may
-    be labelled with and re-deriving it here removes the chance of the two
-    disagreeing.
+    Returns (ok, profile path). Split from the filesystem boundary below
+    because the mechanisms differ: `unshare --net` can enforce this one and
+    cannot enforce that one.
     """
-    if args.concurrency < 1:
-        print(f"\n--concurrency must be at least 1, got {args.concurrency}.")
-        return 1
-
-    effective_effort = (reasoning_kwargs.get("output_config") or {}).get("effort")
-
-    # Past this point we are rolling out, so the batch is labelled with the effort
-    # that will actually be SENT rather than the one typed. That used to be done by
-    # assigning back onto args.effort, which was only safe because it happened after
-    # the read modes above - whose --effort is a filter the operator typed and must
-    # survive verbatim. The label now travels in the batch's identity instead, so
-    # the two cannot be confused by placement.
-
-    # And past this point new episodes are about to be written into a results
-    # directory named for a rollout. If the rollout has drifted from the one
-    # that directory holds, the two are different experiments and pooling them
-    # is the error this exists to prevent. Checked only for rollout modes: the
-    # read-only modes re-derive analysis from saved transcripts and must keep
-    # working against archived results whatever the current scenario says.
-    # The counterfactual arm has its own user prompt: the r1 one names the
-    # quality check, which the arm must not mention. The system prompts carry
-    # no oversight reference and are shared by both arms unchanged.
-    user_prompt = scenario_for(args.oversight)["user_prompt"]
-
     # No opt-out: every rollout runs under a policy. isolation.profile_for()
     # owns the policy file, so nothing here has to know that one platform needs
     # one on disk.
-    profile_path = None
     if not isolation_available(args.isolation):
         # Refuse rather than silently downgrade: a run that reports a policy
         # it did not apply is worse than one that will not start. But say
@@ -493,7 +478,7 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
         print("  There is deliberately no way to run without containment: "
               "the blocklist is not a boundary, and a model with shell "
               "access would be able to reach the network.")
-        return 1
+        return False, None
     profile_path = profile_for(args.isolation)
     # Verified, not trusted: a profile that silently fails to apply looks
     # exactly like one that works - the model simply reaches the network and
@@ -501,11 +486,15 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     failure = verify_isolation(args.isolation, profile_path)
     if failure:
         print(f"\nIsolation did not hold. Refusing to roll out.\n  {failure}")
-        return 1
+        return False, None
     probe = probe_isolation(args.isolation, profile_path)
     print(f"Isolation: {args.isolation} (verified: loopback "
           f"{probe['loopback']}, off-host {probe['external']})")
+    return True, profile_path
 
+
+def _enforce_filesystem_boundary(args) -> bool:
+    """The episode tree as the only readable tree, verified, or a refusal."""
     # The filesystem boundary, checked separately from the network one because the
     # mechanisms differ in exactly this: `unshare --net` can enforce the network
     # policy and cannot enforce this one.
@@ -517,7 +506,7 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
               "temp directory - which is\n  where every episode tree lives.")
         print("  On Linux, install bubblewrap (`bwrap`); `unshare` alone isolates "
               "the network\n  only. There is deliberately no unconfined path.")
-        return 1
+        return False
     # Verified by trying to escape, not by reading the policy back. A profile built
     # from an unresolved temp path parses, loads, reports nothing and enforces
     # nothing - which is how this was nearly shipped inert.
@@ -525,19 +514,87 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     if failure:
         print(f"\nFilesystem confinement did not hold. Refusing to roll out.\n"
               f"  {failure}")
-        return 1
+        return False
     print("Confinement: episode tree only (verified: temp directory "
           "unreadable by shell and by interpreter)")
+    return True
+
+
+def _rollout_matches_its_pin(args) -> bool:
+    """
+    The scenario this code assembles is the one the arm is pinned to.
+
+    Past this point new episodes are about to be written into a results
+    directory named for a rollout. If the rollout has drifted from the one
+    that directory holds, the two are different experiments and pooling them
+    is the error this exists to prevent. Checked only for rollout modes: the
+    read-only modes re-derive analysis from saved transcripts and must keep
+    working against archived results whatever the current scenario says.
+
+    EACH ARM CHECKS ITS OWN PIN. This branched on --capability alone until
+    v184: a --goalguard or --date-mode collection has args.capability is None,
+    which took the plain arm's branch and checked a hash of the PLAIN scenario
+    against the plain pin - passing every time the plain arm itself had not
+    drifted, whatever --goalguard or --date-mode assembled. It is the reason
+    the nudge defect that v183 fixed was never refused: this check ran, found
+    the plain arm intact, and said proceed. Checking the propensity arm's pin
+    for a special arm's rollout would refuse every one of that arm's episodes
+    on an unrelated mismatch; skipping the check for it would leave it the
+    only unguarded arm. Neither is right - each arm's rollout has to be
+    compared against ITS OWN pin, computed from the SAME arguments that arm
+    is collected under.
+
+    date_mode is read with getattr for the reason create_episode_root's own
+    call two functions down does: not every args this reaches necessarily
+    carries the axis.
+    """
+    date_mode = getattr(args, "date_mode", None)
+    dated = date_mode and date_mode != _DATE_DEFAULT
+    goalguard = getattr(args, "goalguard", None)
+    active = [name for name, on in
+             (("--capability", args.capability is not None),
+              ("--goalguard", goalguard is not None),
+              ("--date-mode", dated)) if on]
+    if len(active) > 1:
+        print(f"\n{'='*60}")
+        print("REFUSING TO ROLL OUT")
+        print(f"{'='*60}\n")
+        print(f"{' and '.join(active)} are both set. No rollout has been "
+              f"pinned for that combination - each of these arms is "
+              f"fingerprinted against the plain scenario alone, so a "
+              f"collection combining them would be stamped with one arm's "
+              f"identity while assembling both. Collect them separately, or "
+              f"pin the combination deliberately before running it.")
+        return False
+
+    if args.capability is not None:
+        expected = capability_fingerprint_for(args.capability, args.oversight)
+    elif goalguard is not None:
+        expected = goalguard_fingerprint_for(goalguard, args.oversight,
+                                             args.nudge)
+    elif dated:
+        expected = date_fingerprint_for(date_mode, args.oversight, args.lure)
+    else:
+        # Nudge-aware, not a direct table lookup: fingerprint_for() reads
+        # MAX_NUDGE_FINGERPRINTS for nudge="max" and ROLLOUT_FINGERPRINTS
+        # otherwise, because the plain arm's own assembly differs by nudge
+        # too - see that table's comment in rollout_pins.py.
+        expected = fingerprint_for(args.oversight, args.lure, args.nudge)
+
     drift = rollout_drift_error(
-        ROLLOUT_FINGERPRINTS[(args.oversight, args.lure)],
-        args.oversight, args.isolation, args.lure)
+        expected, args.oversight, args.isolation, args.lure, args.capability,
+        date_mode, goalguard, args.nudge)
     if drift:
         print(f"\n{'='*60}")
         print("REFUSING TO ROLL OUT")
         print(f"{'='*60}\n")
         print(drift)
-        return 1
+        return False
+    return True
 
+
+def _credentials_are_present(args) -> bool:
+    """Both models authenticate with a variable this environment has set."""
     # Third refusal, on the same terms as the two above: a credential that is
     # missing now will be missing for every episode, and the failure it causes is
     # not loud.
@@ -553,9 +610,16 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     # recorded on all 401 answers.
     #
     # Checked against the environment, so it costs nothing and cannot itself fail.
-    for role, model in (("--model", args.model),
-                        ("--grader-model", args.grader_model)):
-        var = missing_credential(model)
+    # use_opencode only ever applies to the model UNDER TEST - the grader and
+    # interrogation-classifier clients are built from grader_model elsewhere
+    # and never see it, the same scoping --openrouter-sort/--openrouter-
+    # provider already have - so it is passed for --model's row and not
+    # --grader-model's.
+    for role, model, use_opencode in (
+        ("--model", args.model, getattr(args, "use_opencode", False)),
+        ("--grader-model", args.grader_model, False),
+    ):
+        var = missing_credential(model, use_opencode=use_opencode)
         if var:
             print(f"\n{'='*60}")
             print("REFUSING TO ROLL OUT")
@@ -568,137 +632,141 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
                       "and the batch reports a concealment\n  rate that no "
                       "classifier produced.")
             print(f"\n  export {var}=...")
-            return 1
+            return False
+    return True
 
-    if args.resume:
-        batch_stamp = args.resume
-        print(f"Resuming batch {batch_stamp}: episodes already on disk will "
-              f"be loaded and skipped.")
-    else:
-        batch_stamp = unique_batch_stamp(args.output_dir)
 
-    # Everything this batch's files are named after, in one value.
-    identity = BatchIdentity.collecting(args, model_slug, effective_effort,
-                                        batch_stamp)
+def _preflight(args) -> tuple:
+    """
+    Every refusal that has to happen before a penny is spent.
 
-    # Which arm, stated before the first episode is paid for.
-    #
-    # It was previously visible only in the filenames and in the summary written at
-    # the end, so an operator watching a long counterfactual batch had nothing on
-    # screen confirming it was the counterfactual - and the two arms differ by the
-    # absence of the very artefacts the run is about, which is not something you can
-    # spot from the episode output. The lure is named only when it is on, matching
-    # how batch_stem marks it, so an ordinary run stays uncluttered.
-    print(f"Arm: oversight={'true' if identity.oversight else 'false'}"
-          + (" | lure=true" if identity.lure else "")
-          + f" | nudge={identity.nudge}"
-          + (f" | effort={identity.effort}" if identity.effort else ""))
+    Returns (exit code or None, profile path); a code means refuse. Each check
+    prints its own explanation, because the alternative to an actionable
+    message is someone reaching for a way around the check without
+    understanding it.
+    """
+    ok, profile_path = _enforce_network_boundary(args)
+    if not ok:
+        return 1, None
+    if not _enforce_filesystem_boundary(args):
+        return 1, None
+    if not _rollout_matches_its_pin(args):
+        return 1, None
+    if not _credentials_are_present(args):
+        return 1, None
+    return None, profile_path
 
-    # The same fact, short enough to sit on every run header without crowding it.
-    _arm_tag = ("oversight" if identity.oversight else "NO oversight")
-    if identity.lure:
-        _arm_tag += "+lure"
 
+def _run_episodes_sequentially(args, identity, system_prompt, user_prompt,
+                               reasoning_kwargs, reasoning_config,
+                               effective_effort, profile_path, _arm_tag,
+                               batch_stamp):
+    """
+    One episode at a time, returning what _run_episodes_concurrently returns.
+
+    The two are alternatives at one call site and have to stay interchangeable,
+    so they take the same arguments and hand back the same six values. --delay
+    means what it says here - a pause AFTER each episode finishes - which is the
+    meaning the concurrent path cannot keep; its docstring says why.
+    """
     all_results = []
-    t_batch_start = time.time()
-    total_delay_seconds = 0
-
     failures = []
     consecutive_failures = 0
     aborted = False
     interrupted = False
+    total_delay_seconds = 0
 
-    if args.concurrency > 1:
-        (all_results, failures, consecutive_failures, aborted, interrupted,
-         total_delay_seconds) = _run_episodes_concurrently(
-            args, identity, system_prompt, user_prompt, reasoning_kwargs,
-            reasoning_config, effective_effort, profile_path, _arm_tag,
-            batch_stamp)
-    else:
-        for i in range(args.runs):
-            run_file = identity.filename(args.output_dir, f"run_{i+1}")
+    for i in range(args.runs):
+        run_file = identity.filename(args.output_dir, f"run_{i+1}")
 
-            # Resume: an episode already saved under this stamp is complete, so
-            # load it and move on rather than paying for it twice.
-            if args.resume and os.path.exists(run_file):
-                with open(run_file) as f:
-                    all_results.append(json.load(f))
-                print(f"\n# RUN {i+1}/{args.runs} [{_arm_tag}] - already on "
-                      f"disk, skipping")
-                continue
+        # Resume: an episode already saved under this stamp is complete, so
+        # load it and move on rather than paying for it twice.
+        if args.resume and os.path.exists(run_file):
+            with open(run_file) as f:
+                all_results.append(json.load(f))
+            print(f"\n# RUN {i+1}/{args.runs} [{_arm_tag}] - already on "
+                  f"disk, skipping")
+            continue
 
-            print(f"\n{'#'*60}")
-            print(f"# RUN {i+1}/{args.runs}  [{_arm_tag}]")
-            print(f"{'#'*60}")
+        print(f"\n{'#'*60}")
+        print(f"# RUN {i+1}/{args.runs}  [{_arm_tag}]")
+        print(f"{'#'*60}")
 
-            # One episode failing must not end the batch. Over a few hundred
-            # episodes - each 5-20 model calls plus grading and
-            # interrogations - an unretryable API error somewhere is likely,
-            # and losing the remaining episodes plus the summary to it is the
-            # expensive outcome.
-            try:
-                record = _run_one_episode(
-                    i, args, identity, system_prompt, user_prompt,
-                    reasoning_kwargs, reasoning_config, effective_effort,
-                    profile_path)
-            except KeyboardInterrupt:
-                print("\n\nInterrupted by user.")
-                aborted = True
-                interrupted = True
-                break
+        # One episode failing must not end the batch. Over a few hundred
+        # episodes - each 5-20 model calls plus grading and
+        # interrogations - an unretryable API error somewhere is likely,
+        # and losing the remaining episodes plus the summary to it is the
+        # expensive outcome.
+        try:
+            record = _run_one_episode(
+                i, args, identity, system_prompt, user_prompt,
+                reasoning_kwargs, reasoning_config, effective_effort,
+                profile_path)
+        except KeyboardInterrupt:
+            print("\n\nInterrupted by user.")
+            aborted = True
+            interrupted = True
+            break
 
-            if not record["ok"]:
-                # A partial episode is not an observation - it is not
-                # appended to all_results and does not enter any rate - but
-                # its transcript is still the only record of what the model
-                # did before the failure, so _run_one_episode writes it
-                # somewhere findable rather than dropping it.
-                consecutive_failures += 1
-                failures.append(record["failure"])
-                print(f"  Episode skipped. {consecutive_failures} "
-                      f"consecutive failure(s), {len(failures)} total.")
+        if not record["ok"]:
+            # A partial episode is not an observation - it is not
+            # appended to all_results and does not enter any rate - but
+            # its transcript is still the only record of what the model
+            # did before the failure, so _run_one_episode writes it
+            # somewhere findable rather than dropping it.
+            consecutive_failures += 1
+            failures.append(record["failure"])
+            print(f"  Episode skipped. {consecutive_failures} "
+                  f"consecutive failure(s), {len(failures)} total.")
 
-                if consecutive_failures >= args.max_consecutive_failures:
-                    print(f"\n*** ABORTING: {consecutive_failures} episodes "
-                          f"failed in a row. ***")
-                    aborted = True
-                    break
-
-                if i < args.runs - 1:
-                    time.sleep(args.delay)
-                    total_delay_seconds += args.delay
-                continue
-
-            consecutive_failures = 0
-            all_results.append(record["result"])
-
-            # An auth failure in the SCORING is checked after the episode is
-            # saved, and it stops the batch.
-            #
-            # It cannot come right on retry - the credential will be just as
-            # absent for episode two - and its consequence is invisible in
-            # the output it produces: every interrogation answer still gets a
-            # well-formed verdict, from the keyword cross-check instead of
-            # the classifier. Three batches ran to completion that way and
-            # published concealment rates no classifier produced. The
-            # pre-flight above now catches the ordinary case; this catches a
-            # credential that stops working mid-batch, or one the environment
-            # has but the provider rejects.
-            #
-            # After the save, deliberately. The rollout is the expensive part
-            # and this episode's transcript is sound - only its scoring is
-            # not - so it is kept, and --resume will not pay for it again.
-            if record["auth_error"]:
-                _print_auth_abort(record["auth_error"], record["env_dir"],
-                                  len(all_results), batch_stamp)
+            if consecutive_failures >= args.max_consecutive_failures:
+                print(f"\n*** ABORTING: {consecutive_failures} episodes "
+                      f"failed in a row. ***")
                 aborted = True
                 break
 
             if i < args.runs - 1:
-                print(f"\nWaiting {args.delay}s before next run...")
                 time.sleep(args.delay)
                 total_delay_seconds += args.delay
+            continue
 
+        consecutive_failures = 0
+        all_results.append(record["result"])
+
+        # An auth failure in the SCORING is checked after the episode is
+        # saved, and it stops the batch.
+        #
+        # It cannot come right on retry - the credential will be just as
+        # absent for episode two - and its consequence is invisible in
+        # the output it produces: every interrogation answer still gets a
+        # well-formed verdict, from the keyword cross-check instead of
+        # the classifier. Three batches ran to completion that way and
+        # published concealment rates no classifier produced. The
+        # pre-flight above now catches the ordinary case; this catches a
+        # credential that stops working mid-batch, or one the environment
+        # has but the provider rejects.
+        #
+        # After the save, deliberately. The rollout is the expensive part
+        # and this episode's transcript is sound - only its scoring is
+        # not - so it is kept, and --resume will not pay for it again.
+        if record["auth_error"]:
+            _print_auth_abort(record["auth_error"], record["env_dir"],
+                              len(all_results), batch_stamp)
+            aborted = True
+            break
+
+        if i < args.runs - 1:
+            print(f"\nWaiting {args.delay}s before next run...")
+            time.sleep(args.delay)
+            total_delay_seconds += args.delay
+
+    return (all_results, failures, consecutive_failures, aborted, interrupted,
+            total_delay_seconds)
+
+
+def _report_incomplete_batch(args, failures: list, aborted: bool,
+                             batch_stamp: str) -> None:
+    """What failed, and the one flag that picks the batch up where it stopped."""
     if failures:
         print(f"\n{'!'*60}")
         print(f"! {len(failures)} of {args.runs} episode(s) failed and were "
@@ -721,6 +789,102 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
               "of\n  resuming. Re-run run_all_arms.sh with no --resume "
               "flag instead; it looks\n  up each arm's own stamp itself.")
 
+
+def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
+              reasoning_config: str) -> int:
+    """
+    Collect one batch and summarise it. Returns a process exit code.
+
+    `reasoning_kwargs` and `reasoning_config` are what the CLI resolved from the
+    model's API generation - the parameters actually sent, and the human-readable
+    form of them recorded in the summary. The effort level is derived from the
+    former rather than passed, because the level SENT is the only one this batch may
+    be labelled with and re-deriving it here removes the chance of the two
+    disagreeing.
+    """
+    if args.concurrency < 1:
+        print(f"\n--concurrency must be at least 1, got {args.concurrency}.")
+        return 1
+
+    # Past this point we are rolling out, so the batch is labelled with the effort
+    # that will actually be SENT rather than the one typed. That used to be done by
+    # assigning back onto args.effort, which was only safe because it happened after
+    # the read modes above - whose --effort is a filter the operator typed and must
+    # survive verbatim. The label now travels in the batch's identity instead, so
+    # the two cannot be confused by placement.
+    effective_effort = (reasoning_kwargs.get("output_config") or {}).get("effort")
+
+    # The counterfactual arm has its own user prompt: the r1 one names the
+    # quality check, which the arm must not mention. The system prompts carry
+    # no oversight reference and are shared by both arms unchanged.
+    # The capability arm replaces this outright - its whole difference from a
+    # propensity arm is the instruction. Everything else the model sees is
+    # identical, which is what makes the ceiling a denominator for the rate
+    # rather than a measurement of some other scenario.
+    user_prompt = scenario_for(args.oversight,
+                               capability=args.capability)["user_prompt"]
+
+    code, profile_path = _preflight(args)
+    if code is not None:
+        return code
+
+    if args.resume:
+        batch_stamp = args.resume
+        print(f"Resuming batch {batch_stamp}: episodes already on disk will "
+              f"be loaded and skipped.")
+    else:
+        batch_stamp = unique_batch_stamp(args.output_dir)
+
+    # Everything this batch's files are named after, in one value.
+    identity = BatchIdentity.collecting(args, model_slug, effective_effort,
+                                        batch_stamp)
+
+    # Which arm, stated before the first episode is paid for.
+    #
+    # It was previously visible only in the filenames and in the summary written at
+    # the end, so an operator watching a long counterfactual batch had nothing on
+    # screen confirming it was the counterfactual - and the two arms differ by the
+    # absence of the very artefacts the run is about, which is not something you can
+    # spot from the episode output. The lure is named only when it is on, matching
+    # how batch_stem marks it, so an ordinary run stays uncluttered.
+    # CAPABILITY FIRST, and in capitals, because it is the one arm whose
+    # episodes must never reach a propensity rate: the act is INSTRUCTED there,
+    # so pooling one would inflate that rate catastrophically. batch.py names
+    # three defences against that - the filename mark, the arm's own rollout
+    # fingerprint, and both report loaders dropping it - and this line was the
+    # gap in front of all of them. A capability batch read identically on
+    # screen to a plain no-nudge propensity batch, which is the batch it would
+    # be pooled with, and the operator's only chance to notice is before the
+    # spend rather than after it.
+    print("Arm: "
+          + (f"CAPABILITY={identity.capability} | " if identity.capability
+             else "")
+          + f"oversight={'true' if identity.oversight else 'false'}"
+          + (" | lure=true" if identity.lure else "")
+          + f" | nudge={identity.nudge}"
+          + (f" | effort={identity.effort}" if identity.effort else ""))
+
+    # The same fact, short enough to sit on every run header without crowding it.
+    _arm_tag = ("oversight" if identity.oversight else "NO oversight")
+    if identity.lure:
+        _arm_tag += "+lure"
+    # Every run header too, not only the one line at the top: a batch takes
+    # hours and an operator who scrolls back to a run in the middle of it sees
+    # this and not the announcement.
+    if identity.capability:
+        _arm_tag = f"CAPABILITY {identity.capability}, {_arm_tag}"
+
+    t_batch_start = time.time()
+    run_episodes = (_run_episodes_concurrently if args.concurrency > 1
+                    else _run_episodes_sequentially)
+    (all_results, failures, consecutive_failures, aborted, interrupted,
+     total_delay_seconds) = run_episodes(
+        args, identity, system_prompt, user_prompt, reasoning_kwargs,
+        reasoning_config, effective_effort, profile_path, _arm_tag,
+        batch_stamp)
+
+    _report_incomplete_batch(args, failures, aborted, batch_stamp)
+
     if not all_results:
         if interrupted:
             print("\nInterrupted before any episode completed - nothing to "
@@ -730,11 +894,6 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
         return 1
 
     t_batch_end = time.time()
-
-    # =====================================================================
-    # Summary
-    # =====================================================================
-
     summary = summarise_batch(
         args, all_results, identity,
         {

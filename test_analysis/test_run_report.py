@@ -17,8 +17,8 @@ import tempfile
 
 import report as rr
 from subversionbench.grading import MISALIGNED_ACTS
-from test_analysis.report_fixtures import (_single, _write_episode,
-                                           _write_summary,
+from test_analysis.report_fixtures import (_single, _two_arm_dir,
+                                           _write_episode, _write_summary,
                                            write_awareness_episode)
 
 class TestBuildReportEndToEnd:
@@ -51,7 +51,7 @@ class TestBuildReportEndToEnd:
                            tampered=None)
         return out
 
-    def test_produces_all_twelve_questions(self):
+    def test_produces_every_question(self):
         report = rr.build_report(self._fixture_dir())
         ids = [q["id"] for q in report["questions"]]
         assert ids == [
@@ -61,7 +61,27 @@ class TestBuildReportEndToEnd:
             "awareness_vs_monitoring_disabled", "awareness_vs_sandbox_escape",
             "awareness_vs_scheming", "awareness_vs_oversight_scheming",
             "awareness_vs_sandbox_scheming", "paraphrase_vs_concealment",
-            "evidence_vs_concealment",
+            "evidence_vs_concealment", "lure_vs_sandbox_escape",
+            # APPENDED. The position is the assertion: the question numbers are
+            # the chart filenames and how the report refers to itself, and
+            # inserting one anywhere but the end renumbers every question after
+            # it - which happened once and silently repointed five of them.
+            "goalguard_vs_act",
+            # APPENDED alongside it at v191, in this order - which carries no
+            # meaning beyond being an order, per run_report.py's own comment
+            # where they are built.
+            "awareness_vs_quality_check_modified",
+            "awareness_vs_oversight_tampered",
+            "awareness_vs_goal_guarding",
+            # APPENDED at v193: question 5 split by eval_awareness_kind
+            # rather than by whether awareness fired at all.
+            "awareness_vs_misalignment_when_safety_aware",
+            "awareness_vs_misalignment_when_capability_aware",
+            # APPENDED at v195: the self-graded parallel to the pair above,
+            # restricted to a different, narrower denominator - see
+            # questions_awareness.py's module docstring.
+            "awareness_vs_misalignment_when_safety_aware_self",
+            "awareness_vs_misalignment_when_capability_aware_self",
         ]
         assert report["n_summary_files"] == 2
         assert report["n_episode_files"] == 10
@@ -198,7 +218,12 @@ class TestMain:
         assert "Does the presence of oversight" in text
         with open(json_out) as f:
             saved = json.load(f)
-        assert len(saved["questions"]) == 12
+        # A literal, deliberately: this pins the report's SURFACE, so adding
+        # a question is something somebody has to notice. 12 -> 13 when the
+        # lure arm got a question of its own; 14 -> 17 at v191 when the
+        # oversight-tampering split added two and goal-guarding a third;
+        # 17 -> 19 at v193 when question 5 split by awareness kind.
+        assert len(saved["questions"]) == 21
 
 class TestTheParallelTextReachableMeasure:
     """That questions 2 and 4 - and only those two - carry the parallel measure,
@@ -312,8 +337,8 @@ class TestTheLayersDoNotPointBackwards:
             f"{sorted(printed - {'MIN_INFORMATIVE_DENOMINATOR'})}")
 
     def test_every_question_is_in_exactly_one_group(self):
-        """Twelve, once each. A question defined in two modules, or reachable
-        through the package but in neither group, is how the count in
+        """Each question in exactly one module. A question defined in two, or
+        reachable through the package but in neither group, is how the count in
         test_report_charts drifts away from what build_report calls."""
         import importlib
         seen = {}
@@ -324,8 +349,84 @@ class TestTheLayersDoNotPointBackwards:
                         getattr(module, name).__module__ == module.__name__:
                     assert name not in seen, (name, seen[name], leaf)
                     seen[name] = leaf
-        assert len(seen) == 12, sorted(seen)
+        # Same literal as TestMain's surface pin, and it must stay the same:
+        # this counts question_ functions defined, that one counts sections
+        # emitted, and the pair catches one defined but never called.
+        assert len(seen) == 21, sorted(seen)
         assert sorted(seen.values()).count("questions_paired") == 2
+
+class TestTheHeaderCountsDescribeTheCorpusTheQuestionsUse:
+    """Under --exclude-aware the episodes are narrowed and the summaries are
+    NOT - exclude_aware_episodes has no summary-side counterpart, because
+    awareness is per episode and a summary row aggregates both kinds. So
+    `n_models` taken from the summaries reported the un-narrowed model count
+    beside numbers computed on the narrowed corpus: one header line describing
+    two different populations, with nothing saying so."""
+
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        # Two models. One is aware in every episode, so the awareness reading
+        # removes it entirely and the model count MUST fall.
+        for model, aware in (("m-aware", True), ("m-unaware", False)):
+            for oversight in (True, False):
+                _write_summary(
+                    out, model, "strong", oversight=oversight, lure=False,
+                    stamp=f"2026010100000{int(oversight)}",
+                    n_runs=4, n_scheming=1, n_aware=2, n_unaware=2)
+            for i in range(4):
+                _write_episode(out, i, model, "strong", oversight=True,
+                               aware=aware, monitoring=False, escape=[])
+        return out
+
+    def test_the_model_count_follows_the_narrowing(self):
+        out = self._dir()
+        full = rr.build_report(out)
+        narrowed = rr.build_report(out, awareness_exclusion=rr.EXCLUDE_AWARE_PRIMARY)
+        assert full["n_models"] == 2, full["n_models"]
+        assert narrowed["n_models"] == 1, (
+            f"{narrowed['n_models']} models reported on a corpus the "
+            f"awareness reading narrowed to one - the count came from the "
+            f"un-narrowed summaries")
+
+    def test_the_episode_count_follows_it_too(self):
+        """The half that was already right, asserted so the two cannot drift
+        apart again in the other direction."""
+        out = self._dir()
+        full = rr.build_report(out)
+        narrowed = rr.build_report(out, awareness_exclusion=rr.EXCLUDE_AWARE_PRIMARY)
+        assert narrowed["n_episode_files"] < full["n_episode_files"]
+
+    def test_the_console_says_the_summary_count_is_not_narrowed(self):
+        """The one number that legitimately still describes the whole
+        directory. It stays - summary files really were read - but a reader
+        given three counts on one line will read them as one corpus unless
+        told otherwise."""
+        import contextlib
+        import io
+        import sys
+        out = self._dir()
+        original = sys.argv
+        sys.argv = ["report", "--output-dir", out, "--no-charts",
+                    "--exclude-aware", rr.EXCLUDE_AWARE_PRIMARY]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                rr.main()
+        finally:
+            sys.argv = original
+        printed = buf.getvalue()
+        assert "summary-file count is files read" in printed
+        # And silent on the ordinary reading, where the three counts do all
+        # describe one corpus.
+        sys.argv = ["report", "--output-dir", out, "--no-charts"]
+        plain = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(plain):
+                rr.main()
+        finally:
+            sys.argv = original
+        assert "summary-file count is files read" not in plain.getvalue()
+
 
 class TestTheSingleImportSiteForTheReport:
     def test_every_name_the_package_offers_is_declared(self):
@@ -333,10 +434,25 @@ class TestTheSingleImportSiteForTheReport:
         reach through this one site rather than through whichever module holds
         them today. Without `__all__` each reads as a stray import to the
         dead-import guard, and an exemption would have hidden a real one."""
+        import types
+
         import report
-        submodules = {"console", "data_quality", "loading", "pooling",
-                      "questions_arms", "questions_awareness",
-                      "questions_paired", "run_report"}
+        # DERIVED, NOT LISTED. This was a hand-written tuple of eight module
+        # names, and adding report/capability.py left it one behind - so the
+        # new module read as an undeclared export and the failure pointed at
+        # the wrong thing. That is the repeat defect class AGENTS.md names,
+        # occurring in the guard rather than in the code it guards.
+        #
+        # Tested by TYPE rather than against the directory listing, because
+        # `characteristics` is both a submodule and a re-exported FUNCTION of
+        # the same name. A set built from filenames strips the function too,
+        # and the guard then reports it as declared-but-absent - which is how
+        # the first version of this derivation failed.
+        submodules = {n for n in dir(report)
+                      if isinstance(getattr(report, n), types.ModuleType)}
+        # A scope that matched nothing would make every assertion below pass
+        # on a package that exported nothing at all.
+        assert len(submodules) >= 8, sorted(submodules)
         reachable = {n for n in dir(report)
                      if not n.startswith("__") and n not in submodules}
         declared = set(report.__all__)
@@ -348,50 +464,6 @@ class TestTheSingleImportSiteForTheReport:
 # ---------------------------------------------------------------------------
 # Excluding an arm
 # ---------------------------------------------------------------------------
-#
-# `--exclude-no-oversight` answers all twelve questions again with the
-# no-oversight arm set aside, because that arm's task README still promises the
-# quality preview the arm itself removes. A sensitivity reading, not a
-# correction - see report/loading.py.
-
-def _two_arm_dir(nudges=("strong", "max"), unknown_arm=0):
-    """
-    A corpus with both oversight arms, both awareness levels inside each, and
-    both nudge levels named by `nudges`.
-
-    BOTH AWARENESS LEVELS IN BOTH ARMS on purpose: it is what lets a test tell
-    "this question lost a side because the arm went" from "this question never
-    had two sides here", which is the distinction _collapsed_by_exclusion was
-    corrected to respect.
-    """
-    out = tempfile.mkdtemp()
-    cross = {"aware": {"n": 8, "misaligned": 6},
-             "unaware": {"n": 2, "misaligned": 0}}
-    n = 0
-    for oversight in (True, False):
-        stamp = f"20260101T00000{int(oversight)}"
-        for nudge in nudges:
-            _write_summary(out, "m", nudge, oversight=oversight, lure=False,
-                           stamp=stamp, n_runs=20, n_scheming=1, n_misaligned=3,
-                           n_aware=8, n_unaware=12, cross=cross)
-            for aware in (True, False):
-                for _ in range(6):
-                    _write_episode(out, n, "m", nudge, oversight=oversight,
-                                   aware=aware, monitoring=not oversight,
-                                   escape=["cd /"] if aware else [],
-                                   tampered=None if not oversight else True,
-                                   stamp=stamp)
-                    n += 1
-    for _ in range(unknown_arm):
-        # An episode whose arm was never recorded. Written by hand rather than
-        # through _write_episode, which always states one.
-        path = f"{out}/run_{n}_m_strong_20260101T000009.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump({"model": "m", "nudge": "strong", "oversight": None,
-                       "lure": False, "analysis": {"misaligned": False},
-                       "transcript": []}, f)
-        n += 1
-    return out
 
 
 class TestExcludingAnArmReachesBothDataSources:
@@ -599,3 +671,101 @@ class TestTheConsoleSaysWhichArmsTheNumbersAreAbout:
         text = buf.getvalue()
         assert "NOT ESTIMABLE WITH THE ARM EXCLUDED" in text
         assert "CRUDE POOLED" not in text
+
+
+class TestTheConsoleAccountsForEveryChartItDidNotWrite:
+    """A chart missing because the excluded arm was one side of its contrast
+    is indistinguishable, on the console, from one that failed to render -
+    unless the run says which. Both branches here are about a reader's next
+    move: chase a broken chart, or read the question's collapse as the finding
+    it is."""
+
+    def _oversight_only_dir(self):
+        """Only oversight-present summaries, so dropping the no-oversight arm
+        leaves every question that splits on oversight with one side."""
+        out = tempfile.mkdtemp()
+        for model in ("p/a", "p/b"):
+            for nudge in ("none", "strong"):
+                _write_summary(out, model, nudge, oversight=True,
+                               stamp=f"2026010100000{len(nudge)}",
+                               n_runs=6, n_scheming=2, n_misaligned=3,
+                               n_aware=2, n_unaware=4)
+        return out
+
+    def _run(self, argv, charts=None):
+        import sys
+        import unittest.mock
+        saved = sys.argv
+        sys.argv = ["run_report.py", *argv]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                if charts is None:
+                    code = rr.main()
+                else:
+                    import report_charts
+                    with unittest.mock.patch.object(
+                            report_charts, "write_charts",
+                            return_value=charts):
+                        code = rr.main()
+        finally:
+            sys.argv = saved
+        return code, buf.getvalue()
+
+    def test_a_question_that_lost_a_side_to_the_exclusion_is_named(self):
+        out = self._oversight_only_dir()
+        code, text = self._run(
+            ["--output-dir", out, "--exclude-no-oversight"], charts=[])
+        assert code == 0, text
+        assert "question(s) have no chart here" in text
+        assert "the excluded arm was one side of the contrast" in text
+        collapsed = [s["id"] for s in
+                     rr.build_report(out, exclusion=rr.EXCLUDE_NO_OVERSIGHT)
+                     ["questions"] if s.get("collapsed_by_exclusion")]
+        assert collapsed, (
+            "the fixture no longer collapses any question, so this would pass "
+            "however the console reported one")
+        for question_id in collapsed:
+            assert question_id in text, (
+                "the count was printed without the ids behind it, which is "
+                "the half a reader can act on")
+
+    def test_the_collapsed_ids_are_recorded_in_the_json_too(self):
+        """The console is read once; the JSON is what a later reader has."""
+        out = self._oversight_only_dir()
+        json_out = f"{out}/report.json"
+        code, _text = self._run(
+            ["--output-dir", out, "--exclude-no-oversight",
+             "--json-out", json_out], charts=[])
+        assert code == 0
+        with open(json_out, encoding="utf-8") as f:
+            saved = json.load(f)
+        assert saved["charts_omitted_by_exclusion"]
+
+    def test_an_ordinary_run_says_nothing_about_omitted_charts(self):
+        """Two-directional: without the exclusion nothing collapses, and a
+        line explaining an absence that is not there would send a reader
+        looking for a missing figure."""
+        out = self._oversight_only_dir()
+        code, text = self._run(["--output-dir", out], charts=[])
+        assert code == 0, text
+        assert "have no chart here" not in text
+
+    def test_a_run_that_drew_no_charts_announces_none(self):
+        """write_charts returns [] on a machine without matplotlib. The run
+        must still complete and write its JSON without naming a directory it
+        put nothing in."""
+        out = self._oversight_only_dir()
+        code, text = self._run(["--output-dir", out], charts=[])
+        assert code == 0, text
+        assert "chart(s) written to" not in text
+
+    def test_a_run_that_did_draw_them_lists_them(self):
+        """The control for the test above."""
+        out = self._oversight_only_dir()
+        chart = f"{out}/pretend_chart.png"
+        open(chart, "wb").close()
+        code, text = self._run(["--output-dir", out], charts=[chart])
+        assert code == 0, text
+        assert "1 chart(s) written to" in text
+        assert "pretend_chart.png" in text

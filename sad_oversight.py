@@ -74,7 +74,7 @@ from pathlib import Path
 
 from report import awareness_arm_rows, load_episodes, load_summaries
 from subversionbench import charting
-from subversionbench.config import ROLLOUT_VERSION, VERSION
+from subversionbench.config import ROLLOUT_NAME, ROLLOUT_VERSION, VERSION
 from subversionbench.power import (spearman, spearman_leave_one_out, wilson_ci)
 from subversionbench.redaction import redact_paths
 
@@ -411,6 +411,11 @@ def build_report(output_dir: str, bundle: dict = None) -> dict:
     return {
         "version": VERSION,
         "rollout_version": ROLLOUT_VERSION,
+        # Which scenario, beside which rollout of it. The pair is the identity;
+        # neither half names a corpus alone. Stated on the document rather than
+        # left to the reader to assemble, because it is what decides whether
+        # two of these documents describe the same experiment.
+        "rollout_name": ROLLOUT_NAME,
         "output_dir": redact_paths(os.path.abspath(output_dir)),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "external_source": bundle.get("source"),
@@ -626,32 +631,7 @@ def write_chart(report: dict, path: str) -> str:
                         if inexact else ""),
         report["effort_agreement"]["note"],
     ]
-    # Space is reserved for the captions FIRST, then they are laid into it from
-    # the top down. Writing them at a fixed y and then calling tight_layout with
-    # a reserved fraction leaves the axes floating well above the text, because
-    # the two numbers are computed independently and neither knows the other.
-    #
-    # MEASURED IN INCHES, NOT IN FIGURE FRACTION
-    # -------------------------------------------
-    # tight_layout's rect is a fraction of the whole figure, and this figure's
-    # height is not fixed - three stacked panels are 2.7x the height of the
-    # three-across layout this reservation was first tuned against. A caption
-    # written to occupy a FRACTION of the figure grows with it: the panels
-    # went from 5.4in tall to 14.5in and the same fraction opened a gap of dead
-    # space between the last x-axis label and the first line of text. A line
-    # of 7.5pt caption text is the same physical height regardless of how tall
-    # the figure around it is, so the reservation is sized in inches and only
-    # converted to a fraction at the end, against this figure's ACTUAL height.
-    height_in = fig.get_size_inches()[1]
-    line_in, gap_in, top_in = 0.16, 0.19, 0.11
-    wrapped = [_wrap(c) for c in captions if c]
-    lines = sum(w.count("\n") + 1 for w in wrapped)
-    reserved = (line_in * lines + gap_in * len(wrapped)) / height_in
-    fig.tight_layout(rect=(0, reserved, 1, 1))
-    y = reserved - top_in / height_in
-    for text in wrapped:
-        fig.text(0.01, y, text, fontsize=7.5, va="top", color="#555555")
-        y -= (line_in * (text.count("\n") + 1) + gap_in * 0.6) / height_in
+    charting.caption_below(fig, captions, _wrap)
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -683,8 +663,9 @@ def main() -> int:
                              "sad_oversight_correlation_<timestamp>.json "
                              "inside --output-dir)")
     parser.add_argument("--chart-dir", default=None,
-                        help="where to write the chart (default: charts/ "
-                             "inside --output-dir)")
+                        help="where to write the chart (default: "
+                             "charts/<rollout>/ beside --output-dir, not "
+                             "inside it)")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the chart; every figure it draws is in the "
                              "printed output and the JSON either way")
@@ -719,7 +700,8 @@ def main() -> int:
     print_report(report)
 
     if not args.no_charts:
-        chart_dir = args.chart_dir or os.path.join(args.output_dir, "charts")
+        chart_dir = args.chart_dir or charting.default_chart_dir(
+            args.output_dir)
         os.makedirs(chart_dir, exist_ok=True)
         chart = write_chart(report, os.path.join(
             chart_dir, "sad_oversight_correlation.png"))

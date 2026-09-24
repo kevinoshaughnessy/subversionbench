@@ -11,6 +11,8 @@ import json
 import re
 import secrets
 
+from ..api_errors import api_error_message, warn_usage_limit_once
+
 _GRADER_TRANSCRIPT_CHAR_BUDGET = 20000
 
 
@@ -22,7 +24,7 @@ _GRADER_TRANSCRIPT_CHAR_BUDGET = 20000
 # party and the harness only has to contain it; here its output becomes input to
 # something that produces a number this dissertation reports.
 #
-# There is no reliable prevention for prompt injection, so the controls here are
+# There is no reliable prevention for injected instructions, so the controls here are
 # the architectural ones rather than interceptive ones. What bounds the damage is
 # that the grader has NO capabilities at all: no tools, no credentials, no
 # network, no memory between calls, and no ability to write anything except the
@@ -202,3 +204,65 @@ def _truncate_for_grader(text: str, budget: int = _GRADER_TRANSCRIPT_CHAR_BUDGET
 # counted separately rather than as a failure. "evaluation awareness" is 20
 # characters and appears in the rubric question itself.
 
+
+def report_grader_failure(result: dict, what: str = "awareness grader") -> bool:
+    """
+    Say WHY the awareness grader failed, not just that it did.
+
+    The grader's own result was printed with `rubric_results` excluded - which is
+    where every per-question error lives - so a batch showed `"grading_failed":
+    true, "rubric_errors": 9` with no reason attached, for every episode. On a
+    spend cap that is the whole diagnosis, withheld: the operator sees only that
+    grading failed, on a run whose rollout was perfectly fine.
+
+    Returns whether anything was reported, so a caller can stay quiet on the
+    ordinary case.
+    """
+    rubric = (result or {}).get("rubric_results") or {}
+    errors = []
+    for answer in rubric.values():
+        error = (answer or {}).get("error")
+        if error and error not in errors:
+            errors.append(error)
+    if not errors:
+        return False
+    for error in errors:
+        # Once per process, however many questions or episodes hit it.
+        warn_usage_limit_once(error, what)
+    # `errors` holds DISTINCT messages; the per-question count is separate,
+    # because nine questions failing for one reason is one fact and not nine.
+    failed = sum(1 for a in rubric.values() if (a or {}).get("error"))
+    print(f"  [{what}] {failed} of {len(rubric)} rubric question(s) failed: "
+          f"{api_error_message(errors[0], limit=160)}")
+    if len(errors) > 1:
+        print(f"  [{what}] and {len(errors) - 1} other distinct error(s)")
+    return True
+
+
+def why_it_stopped(response) -> str:
+    """What the API said about the end of a reply that could not be read.
+
+    An unreadable or absent reply has several causes that are indistinguishable
+    from the parsed content alone: the ceiling reached while thinking, a safety
+    classifier declining, and a model that answered in prose all arrive as
+    HTTP 200 with nothing usable in it. Recording only the symptom cost three
+    probes spent testing guesses the response object could have answered
+    outright - one of them against a reference grader erroring at a hundred
+    times its own established rate, with no way to say why.
+
+    Lives here rather than beside either caller because both grading/grader.py
+    and grader_ab need it and neither may import the other.
+
+    Defensive on every field. `stop_details` is populated only for a refusal
+    and is None otherwise, stubbed replies in the suite carry neither it nor
+    `stop_reason`, and this is only ever called on a path that is already
+    failing - so it must never be the thing that raises.
+    """
+    stop = getattr(response, "stop_reason", None)
+    blocks = [getattr(b, "type", "?")
+              for b in (getattr(response, "content", None) or [])]
+    note = f"stop_reason={stop!r}, blocks={blocks}"
+    detail = getattr(response, "stop_details", None)
+    if detail is not None:
+        note += f", refusal={getattr(detail, 'category', detail)!r}"
+    return note

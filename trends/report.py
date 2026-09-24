@@ -29,7 +29,8 @@ from datetime import date, timedelta
 
 from model_releases import release_date
 from report import awareness_arm_rows, load_episodes, load_summaries
-from subversionbench.config import ROLLOUT_VERSION, VERSION
+from subversionbench.config import (ROLLOUT_NAME, ROLLOUT_VERSION,
+                                    VERSION)
 from subversionbench.power import (MIN_INFORMATIVE_DENOMINATOR,
                                    benjamini_hochberg, cochran_armitage,
                                    compare_rates, holm_bonferroni, sign_test,
@@ -301,6 +302,11 @@ def build_report(output_dir: str, metric: str = "misaligned",
     return {
         "version": VERSION,
         "rollout_version": ROLLOUT_VERSION,
+        # Which scenario, beside which rollout of it. The pair is the identity;
+        # neither half names a corpus alone. Stated on the document rather than
+        # left to the reader to assemble, because it is what decides whether
+        # two of these documents describe the same experiment.
+        "rollout_name": ROLLOUT_NAME,
         "output_dir": redact_paths(os.path.abspath(output_dir)),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "metric": metric,
@@ -324,15 +330,36 @@ def build_report(output_dir: str, metric: str = "misaligned",
     }
 
 
+# Recorded in model_releases.py, and deliberately excluded from CALENDAR-axis
+# charts only - _member_release_date is the one place every such chart reads
+# a member's date through (the per-family release chart, its release_fit, and
+# release_span's shared axis), so filtering here reaches all three without
+# touching the version-index charts, which never call this function at all.
+#
+# claude-sonnet-4-5 released 2025-09-29, 141 days (4.6 months) ahead of its
+# next family member (claude-sonnet-4-6, 2026-02-17) and carries 41 of the
+# corpus's usual 120 episodes - a partial batch, not a complete one like
+# kimi-k2-thinking's 120 (RELEASE_AXIS_START's own comment, which explicitly
+# kept that model rather than clip it). Plotting this one would pull every
+# release chart's shared axis back over four extra months to seat a single
+# partial-data point.
+# `disagreements()` and the JSON's own `released` field are unaffected: both
+# read the model's real recorded date independently of this set.
+_RELEASE_CHART_EXCLUDED = frozenset({"claude-sonnet-4-5"})
+
+
 def _member_release_date(member: dict):
     """
-    The release date on a report member, as a date, or None when unrecorded.
+    The release date on a report member, as a date, or None when unrecorded
+    or excluded from calendar-axis charts (see _RELEASE_CHART_EXCLUDED).
 
     Parses back from the ISO string the report stores rather than calling
     release_date() again, so the charts plot exactly what the JSON says. A
     malformed stamp returns None instead of raising: a chart must never be the
     thing that stops the analysis.
     """
+    if member.get("model") in _RELEASE_CHART_EXCLUDED:
+        return None
     stamp = member.get("released")
     if not stamp:
         return None

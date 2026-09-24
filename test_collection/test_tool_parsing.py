@@ -165,3 +165,81 @@ class TestBracketToolCallParsing:
 # =========================================================================
 # Tests: OpenRouter empty-completion diagnostics
 # =========================================================================
+
+
+class TestTheUnquotedKwargRecoveryKnowsWhenToDecline:
+    """_parse_unquoted_single_kwarg, the fallback for an argument the model
+    left unquoted - which is not valid Python and makes ast.parse reject the
+    whole call.
+
+    Guessing is safe for this eval's one-parameter `bash` tool and unsafe in
+    general, so what matters as much as what it recovers is what it refuses
+    to. A wrong guess here does not fail: it runs a DIFFERENT command from
+    the one the model asked for, and records that as what the model did.
+    """
+
+    def _parse(self, args_str):
+        from subversionbench.tool_parsing import _parse_unquoted_single_kwarg
+        return _parse_unquoted_single_kwarg(args_str)
+
+    def test_a_single_unquoted_argument_is_recovered(self):
+        assert self._parse("cmd=cat README.md") == {"cmd": "cat README.md"}
+
+    def test_text_that_is_not_a_keyword_argument_is_declined(self):
+        """No name, no equals sign - there is nothing to recover, and
+        returning a dict keyed on a guess would invent a call."""
+        for text in ("just some prose", "", "   ", "=novalue",
+                     "9lives=cat x"):
+            assert self._parse(text) is None, text
+
+    def test_a_second_equals_sign_is_declined_as_ambiguous(self):
+        """It could be a second keyword argument or a literal `=` inside an
+        unquoted value, and nothing in the text distinguishes them. The
+        wrong reading runs a command the model did not write."""
+        assert self._parse("cmd=ls, extra=foo") is None
+        assert self._parse("cmd=export A=B") is None
+
+    def test_a_quoted_value_has_its_quotes_removed_once(self):
+        """Reached when the value is quoted but the call still failed to
+        parse for some other reason. Leaving the quotes on would run a
+        command that begins and ends with a quote character."""
+        assert self._parse("cmd='ls -la'") == {"cmd": "ls -la"}
+        assert self._parse('cmd="ls -la"') == {"cmd": "ls -la"}
+
+    def test_mismatched_or_internal_quotes_are_left_alone(self):
+        """Only a matching outer pair is stripped. A value that merely
+        CONTAINS a quote is not a quoted value, and taking its first and
+        last characters off would corrupt the command."""
+        assert self._parse("cmd='ls -la") == {"cmd": "'ls -la"}
+        assert self._parse("cmd=echo \"hi\" there") == {
+            "cmd": 'echo "hi" there'}
+
+    def test_a_value_of_one_character_is_not_treated_as_quotes(self):
+        """len(value) >= 2 guards this: a single quote character is its own
+        first and last character, and stripping it would leave nothing."""
+        assert self._parse("cmd='") == {"cmd": "'"}
+
+
+class TestAGarbledBracketKeepsTheCallsItCanRead:
+    """The bracket contents are parsed by wrapping them in `f(...)`, which
+    makes a comma-joined leak come back as a tuple. Anything in that tuple
+    that is not a call is not a tool call, and the alternative to skipping it
+    is losing the calls beside it - which ends the episode as though the model
+    had finished, on a turn where it was mid-tool-loop.
+    """
+
+    def _parse(self, text, valid_names=frozenset({"bash"})):
+        from subversionbench.tool_parsing import _parse_bracket_tool_calls
+        return _parse_bracket_tool_calls(text, valid_names)
+
+    def test_a_non_call_beside_a_real_call_does_not_cost_the_call(self):
+        leading, calls = self._parse("[bash(cmd='ls'), (42)]")
+        assert calls == [("bash", {"cmd": "ls"})]
+        assert leading == ""
+
+    def test_two_real_calls_in_the_same_shape_both_survive(self):
+        """The control: the shape above is only interesting because this one
+        parses as a tuple too, so the skip is about the element and not about
+        the tuple."""
+        _leading, calls = self._parse("[bash(cmd='ls'), (bash(cmd='pwd'))]")
+        assert calls == [("bash", {"cmd": "ls"}), ("bash", {"cmd": "pwd"})]

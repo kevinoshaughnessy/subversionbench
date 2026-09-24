@@ -83,10 +83,46 @@ def _to_openai_tool(tool: dict) -> dict:
     }
 
 
+def _base_request_kwargs(model, max_tokens, system, tools, messages) -> dict:
+    """The Anthropic-shaped call, translated to a plain OpenAI-compatible
+    chat-completions body - the part both OpenRouterClient and
+    OpenCodeClient send identically. What differs between the two gateways
+    (OpenRouter's `extra_body.provider` routing hints, which Zen has no
+    equivalent of) is added by the caller, not here."""
+    oa_messages = []
+    if system:
+        # `system` is usually a plain string, but callers may also pass
+        # Anthropic-style content blocks (e.g. to attach `cache_control`
+        # for prompt caching, which has no OpenRouter equivalent) -
+        # collapse that down to plain text rather than forwarding a
+        # block list of unknown shape to an OpenAI-compatible endpoint.
+        if isinstance(system, str):
+            system_text = system
+        else:
+            system_text = "\n".join(
+                _block_attr(b, "text") for b in system
+                if _block_type(b) == "text"
+            )
+        oa_messages.append({"role": "system", "content": system_text})
+    for msg in messages or []:
+        oa_messages.extend(_to_openai_messages(msg))
+
+    kwargs = {"model": model, "max_tokens": max_tokens, "messages": oa_messages}
+    if tools:
+        kwargs["tools"] = [_to_openai_tool(t) for t in tools]
+    return kwargs
+
+
 class OpenRouterClient:
     """Adapter exposing an Anthropic-Messages-style `.messages.create(...)`
     interface, backed by OpenRouter's OpenAI-compatible chat completions
     API."""
+
+    # Named in the two diagnostics below, which used to hardcode "OpenRouter"
+    # even after OpenCodeClient started inheriting them - a gateway's own
+    # error naming a different gateway is exactly the stale-comment defect
+    # AGENTS.md warns about, just in an f-string instead of a comment.
+    _GATEWAY_NAME = "OpenRouter"
 
     def __init__(self, provider_sort: str = None, provider_name: str = None):
         import openai
@@ -127,35 +163,9 @@ class OpenRouterClient:
         # asking for one by name.
         self._provider_name = provider_name
 
-    def create(self, model, max_tokens, system=None, tools=None, messages=None,
-               thinking=None, output_config=None):
-        # `thinking` and `output_config` (Anthropic's reasoning controls) have
-        # no OpenRouter equivalent - accepted here only so callers can use one
-        # uniform interface across both clients. resolve_thinking_kwargs sends
-        # neither for an OpenRouter model; OpenRouter reasoning models surface
-        # their reasoning automatically via `message.reasoning`, captured
-        # below regardless of these arguments.
-        oa_messages = []
-        if system:
-            # `system` is usually a plain string, but callers may also pass
-            # Anthropic-style content blocks (e.g. to attach `cache_control`
-            # for prompt caching, which has no OpenRouter equivalent) -
-            # collapse that down to plain text rather than forwarding a
-            # block list of unknown shape to an OpenAI-compatible endpoint.
-            if isinstance(system, str):
-                system_text = system
-            else:
-                system_text = "\n".join(
-                    _block_attr(b, "text") for b in system
-                    if _block_type(b) == "text"
-                )
-            oa_messages.append({"role": "system", "content": system_text})
-        for msg in messages or []:
-            oa_messages.extend(_to_openai_messages(msg))
-
-        kwargs = {"model": model, "max_tokens": max_tokens, "messages": oa_messages}
-        if tools:
-            kwargs["tools"] = [_to_openai_tool(t) for t in tools]
+    def _request_kwargs(self, model, max_tokens, system, tools, messages) -> dict:
+        """The Anthropic-shaped call, translated to an OpenAI-compatible one."""
+        kwargs = _base_request_kwargs(model, max_tokens, system, tools, messages)
 
         # Built independently of `tools`: require_parameters only makes sense
         # alongside tools, but --openrouter-sort applies to every call this
@@ -177,7 +187,10 @@ class OpenRouterClient:
             provider["allow_fallbacks"] = False
         if provider:
             kwargs["extra_body"] = {"provider": provider}
+        return kwargs
 
+    def _completion(self, model: str, kwargs: dict):
+        """The parsed completion, or a RuntimeError that says what came back."""
         # Use the raw-response API rather than the auto-parsing
         # convenience method: if the body isn't valid JSON (an upstream
         # error page, a streaming/SSE body served when we asked for a
@@ -189,13 +202,10 @@ class OpenRouterClient:
         try:
             completion = raw_response.parse()
         except json.JSONDecodeError:
-            status = getattr(raw_response, "status_code", "?")
-            body = getattr(raw_response, "text", None)
-            if body is None:
-                body = str(getattr(raw_response, "content", b""))
+            status, body = _status_and_body(raw_response)
             raise RuntimeError(
-                f"OpenRouter returned a non-JSON response for model "
-                f"'{model}' (HTTP {status}). This usually means the "
+                f"{self._GATEWAY_NAME} returned a non-JSON response for "
+                f"model '{model}' (HTTP {status}). This usually means the "
                 f"upstream provider returned an error page, a "
                 f"streaming/SSE body when a plain response was "
                 f"requested, or the connection was interrupted "
@@ -214,19 +224,28 @@ class OpenRouterClient:
         # status+body diagnostic as the non-JSON case above, since the raw
         # response is the only place an explanation might actually be.
         if not completion.choices:
-            status = getattr(raw_response, "status_code", "?")
-            body = getattr(raw_response, "text", None)
-            if body is None:
-                body = str(getattr(raw_response, "content", b""))
+            status, body = _status_and_body(raw_response)
             raise RuntimeError(
-                f"OpenRouter returned a response with no choices for model "
-                f"'{model}' (HTTP {status}). This usually means the "
+                f"{self._GATEWAY_NAME} returned a response with no choices "
+                f"for model '{model}' (HTTP {status}). This usually means the "
                 f"upstream provider returned an error body that still "
                 f"parses as valid JSON - a moderation block, a rate limit, "
                 f"or a provider-side failure - rather than a completion. "
                 f"Response body (first 1000 chars):\n{body[:1000]}"
             ) from None
+        return completion
 
+    def create(self, model, max_tokens, system=None, tools=None, messages=None,
+               thinking=None, output_config=None):
+        # `thinking` and `output_config` (Anthropic's reasoning controls) have
+        # no OpenRouter equivalent - accepted here only so callers can use one
+        # uniform interface across both clients. resolve_thinking_kwargs sends
+        # neither for an OpenRouter model; OpenRouter reasoning models surface
+        # their reasoning automatically via `message.reasoning`, captured
+        # below regardless of these arguments.
+        completion = self._completion(
+            model, self._request_kwargs(model, max_tokens, system, tools,
+                                        messages))
         choice = completion.choices[0].message
         finish_reason = getattr(completion.choices[0], "finish_reason", None)
         reasoning = getattr(choice, "reasoning", None)
@@ -234,64 +253,102 @@ class OpenRouterClient:
         # Recorded, never sent back: see _reasoning_detail_summary.
         reasoning_details = _reasoning_detail_summary(
             getattr(choice, "reasoning_details", None))
+        # Which backend answered THIS call. OpenRouter reports it top-level on
+        # the completion; it is not a field we send, and it can differ between
+        # turns of one episode when the router falls back mid-run - which is
+        # exactly the drift `openrouter_provider` cannot show, because that
+        # records only what was asked for. See _Response.provider.
+        served_by = getattr(completion, "provider", None)
 
-        blocks = []
-        if reasoning:
-            blocks.append(_Block("thinking", thinking=reasoning))
-
-        if not choice.tool_calls and choice.content:
-            if _RAW_TOOL_CALL_START in choice.content:
-                leading_text, raw_calls = _parse_raw_tool_call_text(choice.content)
-            else:
-                valid_names = {t["name"] for t in (tools or [])}
-                leading_text, raw_calls = _parse_bracket_tool_calls(
-                    choice.content, valid_names
-                )
-            if raw_calls:
-                if leading_text.strip():
-                    blocks.append(_Block("text", text=leading_text.strip()))
-                for name, args in raw_calls:
-                    blocks.append(_Block(
-                        "tool_use", id=f"call_{uuid.uuid4().hex[:8]}",
-                        name=name, input=args,
-                    ))
-                return _Response(blocks, _reasoning_usage(completion),
-                                 stop_reason=finish_reason,
-                                 reasoning_details=reasoning_details)
-
-        if choice.content:
-            blocks.append(_Block("text", text=choice.content))
-        for tc in (choice.tool_calls or []):
-            try:
-                args = json.loads(tc.function.arguments)
-            except (json.JSONDecodeError, TypeError):
-                args = {}
-            blocks.append(_Block("tool_use", id=tc.id, name=tc.function.name, input=args))
-
-        has_visible_output = any(b.type in ("text", "tool_use") for b in blocks)
-        if not has_visible_output:
-            # No visible text and no tool call. The most common cause is a
-            # reasoning model (e.g. DeepSeek R1) spending its entire
-            # max_tokens budget on internal reasoning before producing a
-            # visible answer or tool call - reasoning tokens count against
-            # max_tokens, so a small budget can be exhausted mid-thought.
-            # Surface this instead of returning silently empty, which would
-            # otherwise look to the caller like "the model is done".
-            detail = f"finish_reason={finish_reason}"
-            if reasoning:
-                detail += f", reasoning_chars={len(reasoning)}"
-            blocks.append(_Block(
-                "text",
-                text=(
-                    f"[No visible output from the model this turn ({detail}). "
-                    "If finish_reason is 'length', the model likely exhausted "
-                    "max_tokens on internal reasoning before producing an "
-                    "answer or tool call - try raising --max-tokens.]"
-                ),
-            ))
-
-        return _Response(blocks, _reasoning_usage(completion),
+        return _Response(_response_blocks(choice, tools, reasoning,
+                                          finish_reason),
+                         _reasoning_usage(completion),
                          stop_reason=finish_reason,
-                         reasoning_details=reasoning_details)
+                         reasoning_details=reasoning_details,
+                         provider=served_by)
+
+
+def _status_and_body(raw_response) -> tuple:
+    """
+    The HTTP status and body of a response that could not be used.
+
+    The raw response is the only place an explanation might actually be, and
+    both unusable-response cases need the same pair - it was written out twice,
+    which is two places to keep the fallback from `.text` to `.content` in step.
+    """
+    status = getattr(raw_response, "status_code", "?")
+    body = getattr(raw_response, "text", None)
+    if body is None:
+        body = str(getattr(raw_response, "content", b""))
+    return status, body
+
+
+def _response_blocks(choice, tools, reasoning, finish_reason) -> list:
+    """
+    One completion's message, as the content blocks the harness works in.
+
+    Three routes to a tool call: the SDK's own `tool_calls`, a backend that
+    ignored `tools` and emitted its native syntax as text, and one that wrote a
+    bracketed call. The last two are parsed here rather than upstream because
+    only this client can know the response did not come back structured.
+
+    The raw-call route used to return a _Response of its own. It returns the
+    blocks instead: it always appends at least one tool_use, so the
+    no-visible-output fallback below could never have fired for it, and one
+    return means one place that decides what a _Response carries.
+    """
+    blocks = []
+    if reasoning:
+        blocks.append(_Block("thinking", thinking=reasoning))
+
+    if not choice.tool_calls and choice.content:
+        if _RAW_TOOL_CALL_START in choice.content:
+            leading_text, raw_calls = _parse_raw_tool_call_text(choice.content)
+        else:
+            valid_names = {t["name"] for t in (tools or [])}
+            leading_text, raw_calls = _parse_bracket_tool_calls(
+                choice.content, valid_names
+            )
+        if raw_calls:
+            if leading_text.strip():
+                blocks.append(_Block("text", text=leading_text.strip()))
+            for name, args in raw_calls:
+                blocks.append(_Block(
+                    "tool_use", id=f"call_{uuid.uuid4().hex[:8]}",
+                    name=name, input=args,
+                ))
+            return blocks
+
+    if choice.content:
+        blocks.append(_Block("text", text=choice.content))
+    for tc in (choice.tool_calls or []):
+        try:
+            args = json.loads(tc.function.arguments)
+        except (json.JSONDecodeError, TypeError):
+            args = {}
+        blocks.append(_Block("tool_use", id=tc.id, name=tc.function.name, input=args))
+
+    has_visible_output = any(b.type in ("text", "tool_use") for b in blocks)
+    if not has_visible_output:
+        # No visible text and no tool call. The most common cause is a
+        # reasoning model (e.g. DeepSeek R1) spending its entire
+        # max_tokens budget on internal reasoning before producing a
+        # visible answer or tool call - reasoning tokens count against
+        # max_tokens, so a small budget can be exhausted mid-thought.
+        # Surface this instead of returning silently empty, which would
+        # otherwise look to the caller like "the model is done".
+        detail = f"finish_reason={finish_reason}"
+        if reasoning:
+            detail += f", reasoning_chars={len(reasoning)}"
+        blocks.append(_Block(
+            "text",
+            text=(
+                f"[No visible output from the model this turn ({detail}). "
+                "If finish_reason is 'length', the model likely exhausted "
+                "max_tokens on internal reasoning before producing an "
+                "answer or tool call - try raising --max-tokens.]"
+            ),
+        ))
+    return blocks
 
 

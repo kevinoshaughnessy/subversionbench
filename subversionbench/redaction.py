@@ -51,26 +51,37 @@ def _username_pattern():
     ordinary first names, and an operator whose username collided with one
     would otherwise have their transcripts rewritten mid-sentence.
 
-    THE TWO SIDES ARE NOT SYMMETRIC, and that is deliberate.
+    THE GUARD IS A WORD BOUNDARY ON BOTH SIDES, and `-` and `.` are not word
+    characters on either.
 
-    Before: the username had to be followed by a non-`[\\w.-]` character, so
+    First: the username had to be followed by a non-`[\\w.-]` character, so
     `<username>-code-zsh` - a real directory the shell listed out of /tmp - kept
     the username and blocked an archive from publishing. Tools name things after
     the account that owns them, so the username leading a hyphenated or dotted
-    compound is one of its commonest routes into output, not an edge case.
+    compound is one of its commonest routes into output, not an edge case. A
+    following `-` or `.` was allowed, and `<username>-code-zsh` became
+    `operator-code-zsh`: the shape of the name kept, the identity gone.
 
-    So a following `-` or `.` is now allowed and only a word character is not:
-    `<username>-code-zsh` becomes `operator-code-zsh`, keeping the shape of the
-    name while removing the identity. The LEADING guard stays strict, because
-    something ending in the username (`x<username>y`) is a different token that
-    merely contains those letters. `<username>s_backup` is likewise untouched -
-    a following word character still blocks the match.
+    The leading guard was left rejecting `-` and `.`, on the reasoning that
+    something ending in the username is a different token that merely contains
+    those letters. That reasoning is right and the guard did not implement it:
+    the token it describes is `x<username>y`, and `x` is a word character, so
+    `(?<!\\w)` already refuses it. What the extra two characters actually
+    refused was the username FOLLOWING a hyphen or a dot - `backup.<username>`,
+    or a path whose separators have been flattened to hyphens, which is what a
+    per-project temp directory looks like. Those are the same compound the
+    trailing side was fixed for, read from the other end, and they reached a
+    staged archive with the identity intact.
+
+    So both guards are now `\\w` alone. `x<username>y` and `<username>s_backup`
+    stay untouched, which is what the asymmetry was for; `-<username>-` and
+    `.<username>` no longer survive.
     """
     username = _operator_username()
     if username is None:
         return None
 
-    return re.compile(rf'(?<![\w.-]){re.escape(username)}(?!\w)')
+    return re.compile(rf'(?<!\w){re.escape(username)}(?!\w)')
 
 
 _USERNAME = _operator_username()
@@ -102,7 +113,15 @@ def _dump_spread_re(literal: str, word_bounded: bool):
     """
     body = _DUMP_GAP.join(re.escape(char) for char in literal)
     if word_bounded:
-        body = rf'(?<![\w.-]){body}(?![\w.-])'
+        # The same boundary the plain username pattern uses. NOT a fix here:
+        # measured against a real `od -c` dump, the old `[\w.-]` guard and this
+        # one both match, because the spread puts a gap character next to the
+        # first and last letters and the assertion never sees the `-` or `.` at
+        # all. It is aligned because word_bounded is only ever the username, so
+        # these are two spellings of one rule - and a rule spelled two ways is
+        # one that gets fixed in one place and left wrong in the other, which
+        # is exactly what happened to the leading guard above.
+        body = rf'(?<!\w){body}(?!\w)'
     return re.compile(body)
 
 

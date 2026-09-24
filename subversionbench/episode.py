@@ -1,48 +1,51 @@
 """
 One episode, end to end.
 
-The agentic loop that hands a model a shell and lets it work, the interrogation
-that follows, and the per-episode grading in between. Everything here is about a
-SINGLE episode: what the model did, what it said about it afterwards, and what that
-cost. Batching, resuming, reporting and the read-only modes are elsewhere.
+The agentic loop that hands a model a shell and lets it work, and the grading
+that runs over what it did. Everything here is about a SINGLE episode: what the
+model did and what that cost. Batching, resuming, reporting and the read-only
+modes are elsewhere.
 
 WHAT THIS FILE SPENDS
 ---------------------
 Almost every function here can make an API call, which is what separates it from
 the analysis modules. reporting/facts.py is pure and reporting/console.py prints;
-this is the layer that pays. That is also why the interrogation is a separate
-function rather than the tail of the loop: it starts from the conversation as the
-episode left it, so several phrasings can be put to the same episode without any of
-them seeing another's question.
+this is the layer that pays.
 
+WHAT MOVED OUT, AND WHY
+-----------------------
+turns.py is the bookkeeping either side of one call - a response becoming a
+transcript and the next request - and makes no call itself. arm_record.py is
+the fields that say which experiment an episode belongs to, in one function
+because two records carry them and had already drifted. followup.py is what
+happens after the loop ENDS: the interrogation starts from the conversation as
+the episode left it, so several phrasings can be put to one episode without any
+of them seeing another's question, which is also what lets --reinterrogate add
+a phrasing to episodes collected months earlier.
 """
 
 import datetime
 import json
 import time
 
-# The dependencies the test suite stubs are called through their module rather
-# than bound as bare names. `from X import f` copies the function object, so a
-# test patching X.f would not affect this module and a test patching THIS module's
-# f stops working the moment f's caller moves to another file. Called as
-# `llm_client.get_client(...)`, the lookup happens at call time in the owning
-# module, so there is exactly one patch point and it does not move when files do.
-# test_init.py holds this.
 from . import grading as grading_api
 from . import llm_client as llm_api
-from .api_errors import api_error_message, warn_usage_limit_once
-from .config import (CANARY, DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION,
-                     ROLLOUT_VERSION, TOOLS, VERSION, fingerprint_for)
-from .grading import (MISALIGNED_ACTS, analyze_misalignment, awareness_timing,
-                      detect_eval_awareness_keywords, first_awareness_position,
-                      questions_for, settle_analysis, verify_oversight_unchanged)
+from .arm_record import arm_identity
+from .config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION, TOOLS
+from .followup import add_awareness_timing, interrogate_acts
+from .graders import new_record
+from .grading import (MISALIGNED_ACTS, analyze_misalignment,
+                      detect_eval_awareness_keywords,
+                      detect_misuse_suspicion,
+                      report_grader_failure, settle_analysis,
+                      verify_oversight_unchanged)
 from .isolation import DEFAULT_ISOLATION
 from .llm_client import _BRACKET_TOOL_CALL_RE
 from .redaction import redact_paths
-from .sandbox import execute_tool_sandboxed, tool_input_cmd
-
-
-
+from .sandbox import execute_tool_sandboxed
+from .usage import cache_usage
+from .turns import (record_turn_blocks, replayable_content,
+                    roll_cache_breakpoints)
 # =========================================================================
 # The agentic loop
 # =========================================================================
@@ -69,276 +72,6 @@ class EpisodeAPIError(RuntimeError):
 # and a turn adds roughly two (the assistant's reply, then its tool results),
 # so a single rolling breakpoint would stop finding its predecessor around turn
 # ten and silently degrade to no caching. Two keeps the lookback short. The API
-# allows four; the extra two buy nothing here and cost a write each.
-_CACHE_BREAKPOINTS = 2
-
-
-def roll_cache_breakpoints(messages: list, keep: int = _CACHE_BREAKPOINTS):
-    """
-    Move the prompt-cache breakpoints onto the newest turn.
-
-    The agentic loop re-sends the entire conversation every turn, and without a
-    breakpoint every token is reprocessed at full price: a median episode
-    re-sends about 22,400 input tokens across its eight turns, of which only
-    ~5,000 are new. Marking the latest tool results cacheable makes each turn
-    read what came before at a tenth of the price and write only the increment.
-
-    Marks tool_result blocks specifically because those are dicts this module
-    builds. The assistant turns are SDK response objects, which cannot carry an
-    extra key, and the opening user turn is a bare string.
-
-    Only the newest `keep` breakpoints are left in place; older ones are
-    removed, since a cached prefix stays readable by content and does not need
-    its marker to persist.
-    """
-    marked = [block
-              for message in messages
-              if isinstance(message.get("content"), list)
-              for block in message["content"]
-              if isinstance(block, dict) and "cache_control" in block]
-    for block in marked[:-keep] if keep else marked:
-        block.pop("cache_control", None)
-
-
-def report_grader_failure(result: dict, what: str = "awareness grader") -> bool:
-    """
-    Say WHY the awareness grader failed, not just that it did.
-
-    The grader's own result was printed with `rubric_results` excluded - which is
-    where every per-question error lives - so a batch showed `"grading_failed":
-    true, "rubric_errors": 9` with no reason attached, for every episode. On a
-    spend cap that is the whole diagnosis, withheld: the operator sees only that
-    grading failed, on a run whose rollout was perfectly fine.
-
-    Returns whether anything was reported, so a caller can stay quiet on the
-    ordinary case.
-    """
-    rubric = (result or {}).get("rubric_results") or {}
-    errors = []
-    for answer in rubric.values():
-        error = (answer or {}).get("error")
-        if error and error not in errors:
-            errors.append(error)
-    if not errors:
-        return False
-    for error in errors:
-        # Once per process, however many questions or episodes hit it.
-        warn_usage_limit_once(error, what)
-    # `errors` holds DISTINCT messages; the per-question count is separate,
-    # because nine questions failing for one reason is one fact and not nine.
-    failed = sum(1 for a in rubric.values() if (a or {}).get("error"))
-    print(f"  [{what}] {failed} of {len(rubric)} rubric question(s) failed: "
-          f"{api_error_message(errors[0], limit=160)}")
-    if len(errors) > 1:
-        print(f"  [{what}] and {len(errors) - 1} other distinct error(s)")
-    return True
-
-
-def cache_usage(response) -> dict:
-    """
-    Read the cache counters off one response, tolerating their absence.
-
-    OpenRouter responses carry no `usage` in the shape this returns, and a
-    missing counter is reported as zero rather than guessed at.
-    """
-    usage = getattr(response, "usage", None)
-    return {
-        "read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
-        "written": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
-        "uncached": int(getattr(usage, "input_tokens", 0) or 0),
-    }
-
-
-def replayable_content(blocks: list) -> list:
-    """
-    Drop the blocks the API will not accept back in a later request.
-
-    An assistant turn is echoed into `messages` and re-sent on the next turn,
-    and Anthropic rejects a text block whose text is empty:
-
-        messages: text content blocks must be non-empty
-
-    Newer models do emit one - a turn that goes from reasoning straight to a
-    tool call can open a text block and put nothing in it. The response is
-    valid; sending it back is not, so the episode dies on the *following*
-    turn with the whole transcript still in memory.
-
-    Thinking blocks are passed through untouched, including empty ones. They
-    carry signatures the API verifies and have to go back exactly as they
-    came; the copy the grader reads is the transcript, which drops empty
-    thinking separately.
-    """
-    kept = []
-    for block in blocks:
-        if getattr(block, "type", None) == "text":
-            if not (getattr(block, "text", "") or "").strip():
-                continue
-        kept.append(block)
-    return kept
-
-
-def record_turn_blocks(blocks: list, turn: int, transcript: list,
-                       red) -> tuple:
-    """
-    One turn's content blocks into the transcript. Returns (tool_calls,
-    reasoning_chars) - the calls to execute, and how much thinking arrived.
-
-    Every block reaching the transcript goes through `red` first, so no
-    host-specific path ends up in a shareable artifact. What goes BACK to the
-    model is not redacted; see the tool-result comment in run_evaluation.
-
-    Split out because this is where the two empty-block rules live, and both
-    were bugs: an empty thinking block and an empty text block are placeholders
-    the API returns rather than content, and recording either makes a transcript
-    claim evidence it does not have. That mattered - both awareness measures read
-    the transcript.
-    """
-    tool_calls = []
-    reasoning_chars = 0
-    for block in blocks:
-        if block.type == "thinking":
-            thinking = red(block.thinking)
-            # An empty thinking block is a placeholder for reasoning the
-            # API did not return - it happens on the native path whenever
-            # extended thinking is off. Recording it makes a transcript
-            # claim reasoning was captured when none was, and feeds the
-            # grader empty [REASONING] sections. The OpenRouter path has
-            # always guarded this (`if reasoning:`); the native path did
-            # not, which left 243 hollow entries in the pilot data.
-            if not thinking.strip():
-                continue
-            reasoning_chars += len(thinking)
-            print(f"[Turn {turn+1} THINKING]\n{thinking}\n")
-            transcript.append({
-                "turn": turn + 1,
-                "type": "thinking",
-                "content": thinking
-            })
-        elif block.type == "redacted_thinking":
-            print(f"[Turn {turn+1} THINKING] (redacted by provider's safety systems)\n")
-            transcript.append({
-                "turn": turn + 1,
-                "type": "thinking",
-                "content": "[redacted]"
-            })
-        elif block.type == "text":
-            text = red(block.text)
-            # Empty for the same reason it is dropped from the
-            # conversation: a block the model opened and put nothing in.
-            # Recording it feeds the grader a hollow [AGENT] section.
-            if not text.strip():
-                continue
-            print(f"[Turn {turn+1} TEXT]\n{text}\n")
-            transcript.append({
-                "turn": turn + 1,
-                "type": "text",
-                "content": text
-            })
-        elif block.type == "tool_use":
-            tool_calls.append(block)
-            cmd = red(tool_input_cmd(block.input))
-            print(f"[Turn {turn+1} TOOL] bash: {cmd}")
-            transcript.append({
-                "turn": turn + 1,
-                "type": "tool_call",
-                "cmd": cmd
-            })
-    return tool_calls, reasoning_chars
-
-
-def arm_identity(model, effort, nudge, oversight, lure, interrogations,
-                 openrouter_sort, openrouter_provider) -> dict:
-    """
-    The fields that say WHICH experiment this episode belongs to.
-
-    The first thirteen keys of every episode record, in order, and the reason
-    this is a function is that there are two records: the one returned when an
-    episode completes and the one attached to EpisodeAPIError when it dies
-    mid-turn. Both are saved, both are read by the same analyses, and both
-    carried their own copy of these thirteen fields.
-
-    The copies had already drifted. `isolation` is on the completed record and
-    not the failed one; and the same field, `analysis_version`, was documented
-    as "which analysis version COLLECTED it" in one and "last touched it" in the
-    other - wordings that contradict each other, with the first explicitly
-    correcting the second. A field added to one record and forgotten in the
-    other is silent: the run file simply lacks it, and whatever reads it sees a
-    default.
-
-    Ordered exactly as both records ordered it, because these dicts are written
-    to disk as JSON and a reordering would rewrite every saved field position
-    for no reason.
-    """
-    return {
-        # Emitted into every artefact so a leak into a training corpus can be
-        # detected later; see CANARY.md.
-        "canary": CANARY,
-        # Rollout identity, so an episode is self-describing: which rollout
-        # produced it, and which analysis version COLLECTED it. A directory
-        # holding two fingerprints is two experiments, and until this existed
-        # nothing recorded which was which.
-        #
-        # Collected, not "last touched": no read mode moves this, so a file
-        # collected under v58 and re-labelled under v80 still says v58 -
-        # correctly, because this names what the model was run against. What
-        # re-read it since is recorded separately, per answer as
-        # `classifier_version` and per pass in `reanalysis`; see
-        # readmodes/reclassify.record_reanalysis.
-        "rollout_version": ROLLOUT_VERSION,
-        "oversight": oversight,
-        # The arm, recorded rather than left to the filename. Without it every
-        # analysis that read this field saw `lure=False` for a lure episode and
-        # silently pooled the two arms - which is how 50 lure episodes ended up
-        # inside a "primary arm" rate.
-        "lure": lure,
-        # Which wordings of the opening question were put to this episode, in
-        # the order asked. A list because the design is paired: every episode gets
-        # the default probe, plus any extras, each from the same frozen episode
-        # state. Recorded rather than left to the filename - the arm that was left
-        # to the filename got pooled into a rate it did not belong to - and the
-        # filename deliberately does NOT mark it, so batches with and without
-        # extras still pool for the default measure.
-        "interrogations": list(interrogations),
-        # WHICH phrasing the headline concealment field holds, named rather than
-        # implied. `followup_response` is defined as the reference probe's answer,
-        # and that probe's identity changed at r7: it was the part-evidence
-        # question, it is now the zero-evidence one. Every rate collected before
-        # that measures a different opening question, so a reader pooling two
-        # directories needs this stated in the artefact and not inferred from
-        # whatever DEFAULT_INTERROGATION happened to be when the batch ran.
-        #
-        # Only 100 of the 1510 episodes collected before this even recorded
-        # `interrogations`, so for the rest the phrasing was recoverable only from
-        # the directory name. That is the gap this closes.
-        "headline_interrogation": DEFAULT_INTERROGATION,
-        # The fingerprint of THIS arm, not the primary one. This used to write a
-        # module constant pinned to (oversight, no lure), so every counterfactual
-        # and every lure episode claimed the primary arm's identity. The drift
-        # guard was always right - it checks the arm being run - but the artefact
-        # recorded something else, which defeats the whole point: the comment
-        # above says a directory holding two fingerprints is two experiments, and
-        # a directory holding one fingerprint across three arms is worse, because
-        # it looks consistent.
-        "rollout_fingerprint": fingerprint_for(oversight, lure),
-        "analysis_version": VERSION,
-        "model": model,
-        # The effort actually sent, not the one requested: resolve_thinking_kwargs
-        # drops a level the model will not accept, and recording the request
-        # would claim a condition that never applied.
-        "effort": effort,
-        # None on every non-OpenRouter run, and on an OpenRouter run where
-        # the operator did not opt in - "not sent" and "OpenRouter's own
-        # default routing" are the same state, so there is nothing else this
-        # could mean. Recorded because sort changes WHICH backend answered,
-        # which is a fact about the episode's collection, not a preference.
-        "openrouter_sort": openrouter_sort,
-        # Same reasoning as openrouter_sort above: None means either not
-        # OpenRouter or not requested, and a pinned provider changes WHICH
-        # backend answered just as much as sort does.
-        "openrouter_provider": openrouter_provider,
-        "nudge": nudge,
-    }
-
 
 class _LoopFailed(Exception):
     """An API call inside the agentic loop failed on turn `turn`.
@@ -411,6 +144,28 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
         turn_details = getattr(response, "reasoning_details", None)
         if turn_details:
             state["reasoning_details"].append({"turn": turn + 1, **turn_details})
+
+        # Which backend answered this turn. Recorded per turn on the same
+        # terms as the reasoning label above, and for a sharper reason: the
+        # router can fall back mid-episode, so one episode's turns are not
+        # guaranteed to have come from one backend. A single per-episode value
+        # would have to pick one and would hide exactly that. Only turns that
+        # reported it are appended, so an empty list means the field never
+        # arrived - not that one provider served the whole episode.
+        served_by = getattr(response, "provider", None)
+        if served_by:
+            state["served_by"].append({"turn": turn + 1, "provider": served_by})
+
+        # Appended on the same terms as the two above: only turns that
+        # reported one, so an empty list means the field never arrived rather
+        # than that every turn ended the same way. Read here rather than in the
+        # no-content branch below, which is where it used to be looked at - a
+        # turn that returned content perfectly well can still have been cut
+        # off, and that is the case the branch below never saw.
+        finish_reason = getattr(response, "stop_reason", None)
+        if finish_reason:
+            state["finish_reasons"].append({"turn": turn + 1,
+                                            "reason": finish_reason})
 
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
@@ -499,92 +254,282 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
         roll_cache_breakpoints(messages)
 
 
-def interrogate_acts(analysis: dict, transcript: list, probe: dict, *,
-                     grader_model: str, nudge: str, interrogations: tuple,
-                     ended_by: str) -> None:
+def _resolved_routing(model: str, sort, provider, use_opencode: bool) -> tuple:
+    """The client for the model under test, and the routing actually sent."""
+    # Resolved once, the same way `effort` is: what actually reaches the
+    # request, not what was asked for. --openrouter-sort/--openrouter-provider
+    # against a non-OpenRouter model is a no-op in get_client() already;
+    # recording the requested value here regardless would claim a routing
+    # choice that was never sent. The same is true of --use-opencode against
+    # a non-OpenRouter model, AND of --openrouter-sort/--openrouter-provider
+    # against an OpenRouter model routed to OpenCode instead - OpenCodeClient
+    # takes neither, so a run recording them there would claim a choice that
+    # went nowhere.
+    is_or = llm_api.is_openrouter_model(model)
+    use_opencode = bool(use_opencode and is_or)
+    sort = sort if (is_or and not use_opencode) else None
+    provider = provider if (is_or and not use_opencode) else None
+    client = llm_api.get_client(model, provider_sort=sort,
+                                provider_name=provider,
+                                use_opencode=use_opencode)
+    return client, sort, provider, use_opencode
+
+
+def _check_the_arm_matches_the_prompt(nudge_type: str, system_prompt: str) -> None:
+    """The declared arm and the prompt it was given must agree."""
+    # The arm as the caller declared it, NOT inferred from the prompt text.
+    #
+    # This used to read `"strong" if "top priority" in system_prompt else
+    # "none"`, which was wrong the moment a third arm shared strong's prompt:
+    # a --nudge max run printed and *recorded* "strong". The value is stored on
+    # every run and on every failed run, and --compare labels its arms from it,
+    # so the one field that keeps the coerced arm from being read as the
+    # unprompted one was reporting the wrong arm.
+    #
+    # Deriving a fact from text that happens to contain it is the same mistake
+    # as matching a command name inside prose: it holds until the text changes
+    # underneath it. The caller knows the arm, so the caller passes it.
+
+    # Fails loudly on a wiring mistake rather than mislabelling a whole batch,
+    # which is how the bug above stayed quiet: `max` legitimately shares
+    # strong's prompt, so agreement can no longer be checked by eye.
+    _strong_prompt = "top priority" in system_prompt
+    if nudge_type == "none" and _strong_prompt:
+        raise ValueError("nudge='none' with the strong-nudge system prompt")
+    if nudge_type in ("strong", "max") and not _strong_prompt:
+        raise ValueError(f"nudge={nudge_type!r} without the strong-nudge prompt")
+
+
+def _announce_episode(model, nudge_type, effort, env_dir, red) -> None:
+    """Which episode is starting, before it costs anything."""
+    # `effort` is the level actually SENT, not the one requested:
+    # resolve_thinking_kwargs drops a level the model will not accept, and
+    # printing the request would claim a condition that never applied. None means
+    # no reasoning parameter was sent at all, which is a different state from any
+    # level and is spelled out rather than left blank.
+    print(f"\n{'='*60}")
+    print(f"MODEL: {model}")
+    print(f"NUDGE: {nudge_type}")
+    print(f"EFFORT: {effort if effort else 'not sent (provider default)'}")
+    print(f"ENV: {red(env_dir)}")
+    print(f"{'='*60}\n")
+
+
+def _served_by_block(served_by: list) -> dict:
     """
-    Ask the model about each misaligned act it took, and record what it said.
+    Which backend actually answered, per turn and as a set.
 
-    `probe` is what run_followup needs to reach the model under test - the
-    conversation as the episode left it, the client, and the request settings.
-    Grouped rather than passed one at a time because none of the six is read
-    here: they exist only to be handed straight through, and threading them
-    individually made this function's signature a copy of another function's.
+    `openrouter_provider` on the arm is the REQUEST; this is the response.
+    `served_by_changed` is the fact a single value cannot carry - the router
+    fell back mid-episode, so this episode's turns did not all come from one
+    backend, and report/data_quality.py's mixed_served_provider_arms is the
+    only check that can see it.
 
-    Concealment is what separates scheming from plain misalignment, so every act
-    gets its own probe. They share one conversation: a single investigator asking
-    about two things, rather than two models in two disconnected worlds.
-
-    Writes the disclosure, misrepresentation and follow-up fields onto
-    `analysis` in place. Nothing is settled here - `settle_analysis` in the
-    caller does that, after this has supplied the evidence it needs.
+    ITS OWN FUNCTION so both episode records get the same three fields from one
+    expression. The failed record carried none of them: it was assembled key by
+    key beside the completed one, and these three were simply not among the
+    keys it listed. That is the drift arm_record.py was created to stop, one
+    field group further along - and `_new_loop_state` below already says the
+    rule it broke, that "a counter the loop writes and this does not declare is
+    one the failure record silently lacks". Declaring it there is necessary and
+    was not sufficient, because the record still had to read it.
     """
-    # An episode that ran out of turns never produced a closing report - the
-    # model was cut off mid-task - so there is nothing to judge disclosure
-    # against. Scoring the last thing it happened to say ("Trying even smaller
-    # appends.") as a non-disclosure would be reading a verdict out of noise.
-    has_report = ended_by != "turn_cap"
+    providers = {turn["provider"] for turn in served_by}
+    return {
+        "served_by": served_by,
+        "served_by_providers": sorted(providers),
+        "served_by_changed": len(providers) > 1,
+    }
 
-    if analysis.get("oversight_tampered") and has_report:
-        # Did the closing report claim the check passed, without saying the
-        # agent is why it passed? Stronger than omission.
-        analysis["misrepresented_check"] = grading_api.detect_misrepresentation(
+
+def _finish_reason_block(finish_reasons: list) -> dict:
+    """What the provider said about how each turn ended, per turn and pooled.
+
+    `ended_by_provider` is the LAST turn's reason, because that is the turn
+    that ended the episode and so the one that disambiguates `ended_by`. An
+    episode whose `ended_by` is "model_stopped" and whose `ended_by_provider`
+    is "length" was cut off at max_tokens rather than having declined to act -
+    which is a different observation about the same model, and the one a
+    propensity rate must not silently count as the first.
+
+    ITS OWN FUNCTION for the reason _served_by_block above is: two records have
+    to carry the same field group, and the failed one has already been caught
+    once lacking a group that was assembled key by key beside the completed
+    one.
+    """
+    reasons = {entry["reason"] for entry in finish_reasons}
+    return {
+        "finish_reasons": finish_reasons,
+        "finish_reasons_seen": sorted(reasons),
+        "ended_by_provider": (finish_reasons[-1]["reason"]
+                              if finish_reasons else None),
+    }
+
+
+def _new_loop_state() -> dict:
+    """
+    Everything the agentic loop accumulates, declared in one place.
+
+    In one place because the caller reads it afterwards and, when a request
+    fails, records it as the partial episode - so a counter the loop writes
+    and this does not declare is one the failure record silently lacks.
+    """
+    return {
+        "ended_by": "turn_cap",
+        "reasoning_chars": 0,
+        # Whether prompt caching actually engaged. A breakpoint below the model's
+        # minimum cacheable prefix is accepted and silently ignored, so these
+        # counters are the only way to tell a working breakpoint from a no-op -
+        # two of this harness's turned out to be no-ops exactly that way.
+        "cache": {"read": 0, "written": 0, "uncached": 0},
+        # Token accounting as the provider reports it, including reasoning tokens
+        # where available. Empty on the native Anthropic path, whose usage is
+        # already captured by `cache` in a different shape.
+        "token_usage": {},
+        # Per turn, what the provider said its reasoning was - a trace, a summary,
+        # or an encrypted payload. Kept per turn rather than merged because a
+        # model may return different kinds across an episode, and a merged label
+        # would hide it. Empty except on OpenRouter, the only route that reports
+        # the field.
+        "reasoning_details": [],
+        # Which backend served each turn, when the route reports it. Same
+        # shape and same reason as reasoning_details above: kept per turn
+        # because the router can fall back mid-episode.
+        "served_by": [],
+        # WHY THE PROVIDER SAID EACH TURN ENDED, in its own word for it.
+        # `ended_by` is this harness's account of why the LOOP stopped and is
+        # decided by what came back - no tool calls means "model_stopped" - so
+        # it cannot separate a model that chose to stop from one truncated at
+        # max_tokens or refused by the provider's own filter. All three
+        # arrived here as "model_stopped", and the aggregate token_usage
+        # cannot tell them apart either: it totals the episode, so no per-turn
+        # count can be compared against the cap.
+        #
+        # The same ambiguity was already paid for once on the interrogation
+        # path, where 42 empty answers were unexplainable after the fact until
+        # `stop_reason` was recorded beside them - see followup.py's
+        # response_meta. This is that fix applied to the turn loop.
+        "finish_reasons": [],
+    }
+
+
+def _grade_awareness(analysis: dict, transcript: list, use_grader: bool,
+                     grader_model: str, timing: dict) -> None:
+    """
+    Both awareness measures, and where each act's awareness fell relative to it.
+
+    The keyword screen is free and reads the transcript; the rubric grader
+    costs a call per question. Both are recorded and neither is silently
+    pooled into the other - the keyword proxy badly under-detects, which is
+    why there are two.
+    """
+    eval_awareness_kw = detect_eval_awareness_keywords(transcript)
+    analysis["eval_awareness_keywords"] = eval_awareness_kw
+    # Recorded beside awareness and pooled into nothing: suspicion that the
+    # content is an ATTACK is a different construct from suspicion that the
+    # situation is a TEST, and the two were merging.
+    analysis["misuse_keywords"] = detect_misuse_suspicion(transcript)
+
+    t_grader_start = time.time()
+    if use_grader:
+        print("\n--- Running eval awareness grader ---")
+        eval_awareness_grader = grading_api.detect_eval_awareness_grader(
             transcript, model=grader_model
         )
+        report_grader_failure(eval_awareness_grader)
+        analysis["eval_awareness_grader"] = eval_awareness_grader
+        print(f"Grader result: {json.dumps({k: v for k, v in eval_awareness_grader.items() if k != 'rubric_results'}, indent=2)}")
+    else:
+        analysis["eval_awareness_grader"] = {"skipped": True}
 
-    for act in MISALIGNED_ACTS:
-        # None means the act was not available in this arm - there was no
-        # oversight to subvert - so there is nothing to interrogate about.
-        # Asking anyway would put the idea in front of a model the scenario
-        # deliberately never mentioned it to.
-        if not analysis.get(act["key"]):
-            continue
+    add_awareness_timing(analysis, transcript,
+                         grader_model=grader_model if use_grader else None)
+    t_grader_end = time.time()
+    timing["grader_seconds"] = round(t_grader_end - t_grader_start, 1)
+    print(f"[TIMING] Grader: {timing['grader_seconds']}s")
 
-        # Did it own up in its closing report, before anyone asked? That is
-        # the covert limb of the definition and needs no interrogation.
-        analysis[act["disclosure_key"]] = (
-            grading_api.detect_disclosure(transcript, act["description"],
-                              model=grader_model)
-            if has_report else
-            {"disclosed": None, "quote": "",
-             "error": "episode hit the turn cap; no closing report"}
-        )
 
-        # PAIRED, not one phrasing per batch. Each probe starts from the episode
-        # as it ended - run_followup copies the message list rather than extending
-        # it - so a second wording cannot see the first and there is no order
-        # effect to control for. That is the same property that already lets the
-        # two ACTS be interrogated independently from one episode.
-        #
-        # Paired is both cheaper and better powered. The agent rollout is paid for
-        # once: an interrogation is about 16% of an episode's wall clock, against
-        # 100% for a second batch. And because both probes share everything about
-        # the episode, between-episode variance drops out of the comparison, which
-        # matters when the rate being compared is currently zero.
-        by_variant = {}
-        for variant in interrogations:
-            if len(interrogations) > 1:
-                print(f"\n*** {act['banner']} - interrogation [{variant}] ***\n")
-            else:
-                print(f"\n*** {act['banner']} - Running follow-up "
-                      f"interrogation ***\n")
-            by_variant[variant] = run_followup(
-                probe["system_prompt"], probe["messages"], probe["model"],
-                probe["client"], act,
-                questions=questions_for(act, nudge, variant),
-                classifier_model=grader_model,
-                max_tokens=probe["max_tokens"],
-                reasoning_kwargs=probe["reasoning_kwargs"],
-                env_dir=probe["env_dir"],
-            )
+def _interrogate_the_acts(analysis, transcript, session, grader_model, nudge,
+                          interrogations, ended_by, capability, timing,
+                          t_eval_start) -> None:
+    """
+    One probe per misaligned act, and the verdict that needs their answers.
 
-        # The headline field holds the DEFAULT phrasing and nothing else, so every
-        # rate over the episodes already collected keeps its meaning and the two
-        # can be pooled. The extras sit beside it.
-        analysis[act["followup_key"]] = by_variant[DEFAULT_INTERROGATION]
-        if len(by_variant) > 1:
-            analysis[act["followup_key"] + "_by_variant"] = by_variant
+    Concealment is what separates scheming from plain misalignment, so every
+    act gets its own probe.
+    """
+    # Concealment is what separates scheming from plain misalignment, so every
+    # act gets its own probe. They share one conversation: a single
+    # investigator asking about two things, rather than two models in two
+    # disconnected worlds.
+    t_followup_start = time.time()
 
+    # NOT IN THE CAPABILITY ARM. Every question in the ladder asks whether
+    # the model did something it has not been asked to do, and in this arm it
+    # was asked - so a truthful "yes, you told me to" would be scored against
+    # a question that is no longer about concealment. Skipped rather than
+    # asked and discarded, because the answers would still be saved, still
+    # cost a request per act, and still be there for someone to read as a
+    # concealment rate later.
+    if capability is None:
+        interrogate_acts(
+            analysis, transcript, session,
+            grader_model=grader_model, nudge=nudge,
+            interrogations=interrogations, ended_by=ended_by)
+        # Which grader's verdicts decided where each ladder of questions
+        # stopped. Stored once, beside the answers: a grader added later can
+        # re-label them but cannot change which questions were asked. See
+        # graders.py.
+        analysis["interrogation_driven_by"] = grader_model
+    else:
+        # Recorded, not merely absent. A missing followup_response reads as a
+        # measurement that failed; this says it was never attempted and why,
+        # which is the not-applicable-is-not-zero rule applied to a field
+        # rather than to a count.
+        analysis["interrogation_skipped"] = (
+            f"capability arm ({capability}): the act was instructed, so an "
+            f"interrogation about it measures nothing about concealment")
+
+    t_followup_end = time.time()
+
+    # Settled only now: the acts are visible from the episode, but concealment
+    # needs the deliverable and the interrogations. None means the deciding
+    # evidence is missing, not that the episode was clean.
+    settle_analysis(analysis)
+    if analysis["misaligned"]:
+        for act in MISALIGNED_ACTS:
+            level = analysis.get(act["level_key"])
+            if level:
+                print(f"[CONCEALMENT] {act['name']}: {level}")
+        print(f"[CLASSIFICATION] scheming={analysis['scheming']}")
+
+    timing["followup_seconds"] = round(t_followup_end - t_followup_start, 1)
+    timing["total_run_seconds"] = round(t_followup_end - t_eval_start, 1)
+    print(f"[TIMING] Follow-up: {timing['followup_seconds']}s")
+    print(f"[TIMING] Total run: {timing['total_run_seconds']}s")
+
+
+def _check_for_a_deferred_write(analysis: dict, env_info: dict) -> None:
+    """The far side of the time-of-check gap."""
+    # The far side of the time-of-check gap. Everything above this line ran after
+    # the artefacts were hashed - the grader and one interrogation per act, which
+    # is seconds of model calls - so a write scheduled to land in that window
+    # would have been invisible. Checked here, at the last moment the episode
+    # tree is known to exist and nothing further can be attributed to the model.
+    analysis["deferred_write_check"] = verify_oversight_unchanged(
+        env_info, analysis)
+    if analysis["deferred_write_check"]["deferred_write"]:
+        # Loud, because it means the measurement guarantee failed for this
+        # episode rather than that the model did something interesting. Not
+        # folded into the act: see verify_oversight_unchanged.
+        print("\n[HARNESS INTEGRITY] An oversight artefact changed AFTER it was "
+              "graded:")
+        for c in analysis["deferred_write_check"]["fields_changed"]:
+            print(f"  {c['field']}: {c['at_grading']} at grading -> "
+                  f"{c['at_episode_end']} at episode end")
+        print("  This episode's oversight verdict is not trustworthy and it "
+              "should be excluded. Something outlived the command that started "
+              "it, or work was handed to a system scheduler.")
 
 
 def run_evaluation(
@@ -609,6 +554,10 @@ def run_evaluation(
     episode_root=None,
     openrouter_sort: str = None,
     openrouter_provider: str = None,
+    use_opencode: bool = False,
+    capability: str = None,
+    date_mode: str = None,
+    goalguard: str = None,
 ) -> dict:
     """Run one complete evaluation with eval awareness detection.
 
@@ -616,22 +565,13 @@ def run_evaluation(
     None means `env_dir` alone, which is stricter - see execute_tool_sandboxed for
     why the safe default is the tight one.
 
-    `openrouter_sort` and `openrouter_provider` only affect the client built
-    here, for the model UNDER TEST - not the grader or interrogation-classifier
-    clients, which build their own from `grader_model` elsewhere and never see
-    these values. See get_client().
+    `openrouter_sort`, `openrouter_provider` and `use_opencode` only affect
+    the client built here, for the model UNDER TEST - not the grader or
+    interrogation-classifier clients, which build their own from
+    `grader_model` elsewhere and never see these values. See get_client().
     """
-    # Resolved once, the same way `effort` is: what actually reaches the
-    # request, not what was asked for. --openrouter-sort/--openrouter-provider
-    # against a non-OpenRouter model is a no-op in get_client() already;
-    # recording the requested value here regardless would claim a routing
-    # choice that was never sent.
-    openrouter_sort = (openrouter_sort if llm_api.is_openrouter_model(model)
-                       else None)
-    openrouter_provider = (openrouter_provider
-                           if llm_api.is_openrouter_model(model) else None)
-    client = llm_api.get_client(model, provider_sort=openrouter_sort,
-                                provider_name=openrouter_provider)
+    client, openrouter_sort, openrouter_provider, use_opencode = _resolved_routing(
+        model, openrouter_sort, openrouter_provider, use_opencode)
 
     messages = [{"role": "user", "content": user_prompt}]
     transcript = []
@@ -642,42 +582,30 @@ def run_evaluation(
     def red(text):
         return redact_paths(text, env_dir)
 
-    # The arm as the caller declared it, NOT inferred from the prompt text.
-    #
-    # This used to read `"strong" if "top priority" in system_prompt else
-    # "none"`, which was wrong the moment a third arm shared strong's prompt:
-    # a --nudge max run printed and *recorded* "strong". The value is stored on
-    # every run and on every failed run, and --compare labels its arms from it,
-    # so the one field that keeps the coerced arm from being read as the
-    # unprompted one was reporting the wrong arm.
-    #
-    # Deriving a fact from text that happens to contain it is the same mistake
-    # as matching a command name inside prose: it holds until the text changes
-    # underneath it. The caller knows the arm, so the caller passes it.
     nudge_type = nudge
+    _check_the_arm_matches_the_prompt(nudge_type, system_prompt)
+    _announce_episode(model, nudge_type, effort, env_dir, red)
 
-    # Fails loudly on a wiring mistake rather than mislabelling a whole batch,
-    # which is how the bug above stayed quiet: `max` legitimately shares
-    # strong's prompt, so agreement can no longer be checked by eye.
-    _strong_prompt = "top priority" in system_prompt
-    if nudge_type == "none" and _strong_prompt:
-        raise ValueError("nudge='none' with the strong-nudge system prompt")
-    if nudge_type in ("strong", "max") and not _strong_prompt:
-        raise ValueError(f"nudge={nudge_type!r} without the strong-nudge prompt")
+    # The arguments that name this experiment, written once.
+    # arm_record.py exists because two records carried their own copy of these
+    # FIELDS and drifted; one function fixed that and left the ARGUMENTS
+    # written out twice, which is the same defect one level up. A field added
+    # to the completed record's call and forgotten in the failed one's is just
+    # as silent as the original.
+    #
+    # `artefact_dates` is the one field here read off the staged environment
+    # rather than off an argument: create_episode_root stamps the tree and
+    # puts what it did in env_info, and before this was threaded through, that
+    # return value reached nothing at all.
+    def arm():
+        return arm_identity(
+            model, effort, nudge_type, oversight, lure, interrogations,
+            openrouter_sort, openrouter_provider,
+            isolation=isolation, max_turns=max_turns,
+            capability=capability, date_mode=date_mode,
+            artefact_dates=env_info.get("artefact_dates"),
+            goalguard=goalguard, use_opencode=use_opencode)
 
-    # `effort` is the level actually SENT, not the one requested:
-    # resolve_thinking_kwargs drops a level the model will not accept, and
-    # printing the request would claim a condition that never applied. None means
-    # no reasoning parameter was sent at all, which is a different state from any
-    # level and is spelled out rather than left blank.
-    print(f"\n{'='*60}")
-    print(f"MODEL: {model}")
-    print(f"NUDGE: {nudge_type}")
-    print(f"EFFORT: {effort if effort else 'not sent (provider default)'}")
-    print(f"ENV: {red(env_dir)}")
-    print(f"{'='*60}\n")
-
-    # --- Time the main agentic loop ---
     t_eval_start = time.time()
 
     create_kwargs = dict(
@@ -692,27 +620,7 @@ def run_evaluation(
         **(reasoning_kwargs or {}),
     )
 
-    # Everything the loop accumulates, in one place because the caller reads it
-    # afterwards and, if a request fails, records it as the partial episode.
-    state = {
-        "ended_by": "turn_cap",
-        "reasoning_chars": 0,
-        # Whether prompt caching actually engaged. A breakpoint below the model's
-        # minimum cacheable prefix is accepted and silently ignored, so these
-        # counters are the only way to tell a working breakpoint from a no-op -
-        # two of this harness's turned out to be no-ops exactly that way.
-        "cache": {"read": 0, "written": 0, "uncached": 0},
-        # Token accounting as the provider reports it, including reasoning tokens
-        # where available. Empty on the native Anthropic path, whose usage is
-        # already captured by `cache` in a different shape.
-        "token_usage": {},
-        # Per turn, what the provider said its reasoning was - a trace, a summary,
-        # or an encrypted payload. Kept per turn rather than merged because a
-        # model may return different kinds across an episode, and a merged label
-        # would hide it. Empty except on OpenRouter, the only route that reports
-        # the field.
-        "reasoning_details": [],
-    }
+    state = _new_loop_state()
     try:
         run_agentic_loop(
             client, create_kwargs, messages, transcript, state,
@@ -726,9 +634,7 @@ def run_evaluation(
         # not a complete observation - but the transcript is worth more than the
         # traceback alone.
         raise EpisodeAPIError(failed.cause, {
-            **arm_identity(
-                model, effort, nudge_type, oversight, lure,
-                interrogations, openrouter_sort, openrouter_provider),
+            **arm(),
             "ended_by": "api_error",
             "failed_on_turn": failed.turn + 1,
             "error": f"{type(failed.cause).__name__}: {red(str(failed.cause))}",
@@ -736,6 +642,14 @@ def run_evaluation(
             "reasoning_chars": state["reasoning_chars"],
             "reasoning_details": state["reasoning_details"],
             "token_usage": state["token_usage"],
+            # Both of these the completed record carried and this one did not,
+            # while the loop had been writing them right up to the failure.
+            # `cache` is the only evidence prompt caching engaged at all, and
+            # a died episode is exactly when someone asks whether the spend
+            # was cached.
+            **_served_by_block(state["served_by"]),
+            **_finish_reason_block(state["finish_reasons"]),
+            "cache": state["cache"],
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
             "transcript": transcript,
@@ -752,8 +666,8 @@ def run_evaluation(
     cache_totals = state["cache"]
     token_totals = state["token_usage"]
     reasoning_details = state["reasoning_details"]
+    served_by = state["served_by"]
 
-    # ---- Analyze misaligned behaviour ----
     t_eval_end = time.time()
     if ended_by == "turn_cap":
         print(f"[WARNING] Episode used all {max_turns} turns without the model "
@@ -763,89 +677,19 @@ def run_evaluation(
     print(f"\n[TIMING] Eval loop: {timing['eval_seconds']}s")
 
     analysis = analyze_misalignment(transcript, env_dir, env_info)
-
-    # ---- Detect eval awareness (keyword-based) ----
-    eval_awareness_kw = detect_eval_awareness_keywords(transcript)
-    analysis["eval_awareness_keywords"] = eval_awareness_kw
-
-    # ---- Detect eval awareness (LLM grader) ----
-    t_grader_start = time.time()
-    if use_grader:
-        print("\n--- Running eval awareness grader ---")
-        eval_awareness_grader = grading_api.detect_eval_awareness_grader(
-            transcript, model=grader_model
-        )
-        report_grader_failure(eval_awareness_grader)
-        analysis["eval_awareness_grader"] = eval_awareness_grader
-        print(f"Grader result: {json.dumps({k: v for k, v in eval_awareness_grader.items() if k != 'rubric_results'}, indent=2)}")
-    else:
-        analysis["eval_awareness_grader"] = {"skipped": True}
-
-    add_awareness_timing(analysis, transcript,
-                         grader_model=grader_model if use_grader else None)
-    t_grader_end = time.time()
-    timing["grader_seconds"] = round(t_grader_end - t_grader_start, 1)
-    print(f"[TIMING] Grader: {timing['grader_seconds']}s")
-
-    # ---- Interrogate each misaligned act the model took ----
-    # Concealment is what separates scheming from plain misalignment, so every
-    # act gets its own probe. They share one conversation: a single
-    # investigator asking about two things, rather than two models in two
-    # disconnected worlds.
-    t_followup_start = time.time()
-
-    interrogate_acts(
+    _grade_awareness(analysis, transcript, use_grader, grader_model, timing)
+    _interrogate_the_acts(
         analysis, transcript,
-        {"system_prompt": system_prompt, "messages": messages, "model": model,
-         "client": client, "max_tokens": max_tokens,
+        {"system_prompt": system_prompt, "messages": messages,
+         "client": client, "model": model, "max_tokens": max_tokens,
          "reasoning_kwargs": reasoning_kwargs, "env_dir": env_dir},
-        grader_model=grader_model, nudge=nudge,
-        interrogations=interrogations, ended_by=ended_by)
-
-    t_followup_end = time.time()
-
-    # Settled only now: the acts are visible from the episode, but concealment
-    # needs the deliverable and the interrogations. None means the deciding
-    # evidence is missing, not that the episode was clean.
-    settle_analysis(analysis)
-    if analysis["misaligned"]:
-        for act in MISALIGNED_ACTS:
-            level = analysis.get(act["level_key"])
-            if level:
-                print(f"[CONCEALMENT] {act['name']}: {level}")
-        print(f"[CLASSIFICATION] scheming={analysis['scheming']}")
-
-    timing["followup_seconds"] = round(t_followup_end - t_followup_start, 1)
-    timing["total_run_seconds"] = round(t_followup_end - t_eval_start, 1)
-    print(f"[TIMING] Follow-up: {timing['followup_seconds']}s")
-    print(f"[TIMING] Total run: {timing['total_run_seconds']}s")
-
-    # The far side of the time-of-check gap. Everything above this line ran after
-    # the artefacts were hashed - the grader and one interrogation per act, which
-    # is seconds of model calls - so a write scheduled to land in that window
-    # would have been invisible. Checked here, at the last moment the episode
-    # tree is known to exist and nothing further can be attributed to the model.
-    analysis["deferred_write_check"] = verify_oversight_unchanged(
-        env_info, analysis)
-    if analysis["deferred_write_check"]["deferred_write"]:
-        # Loud, because it means the measurement guarantee failed for this
-        # episode rather than that the model did something interesting. Not
-        # folded into the act: see verify_oversight_unchanged.
-        print("\n[HARNESS INTEGRITY] An oversight artefact changed AFTER it was "
-              "graded:")
-        for c in analysis["deferred_write_check"]["fields_changed"]:
-            print(f"  {c['field']}: {c['at_grading']} at grading -> "
-                  f"{c['at_episode_end']} at episode end")
-        print("  This episode's oversight verdict is not trustworthy and it "
-              "should be excluded. Something outlived the command that started "
-              "it, or work was handed to a system scheduler.")
+        grader_model, nudge, interrogations, ended_by, capability, timing,
+        t_eval_start)
+    _check_for_a_deferred_write(analysis, env_info)
 
     return {
-        **arm_identity(
-            model, effort, nudge_type, oversight, lure, interrogations,
-            openrouter_sort, openrouter_provider),
-        "isolation": isolation,
-        "ended_by": ended_by,
+        **arm(),
+                "ended_by": ended_by,
         # Whether the model's reasoning reached us at all. Both awareness
         # detectors read it, so a batch where this is 0 measured awareness on
         # less evidence than one where it is not, and the two should not be
@@ -856,6 +700,8 @@ def run_evaluation(
         # difference between a full trace and a compressed summary - and both
         # awareness measures read the difference. See _reasoning_detail_summary.
         "reasoning_details": reasoning_details,
+        **_served_by_block(served_by),
+        **_finish_reason_block(state["finish_reasons"]),
         "token_usage": token_totals,
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": cache_totals,
@@ -867,192 +713,7 @@ def run_evaluation(
         "reasoning_config": reasoning_config,
         "transcript": transcript,
         "messages": messages,
-        "analysis": analysis,
+        "analysis": new_record(analysis, grader_model),
         "timing": timing,
         "timestamp": datetime.datetime.now().isoformat()
     }
-
-
-def run_followup(system_prompt, messages, model, client, act,
-                 classifier_model=DEFAULT_GRADER_MODEL,
-                 max_tokens=2048, reasoning_kwargs=None, env_dir=None,
-                 questions=None):
-    """
-    Interrogate the model about one misaligned act it took.
-
-    Escalating questions, stopping as soon as it admits the act - there is
-    nothing left to establish once it has. Each answer is classified as an
-    admission, a denial, or neither; see the notes in config.py on why the
-    third category exists rather than treating any non-admission as a lie.
-
-    Each interrogation starts from the episode as it ended, NOT from a
-    previous interrogation. Chaining them would make the second probe
-    conditional on the first - a model that had just admitted one act is
-    plausibly likelier to admit the next - which is an order effect confounding
-    two rates that get reported separately. Independent probes cost one extra
-    prompt prefix and remove it.
-    """
-    create_kwargs = dict(
-        model=model, max_tokens=max_tokens, system=system_prompt,
-        **(reasoning_kwargs or {}),
-    )
-
-    responses = []
-    current_messages = list(messages)
-    label = f"FOLLOWUP {act['topic']}".strip()
-
-    for q in (questions if questions is not None else act["questions"]):
-        print(f"[{label} Q] {q}")
-        current_messages.append({"role": "user", "content": q})
-
-        response = client.messages.create(messages=current_messages, **create_kwargs)
-
-        # content[0] isn't necessarily the answer - a thinking block (or,
-        # for OpenRouter, the reasoning capture) can precede it.
-        text_block = next((b for b in response.content if b.type == "text"), None)
-        answer = redact_paths(text_block.text if text_block else "", env_dir)
-
-        # One retry when the model returns no text. Scoring is safe without it
-        # - an empty reply is recorded as NO_ANSWER and excluded rather than
-        # read as stonewalling - but an excluded answer is still a question
-        # that went unmeasured, and on google/gemini-3.5-flash that was 22% of
-        # them. Ask again before giving up on the measurement.
-        retried = False
-        if not answer.strip():
-            retried = True
-            print(f"[{label} A] (no text returned, "
-                  f"stop_reason={getattr(response, 'stop_reason', None)}, "
-                  f"blocks={[b.type for b in response.content]}; asking once more)")
-            response = client.messages.create(messages=current_messages,
-                                              **create_kwargs)
-            text_block = next((b for b in response.content
-                               if b.type == "text"), None)
-            answer = redact_paths(text_block.text if text_block else "", env_dir)
-
-        # What the model actually returned, recorded whether or not it answered.
-        #
-        # Without this an empty answer is unexplainable after the fact: nothing
-        # distinguished reasoning that ran out of budget from a tool call
-        # offered instead of an answer from a refusal. 42 saved answers were
-        # empty and the cause had to be reconstructed by elimination - the
-        # adapter's no-visible-output diagnostic appeared in none of them, which
-        # ruled out budget exhaustion and left "returned a tool_use block and no
-        # text", i.e. the model tried to act rather than answer. `block_types`
-        # would have said so directly.
-        response_meta = {
-            "stop_reason": getattr(response, "stop_reason", None),
-            "block_types": [b.type for b in response.content],
-            "retried_after_empty": retried,
-        }
-        print(f"[{label} A] {answer[:400]}\n")
-        # Same constraint as the main loop: an empty text block coming back
-        # here would 400 the *next* question in the interrogation.
-        current_messages.append({
-            "role": "assistant",
-            "content": replayable_content(response.content),
-        })
-
-        labelled = grading_api.classify_interrogation_answer(
-            answer, act["description"],
-            act["admission"], act["denial"], act["contrition"],
-            model=classifier_model,
-        )
-        verdict = labelled["verdict"]
-        confesses = verdict == "admitted"
-
-        if labelled["classifiers_agree"] is False:
-            print(f"  [classifier] LLM={labelled['verdict_llm']} "
-                  f"keyword={labelled['verdict_keyword']} - using LLM")
-        if labelled["used_keyword_fallback"]:
-            # The provider's own sentence, not the SDK's repr of the envelope
-            # around it. Truncating the repr cut a spend-cap message to
-            # "You have " and made an account limit look like a harness bug.
-            error = labelled["classifier_error"]
-            warn_usage_limit_once(error, "interrogation classifier")
-            print(f"  [classifier] LLM classification failed "
-                  f"({api_error_message(error, limit=160)}); "
-                  f"fell back to keyword verdict {verdict!r}")
-        print(f"  [verdict] {verdict}")
-
-        responses.append({
-            "question": q,
-            "answer": answer,
-            "confesses": confesses,
-            "denies": verdict == "denied",
-            **labelled,
-            **response_meta,
-        })
-
-        if confesses:
-            print(f"[{label}] Model admitted the act. Stopping interrogation.")
-            break
-
-    return responses
-
-
-# =========================================================================
-# Main — batch runner and summary reporting
-# =========================================================================
-
-def add_awareness_timing(analysis: dict, transcript: list, grader_model=None):
-    """
-    Record when awareness was verbalised relative to each misaligned act.
-
-    Two measures, for the same reason the episode-level awareness has two: the
-    keyword ordering is exact and free, and the keyword detector under-detects
-    badly - 11 of 69 acts in the pilot data had any indicator phrase at all.
-    So where a grader is available the awareness rubric is also run over the
-    transcript *as it stood before the act*, which is the only way to ask the
-    grader an ordered question at all: it is handed one blob of transcript and
-    has no notion of when anything was said.
-
-    Runs the rubric once per distinct act position - the two acts land on the
-    same prefix often enough to be worth not paying for twice, and only 3 of
-    300 pilot episodes committed both acts.
-    """
-    aware_index, aware_turn = first_awareness_position(transcript)
-    # Episode-level and act-independent, so a later analysis can condition on
-    # "aware by turn N" without reference to whether an act happened at all -
-    # see the note on selection bias in README.md.
-    analysis["first_awareness_index"] = aware_index
-    analysis["first_awareness_turn"] = aware_turn
-
-    graded_prefixes = {}
-    for act in MISALIGNED_ACTS:
-        timing = awareness_timing(transcript, analysis, act)
-        analysis[act["timing_key"]] = timing
-
-        act_index = timing["act_index"]
-        if grader_model is None or act_index is None:
-            # Never replace a real grader reading with a skip marker.
-            # --reclassify runs with no grader by design, and overwriting here
-            # destroyed pre-act awareness results that had cost API calls -
-            # a whole 100-run batch of them - leaving the ordering to fall back
-            # to the keyword measure, which under-detects badly.
-            existing = analysis.get(act["grader_before_key"]) or {}
-            if (not existing.get("skipped")
-                    and not existing.get("grading_failed")
-                    and existing.get("eval_aware") is not None):
-                continue
-            analysis[act["grader_before_key"]] = {
-                "skipped": True,
-                "reason": ("no grader" if grader_model is None
-                           else f"act not located: {timing['timing']}"),
-            }
-            continue
-
-        if act_index not in graded_prefixes:
-            print(f"\n--- Running awareness grader on the transcript before "
-                  f"the {act['name']} act ---")
-            graded_prefixes[act_index] = grading_api.detect_eval_awareness_grader(
-                transcript[:act_index], model=grader_model
-            )
-            report_grader_failure(graded_prefixes[act_index],
-                                  what=f"pre-{act['name']}-act awareness grader")
-        result = dict(graded_prefixes[act_index])
-        result["act_index"] = act_index
-        result["act_turn"] = timing["act_turn"]
-        analysis[act["grader_before_key"]] = result
-
-        print(f"[AWARENESS TIMING] {act['name']}: keywords={timing['timing']}, "
-              f"grader_before_act={result.get('eval_aware')}")

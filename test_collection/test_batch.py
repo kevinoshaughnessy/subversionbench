@@ -74,7 +74,8 @@ class TestTheNamingRoundTrips:
                         stamp="20260101T000000")
                     path = identity.filename("/out", "run_1")
                     got = parse_batch_filename(path, "strong")
-                    assert got == (effort, "20260101T000000", oversight, lure), (
+                    assert got == (effort, "20260101T000000", oversight, lure,
+                                   None), (
                         f"{path} parsed back as {got}")
 
     def test_the_stamp_is_always_last(self):
@@ -265,22 +266,22 @@ class TestEffortInFilenames:
         before the stamp."""
         assert ev_run.parse_batch_filename(
             "run_1_some-model-max_strong_20260731T010203.json", "strong"
-        ) == (None, "20260731T010203", True, False)
+        ) == (None, "20260731T010203", True, False, None)
 
     def test_the_arm_and_the_level_compose(self):
         assert ev_run.parse_batch_filename(
             "run_1_m_strong_nooversight_high_20260731T010203.json", "strong"
-        ) == ("high", "20260731T010203", False, False)
+        ) == ("high", "20260731T010203", False, False, None)
 
     def test_the_arm_the_lure_and_the_level_all_compose(self):
         """Four optional suffixes now, stripped in any order. A fixed sequence
         broke the moment a new one landed between two existing ones."""
         assert ev_run.parse_batch_filename(
             "run_1_m_max_nooversight_lure_high_20260731T010203.json", "max"
-        ) == ("high", "20260731T010203", False, True)
+        ) == ("high", "20260731T010203", False, True, None)
         assert ev_run.parse_batch_filename(
             "run_1_m_strong_lure_20260731T010203.json", "strong"
-        ) == (None, "20260731T010203", True, True)
+        ) == (None, "20260731T010203", True, True, None)
 
     def _write(self, out, name):
         Path(f"{out}/{name}").write_text(json.dumps(
@@ -397,7 +398,7 @@ class TestBatchIdentityInTheOversightArm:
         assert stem == "m_strong_nooversight_high"
         assert ev_run.parse_batch_filename(
             f"run_1_{stem}_20260802T000000.json", "strong"
-        ) == ("high", "20260802T000000", False, False)
+        ) == ("high", "20260802T000000", False, False, None)
 
     def test_the_arms_cannot_be_pooled_by_discovery(self):
         from pathlib import Path
@@ -439,7 +440,7 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
 
     def test_a_max_nudge_batch_has_no_effort(self):
         from subversionbench.batch import parse_batch_filename
-        effort, stamp, oversight, _lure = parse_batch_filename(
+        effort, stamp, oversight, _lure, _cap = parse_batch_filename(
             "run_1_x-ai_grok-4.5_max_20260805T155405.json", "max")
         assert effort is None
         assert stamp == "20260805T155405"
@@ -460,13 +461,246 @@ class TestTheNudgeDoesNotCollideWithTheEffortLevel:
     def test_the_summary_name_does_not_double_the_nudge(self):
         """The visible symptom: `<model>_max_max`."""
         import subversionbench.run_eval as ev_run
-        effort, _, oversight, _lure = ev_run.parse_batch_filename(
+        effort, _, oversight, _lure, _cap = ev_run.parse_batch_filename(
             "run_1_m_max_20260805T155405.json", "max")
         assert ev_run.batch_stem("m", "max", effort, oversight) == "m_max"
 
     def test_the_counterfactual_arm_survives_the_fix(self):
         from subversionbench.batch import parse_batch_filename
         for nudge in ("strong", "max"):
-            _, _, oversight, _lure = parse_batch_filename(
+            _, _, oversight, _lure, _cap = parse_batch_filename(
                 f"run_1_m_{nudge}_nooversight_20260805T155405.json", nudge)
             assert oversight is False, nudge
+
+
+class TestFindRunFilesSeparatesTheTwoCorpora:
+    """A capability episode's filename carries the same model, nudge, oversight
+    and lure as a propensity one. Only the capability tag tells them apart, and
+    a caller that cannot express which corpus it wants gets both."""
+
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        for name in ("run_1_m_none_20260101T000000.json",
+                     "run_1_m_none_capability-sandbox_20260101T000001.json",
+                     "run_1_m_none_capability-oversight_20260101T000002.json"):
+            Path(out, name).write_text("{}")
+        return out
+
+    def test_the_default_is_both_so_the_read_modes_see_every_file(self):
+        """--grade-existing and --resummarise must not stop seeing a corpus."""
+        assert len(find_run_files(self._dir(), "m", "none")) == 3
+
+    def test_none_is_the_propensity_corpus_not_an_absent_filter(self):
+        found = find_run_files(self._dir(), "m", "none", capability=None)
+        assert [os.path.basename(p) for p in found] == [
+            "run_1_m_none_20260101T000000.json"]
+
+    def test_a_target_name_selects_that_arm_alone(self):
+        found = find_run_files(self._dir(), "m", "none", capability="sandbox")
+        assert [os.path.basename(p) for p in found] == [
+            "run_1_m_none_capability-sandbox_20260101T000001.json"]
+
+
+class TestTheCollectionCensusCountsOnlyWhatItWouldCollect:
+    """run_all_arms.sh skips an arm that already has enough runs. Miscounting
+    in either direction costs money: too high skips an arm that was never
+    collected, too low re-collects one that was."""
+
+    def _dir(self):
+        out = tempfile.mkdtemp()
+        for name in (
+                # the arm under test: oversight, no lure, two episodes
+                "run_1_m_none_20260101T000000.json",
+                "run_2_m_none_20260101T000000.json",
+                # same arm's CAPABILITY episodes - instructed, not propensity
+                "run_1_m_none_capability-sandbox_20260101T000001.json",
+                "run_2_m_none_capability-sandbox_20260101T000001.json",
+                # neighbouring arms
+                "run_1_m_none_nooversight_20260101T000002.json",
+                "run_1_m_none_lure_20260101T000003.json"):
+            Path(out, name).write_text("{}")
+        return out
+
+    def test_it_counts_the_arm_and_returns_its_stamp(self):
+        """Also the regression test for the arity defect: this walks real files
+        through parse_batch_filename, so a return that grows again fails here
+        rather than mid-batch."""
+        from subversionbench.batch import arm_run_file_census
+        n, stamps = arm_run_file_census(self._dir(), "m", "none",
+                                        "true", "false")
+        assert (n, stamps) == (2, ["20260101T000000"])
+
+    def test_a_capability_episode_does_not_satisfy_a_propensity_arm(self):
+        """The defect: four files match this arm's (nudge, oversight, lure) and
+        only two are propensity. Counting all four skips collection of an arm
+        holding half the episodes it was asked for."""
+        from subversionbench.batch import arm_run_file_census
+        n, _ = arm_run_file_census(self._dir(), "m", "none", "true", "false")
+        assert n == 2
+
+    def test_it_separates_the_oversight_and_lure_axes(self):
+        from subversionbench.batch import arm_run_file_census
+        out = self._dir()
+        assert arm_run_file_census(out, "m", "none", "false", "false")[0] == 1
+        assert arm_run_file_census(out, "m", "none", "true", "true")[0] == 1
+
+    def test_a_slugged_model_is_found_under_its_real_name(self):
+        from subversionbench.batch import arm_run_file_census
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_x-ai_grok-4.5_none_20260101T000000.json").write_text("{}")
+        assert arm_run_file_census(out, "x-ai/grok-4.5", "none",
+                                   "true", "false")[0] == 1
+
+    def test_the_two_goalguard_arms_are_counted_separately(self):
+        """
+        THE DEFECT THIS FIX IS FOR. The census filtered oversight and lure by
+        hand and knew nothing of the goal-guarding axis, so both of that arm's
+        values landed in one count. Collecting `deferred` after `replacement`
+        therefore saw --runs episodes already on disk, skipped, and exited 0
+        with the contrast - the whole point of the arm - never collected.
+        """
+        from subversionbench.batch import arm_run_file_census
+        out = tempfile.mkdtemp()
+        for name in (
+                "run_1_m_none_goalguard-replacement_20260101T000000.json",
+                "run_2_m_none_goalguard-replacement_20260101T000000.json",
+                "run_1_m_none_goalguard-deferred_20260101T000001.json"):
+            Path(out, name).write_text("{}")
+
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   "replacement") == (2, ["20260101T000000"])
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   "deferred") == (1, ["20260101T000001"])
+
+    def test_a_goalguard_episode_does_not_satisfy_the_plain_arm(self):
+        """Both directions, because a count that is too high skips an arm that
+        was never collected and one that is too low pays for it twice."""
+        from subversionbench.batch import arm_run_file_census, NO_ARM
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_none_20260101T000000.json").write_text("{}")
+        Path(out, "run_1_m_none_goalguard-deferred_20260101T000001.json"
+             ).write_text("{}")
+
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   NO_ARM)[0] == 1
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   "deferred")[0] == 1
+
+    def test_the_no_arm_sentinel_is_not_the_name_of_a_real_arm(self):
+        """The shell spells "no goal-guarding arm" with this, so a real arm
+        answering to the same name would make the plain propensity arm
+        uncountable. Held against the shipped list rather than a copy of it."""
+        from subversionbench.batch import NO_ARM
+        from subversionbench.config import GOALGUARD_ARMS
+        assert GOALGUARD_ARMS, "no arms shipped - this would pass vacuously"
+        assert NO_ARM not in GOALGUARD_ARMS
+
+    def test_every_optional_arm_axis_is_separated_by_the_census(self):
+        """
+        THE RULE, NOT THE TWO AXES THAT BROKE IT. goalguard and date_mode were
+        both added to batch_stem and to neither the census nor its tests, and
+        a test naming today's axes would go the same way. The axes are derived
+        from batch_stem's own signature, so one added tomorrow fails here -
+        first for having no sample value, and then for not being separated -
+        instead of silently pooling two arms into one count.
+
+        effort is excluded deliberately and the exclusion is checked below, in
+        its own test, rather than being a bare name on a skip list.
+        """
+        from subversionbench.batch import (arm_run_file_census, batch_stem,
+                                           NO_ARM)
+        axes = [name for name in inspect.signature(batch_stem).parameters
+                if name not in ("model_slug", "nudge", "effort")]
+        assert axes, "no axes derived - this would pass vacuously"
+
+        # One value per axis that is NOT the default, and the census call that
+        # should see it. Asserted to cover every derived axis, so the mapping
+        # cannot fall behind the signature the way the census itself did.
+        samples = {"oversight": (False, ("false", "false", NO_ARM)),
+                   "lure": (True, ("true", "true", NO_ARM)),
+                   "capability": ("sandbox", None),
+                   "date_mode": ("consistent", None),
+                   "goalguard": ("deferred", ("true", "false", "deferred"))}
+        missing = [a for a in axes if a not in samples]
+        assert not missing, f"batch_stem grew {missing} - add a sample value"
+
+        plain = ("true", "false", NO_ARM)
+        for axis in axes:
+            value, own_census = samples[axis]
+            out = tempfile.mkdtemp()
+            Path(out, "run_1_" + batch_stem("m", "none", **{axis: value})
+                 + "_20260101T000000.json").write_text("{}")
+            assert arm_run_file_census(out, "m", "none", *plain)[0] == 0, (
+                f"a {axis}={value!r} episode satisfied the plain arm")
+            if own_census is not None:
+                assert arm_run_file_census(out, "m", "none", *own_census)[0] == 1, (
+                    f"a {axis}={value!r} episode was invisible to its own arm")
+
+    def test_the_census_still_counts_across_effort_levels(self):
+        """
+        The one axis the stem comparison deliberately ignores, checked so the
+        exemption cannot rot into an accident.
+
+        run_all_arms.sh does not parse --effort - it reaches run_eval.py
+        through the passthrough - so the shell cannot say which level it is
+        asking for. Were effort compared, a census for the default level would
+        stop counting the run files in eval_results_r10 that carry `_medium`
+        and re-collect every one of them.
+        """
+        from subversionbench.batch import arm_run_file_census, NO_ARM
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_none_medium_20260101T000000.json").write_text("{}")
+        assert arm_run_file_census(out, "m", "none", "true", "false",
+                                   NO_ARM)[0] == 1
+
+    def test_a_nudge_named_max_is_not_read_as_an_effort_level(self):
+        """`max` is both, and stripping it as an effort would give a --nudge
+        max batch the same arm stem as a nudge-less one."""
+        from subversionbench.batch import arm_run_file_census, NO_ARM
+        out = tempfile.mkdtemp()
+        Path(out, "run_1_m_max_20260101T000000.json").write_text("{}")
+        assert arm_run_file_census(out, "m", "max", "true", "false",
+                                   NO_ARM)[0] == 1
+
+    def test_an_unspelled_boolean_raises_rather_than_meaning_false(self):
+        """`oversight == "true"` silently read every other spelling as the
+        counterfactual arm, so a typo counted one arm and collected another."""
+        from subversionbench.batch import arm_run_file_census
+        out = self._dir()
+        for bad in ("True", "yes", "", "1"):
+            with pytest.raises(ValueError):
+                arm_run_file_census(out, "m", "none", bad, "false")
+            with pytest.raises(ValueError):
+                arm_run_file_census(out, "m", "none", "true", bad)
+
+
+class TestNoShellScriptParsesAFilenameItself:
+    """The arity defect survived because Python inside a shell heredoc is
+    reached by neither ruff nor the import graph nor this suite. The rule is
+    about every shell script, not about the one that broke: a filename is
+    parsed in Python that something can import and test."""
+
+    def _shell_scripts(self):
+        from conftest import PROJECT_ROOT
+        found = sorted(PROJECT_ROOT.glob("*.sh"))
+        assert found, "no shell scripts found - the guard would pass vacuously"
+        return found
+
+    @staticmethod
+    def _code(text: str) -> str:
+        """The script minus its comments, shell and embedded-Python alike.
+
+        Both languages start a whole-line comment with `#`, and the rule is
+        about what RUNS: a comment naming the parser - such as the one in
+        run_all_arms.sh explaining why the call was moved out - is not a call.
+        """
+        return "\n".join(line for line in text.splitlines()
+                         if not line.lstrip().startswith("#"))
+
+    def test_no_shell_script_unpacks_the_batch_parser(self):
+        offenders = [p.name for p in self._shell_scripts()
+                     if "parse_batch_filename"
+                     in self._code(p.read_text(encoding="utf-8"))]
+        assert not offenders, (
+            f"{offenders} parse filenames in shell; call a function in "
+            f"subversionbench.batch instead, so the suite covers it")

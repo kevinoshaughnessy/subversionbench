@@ -96,6 +96,22 @@ _FINGERPRINT_PROBE = (
     "                  for o in (True, False) for lure in (True, False)]))\n"
 )
 
+# The goal-guarding cells, computed the same way and in the same subprocess
+# style. THE CELLS ARE DERIVED FROM THE SHIPPED TABLE rather than listed here:
+# a twin has to pin every cell the shipped scenario pins or
+# _alternative_goalguard_pins refuses it, so a hand-written list here would be
+# a second copy of that set and could fall behind it - which is how four
+# grading guards here once stopped covering two modules.
+_GOALGUARD_PROBE = (
+    "import json\n"
+    "from subversionbench.rollout import rollout_fingerprint\n"
+    "from subversionbench.rollout_pins import GOALGUARD_FINGERPRINTS\n"
+    "print(json.dumps([\n"
+    "    [arm, o, nudge,\n"
+    "     rollout_fingerprint(o, goalguard=arm, nudge=nudge)]\n"
+    "    for arm, o, nudge in sorted(GOALGUARD_FINGERPRINTS)]))\n"
+)
+
 
 def _fingerprints(bundle_for_run: Path) -> dict:
     """
@@ -115,6 +131,30 @@ def _fingerprints(bundle_for_run: Path) -> dict:
     writes. A provisional sidecar breaks that cycle, in a subprocess because
     this process has already frozen the shipped bundle's constants at import.
     """
+    return _under_the_override(bundle_for_run, _FINGERPRINT_PROBE, lambda rows: {
+        (bool(o), bool(lure)): fp for o, lure, fp in rows})
+
+
+def _goalguard_fingerprints(bundle_for_run: Path) -> dict:
+    """
+    The goal-guarding cells this bundle produces, or {} if it has no such arm.
+
+    Computed under the override for the reason above, and through the same
+    provisional-sidecar dance: rollout_pins refuses to import under the
+    override without a sidecar, and the sidecar is what this is computing.
+
+    A bundle with no `goalguard` entry returns {} rather than raising.
+    scenario_for refuses that arm outright for such a bundle, so there is no
+    cell to identify - and pinning one would claim an arm the twin cannot run.
+    """
+    if "goalguard" not in load_heldout():
+        return {}
+    return _under_the_override(bundle_for_run, _GOALGUARD_PROBE, lambda rows: {
+        (str(arm), bool(o), str(nudge)): fp for arm, o, nudge, fp in rows})
+
+
+def _under_the_override(bundle_for_run: Path, probe: str, shape):
+    """Run `probe` with the bundle selected, behind a provisional sidecar."""
     previous = PINS_PATH.read_bytes() if PINS_PATH.is_file() else None
     PINS_PATH.write_text(json.dumps({
         "rollout_version": ROLLOUT_VERSION,
@@ -125,15 +165,14 @@ def _fingerprints(bundle_for_run: Path) -> dict:
     env = dict(os.environ)
     env["SUBVERSIONBENCH_SCENARIO_BUNDLE"] = str(bundle_for_run)
     try:
-        result = subprocess.run([sys.executable, "-c", _FINGERPRINT_PROBE],
+        result = subprocess.run([sys.executable, "-c", probe],
                                 cwd=ROOT, env=env, capture_output=True,
                                 text=True)
         if result.returncode:
             raise RuntimeError(
                 f"computing fingerprints under the override failed:\n"
                 f"{result.stderr.rstrip()}")
-        return {(bool(o), bool(lure)): fp
-                for o, lure, fp in json.loads(result.stdout)}
+        return shape(json.loads(result.stdout))
     finally:
         # Restores on EVERY exit, not only on failure. This function computes;
         # the caller decides whether to accept. Leaving the provisional sidecar
@@ -154,7 +193,19 @@ def _pinned() -> dict:
             for e in declared.get("fingerprints", [])}
 
 
-def _write_pins(pins: dict) -> None:
+def _pinned_goalguard() -> dict:
+    """The goal-guarding fingerprints currently on the sidecar, keyed like
+    _goalguard_fingerprints. {} both when the sidecar has none and when there
+    is no sidecar at all - "no goal-guarding pins" is one fact, not two."""
+    if not PINS_PATH.is_file():
+        return {}
+    declared = json.loads(PINS_PATH.read_text(encoding="utf-8"))
+    return {(str(e["arm"]), bool(e["oversight"]), str(e["nudge"])):
+            str(e["fingerprint"])
+            for e in declared.get("goalguard_fingerprints", [])}
+
+
+def _write_pins(pins: dict, goalguard: dict = None) -> None:
     """
     Replace the sidecar, carrying the values it held into `superseded`.
 
@@ -170,15 +221,25 @@ def _write_pins(pins: dict) -> None:
     if old.get("fingerprints") and old.get("rollout_version") != ROLLOUT_VERSION:
         history.append({"rollout_version": old.get("rollout_version"),
                         "fingerprints": old["fingerprints"]})
-    PINS_PATH.write_text(json.dumps({
+    declared = {
         "rollout_version": ROLLOUT_VERSION,
         "fingerprints": [{"oversight": o, "lure": lure, "fingerprint": fp}
                          for (o, lure), fp in sorted(pins.items())],
-        "superseded": history,
-    }, indent=2), encoding="utf-8")
+    }
+    # OMITTED, not written empty, when the twin has no goal-guarding arm.
+    # _alternative_goalguard_pins reads an absent key as "this twin does not
+    # carry the act" and goes on refusing it; an empty list would say the same
+    # thing in a second spelling, and a future reader checking truthiness
+    # rather than presence would then disagree with one checking presence.
+    if goalguard:
+        declared["goalguard_fingerprints"] = [
+            {"arm": arm, "oversight": o, "nudge": nudge, "fingerprint": fp}
+            for (arm, o, nudge), fp in sorted(goalguard.items())]
+    declared["superseded"] = history
+    PINS_PATH.write_text(json.dumps(declared, indent=2), encoding="utf-8")
 
 
-def main():
+def _build_parser():
     parser = argparse.ArgumentParser(
         description="Read, edit and pin the encrypted held-out scenario.")
     group = parser.add_mutually_exclusive_group(required=True)
@@ -202,85 +263,113 @@ def main():
                              "rollout and re-pin its fingerprints. Required "
                              "for any edit to a document the model reads, so "
                              "that a new rollout is always a deliberate act.")
-    args = parser.parse_args()
+    return parser
 
-    if not BUNDLE_PATH.is_file():
-        print(f"{BUNDLE_PATH.relative_to(ROOT)} not found. The held-out bundle "
-              f"is gitignored and exists only where it was authored.")
+
+def _decode() -> int:
+    """The bundle as an editable working copy."""
+    WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
+                            encoding="utf-8")
+    print(f"wrote {WORKING_COPY.relative_to(ROOT)}; edit it, then --encode")
+    return 0
+
+
+def _export() -> int:
+    """The bundle as the harness will read it, and the path to it."""
+    # The harness reads JSON, because scenario.py deliberately has no
+    # decryption path - see its load_scenario docstring. Written 0600: it
+    # is the scenario in plaintext, on a machine that may be shared.
+    WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
+                            encoding="utf-8")
+    os.chmod(WORKING_COPY, 0o600)
+    if not PINS_PATH.is_file():
+        print(f"no rollout pins at {PINS_PATH.name} - run --pin first, or "
+              f"the harness will refuse to start.", file=sys.stderr)
         return 1
+    print(WORKING_COPY)
+    return 0
 
-    if args.check:
-        return 0 if _invariants_hold() else 1
 
-    if args.decode:
-        WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
-                                encoding="utf-8")
-        print(f"wrote {WORKING_COPY.relative_to(ROOT)}; edit it, then --encode")
-        return 0
+def _pin() -> int:
+    """The four arm fingerprints this bundle assembles, written to the sidecar."""
+    # The harness reads JSON - scenario.py has no decryption path - so the
+    # pinning run has to read the same exported form a real run will.
+    WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
+                            encoding="utf-8")
+    os.chmod(WORKING_COPY, 0o600)
+    pins = _fingerprints(WORKING_COPY)
+    goalguard = _goalguard_fingerprints(WORKING_COPY)
+    from subversionbench.rollout_pins import (GOALGUARD_FINGERPRINTS,
+                                              ROLLOUT_FINGERPRINTS)
+    # BOTH TABLES, on one rule. A goal-guarding cell that matched the shipped
+    # scenario's would pool a twin episode with the scenario the twin exists to
+    # be different from, which is the same failure the four base arms are
+    # checked for and was worth no second spelling.
+    #
+    # KEPT AS TWO DICTS, not merged into one. pins is keyed (bool, bool) and
+    # goalguard is keyed (str, bool, str) - sorted() on a dict holding both
+    # compares a key of one shape against a key of the other the moment both
+    # are non-empty, and raises TypeError instead of printing the refusal
+    # this exists to report. Sorting each table on its own key shape is what
+    # the "wrote pins" printer below already does; the refusal now does the
+    # same rather than reaching for one spelling that cannot hold both.
+    shared = {k: v for k, v in pins.items()
+              if v == ROLLOUT_FINGERPRINTS.get(k)}
+    shared_goalguard = {k: v for k, v in goalguard.items()
+                        if v == GOALGUARD_FINGERPRINTS.get(k)}
+    if shared or shared_goalguard:
+        # Would mean the reworded bundle assembles to the same arm as the
+        # shipped one, so its episodes could be pooled with r9's.
+        print(f"Refusing to pin: {sorted(shared)} base arm(s) and "
+              f"{sorted(shared_goalguard)} goal-guarding arm(s) match the "
+              f"shipped rollout's fingerprints exactly.")
+        return 1
+    _write_pins(pins, goalguard)
+    print(f"wrote {PINS_PATH.relative_to(ROOT)} "
+          f"(rollout_version {ROLLOUT_VERSION})")
+    for (o, lure), fp in sorted(pins.items()):
+        print(f"  oversight={o!s:5s} lure={lure!s:5s} {fp}")
+    for (arm, o, nudge), fp in sorted(goalguard.items()):
+        print(f"  goalguard={arm:<12s} oversight={o!s:5s} "
+              f"nudge={nudge:<6s} {fp}")
+    return 0
 
-    if args.export:
-        # The harness reads JSON, because scenario.py deliberately has no
-        # decryption path - see its load_scenario docstring. Written 0600: it
-        # is the scenario in plaintext, on a machine that may be shared.
-        WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
-                                encoding="utf-8")
-        os.chmod(WORKING_COPY, 0o600)
-        if not PINS_PATH.is_file():
-            print(f"no rollout pins at {PINS_PATH.name} - run --pin first, or "
-                  f"the harness will refuse to start.", file=sys.stderr)
-            return 1
-        print(WORKING_COPY)
-        return 0
 
-    if args.pin:
-        # The harness reads JSON - scenario.py has no decryption path - so the
-        # pinning run has to read the same exported form a real run will.
-        WORKING_COPY.write_text(json.dumps(load_heldout(), indent=2),
-                                encoding="utf-8")
-        os.chmod(WORKING_COPY, 0o600)
-        pins = _fingerprints(WORKING_COPY)
-        from subversionbench.rollout_pins import ROLLOUT_FINGERPRINTS
-        shared = {k: v for k, v in pins.items()
-                  if v == ROLLOUT_FINGERPRINTS.get(k)}
-        if shared:
-            # Would mean the reworded bundle assembles to the same arm as the
-            # shipped one, so its episodes could be pooled with r9's.
-            print(f"Refusing to pin: {sorted(shared)} match the shipped "
-                  f"rollout's fingerprints exactly.")
-            return 1
-        _write_pins(pins)
-        print(f"wrote {PINS_PATH.relative_to(ROOT)} "
-              f"(rollout_version {ROLLOUT_VERSION})")
-        for (o, lure), fp in sorted(pins.items()):
-            print(f"  oversight={o!s:5s} lure={lure!s:5s} {fp}")
-        return 0
+def _list_entries() -> int:
+    """Entry names, kinds and sizes - never the text."""
+    for name, value in load_heldout().items():
+        size = sum(len(v) for v in value) if isinstance(value, list) \
+            else len(value) if isinstance(value, str) else len(str(value))
+        kind = f"list[{len(value)}]" if isinstance(value, list) else \
+            "text" if isinstance(value, str) else f"dict[{len(value)}]"
+        print(f"  {name:34s} {kind:9s} {size:6d} chars")
+    return 0
 
-    if args.list:
-        for name, value in load_heldout().items():
-            size = sum(len(v) for v in value) if isinstance(value, list) \
-                else len(value) if isinstance(value, str) else len(str(value))
-            kind = f"list[{len(value)}]" if isinstance(value, list) else \
-                "text" if isinstance(value, str) else f"dict[{len(value)}]"
-            print(f"  {name:34s} {kind:9s} {size:6d} chars")
-        return 0
 
-    if args.show:
-        found = False
-        for name, value in load_heldout().items():
-            if args.show.lower() not in name.lower():
-                continue
-            found = True
-            print(f"===== {name} =====")
-            print("\n\n".join(value) if isinstance(value, list)
-                  else value if isinstance(value, str)
-                  else json.dumps(value, indent=2))
-            print()
-        if not found:
-            print(f"No entry matching {args.show!r}. Try --list.")
-            return 1
-        return 0
+def _show_entries(substring: str) -> int:
+    """The entries whose name contains `substring`."""
+    found = False
+    for name, value in load_heldout().items():
+        if substring.lower() not in name.lower():
+            continue
+        found = True
+        print(f"===== {name} =====")
+        print("\n\n".join(value) if isinstance(value, list)
+              else value if isinstance(value, str)
+              else json.dumps(value, indent=2))
+        print()
+    if not found:
+        print(f"No entry matching {substring!r}. Try --list.")
+        return 1
+    return 0
 
-    # --encode
+
+def _encode(repin: bool) -> int:
+    """
+    The edited working copy folded back in, kept only if it still holds.
+
+    Written, then checked, then kept or rolled back.
+    """
     if not WORKING_COPY.exists():
         print(f"{WORKING_COPY.name} not found - run --decode first.")
         return 1
@@ -312,23 +401,44 @@ def main():
         # legitimate reword impossible.
         WORKING_COPY.write_text(json.dumps(edited, indent=2), encoding="utf-8")
         os.chmod(WORKING_COPY, 0o600)
+        # BOTH TABLES - the same rule _pin() applies when it first writes
+        # them. Checking only the base four here was the bug: a re-encode
+        # neither noticed a goal-guarding-only edit move that arm, nor kept
+        # its pins across an UNRELATED re-encode, because the sidecar this
+        # writes at the end used to come from `computed` alone - which is
+        # not written empty but simply never carries the key, so a repin
+        # for any other reason silently dropped the goal-guarding pins that
+        # were already there.
         computed = _fingerprints(WORKING_COPY)
+        computed_goalguard = _goalguard_fingerprints(WORKING_COPY)
         moved = sorted(k for k, v in computed.items() if _pinned().get(k) != v)
-        if moved and not args.repin:
-            print(f"\nRefusing to encode: this edit moves {len(moved)} of "
-                  f"{len(computed)} arm fingerprint(s), so it is a NEW "
-                  f"ROLLOUT:")
+        moved_goalguard = sorted(
+            k for k, v in computed_goalguard.items()
+            if _pinned_goalguard().get(k) != v)
+        if (moved or moved_goalguard) and not repin:
+            print(f"\nRefusing to encode: this edit moves {len(moved)} base "
+                  f"arm fingerprint(s) and {len(moved_goalguard)} "
+                  f"goal-guarding one(s), so it is a NEW ROLLOUT:")
             for key in moved:
                 print(f"    oversight={key[0]!s:5s} lure={key[1]!s:5s}  "
                       f"{_pinned().get(key, '(unpinned)')} -> {computed[key]}")
+            for key in moved_goalguard:
+                print(f"    goalguard={key[0]:<12s} oversight={key[1]!s:5s} "
+                      f"nudge={key[2]:<6s} "
+                      f"{_pinned_goalguard().get(key, '(unpinned)')} -> "
+                      f"{computed_goalguard[key]}")
             print(f"\nEpisodes already collected under "
                   f"{(_pinned() and json.loads(PINS_PATH.read_text(encoding='utf-8')).get('rollout_version')) or 'the current pins'} "
                   f"are NOT comparable with episodes collected after it.\n"
                   f"Set ROLLOUT_VERSION in this file to a new value and re-run "
                   f"with --repin to accept.")
             return 1
-        if moved:
-            _write_pins(computed)
+        if moved or moved_goalguard:
+            # goalguard_pinned() may still carry cells this edit did not
+            # touch - keep those rather than passing only what moved, or an
+            # edit to the base arms alone would wipe a goal-guarding table
+            # nothing here asked to change.
+            _write_pins(computed, {**_pinned_goalguard(), **computed_goalguard})
         if not _invariants_hold():
             print(f"\nRefusing to encode: {BUNDLE_PATH.name} rolled back.")
             return 1
@@ -341,11 +451,36 @@ def main():
             else:
                 PINS_PATH.write_bytes(previous_pins)
     print(f"{BUNDLE_PATH.name} updated.")
-    if moved:
-        print(f"NEW ROLLOUT {ROLLOUT_VERSION}: {len(moved)} arm(s) re-pinned. "
+    if moved or moved_goalguard:
+        print(f"NEW ROLLOUT {ROLLOUT_VERSION}: {len(moved)} base arm(s) and "
+              f"{len(moved_goalguard)} goal-guarding arm(s) re-pinned. "
               f"Collect into a fresh --output-dir; the previous rollout's "
               f"episodes stand but do not pool with these.")
     return 0
+
+
+def main():
+    """Parse, refuse without the bundle, and hand off to the one mode asked for."""
+    args = _build_parser().parse_args()
+
+    if not BUNDLE_PATH.is_file():
+        print(f"{BUNDLE_PATH.relative_to(ROOT)} not found. The held-out bundle "
+              f"is gitignored and exists only where it was authored.")
+        return 1
+
+    if args.check:
+        return 0 if _invariants_hold() else 1
+    if args.decode:
+        return _decode()
+    if args.export:
+        return _export()
+    if args.pin:
+        return _pin()
+    if args.list:
+        return _list_entries()
+    if args.show:
+        return _show_entries(args.show)
+    return _encode(args.repin)
 
 
 if __name__ == "__main__":

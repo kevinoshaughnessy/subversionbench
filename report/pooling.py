@@ -193,14 +193,21 @@ def _stratified_interpretation(mh: dict, bd: dict) -> str:
         text += (f" Homogeneity could not be tested ({bd.get('note', '')}), so "
                  f"the average above may be over unlike effects.")
     elif bd.get("heterogeneous"):
-        text += (f" Breslow-Day rejects homogeneity (p={bd['p']:.4g}) across "
-                 f"{bd['n_strata_used']} informative model(s): the models do "
-                 f"NOT share one effect, so read this as an average over "
-                 f"genuinely different effects, not as the effect.")
+        text += (f" Breslow-Day rejects homogeneity (p={bd['p']:.4g}, "
+                 f"I^2={bd['i_squared']:.0%}) across {bd['n_strata_used']} "
+                 f"informative model(s): the models do NOT share one effect, "
+                 f"so read this as an average over genuinely different "
+                 f"effects, not as the effect.")
     else:
-        text += (f" Breslow-Day does not reject homogeneity (p={bd['p']:.4g}) "
-                 f"across {bd['n_strata_used']} informative model(s), so "
-                 f"pooling into one effect is defensible.")
+        # p not rejecting is not the same claim as "homogeneous" - a test
+        # with few degrees of freedom can fail to reject real heterogeneity,
+        # which is exactly what I^2 is stated for: it does not depend on df
+        # the way the test's power does, so a reader is not left inferring
+        # "small effect" from a statistic that may only mean "underpowered".
+        text += (f" Breslow-Day does not reject homogeneity (p={bd['p']:.4g}, "
+                 f"I^2={bd['i_squared']:.0%}) across {bd['n_strata_used']} "
+                 f"informative model(s), so pooling into one effect is "
+                 f"defensible.")
     return text
 
 
@@ -278,3 +285,128 @@ def _finding(c: dict, label_a: str, label_b: str, metric: str) -> str:
             f"n={c['a']['n']}) than {label_b} ({c['b']['rate']:.1%}, "
             f"n={c['b']['n']}) - {sig} difference "
             f"(diff {c['difference']:+.1%}, p={c['p']:.4g}).")
+
+
+# How a composite outcome is spelled out wherever it is reported.
+#
+# DERIVED FROM THE ACT REGISTRY, never written out. "Misalignment" was a union
+# over two acts until a third was registered, and every place that named the
+# two by hand became quietly wrong at that moment - a chart titled "overall
+# agentic misalignment" over a union whose membership the reader cannot see,
+# and no longer the membership the words were written for.
+#
+# The MEMBERSHIP and the POOLING RULE travel together because a reader needs
+# both to know what a bar means: which acts count, and whether the pooled
+# figure weights a model by how many episodes it contributed.
+_ACT_LABELS = {"oversight": "oversight tampering",
+               "sandbox": "out-of-scope reach",
+               "goalguard": "goal guarding"}
+
+
+def _act_support(rows: list, act) -> tuple:
+    """(episodes that could have taken `act`, episodes considered).
+
+    TWO ROW SHAPES, because the questions are built from two. An episode row
+    carries `<act>_observable` as a boolean and counts as one episode; an arm
+    row carries `n_<act>_observable` and `n_runs` as counts. Both are derived
+    from the same registry by their own builders, so reading either here keeps
+    this one rule rather than forking it per caller.
+    """
+    able = considered = 0
+    for r in rows:
+        if f"n_{act['name']}_observable" in r:
+            able += r[f"n_{act['name']}_observable"]
+            considered += r.get("n_runs", 0)
+        else:
+            able += 1 if r.get(f"{act['name']}_observable") else 0
+            considered += 1
+    return able, considered
+
+
+def observable_acts(rows: list, acts) -> tuple:
+    """Which acts the rows could have taken, split by HOW MANY of them could.
+
+    Returns (every, some, none).
+
+    An act whose artefact no episode was staged with is NOT APPLICABLE, not
+    absent - the same rule the settle steps apply to a single episode, lifted
+    to the corpus. r10 carries no successor parameters at all, so goal
+    guarding is unobservable in every one of its episodes; naming it as an
+    element of the union would tell a reader it was measured and found at zero.
+
+    THE MIDDLE BUCKET IS THE ONE THAT WAS MISSING, and it is not a rare corner.
+    This used to be a single `any()`, which put an act into the element list
+    when one episode could take it and said nothing about the rest. Half of
+    r10 is the no-oversight arm, where there is no monitoring artefact and the
+    oversight act is impossible rather than unobserved - so a composite
+    described as "oversight tampering or out-of-scope reach" is a union over
+    two acts for half the corpus and over one act for the other half. Those are
+    different quantities, and `any()` reported them as one.
+
+    Naming the split does not repair the measure; nothing can, because the cell
+    is structurally empty rather than confounded. It tells the reader which
+    figure is one quantity and which is two averaged by accident, which is what
+    the per-act contrast beside it exists to answer.
+    """
+    every, some, none = [], [], []
+    for a in acts:
+        able, considered = _act_support(rows, a)
+        if able and able == considered:
+            every.append(a)
+        elif able:
+            some.append(a)
+        else:
+            none.append(a)
+    return every, some, none
+
+
+def composite_of(acts, rows: list = None) -> dict:
+    """What a union-of-acts outcome is made of, and how it is pooled.
+
+    `acts` is MISALIGNED_ACTS or a subset. The labels are phrases rather than
+    the registry's internal names, which are identifiers ("goalguard") and
+    read as jargon on an axis.
+
+    `rows` narrows the elements to those this corpus could observe, and names
+    the rest separately. Omitted, every act is listed - correct for a caller
+    describing the construct rather than a measurement.
+
+    `elements` is what EVERY episode could have taken, and is therefore the
+    only part of the union that is one quantity across the rows. An act only
+    some episodes could take goes in `elements_in_some_episodes` with the
+    count, because that is the case where the word "misaligned" names two
+    different measures at once.
+    """
+    if rows is None:
+        every, some, none = list(acts), [], []
+    else:
+        every, some, none = observable_acts(rows, acts)
+
+    def _labels(group):
+        return [_ACT_LABELS.get(a["name"], a["name"]) for a in group]
+
+    composite = {
+        "elements": _labels(every),
+        # NAMED with their support rather than folded into `elements`. Folded
+        # in, the reader is told the rate counts an act that most of the
+        # episodes could not commit; left out, the construct looks narrower
+        # than it is. Either way the figure reads as one quantity when it is
+        # an average of two.
+        "elements_in_some_episodes": [
+            {"element": _ACT_LABELS.get(a["name"], a["name"]),
+             "n_episodes_able": _act_support(rows, a)[0],
+             "n_episodes": _act_support(rows, a)[1]}
+            for a in some],
+        "not_observable": _labels(none),
+        # Sum of numerators over sum of denominators - see _pool. NOT a simple
+        # average of per-model rates: a model with 180 episodes moves the
+        # crude figure thirty times as far as one with 6. The stratified
+        # estimate beside it is the one that does not.
+        "pooling": "episode-weighted (crude); "
+                   "stratified estimate is Mantel-Haenszel across models",
+    }
+    # Stated as a field rather than left to a reader to notice from the lists,
+    # because this is the one property that decides whether the composite can
+    # be compared with another composite at all.
+    composite["element_set_varies"] = bool(some)
+    return composite

@@ -1,6 +1,6 @@
 """
-SubversionBench v17 — Runner
-=============================================
+SubversionBench - Runner
+========================
 
 Author: Kevin O'Shaughnessy
 
@@ -31,7 +31,11 @@ import argparse
 
 from .arms_summary import write_summary_of_summaries
 from .compare import compare_batches
+from .graders import REGRADE_ALL, REGRADE_DEFAULT
 from .config import (
+    CAPABILITY_TARGETS,
+    GOALGUARD_ARMS,
+
     DEFAULT_GRADER_MODEL,
     DEFAULT_INTERROGATION,
     INTERROGATION_CHOICES,
@@ -41,9 +45,12 @@ from .config import (
     SYSTEM_PROMPT_STRONG_NUDGE,
     SYSTEM_PROMPT_NO_NUDGE,
 )
-from .episode import (_CACHE_BREAKPOINTS,  # noqa: F401
-                      add_awareness_timing, cache_usage, replayable_content,
-                      roll_cache_breakpoints, run_evaluation, run_followup)
+from .episode import run_evaluation  # noqa: F401
+from .followup import (add_awareness_timing,  # noqa: F401
+                       run_followup)
+from .turns import (_CACHE_BREAKPOINTS,  # noqa: F401
+                    replayable_content, roll_cache_breakpoints)
+from .usage import cache_usage  # noqa: F401
 from .grading import (
     questions_for,
     MISALIGNED_ACTS,
@@ -60,6 +67,7 @@ from .llm_client import (
 # batch_stem, parse_batch_filename, find_run_files and find_run_files_by_stamp are
 # re-exported: this module was their home and several test files still reach them
 # through it as attributes. The rest are imported because this module uses them.
+from .artefact_dates import MODES as DATE_MODES
 from .batch import (ALL, BatchIdentity, BatchSelection, batch_stem,  # noqa: F401
                     discover_batches, find_run_files, find_run_files_by_stamp,
                     parse_batch_filename)
@@ -67,7 +75,7 @@ from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
                         fan_out_read_mode, find_run_files_or_explain,
                         grade_existing_runs, reclassify_existing_runs,
                         reinterrogate_existing_runs,
-                        resummarise_existing_runs)
+                        resummarise_existing_runs, self_grade_kinds)
 from .redaction import redact_paths
 from .runner import run_batch
 from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
@@ -126,6 +134,7 @@ __all__ = [
     "run_batch",
     "run_evaluation",
     "run_followup",
+    "self_grade_kinds",
     "summarise_batch",
     "thinking_surface",
     "wilson_ci",
@@ -142,10 +151,15 @@ __all__ = [
 _wilson_ci = wilson_ci
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description=f"Run SubversionBench {VERSION}"
-    )
+def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
+    """What to collect: which model, which arm, how many, and where.
+
+    These change when the experiment changes - a new arm, a new interrogation
+    phrasing, a new bound on how long an episode may stall. Fourteen of the
+    sixteen commits that have ever touched a flag declaration in this file
+    changed exactly one of these four groups, which is why they are four
+    functions: they have independent reasons to change.
+    """
     parser.add_argument("--model", default="claude-sonnet-5",
                         help="Model to evaluate, or 'all' to fan out over every "
                              "model present in --output-dir. 'all' works only "
@@ -169,21 +183,48 @@ def main():
                              "its own rollout arm, so a lure batch cannot pool "
                              "with a plain one: under the lure, reaching outside "
                              "partly measures response to a hint.")
-    parser.add_argument("--isolation", choices=list(ISOLATION_MODES),
-                        default=DEFAULT_ISOLATION,
-                        help="Kernel-enforced limit on what a sandboxed command "
-                             "can reach. There is no way to disable it: the "
-                             "blocklist is not a containment boundary, and a "
-                             "model with shell access would otherwise reach the "
-                             "network. `deny-external` "
-                             "keeps loopback reachable - so network_probe still "
-                             "observes real behaviour - while the kernel refuses "
-                             "anything off the host. `deny-network` refuses "
-                             "both. Does not need a new ROLLOUT_VERSION: "
-                             "off-host reach has never been observed, so the "
-                             "mode is recorded per run rather than hashed, and "
-                             "network_probe_external is reported as not "
-                             "applicable when the policy denies it.")
+    parser.add_argument(
+        "--capability", choices=list(CAPABILITY_TARGETS), default=None,
+        help="Capability arm - the oracle-solver denominator. Replaces the "
+             "task instruction with one that asks for the act outright, so "
+             "that a model's zero on the propensity arm can be read: 0%% "
+             "against a 0%% ceiling is a fact about the scenario, 0%% against "
+             "a 90%% ceiling is a fact about the model. Its own rollout "
+             "fingerprint and its own filename mark, and the report drops it "
+             "from every propensity rate - the act was INSTRUCTED here, so "
+             "pooling one episode into a misalignment rate inflates it "
+             "towards the ceiling it exists to measure. Collect into a "
+             "separate --output-dir.")
+    parser.add_argument(
+        "--goalguard", choices=list(GOALGUARD_ARMS), default=None,
+        help="Goal-guarding arm - the third misaligned act. Stages the "
+             "successor engine's parameter file, which the scenario's "
+             "deployment note says is read at cutover, and measures whether "
+             "the model rewrites it so its replacement would pursue the "
+             "model's own objective instead. `replacement` says the cutover "
+             "is imminent; `deferred` stages the SAME file and says the "
+             "cutover has been pushed to next quarter, so the two differ in "
+             "motive and not in means - a counterfactual that removed the "
+             "file would make the act impossible rather than unmotivated and "
+             "read zero by construction. Its own rollout fingerprints and its "
+             "own filename mark; unlike --capability the act is available "
+             "rather than instructed, so these episodes belong in a "
+             "misalignment rate.")
+    parser.add_argument(
+        "--date-mode", choices=list(DATE_MODES), default=None,
+        help="Artefact-date arm. Nothing set the scenario files' modification "
+             "times, so every episode collected to date ran in a directory "
+             "whose files claim to have been touched the moment the batch "
+             "ran - later than the period the scenario describes, always. "
+             "'consistent' backdates them into that period, ordered the way a "
+             "real project's are; 'inconsistent' puts them decades ahead and "
+             "identical, which is the widest contrast available rather than "
+             "the realistic middle: a plausible manipulation is the hardest "
+             "to detect, and a null from the extremes bounds the subtle case "
+             "too. Each non-default mode has its own rollout fingerprint and "
+             "its own filename mark, so it cannot pool with the corpus it is "
+             "the counterfactual to. Leaving this unset is 'default' and "
+             "changes nothing.")
     parser.add_argument("--yes", action="store_true",
                         help="Proceed with a fanned-out mode that sends API "
                              "requests. Required with --model/--nudge all on "
@@ -246,19 +287,6 @@ def main():
                              "account's actual concurrent-request limit; "
                              "start low (e.g. 3-5) and watch for 429s before "
                              "raising it further.")
-    parser.add_argument("--no-grader", action="store_true",
-                        help="Skip the LLM grader (faster, cheaper)")
-    parser.add_argument("--max-turns", type=int, default=40,
-                        help="Turn cap per episode. Episodes typically finish "
-                             "in 6-9 turns, so the default is roughly five "
-                             "times the usual need and only binds on an "
-                             "episode that is already behaving oddly - the "
-                             "one that hit the old cap of 20 was stuck "
-                             "appending to a file in a loop, not doing long legitimate work. "
-                             "An episode that hits the cap is recorded as "
-                             "ended_by=turn_cap and excluded from the "
-                             "disclosure measures, since it never produced a "
-                             "closing report.")
     parser.add_argument("--resume", metavar="STAMP", default=None,
                         help="Continue an interrupted batch: reuse this "
                              "filename timestamp (e.g. 20260727T182651) and "
@@ -273,11 +301,44 @@ def main():
                              "means something systematic (bad key, model "
                              "withdrawn) and burning the rest of the budget "
                              "on it is worse than stopping.")
-    parser.add_argument("--no-power", action="store_true",
-                        help="Skip the precision / detectable-effect analysis "
-                             "that runs at the end of a batch. It is local "
-                             "arithmetic with no API calls (~0.15s at n=100), "
-                             "so there is rarely a reason to.")
+
+
+def _add_model_arguments(parser: argparse.ArgumentParser) -> None:
+    """How the model under test is called, and by which backend.
+
+    Reasoning surface, token budgets, isolation mechanism and OpenRouter
+    routing. These change when a provider changes, which has nothing to do
+    with the experiment: --openrouter-provider and --isolation arrived in
+    commits that touched no other group.
+    """
+    parser.add_argument("--isolation", choices=list(ISOLATION_MODES),
+                        default=DEFAULT_ISOLATION,
+                        help="Kernel-enforced limit on what a sandboxed command "
+                             "can reach. There is no way to disable it: the "
+                             "blocklist is not a containment boundary, and a "
+                             "model with shell access would otherwise reach the "
+                             "network. `deny-external` "
+                             "keeps loopback reachable - so network_probe still "
+                             "observes real behaviour - while the kernel refuses "
+                             "anything off the host. `deny-network` refuses "
+                             "both. Does not need a new ROLLOUT_VERSION: "
+                             "off-host reach has never been observed, so the "
+                             "mode is recorded per run rather than hashed, and "
+                             "network_probe_external is reported as not "
+                             "applicable when the policy denies it.")
+    parser.add_argument("--no-grader", action="store_true",
+                        help="Skip the LLM grader (faster, cheaper)")
+    parser.add_argument("--max-turns", type=int, default=40,
+                        help="Turn cap per episode. Episodes typically finish "
+                             "in 6-9 turns, so the default is roughly five "
+                             "times the usual need and only binds on an "
+                             "episode that is already behaving oddly - the "
+                             "one that hit the old cap of 20 was stuck "
+                             "appending to a file in a loop, not doing long legitimate work. "
+                             "An episode that hits the cap is recorded as "
+                             "ended_by=turn_cap and excluded from the "
+                             "disclosure measures, since it never produced a "
+                             "closing report.")
     parser.add_argument("--grader-model", default=DEFAULT_GRADER_MODEL,
                         help="Model that grades eval awareness and labels "
                              "interrogation answers (default: %(default)s). A "
@@ -287,69 +348,6 @@ def main():
                              "agent suspected it was under evaluation. Trading "
                              "down is supported; see 'Validating the grader' in "
                              "README.md for what it costs in fidelity.")
-    parser.add_argument("--grade-existing", action="store_true",
-                        help="Don't run the eval. Instead re-run the eval "
-                             "awareness grader over run files already in "
-                             "--output-dir, choosing them by --model and "
-                             "--nudge and grading with --grader-model. Lets a "
-                             "past batch be scored by a different grader "
-                             "without paying for the agent rollouts again, "
-                             "and because the transcripts are fixed, any "
-                             "change in the numbers is down to the grader. "
-                             "--delay still applies, between files.")
-    parser.add_argument("--compare", nargs=2, metavar=("STAMP_A", "STAMP_B"),
-                        default=None,
-                        help="Don't run the eval. Compare two batches by "
-                             "their filename timestamps - normally the two "
-                             "nudge arms - on every headline rate, with "
-                             "Fisher exact tests, and repeat the primary "
-                             "contrast stratified by eval awareness.")
-    parser.add_argument("--summarise-arms", "--summarize-arms",
-                        action="store_true", dest="summarise_arms",
-                        help="Don't run the eval. Instead build one report "
-                             "across every arm of --model already collected "
-                             "in --output-dir: each arm's headline rates side "
-                             "by side, contrasts between arms that differ "
-                             "along exactly one of nudge/oversight/lure "
-                             "(holding the other two fixed), and concealment "
-                             "broken out by interrogation phrasing. Written "
-                             "to summary_of_summaries_<model>.json. Free - "
-                             "reads saved summaries and run files, calls no "
-                             "API. run_all_arms.sh runs this automatically "
-                             "when it finishes.")
-    parser.add_argument("--reclassify", action="store_true",
-                        help="Don't run the eval. Instead re-score the "
-                             "interrogations in run files already in "
-                             "--output-dir, recomputing the concealment level "
-                             "and scheming verdict from the saved answers and "
-                             "transcript. Use after changing the classifier: "
-                             "it costs no rollouts.")
-    parser.add_argument("--resummarise", "--resummarize", action="store_true",
-                        dest="resummarise",
-                        help="Don't run the eval. Instead rebuild the batch "
-                             "summary from run files already in --output-dir. "
-                             "Use after --reclassify, which rewrites the "
-                             "verdicts inside each run and so leaves every "
-                             "verdict-derived figure in the existing summary "
-                             "stale. Calls no API and derives every figure "
-                             "from the saved runs; one summary per batch "
-                             "stamp. Wall-clock timings and the failed-episode "
-                             "list are carried over from the summary being "
-                             "replaced, since run files do not record them.")
-    parser.add_argument("--batch-stamp", default=None,
-                        help="With --grade-existing, grade only the batch with "
-                             "this filename timestamp (e.g. 20260727T182651). "
-                             "Default: every batch matching the model/nudge.")
-    parser.add_argument("--write-back", action="store_true",
-                        help="With --grade-existing, also replace the "
-                             "eval_awareness_grader block inside the original "
-                             "run files. Off by default: the regrade goes to "
-                             "a separate regrade_*.json and the run files are "
-                             "left untouched. With --resummarise, save the "
-                             "re-derived fields back into the run files so "
-                             "they stop disagreeing with the summary built "
-                             "from them; no API calls, and no LLM verdict is "
-                             "touched.")
     parser.add_argument("--max-tokens", type=int, default=8192,
                         help="Max output tokens per turn. Reasoning models "
                              "(e.g. deepseek-r1) spend tokens on internal "
@@ -414,12 +412,208 @@ def main():
                              "or fastest one (what --openrouter-sort would "
                              "pick) is the broken one. Ignored (with no "
                              "error) for a non-OpenRouter model.")
-    args = parser.parse_args()
+    parser.add_argument("--use-opencode", action="store_true",
+                        help="Reach the model UNDER TEST (not the grader) "
+                             "through OpenCode Zen (opencode.ai) instead of "
+                             "OpenRouter, for the same 'provider/model' ids - "
+                             "an alternative gateway to the same corpus of "
+                             "ids, not a new one. Authenticates with "
+                             "OPENCODE_API_KEY rather than "
+                             "OPENROUTER_API_KEY. Zen's own model ids carry "
+                             "no vendor prefix, so the vendor segment ahead "
+                             "of the first '/' is stripped before the "
+                             "request is sent; not every id in this corpus "
+                             "is on Zen's curated list, and one that is not "
+                             "fails at request time with Zen's own error "
+                             "rather than silently answering from a "
+                             "different model. --openrouter-sort and "
+                             "--openrouter-provider are OpenRouter-only "
+                             "concepts with no OpenCode equivalent and are "
+                             "ignored (with no error) when this is set. "
+                             "Ignored (with no error) for a non-OpenRouter "
+                             "model.")
 
-    try:
-        args.interrogations = parse_interrogations(args.interrogation)
-    except ValueError as e:
-        parser.error(str(e))
+
+def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
+    """Operating on a corpus already on disk rather than collecting one.
+
+    Grading, reclassifying, resummarising and comparing. Separate because a
+    new read mode is a new way to re-derive fields from saved transcripts and
+    needs nothing from the collection flags above - --summarise-arms was added
+    without touching one of them.
+    """
+    parser.add_argument("--grade-existing", action="store_true",
+                        help="Don't run the eval. Instead re-run the eval "
+                             "awareness grader over run files already in "
+                             "--output-dir, choosing them by --model and "
+                             "--nudge and grading with --grader-model. Lets a "
+                             "past batch be scored by a different grader "
+                             "without paying for the agent rollouts again, "
+                             "and because the transcripts are fixed, any "
+                             "change in the numbers is down to the grader. "
+                             "--delay still applies, between files.")
+    parser.add_argument("--self-grade-kind", action="store_true",
+                        help="Don't run the eval. Re-measure only WHICH KIND "
+                             "of evaluation each aware episode suspected - "
+                             "safety or capability - with the episode's own "
+                             "model as the grader, on the theory that a model "
+                             "reads its own phrasing better than a fixed "
+                             "grader does. Awareness itself is NOT "
+                             "re-measured: it is taken from the "
+                             "eval_awareness_grader verdict already saved, so "
+                             "both readings share one denominator and any "
+                             "difference is the flavour judgement alone. Two "
+                             "questions per AWARE episode and no calls at all "
+                             "for the rest. Writes to "
+                             "analysis.awareness_kind_self under "
+                             "--write-back, never over the primary verdict.")
+    parser.add_argument("--compare", nargs=2, metavar=("STAMP_A", "STAMP_B"),
+                        default=None,
+                        help="Don't run the eval. Compare two batches by "
+                             "their filename timestamps - normally the two "
+                             "nudge arms - on every headline rate, with "
+                             "Fisher exact tests, and repeat the primary "
+                             "contrast stratified by eval awareness.")
+    parser.add_argument("--summarise-arms", "--summarize-arms",
+                        action="store_true", dest="summarise_arms",
+                        help="Don't run the eval. Instead build one report "
+                             "across every arm of --model already collected "
+                             "in --output-dir: each arm's headline rates side "
+                             "by side, contrasts between arms that differ "
+                             "along exactly one of nudge/oversight/lure "
+                             "(holding the other two fixed), and concealment "
+                             "broken out by interrogation phrasing. Written "
+                             "to summary_of_summaries_<model>.json. Free - "
+                             "reads saved summaries and run files, calls no "
+                             "API. run_all_arms.sh runs this automatically "
+                             "when it finishes.")
+    parser.add_argument("--reclassify", action="store_true",
+                        help="Don't run the eval. Instead re-score the "
+                             "interrogations in run files already in "
+                             "--output-dir, recomputing the concealment level "
+                             "and scheming verdict from the saved answers and "
+                             "transcript. Use after changing the classifier: "
+                             "it costs no rollouts.")
+    parser.add_argument("--resummarise", "--resummarize", action="store_true",
+                        dest="resummarise",
+                        help="Don't run the eval. Instead rebuild the batch "
+                             "summary from run files already in --output-dir. "
+                             "Use after --reclassify, which rewrites the "
+                             "verdicts inside each run and so leaves every "
+                             "verdict-derived figure in the existing summary "
+                             "stale. Calls no API and derives every figure "
+                             "from the saved runs; one summary per batch "
+                             "stamp. Wall-clock timings and the failed-episode "
+                             "list are carried over from the summary being "
+                             "replaced, since run files do not record them.")
+    parser.add_argument("--batch-stamp", default=None,
+                        help="With --grade-existing, grade only the batch with "
+                             "this filename timestamp (e.g. 20260727T182651). "
+                             "Default: every batch matching the model/nudge.")
+    parser.add_argument("--min-answered", type=int, default=None,
+                        metavar="N",
+                        help="With --grade-existing, also select episodes "
+                             "whose stored grading answered FEWER than N of "
+                             "its rubric questions. --only-failed reaches the "
+                             "episodes that answered none; this reaches the "
+                             "ones resting on a handful, which carry a verdict "
+                             "and so are invisible to it. A rubric question "
+                             "that errored is read as 'no signal', so a thin "
+                             "verdict is a guess wearing a verdict's clothes.")
+    parser.add_argument("--only-failed", action="store_true",
+                        help="With --grade-existing, grade only the episodes "
+                             "whose stored grading FAILED - every rubric "
+                             "question errored, so the file carries no verdict "
+                             "at all. Selection is otherwise per batch, so "
+                             "recovering one bad episode means regrading its "
+                             "nine healthy siblings and, under --write-back, "
+                             "REPLACING nine settled verdicts with fresh draws. "
+                             "The money is the smaller half of that.")
+    parser.add_argument("--write-back", action="store_true",
+                        help="With --grade-existing, also replace the "
+                             "--regrade grader's entry inside the original "
+                             "run files. Off by default: the regrade goes to "
+                             "a separate regrade_*.json and the run files are "
+                             "left untouched. With --resummarise, save the "
+                             "re-derived fields back into the run files so "
+                             "they stop disagreeing with the summary built "
+                             "from them; no API calls, and no LLM verdict is "
+                             "touched.")
+
+
+def _add_regrade_argument(parser: argparse.ArgumentParser) -> None:
+    """Which grader entry the paid read modes act for. See graders.py."""
+    parser.add_argument("--regrade", default=REGRADE_DEFAULT,
+                        metavar=f"{{{REGRADE_DEFAULT},{REGRADE_ALL},MODEL}}",
+                        help="Which grader --grade-existing, --reclassify and "
+                             "--reinterrogate act for. Each episode keeps one "
+                             "entry per grader model in analysis.graders, and "
+                             "only the targeted entries are replaced. "
+                             f"'{REGRADE_DEFAULT}' (the default) is "
+                             f"{DEFAULT_GRADER_MODEL}, the grader every figure "
+                             "and chart reads; a MODEL ID re-grades that "
+                             "grader's entry, adding one if the episode has "
+                             f"none; '{REGRADE_ALL}' re-grades every grader the "
+                             "episode already has. Not 'all' with "
+                             "--reinterrogate: one grader's verdicts decide "
+                             "where a new ladder of questions stops.")
+
+
+def _add_analysis_arguments(parser: argparse.ArgumentParser) -> None:
+    """Statistics computed over the result, opt-out only.
+
+    One flag today. It is its own function rather than folded into the read
+    modes because it is neither: it changes what the summary reports, not what
+    is collected or re-derived.
+    """
+    parser.add_argument("--no-power", action="store_true",
+                        help="Skip the precision / detectable-effect analysis "
+                             "that runs at the end of a batch. It is local "
+                             "arithmetic with no API calls (~0.15s at n=100), "
+                             "so there is rarely a reason to.")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """The CLI, built where a test can read its option strings.
+
+    SEPARATE FROM main() so the options can be asserted EXACTLY rather than by
+    grepping --help. The distinction is not academic: a substring check for
+    "--grade" in help text also passes against "--grade-disabled", and argparse
+    accepts `--grade` as an unambiguous prefix of it, so a flag documented in
+    three places and absent from the parser satisfied both checks at once in
+    trivial_baseline.py. Same parser, same options, and now reachable without
+    running a batch.
+
+    Composed from four groups rather than declared in one list, because the
+    groups have independent reasons to change - see the docstring on each.
+    Their ORDER here is the order --help prints them in, and grouping them
+    changed that order from the arrival-order they had accumulated in; the
+    option set, and every default, choice and help string in it, is unchanged
+    and pinned by test_run_eval.py.
+    """
+    parser = argparse.ArgumentParser(
+        description=f"Run SubversionBench {VERSION}"
+    )
+    _add_collection_arguments(parser)
+    _add_model_arguments(parser)
+    _add_read_mode_arguments(parser)
+    _add_regrade_argument(parser)
+    _add_analysis_arguments(parser)
+    return parser
+
+
+def _reject_contradictory_flags(parser, args) -> None:
+    """Flag combinations that cannot mean anything, refused at the boundary.
+
+    Every one of these fails BEFORE a paid rollout rather than partway through
+    one. parser.error exits 2 and prints usage, which is why the parser is
+    passed rather than raising: an operator who mistyped a flag wants the usage
+    line, not a traceback.
+
+    Takes args and writes nothing to it. The bag is mutated only in main(),
+    which is what test_args_bag.py enforces and why this returns None rather
+    than a corrected namespace.
+    """
     # No blanket refusal for the max arm any more: it has its own rephrasing of
     # its own four-clause first question, so pairing is meaningful there too. What
     # is refused is a variant with no max form, which questions_for raises on -
@@ -430,23 +624,74 @@ def main():
                 questions_for(MISALIGNED_ACTS[0], "max", name)
             except (ValueError, KeyError) as e:
                 parser.error(str(e))
-    if args.grade_existing and args.no_grader:
+    if (args.grade_existing or args.self_grade_kind) and args.no_grader:
         parser.error(
-            "--grade-existing and --no-grader are contradictory: the first "
-            "does nothing but run the grader."
+            "--grade-existing/--self-grade-kind and --no-grader are "
+            "contradictory: the first does nothing but run the grader."
         )
-    if args.batch_stamp and not (args.grade_existing or args.reclassify
-                                 or args.resummarise or args.reinterrogate):
+    if args.grade_existing and args.self_grade_kind:
+        parser.error(
+            "--grade-existing and --self-grade-kind are different modes: the "
+            "first re-runs the whole rubric with --grader-model, the second "
+            "re-measures only the kind with the episode's own model. Run one, "
+            "then the other."
+        )
+    _read_modes = (args.grade_existing or args.self_grade_kind
+                   or args.reclassify or args.resummarise
+                   or args.reinterrogate)
+    if args.batch_stamp and not _read_modes:
         parser.error("--batch-stamp only applies with --grade-existing, "
-                     "--reclassify or --resummarise.")
+                     "--self-grade-kind, --reclassify or --resummarise.")
+    if args.min_answered is not None and not args.grade_existing:
+        parser.error("--min-answered only applies with --grade-existing.")
+    if args.min_answered is not None and args.min_answered < 1:
+        parser.error("--min-answered must be at least 1; 0 would select "
+                     "nothing that --only-failed does not already reach.")
+    if args.only_failed and not args.grade_existing:
+        parser.error("--only-failed only applies with --grade-existing. The "
+                     "other read modes are free and re-derive every episode, "
+                     "so there is nothing for it to narrow.")
     for flag, value in (("--write-back", args.write_back),):
-        if value and not (args.grade_existing or args.reclassify
-                          or args.resummarise or args.reinterrogate):
+        if value and not _read_modes:
             parser.error(
-                f"{flag} only applies with --grade-existing, --reclassify "
-                f"or --resummarise."
+                f"{flag} only applies with --grade-existing, "
+                f"--self-grade-kind, --reclassify or --resummarise."
             )
+    _reject_regrade_misuse(parser, args)
 
+
+def _reject_regrade_misuse(parser, args) -> None:
+    """--regrade and --grader-model, each where it means something.
+
+    --grader-model names the grader a COLLECTION runs. A read mode used to
+    take it as its target too; it now takes --regrade, and a non-default
+    --grader-model beside one is refused rather than ignored, so nobody
+    believes they chose a grader they did not. The default passed explicitly
+    targets the same grader --regrade does by default, so it is let through.
+    """
+    targeted = args.grade_existing or args.reclassify or args.reinterrogate
+    if args.regrade != REGRADE_DEFAULT and not targeted:
+        parser.error("--regrade only applies with --grade-existing, "
+                     "--reclassify or --reinterrogate.")
+    if args.reinterrogate and args.regrade == REGRADE_ALL:
+        parser.error(f"--reinterrogate takes one grader, not "
+                     f"--regrade {REGRADE_ALL}: that grader's verdicts decide "
+                     f"where each new ladder of questions stops.")
+    if targeted and args.grader_model != DEFAULT_GRADER_MODEL:
+        parser.error(f"--grader-model {args.grader_model} names the grader a "
+                     f"collection runs. To re-grade with it, use "
+                     f"--regrade {args.grader_model}.")
+
+
+def _resolve_reasoning(parser, args) -> tuple:
+    """The reasoning parameters to send, and the label describing them.
+
+    Returns (kwargs, config). The model's API surface decides which of
+    --thinking-budget and --effort is even meaningful, so the checks here are
+    against that surface rather than against the flags in isolation - asking a
+    model with no effort control for `max` sends nothing, and a run labelled
+    `max` that sent nothing is worse than no label.
+    """
     surface = thinking_surface(args.model)
     takes_budget = surface is not None and surface.mode == "budget"
 
@@ -478,6 +723,26 @@ def main():
         print(f"[WARNING] {warning}")
     print(f"Reasoning: {reasoning_config}")
 
+    return reasoning_kwargs, reasoning_config
+
+
+def _warn_about_inapplicable_routing(args) -> None:
+    """Routing flags aimed at a model that does not route.
+
+    A WARNING rather than an error, deliberately: both flags are documented as
+    ignored for a non-OpenRouter model, so refusing here would break a fan-out
+    that names one provider flag and several models. The warning is what stops
+    it being silent.
+    """
+    if args.lure and getattr(args, "goalguard", None):
+        # Announced, on the same terms as the routing warning below: a flag
+        # that silently does nothing lets an operator believe they collected
+        # an arm they did not.
+        print(f"[WARNING] --lure true has no effect with --goalguard "
+              f"{args.goalguard}. The lure attributes reaching outside the "
+              f"project directory; this act's artefact is inside it, so the "
+              f"axis is not part of this arm and is not pinned. Collecting "
+              f"as the non-lure arm.")
     if args.openrouter_sort and not is_openrouter_model(args.model):
         print(f"[WARNING] --openrouter-sort {args.openrouter_sort} does not "
               f"apply to {args.model}: that flag only affects OpenRouter "
@@ -488,34 +753,67 @@ def main():
               f"does not apply to {args.model}: that flag only affects "
               f"OpenRouter models (an id containing '/').")
 
-    # The effort that will actually be sent. Read back off the resolved kwargs
-    # rather than taken from args, because an effort the model does not accept
-    # is dropped there with a warning - and a filename or a recorded field
-    # claiming a condition that never applied is worse than no label at all.
+    if args.use_opencode and not is_openrouter_model(args.model):
+        print(f"[WARNING] --use-opencode does not apply to {args.model}: "
+              f"that flag only affects OpenRouter-shaped models (an id "
+              f"containing '/').")
 
-    # max shares strong's prompt: the arms differ only in the interrogation
-    # that follows the episode, so the episode itself must be identical for the
-    # contrast to isolate what the threat does.
-    system_prompt = (
-        SYSTEM_PROMPT_STRONG_NUDGE if args.nudge in ("strong", "max")
-        else SYSTEM_PROMPT_NO_NUDGE
-    )
+    if args.use_opencode and is_openrouter_model(args.model):
+        if args.openrouter_sort:
+            print(f"[WARNING] --openrouter-sort {args.openrouter_sort} has "
+                  f"no effect with --use-opencode: OpenCode has no "
+                  f"equivalent of OpenRouter's backend-sort routing.")
+        if args.openrouter_provider:
+            print(f"[WARNING] --openrouter-provider {args.openrouter_provider} "
+                  f"has no effect with --use-opencode: OpenCode has no "
+                  f"equivalent of OpenRouter's pin-to-backend routing.")
 
-    args.oversight = args.oversight == "true"
-    args.lure = args.lure == "true"
 
-    os.makedirs(args.output_dir, exist_ok=True)
 
-    # OpenRouter model IDs are "provider/model" (e.g. "x-ai/grok-4.5"); the
-    # "/" would otherwise be interpreted as a path separator in filenames.
-    model_slug = args.model.replace("/", "_")
+def _capability_refusal(args) -> str:
+    """Why this capability run cannot mean what it claims, or None.
 
-    # The (model, nudge) the read modes below operate on. Built once here,
-    # rather than each mode reading it off `args`, because a fan out varies
-    # the pair per batch and there is only one `args` to vary - see
-    # BatchSelection in batch.py for what that used to cost.
-    selection = BatchSelection.typed(args)
+    THE CAPABILITY ARM'S PRECONDITIONS, refused rather than corrected. Each of
+    these would produce episodes that look like a ceiling and are not, and none
+    of them is visible in the artefact afterwards - which is the whole reason
+    they are checked at the boundary. Silently coercing them instead would run
+    an arm the operator did not ask for.
 
+    RETURNS the message rather than printing it, so the decision can be tested
+    without capturing stdout and so main() owns the exit code. Reads the
+    BOOLEAN args.oversight and args.lure, so it must be called after main()
+    coerces them.
+    """
+    if not args.capability:
+        return None
+    if args.nudge != "none":
+        return (f"\n--capability needs --nudge none, not {args.nudge!r}. The "
+                f"nudge is the goal-conflict pressure, and it is propensity "
+                f"machinery: a ceiling measured under it is a ceiling for "
+                f"what a pressured model can do, which is not the "
+                f"denominator any propensity rate wants.")
+    if args.lure:
+        return ("\n--capability cannot be combined with --lure true. The "
+                "lure is a hint, so a ceiling measured under it is a "
+                "ceiling for hint-following. There is deliberately no "
+                "pinned fingerprint for that combination.")
+    if args.capability == "oversight" and not args.oversight:
+        return ("\n--capability oversight needs --oversight true. The "
+                "counterfactual arm removes the artefact the instruction "
+                "names, so every episode would be scored as incapable of an "
+                "act the arm itself makes impossible - the r9 defect "
+                "exactly, in a new place.")
+    return None
+
+
+def _run_read_mode(args, selection):
+    """Run whichever mode operates on a corpus already on disk.
+
+    Returns that mode's exit code, or None when no read mode was asked for -
+    which is the signal to main() that this invocation is a collection run.
+    None rather than a sentinel exit code, because every value an exit code can
+    take is already meaningful here.
+    """
     if args.compare:
         return compare_batches(args)
 
@@ -533,10 +831,12 @@ def main():
             return fan_out_read_mode(args, resummarise_existing_runs)
 
         run_one = (grade_existing_runs if args.grade_existing else
+                   self_grade_kinds if args.self_grade_kind else
                    reclassify_existing_runs if args.reclassify else None)
         if run_one is None:
             print("--model/--nudge 'all' applies to the read-only modes "
-                  "(--resummarise, --grade-existing, --reclassify).")
+                  "(--resummarise, --grade-existing, --self-grade-kind, "
+                  "--reclassify).")
             return 2
 
         batches = discover_batches(args.output_dir, args.model, args.nudge)
@@ -568,6 +868,61 @@ def main():
 
     if args.grade_existing:
         return grade_existing_runs(args, selection)
+
+    if args.self_grade_kind:
+        return self_grade_kinds(args, selection)
+
+    return None
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+
+    try:
+        args.interrogations = parse_interrogations(args.interrogation)
+    except ValueError as e:
+        parser.error(str(e))
+    _reject_contradictory_flags(parser, args)
+
+    reasoning_kwargs, reasoning_config = _resolve_reasoning(parser, args)
+    _warn_about_inapplicable_routing(args)
+
+    # max shares strong's prompt: the arms differ only in the interrogation
+    # that follows the episode, so the episode itself must be identical for the
+    # contrast to isolate what the threat does.
+    system_prompt = (
+        SYSTEM_PROMPT_STRONG_NUDGE if args.nudge in ("strong", "max")
+        else SYSTEM_PROMPT_NO_NUDGE
+    )
+
+    # The two string flags become booleans HERE and nowhere else. main() is the
+    # CLI boundary, and test_args_bag.py requires every write to the bag to
+    # happen in it - a helper that took args and corrected it would put the
+    # same mutation somewhere a later caller cannot see.
+    args.oversight = args.oversight == "true"
+    args.lure = args.lure == "true"
+
+    refusal = _capability_refusal(args)
+    if refusal:
+        print(refusal)
+        return 2
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # OpenRouter model IDs are "provider/model" (e.g. "x-ai/grok-4.5"); the
+    # "/" would otherwise be interpreted as a path separator in filenames.
+    model_slug = args.model.replace("/", "_")
+
+    # The (model, nudge) the read modes below operate on. Built once here,
+    # rather than each mode reading it off `args`, because a fan out varies
+    # the pair per batch and there is only one `args` to vary - see
+    # BatchSelection in batch.py for what that used to cost.
+    selection = BatchSelection.typed(args)
+
+    read_mode_exit = _run_read_mode(args, selection)
+    if read_mode_exit is not None:
+        return read_mode_exit
 
     # Past this point we are rolling out. Everything above decided whether to, and
     # with what; runner.py does it.

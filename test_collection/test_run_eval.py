@@ -96,6 +96,30 @@ class TestContradictoryFlagsAreRefusedBeforeSpending:
         assert code == 2
         assert "--write-back only applies" in out
 
+    def test_regrade_outside_a_regrading_mode_is_refused(self):
+        """--regrade chooses whose reading a paid read mode replaces; with no
+        such mode it would be accepted and silently mean nothing."""
+        code, out = _main("--regrade", "all", "--model", "m")
+        assert code == 2
+        assert "--regrade only applies" in out
+
+    def test_reinterrogate_refuses_every_grader_at_once(self):
+        """One grader's verdicts decide where each new ladder of questions
+        stops, so re-interrogating for all of them has no single answer."""
+        code, out = _main("--reinterrogate", "--regrade", "all",
+                          "--model", "m")
+        assert code == 2
+        assert "--reinterrogate takes one grader" in out
+
+    def test_a_non_default_grader_model_beside_a_read_mode_is_refused(self):
+        """It names the grader a COLLECTION runs. Accepting it beside a read
+        mode would let someone believe they re-graded with a model they did
+        not; the message names the flag that does it."""
+        code, out = _main("--grade-existing", "--grader-model", "gpt-6-sol",
+                          "--model", "m")
+        assert code == 2
+        assert "use --regrade gpt-6-sol" in out
+
     def test_batch_stamp_is_accepted_with_every_read_mode(self):
         """Refusals have to be exactly as wide as their reason. A guard listing
         three of the four modes would refuse a legitimate invocation."""
@@ -241,6 +265,47 @@ class TestOpenRouterProviderFlag:
     def test_silent_when_not_requested(self):
         code, out = _main(*_read_mode_argv("--resummarise"))
         assert "openrouter-provider" not in out.lower()
+
+
+class TestUseOpencodeFlag:
+    """--use-opencode reaches the model UNDER TEST through OpenCode Zen
+    instead of OpenRouter, for the same OpenRouter-shaped ids - same
+    opt-in/never-fatal/non-OpenRouter-warns-not-refuses shape as
+    --openrouter-sort/--openrouter-provider above, plus its own warning when
+    combined with either of them (both become no-ops OpenCode has no
+    equivalent of)."""
+
+    def test_warns_but_does_not_refuse_for_a_non_openrouter_model(self):
+        code, out = _main("--use-opencode", *_read_mode_argv("--resummarise"))
+        assert code != 2, out
+        assert "--use-opencode" in out and "does not apply" in out
+
+    def test_no_warning_for_an_openrouter_model(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--use-opencode",
+                          "--resummarise", "--output-dir", tempfile.mkdtemp())
+        assert "does not apply" not in out
+
+    def test_silent_when_not_requested(self):
+        code, out = _main(*_read_mode_argv("--resummarise"))
+        assert "use-opencode" not in out.lower()
+
+    def test_warns_when_combined_with_openrouter_sort(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--use-opencode",
+                          "--openrouter-sort", "throughput", "--resummarise",
+                          "--output-dir", tempfile.mkdtemp())
+        assert "--openrouter-sort" in out and "no effect" in out
+
+    def test_warns_when_combined_with_openrouter_provider(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--use-opencode",
+                          "--openrouter-provider", "deepinfra", "--resummarise",
+                          "--output-dir", tempfile.mkdtemp())
+        assert "--openrouter-provider" in out and "no effect" in out
+
+    def test_no_no_effect_warning_without_use_opencode(self):
+        code, out = _main("--model", "x-ai/grok-4.5", "--openrouter-sort",
+                          "throughput", "--resummarise",
+                          "--output-dir", tempfile.mkdtemp())
+        assert "no effect" not in out
 
 
 class TestTheArmIsResolvedFromStringsToBooleans:
@@ -448,3 +513,203 @@ class TestTheModuleStaysACli:
             if name.startswith("_") or inspect.ismodule(value):
                 continue
             assert value is not None or name in ("__doc__",), name
+
+
+class TestTheParserIsReadableWithoutRunningABatch:
+    """build_parser() exists so the CLI surface can be asserted exactly.
+
+    WHY EXACTLY, AND NOT BY GREPPING --help. A substring check for "--grade" in
+    help text also passes against "--grade-disabled", and argparse accepts
+    `--grade` as an unambiguous prefix of it - so in trivial_baseline.py a flag
+    that was documented in three places and absent from the parser satisfied
+    both a grep and a round trip through argparse. Neither can tell a
+    documented flag from a longer one that merely starts the same way. The
+    option strings can, which is the whole reason this parser is reachable
+    without running main().
+
+    The set is pinned WHOLE rather than one flag at a time. A collection run is
+    driven by these names from run_all_arms.sh and by hand; a flag renamed or
+    dropped in a refactor is a batch that fails at the shell, hours in, or -
+    worse - one that silently collects a different arm because the name it no
+    longer accepts was the one selecting the arm.
+    """
+
+    EXPECTED = {
+        "--batch-stamp", "--capability", "--compare", "--concurrency",
+        "--date-mode", "--delay", "--effort", "--goalguard", "--grade-existing",
+        "--grader-model",
+        "--interrogation", "--isolation", "--lure", "--max-consecutive-failures",
+        "--max-tokens", "--max-turns", "--min-answered", "--model",
+        "--no-grader", "--no-power",
+        "--nudge", "--only-failed", "--openrouter-provider",
+        "--openrouter-sort", "--output-dir",
+        "--oversight", "--reclassify", "--regrade", "--reinterrogate", "--resume",
+        "--resummarise", "--resummarize", "--runs", "--self-grade-kind",
+        "--summarise-arms",
+        "--summarize-arms", "--thinking-budget", "--use-opencode",
+        "--write-back", "--yes",
+        "-h", "--help",
+    }
+
+    def test_every_option_is_the_set_that_was_shipped(self):
+        got = {opt for a in ev_run.build_parser()._actions
+               for opt in a.option_strings}
+        assert got == self.EXPECTED, (
+            f"added: {sorted(got - self.EXPECTED)}  "
+            f"removed: {sorted(self.EXPECTED - got)}")
+
+    def test_building_the_parser_neither_prints_nor_spends(self):
+        """It is called by the test above and by --help, so it must be inert:
+        no API client, no output directory, no console output."""
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            ev_run.build_parser()
+        assert out.getvalue() == "" and err.getvalue() == ""
+
+    def test_main_uses_that_parser_rather_than_building_its_own(self):
+        """The extraction is only worth anything while the parser under test is
+        the parser the batch runs. A second argparse.ArgumentParser constructed
+        inside main would make every assertion above describe a parser nothing
+        uses."""
+        import ast
+        import inspect
+        tree = ast.parse(inspect.getsource(ev_run.main))
+        built = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute)
+                 and n.func.attr == "ArgumentParser"]
+        assert not built, "main() builds its own parser again"
+        calls = {n.func.id for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+        assert "build_parser" in calls, sorted(calls)
+
+    def test_the_arm_selecting_flags_keep_their_choices(self):
+        """These four decide which arm is collected. A changed choice list
+        silently redirects a batch rather than failing it."""
+        actions = {a.dest: a for a in ev_run.build_parser()._actions}
+        assert sorted(actions["oversight"].choices) == ["false", "true"]
+        assert sorted(actions["lure"].choices) == ["false", "true"]
+        assert sorted(actions["nudge"].choices) == ["all", "max", "none",
+                                                    "strong"]
+        # Hand-written on purpose, unlike most lists here: the point of this
+        # guard is that adding an arm to the CLI is a thing somebody has to
+        # notice, so deriving it from CAPABILITY_TARGETS would make it pass
+        # through any change at all - which is the failure mode it exists to
+        # prevent. It failed when goal guarding was added, correctly.
+        assert sorted(actions["capability"].choices) == ["goalguard",
+                                                         "oversight",
+                                                         "sandbox"]
+
+
+class TestMainsHelpersKeepTheirContracts:
+    """main() is now 53 lines because five helpers carry what it used to.
+
+    Each is guarded for the property that made it safe to extract, and the
+    first of these exists because extracting it was NOT safe: the line
+    announcing the resolved reasoning config was dropped in the move, the whole
+    suite passed anyway, and only a before/after capture of the real CLI caught
+    it. A batch whose header no longer says what reasoning it sent is a batch
+    whose transcript cannot be read back with confidence, so it is asserted
+    here rather than left to the next person to notice.
+    """
+
+    def _args(self, **over):
+        parser = ev_run.build_parser()
+        args = parser.parse_args(["--model", "claude-opus-5"])
+        args.interrogations = ()
+        for k, v in over.items():
+            setattr(args, k, v)
+        return parser, args
+
+    def test_the_resolved_reasoning_is_announced(self):
+        parser, args = self._args()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            kwargs, config = ev_run._resolve_reasoning(parser, args)
+        assert "Reasoning:" in out.getvalue(), out.getvalue()
+        assert str(config) in out.getvalue()
+
+    def test_a_clean_capability_run_is_not_refused(self):
+        _p, args = self._args(capability="sandbox", nudge="none",
+                              lure=False, oversight=True)
+        assert ev_run._capability_refusal(args) is None
+
+    def test_each_capability_precondition_returns_prose_not_a_code(self):
+        """It returns the message for main() to print. Returning 2 here - which
+        it did briefly while being extracted - makes main() print "2" and lose
+        the explanation."""
+        for over in ({"nudge": "strong"}, {"lure": True},
+                     {"capability": "oversight", "oversight": False}):
+            base = {"capability": "sandbox", "nudge": "none", "lure": False,
+                    "oversight": True}
+            _p, args = self._args(**(base | over))
+            got = ev_run._capability_refusal(args)
+            assert isinstance(got, str) and "--capability" in got, (over, got)
+
+    def test_no_read_mode_asked_for_returns_none(self):
+        """None is the signal that this invocation collects. Any int here would
+        be read as an exit code and would stop the batch before it started."""
+        _p, args = self._args()
+        for flag in ("compare", "summarise_arms", "resummarise",
+                     "reinterrogate", "reclassify", "grade_existing"):
+            assert getattr(args, flag) in (False, None), flag
+        assert ev_run._run_read_mode(args, None) is None
+
+    def test_no_helper_writes_to_the_args_bag(self):
+        """AGENTS.md's rule, checked where the extraction could have broken it:
+        the three coercions stay in main(), so a helper that took args and
+        corrected it would put the same mutation somewhere a later caller
+        cannot see. test_args_bag.py enforces this repo-wide; this pins it for
+        the functions carved out of main."""
+        import ast
+        import inspect
+        for name in ("_reject_contradictory_flags", "_resolve_reasoning",
+                     "_warn_about_inapplicable_routing", "_capability_refusal",
+                     "_run_read_mode"):
+            tree = ast.parse(inspect.getsource(getattr(ev_run, name)))
+            writes = [t.attr for n in ast.walk(tree)
+                      if isinstance(n, (ast.Assign, ast.AugAssign))
+                      for t in (n.targets if isinstance(n, ast.Assign)
+                                else [n.target])
+                      if isinstance(t, ast.Attribute)
+                      and getattr(t.value, "id", "") == "args"]
+            assert not writes, f"{name} sets args.{writes}"
+
+
+class TestSummariseArmsIsAReadMode:
+    """Every read mode has to be reached from the same dispatch, and every one
+    of them has to return an exit code rather than None: None is the signal
+    that this invocation COLLECTS, so a read mode that fell through it would
+    start a batch and spend money on a command that asked for a report.
+    """
+
+    def _args(self, **over):
+        parser = ev_run.build_parser()
+        args = parser.parse_args(["--model", "claude-opus-5"])
+        args.interrogations = ()
+        for k, v in over.items():
+            setattr(args, k, v)
+        return args
+
+    def test_it_writes_the_cross_arm_report_and_exits_zero(self):
+        import tempfile
+        import unittest.mock
+        with tempfile.TemporaryDirectory() as out:
+            args = self._args(summarise_arms=True, output_dir=out)
+            with unittest.mock.patch.object(
+                    ev_run, "write_summary_of_summaries") as write:
+                code = ev_run._run_read_mode(args, None)
+        assert code == 0, "a read mode returned None and would have collected"
+        assert write.call_args.args == (out, "claude-opus-5"), (
+            "the report was written for a different directory or model than "
+            "the command line named")
+
+    def test_without_the_flag_it_is_not_written(self):
+        """The control: the dispatch is a chain of flags, and one that fired
+        unconditionally would turn every collecting run into a report."""
+        import unittest.mock
+        args = self._args()
+        with unittest.mock.patch.object(
+                ev_run, "write_summary_of_summaries") as write:
+            assert ev_run._run_read_mode(args, None) is None
+        assert not write.called

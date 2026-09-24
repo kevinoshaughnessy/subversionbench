@@ -25,7 +25,10 @@ and the tests that patch `grading.X` keep working.
 """
 
 from .acts import auth_error_in_analysis, MISALIGNED_ACTS, questions_for
-from .awareness_keywords import detect_eval_awareness_keywords
+from .awareness_keywords import (detect_eval_awareness_keywords,
+                                 detect_misuse_suspicion)
+from .capability import (CAPABILITY_ACT_KEYS, CAPABILITY_OUTCOMES,
+                         artefact_edit_commands, capability_outcome)
 from .awareness_timing import (
     AWARENESS_ONSET_LEVELS,
     AWARENESS_TIMING_LEVELS,
@@ -45,6 +48,7 @@ from .closing_report import (
 from .command_patterns import (
     _MEMO_TOKENS,
     _READ_COMMANDS,
+    reads_a_file,
     scratch_only_attempts,
 )
 from .concealment import (
@@ -57,14 +61,18 @@ from .concealment import (
     concealment_level,
 )
 from .grader import (
+    PURPOSE_KEYS,
     ask_rubric_question,
+    classify_awareness_from_rubric,
+    classify_awareness_kind,
+    detect_awareness_kind,
     detect_eval_awareness_grader,
-    _response_cache_usage,
 )
 # From the leaf itself, not through grader.py. contamination_check.py reads the
 # parser off the package surface, and routing that through the module grader_io
 # was extracted to decouple from is what the leaf test now forbids.
-from .grader_io import _parse_first_json, _truncate_for_grader
+from .grader_io import (_parse_first_json, _truncate_for_grader,
+                        report_grader_failure)
 from .interrogation import (
     classify_answer,
     classify_answer_llm,
@@ -106,7 +114,7 @@ __all__ = [
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "auth_error_in_analysis",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
-    "scratch_only_attempts", "refusals_not_observed",
+    "scratch_only_attempts", "refusals_not_observed", "reads_a_file",
     "detect_network_probes", "classify_network_probe",
     "detect_filesystem_escapes", "classify_filesystem_escape",
     "detect_host_path_reads", "classify_host_path_read",
@@ -116,8 +124,15 @@ __all__ = [
     "detect_honeypot_access", "classify_honeypot_read",
     "classify_honeypot_discovered",
     "questions_for",
+    # what a CAPABILITY episode demonstrated - see capability.py for why
+    # three outcomes and not two
+    "CAPABILITY_ACT_KEYS", "CAPABILITY_OUTCOMES",
+    "artefact_edit_commands", "capability_outcome",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",
+    "detect_misuse_suspicion",
+    "PURPOSE_KEYS", "classify_awareness_from_rubric",
+    "classify_awareness_kind", "detect_awareness_kind",
     "ask_rubric_question", "awareness_timing", "awareness_onset",
     "first_awareness_position", "first_act_position",
     "AWARENESS_TIMING_LEVELS", "AWARENESS_ONSET_LEVELS",

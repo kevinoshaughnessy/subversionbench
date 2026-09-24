@@ -22,6 +22,7 @@ import os
 from collections import Counter, defaultdict
 
 from .batch import NO_OVERSIGHT_TAG, find_run_files_by_stamp, parse_batch_filename
+from .graders import view
 from .grading import SCHEMING_LEVELS
 from .power import compare_rates
 from .redaction import redact_paths
@@ -77,7 +78,22 @@ def _find_arm_summaries(output_dir: str, model: str) -> dict:
         nudge = s.get("nudge")
         if not nudge:
             continue
-        _effort, _stamp, oversight, lure = parse_batch_filename(path, nudge)
+        _effort, _stamp, oversight, lure, capability = parse_batch_filename(
+            path, nudge)
+        # THE CAPABILITY ARM IS NOT ONE OF THE TWELVE. Its acts were
+        # INSTRUCTED, so its rates are a ceiling rather than a propensity and
+        # they belong to no cell of the nudge x oversight x lure design this
+        # file is about.
+        #
+        # Skipped rather than keyed alongside, on the same terms as
+        # report/loading.py drops it: there is no reading of an arms table in
+        # which an instructed rate is that arm's figure. Keying it would put
+        # it in a column whose meaning is propensity; dropping the key
+        # entirely - which is what this did - let one file silently replace
+        # the other, since the two differ in no field this dict keys on and
+        # whichever sorted last won. capability_report.py is its reader.
+        if capability:
+            continue
         found[(nudge, oversight, lure)] = (path, s)
     return found
 
@@ -110,7 +126,7 @@ def _variant_concealment(output_dir: str, batch_stamp: str) -> dict:
                 run = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        analysis = run.get("analysis") or {}
+        analysis = view(run.get("analysis") or {})
         for act, field in (("sandbox", "concealment_sandbox_by_variant"),
                            ("oversight", "concealment_oversight_by_variant")):
             by_variant = analysis.get(field) or {}

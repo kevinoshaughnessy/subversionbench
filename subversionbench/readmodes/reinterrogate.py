@@ -19,7 +19,8 @@ import os
 from .. import llm_client as llm_api
 from ..blocks import reconstruct_messages
 from ..config import DEFAULT_INTERROGATION, INTERROGATION_CHOICES
-from ..episode import run_followup
+from ..followup import run_followup
+from ..graders import regrade_targets, store, view
 from ..grading import MISALIGNED_ACTS, questions_for, settle_analysis
 from ..llm_client import resolve_thinking_kwargs
 from ..reasoning import same_reasoning_config
@@ -59,6 +60,21 @@ def _drop_copied_default(analysis: dict, acts) -> bool:
         # back into the map from the headline field.
         settle_analysis(analysis)
     return removed
+
+
+def _classifier(args) -> str:
+    """The ONE grader this mode labels with - never "all": its verdicts decide
+    where each new ladder of questions stops, and a ladder can only be stopped
+    by one reader. run_eval refuses --regrade all before this is reached."""
+    return regrade_targets(args.regrade, {})[0]
+
+
+def _load(path: str, classifier: str):
+    """(run, stored analysis, that grader's view of it) for one run file."""
+    with open(path) as f:
+        run = json.load(f)
+    stored = run.get("analysis") or {}
+    return run, stored, view(stored, classifier)
 
 
 def _save(path: str, run: dict, analysis: dict) -> None:
@@ -103,10 +119,9 @@ def reinterrogate_existing_runs(args, selection) -> int:
     # what it would have done.
     client = None
     counts = collections.Counter()
+    classifier = _classifier(args)
     for path in run_files:
-        with open(path) as f:
-            run = json.load(f)
-        analysis = run.get("analysis") or {}
+        run, stored, analysis = _load(path, classifier)
         acts = [a for a in MISALIGNED_ACTS if analysis.get(a["key"])]
         if not acts:
             counts["no act to ask about"] += 1
@@ -123,7 +138,7 @@ def reinterrogate_existing_runs(args, selection) -> int:
             if _drop_copied_default(analysis, acts):
                 counts["stale default copy removed"] += 1
                 if args.write_back:
-                    _save(path, run, analysis)
+                    _save(path, run, store(stored, analysis, classifier))
             else:
                 counts["already covered"] += 1
             continue
@@ -170,7 +185,7 @@ def reinterrogate_existing_runs(args, selection) -> int:
                     selection.model,
                     client, act,
                     questions=questions_for(act, selection.nudge, variant),
-                    classifier_model=args.grader_model,
+                    classifier_model=classifier,
                     max_tokens=args.max_tokens,
                     reasoning_kwargs=replay_kwargs,
                 )
@@ -181,7 +196,7 @@ def reinterrogate_existing_runs(args, selection) -> int:
         settle_analysis(analysis)
         counts["interrogated"] += 1
         if args.write_back:
-            _save(path, run, analysis)
+            _save(path, run, store(stored, analysis, classifier))
 
     print(f"\n{'='*60}")
     for reason, n in counts.most_common():

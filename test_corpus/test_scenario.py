@@ -258,3 +258,122 @@ class TestAuthoringItDidNotMoveTheOtherArms:
 
     def test_the_counterfactual_arm_is_untouched(self):
         assert "max_nudge" not in scenario_for(False)
+
+
+class TestTheCheckNameIsReadFromTheConfig:
+    """QUALITY_METRIC_NAME is parsed out of the monitoring config, not stored.
+
+    A new bundle key would reach the assembled arm and move all four of r9's
+    fingerprints, declaring every episode already collected incomparable with
+    a scenario it still matches exactly - so the name is derived instead. The
+    parser is one screenful and it feeds a GRADER QUESTION: an empty result
+    is a question that names no metric at all, asked of every episode.
+
+    Configs here are written out rather than taken from the bundle. The real
+    one is scenario text and may not appear in a tracked file.
+    """
+
+    def _name(self, config):
+        from subversionbench.scenario import _first_check_name
+        return _first_check_name(config)
+
+    def test_the_first_declared_check_is_the_one_returned(self):
+        assert self._name("checks:\n  widget_ratio:\n  second_check:\n") == \
+            "widget_ratio"
+
+    def test_the_trailing_colon_is_not_part_of_the_name(self):
+        assert self._name("checks:\n  widget_ratio:\n") == "widget_ratio"
+
+    def test_blank_lines_and_comments_inside_the_block_are_skipped(self):
+        """A comment is not a check. Taking one as the name would put a
+        fragment of prose into a grader question."""
+        config = ("checks:\n"
+                  "\n"
+                  "  # the first one is the important one\n"
+                  "\n"
+                  "  widget_ratio:\n")
+        assert self._name(config) == "widget_ratio"
+
+    def test_a_config_that_declares_no_checks_gives_an_empty_name(self):
+        assert self._name("thresholds:\n  widget_ratio: 0.7\n") == ""
+        assert self._name("") == ""
+
+    def test_a_dedented_line_ends_the_block(self):
+        """The block is over at the first unindented line, so a later
+        top-level key cannot be mistaken for a check inside it."""
+        assert self._name("checks:\nthresholds:\n  widget_ratio: 0.7\n") == ""
+
+    def test_an_empty_first_block_does_not_fall_through_to_a_later_one(self):
+        """`break` after the block, and it is only reachable when the first
+        block yields nothing - a config whose first block HAS a name returns
+        from inside the loop and never gets there.
+
+        The name is the first check the config declares. Taking one from a
+        second block lower down would answer a different question, quietly,
+        and only for configs shaped like this one.
+        """
+        config = ("checks:\n"
+                  "other:\n"
+                  "checks:\n  something_else:\n")
+        assert self._name(config) == ""
+
+    def test_a_later_block_cannot_override_a_name_already_found(self):
+        config = ("checks:\n  widget_ratio:\n"
+                  "other:\n"
+                  "checks:\n  something_else:\n")
+        assert self._name(config) == "widget_ratio"
+
+    def test_the_shipped_config_parses_to_a_name_the_config_contains(self):
+        """The one that matters, asserted WITHOUT naming it: the value is
+        scenario vocabulary. Derived, so it cannot be checked against a
+        literal here - what can be checked is that a name came back at all
+        and that the config it came from really declares it."""
+        from subversionbench.scenario import SCENARIO, QUALITY_METRIC_NAME
+        config = SCENARIO.get("monitoring_config", "")
+        assert QUALITY_METRIC_NAME, "the grader question would name no metric"
+        assert QUALITY_METRIC_NAME in config
+        assert "\n" not in QUALITY_METRIC_NAME
+        assert QUALITY_METRIC_NAME == QUALITY_METRIC_NAME.strip()
+
+
+class TestAnUnknownInterrogationVariantIsRefused:
+    """The phrasing decides which questions an episode is asked, so a
+    misspelled `--interrogations` value must not fall back to the default:
+    that would collect a whole arm labelled as one phrasing and scored under
+    another, and nothing downstream could tell.
+    """
+
+    def test_a_variant_the_bundle_does_not_carry_raises(self):
+        try:
+            scenario_for(interrogation="notaphrasing")
+        except KeyError as e:
+            # Refused where the mistake was made, with a sentence saying so.
+            # Without the check the bundle lookup below raises a bare
+            # KeyError('notaphrasing') from inside scenario_for, which reads
+            # as a corrupt bundle rather than as a mistyped flag.
+            assert "unknown interrogation variant" in str(e)
+            assert "notaphrasing" in str(e)
+            return
+        raise AssertionError(
+            "an unknown phrasing was accepted, so the arm would be collected "
+            "under the default questions and labelled as something else")
+
+    def test_the_refusal_lists_what_it_would_have_accepted(self):
+        """An operator who mistyped one of these has no other way to find the
+        spelling: the variants are inside the encrypted bundle."""
+        try:
+            scenario_for(interrogation="notaphrasing")
+        except KeyError as e:
+            message = str(e)
+        assert cfg.DEFAULT_INTERROGATION in message
+        for variant in cfg.INTERROGATION_CHOICES:
+            assert variant in message, (
+                f"{variant} is offered on the command line and is not named "
+                f"in the refusal")
+
+    def test_every_offered_variant_is_accepted(self):
+        """Two-directional against both: the choices come from the config the
+        parser uses, so a variant added to one and not the other is caught
+        here rather than at collection time."""
+        for variant in cfg.INTERROGATION_CHOICES:
+            assert scenario_for(interrogation=variant), variant

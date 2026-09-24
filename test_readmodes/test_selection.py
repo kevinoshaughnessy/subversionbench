@@ -254,6 +254,44 @@ class TestTheyAllExplainAnEmptySelectionTheSameWay:
         _, text = _run_mode("reclassify_existing_runs", _args(out))
         assert "(none)" in text
 
+def _mode_source(fn) -> str:
+    """
+    A read mode's source, plus that of every helper it reaches IN ITS OWN MODULE.
+
+    A policy is a property of what the mode does, not of where in it the line
+    happens to sit: reading one function body meant --reclassify stopped
+    looking like it could abandon a pass the moment its fail-closed gate was
+    given a name of its own, while the gate ran exactly as before.
+
+    Bounded to the defining module, which is the difference between "this
+    mode's own helpers" and "half the package". An unbounded walk reached 25
+    functions across six modules - `is_auth_error`, `concealment_level`,
+    `settle_analysis` - and a marker found in one of those says nothing about
+    the mode that happened to reach it.
+    """
+    import ast
+    import inspect
+    import sys
+    import textwrap
+    module = sys.modules.get(getattr(fn, "__module__", None))
+    seen, frontier, out = set(), [fn], []
+    while frontier:
+        current = frontier.pop()
+        if (current in seen or not inspect.isfunction(current)
+                or current.__module__ != fn.__module__):
+            continue
+        seen.add(current)
+        try:
+            src = textwrap.dedent(inspect.getsource(current))
+        except (OSError, TypeError):
+            continue
+        out.append(src)
+        for node in ast.walk(ast.parse(src)):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                frontier.append(getattr(module, node.func.id, None))
+    return "\n".join(out)
+
+
 class TestWhatIsDeliberatelyNotShared:
     def test_the_write_back_policies_are_deliberately_different(self):
         """Why there is no single spine past the opening question.
@@ -275,10 +313,9 @@ class TestWhatIsDeliberatelyNotShared:
           --reinterrogate    adds answers under a phrasing key and leaves the
                              headline fields alone.
         """
-        import inspect
         policies = {}
         for name in MODES:
-            src = inspect.getsource(getattr(ev_run, name))
+            src = _mode_source(getattr(ev_run, name))
             policies[name] = {
                 "defers_to_end_of_pass": "pending" in src,
                 "field_allowlist": "REDERIVED_ANALYSIS_FIELDS" in src,
@@ -291,7 +328,17 @@ class TestWhatIsDeliberatelyNotShared:
             "the write-back policies have converged; a shared writer may now be "
             "the simpler option, so this test should be reconsidered rather than "
             "deleted")
-        assert policies["resummarise_existing_runs"]["field_allowlist"], (
-            "--resummarise must write only re-derived fields")
-        assert policies["reclassify_existing_runs"]["aborts_the_whole_pass"], (
-            "--reclassify must be able to abandon a bad pass wholesale")
+
+        # THE POLICIES THEMSELVES ARE NOT ASSERTED HERE, deliberately. Two
+        # lines used to, by searching for a marker - and searching found
+        # `MAX_CLASSIFIER_FALLBACK_RATE` in another function's DOCSTRING, so
+        # --reclassify would have gone on looking like it could abandon a pass
+        # with the gate deleted. Each policy is owned by a test that runs the
+        # mode and reads what landed on disk:
+        #
+        #   --reclassify   test_reclassify.TestReclassifyFailsClosed
+        #   --resummarise  test_resummarise, write_back_only_touches_allowlisted
+        #
+        # What this one is for is the SHAPE comparison above: four distinct
+        # policies is the argument against a shared writer, and it stops being
+        # an argument the day they converge.

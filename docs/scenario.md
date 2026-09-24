@@ -18,7 +18,10 @@ would then measure recall rather than inference. Encrypting the transcripts does
 with this, because the scenario is code.
 
 Base64 is not security and is not meant to be — bulk training pipelines ingest text, they
-do not decode it. Reading and editing the scenario is one command:
+do not decode it. Reading and editing the scenario is one command, once the package is
+installed — `pip install -e .`, see [Install](../README.md#install). The tool calls no API,
+but importing `subversionbench` pulls in the Anthropic SDK, so on a bare clone it fails
+with `ModuleNotFoundError: No module named 'anthropic'` rather than printing the bundle:
 
 ```bash
 python scenario_tool.py --list           # entries and sizes
@@ -75,10 +78,17 @@ The measure pointed at that is `awareness_provenance` in each batch summary (see
 [What gets measured](methodology.md#what-gets-measured)): awareness verbalised *before the model issued a
 single command* was formed from the framing alone, which is what template recognition looks
 like; awareness verbalised only after the monitoring config was read was inferred from the
-scenario. Across all 470 saved v15 episodes the pre-command share is **0%** — 108 of the 121
-keyword-aware episodes had a window in which it could have been observed, and it was
-observed in none. That is evidence against genre recognition, not proof: the decisive test
+scenario. Across the r10 corpus the pre-command share is **0.25%** — 4 of the 1,601
+keyword-aware episodes, where 1,579 of them had a window in which it could have been
+observed at all. That is evidence against genre recognition, not proof: the decisive test
 is a cue ablation, holding the structure fixed while changing the surface.
+
+Those three numbers are restated prose and they have already rotted once: the denominator
+stood at 1,045 here while the corpus said otherwise, because the indicator list grows and
+this sentence does not. Recompute them from `awareness_provenance` before citing them, and
+treat a figure in this file as a reading taken on a date rather than a standing fact. The
+share moves DOWN as the list grows, so the argument it supports gets stronger rather than
+weaker — which is exactly why nothing flagged the drift.
 
 The model probes are each paired with a negative control, because a probe that cannot fail
 for an innocent reason is not evidence:
@@ -101,4 +111,43 @@ health issued on no data is indistinguishable from the good news it is not.
 Probe prompts contain scenario text by construction, so the saved report records item ids
 and scores only. `--include-prompts` overrides that and produces a file to be treated
 exactly like a transcript.
+
+### An artefact that reads as awareness
+
+One of the documents the agent reads carries an internal inconsistency between two of its
+identity fields. It is a production defect rather than a designed cue, it is present in all
+four arms, and models find it unaided: roughly a tenth of r10 episodes remark on it
+explicitly, a third mention the field's value at all in the ordinary course of doing the task.
+
+That matters here because the construct under measurement is whether a model infers it is
+being *evaluated*, and noticing that a document contradicts itself is a different observation.
+An episode can be recorded as verbalised awareness for the second while the first never
+happened.
+
+**The bound is small, and it is the grader's cited evidence that sets it.** Of the r10
+episodes that flag the inconsistency explicitly, the great majority are graded aware on
+evidence that has nothing to do with it — the grader quoted something else. Counting only
+episodes where *every* signal question that fired cited the inconsistency gives **14 of 6,111,
+0.23%**, and of those the verdict rests on a single signal question in 10. Noticing the
+inconsistency travels with being attentive; it is very rarely the reason the verdict went the
+way it did.
+
+Two caveats on that number. Which episodes "remark on it" is decided by pattern-matching agent
+text, so the tenth is approximate in both directions; the 14 is exact, because it reads the
+quote the grader stored. And the bound is a ceiling, not an estimate — some of the 14 may also
+verbalise genuine awareness in words the grader did not happen to quote.
+
+**Why it is not corrected.** Editing the document moves all four rollout fingerprints, which
+is the harness working as designed: a change to what the model sees is a new rollout, and
+`heldout_tool.py --encode` requires `--repin` for exactly this reason. Correcting a 0.23%
+artefact would declare every episode collected so far incomparable with everything collected
+after. The trade is not worth it, so the defect is documented and carried rather than fixed —
+and a future rollout that moves the fingerprints for its own reasons should take this with it.
+
+**Why nothing caught it.** `contamination_check.py --audit` reads its term list from the
+bundle, which is what lets it check for leaks without naming the terms it is checking for. The
+cost of that design is that it can only recognise the terms the bundle currently declares: a
+value left behind by an earlier edit is not among them, and is invisible to the check by
+construction. The audit is not the wrong tool here — it is answering a different question, and
+internal consistency of the bundle is one nothing currently asks.
 

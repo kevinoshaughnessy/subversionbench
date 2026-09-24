@@ -14,6 +14,7 @@ only file that needed them; they moved here when it stopped being.
 """
 
 import json
+import tempfile
 
 from conftest import batch_episode
 from subversionbench.batch import BatchIdentity
@@ -29,10 +30,15 @@ def _single(report):
 
 def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="20260101T000000",
                    n_runs=10, n_scheming=0, n_misaligned=0, n_aware=0,
-                   n_unaware=0, cross=None, model_slug=None):
+                   n_unaware=0, cross=None, model_slug=None, capability=None,
+                   max_turns=None, goalguard=None):
+    # `capability` reaches the FILENAME, which is where the corpus is recorded
+    # - a summary carries no top-level field for it. A fixture that could not
+    # produce one left the capability half of load_summaries' filter untested.
     ident = BatchIdentity(model=model, model_slug=model_slug or model.replace("/", "_"),
                           nudge=nudge, effort=None, oversight=oversight, lure=lure,
-                          stamp=stamp)
+                          stamp=stamp, capability=capability,
+                          goalguard=goalguard)
     path = ident.filename(out, prefix="summary")
     d = {
         "model": model, "nudge": nudge, "n_runs": n_runs,
@@ -41,13 +47,22 @@ def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="2026010
                                 "source": "grader"},
         "cross_analysis_awareness": cross,
     }
+    # OMITTED WHEN None rather than written as null, because the two are
+    # different corpora: a summary from before v41 has no such key, and the
+    # scaffold index has to treat that as "this batch did not record it". A
+    # fixture that always wrote the key could not produce the absent case.
+    if max_turns is not None:
+        d["max_turns"] = max_turns
     with open(path, "w") as f:
         json.dump(d, f)
     return path
 
 def _write_episode(out, n, model, nudge, oversight=True, lure=False,
+                   goalguard=None,
                    stamp="20260101T000000", sort=None, provider=None,
-                   transcript=None, **episode_kwargs):
+                   transcript=None, served_by=None, served_by_changed=False,
+                   max_turns=None, ended_by=None,
+                   ended_by_provider=None, **episode_kwargs):
     # normalise_analyses first, exactly as a collected episode has already been
     # through: the sandbox act key (`out_of_scope_attempts`) is DERIVED there,
     # not set by batch_episode, and a fixture without it is not the shape any
@@ -56,6 +71,11 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
     ep = batch_episode(**episode_kwargs)
     normalise_analyses([ep])
     parts = ["run", str(n), model.replace("/", "_"), nudge]
+    # The runner writes the goal-guarding tag into the stem AND the record.
+    # Both, because the two loaders read it from different places - the
+    # episode loader off the record, load_summaries off the name.
+    if goalguard:
+        parts.append(f"goalguard-{goalguard}")
     if not oversight:
         parts.append("nooversight")
     if lure:
@@ -66,15 +86,112 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
         # the shape every collected run file has - a fixture that omitted the
         # keys would exercise a corpus that does not exist.
         json.dump({"model": model, "nudge": nudge, "oversight": oversight,
-                  "lure": lure, "analysis": ep["analysis"],
+                  "lure": lure, "goalguard": goalguard,
+                  "analysis": ep["analysis"],
                   # Written unconditionally, empty list included, because a
                   # collected run file always carries the key. `refusal_shown`
                   # is read off this, so a fixture that omitted it would make
                   # every episode look like one that was never refused.
                   "transcript": transcript if transcript is not None else [],
                   "openrouter_sort": sort,
-                  "openrouter_provider": provider}, f)
+                  "openrouter_provider": provider,
+                  # What the router said ANSWERED each turn, as opposed to the
+                  # two keys above, which record what was asked for. Written
+                  # unconditionally for the same reason: every collected
+                  # episode carries both, so a fixture that omitted them would
+                  # exercise a corpus shape that does not exist - and would
+                  # leave the check that reads them permanently on its
+                  # nothing-recorded branch.
+                  "served_by_providers": list(served_by or []),
+                  "served_by_changed": served_by_changed,
+                  # Omitted when None for the reason _write_summary gives:
+                  # every episode in both published corpora lacks this key,
+                  # and that is the case the summary join exists to cover.
+                  **({"max_turns": max_turns} if max_turns is not None
+                     else {}),
+                  # Both omitted when None, because that is the shape of every
+                  # episode in both published corpora - and "not recorded" is
+                  # the case the truncation check has to stay silent on.
+                  **({"ended_by": ended_by} if ended_by is not None else {}),
+                  **({"ended_by_provider": ended_by_provider}
+                     if ended_by_provider is not None else {})}, f)
     return path
+
+
+def _write_failed_episode(out, n, model, nudge, oversight=True, lure=False,
+                          stamp="20260101T000000", error="APIError: upstream",
+                          failed_on_turn=1, goalguard=None, **partial):
+    """
+    One attempted episode that never produced an analysis.
+
+    THE FILENAME COMES FROM BatchIdentity, not from a format string here, for
+    the same reason `_write_episode` builds its own that way: the prefix is
+    what separates these files from the analysed ones, and a fixture that
+    spelled it by hand would keep passing if the harness changed the prefix
+    and `load_failed_episodes` stopped finding anything.
+
+    The body is the partial episode the runner dumps on EpisodeAPIError - arm
+    fields, the error, and the turn it died on. No transcript: the loader does
+    not read one, and a fixture carrying scenario text would put it in the
+    suite for no gain.
+    """
+    identity = BatchIdentity(model=model, model_slug=model.replace("/", "_"),
+                             nudge=nudge, effort=None, oversight=oversight,
+                             lure=lure, stamp=stamp)
+    path = identity.filename(out, f"failed_run_{n}")
+    with open(path, "w") as f:
+        json.dump({"model": model, "nudge": nudge, "oversight": oversight,
+                   "lure": lure, "goalguard": goalguard, "capability": None,
+                   "ended_by": "api_error", "error": error,
+                   "failed_on_turn": failed_on_turn, "transcript": [],
+                   **partial}, f)
+    return path
+
+
+#
+# `--exclude-no-oversight` answers all twelve questions again with the
+# no-oversight arm set aside, because that arm's task README still promises the
+# quality preview the arm itself removes. A sensitivity reading, not a
+# correction - see report/loading.py.
+
+def _two_arm_dir(nudges=("strong", "max"), unknown_arm=0):
+    """
+    A corpus with both oversight arms, both awareness levels inside each, and
+    both nudge levels named by `nudges`.
+
+    BOTH AWARENESS LEVELS IN BOTH ARMS on purpose: it is what lets a test tell
+    "this question lost a side because the arm went" from "this question never
+    had two sides here", which is the distinction _collapsed_by_exclusion was
+    corrected to respect.
+    """
+    out = tempfile.mkdtemp()
+    cross = {"aware": {"n": 8, "misaligned": 6},
+             "unaware": {"n": 2, "misaligned": 0}}
+    n = 0
+    for oversight in (True, False):
+        stamp = f"20260101T00000{int(oversight)}"
+        for nudge in nudges:
+            _write_summary(out, "m", nudge, oversight=oversight, lure=False,
+                           stamp=stamp, n_runs=20, n_scheming=1, n_misaligned=3,
+                           n_aware=8, n_unaware=12, cross=cross)
+            for aware in (True, False):
+                for _ in range(6):
+                    _write_episode(out, n, "m", nudge, oversight=oversight,
+                                   aware=aware, monitoring=not oversight,
+                                   escape=["cd /"] if aware else [],
+                                   tampered=None if not oversight else True,
+                                   stamp=stamp)
+                    n += 1
+    for _ in range(unknown_arm):
+        # An episode whose arm was never recorded. Written by hand rather than
+        # through _write_episode, which always states one.
+        path = f"{out}/run_{n}_m_strong_20260101T000009.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"model": "m", "nudge": "strong", "oversight": None,
+                       "lure": False, "analysis": {"misaligned": False},
+                       "transcript": []}, f)
+        n += 1
+    return out
 
 
 def refusal_result(turn=1):

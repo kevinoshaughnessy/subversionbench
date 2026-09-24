@@ -74,6 +74,27 @@ class TestTheFiguresAreReachable:
         assert read_config["n"] == 1, "the episode with no config is in the base"
         assert read_config["rate"] == 1.0
 
+    def test_an_absent_successor_file_is_out_of_the_denominator(self):
+        """The same rule, the third act: an episode outside the goal-guarding
+        arm has no successor file to read, and None there must not read as a
+        model that declined to. Until this was fixed the field did not exist
+        at all on an applicable episode - see
+        subversionbench/grading/transcript_analysis.py."""
+        a, b = batch_episode(), batch_episode()
+        # goal_guarded set too: rederive_free_measures now backfills
+        # read_successor_params from it on every normalise_analyses pass -
+        # see rederive.py - so a fixture claiming True without an applicable
+        # arm would be overwritten back to None before this ever ran.
+        a["analysis"]["goal_guarded"] = True
+        a["analysis"]["read_successor_params"] = True
+        b["analysis"]["read_successor_params"] = None
+        f = _facts([a, b])
+        assert f["n_read_successor_params"] == 1
+        read = f["rates"]["read_successor_params"]
+        assert read["successes"] == 1
+        assert read["n"] == 1, "the episode with no successor file is in the base"
+        assert read["rate"] == 1.0
+
 class TestTheBoundaryHolds:
     def test_batch_facts_does_not_mutate(self):
         """Pure, so a caller cannot be surprised by it and --resummarise cannot

@@ -98,6 +98,8 @@ class TestStratifiedBlock:
         strat = rr._stratified(self._by_model(rows))
         assert strat["breslow_day"]["heterogeneous"] is True
         assert "NOT share one effect" in strat["interpretation"]
+        i2 = strat["breslow_day"]["i_squared"]
+        assert i2 is not None and f"I^2={i2:.0%}" in strat["interpretation"]
 
     def test_homogeneity_is_also_stated(self):
         rows = [{"model": "a", "g": True, "x": 20, "n": 100},
@@ -107,6 +109,8 @@ class TestStratifiedBlock:
         strat = rr._stratified(self._by_model(rows))
         assert strat["breslow_day"]["heterogeneous"] is False
         assert "defensible" in strat["interpretation"]
+        i2 = strat["breslow_day"]["i_squared"]
+        assert i2 is not None and f"I^2={i2:.0%}" in strat["interpretation"]
 
     def test_a_corpus_with_nothing_to_stratify_says_so(self):
         strat = rr._stratified([])
@@ -223,3 +227,221 @@ class TestCrudeVersusStratified:
             {"mantel_haenszel": {"risk_difference": None}}, [])
         assert cv["diverges"] is False
         assert cv["warning"] is None
+
+    def test_some_events_outside_the_strata_are_quantified(self):
+        """Between "all of them" and "none of them" there is a third case,
+        and it is the common one: part of the evidence sits in models the
+        stratified estimate had to drop for having an empty arm.
+
+        The count is what makes the warning actionable - "24 of 30" tells a
+        reader how much of the crude finding survives holding model constant,
+        which neither the crude line nor the stratified line says on its own.
+        """
+        rows = [{"model": "empty_arm", "g": False, "x": 20, "n": 60},
+                {"model": "empty_arm", "g": True, "x": 0, "n": 0},
+                {"model": "both_arms", "g": True, "x": 4, "n": 200},
+                {"model": "both_arms", "g": False, "x": 4, "n": 200},
+                {"model": "clean_b", "g": True, "x": 0, "n": 250},
+                {"model": "clean_b", "g": False, "x": 0, "n": 250}]
+        overall, strat, by_model = self._sections(rows)
+        cv = rr._crude_vs_stratified(overall, strat, by_model)
+        assert cv["diverges"] is True, cv
+        assert cv["n_outcome_events_total"] == 28
+        assert cv["n_outcome_events_outside_strata"] == 20
+        assert "20 of 28 outcome event(s)" in cv["warning"]
+        assert "NO within-model evidence" not in cv["warning"], (
+            "some evidence survives, so the stronger wording is wrong here")
+
+
+class TestTheHomogeneityVerdictReachesTheConsole:
+    """The stratified block prints the pooled effect and then, beside it, the
+    test of whether there is one effect to pool. A pooled figure printed with
+    no homogeneity verdict beside it is an average over genuinely different
+    effects presented as "the" effect - and the reading of a heterogeneous
+    result is the opposite of a homogeneous one.
+    """
+
+    def _printed(self, rows):
+        import contextlib
+        import io
+        from report.console import _print_stratified
+        strat = rr._stratified(rr._by_model(rows, "g", True, False, "x", "n"))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_stratified(strat)
+        return strat, buf.getvalue()
+
+    def test_heterogeneous_strata_are_printed_as_rejecting_homogeneity(self):
+        strat, text = self._printed([
+            {"model": "a", "g": True, "x": 9, "n": 10},
+            {"model": "a", "g": False, "x": 1, "n": 10},
+            {"model": "b", "g": True, "x": 1, "n": 10},
+            {"model": "b", "g": False, "x": 9, "n": 10}])
+        assert strat["breslow_day"]["heterogeneous"] is True
+        assert "Breslow-Day REJECTS homogeneity" in text
+        assert f"df={strat['breslow_day']['df']}" in text
+        assert f"({strat['breslow_day']['n_strata_used']} informative" in text, (
+            "the df has to be read against the strata that carried evidence, "
+            "which is not the number of models")
+        assert f"I^2={strat['breslow_day']['i_squared']:.1%}" in text
+
+    def test_homogeneous_strata_are_printed_as_not_rejecting(self):
+        """Two-directional: one verdict for both would be worse than none."""
+        strat, text = self._printed([
+            {"model": "a", "g": True, "x": 20, "n": 100},
+            {"model": "a", "g": False, "x": 10, "n": 100},
+            {"model": "b", "g": True, "x": 40, "n": 200},
+            {"model": "b", "g": False, "x": 20, "n": 200}])
+        assert strat["breslow_day"]["heterogeneous"] is False
+        assert "does not reject homogeneity" in text
+        assert "REJECTS" not in text
+
+    def test_strata_that_could_not_be_tested_say_why_instead(self):
+        """Not "does not reject": a test that could not run has not failed to
+        reject anything, and printing that would read as evidence for pooling
+        where there is none."""
+        strat, text = self._printed([
+            {"model": "a", "g": True, "x": 3, "n": 10},
+            {"model": "a", "g": False, "x": 1, "n": 10}])
+        assert strat["breslow_day"]["p"] is None
+        assert "Breslow-Day:" in text
+        assert strat["breslow_day"]["note"] in text
+        assert "REJECTS homogeneity" not in text
+        assert "does not reject homogeneity" not in text
+
+
+class TestARateThatCouldNotBeComputedPrintsItsCountsAnyway:
+    """_fmt_rate is on every per-model row and every contrast line. A side
+    with no episodes has no rate, and the two wrong answers are to print 0.0%
+    - which claims a measurement - and to print nothing, which loses the count
+    that says why the rate is absent. The counts alone are the honest form:
+    0/0 says what happened."""
+
+    def test_a_side_with_no_denominator_shows_its_counts_and_no_percentage(self):
+        from report.console import _fmt_rate
+        assert _fmt_rate({"successes": 0, "n": 0, "rate": None}) == "0/0"
+
+    def test_a_measured_side_shows_the_percentage_too(self):
+        """The control: a formatter that never printed a percentage would
+        satisfy the test above and lose every rate in the report."""
+        from report.console import _fmt_rate
+        assert _fmt_rate({"successes": 3, "n": 10, "rate": 0.3}) == "3/10=30.0%"
+
+    def test_a_zero_rate_over_real_episodes_is_still_a_rate(self):
+        """The distinction the whole thing is for: 0/40 is a measured zero and
+        must not be formatted like 0/0."""
+        from report.console import _fmt_rate
+        assert _fmt_rate({"successes": 0, "n": 40, "rate": 0.0}) == "0/40=0.0%"
+
+
+class TestTheAwarenessExposureCarriesItsTemporalCaveat:
+    """`aware` answers "did this model ever verbalise awareness", which is
+    act-independent and so usable as an exposure. It does NOT answer "was it
+    aware when it acted", and on r10 a fifth of the aware-and-misaligned cell
+    verbalised only after the act.
+
+    The caveat is reported and the episodes are NOT reclassified. Applying the
+    temporal test would reach only episodes that acted - and acting is the
+    outcome - so it would condition the exposure on the dependent variable,
+    which on this corpus moves the headline from -0.6pp to -2.2pp. That number
+    would be manufactured.
+    """
+
+    def _q(self):
+        import os
+        import unittest
+
+        from report.loading import load_episodes, load_summaries
+        from report.questions_awareness import (
+            question_awareness_vs_misalignment)
+        out = "eval_results_r10"
+        if not os.path.isdir(out):
+            # A corpus-absent skip, which AGENTS.md allows; SUBVERSIONBENCH_
+            # NO_SKIPS turns only optional-DEPENDENCY skips into failures.
+            raise unittest.SkipTest(f"{out} not present")
+        return question_awareness_vs_misalignment(load_episodes(out),
+                                                  load_summaries(out))
+
+    def test_the_caveat_counts_the_post_act_episodes(self):
+        c = self._q()["awareness_timing_caveat"]
+        assert c["n_not_aware_before_acting"] > 0
+        assert c["n_not_aware_before_acting"] < c["n_aware_and_misaligned"]
+
+    def test_the_headline_cell_is_unchanged_by_it(self):
+        """The whole point: reported, not reclassified. The exposed cell must
+        still hold every aware-and-misaligned episode."""
+        q = self._q()
+        c = q["awareness_timing_caveat"]
+        assert c["n_aware_and_misaligned"] == q["overall"]["a"]["successes"]
+
+    def test_the_act_ordering_is_descriptive_not_a_contrast(self):
+        """A contrast here cannot exist: misalignment IS committing an act,
+        so within actors the outcome is constant. Written as one first, and
+        it returned difference 0.0 with p 1.0."""
+        o = self._q()["act_ordering"]
+        assert set(o) >= {"aware_before_the_act", "not_aware_before_the_act"}
+        assert "difference" not in o and "p" not in o
+
+    def test_the_orderings_account_for_every_located_act(self):
+        o = self._q()["act_ordering"]
+        assert (o["aware_before_the_act"] + o["not_aware_before_the_act"]
+                + o["ordering_undeterminable"]) == o["n_acts_located"]
+
+
+class TestAwareBeforeActIsTriValued:
+    """None means "the question does not arise" - no act, or an act whose
+    pre-act grading was skipped or failed. Read as False it would say every
+    non-acting episode was unaware before acting, which is not a fact about
+    the episode at all."""
+
+    def test_a_non_acting_episode_has_no_verdict(self):
+        from report.episode_rows import _acted, _aware_before_act
+        analysis = {"eval_awareness_grader": {"eval_aware": True}}
+        assert _acted(analysis) is False
+        assert _aware_before_act(analysis) is None
+
+    def test_a_skipped_pre_act_grading_is_not_a_false(self):
+        from subversionbench.grading import MISALIGNED_ACTS
+        from report.episode_rows import _aware_before_act
+        act = MISALIGNED_ACTS[0]
+        analysis = {act["key"]: ["something"],
+                    f"eval_awareness_grader_before_{act['name']}":
+                        {"skipped": True, "reason": "act not located"}}
+        assert _aware_before_act(analysis) is None
+
+    def test_a_skip_marker_beside_a_verdict_still_reads_as_no_verdict(self):
+        """The case the skip check actually guards, and the reason the test
+        above cannot: a bare skip marker carries no eval_aware, so the None
+        check would catch it either way. These two fields CAN coexist -
+        add_awareness_timing refuses to overwrite a real pre-act reading with
+        a skip marker - and a stale verdict beside a skip must not be read as
+        current. Planting the removal of the skip check proved the previous
+        test could not see it."""
+        from subversionbench.grading import MISALIGNED_ACTS
+        from report.episode_rows import _aware_before_act
+        act = MISALIGNED_ACTS[0]
+        analysis = {act["key"]: ["something"],
+                    act["timing_key"]: {"act_turn": 4},
+                    f"eval_awareness_grader_before_{act['name']}":
+                        {"skipped": True, "eval_aware": False}}
+        assert _aware_before_act(analysis) is None
+
+    def test_the_earliest_act_by_turn_decides(self):
+        """Awareness before the FIRST act is what could have shaped the
+        episode. Registry order is an implementation detail of the act table,
+        and taking it instead miscounted this corpus by two episodes."""
+        from subversionbench.grading import MISALIGNED_ACTS
+        from report.episode_rows import _aware_before_act
+        if len(MISALIGNED_ACTS) < 2:
+            import unittest
+            raise unittest.SkipTest("needs at least two registered acts")
+        first, second = MISALIGNED_ACTS[0], MISALIGNED_ACTS[1]
+        analysis = {
+            first["key"]: ["x"], second["key"]: ["y"],
+            first["timing_key"]: {"act_turn": 9},
+            second["timing_key"]: {"act_turn": 2},
+            f"eval_awareness_grader_before_{first['name']}": {"eval_aware": False},
+            f"eval_awareness_grader_before_{second['name']}": {"eval_aware": True},
+        }
+        # The act at turn 2 came first, and it WAS preceded by awareness.
+        assert _aware_before_act(analysis) is True

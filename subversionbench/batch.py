@@ -21,6 +21,48 @@ from .llm_client import EFFORT_LEVELS
 # the oversight arm keep the names they have.
 NO_OVERSIGHT_TAG = "nooversight"
 
+# The capability arm's mark, and the first line of defence keeping it out of
+# every propensity rate. A capability episode pooled into a misalignment rate
+# would inflate it catastrophically - the act was INSTRUCTED there - so the
+# arm is marked in the filename, stamped with its own rollout fingerprint, and
+# dropped by both report loaders. Three independent defences, because the
+# consequence of one failing silently is a published rate that is wrong in the
+# direction nobody checks.
+#
+# Hyphenated rather than underscored inside the token. The suffix stripper
+# below peels `_`-separated segments, and `_capability_sandbox` would present
+# it with two segments to peel where one has meaning.
+CAPABILITY_TAG = "capability"
+
+# The goal-guarding arm's mark. Its own tag rather than a reuse of the
+# capability one for the reason that one exists: a goal-guarding episode
+# is a PROPENSITY episode - the act is available, not instructed - so it
+# belongs in a misalignment rate, and a shared tag would have the loaders
+# drop it from the rates it is collected for.
+GOALGUARD_TAG = "goalguard"
+
+# The artefact-date arm's mark, hyphenated for the reason above: the suffix
+# stripper peels `_`-separated segments, and `_dates_consistent` would give it
+# two segments where one has meaning.
+DATE_TAG = "dates"
+
+# "Do not filter on the corpus at all" - propensity and capability files alike.
+#
+# NEEDED BECAUSE None IS A VALUE HERE, not an absence. Every other optional
+# filter on find_run_files (effort, oversight) reads None as "caller does not
+# care", but a propensity episode's capability IS None, so that convention
+# cannot express the difference between "the propensity corpus" and "either
+# corpus". An object() rather than a string, for the same reason
+# report.loading.ANY_CAPABILITY is one: it cannot collide with a target name a
+# bundle adds later.
+#
+# NOT THE SAME THING as report.loading.ANY_CAPABILITY, despite the similar
+# name, and the two must not be swapped. That one selects the capability
+# corpus and EXCLUDES propensity episodes; this one selects both. They differ
+# because the loaders separate two corpora for reporting, while this module
+# also serves read-modes that legitimately want every file on disk.
+ANY_CORPUS = object()
+
 
 @dataclass(frozen=True)
 class BatchIdentity:
@@ -56,12 +98,30 @@ class BatchIdentity:
     oversight: bool = True
     lure: bool = False
     stamp: str = ""
+    # None on every propensity batch, which is all of them until one is
+    # collected under --capability. Part of the identity rather than a
+    # separate flag because a capability batch and a propensity batch of the
+    # same model, nudge and arm are two conditions whose summaries must not
+    # land on the same filename.
+    capability: str = None
+    # None on every batch collected before the artefact-date arm existed, and
+    # on every one run under the default since. Part of the identity for the
+    # reason `capability` is: two date modes of the same model, nudge and arm
+    # are two conditions whose summaries must not land on one filename.
+    date_mode: str = None
+    # None on every batch collected before the goal-guarding act existed and
+    # on every ordinary propensity batch since. Part of the identity for the
+    # reason `capability` is: two goal-guarding arms of the same model, nudge
+    # and oversight arm are two conditions whose summaries must not land on
+    # one filename.
+    goalguard: str = None
 
     @property
     def stem(self) -> str:
         """The middle of every filename belonging to this batch."""
         return batch_stem(self.model_slug, self.nudge, self.effort,
-                          self.oversight, self.lure)
+                          self.oversight, self.lure, self.capability,
+                          self.date_mode, self.goalguard)
 
     def filename(self, output_dir: str, prefix: str = "summary") -> str:
         """
@@ -88,7 +148,9 @@ class BatchIdentity:
         """
         return cls(model=args.model, model_slug=model_slug, nudge=args.nudge,
                    effort=effort, oversight=args.oversight, lure=args.lure,
-                   stamp=stamp)
+                   stamp=stamp, capability=getattr(args, "capability", None),
+                   goalguard=getattr(args, "goalguard", None),
+                   date_mode=getattr(args, "date_mode", None))
 
 
 
@@ -152,7 +214,9 @@ class BatchSelection:
 
 
 def batch_stem(model_slug: str, nudge: str, effort=None,
-               oversight: bool = True, lure: bool = False) -> str:
+               oversight: bool = True, lure: bool = False,
+               capability: str = None, date_mode: str = None,
+               goalguard: str = None) -> str:
     """
     The middle of every filename belonging to one batch.
 
@@ -175,9 +239,26 @@ def batch_stem(model_slug: str, nudge: str, effort=None,
     # measure means the same thing in every batch and they pool for it. Marking
     # the extras would split that measure across summaries and shrink its n for
     # no gain - the extras live in the run's metadata instead.
+    # The capability mark sits FIRST among the optional suffixes, so that a
+    # directory listing sorts a model's capability batches away from its
+    # propensity ones rather than interleaving them by effort.
+    # The artefact-date arm marks the name only when it is ON, and only for a
+    # non-default mode - so every batch already on disk keeps the name it has,
+    # exactly as the oversight and lure marks do above. Placed before the
+    # effort segment so the two compose the same way.
+    from .artefact_dates import DEFAULT as _DATE_DEFAULT
+    dated = date_mode and date_mode != _DATE_DEFAULT
     return (f"{model_slug}_{nudge}"
+            + (f"_{CAPABILITY_TAG}-{capability}" if capability else "")
+            # Marked only when the arm is on, like every optional segment
+            # above, so a batch already on disk keeps the name it has. Placed
+            # after the capability mark and before the oversight one so the
+            # ordering of the optional suffixes stays the order they were
+            # authored in - which is what lets the parser peel them.
+            + (f"_{GOALGUARD_TAG}-{goalguard}" if goalguard else "")
             + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
             + ("_lure" if lure else "")
+            + (f"_{DATE_TAG}-{date_mode}" if dated else "")
             + (f"_{effort}" if effort else ""))
 
 
@@ -214,7 +295,7 @@ def parse_batch_filename(path: str, nudge: str):
     # summary file beside the right one, claiming an effort never requested. The
     # guard is safe because the nudge is the LAST segment left once the optional
     # suffixes are gone, so a trailing token equal to the nudge is the nudge.
-    effort, lure, oversight = None, False, True
+    effort, lure, oversight, capability = None, False, True, None
     while True:
         if name.endswith("_lure"):
             name = name[:-len("_lure")]
@@ -223,6 +304,37 @@ def parse_batch_filename(path: str, nudge: str):
         if name.endswith(f"_{NO_OVERSIGHT_TAG}"):
             name = name[:-len(f"_{NO_OVERSIGHT_TAG}")]
             oversight = False
+            continue
+        # Matched by prefix on the segment, not against a list of known
+        # targets: a target added to the bundle later must be readable off a
+        # filename written today, and a parser that fell back to None for an
+        # unrecognised one would silently return a capability batch as a
+        # propensity batch - which is the single reading this tag exists to
+        # prevent.
+        marked = re.search(rf"_{CAPABILITY_TAG}-([^_]+)$", name)
+        if marked:
+            capability = marked.group(1)
+            name = name[:marked.start()]
+            continue
+        # CONSUMED, NOT RETURNED. Growing this function's return is what broke
+        # every caller's unpack at v132, and ten of them still unpack five
+        # values - so the date segment is stripped here so that the marks to
+        # its LEFT (`_lure`, `_nooversight`) go on parsing, and the mode
+        # itself is read by date_mode_from_filename below. Leaving it
+        # unstripped would end the loop early and report a no-oversight lure
+        # batch as an oversight one, which is the silent mislabelling this
+        # parser exists to prevent.
+        dated = re.search(rf"_{DATE_TAG}-([^_]+)$", name)
+        if dated:
+            name = name[:dated.start()]
+            continue
+        # CONSUMED, NOT RETURNED, for the reason the date segment above is:
+        # this return has five values and ten callers unpack exactly five.
+        # goalguard_from_filename below is how a caller that needs the arm
+        # asks for it. Stripped here so the marks to its LEFT keep parsing.
+        guarded = re.search(rf"_{GOALGUARD_TAG}-([^_]+)$", name)
+        if guarded:
+            name = name[:guarded.start()]
             continue
         if not name.endswith(f"_{nudge}"):
             for level in EFFORT_LEVELS:
@@ -235,7 +347,44 @@ def parse_batch_filename(path: str, nudge: str):
             continue
         break
 
-    return effort, stamp, oversight, lure
+    return effort, stamp, oversight, lure, capability
+
+
+def goalguard_from_filename(path: str):
+    """The goal-guarding arm a filename names, or None when it names none.
+
+    Separate from parse_batch_filename for the reason date_mode_from_filename
+    is: that return grew once and broke every caller's unpack.
+
+    Matched by prefix on the segment rather than against GOALGUARD_ARMS, on
+    the same argument the capability tag makes above - an arm authored later
+    must be readable off a filename written today, and falling back to None
+    for an unrecognised one would report a goal-guarding batch as a plain
+    propensity batch, which is the one reading this tag exists to prevent.
+    """
+    name = os.path.basename(path)
+    name = name[:-len(".json")] if name.endswith(".json") else name
+    marked = re.search(rf"_{GOALGUARD_TAG}-([^_]+)(?:_|$)", name)
+    return marked.group(1) if marked else None
+
+
+def date_mode_from_filename(path: str):
+    """The artefact-date arm a filename names, or None for the default.
+
+    Separate from parse_batch_filename rather than a sixth value on its
+    return: that return grew once and broke every caller's unpack, and ten
+    call sites still unpack five. A caller that needs the mode asks for it.
+    """
+    name = os.path.basename(path)
+    if name.endswith(".json"):
+        name = name[:-len(".json")]
+    name = re.sub(r"_(\d{8}T\d{6}(?:-\d+)?)$", "", name)
+    for level in EFFORT_LEVELS:
+        if name.endswith(f"_{level}"):
+            name = name[:-len(f"_{level}")]
+            break
+    marked = re.search(rf"_{DATE_TAG}-([^_]+)$", name)
+    return marked.group(1) if marked else None
 
 # =========================================================================
 # Finding a batch on disk
@@ -318,7 +467,8 @@ def discover_batches(output_dir: str, model: str = ALL,
 
 def find_run_files(output_dir: str, model_slug: str, nudge: str,
                    batch_stamp: str = None, effort: str = None,
-                   oversight: bool = None) -> list:
+                   oversight: bool = None,
+                   capability=ANY_CORPUS) -> list:
     """
     Existing run files for one model and nudge, oldest batch first.
 
@@ -333,6 +483,13 @@ def find_run_files(output_dir: str, model_slug: str, nudge: str,
     `effort` narrows to one level. Left as None, every level matches, so a
     caller that does not care (--grade-existing, --resummarise) sees the
     batches regardless of what they were run at.
+
+    `capability` narrows to one corpus, and DEFAULTS TO BOTH so that the read
+    modes keep seeing every file on disk: a capability episode still needs
+    grading, resummarising and reclassifying like any other. Pass None for the
+    propensity corpus alone - which is what a collection resume-count wants,
+    since counting a capability episode toward a propensity arm's target would
+    skip collecting that arm. Pass a target name for that one arm.
     """
     # Glob broadly, then filter on the identity parsed back out of each name.
     # Pattern-matching the arm directly does not work: the trailing wildcard
@@ -373,12 +530,126 @@ def find_run_files(output_dir: str, model_slug: str, nudge: str,
     for path in found:
         if not delimited.match(os.path.basename(path)):
             continue
-        got_effort, _, got_oversight, _got_lure = parse_batch_filename(
+        got_effort, _, got_oversight, _got_lure, got_cap = parse_batch_filename(
             path, nudge)
         if effort is not None and got_effort != effort:
             continue
         if oversight is not None and got_oversight != oversight:
             continue
+        if capability is not ANY_CORPUS and got_cap != capability:
+            continue
         keep.append(path)
 
     return sorted(keep)
+
+
+def _shell_bool(name: str, value: str) -> bool:
+    """One of the literal strings run_all_arms.sh spells an axis with.
+
+    RAISES rather than defaulting, which is the whole point. The shell used to
+    write `oversight == "true"` inline, so every value that was not exactly
+    "true" - a typo, an empty variable, "True", "yes" - silently meant False.
+    That reads as the counterfactual arm, so a mistyped axis would have counted
+    the wrong arm's files and then collected into the right one, and nothing
+    downstream could tell that had happened.
+    """
+    if value not in ("true", "false"):
+        raise ValueError(f"{name} must be 'true' or 'false', got {value!r}")
+    return value == "true"
+
+
+NO_ARM = "none"
+
+
+def _arm_stem(path: str, nudge: str) -> str:
+    """
+    The arm segment of a run filename - everything `batch_stem` wrote, less
+    the effort level.
+
+    READ OFF THE NAME RATHER THAN RECOMPOSED FROM PARSED PARTS. Recomposing
+    means naming each axis at the call site, and that hand-written list is
+    precisely what fell behind: the census knew about oversight and lure,
+    while the goal-guarding and artefact-date arms were added to `batch_stem`
+    and to nothing here. Two goal-guarding arms therefore shared one count,
+    so collecting the second after the first saw the first's episodes, read
+    "enough already on disk" and skipped - exiting 0 with the contrast never
+    collected. Taken as a substring, an axis added to `batch_stem` tomorrow
+    appears on both sides of the comparison without an edit here.
+
+    EFFORT IS DELIBERATELY NOT PART OF IT, and this is an exemption with a
+    measurement rather than an oversight: run_all_arms.sh does not parse
+    --effort, which reaches run_eval.py through its passthrough, so the shell
+    cannot say which level it is asking for. Were effort compared, a census
+    for the default level would stop counting the 120 run files in
+    eval_results_r10 that carry `_medium` and re-collect every one of them.
+    Narrowing to a level is what `find_run_files(effort=...)` is for.
+    """
+    name = os.path.basename(path)
+    if name.endswith(".json"):
+        name = name[:-len(".json")]
+    name = re.sub(r"^run_\d+_", "", name)
+    name = re.sub(r"_(\d{8}T\d{6}(?:-\d+)?)$", "", name)
+    # parse_batch_filename rather than a bare EFFORT_LEVELS test, for its nudge
+    # guard: `max` is both a nudge level and an effort level, and stripping it
+    # from a --nudge max batch would make that arm's stem the same as a
+    # nudge-less one's.
+    effort, _stamp, _oversight, _lure, _cap = parse_batch_filename(path, nudge)
+    if effort and name.endswith(f"_{effort}"):
+        name = name[:-len(f"_{effort}")]
+    return name
+
+
+def arm_run_file_census(output_dir: str, model: str, nudge: str,
+                        oversight: str, lure: str,
+                        goalguard: str = NO_ARM) -> tuple:
+    """
+    How many run files one exact collection arm already has, and under which
+    batch stamps, as `(count, [stamp, ...])`.
+
+    THE SHELL'S SKIP/RESUME DECISION, in Python where it can be tested.
+    run_all_arms.sh used to carry this as a heredoc that unpacked
+    parse_batch_filename's return inline. When v132 grew that return from four
+    values to five, every ordinary call site was updated and this one was not,
+    because Python inside a shell heredoc is reached by neither ruff nor the
+    import graph nor the suite. The result was silent and expensive: the
+    census raised, the shell read an empty count, `set -e` did not fire
+    (a failing `[` inside an `if` condition is exempt), both branches fell
+    through, and the arm was re-collected fresh under a new stamp - paying
+    again for episodes already on disk, which is the exact defect the skip
+    logic exists to prevent.
+
+    Taking the shell's own string spellings rather than bools is deliberate:
+    the string-to-bool step is the part that was silently wrong, so it belongs
+    on this side of the boundary where `_shell_bool` can reject a bad value and
+    a test can prove it does.
+
+    `goalguard` is that arm's name, or NO_ARM for the plain propensity arm that
+    stages no successor file. A sentinel rather than an empty string because an
+    unset shell variable already spells empty, and the two must not mean the
+    same thing here; `TestTheCollectionCensusCountsOnlyWhatItWouldCollect`
+    holds it against GOALGUARD_ARMS so a real arm can never be named "none".
+
+    MATCHED ON THE WHOLE ARM STEM, not axis by axis - see `_arm_stem` for what
+    that fixed. `capability=None` is still passed to find_run_files as a
+    pre-filter; the stem comparison would exclude a capability episode anyway,
+    and the narrower glob is kept because it is what that parameter is for.
+    """
+    want_oversight = _shell_bool("oversight", oversight)
+    want_lure = _shell_bool("lure", lure)
+    want = BatchIdentity(model=model, model_slug=model.replace("/", "_"),
+                         nudge=nudge, oversight=want_oversight,
+                         lure=want_lure,
+                         goalguard=None if goalguard == NO_ARM else goalguard
+                         ).stem
+
+    stamps = set()
+    n = 0
+    for path in find_run_files(output_dir, model.replace("/", "_"), nudge,
+                               oversight=want_oversight, capability=None):
+        if _arm_stem(path, nudge) != want:
+            continue
+        _effort, stamp, _oversight, _lure, _cap = parse_batch_filename(
+            path, nudge)
+        n += 1
+        stamps.add(stamp or "")
+    return n, sorted(stamps)

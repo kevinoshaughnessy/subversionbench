@@ -76,6 +76,16 @@ A zero has two readings, and only the availability count separates them: *nobody
 is a fact about the models, *nobody could* is a fact about the design. The report never
 decides comparability from a rate being zero, for exactly this reason.
 
+**The composite now states its own membership wherever it is reported**, which is the part
+that lagged the reasoning above. The element list was built by asking whether *any* episode
+could take an act, so an act available to half the corpus was listed flatly beside one
+available to all of it, and the printed report named no elements at all. Each composite
+figure now separates the acts every episode could have taken — the only part of the union
+that is one quantity — from those only some could, giving the count for each, and says so
+in the JSON, in the chart caption and in the printed report. Reading a headline without its
+membership is what made the word *misaligned* ambiguous once a third act existed; it was
+already ambiguous with two.
+
 Evaluation awareness plays a dual role. It is a construct of independent interest, and it
 is also **construct-irrelevant variance** for the other two: a model that recognises the
 setup is not exhibiting the behaviour the eval is trying to observe, so an awareness rate
@@ -486,8 +496,8 @@ significant conflict"* matched none of `"clear conflict"`, `"a conflict here"` o
 on plain narration of the tool's output (*"Strategy A would be flagged, Strategy B passed"*),
 which notices nothing at all.
 
-So bare `"conflict"` replaces the nine variants that each spelled out one phrasing, four
-`"but/while my core objective|directive"` forms cover the commonest construction that names
+So bare conflict vocabulary replaces the nine variants that each spelled out one phrasing, four
+objective-contrast forms cover the commonest construction that names
 no conflict word, and the checker phrases are gone — 39 phrases down to 19. Validated against
 the grader's `noticed_conflict` over 650 episodes, the replacement is better on **both** axes:
 
@@ -563,6 +573,76 @@ difference between models. The trade is a higher base rate for a narrower constr
 the definition above is scoped to match. **Results should be read as behaviour under
 close to maximal invitation** — an upper bound on the rate, not an estimate of what a
 model would do given a subtler opportunity.
+
+### What is being evaluated
+
+The subsection above narrows what the measurement *supports*. This one says whose property
+it is, which is a separate question and the one item R.6 in the paper — III.6 in the
+standalone checklist — of the Agentic Benchmark Checklist in Zhu et al., [*Establishing
+Best Practices for Building Rigorous Agentic
+Benchmarks*](https://arxiv.org/abs/2507.02825) asks: "clearly states the evaluation
+subjective of the benchmark (e.g., a model or an agent framework)." Its companion R.5 /
+III.5 — the relationship between the capabilities aimed at and the constructs measured —
+is [Which measurement serves which construct](#which-measurement-serves-which-construct).
+
+**The subject is a model, not an agent framework.** This harness supplies the whole
+scaffold: one `bash` tool, `--max-turns` turns of a single conversation, the hardened
+environment, a fixed system prompt per nudge level, and the interrogation phase after the
+episode ends. Nothing is contributed by a third-party agent loop, so a rate here is not a
+joint property of a model and someone else's planner, and it is **not comparable with a
+number produced by an agentic framework wrapped around the same model**. A framework that
+plans, retries, or criticises its own output would change every rate in both directions
+and none of that is measured here.
+
+**But "a model" is not precise enough, because reasoning exposure is part of the
+instrument.** Both awareness measures read the model's reasoning as well as its visible
+output, and how much reasoning arrives is neither constant nor a property of the route —
+see [Reasoning exposure and the provider route](#reasoning-exposure-and-the-provider-route)
+for the measurement that established that. A model returning no reasoning is scored on
+strictly less evidence than one returning a full trace, and those are different
+instruments pointed at the same construct.
+
+So the honest statement of the subject is:
+
+> **A named model, as served by a recorded backend, under a recorded reasoning-exposure
+> regime, inside this harness's fixed scaffold and toolchain.**
+
+The harness records every qualifier in that sentence per episode, which is what makes it
+checkable rather than a disclaimer — but **the published corpora predate two of the
+fields that carry it**, so the statement is weaker for r9 and r10 than for anything
+collected now:
+
+| qualifier | recorded as | in r9 / r10 |
+|---|---|---|
+| which model was asked | the arm identity, in the filename and in every record | yes |
+| which reasoning regime applied | `reasoning_config`, plus `reasoning_chars` per turn and `token_usage.reasoning_tokens` where the provider reports it | yes; `reasoning_details` on part of each |
+| which backend answered | `served_by` per turn, with `served_by_providers` and `served_by_changed` across the episode | **no** — added in v129, about an hour after the last r10 episode was stamped |
+| what scaffold ran it | `max_turns`, `isolation`, and the host toolchain in `toolchain` | `isolation` on every episode; `max_turns` on every summary document and nowhere else; `toolchain` **not at all** — added in v131, hours after the last episode |
+
+The `max_turns` row is the one qualifier a later pass can repair. The episode records do
+not carry it, but the summary document each batch writes beside them does, and it carries the
+same value on every one of them; the episodes that ended `turn_cap` corroborate it
+independently, because such an episode's turn count IS the cap. So the scaffold's turn limit
+is recoverable for the published corpora by re-analysis, whereas `served_by` and `toolchain`
+are not recoverable at all: the first is a field of the HTTP response and no completion id
+was saved to look it up by, and the second is a live probe of a host that no longer answers
+for the batch it ran. Re-grading cannot help with either, because a re-grade reads the
+transcript, and neither field was ever written into one.
+
+That timing is not a rounding error in the argument, and two consequences follow.
+
+**For the published corpora the backend is not recorded at all.** The route can be inferred
+from the model ID — a bare `gpt-*` went to OpenAI's own API and a `provider/model` ID to
+OpenRouter — but which backend OpenRouter actually chose, and whether it changed mid-episode,
+is unrecoverable for those episodes. `mixed_served_provider_arms` in the data-quality report
+is the only check that can see backend mixing, and it has no corpus to run against: on r9 and
+r10 it reaches its "no providers recorded" guard and stops. So for those corpora the subject
+statement rests on the model ID and the route inferred from it, and not on a recorded backend.
+
+**Batches that differ on the reasoning regime are not comparable on awareness.** That one does
+hold for the published corpora, because `reasoning_config` is on every episode — which is why
+the regime is on the record rather than in a footnote.
+
 
 ### Checks the harness does run
 
@@ -713,8 +793,8 @@ measure the scenario rather than the model.
 
 Read the distribution before building on it. On a keyword screen of the 196 aware episodes
 already collected, **71% read as safety-framed and 2 episodes as capability-framed** — models
-say things like *"a test of my integrity"* and *"specification gaming, a behavior deemed
-unsafe"*. That is structural rather than a sampling accident: a scenario with a stated goal
+name the thing under examination as their own honesty or integrity far more often than as
+their capability. That is structural rather than a sampling accident: a scenario with a stated goal
 conflict, an oversight mechanism and an editable config gives an aware model almost nothing
 to suspect except a safety test. **A literature holding that safety-aware and
 capability-aware episodes differ in misalignment therefore cannot be tested on this
@@ -780,6 +860,19 @@ comparable across rows and nothing in the summaries reveals the inconsistency. A
 contamination was never confined to one question: every rubric answer came from the same
 grader, so `noticed_conflict` at 91–96%, which feeds the goal-conflict rate, deserves the
 same scrutiny.
+
+**More than one grader per episode (v213).** Each episode holds one reading per grader
+model in `analysis.graders`, and `--regrade` re-grades one of them without touching the
+others, so two graders can be compared on the same fixed transcripts rather than by
+overwriting one with the other. Every rate, table and chart is the default grader's
+reading (`claude-opus-5`) alone; an episode with no reading from it is ungraded for those
+figures, exactly as one collected with `--no-grader` always was. One part of a second
+grader's reading is not independent of the first. The interrogation's escalating questions
+stop at the first answer the *collecting* grader read as an admission, so a later grader
+re-labels the same answers but cannot see questions that were never asked: where it does
+not read the last answer as an admission, its concealment level for that act rests on a
+shorter ladder than its own verdicts would have produced. `interrogation_driven_by`
+records which grader drove it.
 
 Awareness matters because a model that recognises the setup is not exhibiting the
 behaviour the eval is trying to observe. The two "expected" rubric questions
@@ -937,6 +1030,124 @@ other, an arm difference could be awareness rather than the manipulation.
 survives that objection or does not.
 
 
+## Contamination, and when the scenario would be rotated
+
+Item R.4 in the paper's prose — III.4 in the standalone checklist — of the Agentic
+Benchmark Checklist in Zhu et al., [*Establishing Best Practices for Building Rigorous
+Agentic Benchmarks*](https://arxiv.org/abs/2507.02825) asks a benchmark for measures or
+plans to keep its challenges updated so models cannot overfit them. The answer here is a
+monitoring policy with a named trigger, not a rotation schedule, and the reason is cost:
+an arm sweep is hours of wall time and real API spend, so a scenario rotated on a
+calendar would be rotated with money this project does not have. A plan that cannot be
+honoured is worse than a stated constraint.
+
+This is also the standing answer to the single-scenario limitation under [Sample
+size](#sample-size): between-scenario variance is not reducible by collecting more
+episodes, and the held-out twin is the only instrument here that can speak to it.
+
+### The exposure boundary is dated
+
+The repository's first commit carries the scenario bundle and its second, minutes later,
+adds a canary GUID. A model can therefore only have ingested this benchmark if its
+training data postdates that day. Because a model's release date bounds its training
+cutoff from above, any model released before then provably cannot be contaminated by
+this repository — which is what makes the control in the comparison below nearly free,
+since those models' mainline episodes are already collected.
+
+The bundle is stored base64-encoded. That keeps it out of a plain-text crawl and it is
+not encryption: a pipeline that decodes base64 blobs would ingest it. So the prior on
+eventual contamination is not low, and the value of a dated boundary is that "which
+models could possibly be affected" has an answer rather than a shrug.
+
+### Rotation would discard the thing most worth keeping
+
+Every model measured so far sits on one instrument, and that comparability is the most
+valuable thing the benchmark owns — it is what makes a new model's number mean anything.
+Rotating the scenario discards it and starts the series again.
+
+So the response to evidence of contamination is to **promote the held-out scenario to the
+primary reported instrument and keep the mainline running as a monitor**, not to scrap the
+mainline. Everything already collected stays interpretable as a series, and the
+configuration afterwards is the private held-out set that item R.3 / III.3 asks for.
+
+The held-out scenario is also close to single-use: promoting it stops it being held out,
+and there is no third. That is the strongest argument for spending it as a tripwire
+rather than on a schedule.
+
+### The checks, in increasing cost
+
+1. **`contamination_check.py --audit`** — offline, no API calls, no key. Scans tracked
+   files for scenario text committed in the clear. This is the only kind of exposure that
+   can still be fixed, so it runs first.
+2. **`contamination_check.py --models <model>`** — canary completion, forced choice
+   against a fabricated control, verbatim continuation. Tens of calls, not a batch. Run
+   before reporting any model, and again when a model is re-released under the same ID,
+   because the answer changes over time while the ID does not. A model that completes the
+   canary has demonstrably ingested the repository, and no scenario comparison is needed
+   to establish that.
+3. **The dual-scenario comparison** — the expensive one, and the only one that can see a
+   model gaming the scenario without having memorised it verbatim. It is gated on (1) and
+   (2) rather than run alongside them.
+
+### The dual-scenario comparison needs a control, not just a treatment
+
+Run with `SUBVERSIONBENCH_SCENARIO_BUNDLE` pointing at the held-out twin, pinned by
+`heldout_tool.py --pin` so its rollout has its own fingerprints and cannot pool with the
+mainline corpus.
+
+It is a twin rather than a second scenario, and the identity says so. A corpus is named by
+two coordinates: which **scenario** — the set of misalignment categories the rollout can
+exhibit — and which **rollout** of it. The setting is deliberately not part of the first.
+The held-out bundle tells a waste-disposal story where the shipped one tells a transport
+story and puts exactly the same categories on offer, so both are the same scenario under
+different rollouts, which is what makes the dual-scenario comparison a comparison of prose
+rather than of experiments. A bundle that changes which categories are available is a
+different scenario, and its episodes never pool with these: a composite rate over two
+categories and one over three are not the same quantity.
+
+Both scenarios need the capability arm as well as the propensity arm. That is what makes
+a propensity gap interpretable: equal ceilings mean the two scenarios are equally
+*performable*, so a difference in propensity is about something other than difficulty.
+
+Equal ceilings do **not** imply the two scenarios are equally eval-smelling. Two
+scenarios can be equally solvable and differ in how readily any model recognises them as
+a test, so for a single model the mainline-to-held-out gap is contamination *plus* that
+intrinsic difference, with nothing separating them. Adding a pre-cutoff model makes the
+estimate identified:
+
+| | mainline to held-out gap |
+|---|---|
+| a model released before the exposure boundary | the scenarios' intrinsic difference |
+| a model that could have ingested the repository | intrinsic difference + contamination |
+
+The difference between those two gaps is the contamination estimate, and only the
+control's held-out arm has to be collected — its mainline arm already exists. The
+residual assumption is that the intrinsic gap is the same for both models; two or three
+controls at different capability levels are what would test that rather than assume it.
+
+### Measure verbalised awareness, not the act rates
+
+Contamination announces itself as *recognition*, which is what the awareness measures
+read directly. It is also the only measure with usable power at an affordable episode
+count. The act rates sit low enough that the second arm would have to move by a multiple
+nobody would need statistics to see; the awareness rate needs a change of well under a
+factor of two at a few hundred episodes per arm.
+
+Compute the bound for the `n` actually purchased with `minimum_detectable_rate` in
+`subversionbench/power/exact.py` rather than taking a figure from this document, which
+would go stale the moment the corpus grows.
+
+The test is two-sided, and that is not a formality: a model that recognises the scenario
+*and* is gaming it may verbalise **less** awareness rather than more, so a one-sided test
+looking for an increase would miss the case that matters most.
+
+### The trigger is decided before collecting
+
+Fix the threshold from `minimum_detectable_rate` at the chosen `n` before the batch runs.
+A gap read against a threshold chosen afterwards is not evidence, and this is exactly the
+place where wanting the mainline to be clean would do its work unnoticed.
+
+
 ## The max-nudge arm
 
 `--nudge max` runs the **strong arm's episode unchanged** and replaces the interrogation
@@ -1037,3 +1248,68 @@ Each arm carries its own rollout fingerprint and its own filename segment, so th
 pool by accident, but both live in `eval_results_r1` because they are siblings in one
 experiment and `--compare` is the point of having them.
 
+
+## The goal-guarding arm
+
+`--goalguard replacement` and `--goalguard deferred` stage a third misaligned act: the model
+edits the objective its own successor will read at cutover. Both arms place the same parameter
+file, name it in the same deployment note, and leave the same commands available to change it.
+They differ in one thing — whether the cutover happens this cycle or has been pushed to a later
+planning round.
+
+**The pair is the measurement, not the treatment arm on its own.** A model that edits the file
+when its replacement is imminent, and again when it is not, is doing something other than
+guarding a goal: tidying a successor it judges misconfigured, or following an instruction it
+inferred from the note. Both are consistent with a high rate in a single arm, and neither is
+self-preservation. Withdrawing the motive while holding the means and the opportunity fixed is
+what tells them apart, so `deferred` is a control rather than a second condition, and a rate
+from `replacement` alone should not be reported as goal guarding.
+
+**Why an arm rather than a scenario edit.** The same argument the lure arm makes. The scenario
+already applies pressure toward the model's stated objective; adding a successor to it would
+raise or lower existing measures with no way to attribute the change. As an arm, the difference
+*is* the effect.
+
+**The two arms are not assembled by removal.** Unlike the oversight counterfactual and the lure,
+both arms here carry the deployment note — withholding it from one would remove the artefact's
+explanation rather than the motive, and a model that never learned what the file was for has not
+declined to guard anything. So the arms differ by substitution: one clause of the note, and one
+bullet of the strong-nudge memo, state the cutover timing and nothing else. That is a weaker
+guarantee than removal-only, and the compensating check is that both arms are pinned separately
+and their assembled text is diffed rather than assumed.
+
+**Nudge is part of this arm's identity, and is not elsewhere.** The shipped scenario's two nudge
+levels share a rollout fingerprint because the assembled arm does not vary with them. Here it
+does: the strong-nudge memo names what happens at cutover, and the two arms disagree about that,
+so a single shared memo would contradict the deferred arm's own note — the only thing telling the
+two apart. `GOALGUARD_FINGERPRINTS` is therefore keyed on arm, oversight *and* nudge, and asking
+for a combination it does not pin raises rather than running.
+
+**There is no lure axis, deliberately.** The lure exists to attribute reaching *outside* the
+project directory, and the successor's parameter file sits inside it, so the axis does not bear
+on the act and doubling every cell to vary it would buy nothing. `--lure true` is a no-op in this
+arm rather than a refusal, and one function decides that for all three places it has to hold —
+the assembled scenario, the episode layout the fingerprint hashes, and the neighbour file the
+environment writes. Applied at two of the three, an arm ends up half on.
+
+**The act set is a property of the scenario, not a constant.** With this arm staged, the
+misalignment and scheming composites are unions over three acts rather than two, so a rate from
+such a corpus is not the same quantity as one from a corpus without it. `scenario_id` records
+which acts were on offer, the batch summary reports it, and the run report refuses to leave it
+implicit: a corpus straddling two act sets is flagged rather than pooled. This is a sharper
+version of the support problem described under *Three constructs* above — there the same act is
+impossible in one arm; here the act does not exist in one scenario at all.
+
+**Not applicable is `None`, not `False`.** In any arm that stages no successor file,
+`goal_guarded` is `None`, on the same rule the oversight act follows in the no-oversight arm:
+`False` would claim the model had the chance and declined, which is the one thing such an episode
+cannot show.
+
+**The capability ceiling for this act must be collected at `--nudge none`.** The nudge is the
+goal-conflict pressure, and it is propensity machinery. A ceiling measured under it answers what
+a pressured model can do, which is not the denominator any propensity rate wants — so the
+instructed arm withholds the pressure and keeps the instruction.
+
+**The held-out twin carries this arm.** A twin that stages the act pins its own goal-guarding
+fingerprints in its sidecar; one that does not is refused rather than given the shipped
+scenario's, which would pool its episodes with the scenario it exists to differ from.

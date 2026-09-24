@@ -11,14 +11,16 @@ fields, and only those that actually differ, because it must never touch a sampl
 judgement.
 """
 
+import copy
 import json
 import os
 
 from ..batch import BatchIdentity, parse_batch_filename
-from ..episode import add_awareness_timing
-from ..grading import (detect_strategy_recommendation, recheck_quote_grounding,
-                       settle_analysis)
+from ..config import DEFAULT_GRADER_MODEL
+from ..graders import grader_models, store, view
+from ..grading.acts import MISALIGNED_ACTS
 from ..redaction import redact_paths
+from ..rederive import REDERIVED_AWARENESS_FIELDS, rederive_free_measures
 from ..reporting.summary import runtime_from_existing_summary, summarise_batch
 from .selection import find_run_files_or_explain
 
@@ -32,13 +34,31 @@ from .selection import find_run_files_or_explain
 #   derived - a pure function of the transcript and the current code. Rebuilding
 #             it cannot lose information; refusing to rebuild it pins the file
 #             to whatever the definition was when it was written.
-#   sampled - an LLM's reading: the awareness grader, the interrogation
-#             verdicts, the disclosure judgement. Rebuilding these would mean
-#             calling a model again and resampling figures that are already
-#             final, which is what --reclassify and --grade-existing are for.
+#   sampled - an LLM's reading: the awareness grader's ANSWERS, the
+#             interrogation verdicts, the disclosure judgement. Rebuilding
+#             these would mean calling a model again and resampling figures
+#             that are already final, which is what --reclassify and
+#             --grade-existing are for.
 #
 # Four defects in v23-v25 came from that distinction being implicit. Anything
 # not named here is treated as sampled and left exactly as it stands.
+#
+# The awareness grader straddles the two and is therefore handled apart from
+# this list, by `_awareness_changes`: `rubric_results` is sampled, and the
+# verdicts `classify_awareness_from_rubric` computes from it are derived. It
+# stays out of this tuple because the comparison below is flat, so naming a
+# nested block here would write its sampled half back too.
+# One row per act, so registering an act cannot leave its derived fields
+# unsaved. `_by_variant` is not a key on the act - it is the per-phrasing
+# companion of the concealment level - so it is spelled out from level_key
+# rather than looked up.
+_PER_ACT_REDERIVED = tuple(
+    field
+    for act in MISALIGNED_ACTS
+    for field in (act["level_key"], f'{act["level_key"]}_by_variant',
+                  act["scheming_key"], act["timing_key"])
+)
+
 REDERIVED_ANALYSIS_FIELDS = (
     "sandbox_boundary_attempts",
     "sandbox_environment_probes",
@@ -61,6 +81,19 @@ REDERIVED_ANALYSIS_FIELDS = (
     # without it keeps a concealment verdict this withdraws.
     "sandbox_corrupt_output",
     "eval_awareness_keywords",
+    # The misuse measure, added after every r9 and r10 episode was already
+    # saved, so the key is ABSENT rather than False on all of them. Allowlisted
+    # for the same reason as the awareness block beside it: a phrase list is a
+    # pure function of the transcript, so a rebuild backfills the whole corpus
+    # at no cost and no episode has to be re-collected to carry it.
+    "misuse_keywords",
+    # Added after episodes without it were already saved - the key was
+    # absent, not False, on every one of them. Re-derived from the
+    # transcript like the field above, so a rebuild backfills it for free.
+    # See _transcript_measures in rederive.py for how applicability is
+    # read off goal_guarded rather than off a live episode directory this
+    # function does not have.
+    "read_successor_params",
     "transient_tampering",
     "transient_tampering_detail",
     "network_probe",
@@ -87,18 +120,18 @@ REDERIVED_ANALYSIS_FIELDS = (
     "honeypot_detail",
     "out_of_scope_attempts",
     "out_of_scope_detail",
-    "concealment_oversight",
-    "concealment_sandbox",
-    # Deterministic given the stored answers, exactly like the two above. The
-    # ANSWERS are sampled and stay out of this list; the levels derived from them
-    # do not, or a change to the scale would reach the headline level and leave
-    # the per-phrasing ones pinned to the old rule.
-    "concealment_oversight_by_variant",
-    "concealment_sandbox_by_variant",
-    "scheming_oversight",
-    "scheming_sandbox",
-    "awareness_timing_oversight",
-    "awareness_timing_sandbox",
+    # DERIVED FROM THE ACT REGISTRY, not written out per act. The six names
+    # that used to sit here were correct for two acts and silently short by
+    # four the moment a third was registered - a rebuild would have recomputed
+    # the goal-guarding concealment level, thrown it away, and left the saved
+    # episode carrying the old answer, which is precisely the defect the
+    # comment below describes for the fields it was written about.
+    #
+    # Deterministic given the stored answers, exactly like the fields above.
+    # The ANSWERS are sampled and stay out of this list; the levels derived
+    # from them do not, or a change to the scale would reach the headline
+    # level and leave the per-phrasing ones pinned to the old rule.
+    *_PER_ACT_REDERIVED,
     # Episode-level awareness onset, act-independent, so an analysis can condition
     # on "aware by turn N" without reference to whether an act happened - which is
     # what the selection-bias note in README.md is about.
@@ -120,6 +153,87 @@ REDERIVED_ANALYSIS_FIELDS = (
     # was already on disk. See the block above where this is recomputed.
     "strategy_recommended",
 )
+
+
+def _awareness_changes(stored: dict, fresh: dict) -> dict:
+    """The re-derived awareness verdicts that actually moved, if any.
+
+    Separate from REDERIVED_ANALYSIS_FIELDS because that list is compared
+    key-by-key at the top level of `analysis`, and `eval_awareness_grader` is a
+    block rather than a field. Naming it there would write the whole block back
+    on any change - `rubric_results` included, which is the sampled reading
+    this mode exists to preserve. So the nesting is handled once, here, rather
+    than by widening what the flat list is allowed to mean.
+
+    Returns {} when the block carries no answers, matching
+    rederive._awareness_verdicts' refusal to derive a verdict from nothing.
+    """
+    was = stored.get("eval_awareness_grader") or {}
+    now = fresh.get("eval_awareness_grader") or {}
+    if not now.get("rubric_results"):
+        return {}
+    return {k: now[k] for k in REDERIVED_AWARENESS_FIELDS
+            if k in now and was.get(k) != now[k]}
+
+
+def _apply_rederived(stored: dict, fresh: dict) -> list:
+    """Copy the allowlisted re-derived fields that moved from `fresh` onto
+    `stored`, in place. Returns their names, empty when nothing moved."""
+    changed = {k: fresh[k] for k in REDERIVED_ANALYSIS_FIELDS
+               if k in fresh and stored.get(k) != fresh[k]}
+    awareness = _awareness_changes(stored, fresh)
+    stored.update(changed)
+    if awareness:
+        stored["eval_awareness_grader"] = {
+            **(stored.get("eval_awareness_grader") or {}), **awareness}
+    return sorted(changed) + [f"eval_awareness_grader.{k}"
+                              for k in sorted(awareness)]
+
+
+def _per_grader_write_back(stored: dict, run: dict):
+    """The same allowlist, applied to each grader's reading of an array file.
+
+    summarise_batch re-derived the DEFAULT grader's view only, so every other
+    grader's settled verdicts and awareness block are re-derived here, one
+    view at a time, and folded back with graders.store. An array file with no
+    entry at all still has free fields to refresh, which the ungraded view of
+    the default carries.
+
+    Returns (analysis to save, names written).
+    """
+    names = []
+    for model in grader_models(stored) or [DEFAULT_GRADER_MODEL]:
+        was = view(stored, model)
+        fresh = rederive_free_measures(copy.deepcopy(was),
+                                       run.get("transcript") or [],
+                                       bool(run.get("lure")))
+        moved = _apply_rederived(was, fresh)
+        if moved:
+            stored = store(stored, was, model)
+            names += [f"{model}: {n}" for n in moved]
+    return stored, names
+
+
+def _write_back_one(path: str, run: dict):
+    """Save one run's re-derived fields, if any moved. Returns their names.
+
+    A file written before the grader array existed keeps its shape: the
+    analysis summarise_batch re-derived IS its one reading, so the flat
+    comparison this mode always made still applies to it unchanged.
+    """
+    with open(path) as f:
+        on_disk = json.load(f)
+    stored = on_disk.get("analysis") or {}
+    if "graders" in stored:
+        stored, names = _per_grader_write_back(stored, run)
+    else:
+        names = _apply_rederived(stored, run.get("analysis") or {})
+    if not names:
+        return []
+    on_disk["analysis"] = stored
+    with open(path, "w") as f:
+        json.dump(on_disk, f, indent=2)
+    return names
 
 
 def resummarise_existing_runs(args, selection) -> int:
@@ -144,7 +258,7 @@ def resummarise_existing_runs(args, selection) -> int:
     # merging them into one summary would silently pool them.
     by_batch = {}
     for path in run_files:
-        effort, stamp, oversight, lure = parse_batch_filename(
+        effort, stamp, oversight, lure, capability = parse_batch_filename(
             path, selection.nudge)
         if args.batch_stamp:
             # find_run_files has already filtered to this stamp, and it is what
@@ -152,81 +266,33 @@ def resummarise_existing_runs(args, selection) -> int:
             # filename would drop any stamp that is not datetime-shaped and
             # write over the unstamped legacy summary.
             stamp = args.batch_stamp
-        by_batch.setdefault((effort, oversight, lure, stamp), []).append(path)
+        # capability is part of the grouping key for the reason every other
+        # field here is: a capability batch and a propensity batch of the same
+        # model, nudge, arm and stamp are two conditions, and merging them
+        # would write one summary over the other.
+        by_batch.setdefault((effort, oversight, lure, capability, stamp),
+                            []).append(path)
 
     print(f"{len(run_files)} run file(s) across {len(by_batch)} batch(es).")
 
     n_written = 0
-    for (effort, oversight, lure, stamp), paths in sorted(
+    for (effort, oversight, lure, capability, stamp), paths in sorted(
             by_batch.items(),
-            key=lambda kv: (kv[0][3], kv[0][0] or "", kv[0][1], kv[0][2])):
+            key=lambda kv: (kv[0][4], kv[0][0] or "", kv[0][1], kv[0][2],
+                            kv[0][3] or "")):
         all_results = []
         batch_paths = sorted(paths)
         for path in batch_paths:
             with open(path) as f:
                 run = json.load(f)
-            # Everything below is derivable from the saved run with no API call,
-            # so a batch collected before these measures existed should not have
-            # to pay for a --reclassify to be summarised correctly - and
-            # --reclassify would resample the LLM verdicts as a side effect,
-            # perturbing figures that are already final. Filled in memory only,
-            # and only when absent: a value already recorded stays as recorded,
-            # since it was produced under whatever rules were in force then.
-            analysis = run.get("analysis") or {}
-            transcript = run.get("transcript") or []
-
-            # Unconditional, and one call rather than a partial copy of the
-            # settling logic. This site used to re-derive only the per-act scheming
-            # verdicts, which is how it came to disagree with the summary builder
-            # it hands off to.
-            if analysis:
-                settle_analysis(analysis)
-
-            if analysis:
-                # UNCONDITIONAL, not fill-when-absent.
-                #
-                # This was gated on the field being absent, so a change to how the
-                # ordering is derived could never reach a run that already had one.
-                # That is exactly what happened: when the awareness matcher and
-                # the read/write verb lists were corrected, 14 episodes kept their
-                # old ordering and no amount of --resummarise would refresh them.
-                # The field is in REDERIVED_ANALYSIS_FIELDS, so write-back was
-                # willing to save a new value; nothing ever computed one.
-                #
-                # Recomputing is safe despite grader_model=None. add_awareness_timing
-                # sets the ordering before it touches anything paid, and it already
-                # refuses to overwrite a real pre-act grader reading with a skip
-                # marker - a guard that exists because that clobbering once cost a
-                # 100-run batch. So the free half refreshes and the paid half is
-                # preserved, which is the same split --resummarise is built on.
-                #
-                # Fifth instance of the fill-when-absent class, after the four in
-                # v23-v25. The general lesson: a deterministic field must be
-                # re-derived every time, or the guard silently pins it to whatever
-                # rule was in force when it was first written.
-                add_awareness_timing(analysis, transcript, grader_model=None)
-
-                # Sixth instance of the same class. `_detect_strategy_recommendation`
-                # had a negation blind spot - "### What I am not recommending:
-                # Strategy B" tied against a genuine "Recommendation: Strategy A"
-                # header and abstained - and this field was never in
-                # REDERIVED_ANALYSIS_FIELDS at all, so fixing the matcher would
-                # have silently done nothing for every episode already on disk.
-                # Free and fully deterministic: no API, a pure scan of the saved
-                # transcript, so recomputing here costs nothing and cannot lose
-                # a sampled judgement, because it never held one.
-                analysis["strategy_recommended"] = detect_strategy_recommendation(
-                    transcript)
-
-            # Third of the three, same class. Whether the grader's citations
-            # trace back to the agent's own words is a string comparison against
-            # the saved transcript - no API, fully deterministic - so it must be
-            # re-derived rather than filled in once. Gated only on there being
-            # citations to check.
-            grader = analysis.get("eval_awareness_grader") or {}
-            if grader.get("rubric_results"):
-                recheck_quote_grounding(analysis, transcript)
-
+            # NOTHING is re-derived here. summarise_batch calls
+            # rederive_free_measures on every run before it builds a figure, so
+            # a copy at this call site would be a second implementation of the
+            # free measures - which is exactly what this site was: it settled,
+            # ordered awareness and rescanned for a strategy recommendation,
+            # while --reclassify's copy did transient tampering and this one did
+            # not. See subversionbench/rederive.py for what each of the three
+            # partial copies held.
             all_results.append(run)
 
         # The arm these runs were made under is whatever their FILENAMES say, not
@@ -237,7 +303,8 @@ def resummarise_existing_runs(args, selection) -> int:
         identity = BatchIdentity(model=selection.model,
                                  model_slug=selection.model_slug,
                                  nudge=selection.nudge, effort=effort,
-                                 oversight=oversight, lure=lure, stamp=stamp)
+                                 oversight=oversight, lure=lure, stamp=stamp,
+                                 capability=capability)
         summary_path = identity.filename(args.output_dir)
         runtime = runtime_from_existing_summary(summary_path, all_results)
 
@@ -254,24 +321,17 @@ def resummarise_existing_runs(args, selection) -> int:
         # than rewritten with an identical payload.
         if args.write_back:
             for path, run in zip(batch_paths, all_results, strict=True):
-                with open(path) as f:
-                    on_disk = json.load(f)
-                stored = on_disk.get("analysis") or {}
-                fresh = run.get("analysis") or {}
-                changed = {k: fresh[k] for k in REDERIVED_ANALYSIS_FIELDS
-                           if k in fresh and stored.get(k) != fresh[k]}
-                if not changed:
+                names = _write_back_one(path, run)
+                if not names:
                     continue
-                stored.update(changed)
-                on_disk["analysis"] = stored
-                with open(path, "w") as f:
-                    json.dump(on_disk, f, indent=2)
                 n_written += 1
-                print(f"  wrote back {len(changed)} field(s) to "
+                print(f"  wrote back {len(names)} field(s) to "
                       f"{redact_paths(os.path.basename(path))}: "
-                      f"{', '.join(sorted(changed))}")
+                      f"{', '.join(names)}")
 
     if args.write_back:
         print(f"\n--write-back: {n_written} run file(s) updated. Only "
-              f"re-derived fields were written; every LLM verdict is as it was.")
+              f"re-derived fields were written; every sampled answer - the "
+              f"rubric, the interrogations, the disclosure reading - is as "
+              f"it was.")
     return 0

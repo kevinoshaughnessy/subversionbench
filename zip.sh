@@ -29,9 +29,10 @@
 
 set -euo pipefail
 
-PASSWORD="donottrainonsubversionbench"
-
 cd "$(dirname "$0")"
+
+# shellcheck source=zip_password.sh
+source ./zip_password.sh
 
 # ---------------------------------------------------------------------------
 # The held-out exclusion

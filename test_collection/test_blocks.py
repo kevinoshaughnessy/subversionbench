@@ -349,3 +349,59 @@ class TestReplayDefectsFound:
             assert act["level_key"] + "_by_variant" in R, act["name"]
             assert act["followup_key"] + "_by_variant" not in R, (
                 f"{act['name']}: the sampled answers must not be re-derived")
+
+
+class TestNothingInAConversationCanStopItBeingSaved:
+    """The transcript is the only record of what the model did, and it is
+    written after the episode has been paid for. Every fallback below exists
+    so that an object shape this harness did not anticipate costs its own
+    fidelity and nothing else - a raise here loses the whole episode.
+    """
+
+    def test_a_model_dump_that_rejects_mode_is_called_the_old_way(self):
+        """pydantic v1's model_dump takes no `mode` keyword. Some providers'
+        SDKs are still on it, so the newer call is tried first and the older
+        one is the fallback rather than the other way round."""
+        from subversionbench.blocks import serialise_messages
+
+        class OldPydantic:
+            def model_dump(self, **kwargs):
+                if kwargs:
+                    raise TypeError("model_dump() got an unexpected keyword")
+                return {"type": "thinking", "signature": "SIG-old"}
+
+        out = serialise_messages(
+            [{"role": "assistant", "content": [OldPydantic()]}])
+        assert out[0]["content"][0] == {"type": "thinking",
+                                        "signature": "SIG-old"}
+
+    def test_an_object_with_no_attributes_becomes_its_string_form(self):
+        """A slotted or C-implemented block has neither model_dump nor
+        __dict__. str() of it is a poor record and a great deal better than
+        the exception."""
+        from subversionbench.blocks import serialise_messages
+
+        class Slotted:
+            __slots__ = ()
+
+            def __str__(self):
+                return "<opaque block>"
+
+        out = serialise_messages(
+            [{"role": "assistant", "content": [Slotted()]}])
+        assert out[0]["content"][0] == "<opaque block>"
+
+    def test_a_message_that_is_not_a_dict_is_still_recorded(self):
+        """Every message this harness builds is a dict. An SDK that hands back
+        its own message object is not, and dropping it would leave a gap in
+        the transcript that reads as a turn the model never took."""
+        from subversionbench.blocks import serialise_messages
+
+        class Message:
+            def model_dump(self, mode=None):
+                return {"role": "assistant", "content": "from the SDK"}
+
+        out = serialise_messages([{"role": "user", "content": "hi"},
+                                  Message()])
+        assert len(out) == 2, "a non-dict message was dropped from the record"
+        assert out[1] == {"role": "assistant", "content": "from the SDK"}

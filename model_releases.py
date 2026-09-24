@@ -56,22 +56,45 @@ from datetime import date
 RELEASE_DATES = {
     # anthropic
     "anthropic/claude-sonnet-4.5": date(2025, 9, 29),
+    # Also bare, and also a distinct route from the anthropic/-prefixed entry
+    # above: this corpus reached it as the native Anthropic API's own id,
+    # spelled with dashes rather than the OpenRouter listing's dot, so the
+    # stem fallback does not - and must not - unify the two. Same story as
+    # claude-sonnet-4-6 below.
+    "claude-sonnet-4-5": date(2025, 9, 29),
     # Bare on purpose. This IS the model's ID for the Anthropic API, which is
     # how this corpus reached it; the `anthropic/` prefix is an OpenRouter
     # convention, and adding one here would record a route that was never used.
     # Safe for the stem fallback as long as no prefixed twin is ever added
     # beside it - which is the invariant test_no_two_keys_share_a_stem holds.
     "claude-haiku-4-5-20251001": date(2025, 10, 15),
+    # Also bare, and also a distinct route from the anthropic/-prefixed entry
+    # below: this corpus reached it as the native Anthropic API's own ID,
+    # spelled with dashes rather than the OpenRouter listing's dot, so the
+    # stem fallback does not - and must not - unify the two.
+    "claude-sonnet-4-6": date(2026, 2, 17),
     "anthropic/claude-sonnet-4.6": date(2026, 2, 17),
     "anthropic/claude-opus-4.8": date(2026, 5, 27),
     "anthropic/claude-sonnet-5": date(2026, 6, 30),
-    "anthropic/claude-opus-5": date(2026, 7, 24),
+    # Bare, not anthropic/-prefixed: unlike claude-sonnet-4-6 above, this
+    # model's bare native ID and its OpenRouter stem are spelled identically
+    # ("claude-opus-5" either way), so keeping both here would give
+    # release_date() two dates for one stem. Only the bare route was ever
+    # actually run, so it is the one keyed - see test_no_two_keys_share_a_stem.
+    "claude-opus-5": date(2026, 7, 24),
+    "anthropic/claude-fable-5.1": date(2026, 9, 1),
+    # Bare, for the same reason claude-opus-5 above is: the native route is the
+    # one that was run. Unlike that entry, a prefixed twin would be legal here -
+    # OpenRouter spells this generation with a dot, so "anthropic/claude-opus-5.5"
+    # has stem "claude-opus-5.5" and does not collide with the dashes.
+    "claude-opus-5-5": date(2026, 9, 22),
 
     # deepseek
     "deepseek/deepseek-v4-pro": date(2026, 4, 24),
     "deepseek/deepseek-v4-flash": date(2026, 4, 24),
     "deepseek/deepseek-v4-flash-0731": date(2026, 7, 31),
     "deepseek/deepseek-v4-pro-0813": date(2026, 8, 12),
+    "deepseek/deepseek-v4.1-flash": date(2026, 9, 10),
 
     # google
     "google/gemini-3-flash-preview": date(2025, 12, 17),
@@ -81,6 +104,10 @@ RELEASE_DATES = {
     "google/gemini-3.5-flash": date(2026, 5, 19),
     "google/gemini-3.6-flash": date(2026, 7, 21),
     "google/gemini-3.7-flash": date(2026, 8, 13),
+    "google/gemini-3.8-flash": date(2026, 9, 2),
+
+    # inception
+    "inception/mercury-2.5": date(2026, 9, 8),
 
     # inclusionai
     "inclusionai/ling-3.0-flash": date(2026, 7, 23),
@@ -101,6 +128,13 @@ RELEASE_DATES = {
     "openai/gpt-5.6-luna": date(2026, 7, 9),
     "openai/gpt-5.6-terra": date(2026, 7, 9),
     "openai/gpt-5.6-sol": date(2026, 7, 9),
+    "openai/gpt-6-astra": date(2026, 9, 4),
+    # The first bare OpenAI key here: every entry above it carries the
+    # `openai/` prefix, which by routing.py means the OpenRouter route. This
+    # one is keyed for OpenAI's own API, matching how it is priced in
+    # grader_ab/prices.py. Its stem is distinct from "gpt-5.6-sol" above, so
+    # the two do not collide.
+    "gpt-6-sol": date(2026, 9, 22),
 
     # meta
     "meta-llama/llama-4-maverick": date(2025, 4, 5),
@@ -108,6 +142,7 @@ RELEASE_DATES = {
     "meta/muse-spark-1.1": date(2026, 7, 16),
     "meta/muse-spark-1.2": date(2026, 8, 6),
     "meta/muse-glimmer-30b": date(2026, 8, 9),
+    "meta/muse-spark-1.3": date(2026, 9, 2),
 
     # qwen
     "qwen/qwen3.5-flash-02-23": date(2026, 2, 25),
@@ -117,23 +152,31 @@ RELEASE_DATES = {
     # broken differently between runs would move a chart's x-axis.
     "qwen/qwen3.6-27b": date(2026, 4, 27),
     "qwen/qwen3.6-flash": date(2026, 4, 27),
+    "qwen/qwen3.7-max": date(2026, 5, 21),
     "qwen/qwen3.7-flash": date(2026, 7, 27),
     "qwen/qwen3.8-27b": date(2026, 8, 14),
     "qwen/qwen3.8-flash": date(2026, 8, 26),
+    "qwen/qwen3.8-max-0902": date(2026, 9, 3),
 
     # tencent
     "tencent/hy3": date(2026, 7, 6),
+    "tencent/hy-mt2-1.8b": date(2026, 8, 20),
+    "tencent/hy4-preview": date(2026, 8, 28),
 
     # thinkingmachines - `inkling-small` only. The unnamed-size `inkling` is a
     # DIFFERENT model and was never evaluated here; see the deliberately
     # unmatched entry for it in the sad_oversight.py bundle.
     "thinkingmachines/inkling-small": date(2026, 7, 30),
 
+    # unbiased
+    "unbiased/pareto": date(2026, 9, 17),
+
     # x-ai
     "x-ai/grok-4.20": date(2026, 3, 31),
     "x-ai/grok-4.3": date(2026, 5, 1),
     "x-ai/grok-4.5": date(2026, 7, 8),
     "x-ai/grok-4.6": date(2026, 8, 12),
+    "x-ai/grok-4.7": date(2026, 9, 21),
 
     # z-ai
     "z-ai/glm-5": date(2026, 2, 11),

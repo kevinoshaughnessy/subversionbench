@@ -186,6 +186,135 @@ class TestJSONParsing:
             pass
 
 
+class TestAParseFailureCarriesTheRawReply:
+    """A grader reply the harness could not read used to vanish into
+    `json.JSONDecodeError`'s own str(), which is a line/column with no text
+    at that position, or into _parse_first_json's 80-character truncation -
+    enough to say a reply was unreadable, not enough to tell a model that
+    never attempted JSON from one whose JSON broke on an unescaped quote.
+    ask_rubric_question now re-raises with the reply attached, so the error
+    field callers print already carries what a reader needs."""
+
+    def _ask(self, reply_text: str):
+        class _Reply:
+            content = [type("B", (), {"type": "text", "text": reply_text})()]
+
+        class _Client:
+            class messages:
+                @staticmethod
+                def create(**kwargs):
+                    return _Reply()
+
+        return ev_grade.ask_rubric_question(
+            "did it?", "the corpus", "vendor/grader-1", client=_Client())
+
+    def test_prose_with_no_json_at_all(self):
+        """The marker sits past character 80 on purpose:
+        _parse_first_json's own ValueError already truncates to 80 chars, so
+        a shorter reply would pass this test whether or not the enrichment
+        below it actually ran."""
+        got = self._ask(
+            "Looking at the transcript, the agent spent most of its time on "
+            "routing and file layout concerns before eventually mentioning "
+            "THE_MARKER_BEYOND_EIGHTY_CHARS near the end of its reasoning.")
+        assert got["answer"] is None
+        assert "THE_MARKER_BEYOND_EIGHTY_CHARS" in got["error"], got["error"]
+
+    def test_json_broken_by_an_unescaped_quote_in_the_quote_field(self):
+        """The failure mode a model copying a verbatim quote from its own
+        transcript is prone to: an embedded " ends the JSON string early."""
+        got = self._ask(
+            '{"answer": true, "quote": "the agent wrote "verbatim" here"}')
+        assert got["answer"] is None
+        assert "verbatim" in got["error"], got["error"]
+
+    def test_the_reply_length_is_reported_too(self):
+        got = self._ask("x" * 50)
+        assert "(50 chars)" in got["error"], got["error"]
+
+    def test_a_reply_that_does_parse_carries_no_such_thing(self):
+        """The control: enrichment must not appear on the success path,
+        where there is no raw reply to explain anything."""
+        got = self._ask('{"answer": false, "quote": ""}')
+        assert got["error"] is None
+
+    def test_an_api_call_failure_is_not_treated_as_a_parse_failure(self):
+        """The enrichment wraps ONLY parse_boolean_verdict's ValueError - an
+        exception from the call itself (auth, network, rate limit) must keep
+        reading as what it is, not be misreported as an unreadable reply."""
+        class _Client:
+            class messages:
+                @staticmethod
+                def create(**kwargs):
+                    raise RuntimeError("401 invalid x-api-key")
+
+        got = ev_grade.ask_rubric_question(
+            "did it?", "the corpus", "vendor/grader-1", client=_Client())
+        assert got["answer"] is None
+        assert got["error"] == "401 invalid x-api-key"
+        assert "raw reply" not in got["error"]
+
+
+class TestAnUnreadableReplySaysWhyTheApiEndedIt:
+    """A zero-character reply has several causes and the text cannot separate
+    them: a ceiling reached while thinking, a classifier declining, and a model
+    answering in another shape all arrive as `raw reply (0 chars): ''`. They
+    want different fixes - more headroom, a different grader, a prompt change -
+    so recording them identically makes the commonest grader failure the one
+    least possible to act on.
+    """
+
+    @staticmethod
+    def _block(kind, text=""):
+        return type("B", (), {"type": kind, "text": text})()
+
+    def _ask(self, blocks, stop_reason=None, stop_details=None):
+        class _Reply:
+            content = blocks
+        _Reply.stop_reason = stop_reason
+        _Reply.stop_details = stop_details
+
+        class _Client:
+            class messages:
+                @staticmethod
+                def create(**kwargs):
+                    return _Reply()
+
+        return ev_grade.ask_rubric_question(
+            "did it?", "the corpus", "vendor/grader-1", client=_Client())
+
+    def test_a_ceiling_reached_while_thinking_says_so(self):
+        got = self._ask([self._block("thinking")], stop_reason="max_tokens")
+        assert "max_tokens" in got["error"], got["error"]
+        assert "thinking" in got["error"], got["error"]
+
+    def test_a_declined_request_names_the_refusal_category(self):
+        got = self._ask([], stop_reason="refusal",
+                        stop_details=type("D", (),
+                                          {"category": "reasoning_extraction"})())
+        assert "refusal" in got["error"], got["error"]
+        assert "reasoning_extraction" in got["error"], got["error"]
+
+    def test_the_two_causes_are_distinguishable_from_each_other(self):
+        """The whole point. Both are a zero-character reply, and before this
+        they produced byte-identical error strings - so an operator could not
+        tell which fix applied without re-running the call by hand."""
+        ceiling = self._ask([self._block("thinking")], stop_reason="max_tokens")
+        declined = self._ask([], stop_reason="refusal",
+                             stop_details=type("D", (), {"category": "cyber"})())
+        assert "(0 chars)" in ceiling["error"], ceiling["error"]
+        assert "(0 chars)" in declined["error"], declined["error"]
+        assert ceiling["error"] != declined["error"]
+
+    def test_a_reply_missing_those_fields_still_reports_rather_than_raising(self):
+        """This runs on a path that is ALREADY failing, so it must never be
+        the thing that raises: a stubbed reply in this suite, or a provider
+        whose SDK omits the fields, carries neither attribute."""
+        got = self._ask([self._block("thinking")])
+        assert got["answer"] is None
+        assert "stop_reason=None" in got["error"], got["error"]
+
+
 # =========================================================================
 # Tests: when awareness was verbalised, relative to the act
 # =========================================================================
@@ -377,3 +506,61 @@ class TestAwarenessTimingWiring:
         analysis = {act["timing_key"]: {"timing": "act_unlocatable"},
                     act["grader_before_key"]: {"skipped": True}}
         assert ev_report.awareness_before_act_flag(analysis, act) == (None, None)
+
+
+class TestTheGraderBuildsItsOwnClientWhenItIsGivenNone:
+    """The rubric harness passes one per episode so the cached corpus prefix
+    stays stable across the nine questions. Everything else that asks a single
+    question - a repair script, a one-off check - does not, so the no-client
+    entry is a supported path rather than dead code, and a caller taking it
+    must still reach the model it named."""
+
+    def _ask(self, client=None):
+        import subversionbench.llm_client as llm
+        asked = []
+        original = llm.get_client
+
+        class _Reply:
+            content = [type("B", (), {"type": "text",
+                                      "text": '{"answer": true, '
+                                              '"quote": "said so"}'})()]
+
+        class _Client:
+            class messages:
+                @staticmethod
+                def create(**kwargs):
+                    return _Reply()
+
+        llm.get_client = lambda model, **kw: (asked.append(model)
+                                              or _Client())
+        try:
+            got = ev_grade.ask_rubric_question(
+                "did it?", "the corpus", "vendor/grader-1", client=client)
+        finally:
+            llm.get_client = original
+        return got, asked
+
+    def test_it_asks_for_a_client_for_the_model_it_was_given(self):
+        got, asked = self._ask(client=None)
+        assert asked == ["vendor/grader-1"], (
+            "the grader either reached a real client or never built one")
+        assert got["answer"] is True and got["error"] is None
+
+    def test_a_client_that_was_handed_in_is_used_as_it_is(self):
+        """The control. A grader that rebuilt the client per question would
+        also lose the cached corpus prefix, which is nine times the cost."""
+
+        class _Reply:
+            content = [type("B", (), {"type": "text",
+                                      "text": '{"answer": false, '
+                                              '"quote": ""}'})()]
+
+        class _Given:
+            class messages:
+                @staticmethod
+                def create(**kwargs):
+                    return _Reply()
+
+        got, asked = self._ask(client=_Given())
+        assert asked == []
+        assert got["answer"] is False
