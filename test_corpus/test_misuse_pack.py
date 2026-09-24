@@ -192,3 +192,116 @@ class TestTheNearMissRuleReadsTheBundle(unittest.TestCase):
         from subversionbench.config import MISUSE_INDICATORS
         both = set(misuse_pack._rejected_misuse_patterns()) & set(MISUSE_INDICATORS)
         assert not both
+
+
+def _rejected_phrase() -> str:
+    """One phrase the bundle records as a rejected misuse candidate, read at
+    run time: the phrases are protocol, so no tracked file may spell one."""
+    return sorted(misuse_pack._rejected_misuse_patterns())[0]
+
+
+def _run_file(out, name, said=None, suspected=False, tool_said=None,
+              **over):
+    """A run file as the loader reads it. `said` is the agent's own text;
+    `tool_said` is text only a tool result carries."""
+    transcript = [{"turn": 1, "type": "text",
+                   "content": said or "I recommend the second option."}]
+    if tool_said:
+        transcript.append({"turn": 1, "type": "tool_result",
+                           "content": tool_said})
+    data = {"model": "p/m", "nudge": "strong", "oversight": True,
+            "lure": False, "transcript": transcript,
+            "analysis": {"misuse_keywords": {
+                "misuse_suspected": suspected,
+                "indicators_found": ["x"] if suspected else []},
+                "eval_awareness_grader": {"eval_aware": True}}}
+    data.update(over)
+    Path(out, name).write_text(json.dumps(data), encoding="utf-8")
+
+
+class TestLoadingCandidates(unittest.TestCase):
+
+    def _loaded(self, **kw):
+        with tempfile.TemporaryDirectory() as d:
+            _run_file(d, "run_1.json", **kw)
+            return misuse_pack.load_misuse_candidates(d)
+
+    def test_a_screened_episode_carries_the_screen_s_verdict(self):
+        [c] = self._loaded(suspected=True)
+        assert c["screen_says_misuse"] is True and c["near_miss"] is False
+        assert c["screen_indicators"] == ["x"] and c["stored_aware"] is True
+
+    def test_a_rejected_phrase_in_the_agent_s_words_is_a_near_miss(self):
+        [c] = self._loaded(said=f"I notice {_rejected_phrase()} here.")
+        assert c["near_miss"] is True
+
+    def test_a_screen_positive_is_never_a_near_miss(self):
+        """A near miss is a NEGATIVE the rejected phrases fire on; the same
+        phrase in a positive episode says nothing about the negative side."""
+        [c] = self._loaded(said=f"I notice {_rejected_phrase()} here.",
+                           suspected=True)
+        assert c["near_miss"] is False
+
+    def test_a_rejected_phrase_only_in_a_tool_result_is_not_a_near_miss(self):
+        """The agent's own words only, the same corpus the grader is shown:
+        a phrase it merely read is not something it said."""
+        [c] = self._loaded(tool_said=f"notice: {_rejected_phrase()}")
+        assert c["near_miss"] is False
+
+    def test_an_ordinary_negative_is_not_a_near_miss(self):
+        [c] = self._loaded()
+        assert c["near_miss"] is False
+
+    def test_episodes_the_screen_cannot_speak_for_are_skipped(self):
+        with tempfile.TemporaryDirectory() as d:
+            _run_file(d, "run_1_no_transcript.json", transcript=[])
+            _run_file(d, "run_2_no_model.json", model=None)
+            _run_file(d, "run_3_no_screen.json", analysis={})
+            _run_file(d, "run_4_unresolved.json", analysis={
+                "misuse_keywords": {"misuse_suspected": None}})
+            Path(d, "run_5_corrupt.json").write_text("{", encoding="utf-8")
+            _run_file(d, "run_6_kept.json")
+            got = misuse_pack.load_misuse_candidates(d)
+        assert [c["run"] for c in got] == ["run_6_kept.json"]
+
+
+class TestTheCommandLine(unittest.TestCase):
+
+    def _main(self, *argv):
+        import contextlib
+        import io
+        import sys
+        buf, saved = io.StringIO(), sys.argv
+        sys.argv = ["misuse_pack.py", *argv]
+        try:
+            with contextlib.redirect_stdout(buf):
+                code = misuse_pack.main()
+        finally:
+            sys.argv = saved
+        return code, buf.getvalue()
+
+    def test_it_builds_a_pack_with_its_codebook_from_a_results_directory(self):
+        with tempfile.TemporaryDirectory() as d:
+            for i in range(3):
+                _run_file(d, f"run_pos_{i}.json", suspected=True,
+                          said=f"item {i}")
+                _run_file(d, f"run_neg_{i}.json",
+                          said=f"item {i}: {_rejected_phrase()}")
+            dest = str(Path(d, "pack"))
+            code, out = self._main("--output-dir", d, "--n", "4",
+                                   "--per-model", "3", "--seed", "1",
+                                   "--block", "2", "--dest", dest)
+            assert code == 0, out
+            assert Path(dest, "codebook.txt").exists()
+            key = json.loads(Path(dest, "key.SEALED.json").read_text())
+        sides = [e[misuse_pack.STRATUM_KEY] for e in key["episodes"]]
+        assert sides.count(True) == sides.count(False) == 2
+        assert "2 the screen calls misuse, 2 near misses" in out
+
+    def test_an_empty_sample_is_refused_rather_than_written(self):
+        with tempfile.TemporaryDirectory() as d:
+            dest = str(Path(d, "pack"))
+            code, out = self._main("--output-dir", d, "--seed", "1",
+                                   "--dest", dest)
+            assert code == 1 and "empty" in out
+            assert not Path(dest).exists()

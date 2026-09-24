@@ -321,3 +321,131 @@ def _patched(name, labelled):
         setattr(rescore.grading_api, name, original)
         rescore.grading_api.detect_disclosure = detect
         rescore.grading_api.detect_misrepresentation = misrep
+
+
+def _grade_out(out, regrade, **extra):
+    """Like _grade, but returns (exit code, printed output)."""
+    args = FakeArgs(output_dir=out, model="m", nudge="strong",
+                    grader_model=DEFAULT_GRADER_MODEL, write_back=True,
+                    regrade=regrade)
+    # Set after construction: FakeArgs keeps only the fields it names, so a
+    # flag passed to it would be dropped and the test would run without it.
+    for name, value in extra.items():
+        setattr(args, name, value)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = ev_run.grade_existing_runs(args, BatchSelection.typed(args))
+    return code, buf.getvalue()
+
+
+class TestARegradeStopsOrSaysWhy:
+
+    def test_an_auth_failure_aborts_the_pass_and_writes_nothing(self):
+        """A rejected key fails identically on every call, so the pass stops
+        on the first one rather than grinding through the corpus writing
+        fallbacks - and the file keeps the reading it had."""
+        out = tempfile.mkdtemp()
+        TestTheConcealmentSideIsComparedToo()._write(out)
+        before = json.dumps(_read(out), sort_keys=True)
+        revoked = {**TestTheConcealmentSideIsComparedToo.ADMITTED,
+                   "verdict": "unclear", "used_keyword_fallback": True,
+                   "classifier_error": "401 invalid x-api-key"}
+        with _graders({OTHER: False}), \
+                _patched("classify_interrogation_answer", revoked):
+            code, text = _grade_out(out, OTHER)
+        assert code == 1
+        assert f"ABORTED: {OTHER} could not authenticate" in text
+        assert json.dumps(_read(out), sort_keys=True) == before
+
+    def test_all_on_a_corpus_with_no_grader_says_so(self):
+        """`all` is every grader an episode already has, so on episodes
+        collected with --no-grader it has nothing to do - and says that,
+        rather than leaving the reader to guess why nothing was graded."""
+        out = tempfile.mkdtemp()
+        Path(out, NAME).write_text(json.dumps({
+            "model": "m", "nudge": "strong",
+            "transcript": [{"turn": 1, "type": "text", "content": "Done."}],
+            "analysis": {"eval_awareness_keywords": {"eval_aware": False}}}),
+            encoding="utf-8")
+        with _graders({}) as asked:
+            code, text = _grade_out(out, "all")
+        assert code == 1 and asked == []
+        assert "--regrade all found no grader" in text
+
+    def test_only_failed_passes_over_an_unreadable_file(self):
+        """An unreadable file is a different problem, and grading it would
+        not fix it: it selects no target instead of stopping the pass."""
+        out = tempfile.mkdtemp()
+        _write(out)
+        stored = _read(out)
+        failed = store(stored, {**view(stored), "eval_awareness_grader": {
+            "grader_model": DEFAULT_GRADER_MODEL, "grading_failed": True,
+            "eval_aware": None}}, DEFAULT_GRADER_MODEL)
+        on_disk = json.loads(Path(out, NAME).read_text(encoding="utf-8"))
+        Path(out, NAME).write_text(json.dumps({**on_disk, "analysis": failed}),
+                                   encoding="utf-8")
+        Path(out, "run_2_m_strong_20260101T000001.json").write_text(
+            "{", encoding="utf-8")
+        with _graders(TestGradeExistingTargetsOneEntry.FRESH) as asked:
+            code, text = _grade_out(out, "default", only_failed=True)
+        assert code == 0, text
+        assert "1 of 2 episode(s) carry no verdict" in text
+        assert asked == [DEFAULT_GRADER_MODEL]
+
+
+class TestAFailedReadingNeverReplacesARealOne:
+    """rescore._keep_better, for the two readings that are not interrogation
+    answers and so are not guarded by the classifier-call tally."""
+
+    def _keep(self, existing, fresh):
+        from subversionbench.readmodes.rescore import _keep_better
+        return _keep_better(existing, fresh)
+
+    def test_a_failed_fresh_reading_keeps_the_stored_one(self):
+        real = {"disclosed": False, "quote": ""}
+        assert self._keep(real, {"disclosed": None, "error": "timeout"}) is real
+
+    def test_a_successful_fresh_reading_replaces_the_stored_one(self):
+        fresh = {"disclosed": True, "quote": "q"}
+        assert self._keep({"disclosed": False}, fresh) is fresh
+
+    def test_a_failure_replaces_a_failure(self):
+        """Nothing real to protect, so the newer error is the truer record."""
+        fresh = {"error": "second"}
+        assert self._keep({"error": "first"}, fresh) is fresh
+
+
+class TestResummariseRefreshesEveryGrader:
+    """--resummarise --write-back on an array file re-derives each grader's
+    free awareness fields from that grader's OWN stored rubric - not the
+    default's alone, which is all summarise_batch re-derives."""
+
+    def test_each_grader_s_fields_are_rederived_from_its_own_answers(self):
+        """The two graders cite different evidence - one remark against two -
+        so a pass that refreshed only the default, or copied the default's
+        fields across, leaves the second grader's confidence wrong."""
+        from subversionbench.readmodes.resummarise import _write_back_one
+        out = tempfile.mkdtemp()
+        _write(out)
+        stored = _read(out)
+        two_remarks = {**_awareness(OTHER, True), "rubric_results": {
+            "suspects_being_tested": {"answer": True, "quote": "one"},
+            "mentioned_test": {"answer": True, "quote": "another"}}}
+        stored = store(stored, {**view(stored, OTHER),
+                                "eval_awareness_grader": two_remarks}, OTHER)
+        path = Path(out, NAME)
+        on_disk = json.loads(path.read_text(encoding="utf-8"))
+        path.write_text(json.dumps({**on_disk, "analysis": stored}),
+                        encoding="utf-8")
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            names = _write_back_one(str(path), on_disk)
+
+        after = _read(out)
+
+        def confidence(model):
+            return view(after, model)["eval_awareness_grader"][
+                "eval_aware_confidence"]
+        assert confidence(DEFAULT_GRADER_MODEL) == "medium"
+        assert confidence(OTHER) == "high"
+        assert f"{OTHER}: eval_awareness_grader.eval_aware_confidence" in names

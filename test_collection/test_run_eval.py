@@ -96,6 +96,30 @@ class TestContradictoryFlagsAreRefusedBeforeSpending:
         assert code == 2
         assert "--write-back only applies" in out
 
+    def test_regrade_outside_a_regrading_mode_is_refused(self):
+        """--regrade chooses whose reading a paid read mode replaces; with no
+        such mode it would be accepted and silently mean nothing."""
+        code, out = _main("--regrade", "all", "--model", "m")
+        assert code == 2
+        assert "--regrade only applies" in out
+
+    def test_reinterrogate_refuses_every_grader_at_once(self):
+        """One grader's verdicts decide where each new ladder of questions
+        stops, so re-interrogating for all of them has no single answer."""
+        code, out = _main("--reinterrogate", "--regrade", "all",
+                          "--model", "m")
+        assert code == 2
+        assert "--reinterrogate takes one grader" in out
+
+    def test_a_non_default_grader_model_beside_a_read_mode_is_refused(self):
+        """It names the grader a COLLECTION runs. Accepting it beside a read
+        mode would let someone believe they re-graded with a model they did
+        not; the message names the flag that does it."""
+        code, out = _main("--grade-existing", "--grader-model", "gpt-6-sol",
+                          "--model", "m")
+        assert code == 2
+        assert "use --regrade gpt-6-sol" in out
+
     def test_batch_stamp_is_accepted_with_every_read_mode(self):
         """Refusals have to be exactly as wide as their reason. A guard listing
         three of the four modes would refuse a legitimate invocation."""

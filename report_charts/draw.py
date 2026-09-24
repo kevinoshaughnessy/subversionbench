@@ -532,10 +532,9 @@ def _draw_stacked_rate_chart(plt, rows: list, bands: list, title: str,
     `bands` is (label, colour) in segment order. Each row is a dict with
     `label`, `segments` (one share per band, as fractions), `rate`, `lo`, `hi`
     and `n`. The interval belongs to the whole bar only: a segment is a share
-    of the same episodes, not an estimate of its own.
+    of the same episodes, not an estimate of its own. The caller filters
+    rows by has_chart_support, so every row has one and an interval.
     """
-    if not rows:
-        return None
     from matplotlib.patches import Patch
     height = _FIGURE_MARGIN + _ROW_HEIGHT * len(rows)
     fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, height))
@@ -547,9 +546,8 @@ def _draw_stacked_rate_chart(plt, rows: list, bands: list, title: str,
             ax.barh([y], [share * PP], left=[left], height=0.7, color=colour,
                     edgecolor="white", linewidth=0.8, zorder=3)
             left += share * PP
-        if row["lo"] is not None:
-            ax.plot([row["lo"] * PP, row["hi"] * PP], [y, y], color="#333333",
-                    linewidth=0.9, zorder=4)
+        ax.plot([row["lo"] * PP, row["hi"] * PP], [y, y], color="#333333",
+                linewidth=0.9, zorder=4)
         ax.text(1.005, y, f"{row['rate'] * PP:.0f}%  n={row['n']}",
                 transform=ax.get_yaxis_transform(), va="center", fontsize=7,
                 color="#666666")

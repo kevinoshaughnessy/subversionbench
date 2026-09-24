@@ -443,3 +443,27 @@ class TestExplicitPromptCaching:
         system prompt, which travels as `instructions`."""
         sent = self._sent("gpt-6-sol", "a plain prompt")
         assert "prompt_cache_options" not in sent
+
+    def test_a_marked_turn_keeps_its_tool_result_out_of_the_text_parts(self):
+        """A user turn can hold a tool result beside marked text. The result
+        is its own function_call_output; folding it into the text parts would
+        send it twice and move the breakpoint off the prefix it marks."""
+        sent = self._sent("gpt-6-sol", [
+            {"type": "tool_result", "tool_use_id": "c1", "content": "ok"},
+            *self._MARKED])
+        output, message = sent["input"]
+        assert output == {"type": "function_call_output", "call_id": "c1",
+                          "output": "ok"}
+        assert [p["text"] for p in message["content"]] == [
+            "TRANSCRIPT", "\nQUESTION"]
+        assert "prompt_cache_breakpoint" in message["content"][0]
+
+    def test_a_block_given_as_an_object_is_read_the_same_as_a_dict(self):
+        """Every other block read on this route accepts both shapes, so a
+        breakpoint on an object block must not be silently lost."""
+        blocks = [types.SimpleNamespace(**b) if "cache_control" in b
+                  else types.SimpleNamespace(**b, cache_control=None)
+                  for b in self._MARKED]
+        parts = self._sent("gpt-6-sol", blocks)["input"][0]["content"]
+        assert parts[0]["prompt_cache_breakpoint"] == {"mode": "explicit"}
+        assert "prompt_cache_breakpoint" not in parts[1]
