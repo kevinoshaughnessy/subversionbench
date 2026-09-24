@@ -6,7 +6,8 @@ import os
 
 from subversionbench import charting
 
-from .characteristics import (plot_awareness_refusal_timing,
+from .characteristics import (plot_awareness_confidence,
+                              plot_awareness_refusal_timing,
                               plot_encoded_payload_rate,
                               plot_eval_signal_rates,
                               plot_misuse_profile,
@@ -61,6 +62,9 @@ def write_charts(report: dict, chart_dir: str) -> list:
     signal_path = os.path.join(chart_dir, "eval_signal_rates.png")
     if plot_eval_signal_rates(plt, report, signal_path):
         written.append(signal_path)
+    confidence_path = os.path.join(chart_dir, "awareness_confidence.png")
+    if plot_awareness_confidence(plt, report, confidence_path):
+        written.append(confidence_path)
     misuse_path = os.path.join(chart_dir, "misuse_profile.png")
     if plot_misuse_profile(plt, report, misuse_path):
         written.append(misuse_path)

@@ -10,6 +10,17 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v214
+
+**A chart of the eval-awareness rate per model, split by the grader's confidence.**
+`awareness_confidence.png` stacks each model's awareness rate into the grader's
+`eval_aware_confidence` bands, each as a share of all the model's resolved episodes, so
+the bar is exactly as long as the rate. An aware episode that fell back to the keyword
+screen has no grader confidence and gets a grey band of its own rather than being
+dropped, which would have made the bands sum to less than the rate. The caption says
+what "high" is: two or more distinct quoted remarks, not a clearer one. The block is
+`characteristics.awareness_confidence` in the JSON report.
+
 ## v213
 
 **An episode can hold more than one grader's reading.** Everything a grader model

@@ -364,3 +364,60 @@ def plot_eval_signal_rates(plt, report: dict, path: str) -> str:
         plt, clusters, keys, "Eval-awareness rubric signals, per model"
         + _exclusion_title_suffix(report),
         captions, path, "answered yes (%)")
+
+
+# Darkest where the verdict rests on most remarks, one hue light-to-dark for
+# the grader's two ordered bands; the keyword fallback is grey because it is a
+# different instrument, not a third step on the same scale.
+_CONFIDENCE_COLOURS = {"high": "#2f4b7c", "medium": "#7f9dc9",
+                       "keywords_only": "#a0a0a0"}
+_CONFIDENCE_LABELS = {"high": "high (2+ distinct remarks)",
+                      "medium": "medium (one remark)",
+                      "keywords_only": "keyword screen only (no grader verdict)"}
+
+
+def _awareness_confidence_rows(profile: dict) -> list:
+    """One stacked row per model with enough resolved episodes, in the
+    profile's own order - by awareness rate, descending."""
+    bands = profile.get("bands") or []
+    rows = []
+    for r in profile.get("by_model") or []:
+        if not has_chart_support(r["n_resolved"]):
+            continue
+        lo, hi = wilson_ci(r["n_aware"], r["n_resolved"]) or (None, None)
+        rows.append({"label": r["model"], "rate": r["rate"], "lo": lo, "hi": hi,
+                     "n": r["n_resolved"],
+                     "segments": [r["bands"][b]["rate"] for b in bands]})
+    return rows
+
+
+def plot_awareness_confidence(plt, report: dict, path: str) -> str:
+    """Per model: the eval-awareness rate, split by the grader's confidence."""
+    profile = (report.get("characteristics") or {}).get(
+        "awareness_confidence") or {}
+    rows = _awareness_confidence_rows(profile)
+    if not rows:
+        return None
+    bands = profile["bands"]
+    # The keyword band is drawn only where it exists: on a fully graded corpus
+    # it is zero everywhere, and a legend entry for it would say otherwise.
+    shown = [i for i, b in enumerate(bands)
+             if b != "keywords_only" or any(r["segments"][i] for r in rows)]
+    for r in rows:
+        r["segments"] = [r["segments"][i] for i in shown]
+    pooled = profile.get("pooled") or {}
+    captions = [
+        (profile.get("interpretation", "") + ".", "#b00020"),
+        (f"all models: {pooled.get('n_aware', 0)}/{pooled.get('n_resolved', 0)} "
+         f"episodes aware. Each segment is a share of the model's resolved "
+         f"episodes, so the bar's length is its awareness rate.", "#333333"),
+        (EXCLUDED_NOTE + ". intervals: 95% Wilson, on the whole bar only.",
+         "#777777"),
+    ] + _exclusion_captions(report)
+    return draw._draw_stacked_rate_chart(
+        plt, rows,
+        [(_CONFIDENCE_LABELS[bands[i]], _CONFIDENCE_COLOURS[bands[i]])
+         for i in shown],
+        "Eval awareness per model, by grader confidence"
+        + _exclusion_title_suffix(report),
+        captions, path, "eval-aware episodes (%)")

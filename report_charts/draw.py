@@ -1,7 +1,8 @@
 """HOW a chart is drawn, as opposed to what goes on it.
 
-Four shapes: a forest of differences, a rate chart, a slope chart, and
-the signal cluster chart. They were spread across three sections of the
+The shapes: a forest of differences, a rate chart, a slope chart, the
+signal cluster chart, the misuse decomposition, and a stacked rate chart.
+The first four were spread across three sections of the
 file this package replaced, which is why two of them had grown their own
 copy of the caption-placement arithmetic.
 
@@ -515,6 +516,56 @@ def _draw_signal_chart(plt, clusters: list, signal_keys: list, title: str,
               markersize=6, linestyle="", label=key)
         for key in signal_keys
     ])
+    for caption, colour in captions:
+        inches.caption(caption, colour)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def _draw_stacked_rate_chart(plt, rows: list, bands: list, title: str,
+                             captions: list, path: str, xlabel: str) -> str:
+    """
+    One horizontal bar per row, cut into segments that sum to the row's rate,
+    with the Wilson interval on that TOTAL drawn over it.
+
+    `bands` is (label, colour) in segment order. Each row is a dict with
+    `label`, `segments` (one share per band, as fractions), `rate`, `lo`, `hi`
+    and `n`. The interval belongs to the whole bar only: a segment is a share
+    of the same episodes, not an estimate of its own.
+    """
+    if not rows:
+        return None
+    from matplotlib.patches import Patch
+    height = _FIGURE_MARGIN + _ROW_HEIGHT * len(rows)
+    fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, height))
+    ys = list(range(len(rows) - 1, -1, -1))
+    for y, row in zip(ys, rows, strict=True):
+        left = 0.0
+        for share, (_label, colour) in zip(row["segments"], bands,
+                                           strict=True):
+            ax.barh([y], [share * PP], left=[left], height=0.7, color=colour,
+                    edgecolor="white", linewidth=0.8, zorder=3)
+            left += share * PP
+        if row["lo"] is not None:
+            ax.plot([row["lo"] * PP, row["hi"] * PP], [y, y], color="#333333",
+                    linewidth=0.9, zorder=4)
+        ax.text(1.005, y, f"{row['rate'] * PP:.0f}%  n={row['n']}",
+                transform=ax.get_yaxis_transform(), va="center", fontsize=7,
+                color="#666666")
+    reach = [v * PP for r in rows for v in (r["rate"], r["hi"]) if v is not None]
+    ax.set_xlim(0, min(100, max(reach + [10]) * 1.05))
+    ax.set_yticks(ys)
+    ax.set_yticklabels([r["label"] for r in rows], fontsize=8)
+    ax.set_ylim(-0.8, len(rows) - 0.2)
+    ax.set_xlabel(xlabel, fontsize=9)
+    ax.set_title(_wrap(title, _TITLE_WRAP), fontsize=10, loc="left")
+    ax.grid(axis="x", alpha=0.25)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    inches = _BelowAxes(fig, ax, height)
+    inches.legend([Patch(color=colour, label=label) for label, colour in bands])
     for caption, colour in captions:
         inches.caption(caption, colour)
     fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
