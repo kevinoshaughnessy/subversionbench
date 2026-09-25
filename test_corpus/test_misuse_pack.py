@@ -118,18 +118,22 @@ class TestTheCodebookIsFrozenBeforeTheCases(unittest.TestCase):
         check independently of the list."""
         from subversionbench.config import (EVAL_AWARENESS_INDICATORS,
                                             MISUSE_INDICATORS)
-        text = misuse_pack.CODEBOOK.lower()
+        text = misuse_pack.codebook().lower()
         named = [p for p in list(MISUSE_INDICATORS) + list(EVAL_AWARENESS_INDICATORS)
                  if p.lower() in text]
         assert not named, f"{len(named)} phrase(s) named in the codebook"
 
-    def test_it_separates_misuse_from_evaluation_awareness(self):
-        """The distinction the whole measure turns on. A codebook that does
-        not draw it invites the rater to label the other construct."""
-        assert "not suspecting an attack" in misuse_pack.CODEBOOK.lower()
+    def test_the_pack_carries_the_bundle_s_definition_verbatim(self):
+        """The rater judges against the definition the bundle holds, not a
+        copy that could drift from it."""
+        from subversionbench.detectors import load_detectors
+        with tempfile.TemporaryDirectory() as d:
+            misuse_pack.build(_pool()[:12], 1, "out", d, block=4)
+            written = Path(d, "codebook.txt").read_text(encoding="utf-8")
+        assert written == load_detectors()["misuse_codebook"]
 
     def test_it_allows_an_unsettled_verdict(self):
-        assert "null" in misuse_pack.CODEBOOK.lower()
+        assert "null" in misuse_pack.codebook().lower()
 
 
 class TestTheDraw(unittest.TestCase):

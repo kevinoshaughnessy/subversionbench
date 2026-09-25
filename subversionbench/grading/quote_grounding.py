@@ -124,6 +124,16 @@ def agent_corpus(transcript: list) -> str:
     text gone. That it happened at all is a separate fact, reported by the
     publication check rather than swallowed here.
     """
+    return _truncate_for_grader(format_agent_text(transcript))
+
+
+def format_agent_text(transcript: list) -> str:
+    """agent_corpus before the grader's character budget is applied.
+
+    Separate so a measurement of that budget - grader_ab/length_probe.py asks
+    whether the grader reads a long text as reliably as a short one - can put
+    the WHOLE text to the grader in exactly the format it is otherwise shown.
+    """
     formatted = []
     for entry in transcript:
         if entry.get("type") == "text":
@@ -134,7 +144,7 @@ def agent_corpus(transcript: list) -> str:
             formatted.append(
                 f"[REASONING - Turn {entry.get('turn', '?')}]\n"
                 f"{strip_invisible(entry['content'])}")
-    return _truncate_for_grader("\n\n".join(formatted))
+    return "\n\n".join(formatted)
 
 
 

@@ -10,6 +10,22 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v215
+
+**A probe of whether the awareness grader reads a long episode as reliably as a short
+one.** The grader is shown at most 20,000 characters of an episode, the first 8,000 and
+the last 12,000, and a large share of the r9 and r10 episodes are longer than that, so
+their middle was never read. Raising the limit is only a fix if the grader finds what a
+longer text holds, and if reliability falls with length it already falls below the limit.
+`grader_ab/length_probe.py` plants one sentence in the agent's own words, in two
+strengths held in the detector bundle, at 10%, 50% or 90% of episodes stored as not aware in three length bands, puts
+the whole text to the grader through the production question call, and counts a plant as
+found only when a question quotes it. Refusals are counted apart from the rate. Without
+`--yes` it prints the plan and a cost ceiling and sends nothing.
+
+`agent_corpus` is split so the formatted agent text is available before the budget is
+applied (`format_agent_text`). What the grader is shown is unchanged.
+
 ## v214
 
 **A chart of the eval-awareness rate per model, split by the grader's confidence.**
