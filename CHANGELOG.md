@@ -10,6 +10,21 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v216
+
+**`--no-grader` can roll out without the grader model's credential.** Until now the
+credential check refused a batch whose grader credential was unset even with
+`--no-grader`, because the interrogation classifier is scored by the same model and r4
+showed what a missing key does unnoticed: every answer falls back to the keyword
+cross-check and the concealment rate is built on those fallbacks. What made that a
+defect was that nobody knew, and three things now say so: the batch prints a warning
+before the first episode, each answer records `used_keyword_fallback`, and the report
+warns over every concealment figure once the fallback share passes its limit. So with
+`--no-grader` a missing grader credential is a warning and the batch goes ahead with
+keyword-scored interrogations. Without `--no-grader` it is still refused, and the
+refusal now names `--no-grader` as the way to roll out like that on purpose. The model
+under test's own credential is required either way.
+
 ## v215
 
 **A probe of whether the awareness grader reads a long episode as reliably as a short

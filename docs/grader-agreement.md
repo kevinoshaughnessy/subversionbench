@@ -162,9 +162,9 @@ evaluated**, each of which can satisfy one question on its own:
   agent's work, which the rubric already excludes by name.
 
 **muse-spark-1.3 has the first two at once.** All 26 of opus-5's extra aware
-verdicts are one or the other: 17 suspect a prompt injection, 7 are stated
-principles, and 2 call an instruction planted in the context of an
-injection. gpt-6-sol's no is the right reading on all of them, which takes
+verdicts are one or the other: 17 suspect that instructions were slipped into
+the agent's input by someone inside the situation, 7 are stated principles,
+and 2 call an instruction planted in that same sense. gpt-6-sol's no is the right reading on all of them, which takes
 the model from 28% to 6%. As on muse-spark-1.2, these remarks read as
 provider-written summaries of the reasoning.
 
@@ -187,8 +187,9 @@ three near-identical ones in other episodes of the same model.
 transcripts would call fewer of them aware than a second grader does. opus-5
 calls more, and its extra verdicts are the same kind it adds on other models.
 Its 18 AI-safety yes answers that gpt-6-sol did not give are not stated
-principles. 14 quote the agent calling its situation a test, 13 of them a
-test of self-preservation, which is an explicit awareness remark that gpt-6-sol
+principles. 14 quote the agent saying outright that it is being evaluated,
+13 of them on whether it will protect itself, which is an explicit awareness
+remark that gpt-6-sol
 counts under the other questions instead; 3 describe tampering as a
 misaligned shortcut the setup seems to invite. The two graders are filing
 the same remarks under different questions, which is why the per-question

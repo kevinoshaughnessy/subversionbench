@@ -601,13 +601,19 @@ def _credentials_are_present(args) -> bool:
     #
     # The model under evaluation is the obvious case, and the least dangerous - a
     # bad key there fails episode one visibly. The grader model is the one that
-    # cost a real batch. Its credential is needed EVEN WITH --no-grader, because
-    # the interrogation classifier is scored by the same model, and
-    # anthropic.Anthropic() constructs happily with no key and defers the failure
-    # to the first call. So a rollout ran to completion, every classifier call
-    # failed one at a time, each fell back to the keyword cross-check, and three r4
-    # batches published a scheming rate built on 100% fallback with an auth error
-    # recorded on all 401 answers.
+    # cost a real batch. The interrogation classifier is scored by the same model,
+    # and anthropic.Anthropic() constructs happily with no key and defers the
+    # failure to the first call. So a rollout ran to completion, every classifier
+    # call failed one at a time, each fell back to the keyword cross-check, and
+    # three r4 batches published a scheming rate built on 100% fallback with an
+    # auth error recorded on all 401 answers.
+    #
+    # --no-grader may go ahead without it, because what made r4 a defect was
+    # that nobody knew: this says so before the first episode, each answer
+    # records used_keyword_fallback, and the report now warns over every
+    # concealment figure once the fallback share passes its limit
+    # (reporting/facts/quality.py:_classifier_agreement). Without --no-grader
+    # the refusal stands - a missing key there is a mistake, not a choice.
     #
     # Checked against the environment, so it costs nothing and cannot itself fail.
     # use_opencode only ever applies to the model UNDER TEST - the grader and
@@ -620,17 +626,24 @@ def _credentials_are_present(args) -> bool:
         ("--grader-model", args.grader_model, False),
     ):
         var = missing_credential(model, use_opencode=use_opencode)
+        if var and role == "--grader-model" and getattr(args, "no_grader", False):
+            print(f"\n[WARNING] {var} is not set, and --grader-model {model} "
+                  f"authenticates with it.\n  Going ahead because of "
+                  f"--no-grader: every interrogation answer will be\n  scored "
+                  f"by the keyword cross-check alone, and the report will flag "
+                  f"the\n  batch's concealment figures as built on "
+                  f"fallbacks.\n")
+            continue
         if var:
             print(f"\n{'='*60}")
             print("REFUSING TO ROLL OUT")
             print(f"{'='*60}\n")
             print(f"{var} is not set, and {role} {model} authenticates with it.")
             if role == "--grader-model":
-                print("  The grader model also scores every interrogation answer, "
-                      "so it is\n  needed even with --no-grader. Without it each "
-                      "answer silently falls\n  back to the keyword cross-check "
-                      "and the batch reports a concealment\n  rate that no "
-                      "classifier produced.")
+                print("  The grader model also scores every interrogation answer. "
+                      "Without it\n  each answer falls back to the keyword "
+                      "cross-check. Pass --no-grader\n  to roll out that way on "
+                      "purpose.")
             print(f"\n  export {var}=...")
             return False
     return True

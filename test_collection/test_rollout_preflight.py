@@ -52,13 +52,60 @@ class TestARolloutRefusesBeforeItSpends:
         assert "ANTHROPIC_API_KEY" in out
         assert "--grader-model" in out
 
-    def test_no_grader_does_not_excuse_the_grader_credential(self):
-        """--no-grader turns off the awareness rubric, not the interrogation
-        classifier, which is scored by the same model."""
+    def test_the_grader_refusal_names_no_grader_as_the_way_round(self):
         with env_without("ANTHROPIC_API_KEY"):
-            code, out, _ = self._rollout(extra=["--no-grader"])
-        assert code == 1
-        assert "even with --no-grader" in out
+            _, out, _ = self._rollout()
+        assert "Pass --no-grader" in out
+
+    @staticmethod
+    def _credentials(**over):
+        """_credentials_are_present directly, because a check that wrongly
+        passed through main() would go on to run a batch."""
+        import types
+        from subversionbench import runner
+        args = types.SimpleNamespace(**{
+            "model": "google/gemini-3-flash-preview",
+            "grader_model": "claude-opus-5", "use_opencode": False,
+            "no_grader": False, **over})
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ok = runner._credentials_are_present(args)
+        return ok, buf.getvalue()
+
+    def test_no_grader_goes_ahead_without_the_grader_credential(self):
+        """A choice, not an accident: the batch proceeds, and says before the
+        first episode that its interrogation answers will be keyword-scored,
+        which is the part r4 lacked."""
+        with env_without("ANTHROPIC_API_KEY"):
+            ok, out = self._credentials(no_grader=True)
+        assert ok is True
+        assert "REFUSING TO ROLL OUT" not in out
+        assert "[WARNING] ANTHROPIC_API_KEY is not set" in out
+        assert "keyword cross-check alone" in out
+
+    def test_no_grader_excuses_whichever_vendor_the_grader_is(self):
+        """Keyed on the grader's role, not on one vendor's variable: an OpenAI
+        grader for an OpenRouter model needs no OPENAI_API_KEY either."""
+        with env_without("OPENAI_API_KEY"):
+            ok, out = self._credentials(no_grader=True, grader_model="gpt-6-sol")
+            refused, refusal = self._credentials(grader_model="gpt-6-sol")
+        assert ok is True
+        assert "[WARNING] OPENAI_API_KEY is not set" in out
+        assert refused is False and "OPENAI_API_KEY" in refusal
+
+    def test_without_no_grader_the_grader_credential_still_refuses(self):
+        with env_without("ANTHROPIC_API_KEY"):
+            ok, out = self._credentials(no_grader=False)
+        assert ok is False
+        assert "REFUSING TO ROLL OUT" in out
+
+    def test_no_grader_never_excuses_the_model_credential(self):
+        """Only the grader's row is relaxed: a batch with nothing to evaluate
+        is not a choice anyone makes on purpose."""
+        with env_without("OPENROUTER_API_KEY"):
+            ok, out = self._credentials(no_grader=True)
+        assert ok is False
+        assert "OPENROUTER_API_KEY" in out and "--model" in out
 
     def test_it_refuses_before_any_episode_is_written(self):
         with env_without("ANTHROPIC_API_KEY"):

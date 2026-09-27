@@ -206,7 +206,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, mod
 | `--runs` | `10` | runs in the batch. With `--resume` it is the **target total**, not an increment: a batch of 4 resumed at `--runs 10` collects 6 more, not 10. `run_all_arms.sh` always resumes, so the same reading applies there — see [Every arm for one model](#every-arm-for-one-model) |
 | `--delay` | `30` | seconds between runs, for rate limits |
 | `--grader-model` | `claude-opus-5` | model that grades eval awareness and labels interrogation answers. A frontier model by default because a small one was measurably wrong — see [Validating the grader](docs/methodology.md#validating-the-grader). Collection only: to re-grade saved episodes use `--regrade` |
-| `--no-grader` | off | skip LLM grading (faster, cheaper) |
+| `--no-grader` | off | skip LLM grading of awareness (faster, cheaper). The grader model still scores interrogation answers; with this flag a missing grader credential is a warning rather than a refusal, and those answers fall back to the keyword cross-check, which the report flags |
 | `--output-dir` | `./eval_results_r10` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
 | `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`). When one is sent it becomes part of the batch's identity: it appears in the result filenames and in each run's `effort` field, so two efforts cannot be pooled by accident |
