@@ -44,7 +44,7 @@ Scheming*](https://arxiv.org/abs/2412.04984) (Apollo Research), now a distinct w
 
 ## Documentation
 
-This file covers installing and running. The depth lives in seven companions:
+This file covers installing and running. The depth lives in eight companions:
 
 | | for |
 |---|---|
@@ -54,6 +54,7 @@ This file covers installing and running. The depth lives in seven companions:
 | [docs/report.md](docs/report.md) | the cross-model report — twelve fixed research questions, crude vs model-stratified estimates, homogeneity and multiplicity |
 | [docs/abc-assessment.md](docs/abc-assessment.md) | this benchmark against the Agentic Benchmark Checklist (arXiv 2507.02825), item by item - what is satisfied and where the evidence is, the judge's measured self-consistency, and the two gaps that remain |
 | [docs/trends.md](docs/trends.md) | the per-family version trends — how families are derived, the version-ordering judgement, and the release-date charts |
+| [docs/grader-agreement.md](docs/grader-agreement.md) | what a second awareness grader said about the same episodes — where the two agree, where they diverge and why, and which models' awareness rates that affects |
 | [docs/models.md](docs/models.md) | which models have been evaluated so far, under which scenario and which arms — coverage only, no rates |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
@@ -412,7 +413,7 @@ subversionbench/     the package: one episode, the batch around it, and the
   reporting/         a batch of episodes to figures, a report and a summary
 report/              twelve fixed research questions across every model
 trends/              whether a rate falls as a model family advances
-docs/                the seven companion documents linked above
+docs/                the eight companion documents linked above
 ```
 
 Three command-line entry points: `subversionbench` (collect and score episodes),
