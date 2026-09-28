@@ -87,6 +87,8 @@ from .characteristics import (_awareness_refusal_rows,
                               plot_persistence_within_model)
 from .draw import (_BelowAxes, _draw_forest, _draw_rate_chart,
                    _draw_signal_chart, _draw_slope_chart, _legend_handles)
+from .graders import (GRADER_COMPARISON_DIR,
+                      write_grader_comparison_charts)
 from .exclusion import (_excluded_stratum, _exclusion_captions,
                         _exclusion_title_suffix, _scope_caption)
 from .labels import arm_labels, exposure_of, short_label
@@ -119,6 +121,7 @@ __all__ = [
     "plot_eval_signal_rates", "plot_misuse_profile", "plot_honeypot_access", "plot_lure_misalignment",
     "plot_overview", "plot_persistence_rate", "plot_persistence_within_model",
     "plot_question", "short_label", "write_charts",
+    "GRADER_COMPARISON_DIR", "graders", "write_grader_comparison_charts",
 ]
 
 from subversionbench import charting  # noqa: E402 - re-exported for tests that

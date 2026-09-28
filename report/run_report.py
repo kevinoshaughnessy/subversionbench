@@ -226,7 +226,8 @@ def _out_of_scope_for_this_corpus(section: dict, has_goalguard: bool) -> str:
 
 
 def _narrowed_corpus(output_dir: str, exclusion: str,
-                     awareness_exclusion: str, grader: str) -> tuple:
+                     awareness_exclusion: str, grader: str,
+                     paired_with: tuple = ()) -> tuple:
     """
     Everything the directory holds, narrowed by both readings before use.
 
@@ -246,9 +247,22 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
 
     Episodes are `grader`'s reading, less the ones it has not read yet - see
     split_pending. Those are returned apart and counted, never pooled.
+
+    `paired_with` narrows further, to the episodes EVERY grader named has
+    read: the corpus a chart comparing graders has to share, or the gap
+    between two markers would be partly which episodes each grader covered.
+    What it removes is returned as `unpaired` - apart from `pending`, which
+    means waiting for THIS grader, and most of these are not.
     """
     episodes, pending = split_pending(
         load_episodes(output_dir, grader=grader), grader)
+    unpaired = []
+    if paired_with:
+        paired = []
+        for e in episodes:
+            (paired if set(paired_with) <= set(e["graders"])
+             else unpaired).append(e)
+        episodes = paired
     summaries, episodes, arm_exclusion = exclude_arm(
         load_summaries(output_dir), episodes, exclusion)
     _, failed, _ = exclude_arm([], load_failed_episodes(output_dir), exclusion)
@@ -258,15 +272,17 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     # that reading rather than exempted from it.
     episodes, awareness_stamp = exclude_aware_episodes(
         episodes, awareness_exclusion)
-    return summaries, episodes, failed, arm_exclusion, awareness_stamp, pending
+    return (summaries, episodes, failed, arm_exclusion, awareness_stamp,
+            pending, unpaired)
 
 
 def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
                  awareness_exclusion: str = NO_AWARENESS_EXCLUSION,
-                 grader: str = DEFAULT_GRADER_MODEL) -> dict:
+                 grader: str = DEFAULT_GRADER_MODEL,
+                 paired_with: tuple = ()) -> dict:
     (summaries, episodes, failed, arm_exclusion,
-     awareness_exclusion_stamp, pending) = _narrowed_corpus(
-         output_dir, exclusion, awareness_exclusion, grader)
+     awareness_exclusion_stamp, pending, unpaired) = _narrowed_corpus(
+         output_dir, exclusion, awareness_exclusion, grader, paired_with)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
     # summary field holds. Questions 2 and 4 take the headline measure from the
     # summaries as before and this alongside it; see _text_reachable_block.
@@ -300,8 +316,14 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     # counted episodes this grader has not read yet. Either way its n_aware
     # and n_scheming are not this grader's, and pooling them would put one
     # grader's rates under another's name.
-    grader_block = grader_coverage(grader, summaries, pending)
-    from_summaries = (not on_awareness_reading
+    grader_block = dict(grader_coverage(grader, summaries, pending),
+                        paired_with=sorted(paired_with),
+                        n_unpaired_episodes=len(unpaired))
+    # NEVER from the summaries on a paired report, even one that dropped
+    # nothing: the other graders' reports rebuild from episodes, and a chart
+    # comparing a summary count with a rebuilt one would show any drift
+    # between the two sources as the graders disagreeing.
+    from_summaries = (not on_awareness_reading and not paired_with
                       and grader_block["summaries_hold_its_counts"]
                       and not pending)
     act_source = summaries if from_summaries else act_rows
@@ -587,7 +609,48 @@ def main() -> int:
                                     awareness_exclusion, stamp)
         if failed:
             return failed
+    if len(graders) > 1 and not args.no_charts:
+        _write_comparison_charts(args, graders, exclusion, awareness_exclusion)
     return 0
+
+
+def _write_comparison_charts(args, graders: list, exclusion: str,
+                             awareness_exclusion: str) -> None:
+    """The charts that put every grader's verdicts on one axis.
+
+    From reports built afresh over the episodes EVERY grader has read, not
+    from the per-grader reports above, whose corpora differ by whatever each
+    grader has not reached yet - see report_charts/graders.py.
+
+    Not drawn under the awareness reading: it drops the episodes each grader
+    itself judged aware, so the graders would no longer share a corpus - the
+    one thing these charts rely on. Nor where the graders share no episode,
+    which would draw a chart of empty rows.
+    """
+    if awareness_exclusion != NO_AWARENESS_EXCLUSION:
+        print("\nNo grader comparison charts: --exclude-aware drops each "
+              "grader's own aware episodes, so the graders would not share "
+              "one corpus.")
+        return
+    reports = {g: build_report(args.output_dir, exclusion,
+                               awareness_exclusion, g, paired_with=graders)
+               for g in graders}
+    if not next(iter(reports.values()))["n_episode_files"]:
+        print(f"\nNo grader comparison charts: no episode has been read by "
+              f"all of {', '.join(graders)}.")
+        return
+    chart_dir = os.path.join(
+        args.chart_dir or charting.default_chart_dir(
+            args.output_dir, _artefact_suffix(exclusion, awareness_exclusion)),
+        report_charts.GRADER_COMPARISON_DIR)
+    written = report_charts.write_grader_comparison_charts(reports, chart_dir)
+    if written:
+        n = next(iter(reports.values()))["n_episode_files"]
+        print(f"\n{len(written)} grader comparison chart(s), over the {n} "
+              f"episode(s) all {len(graders)} graders have read, written to "
+              f"{redact_paths(chart_dir)}:")
+        for path in written:
+            print(f"  {os.path.basename(path)}")
 
 
 def _print_grader(block: dict) -> None:

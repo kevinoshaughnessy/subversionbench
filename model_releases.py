@@ -135,6 +135,8 @@ RELEASE_DATES = {
     # grader_ab/prices.py. Its stem is distinct from "gpt-5.6-sol" above, so
     # the two do not collide.
     "gpt-6-sol": date(2026, 9, 22),
+    # Announced with gpt-6-sol, on its native key for the same reason.
+    "gpt-6-luna": date(2026, 9, 22),
 
     # meta
     "meta-llama/llama-4-maverick": date(2025, 4, 5),

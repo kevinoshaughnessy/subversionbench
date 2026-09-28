@@ -467,6 +467,9 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    and how far the episode got with the file. Its own module
                    because these are the only charts split by oversight
                    stratum, which is what makes the exclusion apply to a PANEL
+  graders.py       the charts that put several graders' verdicts on one axis,
+                   drawn only from the episodes every grader has read, into
+                   charts/<rollout>/grader_comparison/
   write.py         the entry point: every chart into one directory, and the
                    paths it actually wrote
 sad_oversight.py   an external situational-awareness leaderboard, encrypted at

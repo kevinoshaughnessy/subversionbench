@@ -10,6 +10,29 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v219
+
+**Charts that put every grader's verdicts on one axis.** When the run files hold more
+than one grader, `python3 -m report` also writes `charts/<rollout>/grader_comparison/`:
+the questions overview, question 2 (oversight vs awareness), question 5 (awareness vs
+misalignment) and the rubric signal rates, each with one marker per grader on every row.
+They are drawn from reports built with `build_report(..., paired_with=<graders>)`, which
+keeps only the episodes every grader has read and counts the rest, so a gap between two
+markers is the graders disagreeing rather than covering different models. An estimate a
+grader could not make is labelled with its reason rather than left blank.
+
+On those charts a crude estimate its own question says not to report - crude and
+stratified diverge - is drawn hollow, faint and dashed, and the report's warning is
+captioned for each grader it applies to; question 5 on r10 diverges under both. Crude
+and stratified estimates take different markers, since colour already names the grader.
+A paired report always rebuilds questions 1-4 from its episodes, so no marker compares a
+summary count with a rebuilt one, and counts the episodes it dropped for pairing apart
+from those still waiting for its grader. No comparison is drawn under `--exclude-aware`,
+which drops each grader's own aware episodes, or where the graders share no episode.
+
+`gpt-6-luna` gets its release date (2026-09-22, announced with gpt-6-sol), so the
+release-date trend charts no longer omit it.
+
 ## v218
 
 **The default grader is gpt-6-sol, and the report and trends answer every question
