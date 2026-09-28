@@ -56,6 +56,11 @@ PRICES_PER_MTOK = {
     # model_releases.py keeps for the same reason.
     "gpt-6-sol": (2.0, 10.0),
     "gpt-6-luna": (0.1, 0.5),
+    # Open-weight candidates reached through OpenRouter, priced from its model
+    # listing on 2026-09-28. The host behind a grader call is not pinned, so a
+    # call can be served by a backend charging something else.
+    "z-ai/glm-5.3": (0.365, 4.4),
+    "moonshotai/kimi-k3": (3.0, 15.0),
 }
 
 # What a cached read costs as a fraction of the base input price. 0.1x is the
@@ -65,5 +70,9 @@ PRICES_PER_MTOK = {
 # mostly cached reads of the same transcript. Keyed separately from the price
 # tuple because only the READ multiplier varies: the 1.25x five-minute write
 # applies to every model in the table, Opus 5.5 included.
-CACHE_READ_MULTIPLIER = {"claude-opus-5-5": 0.05}
+#
+# z-ai/glm-5.3 goes the other way: OpenRouter lists its cached read at $0.26
+# against a $0.365 base, about 0.71x, so the standard 0.1 would understate a
+# regrade made mostly of cached reads by several times.
+CACHE_READ_MULTIPLIER = {"claude-opus-5-5": 0.05, "z-ai/glm-5.3": 0.26 / 0.365}
 STANDARD_CACHE_READ_MULTIPLIER = 0.1

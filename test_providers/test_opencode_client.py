@@ -89,6 +89,11 @@ class TestOpencodeRequestShape:
             "x-ai/grok-4.5", 100, "sys", tools,
             [{"role": "user", "content": "hi"}])
         assert "extra_body" not in kwargs
+        with_effort = client._request_kwargs(
+            "x-ai/grok-4.5", 100, "sys", tools,
+            [{"role": "user", "content": "hi"}], effort="low")
+        assert "extra_body" not in with_effort, (
+            "OpenRouter's reasoning parameter has no documented Zen equivalent")
         assert kwargs["tools"] == [{
             "type": "function",
             "function": {"name": "bash", "description": "d",

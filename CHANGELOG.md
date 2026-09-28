@@ -10,6 +10,21 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v217
+
+**A grader reached through OpenRouter is asked for a low reasoning effort.** The short
+grader and classifier calls already asked a native OpenAI grader, and any Claude model
+that cannot turn thinking off, for the lowest effort. An OpenRouter grader was sent
+nothing, on the belief that the route takes no reasoning parameter; it takes
+`reasoning.effort`, and the client was dropping the effort it was handed. So
+`z-ai/glm-5.3` graded at its default depth beside a gpt-6-sol asked for low, and some of
+its answers spent the whole allowance reasoning and returned no verdict. The effort is
+now sent, and translated by `OpenRouterClient`. Rollouts are unchanged, since they send
+no reasoning parameter on that route, and so is `contamination_check.py`, which puts
+its calls to the model under test and asks for no effort. The default grader,
+claude-opus-5, turns thinking off and is unaffected. `z-ai/glm-5.3` and
+`moonshotai/kimi-k3` are priced in `grader_ab`, glm-5.3 with its own cached-read rate.
+
 ## v216
 
 **`--no-grader` can roll out without the grader model's credential.** Until now the
