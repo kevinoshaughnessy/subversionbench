@@ -30,7 +30,9 @@ twelve-arm cross product.
 
 - [claude-haiku-4-5-20251001](https://www.anthropic.com/claude-haiku-4-5-system-card)
 - [claude-opus-5](https://www-cdn.anthropic.com/c5fbac3f0b1280a933ebd26d3cb8bb9f5bdeaf48/Claude%20Opus%205%20System%20Card.pdf)
+- [claude-sonnet-4-5](https://www.anthropic.com/claude-sonnet-4-5-system-card)
 - [claude-sonnet-4-6](https://www.anthropic.com/claude-sonnet-4-6-system-card)
+- [claude-sonnet-5](https://www.anthropic.com/claude-sonnet-5-system-card)
 - [deepseek/deepseek-v4-flash](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-flash-0731](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-pro](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
@@ -43,10 +45,14 @@ twelve-arm cross product.
 - [google/gemini-3.7-flash](https://deepmind.google/models/model-cards/gemini-3-7-flash/)
 - [gpt-5.6-luna](https://deploymentsafety.openai.com/gpt-5-6/gpt-5-6.pdf)
 - [gpt-6-astra](https://deploymentsafety.openai.com/gpt-6-astra)
+- [gpt-6-luna](https://deploymentsafety.openai.com/gpt-6-astra/sec:appendix-sol-luna)
+- [gpt-6-sol](https://deploymentsafety.openai.com/gpt-6-astra/sec:appendix-sol-luna)
+- [inception/mercury-2.5](https://openrouter.ai/inception/mercury-2.5) †
 - [inclusionai/ling-3.0-flash](https://huggingface.co/inclusionAI/Ling-3.0-flash)
 - [meta-llama/llama-4-maverick](https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/)
 - [meta-llama/llama-4-scout](https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/)
 - [meta/muse-glimmer-30b](https://developer.meta.com/ai/models/muse-glimmer/)
+- [meta/muse-spark-1.1](https://ai.meta.com/static-resource/muse-spark-1-1-evaluation-report/)
 - [meta/muse-spark-1.2](https://developer.meta.com/ai/models/muse-spark/)
 - [meta/muse-spark-1.3](https://developer.meta.com/ai/models/muse-spark/)
 - [mistralai/mistral-small-2603](https://docs.mistral.ai/models/model-cards/mistral-small-4-0-26-03)
@@ -61,6 +67,7 @@ twelve-arm cross product.
 - [qwen/qwen3.7-flash](https://openrouter.ai/qwen/qwen3.7-flash) †
 - [qwen/qwen3.8-27b](https://huggingface.co/Qwen/Qwen3.8-27B)
 - [qwen/qwen3.8-flash](https://openrouter.ai/qwen/qwen3.8-flash) †
+- [qwen/qwen3.8-max-0902](https://openrouter.ai/qwen/qwen3.8-max-0902) †
 - [tencent/hy3](https://huggingface.co/tencent/Hy3)
 - [tencent/hy4-preview](https://huggingface.co/tencent/Hy4-preview)
 - [thinkingmachines/inkling-small](https://thinkingmachines.ai/model-card/inkling-small/)
@@ -69,6 +76,7 @@ twelve-arm cross product.
 - [x-ai/grok-4.3](https://openrouter.ai/x-ai/grok-4.3) †
 - [x-ai/grok-4.5](https://media.x.ai/v1/website/4p5-5184fdf9.pdf)
 - [x-ai/grok-4.6](https://media.x.ai/v1/website/card-4p6-4cd2dc57.pdf)
+- [x-ai/grok-4.7](https://media.x.ai/v1/website/4p7card-5eccc980.pdf)
 - [z-ai/glm-5.1](https://huggingface.co/zai-org/GLM-5.1)
 - [z-ai/glm-5.2](https://huggingface.co/zai-org/GLM-5.2)
 - [z-ai/glm-5.3](https://huggingface.co/zai-org/GLM-5.3)
@@ -94,13 +102,16 @@ lure held off throughout: eight arms per model.
 
 | model | status |
 |---|---|
+| deepseek/deepseek-v4.1-flash | complete |
 | google/gemini-3-flash-preview | complete |
 | google/gemini-3.5-flash | complete |
 | meta/muse-spark-1.2 | complete |
 | qwen/qwen3.8-flash | complete (79/80 — one episode missing from replacement/no-oversight/none) |
+| tencent/hy4-preview | complete |
 | thinkingmachines/inkling-small | complete |
 | x-ai/grok-4.5 | complete |
 | x-ai/grok-4.6 | complete |
+| x-ai/grok-4.7 | complete |
 
 `eval_results_goalguard_r1_prenudgefix/` holds episodes superseded by the v183 fix to
 `nudge` reaching scenario assembly (see CHANGELOG.md) — not a fourth model, and not part
