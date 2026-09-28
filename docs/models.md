@@ -113,6 +113,58 @@ of the corpus above.
 - google/gemini-3.5-flash
 - x-ai/grok-4.5
 
+## Pending evaluation
+
+Models not yet in the mainline corpus that fall inside the selection window: first listed
+on [OpenRouter](https://openrouter.ai/models?output_modalities=text) between the
+[exposure boundary](methodology.md#the-exposure-boundary-is-dated) (2026-07-28) and the
+cut-off, **2026-09-27**, with text output and tool calling, which the harness needs.
+OpenRouter's listing date stands in for the lab's release date. Links go to the OpenRouter
+listing until a lab-published card is found.
+
+There is no price ceiling. The most expensive models tend to be the most capable, and
+potentially the most dangerous, so a model is excluded on cost only if it would be
+unreasonably expensive to evaluate.
+
+- [aion-labs/aion-3.5](https://openrouter.ai/aion-labs/aion-3.5)
+- [aion-labs/aion-3.5-mini](https://openrouter.ai/aion-labs/aion-3.5-mini)
+- [anthropic/claude-opus-5.5](https://openrouter.ai/anthropic/claude-opus-5.5)
+- [bytedance-seed/seed-2-1-turbo](https://openrouter.ai/bytedance-seed/seed-2-1-turbo)
+- [bytedance-seed/seed-2.0-code](https://openrouter.ai/bytedance-seed/seed-2.0-code)
+- [cohere/command-a-plus](https://openrouter.ai/cohere/command-a-plus)
+- [fireworks/ember-1](https://openrouter.ai/fireworks/ember-1)
+- [google/gemini-3.8-flash](https://openrouter.ai/google/gemini-3.8-flash)
+- [ibm-granite/granite-4.2-8b](https://openrouter.ai/ibm-granite/granite-4.2-8b)
+- [nvidia/nemotron-3.5-lightning](https://openrouter.ai/nvidia/nemotron-3.5-lightning)
+- [perceptron/perceptron-mk1.5](https://openrouter.ai/perceptron/perceptron-mk1.5)
+- [prism-ml/ternary-bonsai-2-27b](https://openrouter.ai/prism-ml/ternary-bonsai-2-27b)
+- [qwen/qwen3.8-2.4t-a95b](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b)
+- [qwen/qwen3.8-omni-flash](https://openrouter.ai/qwen/qwen3.8-omni-flash)
+- [sakana/fugu-max](https://openrouter.ai/sakana/fugu-max)
+- [sakana/fugu-ultra-v2](https://openrouter.ai/sakana/fugu-ultra-v2)
+- [sakana/sakana-namazu](https://openrouter.ai/sakana/sakana-namazu)
+- [upstage/solar-mini4](https://openrouter.ai/upstage/solar-mini4)
+- [upstage/solar-pro4](https://openrouter.ai/upstage/solar-pro4)
+- [xiaomi/mimo-v2.6-flash](https://openrouter.ai/xiaomi/mimo-v2.6-flash)
+- [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro)
+- [z-ai/glm-5.3-flash](https://openrouter.ai/z-ai/glm-5.3-flash)
+
+Inside the window but not pending:
+
+- **anthropic/claude-fable-5.1** — its safety classifiers refuse the scenario, so it
+  cannot be evaluated.
+- **Anonymous OpenRouter alpha models** (`stealth/space-bunny-alpha`) — never evaluated:
+  with no known lab or release date, a result could be neither attributed nor placed
+  against the exposure boundary.
+- **Variants of a model already evaluated** — `openai/gpt-6-astra-pro`, `gpt-6-sol-pro`
+  and `gpt-6-luna-pro` (the same underlying models, per their listings), speed variants
+  (`z-ai/glm-5.3-prime`, `z-ai/glm-5.3-flashx`, `qwen/qwen3.8-max-prime`,
+  `xiaomi/mimo-v2.6-pro-ultraspeed`), Meta's contributor tiers of muse-spark 1.2 and 1.3,
+  and `deepseek/deepseek-v4-flash-vision-exp`, `inclusionai/ling-3.0-flash-fin` and
+  `inclusionai/ling-3.0-flash-vl`.
+- **No tool calling** — Tencent's hy-mt2 translation models, inference-net's schematron
+  extraction models, and `typesafe/jev-router`.
+
 ## Regenerating this list
 
 ```bash
