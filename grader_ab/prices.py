@@ -6,10 +6,15 @@ read them without importing the package that imports the submodule.
 """
 
 
-# The reference cell: what the corpus was graded with. Everything is compared
+from subversionbench.config import DEFAULT_GRADER_MODEL
+
+# The reference cell: what the corpus is graded with. Everything is compared
 # against this, and it is re-run rather than read so the comparison carries its
-# own noise floor.
-REFERENCE = ("claude-opus-5", "per_question")
+# own noise floor. The default grader rather than a named one, because the
+# sample is balanced on the default's stored verdicts: a reference of
+# claude-opus-5 after the default moved to gpt-6-sol in v218 would have
+# balanced on one grader and compared against another.
+REFERENCE = (DEFAULT_GRADER_MODEL, "per_question")
 
 # Models whose awareness the free keyword screen catches least often - 18% to
 # 32% recall against the grader, where the corpus average is 72%. Their

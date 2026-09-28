@@ -14,6 +14,7 @@ from pathlib import Path
 from subversionbench.batch import BatchSelection, find_run_files
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
+from subversionbench.config import DEFAULT_GRADER_MODEL
 from subversionbench.graders import grader_models, view
 from conftest import FakeArgs
 
@@ -109,18 +110,18 @@ class TestGradeExistingRuns:
         self._write_run(out, "run_1_x-ai_grok-4.5_strong_20260727T100000.json")
 
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
-                         nudge="strong", grader_model="claude-opus-5")
+                         nudge="strong", grader_model=DEFAULT_GRADER_MODEL)
         with _stub_grader(answer=True):
             rc = ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
         assert rc == 0
         written = glob.glob(f"{out}/regrade_*.json")
         assert len(written) == 1
-        assert "by_claude-opus-5" in os.path.basename(written[0])
+        assert f"by_{DEFAULT_GRADER_MODEL}" in os.path.basename(written[0])
 
         regrade = json.loads(Path(written[0]).read_text())
         assert regrade["model"] == "x-ai/grok-4.5"
-        assert regrade["grader_model"] == "claude-opus-5"
+        assert regrade["grader_model"] == DEFAULT_GRADER_MODEL
         assert regrade["eval_awareness_rate_grader"] == 1.0
 
     def test_originals_untouched_without_write_back(self):
@@ -130,7 +131,7 @@ class TestGradeExistingRuns:
         before = Path(f"{out}/{name}").read_text()
 
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
-                         nudge="strong", grader_model="claude-opus-5")
+                         nudge="strong", grader_model=DEFAULT_GRADER_MODEL)
         with _stub_grader(answer=True):
             ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
@@ -142,7 +143,7 @@ class TestGradeExistingRuns:
         self._write_run(out, name, grader_aware=False)
 
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
-                         nudge="strong", grader_model="claude-opus-5",
+                         nudge="strong", grader_model=DEFAULT_GRADER_MODEL,
                          write_back=True)
         with _stub_grader(answer=True):
             ev_run.grade_existing_runs(args, BatchSelection.typed(args))
@@ -150,14 +151,14 @@ class TestGradeExistingRuns:
         data = json.loads(Path(f"{out}/{name}").read_text())
         # The default grader's fresh reading is what every figure now reads...
         grader = view(data["analysis"])["eval_awareness_grader"]
-        assert grader["grader_model"] == "claude-opus-5"
+        assert grader["grader_model"] == DEFAULT_GRADER_MODEL
         assert grader["eval_aware"] is True
         # ...and the reading the file already held, by another grader, is kept
         # beside it rather than replaced. That is the point of the array.
         kept = view(data["analysis"], "claude-haiku-4-5-20251001")
         assert kept["eval_awareness_grader"]["eval_aware"] is False
         assert grader_models(data["analysis"]) == [
-            "claude-haiku-4-5-20251001", "claude-opus-5"]
+            "claude-haiku-4-5-20251001", DEFAULT_GRADER_MODEL]
         assert data["transcript"], "transcript must survive the rewrite"
 
     def test_total_grader_failure_is_not_reported_as_zero_percent(self):
@@ -168,7 +169,7 @@ class TestGradeExistingRuns:
         self._write_run(out, "run_1_x-ai_grok-4.5_strong_20260727T100000.json")
 
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
-                         nudge="strong", grader_model="claude-opus-5")
+                         nudge="strong", grader_model=DEFAULT_GRADER_MODEL)
         with _stub_grader(raises=True):
             rc = ev_run.grade_existing_runs(args, BatchSelection.typed(args))
 
@@ -184,7 +185,7 @@ class TestGradeExistingRuns:
         before = Path(f"{out}/{name}").read_text()
 
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
-                         nudge="strong", grader_model="claude-opus-5",
+                         nudge="strong", grader_model=DEFAULT_GRADER_MODEL,
                          write_back=True)
         with _stub_grader(raises=True):
             ev_run.grade_existing_runs(args, BatchSelection.typed(args))
@@ -194,7 +195,7 @@ class TestGradeExistingRuns:
     def test_missing_runs_reports_failure(self):
         out = tempfile.mkdtemp()
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
-                         nudge="strong", grader_model="claude-opus-5")
+                         nudge="strong", grader_model=DEFAULT_GRADER_MODEL)
         assert ev_run.grade_existing_runs(args, BatchSelection.typed(args)) == 1
 
 
@@ -376,7 +377,7 @@ class TestTheDelayPacesTheFilesAndNotTheLastOne:
         original = grade_mode.time.sleep
         grade_mode.time.sleep = slept.append
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5",
-                        nudge="strong", grader_model="claude-opus-5",
+                        nudge="strong", grader_model=DEFAULT_GRADER_MODEL,
                         delay=delay)
         try:
             with _stub_grader(answer=True), \

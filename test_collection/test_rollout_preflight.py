@@ -18,6 +18,13 @@ import tempfile
 import subversionbench.run_eval as ev_run
 import conftest
 from conftest import env_without
+from subversionbench.config import DEFAULT_GRADER_MODEL
+from subversionbench.llm_client import credential_env_var
+
+# The credential a rollout's DEFAULT grader needs. Derived rather than named:
+# these tests said ANTHROPIC_API_KEY while the default was claude-opus-5, and
+# every one of them passed a batch straight through when it moved to gpt-6-sol.
+GRADER_KEY = credential_env_var(DEFAULT_GRADER_MODEL)
 
 
 class TestARolloutRefusesBeforeItSpends:
@@ -46,14 +53,14 @@ class TestARolloutRefusesBeforeItSpends:
         """The model's own route being fine is not enough: the grader model scores
         every interrogation answer, so its credential decides whether the
         concealment measure works at all."""
-        with env_without("ANTHROPIC_API_KEY"):
+        with env_without(GRADER_KEY):
             code, out, _ = self._rollout()
         assert code == 1
-        assert "ANTHROPIC_API_KEY" in out
+        assert GRADER_KEY in out
         assert "--grader-model" in out
 
     def test_the_grader_refusal_names_no_grader_as_the_way_round(self):
-        with env_without("ANTHROPIC_API_KEY"):
+        with env_without(GRADER_KEY):
             _, out, _ = self._rollout()
         assert "Pass --no-grader" in out
 
@@ -108,15 +115,15 @@ class TestARolloutRefusesBeforeItSpends:
         assert "OPENROUTER_API_KEY" in out and "--model" in out
 
     def test_it_refuses_before_any_episode_is_written(self):
-        with env_without("ANTHROPIC_API_KEY"):
+        with env_without(GRADER_KEY):
             code, out, outdir = self._rollout()
         assert not glob.glob(f"{outdir}/run_*.json"), "an episode was paid for"
         assert "# RUN 1/" not in out
 
     def test_the_refusal_names_the_fix(self):
-        with env_without("ANTHROPIC_API_KEY"):
+        with env_without(GRADER_KEY):
             _, out, _ = self._rollout()
-        assert "export ANTHROPIC_API_KEY=" in out
+        assert f"export {GRADER_KEY}=" in out
 
     def test_a_drifted_rollout_stops_it(self):
         """The refusal that keeps two experiments out of one directory.

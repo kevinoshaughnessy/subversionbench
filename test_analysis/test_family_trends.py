@@ -70,8 +70,8 @@ class TestWhereTheJsonGoes:
         """The help lives in main; the filename is built one call down, where
         `--metric all` loops over it."""
         import inspect
-        assert "family_trends_<metric>_<timestamp>.json" in inspect.getsource(
-            ft.main)
+        assert ("family_trends_<metric>_<grader>_<timestamp>.json"
+                in inspect.getsource(ft.main))
         assert 'f"family_trends_{metric}_' in inspect.getsource(
             ft._report_one_metric)
 
@@ -208,9 +208,16 @@ class TestRunningEveryMetric:
             # can answer. text_reachable is derived per episode and the fixture
             # writes summaries only, so it contributes no charts and must not
             # stop the others being drawn.
+            # In the one grader's subdirectory: its summaries hold the
+            # default grader's counts, and it has no run files to find
+            # another in.
+            from subversionbench.charting import grader_chart_dir
+            from subversionbench.config import DEFAULT_GRADER_MODEL
+            assert os.listdir(charts) == [DEFAULT_GRADER_MODEL]
             from_summaries = [m for m, spec in ft.METRICS.items()
                               if not spec.get("from_episodes")]
-            assert len(os.listdir(charts)) == 3 * len(from_summaries)
+            assert len(os.listdir(grader_chart_dir(
+                charts, DEFAULT_GRADER_MODEL))) == 3 * len(from_summaries)
 
 
 class TestACorpusWithNoFamilyIsReportedTwoDifferentWays:

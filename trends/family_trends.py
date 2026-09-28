@@ -78,6 +78,7 @@ import os
 import time
 
 from subversionbench import charting
+from report import load_episodes, report_graders
 from subversionbench.config import ROLLOUT_VERSION
 from subversionbench.redaction import redact_paths
 
@@ -117,12 +118,13 @@ def main() -> int:
                              "semantic version (default: %(default)s)")
     parser.add_argument("--json-out", default=None,
                         help="where to write the JSON report (default: "
-                             "family_trends_<metric>_<timestamp>.json inside "
-                             "--output-dir)")
+                             "family_trends_<metric>_<grader>_<timestamp>.json "
+                             "inside --output-dir)")
     parser.add_argument("--chart-dir", default=None,
                         help="where to write the PNG charts (default: "
                              "charts/<rollout>/ beside --output-dir, not "
-                             "inside it). One per family plus one combined, "
+                             "inside it), in a subdirectory per grader found "
+                             "in the run files. One per family plus one combined, "
                              "against version order and again against release "
                              "date; needs the 'charts' extra")
     parser.add_argument("--no-charts", action="store_true",
@@ -135,32 +137,44 @@ def main() -> int:
         return 1
 
     metrics = sorted(METRICS) if args.metric == METRIC_ALL else [args.metric]
-    if args.json_out and len(metrics) > 1:
-        parser.error("--json-out names one file, and --metric all writes one "
-                     "report per metric. Drop --json-out to get "
-                     "family_trends_<metric>_<timestamp>.json for each, or "
-                     "name a single --metric.")
+    # One report per grader the run files hold, as the research report does:
+    # the grader-dependent metrics are each grader's own. A directory with no
+    # run files, or none graded, gets the one report it always did.
+    graders = report_graders(args.output_dir)
+    if args.json_out and len(metrics) * len(graders) > 1:
+        parser.error("--json-out names one file, and this run writes one "
+                     "report per metric per grader "
+                     f"({len(metrics)} x {len(graders)}). Drop --json-out to "
+                     "get family_trends_<metric>_<grader>_<timestamp>.json "
+                     "for each, or name a single --metric.")
 
     # One stamp for the whole invocation rather than one per metric, so the
     # reports from a single run share a filename suffix and sort together
     # instead of being separated by however long the run took.
     stamp = time.strftime("%Y%m%dT%H%M%S")
     failed = 0
-    for metric in metrics:
-        if len(metrics) > 1:
-            print(f"\n\n{'#' * 78}\n# metric: {metric}\n{'#' * 78}")
-        failed += _report_one_metric(args, metric, stamp)
+    for grader in graders:
+        # Loaded once per grader rather than once per metric: every metric
+        # needs to know which episodes this grader has not read yet.
+        episodes = load_episodes(args.output_dir, grader=grader)
+        for metric in metrics:
+            if len(metrics) * len(graders) > 1:
+                print(f"\n\n{'#' * 78}\n# grader: {grader}\n"
+                      f"# metric: {metric}\n{'#' * 78}")
+            failed += _report_one_metric(args, metric, grader, episodes, stamp)
     return 1 if failed else 0
 
 
-def _report_one_metric(args, metric: str, stamp: str) -> int:
+def _report_one_metric(args, metric: str, grader: str, episodes: list,
+                       stamp: str) -> int:
     """
-    One metric, end to end. Returns 0 on success and 1 on failure.
+    One metric for one grader, end to end. Returns 0 on success, 1 on failure.
 
-    Split out of main so `--metric all` runs the same path three times rather
-    than a second implementation of it.
+    Split out of main so `--metric all` runs the same path for every metric
+    and every grader rather than a second implementation of it.
     """
-    report = build_report(args.output_dir, metric, args.version_style)
+    report = build_report(args.output_dir, metric, args.version_style,
+                          grader, episodes)
     if not report["families"]:
         # A metric read from episodes finds nothing in a directory that holds
         # only summaries. That is a gap in what this corpus can answer, not a
@@ -177,8 +191,9 @@ def _report_one_metric(args, metric: str, stamp: str) -> int:
     _print_report(report)
 
     if not args.no_charts:
-        chart_dir = args.chart_dir or charting.default_chart_dir(
-            args.output_dir)
+        chart_dir = charting.grader_chart_dir(
+            args.chart_dir or charting.default_chart_dir(args.output_dir),
+            grader)
         written = write_charts(report, chart_dir)
         if written:
             print(f"\n{len(written)} chart(s) written to "
@@ -193,7 +208,7 @@ def _report_one_metric(args, metric: str, stamp: str) -> int:
         # names: two metrics of one corpus are two different reports, and a
         # directory of timestamped files gives no way to tell which is which
         # without opening them.
-        f"family_trends_{metric}_{stamp}.json")
+        f"family_trends_{metric}_{grader.replace('/', '_')}_{stamp}.json")
     with open(out, "w") as f:
         json.dump(report, f, indent=2)
     print(f"\nJSON written to {redact_paths(out)}")

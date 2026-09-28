@@ -23,7 +23,11 @@ from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.grading.interrogation import classify_interrogation_answer
 
 ACT = MISALIGNED_ACTS[0]
-OTHER = "gpt-6-sol"
+# Any grader but the default. It was gpt-6-sol until that became the default
+# in v218, when every test here that meant "a second grader" quietly compared
+# the default with itself.
+OTHER = "claude-opus-5"
+assert OTHER != DEFAULT_GRADER_MODEL
 
 
 def _labelled(verdict, model=DEFAULT_GRADER_MODEL):
@@ -229,4 +233,13 @@ class TestTheReportReadsTheDefaultGrader:
         flat_dir, array_dir = tempfile.mkdtemp(), tempfile.mkdtemp()
         self._corpus(flat_dir, as_array=False)
         self._corpus(array_dir, as_array=True)
-        assert load_episodes(array_dir) == load_episodes(flat_dir)
+        # Except for `graders`, which says who read the episode and so SHOULD
+        # differ: the report uses it to tell an episode a grader has not read
+        # yet from one no grader read.
+        array, flat = load_episodes(array_dir), load_episodes(flat_dir)
+        assert {e["graders"] for e in array} == {(DEFAULT_GRADER_MODEL, OTHER)}
+        assert {e["graders"] for e in flat} == {(DEFAULT_GRADER_MODEL,)}
+        def without_graders(rows):
+            return [{k: v for k, v in e.items() if k != "graders"}
+                    for e in rows]
+        assert without_graders(array) == without_graders(flat)

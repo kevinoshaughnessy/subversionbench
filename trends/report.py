@@ -28,9 +28,10 @@ import time
 from datetime import date, timedelta
 
 from model_releases import release_date
-from report import awareness_arm_rows, load_episodes, load_summaries
-from subversionbench.config import (ROLLOUT_NAME, ROLLOUT_VERSION,
-                                    VERSION)
+from report import (act_arm_rows, awareness_arm_rows, grader_coverage,
+                    load_episodes, load_summaries, split_pending)
+from subversionbench.config import (DEFAULT_GRADER_MODEL, ROLLOUT_NAME,
+                                    ROLLOUT_VERSION, VERSION)
 from subversionbench.power import (MIN_INFORMATIVE_DENOMINATOR,
                                    benjamini_hochberg, cochran_armitage,
                                    compare_rates, holm_bonferroni, sign_test,
@@ -256,15 +257,43 @@ def data_quality(families: dict, rates: dict, metric: str) -> dict:
     }
 
 
+def _metric_rows(output_dir: str, metric: str, grader: str, summaries: list,
+                 episodes) -> tuple:
+    """(rows the metric is pooled from, grader coverage block).
+
+    The summaries where they hold `grader`'s own counts for every episode in
+    scope, and rows rebuilt from its episodes otherwise - the rule
+    report/run_report.build_report applies to questions 1-4, for the same
+    reason: a summary counted one grader's verdicts, so its n_aware and
+    n_scheming are no other grader's. `episodes` is the grader's episodes if
+    the caller already loaded them, which saves a pass per metric.
+    """
+    if episodes is None:
+        episodes = load_episodes(output_dir, grader=grader)
+    episodes, pending = split_pending(episodes, grader)
+    coverage = grader_coverage(grader, summaries, pending)
+    spec = METRICS[metric]
+    if (coverage["summaries_hold_its_counts"] and not pending
+            and not spec.get("from_episodes")):
+        return summaries, coverage
+    # The awareness metrics are counted over the episodes whose verdict
+    # resolved and the rest over every episode, which is the difference
+    # between the two rebuilders.
+    rebuild = (awareness_arm_rows if spec["den"] == "n_awareness_resolved"
+               else act_arm_rows)
+    return rebuild(episodes), coverage
+
+
 def build_report(output_dir: str, metric: str = "misaligned",
-                 style: str = "decimal") -> dict:
+                 style: str = "decimal", grader: str = DEFAULT_GRADER_MODEL,
+                 episodes: list = None) -> dict:
     summaries = load_summaries(output_dir)
     # The exposure figures come from the summaries either way, because they
     # describe the model rather than the metric - a text_reachable chart still
     # has to say which instrument each point was measured with.
     exposure = model_exposure(summaries)
-    rows = (awareness_arm_rows(load_episodes(output_dir))
-            if METRICS[metric].get("from_episodes") else summaries)
+    rows, coverage = _metric_rows(output_dir, metric, grader, summaries,
+                                  episodes)
     if METRICS[metric].get("oversight_only"):
         rows = [r for r in rows if r["oversight"]]
     rates = model_rates(rows, metric)
@@ -310,6 +339,9 @@ def build_report(output_dir: str, metric: str = "misaligned",
         "output_dir": redact_paths(os.path.abspath(output_dir)),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "metric": metric,
+        # Whose verdicts the grader-dependent metrics are, and which episodes
+        # were left out because this grader has not read them yet.
+        "grader": coverage,
         "metric_label": METRICS[metric]["label"],
         "metric_denominator_label": METRICS[metric]["denominator_label"],
         "version_style": style,

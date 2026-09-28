@@ -15,13 +15,13 @@ Every reader in this codebase was written against the flat shape, and there are
 dozens of them. Rather than teach each one the array, this module projects ONE
 grader's entry back onto the flat keys (`view`), so a reader sees exactly the
 shape it always has; and every writer folds its working copy back in (`store`).
-The default is DEFAULT_GRADER_MODEL, which is what makes every figure and chart
-the default grader's without any of them naming it.
+The default is DEFAULT_GRADER_MODEL. The report and trends ask for each grader
+the run files hold, one set of figures per grader, rather than for the default.
 
 Files written before the array existed are read here and nowhere else: their one
 flat reading becomes one entry, named by the model it recorded. Every r9 and r10
-file records claude-opus-5 on every grader-judged field, so their default view is
-exactly what they held. Such a file also keeps its flat shape when its own grader
+file records claude-opus-5 on every grader-judged field, so their claude-opus-5
+view is exactly what they held. Such a file also keeps its flat shape when its own grader
 writes it back, and becomes an array only when a second grader is added - so
 nothing that read the corpus before has to change until there is a second
 reading for it to see. New episodes are written as an array from the start.
@@ -180,8 +180,14 @@ def graders_of(analysis: dict, acts=MISALIGNED_ACTS) -> list:
 
     A pre-array file that names no grader is credited to the default. Such a
     file held THE reading, the one every figure was built from, so crediting
-    it anywhere else would drop it from every figure on upgrade. No r9 or r10
-    file is affected: every one names claude-opus-5 wherever a grader ran.
+    it anywhere else would drop it from every figure on upgrade.
+
+    That includes after the default moved to gpt-6-sol in v218, which would
+    make an unnamed claude-opus-5 reading gpt-6-sol's - and it is safe only
+    because there is none. Measured when the default moved, over every run
+    file in all 26 result directories: each judged reading names its grader,
+    since the awareness block has stamped its model from v13 on. A reading
+    older than that would need LEGACY_DEFAULT_GRADER_MODEL here instead.
     """
     if "graders" in analysis:
         return analysis["graders"]

@@ -15,6 +15,7 @@ import tempfile
 import report as run_report
 import report_charts as rc
 from subversionbench import charting
+from subversionbench.config import DEFAULT_GRADER_MODEL
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 from test_analysis.chart_fixtures import _SIGNAL_KEYS
 from test_analysis.chart_fixtures import (
@@ -269,7 +270,12 @@ class TestPersistenceChartsInARealReport:
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
-            names = set(os.listdir(charting.default_chart_dir(out)))
+            # In the grader's own subdirectory. No episode here was graded
+            # and the summaries predate the grader stamp, so the one grader is
+            # the one those summaries are read as holding.
+            [grader] = run_report.report_graders(out)
+            names = set(os.listdir(charting.grader_chart_dir(
+                charting.default_chart_dir(out), grader)))
         assert "persistence_rate.png" in names
 
 
@@ -611,7 +617,8 @@ class TestSignalChartInARealReport:
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
-            names = set(os.listdir(charting.default_chart_dir(out)))
+            names = set(os.listdir(charting.grader_chart_dir(
+                charting.default_chart_dir(out), DEFAULT_GRADER_MODEL)))
         assert "eval_signal_rates.png" in names
 
 

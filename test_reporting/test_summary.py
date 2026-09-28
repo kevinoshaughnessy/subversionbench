@@ -10,6 +10,7 @@ import inspect
 import math
 
 from subversionbench.reporting.facts import batch_facts, normalise_analyses
+from subversionbench.config import DEFAULT_GRADER_MODEL
 import subversionbench.run_eval as ev_run
 from conftest import FakeArgs, batch_episode, collecting_identity
 
@@ -518,7 +519,7 @@ class TestAssemblingIsSeparateFromRenderingAndWriting:
         """No output_dir that exists: nothing here may write, so nothing needs
         somewhere to write to."""
         args = FakeArgs(output_dir="/nonexistent", model="claude-opus-5",
-                        nudge="strong", grader_model="claude-opus-5",
+                        nudge="strong", grader_model=DEFAULT_GRADER_MODEL,
                         max_tokens=8192, max_turns=40)
         return args, collecting_identity(args)
 

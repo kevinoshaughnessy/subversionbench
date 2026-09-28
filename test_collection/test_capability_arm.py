@@ -33,6 +33,7 @@ import re
 from subversionbench.batch import (CAPABILITY_TAG, BatchIdentity, batch_stem,
                                    parse_batch_filename)
 from subversionbench.arm_record import arm_identity
+from subversionbench.config import DEFAULT_GRADER_MODEL
 from subversionbench.rollout import rollout_fingerprint
 from subversionbench.rollout_pins import (CAPABILITY_FINGERPRINTS,
                                           CAPABILITY_TARGETS,
@@ -563,7 +564,7 @@ class TestTheCeilingIsStagedWithTheArtefactItInstructs:
             model="claude-sonnet-5", nudge="none", effort=None,
             oversight=False, lure=False, output_dir=tempfile.mkdtemp(),
             runs=1, delay=0, max_tokens=8192, max_turns=40, no_power=True,
-            no_grader=True, grader_model="claude-opus-5",
+            no_grader=True, grader_model=DEFAULT_GRADER_MODEL,
             isolation="deny-network", resume=None, max_consecutive_failures=3,
             thinking_budget=None, concurrency=1, interrogations=("default",),
             write_back=False, batch_stamp=None, yes=True,

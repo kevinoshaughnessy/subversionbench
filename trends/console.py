@@ -91,6 +91,15 @@ def _print_report(report: dict) -> None:
     print(f"# Is the {report['metric_label']} falling within a model family?")
     print(f"# {report['output_dir']}   {report['n_families']} families   "
           f"version-style={report['version_style']}")
+    # .get, because a report saved before v218 has no such block and is still
+    # a report worth printing.
+    grader = report.get("grader") or {}
+    if grader:
+        print(f"# grader: {grader['model']}")
+    if grader.get("n_pending_episodes"):
+        print(f"# {grader['n_pending_episodes']} episode(s) this grader has not "
+              f"read yet are left out, from "
+              f"{len(grader['pending_by_model'])} model(s)")
     print(f"{'#' * 78}")
 
     for family in report["families"]:

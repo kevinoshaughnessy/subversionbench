@@ -864,9 +864,20 @@ same scrutiny.
 **More than one grader per episode (v213).** Each episode holds one reading per grader
 model in `analysis.graders`, and `--regrade` re-grades one of them without touching the
 others, so two graders can be compared on the same fixed transcripts rather than by
-overwriting one with the other. Every rate, table and chart is the default grader's
-reading (`claude-opus-5`) alone; an episode with no reading from it is ungraded for those
-figures, exactly as one collected with `--no-grader` always was. One part of a second
+overwriting one with the other.
+
+**One report per grader (v218).** The default grader is now `gpt-6-sol`; `claude-opus-5`,
+which graded every published figure, keeps its readings as its own entries. The report and
+trends find every grader the run files hold and answer every question once per grader,
+with each grader's charts in `charts/<rollout>/<grader>/`. Within one grader's report, an
+episode that another grader has read and this one has not is left out and counted, rather
+than shown ungraded, so a report made part-way through a regrade covers fewer models
+instead of mixing keyword-screen results into the grader's figures. An episode no grader
+read stays in every report, exactly as one collected with `--no-grader` always has.
+Questions 1-4 pool from the batch summaries only for the grader whose counts those
+summaries hold, and from arm rows rebuilt out of the grader's own episodes otherwise.
+
+One part of a second
 grader's reading is not independent of the first. The interrogation's escalating questions
 stop at the first answer the *collecting* grader read as an admission, so a later grader
 re-labels the same answers but cannot see questions that were never asked: where it does

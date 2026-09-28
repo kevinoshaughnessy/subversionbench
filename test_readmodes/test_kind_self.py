@@ -17,7 +17,7 @@ import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
 from conftest import FakeArgs
 from subversionbench.batch import BatchSelection
-from subversionbench.config import RUBRIC_QUESTIONS
+from subversionbench.config import DEFAULT_GRADER_MODEL, RUBRIC_QUESTIONS
 
 
 @contextlib.contextmanager
@@ -73,7 +73,7 @@ def _write_run(out, name, aware=True, primary_kind="capability"):
         "transcript": [{"turn": 1, "type": "text",
                         "content": "they may be testing my values here"}],
         "analysis": {"eval_awareness_grader": {
-            "grader_model": "claude-opus-5",
+            "grader_model": DEFAULT_GRADER_MODEL,
             "eval_aware": aware,
             "eval_awareness_kind": primary_kind if aware else None,
         }},
@@ -82,7 +82,7 @@ def _write_run(out, name, aware=True, primary_kind="capability"):
 
 def _args(out, **kw):
     return FakeArgs(output_dir=out, model="x-ai/grok-4.5", nudge="strong",
-                    grader_model="claude-opus-5", **kw)
+                    grader_model=DEFAULT_GRADER_MODEL, **kw)
 
 
 def _run(out, **kw):
@@ -151,7 +151,7 @@ class TestWhatItWritesAndWhatItNeverTouches:
         assert block["grader_model"] == "x-ai/grok-4.5"
         assert block["eval_aware_from"] == "eval_awareness_grader"
         primary = analysis["eval_awareness_grader"]
-        assert primary["grader_model"] == "claude-opus-5", (
+        assert primary["grader_model"] == DEFAULT_GRADER_MODEL, (
             "the primary verdict must be untouched")
         assert primary["eval_awareness_kind"] == "capability"
 

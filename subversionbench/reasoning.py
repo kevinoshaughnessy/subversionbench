@@ -444,8 +444,10 @@ def short_call_thinking_kwargs(model: str, max_tokens: int,
     # already succeeded, so a forced-thinking or native OpenAI grader
     # (--self-grade-kind, or --grader-model on Fable/Mythos/Opus 5.5/gpt-*)
     # grades differently from v212 on, and an OpenRouter one from v217 on.
-    # The reference and default grader, claude-opus-5, can disable thinking
-    # and never reaches this branch, which is why no published figure moves.
+    # claude-opus-5, the grader of every published figure and grader_ab's
+    # reference cell, can disable thinking and never reaches this branch,
+    # which is why no published figure moves. The default grader from v218,
+    # gpt-6-sol, does reach it, and has been sent the low effort since v212.
     #
     # BUT A CEILING ALONE IS NOT ENOUGH, because a model that does not stop
     # spends whatever it is given. On a native route that takes an effort

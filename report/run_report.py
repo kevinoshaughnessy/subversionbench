@@ -22,8 +22,8 @@ import time
 
 import report_charts
 from subversionbench import charting
-from subversionbench.config import (ROLLOUT_NAME, ROLLOUT_VERSION,
-                                    VERSION)
+from subversionbench.config import (DEFAULT_GRADER_MODEL, ROLLOUT_NAME,
+                                    ROLLOUT_VERSION, VERSION)
 from subversionbench.redaction import redact_paths
 
 from .console import (_print_arm_exclusion, _print_awareness_exclusion,
@@ -37,10 +37,12 @@ from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                          EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
                          EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
                          NO_EXCLUSION, exclude_arm, exclude_aware_episodes)
-from .loading import (act_arm_rows, awareness_arm_rows, load_episodes,
-                      load_failed_episodes, load_summaries)
+from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
+                      load_episodes, load_failed_episodes, load_summaries,
+                      report_graders, split_pending)
 from .pooling import _crude_vs_stratified, _models
-from .questions_arms import (POOLED_FROM_REBUILT_ARM_ROWS,
+from .questions_arms import (POOLED_FROM_GRADER_ARM_ROWS,
+                             POOLED_FROM_REBUILT_ARM_ROWS,
                              POOLED_FROM_SUMMARIES,
                              question_lure_vs_sandbox_escape,
                               question_goalguard_vs_act,
@@ -224,7 +226,7 @@ def _out_of_scope_for_this_corpus(section: dict, has_goalguard: bool) -> str:
 
 
 def _narrowed_corpus(output_dir: str, exclusion: str,
-                     awareness_exclusion: str) -> tuple:
+                     awareness_exclusion: str, grader: str) -> tuple:
     """
     Everything the directory holds, narrowed by both readings before use.
 
@@ -241,9 +243,14 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     counted that arm's API losses against the surviving one would be making
     exactly the split-corpus claim the paragraph above exists to prevent, and
     a second copy of the predicate is a second thing to keep in step.
+
+    Episodes are `grader`'s reading, less the ones it has not read yet - see
+    split_pending. Those are returned apart and counted, never pooled.
     """
+    episodes, pending = split_pending(
+        load_episodes(output_dir, grader=grader), grader)
     summaries, episodes, arm_exclusion = exclude_arm(
-        load_summaries(output_dir), load_episodes(output_dir), exclusion)
+        load_summaries(output_dir), episodes, exclusion)
     _, failed, _ = exclude_arm([], load_failed_episodes(output_dir), exclusion)
     # And then the awareness reading, which narrows the EPISODES ONLY - see
     # exclude_aware_episodes for why there is no summary-side counterpart. The
@@ -251,14 +258,15 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     # that reading rather than exempted from it.
     episodes, awareness_stamp = exclude_aware_episodes(
         episodes, awareness_exclusion)
-    return summaries, episodes, failed, arm_exclusion, awareness_stamp
+    return summaries, episodes, failed, arm_exclusion, awareness_stamp, pending
 
 
 def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
-                 awareness_exclusion: str = NO_AWARENESS_EXCLUSION) -> dict:
+                 awareness_exclusion: str = NO_AWARENESS_EXCLUSION,
+                 grader: str = DEFAULT_GRADER_MODEL) -> dict:
     (summaries, episodes, failed, arm_exclusion,
-     awareness_exclusion_stamp) = _narrowed_corpus(
-         output_dir, exclusion, awareness_exclusion)
+     awareness_exclusion_stamp, pending) = _narrowed_corpus(
+         output_dir, exclusion, awareness_exclusion, grader)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
     # summary field holds. Questions 2 and 4 take the headline measure from the
     # summaries as before and this alongside it; see _text_reachable_block.
@@ -287,8 +295,17 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     # rebuilt rows are re-derived, and the stamp says which reading a document
     # is so the two are never mistaken for one another.
     on_awareness_reading = awareness_exclusion_stamp["field"] is not None
-    act_source = act_rows if on_awareness_reading else summaries
-    aware_source = arm_rows if on_awareness_reading else summaries
+    # AND UNDER A GRADER THE SUMMARIES DO NOT DESCRIBE, for the same reason in
+    # a different form: a summary counted another grader's verdicts, or
+    # counted episodes this grader has not read yet. Either way its n_aware
+    # and n_scheming are not this grader's, and pooling them would put one
+    # grader's rates under another's name.
+    grader_block = grader_coverage(grader, summaries, pending)
+    from_summaries = (not on_awareness_reading
+                      and grader_block["summaries_hold_its_counts"]
+                      and not pending)
+    act_source = summaries if from_summaries else act_rows
+    aware_source = summaries if from_summaries else arm_rows
     # The LABEL comes off the same conditional as the source, so the two cannot
     # disagree. They did: `data_source` was a literal beginning "summary
     # files:" inside each builder, so this reading printed
@@ -296,14 +313,18 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     # `questions_pooled_from` below said "rebuilt_arm_rows" in the same
     # document. Deriving both from one expression is the fix; passing the
     # source and describing it separately is what made it possible.
-    pooled_from = (POOLED_FROM_REBUILT_ARM_ROWS if on_awareness_reading
-                   else POOLED_FROM_SUMMARIES)
+    pooled_from = (POOLED_FROM_SUMMARIES if from_summaries
+                   else POOLED_FROM_REBUILT_ARM_ROWS if on_awareness_reading
+                   else POOLED_FROM_GRADER_ARM_ROWS)
     questions = [
         question_oversight_vs_scheming(act_source, act_rows, pooled_from),
         question_oversight_vs_awareness(aware_source, arm_rows, pooled_from),
         question_oversight_vs_misalignment(act_source, act_rows, pooled_from),
         question_nudge_vs_awareness(aware_source, arm_rows, pooled_from),
-        question_awareness_vs_misalignment(episodes, summaries),
+        # Its summary cross-check reads each summary's awareness split, which
+        # is another grader's wherever the headline counts are.
+        question_awareness_vs_misalignment(
+            episodes, summaries if from_summaries else []),
         question_awareness_vs_monitoring_disabled(episodes),
         question_awareness_vs_sandbox_escape(episodes),
         question_awareness_vs_scheming(episodes),
@@ -454,8 +475,11 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # one thing about this reading a consumer cannot infer from the
         # numbers themselves.
         "awareness_exclusion": awareness_exclusion_stamp,
-        "questions_pooled_from": ("rebuilt_arm_rows" if on_awareness_reading
-                                  else "summaries"),
+        "questions_pooled_from": ("summaries" if from_summaries
+                                  else "rebuilt_arm_rows"),
+        # WHOSE VERDICTS, since a directory can hold several graders' and
+        # every grader-dependent figure here is this one's alone.
+        "grader": grader_block,
         "output_dir": redact_paths(os.path.abspath(output_dir)),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         # SUMMARY FILES READ, and deliberately not narrowed by the
@@ -500,12 +524,13 @@ def main() -> int:
                         help="results directory to analyse (default: %(default)s)")
     parser.add_argument("--json-out", default=None,
                         help="where to write the JSON report (default: "
-                             "research_report_<timestamp>.json inside "
+                             "research_report_<grader>_<timestamp>.json inside "
                              "--output-dir)")
     parser.add_argument("--chart-dir", default=None,
                         help="where to write the question charts (default: "
                              "charts/<rollout>/ beside --output-dir, not "
-                             "inside it)")
+                             "inside it). Each grader in the run files gets "
+                             "a subdirectory of it")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the charts; every figure they draw is in "
                              "the printed output and the JSON either way")
@@ -537,30 +562,73 @@ def main() -> int:
     if not os.path.isdir(args.output_dir):
         parser.error(f"--output-dir {args.output_dir!r} does not exist")
 
+    # ONE REPORT PER GRADER the run files hold, each with its own charts and
+    # JSON. A directory graded by only one grader - or by none, collected with
+    # --no-grader - gets the one report it always did.
+    graders = report_graders(args.output_dir)
+    if args.json_out and len(graders) > 1:
+        parser.error(f"--json-out names one file, and {args.output_dir} holds "
+                     f"{len(graders)} graders' readings ({', '.join(graders)}), "
+                     f"one report each. Drop --json-out to get "
+                     f"research_report_<grader>_<timestamp>.json for each.")
+
     # Read off the flag once and passed down, never re-derived from `args`
     # further in. One Namespace is shared by reference across this run.
     exclusion = (EXCLUDE_NO_OVERSIGHT if args.exclude_no_oversight
                  else NO_EXCLUSION)
     awareness_exclusion = args.exclude_aware or NO_AWARENESS_EXCLUSION
-    report = build_report(args.output_dir, exclusion, awareness_exclusion)
+    # One stamp for the whole invocation, so the reports from one run share
+    # a suffix and sort together - the same choice trends makes per metric.
+    stamp = time.strftime("%Y%m%dT%H%M%S")
+    for grader in graders:
+        if len(graders) > 1:
+            print(f"\n\n{'#' * 78}\n# grader: {grader}\n{'#' * 78}")
+        failed = _report_one_grader(args, grader, exclusion,
+                                    awareness_exclusion, stamp)
+        if failed:
+            return failed
+    return 0
+
+
+def _print_grader(block: dict) -> None:
+    """Whose verdicts these are, and which episodes are still waiting for it."""
+    print(f"Grader: {block['model']}")
+    if not block["n_pending_episodes"]:
+        return
+    print(f"  {block['n_pending_episodes']} episode(s) another grader has read "
+          f"and this one has not yet are LEFT OUT of every figure below, "
+          f"rather than shown ungraded:")
+    for model, n in block["pending_by_model"].items():
+        print(f"    {model}: {n}")
+
+
+def _report_one_grader(args, grader: str, exclusion: str,
+                       awareness_exclusion: str, stamp: str) -> int:
+    """One grader's report, end to end. Returns a process exit code.
+
+    Split out of main so every grader runs the same path rather than a
+    second implementation of it.
+    """
+    report = build_report(args.output_dir, exclusion, awareness_exclusion,
+                          grader)
     if not report["n_summary_files"]:
         print(f"No summary files found in {redact_paths(args.output_dir)}.")
         return 1
 
+    _print_grader(report["grader"])
     print(f"Analysing {redact_paths(args.output_dir)}: "
           f"{report['n_summary_files']} summary file(s), "
           f"{report['n_episode_files']} episode file(s), "
           f"{report['n_models']} model(s).")
-    if report["awareness_exclusion"].get("field") is not None:
+    if report["questions_pooled_from"] != "summaries":
         # Said here rather than left to the banner below, because the line
-        # above puts a summary-file count next to an episode count that the
-        # awareness reading has narrowed and one that it has not. The banner
-        # explains the reading; this explains why two of its numbers are on
-        # different corpora.
-        print("  (the summary-file count is files read: the "
-              "awareness reading narrows episodes only, so "
-              "questions 1-4 pool from rows rebuilt out of the "
-              "surviving episodes instead.)")
+        # above puts a summary-file count next to an episode count that has
+        # been narrowed, or read by a grader the summaries do not describe.
+        # The banner explains the reading; this explains why two of its
+        # numbers are on different corpora.
+        print("  (the summary-file count is files read: questions 1-4 pool "
+              "from rows rebuilt out of the episodes instead, because the "
+              "summaries do not hold this reading's counts.)")
     # Before the questions, not after: every rate below is on the narrowed
     # corpus, and a reader who meets that fact at the bottom has already read
     # the numbers as though it were the whole one.
@@ -581,36 +649,8 @@ def main() -> int:
     # Before the JSON is written, so `charts` lands in the file rather than
     # describing an artefact the report has no record of.
     if not args.no_charts:
-        # A DIFFERENT DIRECTORY BY DEFAULT, and the reason is the whole point of
-        # the flag: these charts hold different numbers under the same
-        # filenames, and writing them over the pooled set would leave a
-        # directory whose contents cannot be told apart from the full-corpus
-        # ones by looking at them. An explicit --chart-dir still wins, so a
-        # caller who wants them somewhere else says so.
-        chart_dir = args.chart_dir or charting.default_chart_dir(
-            args.output_dir,
-            _artefact_suffix(exclusion, awareness_exclusion))
-        written = report_charts.write_charts(report, chart_dir)
-        if written:
-            print(f"\n{len(written)} chart(s) written to "
-                  f"{redact_paths(chart_dir)}:")
-            for path in written:
-                print(f"  {os.path.basename(path)}")
-            report["charts"] = [redact_paths(p) for p in written]
-        # Named, not merely absent. A reader comparing the two chart
-        # directories will find files missing from this one, and "which ones
-        # and why" is the first thing they need - otherwise a chart the
-        # exclusion legitimately removed is indistinguishable from one that
-        # failed to render.
-        collapsed = [s["id"] for s in report["questions"]
-                     if s.get("collapsed_by_exclusion")]
-        if collapsed:
-            print(f"\n{len(collapsed)} question(s) have no chart here: the "
-                  f"excluded arm was one side of the contrast, so there is "
-                  f"nothing left to compare against.")
-            for question_id in collapsed:
-                print(f"  {question_id}")
-            report["charts_omitted_by_exclusion"] = collapsed
+        _write_report_charts(args, report, grader, exclusion,
+                             awareness_exclusion)
 
     # NOT run_report_*.json: that name sits inside load_episodes' own
     # `run_*.json` glob, so the default output would land in the namespace this
@@ -620,12 +660,48 @@ def main() -> int:
     json_out = args.json_out or os.path.join(
         args.output_dir,
         f"research_report{_artefact_suffix(exclusion, awareness_exclusion)}"
-        f"_{time.strftime('%Y%m%dT%H%M%S')}.json")
+        f"_{grader.replace('/', '_')}_{stamp}.json")
     os.makedirs(os.path.dirname(os.path.abspath(json_out)), exist_ok=True)
     with open(json_out, "w") as f:
         json.dump(report, f, indent=2, default=str)
     print(f"\nWrote {redact_paths(json_out)}")
     return 0
+
+
+def _write_report_charts(args, report: dict, grader: str, exclusion: str,
+                         awareness_exclusion: str) -> None:
+    """This grader's charts, in its own subdirectory, recorded on `report`."""
+    # A DIFFERENT DIRECTORY BY DEFAULT for an exclusion, and the reason is the
+    # whole point of the flag: these charts hold different numbers under the
+    # same filenames, and writing them over the pooled set would leave a
+    # directory whose contents cannot be told apart from the full-corpus ones
+    # by looking at them. An explicit --chart-dir still wins, so a caller who
+    # wants them somewhere else says so. Each grader then gets a subdirectory
+    # of it, for the same reason one level down.
+    chart_dir = charting.grader_chart_dir(
+        args.chart_dir or charting.default_chart_dir(
+            args.output_dir, _artefact_suffix(exclusion, awareness_exclusion)),
+        grader)
+    written = report_charts.write_charts(report, chart_dir)
+    if written:
+        print(f"\n{len(written)} chart(s) written to "
+              f"{redact_paths(chart_dir)}:")
+        for path in written:
+            print(f"  {os.path.basename(path)}")
+        report["charts"] = [redact_paths(p) for p in written]
+    # Named, not merely absent. A reader comparing the two chart directories
+    # will find files missing from this one, and "which ones and why" is the
+    # first thing they need - otherwise a chart the exclusion legitimately
+    # removed is indistinguishable from one that failed to render.
+    collapsed = [s["id"] for s in report["questions"]
+                 if s.get("collapsed_by_exclusion")]
+    if collapsed:
+        print(f"\n{len(collapsed)} question(s) have no chart here: the "
+              f"excluded arm was one side of the contrast, so there is "
+              f"nothing left to compare against.")
+        for question_id in collapsed:
+            print(f"  {question_id}")
+        report["charts_omitted_by_exclusion"] = collapsed
 
 # No `if __name__ == "__main__"` here. __main__.py is the entry point, and
 # it says why: the package re-exports main(), so running THIS module with -m

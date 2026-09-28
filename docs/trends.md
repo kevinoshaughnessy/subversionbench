@@ -103,10 +103,11 @@ with Holm and Benjamini-Hochberg, exactly as the per-model tests are above.
 ## Charts
 
 With the `charts` extra installed (`pip install 'subversionbench[charts]'`) it also writes PNGs
-into `charts/<rollout>/` **beside** `--output-dir` rather than inside it, or wherever
-`--chart-dir` says. One `charts/` holds every rollout's figures, one subdirectory each, so no
-corpus carries derived pictures into its own archive and two rollouts' identically-named charts
-cannot be confused for one another:
+into `charts/<rollout>/<grader>/` **beside** `--output-dir` rather than inside it, or into a
+subdirectory per grader of wherever `--chart-dir` says. One `charts/` holds every rollout's
+figures, one subdirectory each and one below that per grader found in the run files, so no
+corpus carries derived pictures into its own archive and two rollouts' or two graders'
+identically-named charts cannot be confused for one another. For each grader it writes:
 
 - **one per family** — rate against version order, with Wilson intervals as error bars. The
   intervals are drawn rather than left to the table because the whole

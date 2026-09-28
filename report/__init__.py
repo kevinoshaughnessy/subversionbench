@@ -168,8 +168,10 @@ from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                          EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
                          EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
                          NO_EXCLUSION, exclude_arm, exclude_aware_episodes)
-from .loading import (act_arm_rows, awareness_arm_rows, load_episodes,
-                      load_failed_episodes, load_summaries)
+from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
+                      graders_in,
+                      load_episodes, load_failed_episodes, load_summaries,
+                      report_graders, split_pending, summaries_describe)
 from .capability import (MAX_INFORMATIVE_BOUND_GAP, capability_ceiling,
                          willingness)
 from .characteristics import (awareness_refusal_timing, characteristics,
@@ -271,7 +273,7 @@ __all__ = [
     "build_report", "characteristics", "cross_analysis_rows",
     "data_quality_facts", "decision_profile", "duplicate_arms",
     "encoded_payload_rate", "eval_signal_rates", "exclude_arm",
-    "exclude_aware_episodes", "lure_effect",
+    "exclude_aware_episodes", "grader_coverage", "graders_in", "lure_effect",
     "load_episodes", "load_failed_episodes", "load_summaries", "main",
     "mixed_routing_arms",
     "mixed_served_provider_arms",
@@ -295,4 +297,5 @@ __all__ = [
     "question_paraphrase_vs_concealment",
     "question_safety_awareness_vs_misalignment",
     "question_safety_awareness_vs_misalignment_self",
+    "report_graders", "split_pending", "summaries_describe",
 ]

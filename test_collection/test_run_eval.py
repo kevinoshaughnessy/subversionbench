@@ -115,10 +115,10 @@ class TestContradictoryFlagsAreRefusedBeforeSpending:
         """It names the grader a COLLECTION runs. Accepting it beside a read
         mode would let someone believe they re-graded with a model they did
         not; the message names the flag that does it."""
-        code, out = _main("--grade-existing", "--grader-model", "gpt-6-sol",
+        code, out = _main("--grade-existing", "--grader-model", "claude-opus-5",
                           "--model", "m")
         assert code == 2
-        assert "use --regrade gpt-6-sol" in out
+        assert "use --regrade claude-opus-5" in out
 
     def test_batch_stamp_is_accepted_with_every_read_mode(self):
         """Refusals have to be exactly as wide as their reason. A guard listing

@@ -18,6 +18,7 @@ except ImportError:
     HAS_PYTEST = False
 
 import subversionbench as ev
+from subversionbench.config import DEFAULT_GRADER_MODEL
 
 # Placeholder credentials for the whole session.
 #
@@ -377,7 +378,7 @@ def refused_rollout(**stubs):
         model="claude-sonnet-5", nudge="strong", effort=None, oversight=True,
         lure=False, output_dir=tempfile.mkdtemp(), runs=1, delay=0,
         max_tokens=8192, max_turns=40, no_power=True, no_grader=True,
-        grader_model="claude-opus-5", isolation="deny-network", resume=None,
+        grader_model=DEFAULT_GRADER_MODEL, isolation="deny-network", resume=None,
         max_consecutive_failures=3, thinking_budget=None, concurrency=1,
         interrogations=("default",), write_back=False, batch_stamp=None,
         yes=False, openrouter_sort=None, openrouter_provider=None,

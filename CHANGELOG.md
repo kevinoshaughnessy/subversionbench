@@ -10,6 +10,30 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v218
+
+**The default grader is gpt-6-sol, and the report and trends answer every question
+once per grader.** claude-opus-5 had come to refuse a rising share of grader calls,
+concentrated on the episodes most likely to be aware, and gpt-6-sol answered nearly all
+of them. So `DEFAULT_GRADER_MODEL` is now `gpt-6-sol`, which is what a new collection
+grades with and what `--regrade default` means; claude-opus-5's readings stay in every
+file as its own entries.
+
+`python3 -m report` and `python3 -m trends` now find every grader the run files hold and
+write one report per grader, with charts in `charts/<rollout>/<grader>/` and the grader
+in each JSON filename. Within one grader's report, an episode another grader has read
+and this one has not is left out and counted per model, not shown ungraded - ungraded,
+it would have taken the keyword fallback and put keyword-screen results under that
+grader's name. An episode no grader read stays in every report, as before. Questions 1-4
+(and trends' summary-based metrics) pool from the batch summaries only for the grader
+whose counts those summaries hold, and from arm rows rebuilt out of the grader's own
+episodes otherwise; a summary now records that grader as `figures_grader_model`, and one
+written before it did is read as claude-opus-5's (`LEGACY_DEFAULT_GRADER_MODEL`). The
+claude-opus-5 report and every claude-opus-5 trend on r10 are identical to v217's.
+
+`grader_ab`'s reference cell follows the default, because its sample is balanced on the
+default's stored verdicts.
+
 ## v217
 
 **A grader reached through OpenRouter is asked for a low reasoning effort.** The short
