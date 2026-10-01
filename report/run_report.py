@@ -48,7 +48,6 @@ from .questions_arms import (POOLED_FROM_GRADER_ARM_ROWS,
                               question_goalguard_vs_act,
                              question_nudge_vs_awareness,
                              question_oversight_vs_awareness,
-                             question_oversight_vs_goal_guarding,
                              question_oversight_vs_misalignment,
                              question_oversight_vs_scheming)
 from .questions_awareness import (question_awareness_vs_goal_guarding,
@@ -424,10 +423,6 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # DIFFERENT, narrower denominator than the pair they parallel.
         question_safety_awareness_vs_misalignment_self(episodes),
         question_capability_awareness_vs_misalignment_self(episodes),
-        # APPENDED for the same renumbering reason. Question 3 for the
-        # goal-guarding act alone, which question 3's composite cannot show:
-        # on the goal-guarding corpus most of what it counts is the other acts.
-        question_oversight_vs_goal_guarding(act_rows),
     ])
 
     # A DIFFERENT FIELD from collapsed_by_exclusion, deliberately - see

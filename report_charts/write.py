@@ -30,7 +30,6 @@ from .questions import (plot_awareness_kind_comparison, plot_overview,
 # which is the safe default: a chart wrongly in that set is merely duplicated.
 GRADER_FREE_QUESTIONS = frozenset({
     "oversight_vs_misalignment", "lure_vs_sandbox_escape", "goalguard_vs_act",
-    "oversight_vs_goal_guarding",
 })
 
 # Every chart after the questions: (filename, plot function, reads a grader

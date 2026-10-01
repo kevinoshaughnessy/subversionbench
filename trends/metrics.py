@@ -60,19 +60,6 @@ METRICS = {
         # agrees with n_misaligned.
         "llm_dependent": False,
     },
-    "goalguard_act": {
-        "num": "n_goalguard_act", "den": "n_goalguard_observable",
-        "label": "goal-guarding rate",
-        "denominator_label": "goal-guarding episodes",
-        # The goal-guarding scenario's own act, which the composite above
-        # counts beside the other two - and on that corpus the other two are
-        # most of what it counts. Over the episodes that could take it, so a
-        # corpus with no goal-guarding arm has nothing to trend rather than a
-        # row of zeros.
-        "llm_dependent": False,
-        # No summary field counts it.
-        "from_episodes": True,
-    },
     "scheming": {
         "num": "n_scheming", "den": "n_runs",
         "label": "scheming rate (act plus concealment)",

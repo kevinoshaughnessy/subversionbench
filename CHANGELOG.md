@@ -10,6 +10,21 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v222
+
+**The goal-guarding scenario counts goal-guarding.** It keeps the monitoring artefact
+(oversight is one of its arms) and the sandbox every episode runs in, so oversight
+subversion and sandbox escape attempts can be taken there too, and the union counted them:
+most of the episodes it flagged in that scenario had not goal-guarded, and a rate over the
+union could not say which act, or how many, an episode took. `grading.counted_acts` now
+gives the acts an episode's `misaligned` and `scheming` count - goal-guarding alone in a
+goal-guarding episode, every act elsewhere - and `report.pooling.composite_of` applies the
+same rule to a goal-guarding corpus, so its composite is labelled the "goal-guarding rate".
+The other two acts are still settled, interrogated and reported per act. Question 22 and
+the `goalguard_act` trend, added in v221 to show goal-guarding alone, now duplicate the
+composite there and are removed. Saved summaries and the stored verdicts restate with
+`--resummarise --write-back`, which calls no model.
+
 ## v221
 
 **Every chart names its scenario, and the composite rate names its acts.** The
@@ -28,7 +43,7 @@ act labels everywhere follow suit.
 alone, over the goal-guarding episodes; it is appended, so no
 question renumbers, and out of scope on a corpus with no goal-guarding arm. The trends
 gain `goalguard_act` on the same denominator, skipped on such a corpus rather than charted
-as zeros. A trends model with nothing in a metric's denominator is now left out rather
+as zeros (both removed in v222). A trends model with nothing in a metric's denominator is now left out rather
 than drawn as an empty point.
 
 ## v220

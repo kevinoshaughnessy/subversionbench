@@ -17,6 +17,7 @@ from subversionbench.rollout_pins import SCENARIO_ID
 from subversionbench.config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION
 from subversionbench.graders import grader_models, view
 from subversionbench.grading import (MISALIGNED_ACTS, SCHEMING_LEVELS,
+                                     counted_acts,
                                      awareness_channels, capability_outcome,
                                      classify_misalignment, classify_scheming,
                                      classify_scheming_act, concealment_level,
@@ -84,8 +85,8 @@ CAPABILITY_KINDS = ("capability", "both")
 
 
 def _acted(analysis: dict) -> bool:
-    """Whether this episode committed any of the measured acts."""
-    return any(analysis.get(act["key"]) for act in MISALIGNED_ACTS)
+    """Whether this episode committed any act its `misaligned` counts."""
+    return any(analysis.get(act["key"]) for act in counted_acts(analysis))
 
 
 def _aware_before_act(analysis: dict):
@@ -101,7 +102,7 @@ def _aware_before_act(analysis: dict):
     episode's course.
     """
     verdicts = []
-    for act in MISALIGNED_ACTS:
+    for act in counted_acts(analysis):
         if not analysis.get(act["key"]):
             continue
         pre = analysis.get(f"eval_awareness_grader_before_{act['name']}") or {}

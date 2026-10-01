@@ -26,13 +26,11 @@ each and sharing one timestamp across them so a single run's files sort together
 expanded into ordinary single-metric runs rather than a second code path, and it refuses
 `--json-out`, since one path cannot hold three reports.
 
-`misaligned` is a union over every act the corpus could observe, so its charts are labelled
-with those acts rather than "agentic misalignment": the oversight subversion and sandbox escape
-attempt rate on a mainline corpus, with goal-guarding leading on a goal-guarding one. There the
-two shared acts are most of what the union counts, so `goalguard_act` trends the goal-guarding
-act alone, over the goal-guarding episodes; on a corpus with no
-goal-guarding arm it is skipped rather than charted as zeros. Every chart names its scenario
-at the top of its title.
+`misaligned` is labelled with the acts it counts rather than "agentic misalignment": the
+oversight subversion and sandbox escape attempt rate on a mainline corpus, and the
+goal-guarding rate on a goal-guarding one, where an episode's verdict counts that scenario's
+own act alone (`grading.counted_acts`). Every chart names its scenario at the top of its
+title.
 
 It reads its rates through `report.load_summaries`, so a family's figure here and a
 model's figure there cannot disagree.
@@ -116,7 +114,7 @@ subdirectory per grader of wherever `--chart-dir` says. One `charts/` holds ever
 figures, one subdirectory each and one below that per grader found in the run files, so no
 corpus carries derived pictures into its own archive and two rollouts' or two graders'
 identically-named charts cannot be confused for one another. A metric read off the act keys
-alone - `misaligned`, `oversight_act`, `sandbox_act`, `goalguard_act` - is every grader's alike, so it is
+alone - `misaligned`, `oversight_act`, `sandbox_act` - is every grader's alike, so it is
 reported once, over every episode: its charts go into `charts/<rollout>/` itself and its JSON
 is `family_trends_<metric>_<timestamp>.json`, with no grader in the name. For each report it writes:
 

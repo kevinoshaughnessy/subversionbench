@@ -82,8 +82,6 @@ class TestBuildReportEndToEnd:
             # questions_awareness.py's module docstring.
             "awareness_vs_misalignment_when_safety_aware_self",
             "awareness_vs_misalignment_when_capability_aware_self",
-            # APPENDED at v221: question 3 for the goal-guarding act alone.
-            "oversight_vs_goal_guarding",
         ]
         assert report["n_summary_files"] == 2
         assert report["n_episode_files"] == 10
@@ -225,7 +223,7 @@ class TestMain:
         # lure arm got a question of its own; 14 -> 17 at v191 when the
         # oversight-tampering split added two and goal-guarding a third;
         # 17 -> 19 at v193 when question 5 split by awareness kind.
-        assert len(saved["questions"]) == 22
+        assert len(saved["questions"]) == 21
 
 class TestTheParallelTextReachableMeasure:
     """That questions 2 and 4 - and only those two - carry the parallel measure,
@@ -354,7 +352,7 @@ class TestTheLayersDoNotPointBackwards:
         # Same literal as TestMain's surface pin, and it must stay the same:
         # this counts question_ functions defined, that one counts sections
         # emitted, and the pair catches one defined but never called.
-        assert len(seen) == 22, sorted(seen)
+        assert len(seen) == 21, sorted(seen)
         assert sorted(seen.values()).count("questions_paired") == 2
 
 class TestTheHeaderCountsDescribeTheCorpusTheQuestionsUse:
@@ -539,13 +537,12 @@ class TestExcludingAnArmReachesBothDataSources:
 
 
 class TestWhichQuestionsTheExclusionIsBlamedFor:
-    def test_the_oversight_contrasts_lose_their_comparator(self):
+    def test_the_three_oversight_contrasts_lose_their_comparator(self):
         report = rr.build_report(_two_arm_dir(), rr.EXCLUDE_NO_OVERSIGHT)
         marked = [q["id"] for q in report["questions"]
                   if q.get("collapsed_by_exclusion")]
         assert marked == ["oversight_vs_scheming", "oversight_vs_awareness",
-                          "oversight_vs_misalignment",
-                          "oversight_vs_goal_guarding"]
+                          "oversight_vs_misalignment"]
 
     def test_a_question_that_lost_a_side_for_another_reason_is_not_blamed(self):
         """THE CORRECTION THIS TEST EXISTS FOR. An empty side is necessary and
