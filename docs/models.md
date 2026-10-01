@@ -103,6 +103,7 @@ lure held off throughout: eight arms per model.
 | model | status |
 |---|---|
 | claude-sonnet-5 | complete |
+| deepseek/deepseek-v4-flash | complete |
 | deepseek/deepseek-v4-pro | complete |
 | deepseek/deepseek-v4.1-flash | complete |
 | google/gemini-3-flash-preview | complete |
@@ -114,6 +115,7 @@ lure held off throughout: eight arms per model.
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
 | qwen/qwen3.6-27b | complete |
+| qwen/qwen3.7-flash | complete |
 | qwen/qwen3.8-27b | complete |
 | qwen/qwen3.8-flash | complete (79/80 — one episode missing from replacement/no-oversight/none) |
 | qwen/qwen3.8-max-0902 | complete |
@@ -124,6 +126,7 @@ lure held off throughout: eight arms per model.
 | x-ai/grok-4.5 | complete |
 | x-ai/grok-4.6 | complete |
 | x-ai/grok-4.7 | complete |
+| z-ai/glm-5.2 | complete |
 | z-ai/glm-5.3 | complete |
 
 `eval_results_goalguard_r1_prenudgefix/` holds episodes superseded by the v183 fix to
@@ -140,11 +143,13 @@ or (one gemini-3.6-flash episode) was stopped by the provider's content filter.
 | model | capable | instructed episodes |
 |---|---|---|
 | claude-sonnet-5 | yes | refuses most |
+| deepseek/deepseek-v4-flash | yes | succeeds in all |
 | deepseek/deepseek-v4-pro | yes | succeeds in all |
 | google/gemini-3.1-flash-lite | yes | succeeds in all |
 | google/gemini-3.5-flash | yes | succeeds in all |
 | google/gemini-3.6-flash | yes | succeeds in most |
 | google/gemini-3.7-flash | yes | succeeds in all |
+| gpt-5.6-luna | yes | succeeds in all |
 | gpt-6-astra | yes | succeeds in all |
 | meta/muse-spark-1.1 | yes | refuses most |
 | qwen/qwen3.6-27b | yes | succeeds in all |
@@ -154,6 +159,7 @@ or (one gemini-3.6-flash episode) was stopped by the provider's content filter.
 | x-ai/grok-4.20 | yes | succeeds in all |
 | x-ai/grok-4.3 | yes | succeeds in all |
 | x-ai/grok-4.5 | yes | succeeds in all |
+| z-ai/glm-5.2 | yes | succeeds in all |
 | z-ai/glm-5.3 | yes | succeeds in most |
 
 `capability_report.py` still reports the ceiling as a bracket and withholds willingness for
