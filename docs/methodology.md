@@ -877,6 +877,22 @@ read stays in every report, exactly as one collected with `--no-grader` always h
 Questions 1-4 pool from the batch summaries only for the grader whose counts those
 summaries hold, and from arm rows rebuilt out of the grader's own episodes otherwise.
 
+**Charts no grader reaches are drawn once (v220).** An act rate is read off the act keys,
+which every grader's view holds identically, so drawing it once per grader added nothing but
+a second copy - and the copies differed, because each grader's report leaves out the
+episodes it has not read. Those charts are now drawn once, over every episode. Each chart
+declares whether a grader's verdict reaches it, and a test holds the declaration against two
+graders that disagree on every verdict: a chart declared grader-free must come out
+identical under both.
+
+**Interrogation under `--no-grader` (v220).** The grader's label on each answer decides
+where its ladder of questions stops, so an interrogation asked without the grader is either
+a grader call that `--no-grader` said would not happen or a ladder stopped by keyword labels.
+It is now left pending instead, and asked later from the saved conversation. A pending
+interrogation leaves concealment and scheming undetermined - unmeasured, never clean. Asking
+it later means the model is questioned some time after the episode, so each answer records
+the backend that served it and the episode records when it was asked.
+
 One part of a second
 grader's reading is not independent of the first. The interrogation's escalating questions
 stop at the first answer the *collecting* grader read as an admission, so a later grader

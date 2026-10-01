@@ -23,8 +23,10 @@ from .blocks import (_Block, _Response, _block_attr, _block_type,
                      _reasoning_detail_summary, _reasoning_usage)
 from .config import OPENROUTER_BASE_URL
 from .tool_parsing import (
+    _INVOKE_START,
     _RAW_TOOL_CALL_START,
     _parse_bracket_tool_calls,
+    _parse_invoke_tool_calls,
     _parse_raw_tool_call_text)
 
 def _to_openai_messages(msg: dict) -> list:
@@ -296,10 +298,11 @@ def _response_blocks(choice, tools, reasoning, finish_reason) -> list:
     """
     One completion's message, as the content blocks the harness works in.
 
-    Three routes to a tool call: the SDK's own `tool_calls`, a backend that
-    ignored `tools` and emitted its native syntax as text, and one that wrote a
-    bracketed call. The last two are parsed here rather than upstream because
-    only this client can know the response did not come back structured.
+    Four routes to a tool call: the SDK's own `tool_calls`, a backend that
+    ignored `tools` and emitted its native syntax as text, one that wrote a
+    bracketed call, and one that wrote `<function_calls>` markup. The last
+    three are parsed here rather than upstream because only this client can
+    know the response did not come back structured.
 
     The raw-call route used to return a _Response of its own. It returns the
     blocks instead: it always appends at least one tool_use, so the
@@ -311,10 +314,13 @@ def _response_blocks(choice, tools, reasoning, finish_reason) -> list:
         blocks.append(_Block("thinking", thinking=reasoning))
 
     if not choice.tool_calls and choice.content:
+        valid_names = {t["name"] for t in (tools or [])}
         if _RAW_TOOL_CALL_START in choice.content:
             leading_text, raw_calls = _parse_raw_tool_call_text(choice.content)
+        elif _INVOKE_START in choice.content:
+            leading_text, raw_calls = _parse_invoke_tool_calls(
+                choice.content, valid_names)
         else:
-            valid_names = {t["name"] for t in (tools or [])}
             leading_text, raw_calls = _parse_bracket_tool_calls(
                 choice.content, valid_names
             )

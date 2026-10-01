@@ -225,6 +225,12 @@ def _out_of_scope_for_this_corpus(section: dict, has_goalguard: bool) -> str:
     return ""
 
 
+# The `grader` that builds the report the grader-free charts are drawn from:
+# every episode, none left out as waiting for a grader. None rather than a
+# string so it cannot collide with a grader model's name.
+NO_GRADER = None
+
+
 def _narrowed_corpus(output_dir: str, exclusion: str,
                      awareness_exclusion: str, grader: str,
                      paired_with: tuple = ()) -> tuple:
@@ -254,8 +260,14 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     What it removes is returned as `unpaired` - apart from `pending`, which
     means waiting for THIS grader, and most of these are not.
     """
-    episodes, pending = split_pending(
-        load_episodes(output_dir, grader=grader), grader)
+    if grader is NO_GRADER:
+        # Every episode, whoever read it: the act keys are the same in every
+        # grader's view, so nothing is waiting. For the grader-free charts
+        # only - the grader-judged columns here are the default's view.
+        episodes, pending = load_episodes(output_dir), []
+    else:
+        episodes, pending = split_pending(
+            load_episodes(output_dir, grader=grader), grader)
     unpaired = []
     if paired_with:
         paired = []
@@ -609,9 +621,40 @@ def main() -> int:
                                     awareness_exclusion, stamp)
         if failed:
             return failed
+    if not args.no_charts and _splits_charts(awareness_exclusion):
+        _write_grader_free_charts(args, exclusion)
     if len(graders) > 1 and not args.no_charts:
         _write_comparison_charts(args, graders, exclusion, awareness_exclusion)
     return 0
+
+
+def _splits_charts(awareness_exclusion: str) -> bool:
+    """Whether the charts no grader reaches are drawn once, apart.
+
+    Not under the awareness reading: it drops the episodes each grader judged
+    aware, so even an act rate is over a different corpus per grader there.
+    """
+    return awareness_exclusion == NO_AWARENESS_EXCLUSION
+
+
+def _write_grader_free_charts(args, exclusion: str) -> None:
+    """The charts no grader's verdict reaches, once, over every episode.
+
+    Into the chart directory itself rather than a grader's subdirectory, and
+    from a report that leaves nothing out as unread - see
+    report_charts.GRADER_FREE_QUESTIONS for which charts and why.
+    """
+    built = build_report(args.output_dir, exclusion, grader=NO_GRADER)
+    chart_dir = args.chart_dir or charting.default_chart_dir(
+        args.output_dir, _artefact_suffix(exclusion))
+    written = report_charts.write_charts(built, chart_dir,
+                                         grader_dependent=False)
+    if written:
+        print(f"\n{len(written)} chart(s) that no grader's verdict reaches, "
+              f"over all {built['n_episode_files']} episode(s), written to "
+              f"{redact_paths(chart_dir)}:")
+        for path in written:
+            print(f"  {os.path.basename(path)}")
 
 
 def _write_comparison_charts(args, graders: list, exclusion: str,
@@ -745,7 +788,9 @@ def _write_report_charts(args, report: dict, grader: str, exclusion: str,
         args.chart_dir or charting.default_chart_dir(
             args.output_dir, _artefact_suffix(exclusion, awareness_exclusion)),
         grader)
-    written = report_charts.write_charts(report, chart_dir)
+    written = report_charts.write_charts(
+        report, chart_dir,
+        grader_dependent=True if _splits_charts(awareness_exclusion) else None)
     if written:
         print(f"\n{len(written)} chart(s) written to "
               f"{redact_paths(chart_dir)}:")

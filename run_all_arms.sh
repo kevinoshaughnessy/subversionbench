@@ -346,6 +346,23 @@ print(n, ",".join(stamps) or "-")
 done
 
 
+# A run WITHOUT --no-grader asks every interrogation an earlier --no-grader
+# run left pending - including in arms the loop above skipped as already full,
+# which is why it is here and not inside the loop. Free when nothing is
+# pending; see subversionbench/readmodes/complete_pending.py.
+no_grader=0
+for flag in "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"; do
+    [ "$flag" = "--no-grader" ] && no_grader=1
+done
+if [ "$DRY_RUN" != "1" ] && [ "$no_grader" = "0" ]; then
+    for nudge in "${NUDGES[@]}"; do
+        python3 -m subversionbench.run_eval --model "$MODEL" --nudge "$nudge" \
+            --output-dir "$OUTPUT_DIR" --complete-pending \
+            "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}" \
+            || FAILED_ARMS+=("pending interrogations, nudge=${nudge}")
+    done
+fi
+
 if [ "${#FAILED_ARMS[@]}" -gt 0 ]; then
     echo "============================================================"
     echo "${#FAILED_ARMS[@]} arm(s) did not complete:"

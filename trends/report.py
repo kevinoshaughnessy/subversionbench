@@ -268,11 +268,25 @@ def _metric_rows(output_dir: str, metric: str, grader: str, summaries: list,
     n_scheming are no other grader's. `episodes` is the grader's episodes if
     the caller already loaded them, which saves a pass per metric.
     """
+    spec = METRICS[metric]
+    if grader is None:
+        # Every episode, for a metric no grader's verdict reaches: the act
+        # keys are the same in every grader's view, so nothing is waiting.
+        if spec["llm_dependent"]:
+            raise ValueError(f"--metric {metric} reads a grader's verdicts, "
+                             f"so it has to be reported per grader")
+        if episodes is None:
+            episodes = load_episodes(output_dir)
+        # The summaries only for a directory with no episodes to rebuild
+        # from - an archive of summaries alone. Their act counts are every
+        # grader's alike, but a summary is counted once and can go stale.
+        return act_arm_rows(episodes) if episodes else summaries, {
+            "model": None, "summaries_hold_its_counts": False,
+            "n_pending_episodes": 0, "pending_by_model": {}}
     if episodes is None:
         episodes = load_episodes(output_dir, grader=grader)
     episodes, pending = split_pending(episodes, grader)
     coverage = grader_coverage(grader, summaries, pending)
-    spec = METRICS[metric]
     if (coverage["summaries_hold_its_counts"] and not pending
             and not spec.get("from_episodes")):
         return summaries, coverage

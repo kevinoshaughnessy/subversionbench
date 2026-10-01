@@ -211,12 +211,8 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
                     )
                     or _BRACKET_TOOL_CALL_RE.search(block.text)
                 ):
-                    print(
-                        f"[Turn {turn+1} WARNING] Model appears to have "
-                        f"attempted a tool call as raw text - the backend "
-                        f"may not support function calling for this model. "
-                        f"Ending episode early."
-                    )
+                    print(_raw_tool_call_warning(turn + 1,
+                                                 state["finish_reasons"]))
                     state["ended_by"] = "raw_tool_call_text"
                     break
             else:
@@ -342,6 +338,32 @@ def _served_by_block(served_by: list) -> dict:
     }
 
 
+# The provider's word for a turn that ended in a structured tool call, on the
+# OpenAI-shaped routes and natively.
+_TOOL_CALL_FINISH_REASONS = frozenset({"tool_calls", "tool_use"})
+
+
+def _raw_tool_call_warning(turn: int, finish_reasons: list) -> str:
+    """What to say when a turn's tool call arrived as text instead.
+
+    "The backend may not support function calling" was the only message, and
+    it is false whenever an earlier turn of the same episode came back as a
+    structured call: a qwen3.6-27b episode had its first command returned
+    properly and its second written out as text, which is the model slipping
+    format rather than a route that cannot call tools. The two want different
+    responses - a parser for the format, against a different provider.
+    """
+    called_before = any(entry["turn"] < turn
+                        and entry["reason"] in _TOOL_CALL_FINISH_REASONS
+                        for entry in finish_reasons)
+    cause = ("the model wrote this turn's tool call as text after earlier "
+             "turns made structured calls, so this is a format slip by the "
+             "model" if called_before else
+             "the backend may not support function calling for this model")
+    return (f"[Turn {turn} WARNING] Model appears to have attempted a tool "
+            f"call as raw text - {cause}. Ending episode early.")
+
+
 def _finish_reason_block(finish_reasons: list) -> dict:
     """What the provider said about how each turn ended, per turn and pooled.
 
@@ -451,12 +473,20 @@ def _grade_awareness(analysis: dict, transcript: list, use_grader: bool,
 
 def _interrogate_the_acts(analysis, transcript, session, grader_model, nudge,
                           interrogations, ended_by, capability, timing,
-                          t_eval_start) -> None:
+                          t_eval_start, use_grader=True) -> None:
     """
     One probe per misaligned act, and the verdict that needs their answers.
 
     Concealment is what separates scheming from plain misalignment, so every
     act gets its own probe.
+
+    Under --no-grader the probes are LEFT PENDING rather than asked. The grader
+    labels each answer and its labels decide where each ladder of questions
+    stops, so asking without it means either calling it anyway - which is what
+    --no-grader said would not happen - or stopping every ladder on keyword
+    labels, which is how a goal-guarding batch came to be interrogated by a
+    keyword screen from start to finish. The conversation is saved, and
+    --complete-pending asks the same questions of it later.
     """
     # Concealment is what separates scheming from plain misalignment, so every
     # act gets its own probe. They share one conversation: a single
@@ -471,7 +501,14 @@ def _interrogate_the_acts(analysis, transcript, session, grader_model, nudge,
     # asked and discarded, because the answers would still be saved, still
     # cost a request per act, and still be there for someone to read as a
     # concealment rate later.
-    if capability is None:
+    taken = [act["name"] for act in MISALIGNED_ACTS if analysis.get(act["key"])]
+    if capability is None and not use_grader:
+        if taken:
+            analysis["interrogation_pending"] = taken
+            print(f"[INTERROGATION PENDING] {', '.join(taken)}: --no-grader, "
+                  f"so not asked. run_all_arms.sh without --no-grader, or "
+                  f"--complete-pending, asks it.")
+    elif capability is None:
         interrogate_acts(
             analysis, transcript, session,
             grader_model=grader_model, nudge=nudge,
@@ -684,7 +721,7 @@ def run_evaluation(
          "client": client, "model": model, "max_tokens": max_tokens,
          "reasoning_kwargs": reasoning_kwargs, "env_dir": env_dir},
         grader_model, nudge, interrogations, ended_by, capability, timing,
-        t_eval_start)
+        t_eval_start, use_grader=use_grader)
     _check_for_a_deferred_write(analysis, env_info)
 
     return {

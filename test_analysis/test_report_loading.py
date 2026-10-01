@@ -258,7 +258,7 @@ class TestTheRubricSignalFields:
 class TestTheDefaultPhrasingArmSurvivesADroppedCopy:
     """The map holds the EXTRA phrasings; the default's answers live in the
     headline field. A copy of the default used to sit in the map too, and
-    reinterrogate._drop_copied_default deletes it on purpose - it is stale by
+    rescore._drop_copied_default deletes it on purpose - it is stale by
     construction. Iterating the map alone therefore lost the default side of
     every phrasing comparison on any episode that had been through
     --reinterrogate, which is half of questions 11 and 12."""

@@ -25,6 +25,7 @@ SETUP:
 Run with --help for the full list of CLI options.
 """
 
+import json
 import os
 import sys
 import argparse
@@ -72,6 +73,7 @@ from .batch import (ALL, BatchIdentity, BatchSelection, batch_stem,  # noqa: F40
                     discover_batches, find_run_files, find_run_files_by_stamp,
                     parse_batch_filename)
 from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
+                        complete_pending_interrogations,
                         fan_out_read_mode, find_run_files_or_explain,
                         grade_existing_runs, reclassify_existing_runs,
                         reinterrogate_existing_runs,
@@ -111,6 +113,7 @@ __all__ = [
     "batch_stem",
     "cache_usage",
     "compare_batches",
+    "complete_pending_interrogations",
     "discover_batches",
     "fan_out_read_mode",
     "find_run_files",
@@ -238,6 +241,13 @@ def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
                              "episode that cannot be reconstructed faithfully is "
                              "skipped rather than replayed with its reasoning "
                              "stripped. Needs --write-back to keep the answers.")
+    parser.add_argument("--complete-pending", action="store_true",
+                        help="Ask the interrogations a --no-grader batch left "
+                             "pending, from each episode's saved conversation, "
+                             "with --grader-model labelling the answers; then "
+                             "rebuild that batch's summaries. run_all_arms.sh "
+                             "runs this itself whenever it is not given "
+                             "--no-grader. Free when nothing is pending.")
     parser.add_argument("--interrogation", default=DEFAULT_INTERROGATION,
                         help="EXTRA wordings for the FIRST interrogation question. "
                              "The default probe always runs and is not optional - "
@@ -638,7 +648,10 @@ def _reject_contradictory_flags(parser, args) -> None:
         )
     _read_modes = (args.grade_existing or args.self_grade_kind
                    or args.reclassify or args.resummarise
-                   or args.reinterrogate)
+                   or args.reinterrogate or args.complete_pending)
+    if args.complete_pending and args.no_grader:
+        parser.error("--complete-pending and --no-grader are contradictory: "
+                     "what is pending is exactly what needs the grader.")
     if args.batch_stamp and not _read_modes:
         parser.error("--batch-stamp only applies with --grade-existing, "
                      "--self-grade-kind, --reclassify or --resummarise.")
@@ -806,6 +819,29 @@ def _capability_refusal(args) -> str:
     return None
 
 
+def _billable_run_files(paths: list, reclassify: bool) -> int:
+    """How many of these run files the read mode will send to the grader.
+
+    Every one for the modes that grade a whole episode. --reclassify is
+    narrower: it calls the grader only for an episode that took an act, and
+    recomputes the rest locally - see rescore._rescore_acts. Counting every
+    file there, and quoting a rollout's token usage beside it, priced a
+    one-act repair of a goal-guarding batch at eighty episodes' worth of
+    grading.
+    """
+    if not reclassify:
+        return len(paths)
+    n = 0
+    for path in paths:
+        try:
+            with open(path, encoding="utf-8") as f:
+                analysis = json.load(f).get("analysis") or {}
+        except (OSError, json.JSONDecodeError):
+            continue
+        n += any(analysis.get(act["key"]) for act in MISALIGNED_ACTS)
+    return n
+
+
 def _run_read_mode(args, selection):
     """Run whichever mode operates on a corpus already on disk.
 
@@ -840,16 +876,14 @@ def _run_read_mode(args, selection):
             return 2
 
         batches = discover_batches(args.output_dir, args.model, args.nudge)
-        n_files = sum(len(find_run_files(args.output_dir,
-                                        m.replace("/", "_"), n))
-                      for m, n in batches)
+        paths = [p for m, n in batches
+                 for p in find_run_files(args.output_dir, m.replace("/", "_"), n)]
+        n_files = len(paths)
         if not args.yes:
-            print(f"\nThis would send grader requests for {n_files} run file(s) "
-                  f"across {len(batches)} batch group(s) in "
+            print(f"\nThis would send grader requests for "
+                  f"{_billable_run_files(paths, args.reclassify)} of {n_files} "
+                  f"run file(s) across {len(batches)} batch group(s) in "
                   f"{redact_paths(args.output_dir)}.\n"
-                  f"Recorded usage on this corpus averages roughly 36k cached "
-                  f"input, 5k cache writes and 1.5k uncached input per episode, "
-                  f"so expect real money at this scale.\n"
                   f"Re-run with --yes to proceed, or name a single model and "
                   f"nudge to do one batch.")
             return 2
@@ -862,6 +896,15 @@ def _run_read_mode(args, selection):
 
     if args.reinterrogate:
         return reinterrogate_existing_runs(args, selection)
+
+    if args.complete_pending:
+        # Then the summaries: their concealment and scheming figures were
+        # counted while these were pending. Only when something was asked,
+        # so a pass with nothing pending writes nothing.
+        code, n_completed = complete_pending_interrogations(args, selection)
+        if code or not n_completed:
+            return code
+        return resummarise_existing_runs(args, selection)
 
     if args.reclassify:
         return reclassify_existing_runs(args, selection)

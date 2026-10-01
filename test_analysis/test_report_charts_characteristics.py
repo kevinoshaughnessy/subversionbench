@@ -270,12 +270,10 @@ class TestPersistenceChartsInARealReport:
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
-            # In the grader's own subdirectory. No episode here was graded
-            # and the summaries predate the grader stamp, so the one grader is
-            # the one those summaries are read as holding.
-            [grader] = run_report.report_graders(out)
-            names = set(os.listdir(charting.grader_chart_dir(
-                charting.default_chart_dir(out), grader)))
+            # In the chart directory itself, not a grader's subdirectory:
+            # persistence is read off the commands and the refusals, so no
+            # grader's verdict reaches it and it is drawn once.
+            names = set(os.listdir(charting.default_chart_dir(out)))
         assert "persistence_rate.png" in names
 
 

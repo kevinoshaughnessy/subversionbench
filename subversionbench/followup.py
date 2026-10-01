@@ -99,9 +99,13 @@ def interrogate_acts(analysis: dict, transcript: list, probe: dict, *,
 
         # The headline field holds the DEFAULT phrasing and nothing else, so every
         # rate over the episodes already collected keeps its meaning and the two
-        # can be pooled. The extras sit beside it.
-        analysis[act["followup_key"]] = by_variant[DEFAULT_INTERROGATION]
-        if len(by_variant) > 1:
+        # can be pooled. The extras sit beside it, and ONLY the extras: a copy
+        # of the default in the map goes stale the moment --reclassify
+        # relabels the headline field - see rescore._drop_copied_default,
+        # which removed the copy from saved runs while collection went on
+        # writing it.
+        analysis[act["followup_key"]] = by_variant.pop(DEFAULT_INTERROGATION)
+        if by_variant:
             analysis[act["followup_key"] + "_by_variant"] = by_variant
 
 
@@ -175,6 +179,11 @@ def run_followup(system_prompt, messages, model, client, act,
             "stop_reason": getattr(response, "stop_reason", None),
             "block_types": [b.type for b in response.content],
             "retried_after_empty": retried,
+            # Which backend answered. An interrogation completed later than
+            # its episode - see --complete-pending - can reach a different one
+            # from the backend that served the episode, and this is the only
+            # record that it did.
+            "served_by": getattr(response, "provider", None),
         }
         print(f"[{label} A] {answer[:400]}\n")
         # Same constraint as the main loop: an empty text block coming back

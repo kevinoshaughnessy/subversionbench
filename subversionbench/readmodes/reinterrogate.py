@@ -25,41 +25,8 @@ from ..grading import MISALIGNED_ACTS, questions_for, settle_analysis
 from ..llm_client import resolve_thinking_kwargs
 from ..reasoning import same_reasoning_config
 from ..redaction import redact_paths
+from .rescore import _drop_copied_default
 from .selection import find_run_files_or_explain
-
-
-def _drop_copied_default(analysis: dict, acts) -> bool:
-    """
-    Remove any copy of the default phrasing's answers from the variant map.
-
-    The map holds the EXTRA phrasings. The default phrasing's answers live in the
-    headline field, and they used to be copied in here as well so that the
-    comparison read as one structure rather than a field against a map.
-
-    A copy of a sampled field is a second place it can go stale, and this one went
-    stale at once: --reclassify re-labels the headline answers in place and does not
-    walk this map, so the copy kept whichever verdicts it was made with. The default
-    side of every phrasing comparison was then scored by whichever classifier ran
-    first - stale keyword verdicts against fresh classifier ones, which is exactly
-    the confound that already invalidated one phrasing comparison.
-
-    Returns whether anything was removed, so the caller can decide to save.
-    """
-    removed = False
-    for act in acts:
-        key = act["followup_key"] + "_by_variant"
-        by_variant = analysis.get(key)
-        if by_variant and DEFAULT_INTERROGATION in by_variant:
-            by_variant = {k: v for k, v in by_variant.items()
-                          if k != DEFAULT_INTERROGATION}
-            analysis[key] = by_variant
-            removed = True
-    if removed:
-        # The levels are derived from the answers, so they have to be re-settled
-        # after one is removed. settle_analysis puts the default phrasing's level
-        # back into the map from the headline field.
-        settle_analysis(analysis)
-    return removed
 
 
 def _classifier(args) -> str:

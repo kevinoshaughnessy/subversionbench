@@ -10,6 +10,56 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v220
+
+**`--no-grader` calls no grader, and leaves the interrogation pending.** The grader labels
+each interrogation answer, and its labels decide where each ladder of questions stops. Under
+`--no-grader` the interrogation used to run anyway, labelled by the grader if its key was
+set and by the keyword cross-check if not, under a warning that was easy to miss. Now the
+episode asks nothing: it records which acts are waiting in `interrogation_pending`, and
+concealment and scheming stay undetermined. `--complete-pending` asks them later from the
+saved conversation and rebuilds the batch's summaries; `run_all_arms.sh` runs it for every
+nudge whenever it is given no `--no-grader`, so arms it skips as full are covered too. An
+episode whose answers the grader fails to label stays pending rather than being written
+with keyword labels, a rejected credential stops the pass, and a missing one refuses it
+before anything is asked. Each answer now records the backend that served it, and a
+completed episode records when it was asked. `--no-grader` no longer checks the grader's
+credential at all.
+
+**Charts no grader reaches are drawn once.** The act-rate trends (`misaligned`,
+`oversight_act`, `sandbox_act`) and the report's question 3, questions 13 and 14,
+persistence, encoded-payload, lure and honeypot charts read no grader verdict, but were
+drawn once per grader - and each copy left out the episodes that grader had not read. They
+are now drawn once, over every episode, into `charts/<rollout>/` itself; the trends JSON
+for such a metric carries no grader in its name. `report_charts/write.py` declares which
+charts are grader-free, and a test renders each under two graders that disagree on every
+verdict and requires them to come out byte-identical.
+
+**A missing key is an authentication error.** All three API clients refuse to construct
+with "<VAR> environment variable not set", which no auth marker matched, so the
+abort-on-first-auth-error check never fired on it and every answer fell back to keywords.
+
+**`--resummarise` keeps the goal-guarding and date arms.** They were missing from its
+grouping key and from the identity it names the summary with, so a rebuilt goal-guarding
+summary landed beside the original under a name without its `goalguard-` segment, and two
+goal-guarding arms sharing a stamp would have merged.
+
+**No copy of the default phrasing in the variant map.** Collection went on writing the
+default phrasing's answers into `<followup_key>_by_variant` after `--reinterrogate` had
+started removing that copy as stale by construction; `--reclassify` relabelled the headline
+and left the copy holding the old labels and their errors. Collection writes only the extra
+phrasings now, and `--reclassify` removes any copy it finds.
+
+**Smaller fixes.** `--reclassify`'s fan-out prompt counts only the episodes that took an
+act, the only ones it sends to the grader, and no longer quotes a rollout's token usage. A
+tool call written as `<function_calls><invoke ...>` markup is parsed rather than ending the
+episode, gated on the offered tool names like the bracket parser. The raw-tool-call warning
+says the model slipped format, not that the backend lacks function calling, when an earlier
+turn made a structured call. A provider `error` finish reason read as the model stopping is
+its own data-quality finding, `errored_as_stopped_arms`, beside truncation and refusal. The
+OpenAI client's missing-key message no longer says an OpenRouter grader gets no effort
+parameter. `gpt-6.1-sol` gets its release date.
+
 ## v219
 
 **Charts that put every grader's verdicts on one axis.** When the run files hold more

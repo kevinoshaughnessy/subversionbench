@@ -95,7 +95,7 @@ def _print_report(report: dict) -> None:
     # a report worth printing.
     grader = report.get("grader") or {}
     if grader:
-        print(f"# grader: {grader['model']}")
+        print(f"# grader: {grader['model'] or 'none - read off the act keys'}")
     if grader.get("n_pending_episodes"):
         print(f"# {grader['n_pending_episodes']} episode(s) this grader has not "
               f"read yet are left out, from "

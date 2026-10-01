@@ -80,24 +80,24 @@ class TestARolloutRefusesBeforeItSpends:
         return ok, buf.getvalue()
 
     def test_no_grader_goes_ahead_without_the_grader_credential(self):
-        """A choice, not an accident: the batch proceeds, and says before the
-        first episode that its interrogation answers will be keyword-scored,
-        which is the part r4 lacked."""
+        """--no-grader calls no grader: the interrogation is left pending
+        rather than scored by keywords, so there is nothing for the key to
+        do and nothing to warn about. It used to warn and interrogate anyway,
+        and a whole goal-guarding batch was keyword-labelled under that
+        warning."""
         with env_without("ANTHROPIC_API_KEY"):
             ok, out = self._credentials(no_grader=True)
         assert ok is True
         assert "REFUSING TO ROLL OUT" not in out
-        assert "[WARNING] ANTHROPIC_API_KEY is not set" in out
-        assert "keyword cross-check alone" in out
+        assert "ANTHROPIC_API_KEY" not in out
 
     def test_no_grader_excuses_whichever_vendor_the_grader_is(self):
         """Keyed on the grader's role, not on one vendor's variable: an OpenAI
         grader for an OpenRouter model needs no OPENAI_API_KEY either."""
         with env_without("OPENAI_API_KEY"):
-            ok, out = self._credentials(no_grader=True, grader_model="gpt-6-sol")
+            ok, _out = self._credentials(no_grader=True, grader_model="gpt-6-sol")
             refused, refusal = self._credentials(grader_model="gpt-6-sol")
         assert ok is True
-        assert "[WARNING] OPENAI_API_KEY is not set" in out
         assert refused is False and "OPENAI_API_KEY" in refusal
 
     def test_without_no_grader_the_grader_credential_still_refuses(self):

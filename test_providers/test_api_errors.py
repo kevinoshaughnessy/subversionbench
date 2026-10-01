@@ -52,6 +52,34 @@ class TestACredentialFailureIsRecognised:
             "or auth_token to be set.")
 
 
+class TestOurOwnClientsMissingKeyIsAnAuthError:
+    """Every client this harness builds refuses to construct without its key,
+    and that refusal is what a grader call records when the key was never
+    exported. It matched no marker, so a batch scored every interrogation
+    answer by keywords and the abort-on-first-auth-error check never fired.
+
+    Driven through the real constructors rather than a copied string, so a
+    client whose wording drifts away from the marker fails here."""
+
+    def test_each_client_refusal_is_recognised(self):
+        from unittest import mock
+
+        from subversionbench.openai_client import OpenAIClient
+        from subversionbench.opencode_client import OpenCodeClient
+        from subversionbench.openrouter_client import OpenRouterClient
+
+        for client, var in ((OpenAIClient, "OPENAI_API_KEY"),
+                            (OpenRouterClient, "OPENROUTER_API_KEY"),
+                            (OpenCodeClient, "OPENCODE_API_KEY")):
+            with mock.patch.dict("os.environ", {var: ""}):
+                try:
+                    client()
+                except RuntimeError as e:
+                    assert is_auth_error(e), (client.__name__, str(e)[:80])
+                else:
+                    raise AssertionError(f"{client.__name__} built without {var}")
+
+
 class TestEverythingElseIsLeftAlone:
     def test_no_error_is_not_an_auth_error(self):
         """Called on the error field of a result that may not have one, so None

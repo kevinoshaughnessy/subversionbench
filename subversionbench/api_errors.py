@@ -65,6 +65,11 @@ _AUTH_ERROR_MARKERS = (
     "api key not found",
     "incorrect api key",
     "unauthorized",
+    # This harness's own clients, raised before any request is made. Matched
+    # by nothing above, so a grader whose key was never exported produced a
+    # keyword fallback on every interrogation answer of a goal-guarding batch
+    # and the abort-on-first-auth-error check never fired.
+    "api_key environment variable not set",
 )
 
 # The status code, matched as a NUMBER rather than as a substring.

@@ -10,7 +10,7 @@ one mode importing the other.
 
 from .. import grading as grading_api
 from ..config import DEFAULT_INTERROGATION
-from ..grading import MISALIGNED_ACTS, concealment_level
+from ..grading import MISALIGNED_ACTS, concealment_level, settle_analysis
 from ..llm_client import is_auth_error
 
 
@@ -66,6 +66,40 @@ def _apply_label(answer: dict, labelled: dict) -> bool:
     return True
 
 
+def _drop_copied_default(analysis: dict, acts) -> bool:
+    """
+    Remove any copy of the default phrasing's answers from the variant map.
+
+    The map holds the EXTRA phrasings. The default phrasing's answers live in the
+    headline field, and they used to be copied in here as well so that the
+    comparison read as one structure rather than a field against a map.
+
+    A copy of a sampled field is a second place it can go stale, and this one went
+    stale at once: --reclassify re-labels the headline answers in place and does not
+    walk this map, so the copy kept whichever verdicts it was made with. The default
+    side of every phrasing comparison was then scored by whichever classifier ran
+    first - stale keyword verdicts against fresh classifier ones, which is exactly
+    the confound that already invalidated one phrasing comparison.
+
+    Returns whether anything was removed, so the caller can decide to save.
+    """
+    removed = False
+    for act in acts:
+        key = act["followup_key"] + "_by_variant"
+        by_variant = analysis.get(key)
+        if by_variant and DEFAULT_INTERROGATION in by_variant:
+            by_variant = {k: v for k, v in by_variant.items()
+                          if k != DEFAULT_INTERROGATION}
+            analysis[key] = by_variant
+            removed = True
+    if removed:
+        # The levels are derived from the answers, so they have to be re-settled
+        # after one is removed. settle_analysis puts the default phrasing's level
+        # back into the map from the headline field.
+        settle_analysis(analysis)
+    return removed
+
+
 def relabel_variant_answers(analysis: dict, acts, model: str,
                             only_failed: bool = True) -> dict:
     """
@@ -84,7 +118,7 @@ def relabel_variant_answers(analysis: dict, acts, model: str,
     WHAT IT WILL NOT TOUCH
     ----------------------
     Any copy of the DEFAULT phrasing inside the map. That copy is stale by
-    construction and is documented in reinterrogate._drop_copied_default as the
+    construction and is documented in _drop_copied_default above as the
     confound that already invalidated one phrasing comparison: the headline
     answers get re-labelled in place while the copy keeps whichever verdicts it
     was made with. Re-labelling the copy INDEPENDENTLY would be worse still -

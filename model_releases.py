@@ -137,6 +137,8 @@ RELEASE_DATES = {
     "gpt-6-sol": date(2026, 9, 22),
     # Announced with gpt-6-sol, on its native key for the same reason.
     "gpt-6-luna": date(2026, 9, 22),
+    # Native key like gpt-6-sol; stem "gpt-6.1-sol" does not collide with it.
+    "gpt-6.1-sol": date(2026, 9, 29),
 
     # meta
     "meta-llama/llama-4-maverick": date(2025, 4, 5),

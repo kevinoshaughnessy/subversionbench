@@ -471,7 +471,7 @@ def _variant_columns(row: dict, analysis: dict) -> None:
         levels, provenance = {}, {}
         # The default arm is synthesised from the HEADLINE field rather than
         # read out of the map, so it survives the map not holding a copy of
-        # it. reinterrogate._drop_copied_default deletes that copy on
+        # it. rescore._drop_copied_default deletes that copy on
         # purpose - it is stale by construction - and iterating the map
         # alone therefore lost the default side of every phrasing
         # comparison on any episode that had been through --reinterrogate.

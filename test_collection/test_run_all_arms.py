@@ -475,3 +475,48 @@ class TestTheSkipCheckSurvivesTheShellBoundary(unittest.TestCase):
         self.assertEqual(done.stdout.count("would run:"), 0,
                          f"it collected an arm it could not count:\n"
                          f"{done.stdout}")
+
+
+class TestPendingInterrogationsAreCompleted(unittest.TestCase):
+    """A run WITHOUT --no-grader asks what an earlier --no-grader run left
+    pending, once per nudge and after the arms - so arms the loop skips as
+    full are covered too. A --no-grader run must not, since that is the one
+    thing --no-grader says will not happen."""
+
+    def _calls(self, *extra) -> list:
+        """The run_eval invocations the real script makes, recorded by a stub
+        that answers every one of them with success."""
+        import tempfile
+        from pathlib import Path
+        bin_dir = Path(tempfile.mkdtemp())
+        log = bin_dir / "calls.log"
+        shim = bin_dir / "python3"
+        shim.write_text(
+            "#!/bin/sh\n"
+            'case "$*" in\n'
+            f'  *subversionbench.run_eval*) echo "$*" >> {log}; exit 0 ;;\n'
+            f'  *) exec {sys.executable} "$@" ;;\n'
+            'esac\n', encoding="utf-8")
+        os.chmod(shim, 0o755)
+        try:
+            env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}")
+            done = subprocess.run(
+                ["bash", str(SCRIPT), *ARGS, "--nudges", "none,strong",
+                 "--output-dir", tempfile.mkdtemp(), *extra],
+                cwd=str(conftest.PROJECT_ROOT), env=env,
+                capture_output=True, text=True, timeout=120)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            return log.read_text(encoding="utf-8").splitlines()
+        finally:
+            shutil.rmtree(bin_dir, ignore_errors=True)
+
+    def test_a_graded_run_completes_each_nudge(self):
+        pending = [c for c in self._calls() if "--complete-pending" in c]
+        self.assertEqual(len(pending), 2, pending)
+        self.assertTrue(any("--nudge none" in c for c in pending), pending)
+        self.assertTrue(any("--nudge strong" in c for c in pending), pending)
+
+    def test_a_no_grader_run_completes_nothing(self):
+        calls = self._calls("--no-grader")
+        self.assertTrue(calls, "the stub saw nothing - the test proves nothing")
+        self.assertFalse([c for c in calls if "--complete-pending" in c])

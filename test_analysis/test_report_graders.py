@@ -20,6 +20,7 @@ import types
 
 import report
 import report.run_report as run_report
+import report_charts
 import trends.family_trends as family_trends
 from subversionbench import charting
 from subversionbench.config import (DEFAULT_GRADER_MODEL,
@@ -42,9 +43,10 @@ def _reading(grader: str, aware: bool) -> dict:
                 "answer": aware, "quote": "q" if aware else ""}}}
 
 
-def _graded(out, n, model, readings, oversight=True):
+def _graded(out, n, model, readings, oversight=True, **episode_kwargs):
     """One episode holding each grader's awareness verdict in `readings`."""
-    path = _write_episode(out, n, model, "strong", oversight=oversight)
+    path = _write_episode(out, n, model, "strong", oversight=oversight,
+                          **episode_kwargs)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     flat = data["analysis"]
@@ -222,7 +224,8 @@ class TestTheCommandLines:
                 "report", "--output-dir",
                 _corpus(out, MIN_INFORMATIVE_DENOMINATOR),
                 "--chart-dir", charts]) == 0
-            assert sorted(os.listdir(charts)) == sorted(
+            assert sorted(d for d in os.listdir(charts)
+                          if not d.endswith(".png")) == sorted(
                 [os.path.basename(charting.grader_chart_dir(charts, g))
                  for g in (OTHER, DEFAULT_GRADER_MODEL)]
                 + [GRADER_COMPARISON_DIR])
@@ -526,3 +529,109 @@ class TestADemotedCrudeEstimateIsNotDrawnAsTheAnswer:
         assert not any(c.startswith(DEFAULT_GRADER_MODEL) for c in q5)
         assert not any("STRATIFIED" in c for c in
                        drawn["question_01_oversight_vs_awareness.png"])
+
+
+class TestTheChartsNoGraderReaches:
+    """Drawn once, from every episode, rather than once per grader.
+
+    The claim each GRADER_FREE entry makes is that no grader's verdict reaches
+    the chart. Held here against the charts themselves: two graders that read
+    every episode and disagree on all of them must draw each such chart
+    byte for byte the same - and must NOT draw the grader-judged ones the
+    same, or the disagreement never reached a chart and the first assertion
+    proves nothing."""
+
+    @staticmethod
+    def _corpus(out):
+        """p/a in both oversight arms, half of the oversight arm tampering,
+        and the two graders opposite on every episode."""
+        n = MIN_INFORMATIVE_DENOMINATOR
+        for oversight in (True, False):
+            for i in range(1, n + 1):
+                _graded(out, i if oversight else 100 + i, "p/a",
+                        {OTHER: True, DEFAULT_GRADER_MODEL: False},
+                        oversight=oversight,
+                        tampered=oversight and i % 2 == 0)
+        # The report refuses a directory with no summary at all. Neither
+        # grader's, so both rebuild from the same episodes and the verdicts
+        # are the only thing that differs between their reports.
+        _write_summary(out, "p/a", "strong", n_runs=n,
+                       figures_grader="third/grader")
+        return out
+
+    @staticmethod
+    def _drawn(built, chart_dir, grader_dependent):
+        written = report_charts.write_charts(built, chart_dir,
+                                             grader_dependent=grader_dependent)
+        out = {}
+        for path in written:
+            with open(path, "rb") as f:
+                out[os.path.basename(path)] = f.read()
+        return out
+
+    def test_every_grader_draws_them_identically(self):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            drawn = {g: self._drawn(run_report.build_report(out, grader=g),
+                                    os.path.join(out, g), False)
+                     for g in (OTHER, DEFAULT_GRADER_MODEL)}
+        free = drawn[OTHER]
+        assert "question_03_oversight_vs_misalignment.png" in free, (
+            "nothing drew - the comparison below would pass vacuously")
+        assert free.keys() == drawn[DEFAULT_GRADER_MODEL].keys()
+        differ = [name for name in free
+                  if free[name] != drawn[DEFAULT_GRADER_MODEL][name]]
+        assert not differ, f"a grader's verdict reached: {differ}"
+
+    def test_the_graders_disagreement_does_reach_the_judged_charts(self):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            drawn = {g: self._drawn(run_report.build_report(out, grader=g),
+                                    os.path.join(out, g), True)
+                     for g in (OTHER, DEFAULT_GRADER_MODEL)}
+        name = "question_02_oversight_vs_awareness.png"
+        assert drawn[OTHER][name] != drawn[DEFAULT_GRADER_MODEL][name]
+
+    def test_the_report_writes_them_once_beside_the_grader_directories(self):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            charts = os.path.join(out, "charts")
+            TestTheCommandLines._main(run_report.main, [
+                "report", "--output-dir", out, "--chart-dir", charts])
+            free = {f for f in os.listdir(charts) if f.endswith(".png")}
+            per_grader = {g: set(os.listdir(
+                charting.grader_chart_dir(charts, g)))
+                for g in (OTHER, DEFAULT_GRADER_MODEL)}
+        assert "question_03_oversight_vs_misalignment.png" in free
+        for g, names in per_grader.items():
+            assert not free & names, (g, sorted(free & names))
+            assert "question_02_oversight_vs_awareness.png" in names, g
+
+    def test_trends_reports_an_act_metric_once(self):
+        """A misalignment trend is every grader's alike: one JSON with no
+        grader in its name, its charts in the chart directory itself."""
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            for n in range(1, 11):
+                _graded(out, n, "p/a-2", {OTHER: True,
+                                          DEFAULT_GRADER_MODEL: False},
+                        tampered=n % 2 == 0)
+            charts = os.path.join(out, "charts")
+            assert TestTheCommandLines._main(family_trends.main, [
+                "trends", "--output-dir", out, "--metric", "misaligned",
+                "--chart-dir", charts]) == 0
+            reports = [f for f in os.listdir(out)
+                       if f.startswith("family_trends_")]
+            listed = os.listdir(charts)
+        assert len(reports) == 1 and reports[0].startswith(
+            "family_trends_misaligned_2"), reports
+        assert listed and all(f.endswith(".png") for f in listed), listed
+
