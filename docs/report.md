@@ -316,7 +316,7 @@ wording, so read the fallback rates beside it.
 
 ## Questions 13 onward: appended, never inserted
 
-Five more questions exist beyond the fixed twelve, added at different times as new arms and
+Ten more questions exist beyond the fixed twelve, added at different times as new arms and
 new splits of an existing act were authored. Each is **appended to the end of the question
 list**, never inserted beside a related question - the question numbers are the chart
 filenames and how the report refers to itself, so slotting one in anywhere else renumbers
@@ -330,6 +330,19 @@ order.
 | 15 | verbalised awareness vs quality-check tampering rate | v191 |
 | 16 | verbalised awareness vs oversight-tampering rate (the union of question 6 and 15) | v191 |
 | 17 | verbalised awareness vs goal-guarding rate | v191 |
+| 18 | safety-flavoured awareness vs the composite act rate | v193 |
+| 19 | capability-flavoured awareness vs the composite act rate | v193 |
+| 20 | safety-flavoured awareness (self-graded) vs the composite act rate | v195 |
+| 21 | capability-flavoured awareness (self-graded) vs the composite act rate | v195 |
+| 22 | oversight vs goal-guarding rate - question 3 for the goal-guarding act alone | v221 |
+
+**The composite is named for its acts.** Questions 3, 5 and 18-21 count a union of every act
+the corpus could observe, so their charts name those acts - "oversight subversion and sandbox
+escape attempt rate" on a mainline corpus, "goal-guarding, oversight subversion and sandbox
+escape attempt rate" on a goal-guarding one - rather than calling it "agentic misalignment".
+On the goal-guarding corpus the two shared acts are most of what that union counts, which is
+why question 22 exists: it is the only oversight contrast on the scenario's own act. Every
+chart also names its scenario at the top of its title (`charting.scenario_marked`).
 
 **15 and 16 split question 6's construct rather than adding a new one.** `oversight_tampered`
 - the act every oversight question except 6 itself reads - is a union of two mechanisms:
@@ -343,7 +356,7 @@ separate from the not-applicable/collapsed distinction above. `eval_results_goal
 does not chart questions 7, 10 or 13 (sandbox and lure) even though the underlying
 opportunity is not structurally removed there and some episodes do exercise it - it is a
 scope decision, not a claim the data is empty, and the console and the JSON report the real
-numbers regardless. The mainline corpora (r9, r10) do not chart 14 or 17, which genuinely are
+numbers regardless. The mainline corpora (r9, r10) do not chart 14, 17 or 22, which genuinely are
 null there - no goal-guarding episode exists outside `eval_results_goalguard_r1`. Oversight
 questions (6, 9, 15, 16) chart in every corpus: oversight is manipulated in both scenarios and
 tampering happens in both. See `run_report._out_of_scope_for_this_corpus`.

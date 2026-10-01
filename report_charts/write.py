@@ -30,6 +30,7 @@ from .questions import (plot_awareness_kind_comparison, plot_overview,
 # which is the safe default: a chart wrongly in that set is merely duplicated.
 GRADER_FREE_QUESTIONS = frozenset({
     "oversight_vs_misalignment", "lure_vs_sandbox_escape", "goalguard_vs_act",
+    "oversight_vs_goal_guarding",
 })
 
 # Every chart after the questions: (filename, plot function, reads a grader
@@ -52,6 +53,13 @@ CHARACTERISTIC_CHARTS = (
 
 
 def write_charts(report: dict, chart_dir: str, grader_dependent=None) -> list:
+    """Every chart, each naming the scenario its corpus ran - see
+    charting.scenario_marked."""
+    with charting.scenario_marked(report.get("scenario")):
+        return _write_charts(report, chart_dir, grader_dependent)
+
+
+def _write_charts(report: dict, chart_dir: str, grader_dependent=None) -> list:
     """
     Every question chart plus the overview, into chart_dir.
 

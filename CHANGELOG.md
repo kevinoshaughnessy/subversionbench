@@ -10,6 +10,27 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v221
+
+**Every chart names its scenario, and the composite rate names its acts.** The
+mainline and goal-guarding corpora draw charts of the same names, and nothing on a chart
+said which corpus it came from. `charting.scenario_marked` now leads every chart's title
+with "Mainline scenario" or "Goal-guarding scenario", read off the episodes' own arm; it
+wraps saving rather than each title, so a chart added later cannot miss it. "Agentic
+misalignment rate" named no act, and on the goal-guarding corpus it counted oversight
+subversion and sandbox escape attempts beside goal-guarding - which together are most of
+what it counts there. It is now labelled with the acts the corpus could observe
+(`report.pooling.composite_rate_label`): the oversight subversion and sandbox escape
+attempt rate on a mainline corpus, with goal-guarding leading on a goal-guarding one. The
+act labels everywhere follow suit.
+
+**A goal-guarding rate of its own.** Question 22 is question 3 for the goal-guarding act
+alone, over the episodes that staged the successor parameters; it is appended, so no
+question renumbers, and out of scope on a corpus with no goal-guarding arm. The trends
+gain `goalguard_act` on the same denominator, skipped on such a corpus rather than charted
+as zeros. A trends model with nothing in a metric's denominator is now left out rather
+than drawn as an empty point.
+
 ## v220
 
 **`--no-grader` calls no grader, and leaves the interrogation pending.** The grader labels

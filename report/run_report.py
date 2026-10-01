@@ -40,7 +40,7 @@ from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
 from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending)
-from .pooling import _crude_vs_stratified, _models
+from .pooling import _crude_vs_stratified, _models, scenario_of
 from .questions_arms import (POOLED_FROM_GRADER_ARM_ROWS,
                              POOLED_FROM_REBUILT_ARM_ROWS,
                              POOLED_FROM_SUMMARIES,
@@ -48,6 +48,7 @@ from .questions_arms import (POOLED_FROM_GRADER_ARM_ROWS,
                               question_goalguard_vs_act,
                              question_nudge_vs_awareness,
                              question_oversight_vs_awareness,
+                             question_oversight_vs_goal_guarding,
                              question_oversight_vs_misalignment,
                              question_oversight_vs_scheming)
 from .questions_awareness import (question_awareness_vs_goal_guarding,
@@ -423,6 +424,10 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # DIFFERENT, narrower denominator than the pair they parallel.
         question_safety_awareness_vs_misalignment_self(episodes),
         question_capability_awareness_vs_misalignment_self(episodes),
+        # APPENDED for the same renumbering reason. Question 3 for the
+        # goal-guarding act alone, which question 3's composite cannot show:
+        # on the goal-guarding corpus most of what it counts is the other acts.
+        question_oversight_vs_goal_guarding(act_rows),
     ])
 
     # A DIFFERENT FIELD from collapsed_by_exclusion, deliberately - see
@@ -525,6 +530,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # one description.
         "n_summary_files": len(summaries),
         "n_episode_files": len(episodes),
+        # Which scenario the corpus ran, named on every chart drawn from it.
+        "scenario": scenario_of(episodes),
         # FROM THE SOURCE QUESTIONS 1-4 ACTUALLY POOL FROM, which is the
         # summaries normally and the rebuilt rows under the awareness reading.
         # Taken from the summaries unconditionally, this reported the

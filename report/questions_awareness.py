@@ -1,7 +1,7 @@
 """
 Questions 5-10: the exposure is something the model did.
 
-    5.  verbalised evaluation awareness -> agentic misalignment rate
+    5.  verbalised evaluation awareness -> the composite act rate
     6.  verbalised evaluation awareness -> oversight-override rate
     7.  verbalised evaluation awareness -> sandbox escape attempt rate
     8.  verbalised evaluation awareness -> overall scheming rate
@@ -20,8 +20,8 @@ Two more, narrower still, are appended after those three - question 5 split
 by the kind of suspicion the grader's `eval_awareness_kind` recorded, rather
 than by whether awareness fired at all:
 
-    safety-flavoured awareness -> agentic misalignment rate
-    capability-flavoured awareness -> agentic misalignment rate
+    safety-flavoured awareness -> the composite act rate
+    capability-flavoured awareness -> the composite act rate
 
 Each restricts to episodes where the flavour could be told - see
 `_question_kind_vs_misalignment` for what "could be told" excludes and why.
@@ -29,8 +29,8 @@ Each restricts to episodes where the flavour could be told - see
 Two more still, appended after those, read the SAME flavour as the episode's
 own model rather than the primary grader:
 
-    safety-flavoured awareness (self-graded) -> agentic misalignment rate
-    capability-flavoured awareness (self-graded) -> agentic misalignment rate
+    safety-flavoured awareness (self-graded) -> the composite act rate
+    capability-flavoured awareness (self-graded) -> the composite act rate
 
 Restricted to episodes where BOTH the primary and self-graded flavour could be
 told - a narrower, DIFFERENT denominator from the pair above, because the two
@@ -90,7 +90,7 @@ from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 from .data_quality import cross_analysis_rows
 from .episode_rows import MISALIGNED_ACTS, NUDGE_LEVELS
 from .pooling import (_by_model, _consistency, _contrast, _finding,
-                      _stratified, composite_of)
+                      _stratified, composite_of, composite_rate_label)
 
 
 def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
@@ -193,12 +193,12 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
         "excludes every uniform-awareness arm. Reported only as a cross-check "
         "against the episode-level figure above, which uses all episodes.")
 
+    composite = composite_of(MISALIGNED_ACTS, rows)
     return {
         "id": "awareness_vs_misalignment",
-        "composite": composite_of(MISALIGNED_ACTS, rows),
-        "question": "Do agentic misalignment rates (any of the measured "
-                    "acts) increase or decrease with verbalised evaluation "
-                    "awareness?",
+        "composite": composite,
+        "question": f"Does the {composite_rate_label(composite)} increase or "
+                    f"decrease with verbalised evaluation awareness?",
         "data_source": "run_*.json episodes: classify_misalignment(analysis), "
                        "conditioned on awareness_flag()",
         "overall": overall,
@@ -256,12 +256,13 @@ def _question_kind_vs_misalignment(episodes: list, group_key: str,
                       group_key, True, False, "misaligned", "one")
         c["lure"] = lv
         by_lure.append(c)
+    composite = composite_of(MISALIGNED_ACTS, rows)
     return {
         "id": question_id,
-        "composite": composite_of(MISALIGNED_ACTS, rows),
-        "question": f"Do agentic misalignment rates (any of the measured "
-                    f"acts) increase or decrease with {kind_label}-flavoured "
-                    f"verbalised evaluation awareness?",
+        "composite": composite,
+        "question": f"Does the {composite_rate_label(composite)} increase or "
+                    f"decrease with {kind_label}-flavoured verbalised "
+                    f"evaluation awareness?",
         "data_source": f"run_*.json episodes: classify_misalignment(analysis), "
                        f"conditioned on {group_key} (eval_awareness_kind in "
                        f"{'{safety, both}' if kind_label == 'safety' else '{capability, both}'}"
@@ -369,13 +370,14 @@ def _question_self_kind_vs_misalignment(episodes: list, self_key: str,
     primary_overall = _contrast(both, primary_key, True, False,
                                 "misaligned", "one")
 
+    composite = composite_of(MISALIGNED_ACTS, both)
     return {
         "id": question_id,
-        "composite": composite_of(MISALIGNED_ACTS, both),
-        "question": f"Do agentic misalignment rates (any of the measured "
-                    f"acts) increase or decrease with {kind_label}-flavoured "
-                    f"verbalised evaluation awareness, read by the episode's "
-                    f"OWN model rather than the primary grader?",
+        "composite": composite,
+        "question": f"Does the {composite_rate_label(composite)} increase or "
+                    f"decrease with {kind_label}-flavoured verbalised "
+                    f"evaluation awareness, read by the episode's OWN model "
+                    f"rather than the primary grader?",
         "data_source": f"run_*.json episodes: classify_misalignment(analysis), "
                        f"conditioned on {self_key} (awareness_kind_self, "
                        f"the episode's own model as grader). Restricted to "

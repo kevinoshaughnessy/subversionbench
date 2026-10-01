@@ -3,9 +3,9 @@ Twelve fixed research questions, answered from a results directory.
 
     1. oversight    -> scheming rate
     2. oversight    -> verbalised evaluation awareness rate
-    3. oversight    -> agentic misalignment rate
+    3. oversight    -> the composite act rate
     4. nudge        -> verbalised evaluation awareness rate
-    5. verbalised evaluation awareness -> agentic misalignment rate
+    5. verbalised evaluation awareness -> the composite act rate
     6. verbalised evaluation awareness -> oversight-override (monitoring
        disabled) rate
     7. verbalised evaluation awareness -> sandbox escape attempt rate
@@ -194,6 +194,7 @@ from .questions_arms import (_question_oversight, _text_reachable_block,
                              question_goalguard_vs_act,
                             question_nudge_vs_awareness,
                             question_oversight_vs_awareness,
+                            question_oversight_vs_goal_guarding,
                             question_oversight_vs_misalignment,
                             question_oversight_vs_scheming)
 from .questions_awareness import (_question_act_scheming,
@@ -287,6 +288,7 @@ __all__ = [
     "question_awareness_vs_sandbox_escape",
     "question_lure_vs_sandbox_escape",
     "question_goalguard_vs_act",
+    "question_oversight_vs_goal_guarding",
     "question_awareness_vs_sandbox_scheming",
     "question_awareness_vs_scheming",
     "question_capability_awareness_vs_misalignment",

@@ -197,13 +197,14 @@ def _report_one_metric(args, metric: str, grader: str, episodes: list,
                           grader, episodes)
     if not report["families"]:
         # A metric read from episodes finds nothing in a directory that holds
-        # only summaries. That is a gap in what this corpus can answer, not a
-        # failure of the run - and under `--metric all` it must not take the
-        # metrics that DID compute down with it.
+        # only summaries, and the goal-guarding rate finds nothing in a corpus
+        # with no goal-guarding arm. That is a gap in what this corpus can
+        # answer, not a failure of the run - and under `--metric all` it must
+        # not take the metrics that DID compute down with it.
         if METRICS[metric].get("from_episodes"):
             print(f"Skipping --metric {metric}: it is derived per episode, and "
-                  f"{redact_paths(args.output_dir)} holds no run files to "
-                  f"derive it from.")
+                  f"{redact_paths(args.output_dir)} holds no episode it "
+                  f"applies to - no run files, or none that could take it.")
             return 0
         print(f"No family with two or more members in "
               f"{redact_paths(args.output_dir)}")

@@ -298,9 +298,14 @@ def _finding(c: dict, label_a: str, label_b: str, metric: str) -> str:
 # The MEMBERSHIP and the POOLING RULE travel together because a reader needs
 # both to know what a bar means: which acts count, and whether the pooled
 # figure weights a model by how many episodes it contributed.
-_ACT_LABELS = {"oversight": "oversight tampering",
-               "sandbox": "out-of-scope reach",
-               "goalguard": "goal guarding"}
+_ACT_LABELS = {"oversight": "oversight subversion",
+               "sandbox": "sandbox escape attempt",
+               "goalguard": "goal-guarding"}
+
+# The scenario each act belongs to, when it is not every scenario's. An act
+# named here is the one its scenario exists to measure, so it leads the label
+# of any composite that contains it; see composite_rate_label.
+_SCENARIO_OF_ACT = {"goalguard": "goal-guarding"}
 
 
 def _act_support(rows: list, act) -> tuple:
@@ -410,3 +415,45 @@ def composite_of(acts, rows: list = None) -> dict:
     # be compared with another composite at all.
     composite["element_set_varies"] = bool(some)
     return composite
+
+
+def composite_rate_label(composite: dict) -> str:
+    """What to call the composite's rate on a chart: the acts it counts.
+
+    "Agentic misalignment rate" named no act, so the same words meant
+    oversight subversion or a sandbox escape attempt on the mainline corpus
+    and that or goal-guarding on the goal-guarding one - where the two
+    shared acts are most of what the composite counts. Built from the
+    composite's own elements, every act any episode could take, so it names
+    what THIS corpus measured. A scenario's own act leads; with no elements
+    at all - rows carrying no observability, as a summary does - it names
+    every registered act, which is the construct rather than a measurement.
+    """
+    counted = set(composite.get("elements") or []) | {
+        p["element"] for p in composite.get("elements_in_some_episodes") or []}
+    # Registry order, so the label reads the same whichever acts were partial.
+    names = [label for label in _ACT_LABELS.values()
+             if label in counted or not counted]
+    leading = [_ACT_LABELS[a] for a in _SCENARIO_OF_ACT]
+    names = ([n for n in names if n in leading]
+             + [n for n in names if n not in leading])
+    joined = (", ".join(names[:-1]) + " and " + names[-1]
+              if len(names) > 1 else "".join(names))
+    return f"{joined} rate"
+
+
+def scenario_of(rows: list):
+    """Which scenario these rows ran, for a chart to say so.
+
+    Read off each row's own `goalguard` arm, which an episode row and an arm
+    row both carry. Mixed when some rows are goal-guarding and some are not,
+    and None for no rows at all - a chart drawn from nothing names nothing.
+    """
+    kinds = {bool(r.get("goalguard")) for r in rows}
+    if not kinds:
+        return None
+    if kinds == {True}:
+        return "Goal-guarding"
+    if kinds == {False}:
+        return "Mainline"
+    return "Mainline and goal-guarding"

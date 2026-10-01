@@ -145,7 +145,10 @@ class TestTheUnawareCorpusReading:
                              # data rather than why it would collapse - the
                              # two are different states and only the second
                              # is the exclusion's doing.
-                             "goalguard_vs_act"]
+                             "goalguard_vs_act",
+                             # Question 3 for the goal-guarding act alone, an
+                             # arm against an act, so the same holds.
+                             "oversight_vs_goal_guarding"]
 
     def test_nothing_is_blamed_when_no_awareness_reading_was_asked_for(self):
         report = rr.build_report(_two_arm_dir())
