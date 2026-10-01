@@ -64,6 +64,11 @@ class TestOurOwnClientsMissingKeyIsAnAuthError:
     def test_each_client_refusal_is_recognised(self):
         from unittest import mock
 
+        from conftest import skip_without
+        # All three import the SDK before they look for the key, so without it
+        # the refusal under test is never reached.
+        skip_without("openai", "the clients import the openai SDK first")
+
         from subversionbench.openai_client import OpenAIClient
         from subversionbench.opencode_client import OpenCodeClient
         from subversionbench.openrouter_client import OpenRouterClient
