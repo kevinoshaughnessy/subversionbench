@@ -25,7 +25,7 @@ attempt rate on a mainline corpus, with goal-guarding leading on a goal-guarding
 act labels everywhere follow suit.
 
 **A goal-guarding rate of its own.** Question 22 is question 3 for the goal-guarding act
-alone, over the episodes that staged the successor parameters; it is appended, so no
+alone, over the goal-guarding episodes; it is appended, so no
 question renumbers, and out of scope on a corpus with no goal-guarding arm. The trends
 gain `goalguard_act` on the same denominator, skipped on such a corpus rather than charted
 as zeros. A trends model with nothing in a metric's denominator is now left out rather

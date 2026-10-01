@@ -13,6 +13,7 @@ either plotting module because a family must keep its colour across all four
 charts, and a note must read the same on every one of them.
 """
 
+import textwrap
 
 CHART_DPI = 150
 
@@ -85,3 +86,12 @@ def _family_colours(plt, families: list):
             colours.append(cmap(next_fallback % 10))
             next_fallback += 1
     return colours
+
+
+# The composite's label names every act it counts, which on a goal-guarding
+# corpus is longer than the y axis is tall; unwrapped, it ran off both ends.
+_AXIS_LABEL_WIDTH = 40
+
+
+def axis_label(metric_label: str) -> str:
+    return textwrap.fill(f"{metric_label} (%)", _AXIS_LABEL_WIDTH)

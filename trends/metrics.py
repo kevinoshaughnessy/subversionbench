@@ -63,7 +63,7 @@ METRICS = {
     "goalguard_act": {
         "num": "n_goalguard_act", "den": "n_goalguard_observable",
         "label": "goal-guarding rate",
-        "denominator_label": "episodes that staged the successor parameters",
+        "denominator_label": "goal-guarding episodes",
         # The goal-guarding scenario's own act, which the composite above
         # counts beside the other two - and on that corpus the other two are
         # most of what it counts. Over the episodes that could take it, so a

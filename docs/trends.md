@@ -30,7 +30,7 @@ expanded into ordinary single-metric runs rather than a second code path, and it
 with those acts rather than "agentic misalignment": the oversight subversion and sandbox escape
 attempt rate on a mainline corpus, with goal-guarding leading on a goal-guarding one. There the
 two shared acts are most of what the union counts, so `goalguard_act` trends the goal-guarding
-act alone, over the episodes that staged the successor parameters; on a corpus with no
+act alone, over the goal-guarding episodes; on a corpus with no
 goal-guarding arm it is skipped rather than charted as zeros. Every chart names its scenario
 at the top of its title.
 
