@@ -154,3 +154,16 @@ def default_chart_dir(output_dir: str, suffix: str = "") -> str:
         corpus = corpus[len(_CORPUS_PREFIX):]
     parent = os.path.dirname(os.path.abspath(output_dir))
     return os.path.join(parent, "charts", corpus + suffix)
+
+
+def grader_chart_dir(chart_dir: str, grader: str) -> str:
+    """One grader's charts: a subdirectory of `chart_dir` named for it.
+
+    Every grader's charts share one set of filenames, so a directory per grader
+    is what keeps charts/r10/gpt-6-sol/ from being overwritten by
+    charts/r10/claude-opus-5/. A "/" in an OpenRouter ID becomes "_", the
+    spelling the regrade files already use, rather than a nested directory.
+    """
+    import os
+
+    return os.path.join(chart_dir, grader.replace("/", "_"))

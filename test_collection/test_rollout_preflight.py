@@ -18,6 +18,13 @@ import tempfile
 import subversionbench.run_eval as ev_run
 import conftest
 from conftest import env_without
+from subversionbench.config import DEFAULT_GRADER_MODEL
+from subversionbench.llm_client import credential_env_var
+
+# The credential a rollout's DEFAULT grader needs. Derived rather than named:
+# these tests said ANTHROPIC_API_KEY while the default was claude-opus-5, and
+# every one of them passed a batch straight through when it moved to gpt-6-sol.
+GRADER_KEY = credential_env_var(DEFAULT_GRADER_MODEL)
 
 
 class TestARolloutRefusesBeforeItSpends:
@@ -46,30 +53,77 @@ class TestARolloutRefusesBeforeItSpends:
         """The model's own route being fine is not enough: the grader model scores
         every interrogation answer, so its credential decides whether the
         concealment measure works at all."""
-        with env_without("ANTHROPIC_API_KEY"):
+        with env_without(GRADER_KEY):
             code, out, _ = self._rollout()
         assert code == 1
-        assert "ANTHROPIC_API_KEY" in out
+        assert GRADER_KEY in out
         assert "--grader-model" in out
 
-    def test_no_grader_does_not_excuse_the_grader_credential(self):
-        """--no-grader turns off the awareness rubric, not the interrogation
-        classifier, which is scored by the same model."""
+    def test_the_grader_refusal_names_no_grader_as_the_way_round(self):
+        with env_without(GRADER_KEY):
+            _, out, _ = self._rollout()
+        assert "Pass --no-grader" in out
+
+    @staticmethod
+    def _credentials(**over):
+        """_credentials_are_present directly, because a check that wrongly
+        passed through main() would go on to run a batch."""
+        import types
+        from subversionbench import runner
+        args = types.SimpleNamespace(**{
+            "model": "google/gemini-3-flash-preview",
+            "grader_model": "claude-opus-5", "use_opencode": False,
+            "no_grader": False, **over})
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ok = runner._credentials_are_present(args)
+        return ok, buf.getvalue()
+
+    def test_no_grader_goes_ahead_without_the_grader_credential(self):
+        """--no-grader calls no grader: the interrogation is left pending
+        rather than scored by keywords, so there is nothing for the key to
+        do and nothing to warn about. It used to warn and interrogate anyway,
+        and a whole goal-guarding batch was keyword-labelled under that
+        warning."""
         with env_without("ANTHROPIC_API_KEY"):
-            code, out, _ = self._rollout(extra=["--no-grader"])
-        assert code == 1
-        assert "even with --no-grader" in out
+            ok, out = self._credentials(no_grader=True)
+        assert ok is True
+        assert "REFUSING TO ROLL OUT" not in out
+        assert "ANTHROPIC_API_KEY" not in out
+
+    def test_no_grader_excuses_whichever_vendor_the_grader_is(self):
+        """Keyed on the grader's role, not on one vendor's variable: an OpenAI
+        grader for an OpenRouter model needs no OPENAI_API_KEY either."""
+        with env_without("OPENAI_API_KEY"):
+            ok, _out = self._credentials(no_grader=True, grader_model="gpt-6-sol")
+            refused, refusal = self._credentials(grader_model="gpt-6-sol")
+        assert ok is True
+        assert refused is False and "OPENAI_API_KEY" in refusal
+
+    def test_without_no_grader_the_grader_credential_still_refuses(self):
+        with env_without("ANTHROPIC_API_KEY"):
+            ok, out = self._credentials(no_grader=False)
+        assert ok is False
+        assert "REFUSING TO ROLL OUT" in out
+
+    def test_no_grader_never_excuses_the_model_credential(self):
+        """Only the grader's row is relaxed: a batch with nothing to evaluate
+        is not a choice anyone makes on purpose."""
+        with env_without("OPENROUTER_API_KEY"):
+            ok, out = self._credentials(no_grader=True)
+        assert ok is False
+        assert "OPENROUTER_API_KEY" in out and "--model" in out
 
     def test_it_refuses_before_any_episode_is_written(self):
-        with env_without("ANTHROPIC_API_KEY"):
+        with env_without(GRADER_KEY):
             code, out, outdir = self._rollout()
         assert not glob.glob(f"{outdir}/run_*.json"), "an episode was paid for"
         assert "# RUN 1/" not in out
 
     def test_the_refusal_names_the_fix(self):
-        with env_without("ANTHROPIC_API_KEY"):
+        with env_without(GRADER_KEY):
             _, out, _ = self._rollout()
-        assert "export ANTHROPIC_API_KEY=" in out
+        assert f"export {GRADER_KEY}=" in out
 
     def test_a_drifted_rollout_stops_it(self):
         """The refusal that keeps two experiments out of one directory.

@@ -199,8 +199,9 @@ class OpenAIClient:
                 "OPENAI_API_KEY environment variable not set. Get a key from "
                 "https://platform.openai.com/api-keys, or run the model "
                 "through OpenRouter instead by prefixing the ID with "
-                "'openai/' - note that route sends no effort parameter, so "
-                "reasoning comes back at whatever the model does by default."
+                "'openai/'. On that route a model under test is sent no "
+                "effort parameter and reasons at its own default; a grader "
+                "is still asked for a low effort."
             )
         # The SDK default read timeout is 600s with no override here, so one
         # degraded call could stall up to max_retries x 600s before the batch

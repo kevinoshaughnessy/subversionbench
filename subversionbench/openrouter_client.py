@@ -2,12 +2,13 @@
 OpenRouter adapter: OpenAI-compatible chat completions in, Anthropic-shaped
 blocks out.
 
-Reasoning appears here only when the backend volunteers it, because this path
-sends no reasoning parameter. That is a choice, not a limit of the API:
+Reasoning appears here only when the backend volunteers it, because a rollout on
+this path sends no reasoning parameter. That is a choice, not a limit of the API:
 OpenRouter accepts a `reasoning` parameter, and omitting it suppresses nothing -
 reasoning tokens are returned whenever the model generates them. So a model that
 returns none here did not reason, or withheld it upstream; it was not silenced by
-what this adapter sent.
+what this adapter sent. The one call that does send it is a short grader call,
+which asks for a low effort - see `short_call_thinking_kwargs`.
 
 That is why the same model can return a full trace through one provider route and
 nothing through another, why `reasoning_config` is recorded per run, and why
@@ -22,8 +23,10 @@ from .blocks import (_Block, _Response, _block_attr, _block_type,
                      _reasoning_detail_summary, _reasoning_usage)
 from .config import OPENROUTER_BASE_URL
 from .tool_parsing import (
+    _INVOKE_START,
     _RAW_TOOL_CALL_START,
     _parse_bracket_tool_calls,
+    _parse_invoke_tool_calls,
     _parse_raw_tool_call_text)
 
 def _to_openai_messages(msg: dict) -> list:
@@ -163,7 +166,8 @@ class OpenRouterClient:
         # asking for one by name.
         self._provider_name = provider_name
 
-    def _request_kwargs(self, model, max_tokens, system, tools, messages) -> dict:
+    def _request_kwargs(self, model, max_tokens, system, tools, messages,
+                        effort=None) -> dict:
         """The Anthropic-shaped call, translated to an OpenAI-compatible one."""
         kwargs = _base_request_kwargs(model, max_tokens, system, tools, messages)
 
@@ -187,6 +191,8 @@ class OpenRouterClient:
             provider["allow_fallbacks"] = False
         if provider:
             kwargs["extra_body"] = {"provider": provider}
+        if effort:
+            kwargs.setdefault("extra_body", {})["reasoning"] = {"effort": effort}
         return kwargs
 
     def _completion(self, model: str, kwargs: dict):
@@ -237,15 +243,20 @@ class OpenRouterClient:
 
     def create(self, model, max_tokens, system=None, tools=None, messages=None,
                thinking=None, output_config=None):
-        # `thinking` and `output_config` (Anthropic's reasoning controls) have
-        # no OpenRouter equivalent - accepted here only so callers can use one
-        # uniform interface across both clients. resolve_thinking_kwargs sends
-        # neither for an OpenRouter model; OpenRouter reasoning models surface
-        # their reasoning automatically via `message.reasoning`, captured
-        # below regardless of these arguments.
+        # `thinking` is Anthropic's control and has no counterpart here.
+        # `output_config.effort` does: OpenRouter takes `reasoning.effort`, so
+        # it is translated rather than dropped, as OpenAIClient does for the
+        # Responses API. This used to say neither had an equivalent, and
+        # dropped both - so a grader reached through OpenRouter reasoned at its
+        # default while gpt-6-sol, asked for the same low effort, did not.
+        # Measured on z-ai/glm-5.3 regrading 40 episodes: 6 of 320 answers
+        # spent the whole allowance reasoning and returned no verdict.
+        # resolve_thinking_kwargs still sends neither for a rollout, whose
+        # reasoning is captured via `message.reasoning` below either way.
+        effort = (output_config or {}).get("effort")
         completion = self._completion(
             model, self._request_kwargs(model, max_tokens, system, tools,
-                                        messages))
+                                        messages, effort=effort))
         choice = completion.choices[0].message
         finish_reason = getattr(completion.choices[0], "finish_reason", None)
         reasoning = getattr(choice, "reasoning", None)
@@ -287,10 +298,11 @@ def _response_blocks(choice, tools, reasoning, finish_reason) -> list:
     """
     One completion's message, as the content blocks the harness works in.
 
-    Three routes to a tool call: the SDK's own `tool_calls`, a backend that
-    ignored `tools` and emitted its native syntax as text, and one that wrote a
-    bracketed call. The last two are parsed here rather than upstream because
-    only this client can know the response did not come back structured.
+    Four routes to a tool call: the SDK's own `tool_calls`, a backend that
+    ignored `tools` and emitted its native syntax as text, one that wrote a
+    bracketed call, and one that wrote `<function_calls>` markup. The last
+    three are parsed here rather than upstream because only this client can
+    know the response did not come back structured.
 
     The raw-call route used to return a _Response of its own. It returns the
     blocks instead: it always appends at least one tool_use, so the
@@ -302,10 +314,13 @@ def _response_blocks(choice, tools, reasoning, finish_reason) -> list:
         blocks.append(_Block("thinking", thinking=reasoning))
 
     if not choice.tool_calls and choice.content:
+        valid_names = {t["name"] for t in (tools or [])}
         if _RAW_TOOL_CALL_START in choice.content:
             leading_text, raw_calls = _parse_raw_tool_call_text(choice.content)
+        elif _INVOKE_START in choice.content:
+            leading_text, raw_calls = _parse_invoke_tool_calls(
+                choice.content, valid_names)
         else:
-            valid_names = {t["name"] for t in (tools or [])}
             leading_text, raw_calls = _parse_bracket_tool_calls(
                 choice.content, valid_names
             )

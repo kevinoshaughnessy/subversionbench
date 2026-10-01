@@ -33,6 +33,7 @@ import re
 from subversionbench.batch import (CAPABILITY_TAG, BatchIdentity, batch_stem,
                                    parse_batch_filename)
 from subversionbench.arm_record import arm_identity
+from subversionbench.config import DEFAULT_GRADER_MODEL
 from subversionbench.rollout import rollout_fingerprint
 from subversionbench.rollout_pins import (CAPABILITY_FINGERPRINTS,
                                           CAPABILITY_TARGETS,
@@ -283,20 +284,28 @@ class TestTheEpisodeRecordSaysWhichArmItIs:
                                                     output_tokens=1))
             messages = _M()
 
+        import subversionbench.grading as sb_grading
         real_client = ev_llm.get_client
         real_interrogate = ev_episode.interrogate_acts
+        real_grader = sb_grading.detect_eval_awareness_grader
         ev_llm.get_client = lambda *a, **k: Fake()
         ev_episode.interrogate_acts = lambda *a, **k: started.append(1)
+        # With the grader on, stubbed: under --no-grader the interrogation is
+        # left pending in every arm, so only a graded episode can show the
+        # capability arm skipping it for its own reason.
+        sb_grading.detect_eval_awareness_grader = lambda *a, **k: {
+            "eval_aware": False, "rubric_results": {}}
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 result = ev_episode.run_evaluation(
                     system_prompt=SYSTEM_PROMPT_NO_NUDGE,
                     user_prompt="Do the task.", env_dir=env_dir,
                     env_info=env_info, model="m", max_turns=2,
-                    use_grader=False, nudge="none", capability=capability)
+                    use_grader=True, nudge="none", capability=capability)
         finally:
             ev_llm.get_client = real_client
             ev_episode.interrogate_acts = real_interrogate
+            sb_grading.detect_eval_awareness_grader = real_grader
         return result, len(started)
 
     def test_the_interrogation_is_skipped_and_says_so(self):
@@ -563,7 +572,7 @@ class TestTheCeilingIsStagedWithTheArtefactItInstructs:
             model="claude-sonnet-5", nudge="none", effort=None,
             oversight=False, lure=False, output_dir=tempfile.mkdtemp(),
             runs=1, delay=0, max_tokens=8192, max_turns=40, no_power=True,
-            no_grader=True, grader_model="claude-opus-5",
+            no_grader=True, grader_model=DEFAULT_GRADER_MODEL,
             isolation="deny-network", resume=None, max_consecutive_failures=3,
             thinking_budget=None, concurrency=1, interrogations=("default",),
             write_back=False, batch_stamp=None, yes=True,

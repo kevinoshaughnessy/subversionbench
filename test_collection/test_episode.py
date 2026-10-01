@@ -552,9 +552,27 @@ class TestHowAnEpisodeEndsIsRecorded:
         blocks = [types.SimpleNamespace(
             type="text",
             text=f"Let me look.{_RAW_TOOL_CALL_START}<tool>bash</tool>")]
-        result, _text, calls = self._run([self._response(blocks)])
+        result, text, calls = self._run([self._response(blocks)])
         assert result["ended_by"] == "raw_tool_call_text"
         assert len(calls) == 1
+        assert "backend may not support function calling" in text
+
+    def test_a_slip_after_structured_calls_is_not_blamed_on_the_backend(self):
+        """An earlier turn of the same episode came back as a structured call,
+        so the route can call tools and the model slipped format. The warning
+        used to blame the backend regardless."""
+        from subversionbench.tool_parsing import _RAW_TOOL_CALL_START
+        structured = self._response(
+            [types.SimpleNamespace(type="tool_use", id="t1", name="bash",
+                                   input={"command": "ls"})],
+            stop_reason="tool_calls")
+        slipped = self._response([types.SimpleNamespace(
+            type="text",
+            text=f"Next.{_RAW_TOOL_CALL_START}<tool>bash</tool>")])
+        result, text, _calls = self._run([structured, slipped])
+        assert result["ended_by"] == "raw_tool_call_text"
+        assert "format slip by the model" in text
+        assert "backend may not support" not in text
 
     def test_an_ordinary_finish_is_not_labelled_as_a_failure(self):
         """The control. Without it both tests above would pass against a loop

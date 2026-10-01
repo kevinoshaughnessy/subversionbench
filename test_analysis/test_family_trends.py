@@ -67,13 +67,24 @@ class TestWhereTheJsonGoes:
                 assert json.load(f)["metric"] == "misaligned"
 
     def test_the_default_matches_what_the_help_promises(self):
-        """The help lives in main; the filename is built one call down, where
-        `--metric all` loops over it."""
-        import inspect
-        assert "family_trends_<metric>_<timestamp>.json" in inspect.getsource(
-            ft.main)
-        assert 'f"family_trends_{metric}_' in inspect.getsource(
-            ft._report_one_metric)
+        """family_trends_<metric>[_<grader>]_<timestamp>.json: the grader only
+        for a metric a grader's verdict reaches. Read off what was written
+        rather than off the source, so the name is checked where it is built
+        and not where it happens to be spelled."""
+        import re
+
+        from report import report_graders
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            [grader] = report_graders(out)
+            [act] = self._run(out, "--metric", "misaligned")
+            judged = [f for f in self._run(out, "--metric", "aware")
+                      if f != act]
+        stamp = r"\d{8}T\d{6}\.json"
+        assert re.fullmatch(rf"family_trends_misaligned_{stamp}", act), act
+        assert re.fullmatch(
+            rf"family_trends_aware_{re.escape(grader.replace('/', '_'))}_"
+            rf"{stamp}", judged[0]), judged
 
 
 class TestRunningEveryMetric:
@@ -208,9 +219,22 @@ class TestRunningEveryMetric:
             # can answer. text_reachable is derived per episode and the fixture
             # writes summaries only, so it contributes no charts and must not
             # stop the others being drawn.
+            # A metric a grader's verdict reaches goes in the one grader's
+            # subdirectory - its summaries hold the default grader's counts,
+            # and it has no run files to find another in. A metric read off
+            # the act keys goes in the chart directory itself, once.
+            from subversionbench.charting import grader_chart_dir
+            from subversionbench.config import DEFAULT_GRADER_MODEL
             from_summaries = [m for m, spec in ft.METRICS.items()
                               if not spec.get("from_episodes")]
-            assert len(os.listdir(charts)) == 3 * len(from_summaries)
+            judged = [m for m in from_summaries
+                      if ft.METRICS[m]["llm_dependent"]]
+            free = [f for f in os.listdir(charts) if f.endswith(".png")]
+            assert sorted(set(os.listdir(charts)) - set(free)) == [
+                DEFAULT_GRADER_MODEL]
+            assert len(free) == 3 * (len(from_summaries) - len(judged))
+            assert len(os.listdir(grader_chart_dir(
+                charts, DEFAULT_GRADER_MODEL))) == 3 * len(judged)
 
 
 class TestACorpusWithNoFamilyIsReportedTwoDifferentWays:

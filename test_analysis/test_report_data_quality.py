@@ -907,3 +907,28 @@ class TestATurnTheProviderBlockedIsNotAModelThatStopped:
         assert "content_filter" in text
         # The truncation remedy must not be offered for a refusal.
         assert "Raise --max-tokens" not in text, text
+
+    def test_a_provider_error_is_its_own_finding(self):
+        """OpenRouter's `error` ended a gemini-3.6-flash episode mid-run and it
+        was counted as the model declining. Neither existing check knew the
+        word, and it belongs to neither: its remedy is to re-collect unchanged,
+        which is the wrong advice for both of them."""
+        facts = self._facts("error")
+        rows = facts["errored_as_stopped_arms"]
+        assert rows and rows[0]["n_read_as_stopped_but_errored"] == 1, facts
+        assert facts["refused_as_stopped_arms"] == []
+        assert facts["truncated_as_stopped_arms"] == []
+        for _route, reason in self.REFUSED + self.NOT_REFUSED:
+            assert self._facts(reason)["errored_as_stopped_arms"] == [], reason
+
+    def test_the_error_finding_reaches_the_printed_report(self):
+        from report.console_data_quality import _print_data_quality
+        out = tempfile.mkdtemp()
+        _write_episode(out, 1, "m", "strong", ended_by="model_stopped",
+                       ended_by_provider="error")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_data_quality(rr.build_report(out)["data_quality"])
+        text = buf.getvalue()
+        assert "read as stopped but failed by the provider" in text, text
+        assert "Raise --max-tokens" not in text, text

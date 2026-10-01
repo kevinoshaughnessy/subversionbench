@@ -21,7 +21,8 @@ from ..config import (MAX_CLASSIFIER_FALLBACK_RATE,
 from ..graders import grader_models, regrade_targets, store, view
 from ..grading import MISALIGNED_ACTS
 from ..rederive import rederive_free_measures
-from .rescore import (_new_tally, _recheck_misrepresentation, _rescore_acts,
+from .rescore import (_drop_copied_default, _new_tally,
+                      _recheck_misrepresentation, _rescore_acts,
                       relabel_variant_answers)
 from .selection import find_run_files_or_explain
 
@@ -243,6 +244,11 @@ def reclassify_one(data: dict, model: str, tally: dict):
     has_report = data.get("ended_by") != "turn_cap"
     if analysis.get("oversight_tampered") and has_report:
         _recheck_misrepresentation(analysis, data, model, tally)
+    # Before the relabel, not after: this mode relabels the headline answers,
+    # so a copy of them left in the variant map is stale the moment it runs -
+    # which is how a relabelled run went on carrying the old fallback labels
+    # and their credential error in that copy.
+    _drop_copied_default(analysis, MISALIGNED_ACTS)
     _rescore_acts(analysis, data, has_report, model, tally)
     _relabel_extra_phrasings(analysis, model, tally)
 

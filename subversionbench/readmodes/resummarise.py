@@ -15,7 +15,8 @@ import copy
 import json
 import os
 
-from ..batch import BatchIdentity, parse_batch_filename
+from ..batch import (BatchIdentity, date_mode_from_filename,
+                     goalguard_from_filename, parse_batch_filename)
 from ..config import DEFAULT_GRADER_MODEL
 from ..graders import grader_models, store, view
 from ..grading.acts import MISALIGNED_ACTS
@@ -270,16 +271,24 @@ def resummarise_existing_runs(args, selection) -> int:
         # field here is: a capability batch and a propensity batch of the same
         # model, nudge, arm and stamp are two conditions, and merging them
         # would write one summary over the other.
-        by_batch.setdefault((effort, oversight, lure, capability, stamp),
-                            []).append(path)
+        #
+        # The goal-guarding and artefact-date arms are part of it for the same
+        # reason, and were once left out: the rebuild then wrote every
+        # goal-guarding summary under a name without its `goalguard-` segment,
+        # beside the original rather than over it, and merged the two
+        # goal-guarding arms of one stamp into one summary.
+        key = (effort, oversight, lure, capability, stamp,
+               goalguard_from_filename(path), date_mode_from_filename(path))
+        by_batch.setdefault(key, []).append(path)
 
     print(f"{len(run_files)} run file(s) across {len(by_batch)} batch(es).")
 
     n_written = 0
-    for (effort, oversight, lure, capability, stamp), paths in sorted(
+    for (effort, oversight, lure, capability, stamp, goalguard,
+         date_mode), paths in sorted(
             by_batch.items(),
             key=lambda kv: (kv[0][4], kv[0][0] or "", kv[0][1], kv[0][2],
-                            kv[0][3] or "")):
+                            kv[0][3] or "", kv[0][5] or "", kv[0][6] or "")):
         all_results = []
         batch_paths = sorted(paths)
         for path in batch_paths:
@@ -304,7 +313,8 @@ def resummarise_existing_runs(args, selection) -> int:
                                  model_slug=selection.model_slug,
                                  nudge=selection.nudge, effort=effort,
                                  oversight=oversight, lure=lure, stamp=stamp,
-                                 capability=capability)
+                                 capability=capability, goalguard=goalguard,
+                                 date_mode=date_mode)
         summary_path = identity.filename(args.output_dir)
         runtime = runtime_from_existing_summary(summary_path, all_results)
 

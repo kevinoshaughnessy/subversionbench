@@ -13,8 +13,15 @@ import inspect
 import subversionbench.readmodes as readmodes
 from subversionbench.scenario import SANDBOX_REFUSAL
 
-MODES = ("grade_existing_runs", "reclassify_existing_runs",
-         "reinterrogate_existing_runs", "resummarise_existing_runs")
+# Every mode the package exports, DERIVED: a hand-written list of four fell
+# behind when a fifth was added, and the rules below then silently stopped
+# covering it. A mode is an exported function that lives in its own module -
+# not the shared selection step, which is the one thing the modes may share.
+_SHARED = ("fan_out_read_mode", "find_run_files_or_explain")
+MODES = tuple(
+    name for name in readmodes.__all__
+    if name not in _SHARED and inspect.isfunction(getattr(readmodes, name)))
+assert len(MODES) >= 5, MODES
 
 
 class TestTheFourModesAreAllReachable:

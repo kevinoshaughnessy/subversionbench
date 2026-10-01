@@ -138,6 +138,35 @@ def plot_overview(plt, report: dict, path: str) -> str:
     their contrasts individually: they are explicitly never pooled, so a single
     row for either would be a number this benchmark does not compute.
     """
+    rows, flagged = overview_rows(report)
+    if not rows:
+        return None
+    captions = [
+        ("stratified (Mantel-Haenszel) estimate where a question has one, "
+         "crude pooled where it does not; the two paired questions contribute "
+         "their contrasts individually because they are never pooled",
+         "#555555"),
+        ("* crude and stratified estimates diverge on this question - see its "
+         "own chart" if flagged else "", "#b00020"),
+        ("each row is a different outcome on a different denominator: read the "
+         "direction and interval, not the ranking", "#b00020"),
+        (WILSON_NOTE, "#777777"),
+    ] + _exclusion_captions(report)
+    return draw._draw_forest(
+        plt, rows, "All research questions: effect and 95% interval"
+        + _exclusion_title_suffix(report),
+        captions, path,
+        "difference in rate, percentage points (exposed minus unexposed)",
+        legend=True, bold_pooled=False)
+
+
+def overview_rows(report: dict) -> tuple:
+    """(one row per question or paired contrast, whether any is flagged).
+
+    The rows plot_overview draws, apart from it so the chart comparing
+    graders draws exactly the same ones for each grader rather than a second
+    derivation of them.
+    """
     rows = []
     flagged = False
     for i, section in enumerate(report.get("questions") or [], start=1):
@@ -191,25 +220,7 @@ def plot_overview(plt, report: dict, path: str) -> str:
                         marked=bool(mh.get("separated")
                                     if kind == "stratified"
                                     else overall.get("separated"))))
-    if not rows:
-        return None
-    captions = [
-        ("stratified (Mantel-Haenszel) estimate where a question has one, "
-         "crude pooled where it does not; the two paired questions contribute "
-         "their contrasts individually because they are never pooled",
-         "#555555"),
-        ("* crude and stratified estimates diverge on this question - see its "
-         "own chart" if flagged else "", "#b00020"),
-        ("each row is a different outcome on a different denominator: read the "
-         "direction and interval, not the ranking", "#b00020"),
-        (WILSON_NOTE, "#777777"),
-    ] + _exclusion_captions(report)
-    return draw._draw_forest(
-        plt, rows, "All research questions: effect and 95% interval"
-        + _exclusion_title_suffix(report),
-        captions, path,
-        "difference in rate, percentage points (exposed minus unexposed)",
-        legend=True, bold_pooled=False)
+    return rows, flagged
 
 
 # The three awareness-vs-misalignment readings that share one outcome: no

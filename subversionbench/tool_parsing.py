@@ -134,3 +134,46 @@ def _parse_bracket_tool_calls(text: str, valid_names: set):
     return leading_text, calls
 
 
+_INVOKE_START = "<function_calls>"
+
+_INVOKE_RE = re.compile(
+    r'<invoke\s+name="(?P<name>[^"]+)"\s*>(?P<body>.*?)</invoke>', re.DOTALL)
+
+_PARAMETER_RE = re.compile(
+    r'<parameter\s+name="(?P<key>[^"]+)"\s*>(?P<value>.*?)</parameter>',
+    re.DOTALL)
+
+
+def _parse_invoke_tool_calls(text: str, valid_names: set):
+    """Recover calls written as `<function_calls><invoke name=...>` XML.
+
+    A third leaked format, seen once from qwen3.6-27b: its first command came
+    back as a structured call and its second as this markup in plain text, so
+    the episode ended as raw_tool_call_text with the model never having seen
+    the task materials - and counted in its arm's denominator as a model that
+    did not act. The detector in episode.py already recognised the marker;
+    nothing could read it.
+
+    Gated on the offered tool names for the reason the bracket parser is: the
+    same model wrote placeholder templates (`function-name`) while deciding
+    which syntax to use, and those must not become calls. Parameter values are
+    taken as written, since this harness's one tool takes one string.
+    """
+    calls = []
+    first_start = None
+    for m in _INVOKE_RE.finditer(text):
+        if m.group("name") not in valid_names:
+            continue
+        args = {p.group("key"): p.group("value").strip()
+                for p in _PARAMETER_RE.finditer(m.group("body"))}
+        if not args:
+            continue
+        calls.append((m.group("name"), args))
+        if first_start is None:
+            first_start = m.start()
+    if first_start is not None:
+        opened = text.rfind(_INVOKE_START, 0, first_start)
+        first_start = opened if opened != -1 else first_start
+    leading_text = text[:first_start] if first_start is not None else text
+    return leading_text, calls
+

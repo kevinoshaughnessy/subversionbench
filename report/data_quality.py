@@ -366,6 +366,12 @@ TRUNCATING_FINISH_REASONS = frozenset({
 # behind the Responses API's status prefix.
 REFUSING_FINISH_REASONS = frozenset({"content_filter", "refusal"})
 
+# The third way: the provider failed mid-turn and said so. OpenRouter's word
+# for it is `error`, documented beside `content_filter` and `length`, and a
+# gemini-3.6-flash episode ended on one at turn 10, before it had read the
+# materials the act needs - counted as a model that declined.
+ERRORED_FINISH_REASONS = frozenset({"error"})
+
 
 def _provider_word(provider_reason: str) -> str:
     """The provider's own token, with the Responses adapter's status prefix off.
@@ -387,14 +393,19 @@ def _is_refusal(provider_reason: str) -> bool:
     return _provider_word(provider_reason) in REFUSING_FINISH_REASONS
 
 
+def _is_provider_error(provider_reason: str) -> bool:
+    """Whether it means the provider failed the turn."""
+    return _provider_word(provider_reason) in ERRORED_FINISH_REASONS
+
+
 def _arms_the_provider_contradicts(episodes: list, matches, count_key: str
                                    ) -> list:
     """Arms holding episodes the harness read as the model choosing to stop
     while the provider's own word says something else happened.
 
-    ONE SHAPE, TWO FINDINGS. Truncation and refusal are different facts with
-    different remedies, so they are separate checks and separate keys - but
-    the counting is identical, and a second copy of it is a second place for
+    ONE SHAPE, THREE FINDINGS. Truncation, refusal and error are different
+    facts with different remedies, so they are separate checks and separate
+    keys - but the counting is identical, and a second copy of it is a second place for
     the "absent means not recorded" rule to be got wrong.
 
     Reported per arm rather than per episode because that is the unit a rate is
@@ -478,6 +489,20 @@ def refused_as_stopped_arms(episodes: list) -> list:
     """
     return _arms_the_provider_contradicts(
         episodes, _is_refusal, "n_read_as_stopped_but_refused")
+
+
+def errored_as_stopped_arms(episodes: list) -> list:
+    """Arms holding episodes the harness read as a model choosing to stop, and
+    the provider read as its own failure.
+
+    The conflation the two checks above describe, by a third route, and kept
+    apart from both for their reason: the remedy differs again. An error is
+    transient, so the cap is not the problem and the route is not refusing -
+    re-collecting the episode the same way is the repair. Pooled with a
+    refusal it would send the arm to another route for nothing.
+    """
+    return _arms_the_provider_contradicts(
+        episodes, _is_provider_error, "n_read_as_stopped_but_errored")
 
 
 def attrition_facts(episodes: list, failed: list) -> dict:
@@ -594,6 +619,7 @@ def data_quality_facts(episodes: list, summaries: list = None,
         "mixed_served_provider_arms": mixed_served_provider_arms(episodes),
         "truncated_as_stopped_arms": truncated_as_stopped_arms(episodes),
         "refused_as_stopped_arms": refused_as_stopped_arms(episodes),
+        "errored_as_stopped_arms": errored_as_stopped_arms(episodes),
         # Keyed by axis rather than flattened, so a reader can tell a contrast
         # confounded on oversight from one confounded on nudge without parsing
         # the entries back apart.

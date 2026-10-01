@@ -206,6 +206,12 @@ def _print_data_quality(dq: dict) -> None:
         "reported as one the provider would not serve - and a content filter "
         "fires on exactly what this benchmark measures, so the arm reports a "
         "LOWER rate than the behaviour and reports it as a model declining.")
+    _print_provider_contradiction(
+        dq.get("errored_as_stopped_arms") or [],
+        "n_read_as_stopped_but_errored", "failed by the provider",
+        "while the provider reported an error mid-turn. A propensity rate "
+        "counts them as a model that declined to act. The error is transient, "
+        "so re-collecting those episodes the same way is the repair.")
     across = dq.get("routing_differs_across_contrast") or {}
     n_across = sum(len(v) for v in across.values())
     print(f"  models whose two sides of a contrast were routed differently: "

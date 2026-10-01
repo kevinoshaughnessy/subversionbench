@@ -299,6 +299,30 @@ class TestARebuildWritesToTheArmItRebuilt:
         assert not Path(f"{out}/summary_m_strong_{STAMP}.json").exists(), (
             "a counterfactual batch was written into the OVERSIGHT arm's file")
 
+    def test_each_goalguard_arm_is_rebuilt_over_its_own_summary(self):
+        """The goal-guarding segment is part of the arm too.
+
+        It was left out of the rebuild's key and identity, so rebuilding a
+        goal-guarding batch wrote a summary without the `goalguard-` segment
+        beside the original instead of over it - and two goal-guarding arms
+        sharing a stamp would have merged into that one file."""
+        out = tempfile.mkdtemp()
+        _counterfactual_run(out)
+        src = Path(f"{out}/run_1_m_strong_nooversight_{STAMP}.json")
+        for arm in ("replacement", "deferred"):
+            Path(f"{out}/run_1_m_strong_goalguard-{arm}_nooversight_"
+                 f"{STAMP}.json").write_text(src.read_text())
+        src.unlink()
+        with contextlib.redirect_stdout(io.StringIO()):
+            a = _args(out)
+            ev_run.resummarise_existing_runs(a, BatchSelection.typed(a))
+
+        written = sorted(p.name for p in Path(out).glob("summary_*.json"))
+        assert written == [
+            f"summary_m_strong_goalguard-deferred_nooversight_{STAMP}.json",
+            f"summary_m_strong_goalguard-replacement_nooversight_{STAMP}.json",
+        ], written
+
     def test_the_summary_records_the_arm_it_was_rebuilt_from(self):
         """Not just the filename - the contents have to agree with it, or a
         reader pooling by field rather than by name still gets it wrong."""

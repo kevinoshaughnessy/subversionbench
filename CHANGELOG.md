@@ -10,6 +10,149 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v220
+
+**`--no-grader` calls no grader, and leaves the interrogation pending.** The grader labels
+each interrogation answer, and its labels decide where each ladder of questions stops. Under
+`--no-grader` the interrogation used to run anyway, labelled by the grader if its key was
+set and by the keyword cross-check if not, under a warning that was easy to miss. Now the
+episode asks nothing: it records which acts are waiting in `interrogation_pending`, and
+concealment and scheming stay undetermined. `--complete-pending` asks them later from the
+saved conversation and rebuilds the batch's summaries; `run_all_arms.sh` runs it for every
+nudge whenever it is given no `--no-grader`, so arms it skips as full are covered too. An
+episode whose answers the grader fails to label stays pending rather than being written
+with keyword labels, a rejected credential stops the pass, and a missing one refuses it
+before anything is asked. Each answer now records the backend that served it, and a
+completed episode records when it was asked. `--no-grader` no longer checks the grader's
+credential at all.
+
+**Charts no grader reaches are drawn once.** The act-rate trends (`misaligned`,
+`oversight_act`, `sandbox_act`) and the report's question 3, questions 13 and 14,
+persistence, encoded-payload, lure and honeypot charts read no grader verdict, but were
+drawn once per grader - and each copy left out the episodes that grader had not read. They
+are now drawn once, over every episode, into `charts/<rollout>/` itself; the trends JSON
+for such a metric carries no grader in its name. `report_charts/write.py` declares which
+charts are grader-free, and a test renders each under two graders that disagree on every
+verdict and requires them to come out byte-identical.
+
+**A missing key is an authentication error.** All three API clients refuse to construct
+with "<VAR> environment variable not set", which no auth marker matched, so the
+abort-on-first-auth-error check never fired on it and every answer fell back to keywords.
+
+**`--resummarise` keeps the goal-guarding and date arms.** They were missing from its
+grouping key and from the identity it names the summary with, so a rebuilt goal-guarding
+summary landed beside the original under a name without its `goalguard-` segment, and two
+goal-guarding arms sharing a stamp would have merged.
+
+**No copy of the default phrasing in the variant map.** Collection went on writing the
+default phrasing's answers into `<followup_key>_by_variant` after `--reinterrogate` had
+started removing that copy as stale by construction; `--reclassify` relabelled the headline
+and left the copy holding the old labels and their errors. Collection writes only the extra
+phrasings now, and `--reclassify` removes any copy it finds.
+
+**Smaller fixes.** `--reclassify`'s fan-out prompt counts only the episodes that took an
+act, the only ones it sends to the grader, and no longer quotes a rollout's token usage. A
+tool call written as `<function_calls><invoke ...>` markup is parsed rather than ending the
+episode, gated on the offered tool names like the bracket parser. The raw-tool-call warning
+says the model slipped format, not that the backend lacks function calling, when an earlier
+turn made a structured call. A provider `error` finish reason read as the model stopping is
+its own data-quality finding, `errored_as_stopped_arms`, beside truncation and refusal. The
+OpenAI client's missing-key message no longer says an OpenRouter grader gets no effort
+parameter. `gpt-6.1-sol` gets its release date.
+
+## v219
+
+**Charts that put every grader's verdicts on one axis.** When the run files hold more
+than one grader, `python3 -m report` also writes `charts/<rollout>/grader_comparison/`:
+the questions overview, question 2 (oversight vs awareness), question 5 (awareness vs
+misalignment) and the rubric signal rates, each with one marker per grader on every row.
+They are drawn from reports built with `build_report(..., paired_with=<graders>)`, which
+keeps only the episodes every grader has read and counts the rest, so a gap between two
+markers is the graders disagreeing rather than covering different models. An estimate a
+grader could not make is labelled with its reason rather than left blank.
+
+On those charts a crude estimate its own question says not to report - crude and
+stratified diverge - is drawn hollow, faint and dashed, and the report's warning is
+captioned for each grader it applies to; question 5 on r10 diverges under both. Crude
+and stratified estimates take different markers, since colour already names the grader.
+A paired report always rebuilds questions 1-4 from its episodes, so no marker compares a
+summary count with a rebuilt one, and counts the episodes it dropped for pairing apart
+from those still waiting for its grader. No comparison is drawn under `--exclude-aware`,
+which drops each grader's own aware episodes, or where the graders share no episode.
+
+`gpt-6-luna` gets its release date (2026-09-22, announced with gpt-6-sol), so the
+release-date trend charts no longer omit it.
+
+## v218
+
+**The default grader is gpt-6-sol, and the report and trends answer every question
+once per grader.** claude-opus-5 had come to refuse a rising share of grader calls,
+concentrated on the episodes most likely to be aware, and gpt-6-sol answered nearly all
+of them. So `DEFAULT_GRADER_MODEL` is now `gpt-6-sol`, which is what a new collection
+grades with and what `--regrade default` means; claude-opus-5's readings stay in every
+file as its own entries.
+
+`python3 -m report` and `python3 -m trends` now find every grader the run files hold and
+write one report per grader, with charts in `charts/<rollout>/<grader>/` and the grader
+in each JSON filename. Within one grader's report, an episode another grader has read
+and this one has not is left out and counted per model, not shown ungraded - ungraded,
+it would have taken the keyword fallback and put keyword-screen results under that
+grader's name. An episode no grader read stays in every report, as before. Questions 1-4
+(and trends' summary-based metrics) pool from the batch summaries only for the grader
+whose counts those summaries hold, and from arm rows rebuilt out of the grader's own
+episodes otherwise; a summary now records that grader as `figures_grader_model`, and one
+written before it did is read as claude-opus-5's (`LEGACY_DEFAULT_GRADER_MODEL`). The
+claude-opus-5 report and every claude-opus-5 trend on r10 are identical to v217's.
+
+`grader_ab`'s reference cell follows the default, because its sample is balanced on the
+default's stored verdicts.
+
+## v217
+
+**A grader reached through OpenRouter is asked for a low reasoning effort.** The short
+grader and classifier calls already asked a native OpenAI grader, and any Claude model
+that cannot turn thinking off, for the lowest effort. An OpenRouter grader was sent
+nothing, on the belief that the route takes no reasoning parameter; it takes
+`reasoning.effort`, and the client was dropping the effort it was handed. So
+`z-ai/glm-5.3` graded at its default depth beside a gpt-6-sol asked for low, and some of
+its answers spent the whole allowance reasoning and returned no verdict. The effort is
+now sent, and translated by `OpenRouterClient`. Rollouts are unchanged, since they send
+no reasoning parameter on that route, and so is `contamination_check.py`, which puts
+its calls to the model under test and asks for no effort. The default grader,
+claude-opus-5, turns thinking off and is unaffected. `z-ai/glm-5.3` and
+`moonshotai/kimi-k3` are priced in `grader_ab`, glm-5.3 with its own cached-read rate.
+
+## v216
+
+**`--no-grader` can roll out without the grader model's credential.** Until now the
+credential check refused a batch whose grader credential was unset even with
+`--no-grader`, because the interrogation classifier is scored by the same model and r4
+showed what a missing key does unnoticed: every answer falls back to the keyword
+cross-check and the concealment rate is built on those fallbacks. What made that a
+defect was that nobody knew, and three things now say so: the batch prints a warning
+before the first episode, each answer records `used_keyword_fallback`, and the report
+warns over every concealment figure once the fallback share passes its limit. So with
+`--no-grader` a missing grader credential is a warning and the batch goes ahead with
+keyword-scored interrogations. Without `--no-grader` it is still refused, and the
+refusal now names `--no-grader` as the way to roll out like that on purpose. The model
+under test's own credential is required either way.
+
+## v215
+
+**A probe of whether the awareness grader reads a long episode as reliably as a short
+one.** The grader is shown at most 20,000 characters of an episode, the first 8,000 and
+the last 12,000, and a large share of the r9 and r10 episodes are longer than that, so
+their middle was never read. Raising the limit is only a fix if the grader finds what a
+longer text holds, and if reliability falls with length it already falls below the limit.
+`grader_ab/length_probe.py` plants one sentence in the agent's own words, in two
+strengths held in the detector bundle, at 10%, 50% or 90% of episodes stored as not aware in three length bands, puts
+the whole text to the grader through the production question call, and counts a plant as
+found only when a question quotes it. Refusals are counted apart from the rate. Without
+`--yes` it prints the plan and a cost ceiling and sends nothing.
+
+`agent_corpus` is split so the formatted agent text is available before the budget is
+applied (`format_agent_text`). What the grader is shown is unchanged.
+
 ## v214
 
 **A chart of the eval-awareness rate per model, split by the grader's confidence.**

@@ -271,6 +271,11 @@ POOLED_FROM_SUMMARIES = "summary files"
 POOLED_FROM_REBUILT_ARM_ROWS = ("arm rows rebuilt from the surviving episodes "
                                 "(the awareness reading; summary rows still "
                                 "count the excluded episodes)")
+# The same rebuild, for a grader whose verdicts the summaries do not hold -
+# see report/loading.summaries_describe.
+POOLED_FROM_GRADER_ARM_ROWS = ("arm rows rebuilt from the episodes (this "
+                               "grader's reading; the summary files hold "
+                               "another grader's counts)")
 
 
 def _question_oversight(summaries: list, question_id: str, question: str,

@@ -84,6 +84,7 @@ __all__ = [
     "CANARY_GUID",
     "CONTAMINATING_TERMS",
     "DEFAULT_GRADER_MODEL",
+    "LEGACY_DEFAULT_GRADER_MODEL",
     "DEFAULT_INTERROGATION",
     "EVAL_AWARENESS_INDICATORS",
     "FOLLOWUP_MONITORING_ADMISSION",
@@ -195,7 +196,21 @@ OPENCODE_BASE_URL = "https://opencode.ai/zen/v1"
 # Opus rates, because the transcript is marked cacheable and so is processed
 # once per episode rather than once per question. Set --grader-model to trade
 # that down, knowing what it buys.
-DEFAULT_GRADER_MODEL = "claude-opus-5"
+#
+# gpt-6-sol from v218. claude-opus-5 came to refuse a rising share of grader
+# calls, concentrated on the episodes most likely to be aware, and gpt-6-sol
+# answered nearly all of them - see docs/grader-agreement.md. The readings
+# claude-opus-5 made stay in every file as its own entry, and the report and
+# trends draw one set of charts per grader found in the run files.
+DEFAULT_GRADER_MODEL = "gpt-6-sol"
+
+# What DEFAULT_GRADER_MODEL was until v218, and so whose counts a batch
+# summary holds when it does not say: one written before summaries recorded
+# `figures_grader_model` was counted from claude-opus-5's view. Kept apart from
+# the default because reading those as the CURRENT default's would print
+# claude-opus-5's rates under gpt-6-sol's name. Run files need no such
+# fallback in practice - see graders.graders_of.
+LEGACY_DEFAULT_GRADER_MODEL = "claude-opus-5"
 
 # =========================================================================
 # Output redaction

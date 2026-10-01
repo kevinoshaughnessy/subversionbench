@@ -91,8 +91,12 @@ class OpenCodeClient(OpenRouterClient):
         self._provider_sort = None
         self._provider_name = None
 
-    def _request_kwargs(self, model, max_tokens, system, tools, messages) -> dict:
+    def _request_kwargs(self, model, max_tokens, system, tools, messages,
+                        effort=None) -> dict:
         """The Anthropic-shaped call, translated to OpenAI-compatible JSON -
-        Zen's own model id, and no `provider` routing dict."""
+        Zen's own model id, and no `provider` routing dict. `effort` is not
+        sent either, for the same reason: OpenRouter's `reasoning` parameter
+        has no documented Zen equivalent, and only a grader call carries one,
+        which never reaches this gateway."""
         return _base_request_kwargs(_opencode_model_id(model), max_tokens,
                                     system, tools, messages)

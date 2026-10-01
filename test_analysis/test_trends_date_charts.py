@@ -493,7 +493,8 @@ class TestTheCombinedDateChartIsAsWideAsItsLegend:
             os.path.abspath(__file__))), "eval_results_r9")
         if not glob.glob(os.path.join(corpus, "summary_*.json")):
             raise unittest.SkipTest("no corpus in this checkout")
-        report = ft.build_report(corpus, "scheming")
+        # r9's only grader; the default would find every episode unread.
+        report = ft.build_report(corpus, "scheming", grader="claude-opus-5")
         plt, fig, ax = self._render(report)
         try:
             ratio = (self._width_in(fig, ax)

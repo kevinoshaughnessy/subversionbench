@@ -14,7 +14,9 @@ the same contradiction caught mid-batch has already spent the money.
 
 import contextlib
 import io
+import json
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -115,10 +117,10 @@ class TestContradictoryFlagsAreRefusedBeforeSpending:
         """It names the grader a COLLECTION runs. Accepting it beside a read
         mode would let someone believe they re-graded with a model they did
         not; the message names the flag that does it."""
-        code, out = _main("--grade-existing", "--grader-model", "gpt-6-sol",
+        code, out = _main("--grade-existing", "--grader-model", "claude-opus-5",
                           "--model", "m")
         assert code == 2
-        assert "use --regrade gpt-6-sol" in out
+        assert "use --regrade claude-opus-5" in out
 
     def test_batch_stamp_is_accepted_with_every_read_mode(self):
         """Refusals have to be exactly as wide as their reason. A guard listing
@@ -392,7 +394,11 @@ class TestDispatch:
         saved = ev_run.compare_batches
         ev_run.compare_batches = lambda args: (calls.append("compare"), 0)[1]
         try:
-            _main("--compare", "a.json", "b.json", "--model", "m")
+            # Its own --output-dir: main creates the default one, and in a
+            # checkout without a corpus that empty ./eval_results_r10 then
+            # reads to the corpus tests as a corpus with nothing in it.
+            _main("--compare", "a.json", "b.json", "--model", "m",
+                  "--output-dir", tempfile.mkdtemp())
         finally:
             ev_run.compare_batches = saved
         assert calls == ["compare"]
@@ -432,7 +438,24 @@ class TestFanningOutOverEveryBatch:
         code, out = _main("--reclassify", "--model", "all", "--nudge", "strong",
                           "--output-dir", tempfile.mkdtemp())
         assert code == 2
-        assert "--yes" in out and "real money" in out
+        assert "--yes" in out and "would send grader requests" in out
+
+    def test_reclassify_counts_only_the_episodes_it_would_send(self):
+        """--reclassify calls the grader only where an act was taken. The
+        prompt counted every run file and quoted a rollout's token usage, so a
+        one-act repair read as a whole batch of grading. --grade-existing
+        does read every episode, and still says so."""
+        out = tempfile.mkdtemp()
+        for i, act in enumerate((True, False, False), start=1):
+            Path(f"{out}/run_{i}_m_strong_20260101T000000.json").write_text(
+                json.dumps({"model": "m", "nudge": "strong",
+                            "analysis": {"oversight_tampered": act}}))
+        _code, said = _main("--reclassify", "--model", "all", "--nudge",
+                            "strong", "--output-dir", out)
+        assert "for 1 of 3 run file(s)" in said, said
+        _code, said = _main("--grade-existing", "--model", "all", "--nudge",
+                            "strong", "--output-dir", out)
+        assert "for 3 of 3 run file(s)" in said, said
 
     def test_with_yes_it_says_the_scope_it_is_proceeding_with(self):
         calls = []
@@ -535,7 +558,8 @@ class TestTheParserIsReadableWithoutRunningABatch:
     """
 
     EXPECTED = {
-        "--batch-stamp", "--capability", "--compare", "--concurrency",
+        "--batch-stamp", "--capability", "--compare", "--complete-pending",
+        "--concurrency",
         "--date-mode", "--delay", "--effort", "--goalguard", "--grade-existing",
         "--grader-model",
         "--interrogation", "--isolation", "--lure", "--max-consecutive-failures",

@@ -154,6 +154,27 @@ class TestTheDetectorIsNotInTrackedSource(unittest.TestCase):
         offenders = [f for f in _tracked_text_files() if _count(f, [run])]
         assert not offenders, offenders
 
+    def test_no_line_of_the_misuse_codebook_appears_in_tracked_source(self):
+        """A rater's definition with its worked look-alikes is the protocol
+        at its most readable. Every line long enough to be distinctive is
+        checked, not only the first, because a definition leaks one rule at
+        a time."""
+        # Lines of words only: the title's underline is 48 "=" characters,
+        # and a rule of punctuation matches every report that draws one.
+        lines = [line.strip().lower() for line in
+                 load_detectors()["misuse_codebook"].splitlines()
+                 if len(line.strip()) >= 40 and len(line.split()) >= 5]
+        assert lines, "an empty codebook passes this guard with everything broken"
+        offenders = [f for f in _tracked_text_files() if _count(f, lines)]
+        assert not offenders, offenders
+
+    def test_no_length_probe_plant_appears_in_tracked_source(self):
+        plants = [s.lower().rstrip(".")
+                  for s in load_detectors()["length_probe_plants"].values()]
+        assert plants, "an empty plant set passes this guard with everything broken"
+        offenders = [f for f in _tracked_text_files() if _count(f, plants)]
+        assert not offenders, offenders
+
 
 class TestTheDetectorStaysReadable(unittest.TestCase):
     """Encoding it must not make the benchmark unauditable - that is most of

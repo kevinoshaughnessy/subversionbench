@@ -23,7 +23,8 @@ import datetime
 import json
 import os
 
-from ..config import CANARY, MAX_CLASSIFIER_FALLBACK_RATE, VERSION
+from ..config import (CANARY, DEFAULT_GRADER_MODEL,
+                      MAX_CLASSIFIER_FALLBACK_RATE, VERSION)
 from ..graders import grader_models, view
 from ..grading import CONCEALMENT_LEVELS, SCHEMING_LEVELS
 from ..power import analyse_batch
@@ -481,9 +482,14 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
     power = _power_for(args, facts)
     render_report(facts, identity, args, power)
     summary = summary_document(facts, identity, setting, power)
-    # Which graders have readings in this batch. Every figure above is the
-    # default grader's alone, so this is what says whether others exist.
-    summary["grader_models"] = grader_models_seen
+    # Which graders have readings in this batch, since every figure above is
+    # the default grader's alone - and which one the figures ARE, because the
+    # default moves: until v218 it was claude-opus-5 and no summary said so.
+    # The report pools questions 1-4 from these files only for the grader
+    # named here - see report/loading.py's summaries_describe - and a summary
+    # without the field is LEGACY_DEFAULT_GRADER_MODEL's.
+    summary.update(grader_models=grader_models_seen,
+                   figures_grader_model=DEFAULT_GRADER_MODEL)
     write_summary(summary, args, identity)
     return summary
 

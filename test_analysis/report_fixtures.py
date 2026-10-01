@@ -18,6 +18,7 @@ import tempfile
 
 from conftest import batch_episode
 from subversionbench.batch import BatchIdentity
+from subversionbench.config import DEFAULT_GRADER_MODEL
 from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.reporting.facts import normalise_analyses
 from subversionbench.scenario import SANDBOX_REFUSAL
@@ -31,7 +32,8 @@ def _single(report):
 def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="20260101T000000",
                    n_runs=10, n_scheming=0, n_misaligned=0, n_aware=0,
                    n_unaware=0, cross=None, model_slug=None, capability=None,
-                   max_turns=None, goalguard=None):
+                   max_turns=None, goalguard=None,
+                   figures_grader=DEFAULT_GRADER_MODEL):
     # `capability` reaches the FILENAME, which is where the corpus is recorded
     # - a summary carries no top-level field for it. A fixture that could not
     # produce one left the capability half of load_summaries' filter untested.
@@ -53,6 +55,12 @@ def _write_summary(out, model, nudge, oversight=True, lure=False, stamp="2026010
     # fixture that always wrote the key could not produce the absent case.
     if max_turns is not None:
         d["max_turns"] = max_turns
+    # Stamped as a summary written now is, so these counts are the default
+    # grader's - the grader an unnamed episode fixture's reading is credited
+    # to. None writes a summary from before v218, which records no grader and
+    # is read as LEGACY_DEFAULT_GRADER_MODEL's.
+    if figures_grader is not None:
+        d["figures_grader_model"] = figures_grader
     with open(path, "w") as f:
         json.dump(d, f)
     return path

@@ -190,6 +190,7 @@ subversionbench/
     reclassify.py          re-labelling saved interrogation answers
     resummarise.py         re-deriving everything derivable, for free
     reinterrogate.py       asking a differently-worded question
+    complete_pending.py    asking the interrogations --no-grader left pending
   compare.py       differencing two arms of the counterfactual
   arms_summary.py  every arm of one model side by side, and the contrasts
                    that hold up across nudge/oversight/lure/interrogation
@@ -303,6 +304,14 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    because a definition composed with the cases in front of
                    you is fitted to them. Run as
                    `python3 -m grader_ab.misuse_pack`
+  length_probe.py  whether the grader reads a long episode as reliably as a
+                   short one: one sentence planted at 10%, 50% or 90% of
+                   episodes stored as not aware, in three length bands, the
+                   whole text graded with no character budget. A plant counts
+                   as found only when a question QUOTES it, and refusals are
+                   counted apart from the rate. Prints the plan and a cost
+                   ceiling and sends nothing without --yes. Run as
+                   `python3 -m grader_ab.length_probe`
   jev_client.py    calling typesafe/jev-1.13, a deterministic classifier
                    rather than an LLM: one POST carrying the transcript as
                    `state` and per-question `criteria`, answered with a
@@ -459,6 +468,9 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    and how far the episode got with the file. Its own module
                    because these are the only charts split by oversight
                    stratum, which is what makes the exclusion apply to a PANEL
+  graders.py       the charts that put several graders' verdicts on one axis,
+                   drawn only from the episodes every grader has read, into
+                   charts/<rollout>/grader_comparison/
   write.py         the entry point: every chart into one directory, and the
                    paths it actually wrote
 sad_oversight.py   an external situational-awareness leaderboard, encrypted at

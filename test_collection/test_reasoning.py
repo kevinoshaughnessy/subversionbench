@@ -250,11 +250,34 @@ class TestGraderThinking:
         assert kwargs["output_config"] == {"effort": SHORT_CALL_EFFORT}
         assert tokens >= 4096
 
-    def test_openrouter_grader_gets_no_parameter(self):
-        from subversionbench.reasoning import short_call_thinking_kwargs
+    def test_an_openrouter_grader_is_asked_for_the_low_effort(self):
+        """THIS ASSERTED `kwargs == {}`, on a reading of the route as taking no
+        reasoning parameter. OpenRouter takes `reasoning.effort`, and sending
+        nothing left z-ai/glm-5.3 grading at its default depth beside a
+        gpt-6-sol asked for low: 6 of 320 of its answers spent the whole
+        allowance reasoning and returned no verdict."""
+        from subversionbench.reasoning import (SHORT_CALL_EFFORT,
+                                               short_call_thinking_kwargs)
 
-        kwargs, tokens = short_call_thinking_kwargs("x-ai/grok-4.5", 200)
-        assert kwargs == {}
+        for model in ("z-ai/glm-5.3", "moonshotai/kimi-k3", "x-ai/grok-4.5"):
+            kwargs, _tokens = short_call_thinking_kwargs(model, 200)
+            assert kwargs == {"output_config": {"effort": SHORT_CALL_EFFORT}}, (
+                model)
+
+    def test_a_model_under_test_is_sent_no_effort_on_any_route(self):
+        """contamination_check.py puts its short calls to the model UNDER TEST,
+        measuring what it recalls, so lowering its effort would lower the
+        thing being measured. That held by default while OpenRouter was sent
+        nothing; now that an OpenRouter grader is sent an effort, it holds only
+        because steer_effort=False is honoured - and nothing checked that."""
+        from subversionbench.reasoning import (THINKING_HEADROOM_TOKENS,
+                                               short_call_thinking_kwargs)
+
+        for model in ("z-ai/glm-5.3", "gpt-6-sol", "claude-fable-5"):
+            kwargs, tokens = short_call_thinking_kwargs(model, 200,
+                                                        steer_effort=False)
+            assert "output_config" not in kwargs, model
+            assert tokens == 200 + THINKING_HEADROOM_TOKENS, model
 
     def test_an_openrouter_grader_gets_room_to_answer_after_reasoning(self):
         """THIS ASSERTED `tokens == 200` AND WAS WRONG, on a reading of
@@ -274,8 +297,7 @@ class TestGraderThinking:
 
         for model in ("x-ai/grok-4.5", "google/gemini-3.5-flash",
                       "qwen/qwen3.8-flash"):
-            kwargs, tokens = short_call_thinking_kwargs(model, 200)
-            assert kwargs == {}, model
+            _kwargs, tokens = short_call_thinking_kwargs(model, 200)
             assert tokens == 200 + THINKING_HEADROOM_TOKENS, model
 
     def test_a_caller_asking_for_more_keeps_all_of_it(self):
@@ -341,26 +363,28 @@ class TestGraderThinking:
                 f"effort, so it reasons at its default on a call that only "
                 f"has to emit a fixed JSON shape")
 
-    def test_a_native_openai_grader_is_asked_for_the_low_effort_too(self):
-        """OpenAI has no surface row, so the table-derived test above cannot
-        see it - and it was sent nothing: gpt-6-sol graded at 3x Opus 5's cost
-        and 5x Opus 5.5's despite cheaper per-token rates, reasoning at its
-        default. Derived from the price table, so the next bare OpenAI grader
-        inherits the rule. The OpenRouter spelling of the same model is the
-        control: that route takes no reasoning parameter here."""
+    def test_a_grader_with_no_surface_row_is_asked_for_the_low_effort_too(self):
+        """OpenAI and OpenRouter models have no surface row, so the
+        table-derived test above cannot see them - and both were sent nothing:
+        gpt-6-sol graded at 3x Opus 5's cost and 5x Opus 5.5's despite cheaper
+        per-token rates, and z-ai/glm-5.3 lost 6 of 320 answers to reasoning,
+        each at its default. Derived from the price table, so the next grader
+        priced on either route inherits the rule. The OpenRouter spelling of a
+        native OpenAI grader is checked as well: it used to be this test's
+        control, asserting that route was sent nothing."""
         import grader_ab as ab
         from subversionbench.reasoning import (SHORT_CALL_EFFORT,
                                                short_call_thinking_kwargs)
-        from subversionbench.routing import is_openai_model
+        from subversionbench.routing import is_openai_model, is_openrouter_model
 
         native = [m for m in ab.PRICES_PER_MTOK if is_openai_model(m)]
+        routed = [m for m in ab.PRICES_PER_MTOK if is_openrouter_model(m)]
         assert native, "no native OpenAI grader priced - the scope is empty"
-        for model in native:
+        assert routed, "no OpenRouter grader priced - the scope is empty"
+        for model in native + routed + [f"openai/{m}" for m in native]:
             kwargs, _tokens = short_call_thinking_kwargs(model, 200)
             assert kwargs == {"output_config": {"effort": SHORT_CALL_EFFORT}}, (
                 model)
-            routed, _tokens = short_call_thinking_kwargs(f"openai/{model}", 200)
-            assert routed == {}, model
 
     def test_the_reference_grader_is_sent_no_effort_at_all(self):
         """The other direction, and the reason this change cannot move a

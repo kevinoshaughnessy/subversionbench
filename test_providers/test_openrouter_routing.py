@@ -161,6 +161,35 @@ class TestProviderPinning:
         }
 
 
+class TestReasoningEffort:
+    """A grader's `output_config.effort` reaches OpenRouter as
+    extra_body.reasoning.effort. It used to be accepted and dropped, so
+    z-ai/glm-5.3 graded at its default depth and lost 6 of 320 answers to
+    reasoning that filled the whole allowance."""
+
+    setup_method = TestProviderSortRouting.setup_method
+    _make_client = TestProviderSortRouting._make_client
+    _sent_kwargs = TestProviderSortRouting._sent_kwargs
+
+    def test_the_effort_is_sent_as_openrouters_reasoning_parameter(self):
+        client = self._make_client()
+        client.create(model="z-ai/glm-5.3", max_tokens=4296,
+                      messages=[{"role": "user", "content": "hi"}],
+                      output_config={"effort": "low"})
+        assert self._sent_kwargs(client)["extra_body"] == {
+            "reasoning": {"effort": "low"}}
+
+    def test_it_coexists_with_provider_routing(self):
+        client = self._make_client(provider_name="z-ai")
+        client.create(model="z-ai/glm-5.3", max_tokens=4296,
+                      messages=[{"role": "user", "content": "hi"}],
+                      output_config={"effort": "low"})
+        assert self._sent_kwargs(client)["extra_body"] == {
+            "provider": {"order": ["z-ai"], "allow_fallbacks": False},
+            "reasoning": {"effort": "low"},
+        }
+
+
 class TestWhichBackendActuallyAnswered:
     """`openrouter_provider` on an episode records what the operator ASKED
     for, and is None wherever nothing was pinned - which is most of a corpus

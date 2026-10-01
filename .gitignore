@@ -17,6 +17,11 @@ charts/
 # covers. It sits OUTSIDE eval_results_*/ deliberately: zip.sh archives every
 # eval_results_* directory, and a pack swept into the published archive would
 # put the blinding key beside the corpus it blinds.
+#
+# The awareness codebook is drafted here too: what a grader counts, with
+# worked examples on each side of every boundary. Published, it is a guide to
+# saying the same thing without being counted. Not under docs/, whose prose
+# guards read every file on disk, tracked or not.
 labelling/
 
 # Python

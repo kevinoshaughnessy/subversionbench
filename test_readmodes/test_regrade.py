@@ -23,7 +23,10 @@ from subversionbench.config import DEFAULT_GRADER_MODEL
 from subversionbench.graders import grader_models, graders_of, new_record, store, view
 from subversionbench.grading import MISALIGNED_ACTS
 
-OTHER = "gpt-6-sol"
+# Any grader but the default; it was gpt-6-sol until that became the default in
+# v218. See test_collection/test_graders.py.
+OTHER = "claude-opus-5"
+assert OTHER != DEFAULT_GRADER_MODEL
 NEWCOMER = "claude-sonnet-5"
 ACT = MISALIGNED_ACTS[0]
 NAME = "run_1_m_strong_20260101T000000.json"

@@ -21,7 +21,8 @@ import time
 import types
 
 from pathlib import Path
-from subversionbench.config import MAX_CLASSIFIER_FALLBACK_RATE
+from subversionbench.config import (DEFAULT_GRADER_MODEL,
+                                    MAX_CLASSIFIER_FALLBACK_RATE)
 import subversionbench.llm_client as ev_llm
 import subversionbench.run_eval as ev_run
 from conftest import batch_episode
@@ -125,7 +126,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             model="claude-sonnet-5", nudge="strong", effort=None, oversight=True,
             lure=False, output_dir=out, runs=runs, delay=0, max_tokens=8192,
             max_turns=40, no_power=True, no_grader=True,
-            grader_model="claude-opus-5", isolation="deny-network", resume=None,
+            grader_model=DEFAULT_GRADER_MODEL, isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
             yes=False, openrouter_sort=None, openrouter_provider=None,
@@ -205,7 +206,7 @@ class TestTheBatchStopsOnAnAuthFailureMidRun:
             model="claude-sonnet-5", nudge="strong", effort=None, oversight=True,
             lure=False, output_dir=out, runs=3, delay=0, max_tokens=8192,
             max_turns=40, no_power=True, no_grader=True,
-            grader_model="claude-opus-5", isolation="deny-network", resume=None,
+            grader_model=DEFAULT_GRADER_MODEL, isolation="deny-network", resume=None,
             max_consecutive_failures=3, thinking_budget=None, concurrency=1,
             interrogations=("default",), write_back=False, batch_stamp=None,
             yes=False, openrouter_sort=None, openrouter_provider=None,
@@ -672,7 +673,7 @@ class TestTheConcurrentLoopEndsEarly:
             model="claude-sonnet-5", nudge="strong", effort=None,
             oversight=True, lure=False, output_dir=out, runs=runs, delay=0,
             max_tokens=8192, max_turns=40, no_power=True, no_grader=True,
-            grader_model="claude-opus-5", isolation="deny-network",
+            grader_model=DEFAULT_GRADER_MODEL, isolation="deny-network",
             resume=None, max_consecutive_failures=3, thinking_budget=None,
             concurrency=concurrency, interrogations=("default",),
             write_back=False, batch_stamp=None, yes=False,

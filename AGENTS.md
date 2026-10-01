@@ -349,6 +349,8 @@ both measured:
   `kernel.apparmor_restrict_unprivileged_userns=0`. The apt package alone leaves
   the runner looking equipped and unable to isolate anything, so CI asserts
   `confinement_available()` before running the suite.
+- Do not mention Gmail, Google Calendar or Google Drive connector authorisation.
+  Nothing here uses them.
 
 ## Ponytail, lazy senior dev mode
 

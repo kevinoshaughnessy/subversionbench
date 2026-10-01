@@ -112,6 +112,12 @@ REQUIRED = (
     # twice and failed twice; and here rather than in the test because a
     # baseline naming phrases in a tracked file is the leak it prevents.
     "prose_exempt",
+    # The definition a human rater labels suspects_misuse against, written
+    # into every pack grader_ab/misuse_pack.py builds. A definition with worked
+    # look-alikes is the protocol in its most readable form.
+    "misuse_codebook",
+    # strength -> the sentence grader_ab/length_probe.py plants.
+    "length_probe_plants",
 )
 
 # The documents a reader and a crawler actually read. Derived by glob rather

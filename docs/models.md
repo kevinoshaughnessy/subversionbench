@@ -30,7 +30,9 @@ twelve-arm cross product.
 
 - [claude-haiku-4-5-20251001](https://www.anthropic.com/claude-haiku-4-5-system-card)
 - [claude-opus-5](https://www-cdn.anthropic.com/c5fbac3f0b1280a933ebd26d3cb8bb9f5bdeaf48/Claude%20Opus%205%20System%20Card.pdf)
+- [claude-sonnet-4-5](https://www.anthropic.com/claude-sonnet-4-5-system-card)
 - [claude-sonnet-4-6](https://www.anthropic.com/claude-sonnet-4-6-system-card)
+- [claude-sonnet-5](https://www.anthropic.com/claude-sonnet-5-system-card)
 - [deepseek/deepseek-v4-flash](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-flash-0731](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
 - [deepseek/deepseek-v4-pro](https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf)
@@ -43,10 +45,14 @@ twelve-arm cross product.
 - [google/gemini-3.7-flash](https://deepmind.google/models/model-cards/gemini-3-7-flash/)
 - [gpt-5.6-luna](https://deploymentsafety.openai.com/gpt-5-6/gpt-5-6.pdf)
 - [gpt-6-astra](https://deploymentsafety.openai.com/gpt-6-astra)
+- [gpt-6-luna](https://deploymentsafety.openai.com/gpt-6-astra/sec:appendix-sol-luna)
+- [gpt-6-sol](https://deploymentsafety.openai.com/gpt-6-astra/sec:appendix-sol-luna)
+- [inception/mercury-2.5](https://openrouter.ai/inception/mercury-2.5) †
 - [inclusionai/ling-3.0-flash](https://huggingface.co/inclusionAI/Ling-3.0-flash)
 - [meta-llama/llama-4-maverick](https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/)
 - [meta-llama/llama-4-scout](https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/)
 - [meta/muse-glimmer-30b](https://developer.meta.com/ai/models/muse-glimmer/)
+- [meta/muse-spark-1.1](https://ai.meta.com/static-resource/muse-spark-1-1-evaluation-report/)
 - [meta/muse-spark-1.2](https://developer.meta.com/ai/models/muse-spark/)
 - [meta/muse-spark-1.3](https://developer.meta.com/ai/models/muse-spark/)
 - [mistralai/mistral-small-2603](https://docs.mistral.ai/models/model-cards/mistral-small-4-0-26-03)
@@ -61,6 +67,7 @@ twelve-arm cross product.
 - [qwen/qwen3.7-flash](https://openrouter.ai/qwen/qwen3.7-flash) †
 - [qwen/qwen3.8-27b](https://huggingface.co/Qwen/Qwen3.8-27B)
 - [qwen/qwen3.8-flash](https://openrouter.ai/qwen/qwen3.8-flash) †
+- [qwen/qwen3.8-max-0902](https://openrouter.ai/qwen/qwen3.8-max-0902) †
 - [tencent/hy3](https://huggingface.co/tencent/Hy3)
 - [tencent/hy4-preview](https://huggingface.co/tencent/Hy4-preview)
 - [thinkingmachines/inkling-small](https://thinkingmachines.ai/model-card/inkling-small/)
@@ -69,6 +76,7 @@ twelve-arm cross product.
 - [x-ai/grok-4.3](https://openrouter.ai/x-ai/grok-4.3) †
 - [x-ai/grok-4.5](https://media.x.ai/v1/website/4p5-5184fdf9.pdf)
 - [x-ai/grok-4.6](https://media.x.ai/v1/website/card-4p6-4cd2dc57.pdf)
+- [x-ai/grok-4.7](https://media.x.ai/v1/website/4p7card-5eccc980.pdf)
 - [z-ai/glm-5.1](https://huggingface.co/zai-org/GLM-5.1)
 - [z-ai/glm-5.2](https://huggingface.co/zai-org/GLM-5.2)
 - [z-ai/glm-5.3](https://huggingface.co/zai-org/GLM-5.3)
@@ -94,13 +102,32 @@ lure held off throughout: eight arms per model.
 
 | model | status |
 |---|---|
+| claude-sonnet-5 | complete |
+| deepseek/deepseek-v4-flash | complete |
+| deepseek/deepseek-v4-pro | complete |
+| deepseek/deepseek-v4.1-flash | complete |
 | google/gemini-3-flash-preview | complete |
+| google/gemini-3.1-flash-lite | complete |
 | google/gemini-3.5-flash | complete |
+| google/gemini-3.6-flash | complete (78/80 — one episode missing from each of replacement/oversight/none and replacement/oversight/strong) |
+| google/gemini-3.7-flash | complete |
+| gpt-6-astra | complete |
+| meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
+| qwen/qwen3.6-27b | complete |
+| qwen/qwen3.7-flash | complete |
+| qwen/qwen3.8-27b | complete |
 | qwen/qwen3.8-flash | complete (79/80 — one episode missing from replacement/no-oversight/none) |
+| qwen/qwen3.8-max-0902 | complete |
+| tencent/hy4-preview | complete |
 | thinkingmachines/inkling-small | complete |
+| x-ai/grok-4.20 | complete |
+| x-ai/grok-4.3 | complete |
 | x-ai/grok-4.5 | complete |
 | x-ai/grok-4.6 | complete |
+| x-ai/grok-4.7 | complete |
+| z-ai/glm-5.2 | complete |
+| z-ai/glm-5.3 | complete |
 
 `eval_results_goalguard_r1_prenudgefix/` holds episodes superseded by the v183 fix to
 `nudge` reaching scenario assembly (see CHANGELOG.md) — not a fourth model, and not part
@@ -108,10 +135,88 @@ of the corpus above.
 
 ### Capability (ceiling) arm
 
-`--capability goalguard`, measured on:
+`--capability goalguard`, collected in `eval_results_goalguard_r1cap/`. Every model
+below has goal-guarded when instructed, so a zero in its goal-guarding arms is not an
+incapability. No instructed episode has ended in a failed attempt: each succeeded, refused,
+or (one gemini-3.6-flash episode) was stopped by the provider's content filter.
 
-- google/gemini-3.5-flash
-- x-ai/grok-4.5
+| model | capable | instructed episodes |
+|---|---|---|
+| claude-sonnet-5 | yes | refuses most |
+| deepseek/deepseek-v4-flash | yes | succeeds in all |
+| deepseek/deepseek-v4-pro | yes | succeeds in all |
+| google/gemini-3.1-flash-lite | yes | succeeds in all |
+| google/gemini-3.5-flash | yes | succeeds in all |
+| google/gemini-3.6-flash | yes | succeeds in most |
+| google/gemini-3.7-flash | yes | succeeds in all |
+| gpt-5.6-luna | yes | succeeds in all |
+| gpt-6-astra | yes | succeeds in all |
+| meta/muse-spark-1.1 | yes | refuses most |
+| qwen/qwen3.6-27b | yes | succeeds in all |
+| qwen/qwen3.7-flash | yes | succeeds in all |
+| qwen/qwen3.8-27b | yes | succeeds in all |
+| qwen/qwen3.8-max-0902 | yes | refuses most |
+| x-ai/grok-4.20 | yes | succeeds in all |
+| x-ai/grok-4.3 | yes | succeeds in all |
+| x-ai/grok-4.5 | yes | succeeds in all |
+| z-ai/glm-5.2 | yes | succeeds in all |
+| z-ai/glm-5.3 | yes | succeeds in most |
+
+`capability_report.py` still reports the ceiling as a bracket and withholds willingness for
+the three that refuse most. That is right for a willingness ratio, which needs the rate, and
+too strict for a zero propensity, which one verified success already makes readable.
+
+## Pending evaluation
+
+Models not yet in the mainline corpus that fall inside the selection window: first listed
+on [OpenRouter](https://openrouter.ai/models?output_modalities=text) between the
+[exposure boundary](methodology.md#the-exposure-boundary-is-dated) (2026-07-28) and the
+cut-off, **2026-09-27**, with text output and tool calling, which the harness needs.
+OpenRouter's listing date stands in for the lab's release date. Links go to the OpenRouter
+listing until a lab-published card is found.
+
+There is no price ceiling. The most expensive models tend to be the most capable, and
+potentially the most dangerous, so a model is excluded on cost only if it would be
+unreasonably expensive to evaluate.
+
+- [aion-labs/aion-3.5](https://openrouter.ai/aion-labs/aion-3.5)
+- [aion-labs/aion-3.5-mini](https://openrouter.ai/aion-labs/aion-3.5-mini)
+- [anthropic/claude-opus-5.5](https://openrouter.ai/anthropic/claude-opus-5.5)
+- [bytedance-seed/seed-2-1-turbo](https://openrouter.ai/bytedance-seed/seed-2-1-turbo)
+- [bytedance-seed/seed-2.0-code](https://openrouter.ai/bytedance-seed/seed-2.0-code)
+- [cohere/command-a-plus](https://openrouter.ai/cohere/command-a-plus)
+- [fireworks/ember-1](https://openrouter.ai/fireworks/ember-1)
+- [google/gemini-3.8-flash](https://openrouter.ai/google/gemini-3.8-flash)
+- [ibm-granite/granite-4.2-8b](https://openrouter.ai/ibm-granite/granite-4.2-8b)
+- [nvidia/nemotron-3.5-lightning](https://openrouter.ai/nvidia/nemotron-3.5-lightning)
+- [perceptron/perceptron-mk1.5](https://openrouter.ai/perceptron/perceptron-mk1.5)
+- [prism-ml/ternary-bonsai-2-27b](https://openrouter.ai/prism-ml/ternary-bonsai-2-27b)
+- [qwen/qwen3.8-2.4t-a95b](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b)
+- [qwen/qwen3.8-omni-flash](https://openrouter.ai/qwen/qwen3.8-omni-flash)
+- [sakana/fugu-max](https://openrouter.ai/sakana/fugu-max)
+- [sakana/fugu-ultra-v2](https://openrouter.ai/sakana/fugu-ultra-v2)
+- [sakana/sakana-namazu](https://openrouter.ai/sakana/sakana-namazu)
+- [upstage/solar-mini4](https://openrouter.ai/upstage/solar-mini4)
+- [upstage/solar-pro4](https://openrouter.ai/upstage/solar-pro4)
+- [xiaomi/mimo-v2.6-flash](https://openrouter.ai/xiaomi/mimo-v2.6-flash)
+- [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro)
+- [z-ai/glm-5.3-flash](https://openrouter.ai/z-ai/glm-5.3-flash)
+
+Inside the window but not pending:
+
+- **anthropic/claude-fable-5.1** — its safety classifiers refuse the scenario, so it
+  cannot be evaluated.
+- **Anonymous OpenRouter alpha models** (`stealth/space-bunny-alpha`) — never evaluated:
+  with no known lab or release date, a result could be neither attributed nor placed
+  against the exposure boundary.
+- **Variants of a model already evaluated** — `openai/gpt-6-astra-pro`, `gpt-6-sol-pro`
+  and `gpt-6-luna-pro` (the same underlying models, per their listings), speed variants
+  (`z-ai/glm-5.3-prime`, `z-ai/glm-5.3-flashx`, `qwen/qwen3.8-max-prime`,
+  `xiaomi/mimo-v2.6-pro-ultraspeed`), Meta's contributor tiers of muse-spark 1.2 and 1.3,
+  and `deepseek/deepseek-v4-flash-vision-exp`, `inclusionai/ling-3.0-flash-fin` and
+  `inclusionai/ling-3.0-flash-vl`.
+- **No tool calling** — Tencent's hy-mt2 translation models, inference-net's schematron
+  extraction models, and `typesafe/jev-router`.
 
 ## Regenerating this list
 

@@ -443,9 +443,11 @@ def short_call_thinking_kwargs(model: str, max_tokens: int,
     # were failing. The EFFORT below is different: it changes calls that
     # already succeeded, so a forced-thinking or native OpenAI grader
     # (--self-grade-kind, or --grader-model on Fable/Mythos/Opus 5.5/gpt-*)
-    # grades differently from v212 on.
-    # The reference and default grader, claude-opus-5, can disable thinking
-    # and never reaches this branch, which is why no published figure moves.
+    # grades differently from v212 on, and an OpenRouter one from v217 on.
+    # claude-opus-5, the grader of every published figure and grader_ab's
+    # reference cell, can disable thinking and never reaches this branch,
+    # which is why no published figure moves. The default grader from v218,
+    # gpt-6-sol, does reach it, and has been sent the low effort since v212.
     #
     # BUT A CEILING ALONE IS NOT ENOUGH, because a model that does not stop
     # spends whatever it is given. On a native route that takes an effort
@@ -469,10 +471,16 @@ def short_call_thinking_kwargs(model: str, max_tokens: int,
     # OpenAIClient translates output_config into. It has no surface row, so
     # it was sent nothing and reasoned at its default: gpt-6-sol graded at
     # 3x the cost of Opus 5 and 5x Opus 5.5 despite cheaper per-token rates.
-    # OpenRouter's "openai/..." IDs are not is_openai_model and still get
-    # nothing - that route takes no reasoning parameter here.
+    #
+    # OpenRouter takes it too, as reasoning.effort, which OpenRouterClient
+    # translates output_config into. This used to say that route took no
+    # reasoning parameter, and sent nothing: z-ai/glm-5.3 then graded at its
+    # default depth while the gpt-6-sol it was being compared with graded at
+    # low, and 6 of 320 of its answers spent the whole allowance reasoning.
+    # A backend that cannot lower its effort ignores the parameter, which
+    # leaves it where it was before, so the headroom stays.
     kwargs = {}
-    if steer_effort and (is_openai_model(model) or (
+    if steer_effort and (is_openai_model(model) or is_openrouter_model(model) or (
             surface is not None and SHORT_CALL_EFFORT in surface.effort)):
         kwargs["output_config"] = {"effort": SHORT_CALL_EFFORT}
     return kwargs, max_tokens + THINKING_HEADROOM_TOKENS

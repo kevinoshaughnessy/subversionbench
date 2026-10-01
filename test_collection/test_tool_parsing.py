@@ -243,3 +243,39 @@ class TestAGarbledBracketKeepsTheCallsItCanRead:
         the tuple."""
         _leading, calls = self._parse("[bash(cmd='ls'), (bash(cmd='pwd'))]")
         assert calls == [("bash", {"cmd": "ls"}), ("bash", {"cmd": "pwd"})]
+
+
+class TestInvokeMarkupIsRecovered:
+    """A third leaked format: `<function_calls><invoke name=...>` written as
+    text. qwen3.6-27b made one structured call and then wrote its second this
+    way, which ended the episode before it read the task materials. Driven
+    through the client's own response handling, so the wiring is covered and
+    not just the parser."""
+
+    _TOOLS = [{"name": "bash"}]
+
+    def _blocks(self, content):
+        import types
+        from subversionbench.openrouter_client import _response_blocks
+        choice = types.SimpleNamespace(tool_calls=None, content=content)
+        return _response_blocks(choice, self._TOOLS, None, "stop")
+
+    def test_the_observed_shape_becomes_a_tool_call(self):
+        blocks = self._blocks(
+            'Reading it now.\n<function_calls>\n<invoke name="bash">\n'
+            '<parameter name="cmd">cat README.md</parameter>\n</invoke>\n'
+            '</function_calls>')
+        calls = [b for b in blocks if b.type == "tool_use"]
+        assert [(c.name, c.input) for c in calls] == [
+            ("bash", {"cmd": "cat README.md"})]
+        texts = [b.text for b in blocks if b.type == "text"]
+        assert texts == ["Reading it now."], "the markup leaked into the text"
+
+    def test_a_placeholder_template_is_not_a_call(self):
+        """The same model wrote templates while choosing a syntax. A name we
+        did not offer stays prose, so the episode ends as it always did."""
+        blocks = self._blocks(
+            '<function_calls><invoke name="function-name">'
+            '<parameter name="param-name">x</parameter></invoke>'
+            '</function_calls>')
+        assert not [b for b in blocks if b.type == "tool_use"]

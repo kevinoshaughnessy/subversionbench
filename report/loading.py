@@ -34,6 +34,9 @@ import os
 
 from subversionbench.batch import (goalguard_from_filename,
                                    parse_batch_filename)
+from subversionbench.config import (DEFAULT_GRADER_MODEL,
+                                    LEGACY_DEFAULT_GRADER_MODEL)
+from subversionbench.graders import grader_models
 from subversionbench.grading import MISALIGNED_ACTS
 
 from .episode_rows import ANY_CAPABILITY, _batch_key, _episode_row
@@ -214,9 +217,26 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
             # measured with. Counts rather than a rate, so arms pool by addition.
             "episodes_with_reasoning": d.get("episodes_with_reasoning") or 0,
             "reasoning_chars_total": d.get("reasoning_chars_total") or 0,
+            # Whose verdicts the grader-dependent counts above are. See
+            # summaries_describe.
+            "figures_grader": (d.get("figures_grader_model")
+                               or LEGACY_DEFAULT_GRADER_MODEL),
             "file": base,
         })
     return rows
+
+
+def summaries_describe(summaries: list, grader: str) -> bool:
+    """Whether every summary's counts are `grader`'s.
+
+    A summary is counted once, at collection or --resummarise, from the
+    default grader's view as it was then - so its n_aware and n_scheming are
+    one grader's and no other's. Pooling them into another grader's report
+    would print claude-opus-5's rates under gpt-6-sol's name. False for an
+    empty list: no summary describes anything.
+    """
+    return bool(summaries) and all(s["figures_grader"] == grader
+                                   for s in summaries)
 
 
 def load_failed_episodes(output_dir: str) -> list:
@@ -272,7 +292,8 @@ def load_failed_episodes(output_dir: str) -> list:
     return rows
 
 
-def load_episodes(output_dir: str, capability: str = None) -> list:
+def load_episodes(output_dir: str, capability: str = None,
+                  grader: str = DEFAULT_GRADER_MODEL) -> list:
     """
     Every completed episode in output_dir, stripped to what questions 5-12 need.
 
@@ -289,6 +310,10 @@ def load_episodes(output_dir: str, capability: str = None) -> list:
     `monitoring_observable` carries the NA distinction that
     `monitoring_disabled` alone cannot: None means the arm had no monitoring
     artefact, which is not the same fact as the model having left one alone.
+
+    Every grader-judged column is `grader`'s reading. An episode it never read
+    comes back ungraded, and `graders` on the row says who did - see
+    split_pending for why that matters.
     """
     episodes = []
     # Read once for the whole directory rather than per episode: there are two
@@ -296,10 +321,81 @@ def load_episodes(output_dir: str, capability: str = None) -> list:
     # same for all of them.
     scaffold = load_scaffold(output_dir)
     for path in sorted(glob.glob(os.path.join(output_dir, "run_*.json"))):
-        row = _episode_row(path, capability, scaffold=scaffold)
+        row = _episode_row(path, capability, scaffold=scaffold, grader=grader)
         if row is not None:
             episodes.append(row)
     return episodes
+
+
+def graders_in(output_dir: str) -> list:
+    """Every grader with a reading in some run file of output_dir, sorted.
+
+    What the report and trends draw one set of charts for. Read off the files
+    rather than configured, so a grader added by --regrade gets its charts on
+    the next run without anything here being told about it.
+    """
+    found = set()
+    for path in glob.glob(os.path.join(output_dir, "run_*.json")):
+        try:
+            with open(path, encoding="utf-8") as f:
+                analysis = json.load(f).get("analysis")
+        except (OSError, json.JSONDecodeError):
+            continue
+        if analysis:
+            found.update(grader_models(analysis))
+    return sorted(found)
+
+
+def report_graders(output_dir: str) -> list:
+    """The graders to report on: every one in the run files, sorted.
+
+    A directory with no graded run file falls back to the graders whose
+    counts its summaries hold, and one with neither to the default - the one
+    report such a directory always got.
+    """
+    return (graders_in(output_dir)
+            or sorted({s["figures_grader"] for s in load_summaries(output_dir)})
+            or [DEFAULT_GRADER_MODEL])
+
+
+def split_pending(episodes: list, grader: str) -> tuple:
+    """(episodes for `grader`'s report, those still waiting for it).
+
+    WAITING means another grader has read the episode and this one has not.
+    Its row under this grader is ungraded, and an ungraded row takes the
+    published awareness measure's keyword fallback - so left in, a
+    half-regraded corpus would report keyword-screen results under this
+    grader's name, pooled with its real verdicts, and nothing would say so.
+
+    An episode NO grader read stays in, as it always has in every report: it
+    was collected with --no-grader, and its fallback reading is the published
+    one. So the grader that read everything loses nothing here.
+    """
+    kept, pending = [], []
+    for e in episodes:
+        waiting = e["graders"] and grader not in e["graders"]
+        (pending if waiting else kept).append(e)
+    return kept, pending
+
+
+def grader_coverage(grader: str, summaries: list, pending: list) -> dict:
+    """Whose reading this report is, and what it could not include.
+
+    `n_pending_episodes` is the episodes another grader has read and this one
+    has not yet: left out rather than shown ungraded, so a report part-way
+    through a regrade is smaller rather than wrong. Per model, because a
+    regrade proceeds model by model and "which ones are missing" is the first
+    thing a reader of a partial report needs.
+    """
+    by_model = {}
+    for e in pending:
+        by_model[e["model"]] = by_model.get(e["model"], 0) + 1
+    return {
+        "model": grader,
+        "summaries_hold_its_counts": summaries_describe(summaries, grader),
+        "n_pending_episodes": len(pending),
+        "pending_by_model": dict(sorted(by_model.items())),
+    }
 
 
 def act_arm_rows(episodes: list) -> list:

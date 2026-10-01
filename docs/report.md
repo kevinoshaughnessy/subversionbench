@@ -14,8 +14,16 @@ question at a time, pooled across models, with the per-model breakdown underneat
 python3 -m report --output-dir eval_results_r9
 ```
 
-Writes `research_report_<timestamp>.json` into `--output-dir` unless `--json-out` says
-otherwise. A full pass over a corpus of a few thousand episodes takes a couple of seconds.
+Writes `research_report_<grader>_<timestamp>.json` into `--output-dir` unless `--json-out` says
+otherwise, one per grader the run files hold: every question is answered once per grader,
+and each grader's charts go to `charts/<rollout>/<grader>/`. The charts no grader's verdict
+reaches - question 3, questions 13 and 14, persistence, the encoded-payload rate and the
+lure and honeypot readings - are drawn once instead, over every episode, into
+`charts/<rollout>/` itself; `report_charts/write.py` says which and why. An episode another grader has
+read and this one has not is left out of that grader's report and counted, not shown
+ungraded. With more than one grader it also writes `charts/<rollout>/grader_comparison/`:
+the overview, questions 2 and 5 and the rubric signal rates with one marker per grader,
+drawn only from the episodes every grader has read. A full pass over a corpus of a few thousand episodes takes a couple of seconds.
 
 > **No rate, effect or p-value from a corpus is quoted below.** They go stale on every
 > rollout and on every scoring correction - the v81-v83 corrections moved misalignment,

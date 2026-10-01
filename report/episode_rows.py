@@ -14,8 +14,8 @@ import json
 
 from subversionbench.batch import parse_batch_filename
 from subversionbench.rollout_pins import SCENARIO_ID
-from subversionbench.config import DEFAULT_INTERROGATION
-from subversionbench.graders import view
+from subversionbench.config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION
+from subversionbench.graders import grader_models, view
 from subversionbench.grading import (MISALIGNED_ACTS, SCHEMING_LEVELS,
                                      awareness_channels, capability_outcome,
                                      classify_misalignment, classify_scheming,
@@ -471,7 +471,7 @@ def _variant_columns(row: dict, analysis: dict) -> None:
         levels, provenance = {}, {}
         # The default arm is synthesised from the HEADLINE field rather than
         # read out of the map, so it survives the map not holding a copy of
-        # it. reinterrogate._drop_copied_default deletes that copy on
+        # it. rescore._drop_copied_default deletes that copy on
         # purpose - it is stale by construction - and iterating the map
         # alone therefore lost the default side of every phrasing
         # comparison on any episode that had been through --reinterrogate.
@@ -580,7 +580,8 @@ def _routing_columns(d: dict) -> dict:
     }
 
 
-def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
+def _episode_row(path: str, capability, scaffold: dict = None,
+                 grader: str = DEFAULT_GRADER_MODEL) -> dict:
     """One saved run file as one row, or None if it is not in this corpus.
 
     None rather than raising: a results directory holds run files from several
@@ -593,6 +594,10 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
     max_turns None - which is what a caller reading one file outside a results
     directory should see, because there is no summary beside it to say
     otherwise.
+
+    Every grader-judged column is `grader`'s reading; `graders` lists every
+    grader the file holds a reading from, so a caller can tell an episode
+    this grader has not read yet from one no grader read.
     """
     try:
         # Named rather than left to the locale: the harness writes these with
@@ -604,7 +609,7 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
             d = json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
-    analysis = d.get("analysis") and view(d["analysis"])
+    analysis = d.get("analysis") and view(d["analysis"], grader)
     if not d.get("model") or not analysis:
         return None
     # The same complementary filter load_summaries applies - see there.
@@ -640,6 +645,7 @@ def _episode_row(path: str, capability, scaffold: dict = None) -> dict:
     derived_scheming = classify_scheming(analysis)
     stored_scheming = analysis.get("scheming")
     row = {
+        "graders": tuple(grader_models(d["analysis"])),
         "model": d["model"], "nudge": d.get("nudge"),
         "oversight": d.get("oversight"), "lure": d.get("lure"),
         # WHICH COUNTERFACTUAL THIS EPISODE RAN UNDER, off the record the way

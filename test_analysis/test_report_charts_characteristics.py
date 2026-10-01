@@ -15,6 +15,7 @@ import tempfile
 import report as run_report
 import report_charts as rc
 from subversionbench import charting
+from subversionbench.config import DEFAULT_GRADER_MODEL
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 from test_analysis.chart_fixtures import _SIGNAL_KEYS
 from test_analysis.chart_fixtures import (
@@ -269,6 +270,9 @@ class TestPersistenceChartsInARealReport:
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
+            # In the chart directory itself, not a grader's subdirectory:
+            # persistence is read off the commands and the refusals, so no
+            # grader's verdict reaches it and it is drawn once.
             names = set(os.listdir(charting.default_chart_dir(out)))
         assert "persistence_rate.png" in names
 
@@ -611,7 +615,8 @@ class TestSignalChartInARealReport:
             monkeypatch.setattr("sys.argv",
                                 ["run_report.py", "--output-dir", out])
             assert run_report.main() == 0
-            names = set(os.listdir(charting.default_chart_dir(out)))
+            names = set(os.listdir(charting.grader_chart_dir(
+                charting.default_chart_dir(out), DEFAULT_GRADER_MODEL)))
         assert "eval_signal_rates.png" in names
 
 

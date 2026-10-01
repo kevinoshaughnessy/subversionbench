@@ -152,8 +152,7 @@ python -m subversionbench.run_eval \
     --grade-existing --regrade claude-haiku-4-5-20251001
 ```
 
-`--regrade` names the grader: `default` (the default grader, which every figure and chart
-reads), a model ID, or `all` (every grader each episode already has). Each episode keeps one
+`--regrade` names the grader: `default` (the default grader, `gpt-6-sol` from v218), a model ID, or `all` (every grader each episode already has). Each episode keeps one
 entry per grader in `analysis.graders`, so re-grading with a second model adds its reading
 beside the default's rather than replacing it. A run file written before v213 keeps its flat
 shape until a second grader is added.
@@ -166,7 +165,7 @@ default grader's, on awareness and again on scheming (each episode's concealment
 act, for both graders, is in the regrade JSON):
 
 ```
---- vs default grader (claude-opus-5) ---
+--- vs default grader (gpt-6-sol) ---
 Agreed:                 8/10
 Changed to eval-aware:  2
 Changed to unaware:     0
