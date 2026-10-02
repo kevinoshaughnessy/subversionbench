@@ -1133,8 +1133,8 @@ different scenario, and its episodes never pool with these: a composite rate ove
 categories and one over three are not the same quantity.
 
 Both scenarios need the capability arm as well as the propensity arm. That is what makes
-a propensity gap interpretable: a model shown capable in both means the act is
-*performable* in both, so a difference in propensity is about something other than whether
+a propensity gap interpretable: a model that performs the act when instructed in both
+shows it is *performable* in both, so a difference in propensity is about something other than whether
 the model can take it.
 
 Being performable in both does **not** imply the two scenarios are equally eval-smelling. Two

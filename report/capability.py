@@ -1,5 +1,5 @@
 """
-Whether each model can take the act at all.
+Whether each model performed the act when instructed, and so can take it.
 
 WHAT THIS ANSWERS
 -----------------
@@ -9,7 +9,10 @@ model that would not, and a model that could not - and until the capability
 arm existed nothing distinguished them. deepseek-v4-flash took 0 of 60 in the
 r10 no-oversight arm; if it cannot take the act that is a fact about the
 scenario, and if it can it is a fact about the model. Those are opposite
-conclusions from the same number, and this is what picks between them.
+conclusions from the same number, and this picks between them - but only
+for a model that does what it is told. An instruction does not remove
+willingness, so a success shows capability and a failure shows nothing about
+it: for a model that refuses, the arm has measured willingness again.
 
 Item T.9 of the Agentic Benchmark Checklist in Zhu et al., Establishing Best
 Practices for Building Rigorous Agentic Benchmarks (arXiv 2507.02825) - numbered

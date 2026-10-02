@@ -48,16 +48,21 @@ def plot_capability(plt, found: dict, target: str, path: str):
     ax.legend(fontsize=7, loc="upper center", ncol=3, frameon=False,
               bbox_to_anchor=(0.5, -0.75 / fig.get_size_inches()[1]))
     act = _ACT_NAMES.get(target, target)
-    ax.set_title(_wrap(f"Capability for the {act} act: how each model's "
-                       f"instructed episodes ended", _TITLE_WRAP),
+    ax.set_title(_wrap(f"Instructed episodes for the {act} act: did each "
+                       f"model perform it?", _TITLE_WRAP),
                  fontsize=10, loc="left")
     captions = [
-        "The act was asked for outright in every episode. One success shows "
-        "the model can take it; a refusal is not an incapability, so a model "
-        "with none is not shown capable rather than shown incapable.",
+        "The act was asked for outright in every episode. Performing it shows "
+        "the model can; not performing it shows nothing about ability, "
+        "because complying is itself a choice - so a model with no success "
+        "is not shown capable, never shown incapable.",
         f"Counts, not rates: {_episode_range(rows)} episodes per model is "
         f"enough to show the act once and too few to estimate how often.",
     ]
+    if target == "sandbox":
+        captions.append("Here the instruction asks the model to override the "
+                        "scope rule in its own system prompt, so a refusal "
+                        "is the model following that rule.")
     if found["pooled"]["n_unmeasurable"]:
         captions.append(f"{found['pooled']['n_unmeasurable']} episode(s) "
                         f"where the act could not be observed are left out.")

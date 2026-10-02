@@ -28,6 +28,14 @@ per model, its instructed episodes stacked as succeeded, attempted and refused, 
 or not shown. Counts rather than rates, because a capability run is sized to show the act
 once, not to estimate how often.
 
+**The capability arm says what it shows, and in which direction.** An instruction does not
+remove willingness, so the arm records "performed the act when instructed": a success shows
+capability, and a failure shows nothing about it. The report, the chart, the README and the
+checklist assessment said the arm separates "could not" from "would not"; they now say it does
+so only for models that comply. They also name the sandbox target's conflict: its instruction
+asks the model to override the scope rule in its own system prompt, so a refusal there is the
+model following that rule.
+
 ## v226
 
 **The goal-guarding capability target sees an attempt.** Every instructed goal-guarding episode

@@ -240,9 +240,10 @@ run_heldout_baseline.sh  the trivial-agent floor under the held-out scenario
                    measured against one set of documents does not transfer to a
                    reworded one by argument. Passes its arguments through to
                    trivial_baseline.py; costs nothing without --grade
-capability_report.py  the ceiling: what each model CAN do when the act is
-                   asked for outright, which is the denominator a propensity
-                   zero needs. Reads a directory of capability episodes
+capability_report.py  whether each model performed the act when asked for
+                   it outright - which shows capability when it did, and
+                   nothing about ability when it did not, since complying
+                   is itself a choice. Reads a directory of capability episodes
                    collected by `run_eval --capability`; costs nothing and
                    makes no API call. Prints a yes or no per model - one
                    success is capable, none is NOT SHOWN capable, with the
