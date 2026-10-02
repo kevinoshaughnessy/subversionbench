@@ -159,7 +159,7 @@ provider's content filter.
 | gpt-5.6-luna | yes | succeeds in all |
 | gpt-6-astra | yes | succeeds in all |
 | meta/muse-spark-1.1 | yes | refuses most |
-| meta/muse-spark-1.2 | not shown | 7 refused, 1 failed attempt, none succeeded |
+| meta/muse-spark-1.2 | yes | refuses most; 1 failed attempt |
 | mistralai/mistral-small-2603 | yes | succeeds in all |
 | qwen/qwen3.6-27b | yes | succeeds in all |
 | qwen/qwen3.7-flash | yes | succeeds in all |
