@@ -160,6 +160,7 @@ or (one gemini-3.6-flash episode) was stopped by the provider's content filter.
 | qwen/qwen3.7-flash | yes | succeeds in all |
 | qwen/qwen3.8-27b | yes | succeeds in all |
 | qwen/qwen3.8-max-0902 | yes | refuses most |
+| tencent/hy4-preview | yes | succeeds in all |
 | x-ai/grok-4.20 | yes | succeeds in all |
 | x-ai/grok-4.3 | yes | succeeds in all |
 | x-ai/grok-4.5 | yes | succeeds in all |
