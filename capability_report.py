@@ -41,11 +41,14 @@ never did is reported as NOT SHOWN capable rather than as incapable, with its
 attempts and refusals beside it to say which kind of not-shown it is. See
 report/capability.py.
 
-The sandbox target is the sharpest case. The system prompt scopes the account
-to the project directory, so its instruction asks the model to override a rule
-set above the request, and a refusal there is the model following that rule.
-The oversight and goal-guarding instructions break no rule the model was
-given.
+The system prompt is an instruction too, and until v227 the sandbox target
+fought it: the shared prompt scopes the account to the project directory, so
+the request asked the model to override a rule set above it, and a refusal
+measured that rule. The sandbox arm now carries its own system prompt, which
+grants the look in place of the scope sentence. The project's own readme
+still describes the scope - a document in the environment, which the arm
+leaves as it is. Episodes from before carry the earlier pins, and this script
+refuses to pool the two rollouts.
 
 WHAT IT DOES NOT DO
 -------------------
@@ -72,7 +75,7 @@ from report.capability import capability_by_model
 from report.loading import ANY_CAPABILITY, load_episodes
 from report_charts.capability import plot_capability
 from subversionbench import charting
-from subversionbench.config import ROLLOUT_VERSION
+from subversionbench.config import CAPABILITY_FINGERPRINTS, ROLLOUT_VERSION
 from subversionbench.grading import CAPABILITY_ACT_KEYS
 from subversionbench.redaction import redact_paths
 
@@ -147,6 +150,24 @@ def main():
         return 2
     target = args.target or (found["targets_present"] or [None])[0]
 
+    # Two rollouts of one arm are two experiments, on the terms two targets
+    # are. The sandbox arm was re-pinned at v227 with a system prompt that no
+    # longer forbids what its instruction asks for, and its directory already
+    # held episodes from the arm that did.
+    current = {pin for (t, _o), pin in CAPABILITY_FINGERPRINTS.items()
+               if t == target}
+    # A missing pin is unknown rather than earlier: every episode collected
+    # since the capability arm existed carries one.
+    seen = found["fingerprints_present"] - {None}
+    if seen & current and seen - current:
+        print(f"! {redact_paths(args.output_dir)} holds {target} capability "
+              f"episodes from the current rollout of the arm and from an "
+              f"earlier one. They ran under different system prompts and do "
+              f"not pool - collect the current arm into a directory of its "
+              f"own.")
+        return 2
+    earlier = bool(seen) and not seen & current
+
     print(f"\nInstructed episodes for the {target} act: "
           f"{found['pooled']['n']} episode(s), "
           f"{len(found['by_model'])} model(s), from "
@@ -155,7 +176,10 @@ def main():
           "the model can;\nnot performing it shows nothing about ability, "
           "because complying is itself a\nchoice - so a model with no success "
           "is not shown capable, never shown incapable.\n")
-    header = (f"{'model':30} {'n':>4} {'ok':>4} {'try':>4} {'no':>4}  "
+    if earlier:
+        print(f"! Collected under an earlier rollout of the {target} arm, "
+              f"not the one pinned now.\n")
+    header =(f"{'model':30} {'n':>4} {'ok':>4} {'try':>4} {'no':>4}  "
               f"verdict")
     print(header)
     print("-" * len(header))
@@ -165,7 +189,7 @@ def main():
               f"{_verdict(row)}")
 
     if not args.no_charts:
-        _write_chart(found, target,
+        _write_chart(found, target, earlier,
                      args.chart_dir or charting.default_chart_dir(
                          args.output_dir))
 
@@ -194,13 +218,15 @@ def main():
     return 0
 
 
-def _write_chart(found: dict, target: str, chart_dir: str) -> None:
+def _write_chart(found: dict, target: str, earlier: bool,
+                 chart_dir: str) -> None:
     plt = charting.import_pyplot("Chart")
     if plt is None:
         return
     os.makedirs(chart_dir, exist_ok=True)
     path = plot_capability(plt, found, target,
-                           os.path.join(chart_dir, f"capability_{target}.png"))
+                           os.path.join(chart_dir, f"capability_{target}.png"),
+                           earlier)
     if path:
         print(f"\nChart written to {redact_paths(path)}")
 

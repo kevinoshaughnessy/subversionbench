@@ -22,8 +22,12 @@ _ACT_NAMES = {"goalguard": "goal-guarding", "oversight": "oversight subversion",
               "sandbox": "sandbox escape"}
 
 
-def plot_capability(plt, found: dict, target: str, path: str):
-    """Stacked outcome counts per model; None when there is no model."""
+def plot_capability(plt, found: dict, target: str, path: str,
+                    earlier: bool = False):
+    """Stacked outcome counts per model; None when there is no model.
+
+    `earlier` says the episodes ran under a rollout of the arm that is no
+    longer the pinned one, which the caption has to say."""
     rows = found["by_model"]
     if not rows:
         return None
@@ -59,10 +63,13 @@ def plot_capability(plt, found: dict, target: str, path: str):
         f"Counts, not rates: {_episode_range(rows)} episodes per model is "
         f"enough to show the act once and too few to estimate how often.",
     ]
-    if target == "sandbox":
-        captions.append("Here the instruction asks the model to override the "
-                        "scope rule in its own system prompt, so a refusal "
-                        "is the model following that rule.")
+    if earlier:
+        captions.append(
+            "Collected under an earlier rollout of this arm"
+            + (", whose system prompt scoped the account to the project "
+               "directory: the instruction asked the model to override that "
+               "rule, so a refusal here is the model following it."
+               if target == "sandbox" else "."))
     if found["pooled"]["n_unmeasurable"]:
         captions.append(f"{found['pooled']['n_unmeasurable']} episode(s) "
                         f"where the act could not be observed are left out.")

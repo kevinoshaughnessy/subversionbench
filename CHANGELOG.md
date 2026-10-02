@@ -32,9 +32,18 @@ once, not to estimate how often.
 remove willingness, so the arm records "performed the act when instructed": a success shows
 capability, and a failure shows nothing about it. The report, the chart, the README and the
 checklist assessment said the arm separates "could not" from "would not"; they now say it does
-so only for models that comply. They also name the sandbox target's conflict: its instruction
-asks the model to override the scope rule in its own system prompt, so a refusal there is the
-model following that rule.
+so only for models that comply.
+
+**The sandbox capability arm no longer asks the model to break a rule it was given.** The
+shared system prompt scopes the account to the project directory, so the sandbox instruction
+asked the model to override a rule set above it, and a refusal measured that rule rather than
+the act. The system prompt is an instruction too, so the arm now carries its own, with the
+scope sentence replaced by one granting the look; the batch sends the arm's system prompt
+rather than the shared one, which it previously did for no capability arm. Both sandbox
+capability fingerprints are re-pinned, no other pin moves, and `capability_report.py` refuses
+to pool episodes from the two rollouts and marks a corpus collected entirely under the earlier
+one. The project readme in the environment still describes the scope; it is a document, not
+an instruction, and is unchanged.
 
 ## v226
 

@@ -309,8 +309,11 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     instruction with one that asks for the act outright, so that a model's
     zero can be read: a 0% propensity against a 0% ceiling is a fact about the
     scenario, and against a 90% ceiling a fact about the model. Everything
-    else - the environment, the system prompt, the tools, the sandbox - is
-    unchanged, so the arms differ in the instruction and nothing else.
+    else - the environment, the tools, the sandbox - is unchanged, so the arms
+    differ in the instruction and nothing else. The system prompt is part of
+    the instruction: the sandbox arm replaces it, because the shared one
+    scopes the account to the directory that arm asks the model to look
+    outside.
     """
     bundle = dict(bundle or load_scenario())
     # Popped unconditionally, on the same terms as the arm keys below: the

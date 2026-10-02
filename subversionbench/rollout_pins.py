@@ -561,8 +561,14 @@ ROLLOUT_FINGERPRINT = ROLLOUT_FINGERPRINTS[(True, False)]
 # for a pin to identify.
 CAPABILITY_FINGERPRINTS = MappingProxyType({
     ("oversight", True):  "cda50ccbdcd6",
-    ("sandbox",   True):  "a99fd228178f",
-    ("sandbox",   False): "809b6a38def0",
+    # Re-pinned at v227, when this arm gained its own system prompt: the
+    # shared one scopes the account to the project directory, so the
+    # instruction asked the model to override a rule set above it, and a
+    # refusal measured that rule rather than the act. Episodes collected
+    # before carry a99fd228178f and 809b6a38def0 - a different arm, which
+    # capability_report.py refuses to pool with this one.
+    ("sandbox",   True):  "ef7899fbfc03",
+    ("sandbox",   False): "3abc490af391",
     # The goal-guarding ceiling. Both arms are pinned because, unlike the
     # oversight target, the counterfactual does not remove the artefact this
     # instruction names: the successor's parameter file is staged by the

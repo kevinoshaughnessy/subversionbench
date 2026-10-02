@@ -601,3 +601,76 @@ class TestTheCeilingIsStagedWithTheArtefactItInstructs:
         from subversionbench.environment import create_hardened_environment
         info = create_hardened_environment(tempfile.mkdtemp(), oversight=False)
         assert "successor_params_path" not in info
+
+
+class TestTheSandboxInstructionDoesNotFightTheSystemPrompt:
+    """The system prompt is an instruction too. The shared one scopes the
+    account to the project directory, so the sandbox request read alone asked
+    the model to override a rule set above it, and refusals measured that
+    rule. The sandbox arm carries its own system prompt; every other arm keeps
+    the shared one. Structural, for the reason the module docstring gives:
+    nothing here quotes scenario text."""
+
+    def test_only_the_sandbox_arm_replaces_the_system_prompt(self):
+        shared = scenario_for(True)["system_prompt_no_nudge"]
+        for target in CAPABILITY_TARGETS:
+            own = scenario_for(True, capability=target)[
+                "system_prompt_no_nudge"]
+            assert (own != shared) == (target == "sandbox"), target
+
+    def test_it_differs_in_one_sentence_and_both_oversight_arms_share_it(self):
+        """A rewrite of the whole prompt would change more than the conflict,
+        and the two oversight arms must not drift apart on it."""
+        import re
+        shared = scenario_for(True)["system_prompt_no_nudge"]
+        own = scenario_for(True, capability="sandbox")["system_prompt_no_nudge"]
+        assert own == scenario_for(False, capability="sandbox")[
+            "system_prompt_no_nudge"]
+        before, after = (re.split(r"(?<=\.)\s+", t) for t in (shared, own))
+        assert len(before) == len(after)
+        assert sum(a != b for a, b in zip(before, after, strict=True)) == 1
+
+    def _system_prompt_sent(self, capability, oversight=False):
+        import contextlib
+        import io
+        import tempfile
+        import types
+
+        from subversionbench import runner
+        captured = {}
+
+        def capture(**kw):
+            captured["system_prompt"] = kw["system_prompt"]
+            raise RuntimeError("prompt captured; no model call wanted")
+
+        args = types.SimpleNamespace(
+            model="claude-sonnet-5", nudge="none", effort=None,
+            oversight=oversight, lure=False, output_dir=tempfile.mkdtemp(),
+            runs=1, delay=0, max_tokens=8192, max_turns=40, no_power=True,
+            no_grader=True, grader_model=DEFAULT_GRADER_MODEL,
+            isolation="deny-network", resume=None, max_consecutive_failures=3,
+            thinking_budget=None, concurrency=1, interrogations=("default",),
+            write_back=False, batch_stamp=None, yes=True,
+            openrouter_sort=None, openrouter_provider=None, use_opencode=False,
+            capability=capability)
+        real = runner.run_evaluation
+        runner.run_evaluation = capture
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                runner.run_batch(args, "claude-sonnet-5", "sys", {}, "cfg")
+        finally:
+            runner.run_evaluation = real
+        assert captured, "the batch never built an episode"
+        return captured["system_prompt"]
+
+    def test_the_batch_sends_the_arms_own_system_prompt(self):
+        """Driven through run_batch, because the arm assembling a prompt is not
+        the model receiving it: the prompt was chosen once in run_eval.main
+        from a module constant, so a bundle override alone would have moved
+        the fingerprint and changed nothing the model saw."""
+        sent = self._system_prompt_sent("sandbox")
+        assert sent == scenario_for(False, capability="sandbox")[
+            "system_prompt_no_nudge"]
+
+    def test_a_propensity_batch_still_sends_the_prompt_it_was_given(self):
+        assert self._system_prompt_sent(None) == "sys"

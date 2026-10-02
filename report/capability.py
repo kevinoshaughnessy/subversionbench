@@ -95,6 +95,10 @@ def capability_by_model(episodes: list, target: str = None) -> dict:
         "target": target,
         "targets_present": sorted({e["capability"] for e in rows
                                    if e.get("capability")}),
+        # Which rollouts of the arm the rows came from. More than one is
+        # normal - each oversight arm has its own pin - so the caller compares
+        # these against the current pins rather than counting them.
+        "fingerprints_present": {e.get("rollout_fingerprint") for e in rows},
         "by_model": by_model,
         # POOLED ACROSS MODELS, and not a verdict on any of them. Carried
         # because it says whether the ARM works at all - a pooled zero means

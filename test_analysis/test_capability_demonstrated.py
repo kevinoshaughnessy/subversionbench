@@ -437,3 +437,67 @@ class TestTheExitCodeSaysWhetherTheArmShowedAnything:
         found = capability_by_model([])
         assert plot_capability(charting.import_pyplot(), found, "sandbox",
                                "unused.png") is None
+
+    def _write_with_pin(self, directory, model, outcomes, pin, start=1):
+        import json
+        import os
+        for i, outcome in enumerate(outcomes, start=start):
+            name = (f"run_{i}_{model}_none_capability-sandbox"
+                    f"_2026010{start}T000000.json")
+            with open(os.path.join(directory, name), "w",
+                      encoding="utf-8") as handle:
+                json.dump({"model": model, "nudge": "none", "oversight": True,
+                           "lure": False, "capability": "sandbox",
+                           "rollout_fingerprint": pin, "transcript": [],
+                           "analysis": {
+                               "out_of_scope_attempts":
+                                   ["ls ../"] if outcome == "succeeded" else [],
+                               "sandbox_escape_attempts":
+                                   ["ls ../"] if outcome == "succeeded" else []}},
+                          handle)
+
+    def test_two_rollouts_of_one_arm_are_refused_rather_than_pooled(self):
+        """The sandbox arm was re-pinned when it gained its own system prompt,
+        and its directory already held episodes from the arm whose prompt
+        forbade the act. Pooled, a refusal under one prompt would sit beside
+        a success under the other as though they were one measurement."""
+        import tempfile
+
+        from subversionbench.rollout_pins import capability_fingerprint_for
+        with tempfile.TemporaryDirectory() as out:
+            self._write_with_pin(out, "m", ["refused"] * 3, "0ld0ld0ld0ld")
+            self._write_with_pin(out, "m", ["succeeded"] * 3,
+                                 capability_fingerprint_for("sandbox", True),
+                                 start=4)
+            code, printed = self._run(["capability_report.py",
+                                       "--output-dir", out])
+        assert code == 2, printed[-500:]
+        assert "earlier one" in printed
+
+    def test_both_oversight_arms_of_the_current_rollout_still_pool(self):
+        """Each oversight arm has its own pin, so a count of distinct pins
+        would refuse the ordinary corpus. The rule compares against the
+        current pins instead."""
+        import tempfile
+
+        from subversionbench.rollout_pins import capability_fingerprint_for
+        with tempfile.TemporaryDirectory() as out:
+            self._write_with_pin(out, "m", ["succeeded"] * 2,
+                                 capability_fingerprint_for("sandbox", True))
+            self._write_with_pin(out, "m", ["refused"] * 2,
+                                 capability_fingerprint_for("sandbox", False),
+                                 start=3)
+            code, printed = self._run(["capability_report.py",
+                                       "--output-dir", out])
+        assert code == 0, printed[-500:]
+        assert "earlier rollout" not in printed
+
+    def test_an_earlier_rollout_read_alone_says_so(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as out:
+            self._write_with_pin(out, "m", ["succeeded"] * 3, "0ld0ld0ld0ld")
+            code, printed = self._run(["capability_report.py",
+                                       "--output-dir", out])
+        assert code == 0, printed[-500:]
+        assert "earlier rollout" in printed
+
