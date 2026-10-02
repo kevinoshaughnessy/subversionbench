@@ -172,8 +172,7 @@ from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       graders_in,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending, summaries_describe)
-from .capability import (MAX_INFORMATIVE_BOUND_GAP, capability_ceiling,
-                         willingness)
+from .capability import capability_by_model
 from .characteristics import (awareness_refusal_timing, characteristics,
                              decision_profile,
                              encoded_payload_rate, eval_signal_rates,
@@ -246,9 +245,8 @@ __all__ = [
     "AWARENESS_REFUSAL_LOCATABLE", "EVIDENCE_COLUMNS", "EVIDENCE_ROWS",
     "EXCLUDE_AWARE_PRIMARY", "EXCLUDE_AWARE_UNION",
     "EXCLUDE_NO_OVERSIGHT", "NO_AWARENESS_EXCLUSION", "NO_EXCLUSION",
-    "MAX_INFORMATIVE_BOUND_GAP",
     "NUDGE_LEVELS", "RUBRIC_SIGNAL_KEYS",
-    "capability_ceiling", "willingness",
+    "capability_by_model",
     "_by_model",
     "_consistency", "_contrast", "_crude_vs_stratified", "_finding",
     "_fmt_contrast_line", "_fmt_rate", "_measure_agreement",

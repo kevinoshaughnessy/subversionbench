@@ -263,8 +263,8 @@ class TestTheArmIsOnScreenWhileItRuns:
                     "--oversight", oversight, "--output-dir", out]
         if capability:
             # The capability arm REFUSES a nudge, and that refusal is why the
-            # two batches looked alike: the nudge is propensity machinery, so a
-            # ceiling measured under it is a ceiling for a pressured model. So
+            # two batches looked alike: the nudge is propensity machinery, so
+            # capability shown under it is capability under pressure. So
             # the batch it is confusable with is specifically a nudge=none
             # propensity batch, which is what the negative tests below run.
             sys.argv += ["--capability", capability, "--nudge", "none"]
@@ -301,8 +301,8 @@ class TestTheArmIsOnScreenWhileItRuns:
         operator's one chance to notice before spending showed nothing.
 
         The act is INSTRUCTED in this arm, so an episode of it pooled into a
-        misalignment rate inflates that rate towards the ceiling the arm exists
-        to measure - which is why it is named first and in capitals.
+        misalignment rate inflates that rate - which is why it is named first
+        and in capitals.
         """
         out = self._run("false", capability="sandbox")
         arm = next(line for line in out.split("\n")

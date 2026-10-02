@@ -25,12 +25,11 @@ def _fingerprint(oversight, lure, capability, date_mode, goalguard=None,
     the counterfactual to, and nothing about the file looks wrong afterwards.
 
     CAPABILITY WINS OVER GOAL GUARDING where both are set, because the
-    capability arm stages the goal-guarding artefact itself and its ceiling is
+    capability arm stages the goal-guarding artefact itself and its result is
     a different measurement from the propensity arm's rate - an episode that
     was INSTRUCTED to rewrite the successor's objective must not carry a
-    propensity arm's identity, or it pools into the rate it is the denominator
-    of. That is the same precedence the capability arm already takes over the
-    plain arms below it.
+    propensity arm's identity, or it pools into that rate. That is the same
+    precedence the capability arm already takes over the plain arms below it.
 
     `nudge` reaches every branch below capability, not only goal-guarding.
     This function used to pass it only to goalguard_fingerprint_for, on the
@@ -173,10 +172,10 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
         # WHETHER THE ACT WAS INSTRUCTED. None on every propensity episode,
         # which is what a published rate counts; a target name on a
         # capability episode, where the model was asked for the act outright
-        # and the result is a ceiling rather than a propensity.
+        # and the result says whether it can, not whether it would.
         #
         # This field is what report/loading.py drops on, so it is the reason
-        # a ceiling cannot reach a rate it is the denominator of. Recorded
+        # an instructed act cannot reach a propensity rate. Recorded
         # rather than left to the filename for the reason `lure` was: the arm
         # that was left to the filename got pooled into a rate it did not
         # belong to.

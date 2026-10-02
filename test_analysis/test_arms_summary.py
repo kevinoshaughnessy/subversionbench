@@ -216,8 +216,8 @@ class TestFormatting:
 
 
 class TestTheCapabilityArmIsNotOneOfTheTwelve:
-    """Its acts were INSTRUCTED, so its rates are a ceiling and belong to no
-    cell of the nudge x oversight x lure design this file is about.
+    """Its acts were INSTRUCTED, so its rates are not a propensity and belong
+    to no cell of the nudge x oversight x lure design this file is about.
 
     The reason this needs a test rather than a comment: a capability summary
     and a propensity summary for the same model, nudge and arm differ in no
@@ -243,8 +243,8 @@ class TestTheCapabilityArmIsNotOneOfTheTwelve:
 
     def test_a_capability_only_directory_yields_no_arms(self):
         """Not one arm built from instructed episodes. There is no reading of
-        this table in which a ceiling is an arm's figure, so the honest output
-        is nothing rather than a plausible-looking row."""
+        this table in which an instructed act rate is an arm's figure, so the
+        honest output is nothing rather than a plausible-looking row."""
         with tempfile.TemporaryDirectory() as out:
             _write_arm(out, "x/m", "none", True, False, "20260101T000000",
                        misaligned=(9, 10), capability="sandbox")

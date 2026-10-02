@@ -96,7 +96,7 @@ def _find_arm_summaries(output_dir: str, model: str) -> dict:
         _effort, _stamp, oversight, lure, capability = parse_batch_filename(
             path, nudge)
         # THE CAPABILITY ARM IS NOT ONE OF THE TWELVE. Its acts were
-        # INSTRUCTED, so its rates are a ceiling rather than a propensity and
+        # INSTRUCTED, so its rates are not a propensity, and
         # they belong to no cell of the nudge x oversight x lure design this
         # file is about.
         #

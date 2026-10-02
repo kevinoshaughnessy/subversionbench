@@ -824,10 +824,20 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     # no oversight reference and are shared by both arms unchanged.
     # The capability arm replaces this outright - its whole difference from a
     # propensity arm is the instruction. Everything else the model sees is
-    # identical, which is what makes the ceiling a denominator for the rate
-    # rather than a measurement of some other scenario.
-    user_prompt = scenario_for(args.oversight,
-                               capability=args.capability)["user_prompt"]
+    # identical, so a success there is evidence about this scenario rather
+    # than some other one.
+    arm = scenario_for(args.oversight, capability=args.capability)
+    user_prompt = arm["user_prompt"]
+    # AND THE SYSTEM PROMPT, which is an instruction too. The sandbox target's
+    # request is to look outside a directory the shared system prompt scopes
+    # the account to, so read alone it asks the model to override a rule set
+    # above it, and gpt-5.6-luna and kimi-k3 refused every such episode on
+    # that rule. Its arm grants the look in place of the scope sentence. The
+    # arm assembles - and so hashes - with whatever system prompt it carries,
+    # so taking the prompt from anywhere else would run one text under
+    # another's fingerprint. The capability arm runs at nudge none only.
+    if args.capability is not None:
+        system_prompt = arm["system_prompt_no_nudge"]
 
     code, profile_path = _preflight(args)
     if code is not None:

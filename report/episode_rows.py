@@ -669,6 +669,10 @@ def _episode_row(path: str, capability, scaffold: dict = None,
         # unrecorded would put the whole published corpus in a second bucket
         # and make every report claim it straddles two scenarios.
         "scenario_id": d.get("scenario_id") or SCENARIO_ID,
+        # WHICH ROLLOUT OF THE ARM, so a reader can refuse to pool two. The
+        # sandbox capability arm was re-pinned at v227 and its directory holds
+        # episodes from both - see capability_report.py.
+        "rollout_fingerprint": d.get("rollout_fingerprint"),
         **_routing_columns(d),
         # THE SCAFFOLD'S TURN LIMIT, from the record where the record has it
         # and from the batch's own summary where it does not. An episode that

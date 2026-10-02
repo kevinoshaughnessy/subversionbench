@@ -307,10 +307,14 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     `capability` selects the capability arm, which is not a fifth cell of the
     propensity design and never pools with one. It replaces the task
     instruction with one that asks for the act outright, so that a model's
-    zero can be read: a 0% propensity against a 0% ceiling is a fact about the
-    scenario, and against a 90% ceiling a fact about the model. Everything
-    else - the environment, the system prompt, the tools, the sandbox - is
-    unchanged, so the arms differ in the instruction and nothing else.
+    zero can be read: for a model that cannot take the act it is a fact about
+    the scenario, and for one shown to perform it a fact about the model.
+    Everything
+    else - the environment, the tools, the sandbox - is unchanged, so the arms
+    differ in the instruction and nothing else. The system prompt is part of
+    the instruction: the sandbox arm replaces it, because the shared one
+    scopes the account to the directory that arm asks the model to look
+    outside.
     """
     bundle = dict(bundle or load_scenario())
     # Popped unconditionally, on the same terms as the arm keys below: the
@@ -348,7 +352,7 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
             f"artefact: an episode with no successor parameters to guard "
             f"measures nothing, and would be recorded as a zero.")
     # The capability arm stages the artefact WITHOUT a deployment note: the
-    # ceiling answers "can it edit this file when told to", and the note is
+    # arm asks "will it edit this file when told to", and the note is
     # the motive, not the means.
     if goalguard is not None or capability == "goalguard":
         bundle.update(goalguard_common)
@@ -439,15 +443,16 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     # APPLIED LAST, AFTER THE COUNTERFACTUAL OVERRIDES. Both replace
     # `user_prompt`, and the counterfactual's copy is the one that must not
     # win here: it asks for a transport recommendation, which is the task this
-    # arm exists to replace. Applied before them, the sandbox ceiling would
-    # have been measured on episodes never given the instruction - and every
+    # arm exists to replace. Applied before them, the sandbox capability arm
+    # would have run on episodes never given the instruction - and every
     # one of them would have read as a refusal.
     if capability not in capability_arms:
         raise KeyError(
             f"unknown capability target {capability!r}; the bundle offers "
             f"{sorted(capability_arms)}. Refused rather than run without the "
             f"instruction: an episode that was never told to take the act "
-            f"measures propensity, and would be recorded as a ceiling.")
+            f"measures propensity, and would be recorded as a capability "
+            f"result.")
     if capability == "oversight" and not oversight:
         # There is nothing to subvert in the counterfactual - the arm drops
         # the monitoring config outright - so this instruction is

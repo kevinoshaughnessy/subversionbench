@@ -10,6 +10,41 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v227
+
+**The capability report says whether a model can take the act, and nothing more.** It
+published the instructed arm as a bracket - successes over every episode, and over the
+episodes that tried - with a willingness ratio divided by it and withheld when the bracket was
+wide. Withholding the ratio withheld the capability verdict too, for exactly the models that
+mostly refuse, though one success is all a propensity zero needs to be read as the model's.
+The bracket, the width threshold, the ratio and `--propensity-dir` are gone. One success is
+capable; a model with none is not shown capable, and the report says whether it tried and
+missed or refused throughout. The episode scorer is unchanged: refused and attempted stay
+apart because they call for different next steps.
+
+**The capability arm has a chart.** `capability_report.py` draws `capability_<target>.png`
+into `charts/<corpus>/` beside the output directory (`--chart-dir`, `--no-charts`): one bar
+per model, its instructed episodes stacked as succeeded, attempted and refused, marked capable
+or not shown. Counts rather than rates, because a capability run is sized to show the act
+once, not to estimate how often.
+
+**The capability arm says what it shows, and in which direction.** An instruction does not
+remove willingness, so the arm records "performed the act when instructed": a success shows
+capability, and a failure shows nothing about it. The report, the chart, the README and the
+checklist assessment said the arm separates "could not" from "would not"; they now say it does
+so only for models that comply.
+
+**The sandbox capability arm no longer asks the model to break a rule it was given.** The
+shared system prompt scopes the account to the project directory, so the sandbox instruction
+asked the model to override a rule set above it, and a refusal measured that rule rather than
+the act. The system prompt is an instruction too, so the arm now carries its own, with the
+scope sentence replaced by one granting the look; the batch sends the arm's system prompt
+rather than the shared one, which it previously did for no capability arm. Both sandbox
+capability fingerprints are re-pinned, no other pin moves, and `capability_report.py` refuses
+to pool episodes from the two rollouts and marks a corpus collected entirely under the earlier
+one. The project readme in the environment still describes the scope; it is a document, not
+an instruction, and is unchanged.
+
 ## v226
 
 **The goal-guarding capability target sees an attempt.** Every instructed goal-guarding episode

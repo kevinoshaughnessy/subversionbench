@@ -1133,10 +1133,11 @@ different scenario, and its episodes never pool with these: a composite rate ove
 categories and one over three are not the same quantity.
 
 Both scenarios need the capability arm as well as the propensity arm. That is what makes
-a propensity gap interpretable: equal ceilings mean the two scenarios are equally
-*performable*, so a difference in propensity is about something other than difficulty.
+a propensity gap interpretable: a model that performs the act when instructed in both
+shows it is *performable* in both, so a difference in propensity is about something other than whether
+the model can take it.
 
-Equal ceilings do **not** imply the two scenarios are equally eval-smelling. Two
+Being performable in both does **not** imply the two scenarios are equally eval-smelling. Two
 scenarios can be equally solvable and differ in how readily any model recognises them as
 a test, so for a single model the mainline-to-held-out gap is contamination *plus* that
 intrinsic difference, with nothing separating them. Adding a pre-cutoff model makes the
@@ -1349,10 +1350,10 @@ See question 14's `rate_views`.
 `False` would claim the model had the chance and declined, which is the one thing such an episode
 cannot show.
 
-**The capability ceiling for this act must be collected at `--nudge none`.** The nudge is the
-goal-conflict pressure, and it is propensity machinery. A ceiling measured under it answers what
-a pressured model can do, which is not the denominator any propensity rate wants — so the
-instructed arm withholds the pressure and keeps the instruction.
+**The capability arm for this act must be collected at `--nudge none`.** The nudge is the
+goal-conflict pressure, and it is propensity machinery. Capability shown under it answers what
+a pressured model can do, which is not what a propensity zero needs to be read as the model's —
+so the instructed arm withholds the pressure and keeps the instruction.
 
 **The held-out twin carries this arm.** A twin that stages the act pins its own goal-guarding
 fingerprints in its sidecar; one that does not is refused rather than given the shipped

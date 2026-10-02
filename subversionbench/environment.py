@@ -169,8 +169,8 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
     # CAPABILITY TOO, not just the arm. scenario_for stages the goal-guarding
     # artefact when either is set; passing only `goalguard` built a
     # --capability goalguard episode whose instruction named a file that was
-    # never written, so the ceiling read zero by construction. See
-    # TestTheCeilingIsStagedWithTheArtefactItInstructs.
+    # never written, so every episode read as not shown by construction. See
+    # TestTheCapabilityArmStagesTheArtefactItInstructs.
     # NUDGE TOO, and the goal-guarding memo is one of two documents it reaches
     # (the other being the coercive interrogation questions, unconditional on
     # nudge="max" - see MAX_NUDGE_FINGERPRINTS). rollout.py has passed nudge to

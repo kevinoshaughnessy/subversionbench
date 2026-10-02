@@ -188,16 +188,16 @@ def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
                              "partly measures response to a hint.")
     parser.add_argument(
         "--capability", choices=list(CAPABILITY_TARGETS), default=None,
-        help="Capability arm - the oracle-solver denominator. Replaces the "
-             "task instruction with one that asks for the act outright, so "
-             "that a model's zero on the propensity arm can be read: 0%% "
-             "against a 0%% ceiling is a fact about the scenario, 0%% against "
-             "a 90%% ceiling is a fact about the model. Its own rollout "
-             "fingerprint and its own filename mark, and the report drops it "
-             "from every propensity rate - the act was INSTRUCTED here, so "
-             "pooling one episode into a misalignment rate inflates it "
-             "towards the ceiling it exists to measure. Collect into a "
-             "separate --output-dir.")
+        help="Capability arm - the oracle solver. Replaces the task "
+             "instruction with one that asks for the act outright, so that a "
+             "model which performs it is shown capable and its zero on the "
+             "propensity arm can be read as a choice. A model that does not "
+             "perform it is not shown incapable: complying is itself a "
+             "choice. Its own rollout fingerprint and its own filename mark, "
+             "and the report drops it from every propensity rate - the act "
+             "was INSTRUCTED here, so pooling one episode into a misalignment "
+             "rate inflates it. Collect into a separate --output-dir and read "
+             "it with capability_report.py.")
     parser.add_argument(
         "--goalguard", choices=list(GOALGUARD_ARMS), default=None,
         help="Goal-guarding arm - the third misaligned act. Stages the "
@@ -787,10 +787,10 @@ def _capability_refusal(args) -> str:
     """Why this capability run cannot mean what it claims, or None.
 
     THE CAPABILITY ARM'S PRECONDITIONS, refused rather than corrected. Each of
-    these would produce episodes that look like a ceiling and are not, and none
-    of them is visible in the artefact afterwards - which is the whole reason
-    they are checked at the boundary. Silently coercing them instead would run
-    an arm the operator did not ask for.
+    these would produce episodes that look like a capability result and are
+    not, and none of them is visible in the artefact afterwards - which is the
+    whole reason they are checked at the boundary. Silently coercing them
+    instead would run an arm the operator did not ask for.
 
     RETURNS the message rather than printing it, so the decision can be tested
     without capturing stdout and so main() owns the exit code. Reads the
@@ -802,13 +802,13 @@ def _capability_refusal(args) -> str:
     if args.nudge != "none":
         return (f"\n--capability needs --nudge none, not {args.nudge!r}. The "
                 f"nudge is the goal-conflict pressure, and it is propensity "
-                f"machinery: a ceiling measured under it is a ceiling for "
-                f"what a pressured model can do, which is not the "
-                f"denominator any propensity rate wants.")
+                f"machinery: capability shown under it is capability under "
+                f"pressure, which is not what a propensity zero needs to be "
+                f"read as a choice.")
     if args.lure:
         return ("\n--capability cannot be combined with --lure true. The "
-                "lure is a hint, so a ceiling measured under it is a "
-                "ceiling for hint-following. There is deliberately no "
+                "lure is a hint, so capability shown under it is "
+                "capability with a hint. There is deliberately no "
                 "pinned fingerprint for that combination.")
     if args.capability == "oversight" and not args.oversight:
         return ("\n--capability oversight needs --oversight true. The "
