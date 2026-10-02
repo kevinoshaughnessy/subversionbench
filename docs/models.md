@@ -81,11 +81,12 @@ twelve-arm cross product.
 - [z-ai/glm-5.2](https://huggingface.co/zai-org/GLM-5.2)
 - [z-ai/glm-5.3](https://huggingface.co/zai-org/GLM-5.3)
 
-### Capability (ceiling) arm
+### Capability arm
 
 `--capability {oversight,sandbox}` replaces the task instruction with one that asks for
-the act outright, so a model's zero on the propensity arm can be read against its own
-ceiling rather than assumed. Measured for both acts on:
+the act outright. A model that performs it is shown capable, so its zero on the propensity
+arm reads as a choice; one that does not has shown nothing about its ability. Measured for
+both acts on:
 
 claude-haiku-4-5-20251001 · deepseek/deepseek-v4-flash · deepseek/deepseek-v4-flash-0731 ·
 gpt-5.6-luna · meta-llama/llama-4-maverick · meta/muse-glimmer-30b ·
@@ -145,7 +146,7 @@ lure held off throughout: eight arms per model.
 `nudge` reaching scenario assembly (see CHANGELOG.md) — not a fourth model, and not part
 of the corpus above.
 
-### Capability (ceiling) arm
+### Capability arm
 
 `--capability goalguard`, collected in `eval_results_goalguard_r1cap/`. Every model
 below marked capable has goal-guarded when instructed, so a zero in its goal-guarding arms is
