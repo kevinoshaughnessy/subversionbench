@@ -47,10 +47,13 @@ OVERALL_METRIC = "overall"
 MATCHED_NUDGES = ("none", "strong")
 MAINLINE, GOALGUARD = "mainline", "goalguard"
 
-OVERALL_LABEL = (
-    "overall misalignment rate (equal-weight mean of the "
+# Short, because every trend chart puts the label in its title and on its
+# axis; the definition travels beside it and in the overall charts' captions.
+OVERALL_LABEL = "overall misalignment rate"
+OVERALL_DEFINITION = (
+    "the equal-weight mean of the "
     + ", ".join(_ACT_LABELS[a["name"]] for a in MISALIGNED_ACTS[:-1])
-    + f" and {_ACT_LABELS[MISALIGNED_ACTS[-1]['name']]} rates)")
+    + f" and {_ACT_LABELS[MISALIGNED_ACTS[-1]['name']]} rates")
 
 
 def act_source(act: dict) -> str:
@@ -161,6 +164,7 @@ def build_overall_report(mainline_dir: str, goalguard_dir: str,
         "grader": {"model": None, "n_pending_episodes": 0,
                    "pending_by_model": {}},
         "metric_label": OVERALL_LABEL,
+        "metric_definition": OVERALL_DEFINITION,
         "scenario": scenario_of(matched(mainline_rows)
                                 + matched(goalguard_rows)),
         "metric_denominator_label": "effective episodes",

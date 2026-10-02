@@ -64,7 +64,7 @@ from .family_trends import _report_one_metric, main
 from .metrics import (AWARENESS_METRICS, METRIC_ALL, METRICS,
                       _MAX_NAMED_SILENT, TEXT_REACHABLE, model_exposure,
                       model_rates)
-from .overall import (OVERALL_LABEL, act_rates, build_overall_report,
+from .overall import (OVERALL_DEFINITION, OVERALL_LABEL, act_rates, build_overall_report,
                       effective_counts, matched, overall_rates)
 from .overall_charts import write_overall_charts
 from .model_ids import (QUALIFIER_TAGS, VERSION_STYLES, ModelId, family_key,
@@ -83,7 +83,7 @@ from .version_charts import _plot_all_families, _plot_family
 __all__ = [
     "AWARENESS_METRICS", "CHART_DPI", "FIT_NOTE", "METRICS", "METRIC_ALL",
     "ModelId", "QUALIFIER_TAGS", "RELEASE_AXIS_START", "TEXT_REACHABLE",
-    "OVERALL_LABEL", "VERSION_STYLES", "WILSON_NOTE", "WILSON_NOTE_BRACKETS_ONLY",
+    "OVERALL_DEFINITION", "OVERALL_LABEL", "VERSION_STYLES", "WILSON_NOTE", "WILSON_NOTE_BRACKETS_ONLY",
     "WILSON_NOTE_WITH_BRACKETS",
     "_BRAND_COLOURS", "_CAPTION_WRAP", "_COMBINED_AXIS_PT",
     "_DATE_LABEL_CEILING", "_DATE_LABEL_DX", "_DATE_LABEL_DY",

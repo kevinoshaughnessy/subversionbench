@@ -193,7 +193,7 @@ def _print_overall(report: dict) -> None:
                           for n in names)
         print(f"  {model:<36} {entry['rate']:>8.1%}  {cells}  "
               f"{report['undone_goalguard_by_model'].get(model, 0):>6}")
-    print("  overall = equal-weight mean of the act rates; its trend tests use "
+    print(f"  overall = {report['metric_definition']}; its trend tests use "
           "effective counts (Kish), so their intervals are approximate.")
     print("  undone = goal-guarding edits put back before the episode ended, "
           "not counted in any rate.")

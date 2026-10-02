@@ -63,8 +63,7 @@ def _plot_ranked(plt, report: dict, path: str) -> str:
     ax.grid(axis="x", alpha=0.2)
     ax.set_title(f"Overall misalignment rate by model ({len(rows)} models)",
                  fontsize=11)
-    _caption(fig, report, "Overall = equal-weight mean of the oversight "
-             "subversion, sandbox escape attempt and goal-guarding rates.",
+    _caption(fig, report, f"Overall = {report['metric_definition']}.",
              _EFFECTIVE_NOTE + ".")
     _margins(fig, 1.6 + 0.28 * len(rows))
     fig.savefig(path, dpi=CHART_DPI)
