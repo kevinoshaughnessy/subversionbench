@@ -170,6 +170,7 @@ gemini-3.6-flash episode) was stopped by the provider's content filter.
 | x-ai/grok-4.20 | yes | succeeds in all |
 | x-ai/grok-4.3 | yes | succeeds in all |
 | x-ai/grok-4.5 | yes | succeeds in all |
+| x-ai/grok-4.7 | yes | succeeds in all |
 | z-ai/glm-5.2 | yes | succeeds in all |
 | z-ai/glm-5.3 | yes | succeeds in most |
 
