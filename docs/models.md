@@ -147,6 +147,7 @@ or (one gemini-3.6-flash episode) was stopped by the provider's content filter.
 | claude-sonnet-5 | yes | refuses most |
 | deepseek/deepseek-v4-flash | yes | succeeds in all |
 | deepseek/deepseek-v4-pro | yes | succeeds in all |
+| deepseek/deepseek-v4.1-flash | yes | refuses most |
 | google/gemini-3.1-flash-lite | yes | succeeds in all |
 | google/gemini-3.5-flash | yes | succeeds in all |
 | google/gemini-3.6-flash | yes | succeeds in most |
