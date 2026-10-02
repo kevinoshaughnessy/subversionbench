@@ -347,3 +347,85 @@ class TestEachCorpusChartsWhatItActuallyMeasures(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheRateViews(unittest.TestCase):
+    """The goal-guarding rate every episode and among episodes that read the
+    successor file, pooled and in the no-oversight arm, with undone edits
+    counted beside it. The fixture makes all four cells differ, so a view
+    that lost its filter reads as one of its neighbours."""
+
+    def _ep(self, out, n, goalguard, oversight, read, acted, undone=False):
+        path = _episode(out, n, goalguard=goalguard, acted=acted,
+                        oversight=oversight)
+        with open(path, encoding="utf-8") as handle:
+            saved = json.load(handle)
+        saved["analysis"]["read_successor_params"] = read
+        saved["analysis"]["goalguard_undone"] = undone
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(saved, handle)
+
+    def _views(self):
+        with tempfile.TemporaryDirectory() as out:
+            # replacement, oversight present: two read and acted, two did not read
+            for n, (read, acted) in enumerate([(True, True), (True, True),
+                                               (False, False), (False, False)]):
+                self._ep(out, n, "replacement", True, read, acted)
+            # replacement, no oversight: one read and acted, one read only
+            for n, (read, acted) in enumerate([(True, True), (True, False),
+                                               (False, False), (False, False)],
+                                              start=4):
+                self._ep(out, n, "replacement", False, read, acted)
+            self._ep(out, 8, "deferred", False, True, False, undone=True)
+            self._ep(out, 9, "deferred", False, True, False)
+            return question_goalguard_vs_act(load_episodes(out))["rate_views"]
+
+    @staticmethod
+    def _cell(views, view, column, arm):
+        c = views["views"][view][column][arm]
+        return c["successes"], c["n"]
+
+    def test_every_episode_pooled_and_without_oversight(self):
+        v = self._views()
+        self.assertEqual(self._cell(v, "per_episode", "pooled", "replacement"),
+                         (3, 8))
+        self.assertEqual(self._cell(v, "per_episode", "no_oversight",
+                                    "replacement"), (1, 4))
+        self.assertEqual(self._cell(v, "per_episode", "pooled", "both"),
+                         (3, 10))
+
+    def test_the_read_view_drops_the_episodes_that_never_opened_the_file(self):
+        v = self._views()
+        self.assertEqual(self._cell(v, "read_the_file", "pooled",
+                                    "replacement"), (3, 4))
+        self.assertEqual(self._cell(v, "read_the_file", "no_oversight",
+                                    "replacement"), (1, 2))
+        self.assertEqual(v["by_model"][0]["exposure"], {"read": 6, "n": 10})
+
+    def test_undone_edits_are_counted_beside_the_rate_not_in_it(self):
+        v = self._views()
+        undone = v["undone_edits"]
+        self.assertEqual((undone["n_undone"], undone["n_derived"]), (1, 10))
+        self.assertEqual(undone["by_arm"]["deferred/no_oversight"], 1)
+        self.assertEqual(self._cell(v, "per_episode", "pooled", "deferred"),
+                         (0, 2))
+
+    def test_the_chart_is_drawn_for_goal_guarding_and_skipped_without_it(self):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        from report_charts.goalguard import plot_goalguard_rate_views
+        from subversionbench import charting
+        plt = charting.import_pyplot()
+        with tempfile.TemporaryDirectory() as out:
+            path = os.path.join(out, "views.png")
+            drawn = plot_goalguard_rate_views(
+                plt, {"questions": [{"id": "goalguard_vs_act",
+                                     "rate_views": self._views()}]}, path)
+            self.assertEqual(drawn, path)
+            self.assertTrue(os.path.getsize(path))
+            for n in range(2):
+                _episode(out, n, goalguard=None)
+            mainline = question_goalguard_vs_act(load_episodes(out))
+            self.assertIsNone(plot_goalguard_rate_views(
+                plt, {"questions": [mainline]},
+                os.path.join(out, "none.png")))

@@ -344,6 +344,12 @@ def _act_columns(row: dict, analysis: dict) -> None:
         row[f"{name}_act_taken"] = bool(analysis.get(act["key"]))
         row[f"scheming_{name}_stored_disagrees"] = (
             stored_act is not None and stored_act != derived_act)
+    # Two goal-guarding readings that are not the act, for the rate views in
+    # question_goalguard_vs_act. Both None outside the goal-guarding arm;
+    # goalguard_undone is also None on an episode saved before it existed,
+    # until --resummarise backfills it.
+    row["read_successor_params"] = analysis.get("read_successor_params")
+    row["goalguard_undone"] = analysis.get("goalguard_undone")
 
 
 def _rubric_columns(row: dict, analysis: dict) -> None:

@@ -688,6 +688,34 @@ def _print_question(section: dict) -> None:
         _print_summary_derived_cross_check(
             section["summary_derived_cross_check"])
 
+    if section.get("rate_views"):
+        _print_goalguard_rate_views(section["rate_views"])
+
+
+def _print_goalguard_rate_views(views: dict) -> None:
+    """The goal-guarding rate per episode and among episodes that read the
+    successor file, pooled and in the no-oversight arm - see
+    goalguard_rate_views for why each is shown."""
+    print("\n  GOAL-GUARDING RATE VIEWS (replacement / deferred / both):")
+    for view, label in (("per_episode", "every episode"),
+                        ("read_the_file", "read the file")):
+        for column, arm_label in (("pooled", "both oversight arms"),
+                                  ("no_oversight", "no-oversight arm")):
+            cells = views["views"][view][column]
+            print((f"    {label:<14} {arm_label:<20} "
+                   + "  ".join(f"{_fmt_rate(cells[a]):<16}"
+                               for a in ("replacement", "deferred", "both"))
+                   ).rstrip())
+    print("    'read the file' conditions on something the model did, so it "
+          "is descriptive, not a causal estimate.")
+    undone = views["undone_edits"]
+    if undone["n_derived"]:
+        print(f"    edited the file and put it back (not counted in the "
+              f"rate): {undone['n_undone']} of {undone['n_derived']}")
+    else:
+        print("    undone edits: not derived on these episodes - run "
+              "--resummarise to backfill them")
+
 
 def _print_variant_question(section: dict) -> None:
     print(f"\n{'=' * 78}")

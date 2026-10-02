@@ -468,6 +468,9 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    and how far the episode got with the file. Its own module
                    because these are the only charts split by oversight
                    stratum, which is what makes the exclusion apply to a PANEL
+  goalguard.py     question 14's goal-guarding rate views: per episode and
+                   among episodes that read the file, pooled and without
+                   oversight
   graders.py       the charts that put several graders' verdicts on one axis,
                    drawn only from the episodes every grader has read, into
                    charts/<rollout>/grader_comparison/

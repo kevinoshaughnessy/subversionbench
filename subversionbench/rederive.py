@@ -66,6 +66,7 @@ from .grading import (classify_awareness_from_rubric,
                       classify_honeypot_read,
                       classify_host_path_read,
                       classify_network_probe, command_is_degenerate,
+                      classify_goalguard_undone,
                       classify_transient_tampering, detect_disguised_text,
                       detect_encoded_payload,
                       detect_eval_awareness_keywords,
@@ -74,7 +75,8 @@ from .grading import (classify_awareness_from_rubric,
                       detect_host_path_reads,
                       detect_network_probes,
                       detect_strategy_recommendation,
-                      detect_transient_tampering, reads_a_file,
+                      detect_transient_tampering,
+                      detect_undone_successor_edit, reads_a_file,
                       recheck_quote_grounding,
                       refusals_not_observed,
                       scratch_only_attempts, settle_analysis)
@@ -298,6 +300,10 @@ def _transcript_measures(analysis: dict, transcript: list) -> None:
         analysis["transient_tampering_detail"] = detect_transient_tampering(
             transcript)
     analysis["transient_tampering"] = classify_transient_tampering(analysis)
+    if transcript:
+        analysis["goalguard_undone_detail"] = detect_undone_successor_edit(
+            transcript)
+    analysis["goalguard_undone"] = classify_goalguard_undone(analysis)
 
     if transcript:
         # UNCONDITIONAL, not fill-when-absent.

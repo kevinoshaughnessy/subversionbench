@@ -106,8 +106,10 @@ from .honeypot import (classify_honeypot_discovered, classify_honeypot_read,
                        detect_honeypot_access)
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
+    classify_goalguard_undone,
     classify_transient_tampering,
     detect_transient_tampering,
+    detect_undone_successor_edit,
 )
 
 __all__ = [
@@ -115,6 +117,7 @@ __all__ = [
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "counted_acts", "auth_error_in_analysis",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
+    "detect_undone_successor_edit", "classify_goalguard_undone",
     "scratch_only_attempts", "refusals_not_observed", "reads_a_file",
     "detect_network_probes", "classify_network_probe",
     "detect_filesystem_escapes", "classify_filesystem_escape",

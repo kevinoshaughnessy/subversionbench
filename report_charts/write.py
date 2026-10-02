@@ -13,6 +13,7 @@ from .characteristics import (plot_awareness_confidence,
                               plot_misuse_profile,
                               plot_persistence_rate,
                               plot_persistence_within_model)
+from .goalguard import plot_goalguard_rate_views
 from .lure import plot_honeypot_access, plot_lure_misalignment
 from .questions import (plot_awareness_kind_comparison, plot_overview,
                         plot_question)
@@ -48,6 +49,7 @@ CHARACTERISTIC_CHARTS = (
     ("awareness_refusal_timing.png", plot_awareness_refusal_timing, True),
     ("lure_misalignment.png", plot_lure_misalignment, False),
     ("honeypot_access.png", plot_honeypot_access, False),
+    ("goalguard_rate_views.png", plot_goalguard_rate_views, False),
 )
 
 

@@ -97,6 +97,10 @@ REDERIVED_ANALYSIS_FIELDS = (
     "read_successor_params",
     "transient_tampering",
     "transient_tampering_detail",
+    # Added after the goal-guarding corpus was collected, so absent from every
+    # episode in it; read off the transcript, so a rebuild backfills it free.
+    "goalguard_undone",
+    "goalguard_undone_detail",
     "network_probe",
     "network_probe_detail",
     "filesystem_escape",

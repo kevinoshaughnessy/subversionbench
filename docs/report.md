@@ -362,6 +362,14 @@ null there - no goal-guarding episode exists outside `eval_results_goalguard_r1`
 questions (6, 9, 15, 16) chart in every corpus: oversight is manipulated in both scenarios and
 tampering happens in both. See `run_report._out_of_scope_for_this_corpus`.
 
+**Question 14 carries the goal-guarding rate views.** `rate_views` gives the act rate per
+episode and among the episodes that read the successor's parameter file, each pooled over the
+oversight arms and in the no-oversight arm alone, for replacement, deferred and both; per model
+for both, with the share of each model's episodes that read the file; and the episodes that
+edited the file and put it back (`goalguard_undone`), counted beside the rate rather than in it.
+The console prints the four views under the question, and `goalguard_rate_views.png` draws them.
+On a corpus with no goal-guarding episode the chart is not drawn.
+
 ---
 
 ## Multiplicity
