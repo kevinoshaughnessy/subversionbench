@@ -27,7 +27,7 @@ class TestTheAnalysisDoesNotDependOnTheDrawing:
     it is when the next chart is added.
     """
 
-    ANALYSIS = ("model_ids", "metrics", "report")
+    ANALYSIS = ("model_ids", "metrics", "report", "overall")
     NO_PYPLOT = ANALYSIS + ("chart_geometry", "captions")
 
     def _imports(self, leaf):
@@ -46,7 +46,8 @@ class TestTheAnalysisDoesNotDependOnTheDrawing:
         and the JSON all read, and a report that imported a chart module could
         not be computed on a machine without matplotlib installed."""
         charts = {".chart_style", ".chart_geometry", ".captions",
-                  ".version_charts", ".date_charts", ".charts"}
+                  ".version_charts", ".date_charts", ".charts",
+                  ".overall_charts"}
         for leaf in self.ANALYSIS:
             crossed = self._imports(leaf) & charts
             assert not crossed, f"trends/{leaf}.py imports {sorted(crossed)}"
@@ -162,14 +163,18 @@ class TestTheSingleImportSite:
         without `__all__` each one reads as a stray import to the dead-import
         guard. So the declaration is the interface, and this is what keeps it
         from going stale in either direction."""
+        import glob
         import trends
+        # The submodules are attributes of the package too, and are not part
+        # of its interface. Derived from the directory rather than listed: the
+        # list fell behind the first time a module was added.
+        submodules = {os.path.basename(p)[:-3]
+                      for p in glob.glob("trends/*.py")} - {"__init__",
+                                                             "__main__"}
+        assert submodules, "the glob matched nothing, so nothing is excluded"
         declared = set(trends.__all__)
         reachable = {n for n in dir(trends)
-                     if not n.startswith("__")
-                     and n not in {"captions", "chart_geometry", "chart_style",
-                                   "charts", "console", "date_charts",
-                                   "family_trends", "metrics", "model_ids",
-                                   "report", "version_charts"}}
+                     if not n.startswith("__") and n not in submodules}
         assert declared == reachable, (
             f"declared but absent: {sorted(declared - reachable)}; "
             f"present but undeclared: {sorted(reachable - declared)}")

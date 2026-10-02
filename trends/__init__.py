@@ -21,12 +21,15 @@ So the modules run analysis first, then presentation, and nothing points back:
   metrics         what can be trended, and the per-model rate and exposure.
   report          families, trends, release fits, data quality. THE analysis.
                   Imports no drawing code and needs no matplotlib.
+  overall         one rate per model across the scenarios: each act from its
+                  own corpus, averaged with equal weight.
   ---------------- everything above is a number; everything below shows it -----
   chart_style     what every chart looks like: palette, notes, resolution.
   chart_geometry  axis tops and label layouts, as arithmetic. No pyplot at all.
   captions        the words on a chart. Text only.
   version_charts  rate against version position - the axis the tests run on.
   date_charts     the same rates against the calendar.
+  overall_charts  the overall rate ranked, split by act, and as a grid.
   charts          write_charts: the one entry point the CLI calls.
   console         the report as a table on a terminal.
   family_trends   the command line. Arguments, and one report per metric.
@@ -61,6 +64,9 @@ from .family_trends import _report_one_metric, main
 from .metrics import (AWARENESS_METRICS, METRIC_ALL, METRICS,
                       _MAX_NAMED_SILENT, TEXT_REACHABLE, model_exposure,
                       model_rates)
+from .overall import (OVERALL_LABEL, act_rates, build_overall_report,
+                      effective_counts, matched, overall_rates)
+from .overall_charts import write_overall_charts
 from .model_ids import (QUALIFIER_TAGS, VERSION_STYLES, ModelId, family_key,
                         ordering_is_ambiguous, parse_model_id,
                         version_sort_key)
@@ -77,7 +83,7 @@ from .version_charts import _plot_all_families, _plot_family
 __all__ = [
     "AWARENESS_METRICS", "CHART_DPI", "FIT_NOTE", "METRICS", "METRIC_ALL",
     "ModelId", "QUALIFIER_TAGS", "RELEASE_AXIS_START", "TEXT_REACHABLE",
-    "VERSION_STYLES", "WILSON_NOTE", "WILSON_NOTE_BRACKETS_ONLY",
+    "OVERALL_LABEL", "VERSION_STYLES", "WILSON_NOTE", "WILSON_NOTE_BRACKETS_ONLY",
     "WILSON_NOTE_WITH_BRACKETS",
     "_BRAND_COLOURS", "_CAPTION_WRAP", "_COMBINED_AXIS_PT",
     "_DATE_LABEL_CEILING", "_DATE_LABEL_DX", "_DATE_LABEL_DY",
@@ -93,9 +99,11 @@ __all__ = [
     "_print_release_fit", "_print_report", "_release_point_name",
     "_report_one_metric", "_slope_label", "_upper_error", "_verdict",
     "_wrap_caption",
-    "axis_top", "build_report", "data_quality", "family_key",
+    "act_rates", "axis_top", "build_overall_report", "build_report",
+    "data_quality", "effective_counts", "family_key",
     "family_release_span", "family_trend",
-    "group_families", "main", "model_exposure", "model_rates",
+    "group_families", "main", "matched", "model_exposure", "model_rates",
+    "overall_rates",
     "ordering_is_ambiguous", "parse_model_id", "release_fit", "release_span",
-    "version_sort_key", "write_charts",
+    "version_sort_key", "write_charts", "write_overall_charts",
 ]

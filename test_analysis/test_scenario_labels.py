@@ -33,12 +33,16 @@ def _corpus(out, goalguard=None, models=("p/a",)):
                                       "strong", oversight=oversight,
                                       goalguard=goalguard,
                                       tampered=oversight and i % 2 == 0)
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
                 if goalguard:
-                    with open(path, encoding="utf-8") as f:
-                        data = json.load(f)
                     data["analysis"]["goal_guarded"] = i % 3 == 0
-                    with open(path, "w", encoding="utf-8") as f:
-                        json.dump(data, f)
+                # As a collected run file has it: the oversight act is not
+                # applicable where there is no monitor, rather than False.
+                if not oversight:
+                    data["analysis"]["oversight_tampered"] = None
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f)
         _write_summary(out, model, "strong", n_runs=n, goalguard=goalguard,
                        model_slug=model.replace("/", "_"))
     return out

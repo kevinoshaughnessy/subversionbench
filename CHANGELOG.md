@@ -10,6 +10,20 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v224
+
+**One misalignment rate per model, across the scenarios.** `python3 -m trends --overall` reads
+oversight subversion and sandbox escape attempts from the mainline corpus and goal-guarding
+from the goal-guarding corpus, each over the matched arms (nudge none or strong, lure off) and
+the episodes where the act was possible, and averages the three with equal weight. Models
+without all three acts are named and left out. The trend tests run on Kish effective counts,
+so their intervals are approximate. Three new charts - ranked, ranked by act, and a model by
+act grid - join the family and release-date charts in `charts/overall/`. `trends.report`'s
+family block is now `families_document`, shared by both reports. A chart naming two scenarios
+says "scenarios". The trends layering test derives the package's submodules rather than
+listing them, and the scenario-label fixture writes the oversight act as not applicable in the
+no-oversight arm, as a collected run file does.
+
 ## v223
 
 **The goal-guarding rate, read three ways, and the edit it could not see.** `goal_guarded` is

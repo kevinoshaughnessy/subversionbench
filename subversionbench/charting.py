@@ -147,6 +147,8 @@ def scenario_marked(scenario):
         yield
         return
     original = Figure.savefig
+    # "Mainline and goal-guarding scenarios": a mark naming two is plural.
+    mark = f"{scenario} scenario" + ("s" if " and " in scenario else "")
 
     def savefig(fig, *args, **kwargs):
         # The Text objects themselves rather than set_title, which would reset
@@ -155,9 +157,9 @@ def scenario_marked(scenario):
         for ax in fig.axes:
             for text in (getattr(ax, "_left_title", None), ax.title):
                 if text is not None and text.get_text():
-                    text.set_text(f"{scenario} scenario\n{text.get_text()}")
+                    text.set_text(f"{mark}\n{text.get_text()}")
                     return original(fig, *args, **kwargs)
-        fig.suptitle(f"{scenario} scenario", x=0.01, ha="left", fontsize=10)
+        fig.suptitle(mark, x=0.01, ha="left", fontsize=10)
         return original(fig, *args, **kwargs)
 
     Figure.savefig = savefig

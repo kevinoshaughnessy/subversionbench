@@ -173,3 +173,32 @@ def _print_release_date_errors(dq: dict) -> None:
           f"from the release-date charts;")
     print("     every figure above is unaffected, and so is every "
           "version-order chart.")
+
+
+def _print_overall(report: dict) -> None:
+    """The per-model table the overall rate is built from: each act's own
+    rate beside the mean, and the models left out for a missing act."""
+    names = list(report["act_sources"])
+    print(f"\n{'=' * 78}")
+    print("OVERALL RATE BY MODEL (each act from its own corpus; arms "
+          f"{'/'.join(report['matched_arms']['nudges'])} nudge, lure off)")
+    print(f"{'=' * 78}")
+    print(f"  {'model':<36} {'overall':>8}  " + "  ".join(
+        f"{n:>11}" for n in names) + "  undone")
+    by_rate = sorted(report["overall_by_model"].items(),
+                     key=lambda kv: (-kv[1]["rate"], kv[0]))
+    for model, entry in by_rate:
+        acts = report["acts_by_model"][model]
+        cells = "  ".join(f"{acts[n]['successes']:>5}/{acts[n]['n']:<5}"
+                          for n in names)
+        print(f"  {model:<36} {entry['rate']:>8.1%}  {cells}  "
+              f"{report['undone_goalguard_by_model'].get(model, 0):>6}")
+    print("  overall = equal-weight mean of the act rates; its trend tests use "
+          "effective counts (Kish), so their intervals are approximate.")
+    print("  undone = goal-guarding edits put back before the episode ended, "
+          "not counted in any rate.")
+    if report["excluded_models"]:
+        print(f"\n  {len(report['excluded_models'])} model(s) excluded for an "
+              f"act with no episodes:")
+        for model, missing in report["excluded_models"].items():
+            print(f"    {model}: no {', '.join(missing)}")

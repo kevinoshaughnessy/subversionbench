@@ -507,11 +507,14 @@ trends/            whether a rate falls as a model family advances, with the
   model_ids.py     an ID into a provider, stem, version and release-stage tags
   metrics.py       what can be trended, and each model's rate and exposure
   report.py        families, trends, release fits, data quality: the analysis
+  overall.py       one rate per model across the scenarios - each act from
+                   its own corpus, averaged with equal weight
   chart_style.py   where pyplot comes from, and what every chart looks like
   chart_geometry.py  axis tops and label layouts, as arithmetic. No pyplot
   captions.py      the words on a chart, and how to read the exposure figures
   version_charts.py  rate against version position - the axis the tests run on
   date_charts.py   the same rates against the release calendar
+  overall_charts.py  the overall rate ranked, split by act, and as a grid
   charts.py        write_charts: the one entry point into the chart layer
   console.py       the report as a table on a terminal
   family_trends.py the CLI: arguments, and one report per metric
