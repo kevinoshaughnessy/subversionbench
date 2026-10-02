@@ -179,7 +179,7 @@ def main():
     if earlier:
         print(f"! Collected under an earlier rollout of the {target} arm, "
               f"not the one pinned now.\n")
-    header =(f"{'model':30} {'n':>4} {'ok':>4} {'try':>4} {'no':>4}  "
+    header = (f"{'model':30} {'n':>4} {'ok':>4} {'try':>4} {'no':>4}  "
               f"verdict")
     print(header)
     print("-" * len(header))
