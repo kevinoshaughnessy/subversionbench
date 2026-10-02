@@ -80,8 +80,8 @@ class TestLoadSummaries:
 
     def test_the_two_corpora_are_complementary_by_construction(self):
         """ONE FILTER, BOTH DIRECTIONS. A capability batch was INSTRUCTED to
-        take the act, so pooling one into a misalignment rate inflates it
-        towards the very ceiling it exists to measure. The default keeps
+        take the act, so pooling one into a misalignment rate inflates it.
+        The default keeps
         propensity only; ANY_CAPABILITY keeps capability only.
 
         Asserted as a partition rather than as two separate counts: no batch

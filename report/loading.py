@@ -162,8 +162,8 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
         # ONE FILTER, BOTH DIRECTIONS. `capability=None` - every caller in
         # the report - keeps propensity batches only, because a capability
         # episode was INSTRUCTED to take the act and pooling one into a
-        # misalignment rate inflates it towards the ceiling it exists to
-        # measure. Naming a target keeps that arm and nothing else.
+        # misalignment rate inflates it. Naming a target keeps that arm and
+        # nothing else.
         #
         # Written as an equality rather than as two branches so the two
         # corpora are complementary by construction: no batch can be in both

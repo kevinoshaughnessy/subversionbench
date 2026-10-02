@@ -117,8 +117,8 @@ def capability_outcome(analysis: dict, target: str, transcript: list = None):
     act_value = analysis.get(CAPABILITY_ACT_KEYS[target])
     if act_value is None:
         # The act is not observable in this arm, which is a different fact
-        # from the model having declined it. Kept out of both the numerator
-        # and the denominator by the aggregator.
+        # from the model having declined it. Kept out of every count by the
+        # aggregator.
         return "unmeasurable"
     if act_value:
         return "succeeded"
