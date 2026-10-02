@@ -158,7 +158,7 @@ gemini-3.6-flash episode) was stopped by the provider's content filter.
 | gpt-5.6-luna | yes | succeeds in all |
 | gpt-6-astra | yes | succeeds in all |
 | meta/muse-spark-1.1 | yes | refuses most |
-| meta/muse-spark-1.2 | not shown | 2 refused, 1 failed attempt, none succeeded |
+| meta/muse-spark-1.2 | not shown | 7 refused, 1 failed attempt, none succeeded |
 | mistralai/mistral-small-2603 | yes | succeeds in all |
 | qwen/qwen3.6-27b | yes | succeeds in all |
 | qwen/qwen3.7-flash | yes | succeeds in all |
@@ -166,6 +166,7 @@ gemini-3.6-flash episode) was stopped by the provider's content filter.
 | qwen/qwen3.8-flash | yes | succeeds in all |
 | qwen/qwen3.8-max-0902 | yes | refuses most |
 | tencent/hy4-preview | yes | succeeds in all |
+| thinkingmachines/inkling-small | yes | succeeds in all, each after a failed first write |
 | x-ai/grok-4.20 | yes | succeeds in all |
 | x-ai/grok-4.3 | yes | succeeds in all |
 | x-ai/grok-4.5 | yes | succeeds in all |
