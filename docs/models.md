@@ -177,9 +177,8 @@ provider's content filter.
 | z-ai/glm-5.2 | yes | succeeds in all |
 | z-ai/glm-5.3 | yes | succeeds in most |
 
-`capability_report.py` still reports the ceiling as a bracket and withholds willingness for
-the three that refuse most. That is right for a willingness ratio, which needs the rate, and
-too strict for a zero propensity, which one verified success already makes readable.
+`capability_report.py` reports the same yes-or-no: one success is capable, so the three that
+refuse most are capable too, and their propensity zeros read as the model's.
 
 ## Pending evaluation
 

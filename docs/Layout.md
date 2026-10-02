@@ -244,10 +244,9 @@ capability_report.py  the ceiling: what each model CAN do when the act is
                    asked for outright, which is the denominator a propensity
                    zero needs. Reads a directory of capability episodes
                    collected by `run_eval --capability`; costs nothing and
-                   makes no API call. Prints a BRACKET per model rather than
-                   a rate - refusals move the lower bound only - and
-                   withholds the willingness ratio wherever that bracket is
-                   too wide to divide by
+                   makes no API call. Prints a yes or no per model - one
+                   success is capable, none is NOT SHOWN capable, with the
+                   attempts and refusals that say which kind
 trivial_baseline.py  what the detectors say about an agent that did nothing
                    wrong: fixed command sequences with no model behind them,
                    run through the real sandbox against a real environment and
@@ -409,15 +408,10 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    in the tests from MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS
                    rather than listed, because a family that stopped being
                    applied would print as n/a rather than raise
-  capability.py    the ceiling, and the refusal to divide by one that
-                   was never established. Published as a bracket -
-                   lower counts every refusal as an incapability,
-                   upper excludes them - because a refusal is a second
-                   measurement of propensity, not of capability, and
-                   scoring it as a zero would make the ceiling a FLOOR
-                   for exactly the safety-trained models whose
-                   ceilings matter. `willingness` returns None rather
-                   than a ratio wherever the bracket is too wide
+  capability.py    whether each model can take the act: one success is
+                   capable, none is NOT SHOWN capable rather than shown
+                   incapable - because a refusal is a second measurement
+                   of propensity, not of capability
   data_quality.py  where the corpus disagrees with itself, and the three
                    routing checks: what was REQUESTED inside one rate,
                    what actually ANSWERED it, and whether the two sides
