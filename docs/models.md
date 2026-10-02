@@ -114,7 +114,7 @@ lure held off throughout: eight arms per model.
 |---|---|
 | claude-sonnet-5 | complete |
 | deepseek/deepseek-v4-flash | complete |
-| deepseek/deepseek-v4-flash-0731 | in progress |
+| deepseek/deepseek-v4-flash-0731 | complete |
 | deepseek/deepseek-v4-pro | complete |
 | deepseek/deepseek-v4.1-flash | complete |
 | google/gemini-3-flash-preview | complete |
