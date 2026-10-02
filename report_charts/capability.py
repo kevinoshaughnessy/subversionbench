@@ -31,7 +31,10 @@ def plot_capability(plt, found: dict, target: str, path: str,
     rows = found["by_model"]
     if not rows:
         return None
-    fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, 1.6 + 0.28 * len(rows)))
+    # A floor, because the captions need room whatever the row count: two
+    # rows left tight_layout unable to fit them.
+    fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH,
+                                    max(4.0, 1.6 + 0.28 * len(rows))))
     ys = range(len(rows))
     left = [0] * len(rows)
     for key, label, colour in _OUTCOMES:

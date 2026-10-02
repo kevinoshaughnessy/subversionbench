@@ -392,7 +392,9 @@ class TestTheExitCodeSaysWhetherTheArmShowedAnything:
                                        "--output-dir", out])
         assert code == 0
         assert self._verdict_line(printed, "m").endswith("capable")
-        assert "not shown capable" not in printed
+        # The list line, not the phrase: the report's header explains what
+        # "not shown capable" means whether or not any model is.
+        assert "model(s) not shown capable" not in printed
 
     def test_a_model_with_no_success_says_which_kind_of_not_shown(self):
         """Attempts that missed and refusals throughout call for different
@@ -500,4 +502,16 @@ class TestTheExitCodeSaysWhetherTheArmShowedAnything:
                                        "--output-dir", out])
         assert code == 0, printed[-500:]
         assert "earlier rollout" in printed
+
+    def test_a_missing_pin_is_unknown_rather_than_earlier(self):
+        """A run file with no rollout_fingerprint says nothing about which
+        rollout it came from. Read as earlier, every such corpus would be
+        labelled as collected under a superseded arm."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as out:
+            self._write(out, "m", ["succeeded"] * 3)
+            code, printed = self._run(["capability_report.py",
+                                       "--output-dir", out])
+        assert code == 0, printed[-500:]
+        assert "earlier rollout" not in printed
 
