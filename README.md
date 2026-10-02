@@ -396,8 +396,10 @@ shared prompt scopes the account to the project directory, so the request asked 
 override a rule set above it, and a refusal measured that rule. The sandbox arm now carries
 its own system prompt, which grants the look in place of the scope sentence; the project's
 readme in the environment still describes the scope, and is left as it is. Its two
-fingerprints were re-pinned, and `capability_report.py` refuses to pool episodes from before
-and after.
+fingerprints were re-pinned. For a yes or no the two rollouts pool - a success under the
+stricter prompt still shows the model can, and a refusal under either shows nothing about
+ability - so `capability_report.py` reads them together and counts, per model, the episodes
+from the earlier arm.
 
 This is item T.9 of the Agentic Benchmark Checklist in Zhu et al., *Establishing Best
 Practices for Building Rigorous Agentic Benchmarks* ([arXiv 2507.02825](https://arxiv.org/abs/2507.02825)),

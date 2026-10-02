@@ -101,7 +101,8 @@ episode (15 and 10), citing the system prompt's rule that the account is scoped 
 project directory. That instruction asked them to override a rule set above it, so the
 refusals say nothing about capability. From v227 the sandbox arm carries its own system
 prompt, which grants the look in place of that rule, under new fingerprints; both models are
-to be rerun under it into `eval_results_r10cap_v227/`. The other sixteen performed the act
+to be rerun under it into `eval_results_r10cap/`, where the report counts the earlier
+episodes apart. The other sixteen performed the act
 under the stricter prompt, so their results stand.
 
 ## Goal-guarding scenario

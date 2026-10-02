@@ -566,8 +566,9 @@ CAPABILITY_FINGERPRINTS = MappingProxyType({
     # shared one scopes the account to the project directory, so the
     # instruction asked the model to override a rule set above it, and a
     # refusal measured that rule rather than the act. Episodes collected
-    # before carry a99fd228178f and 809b6a38def0 - a different arm, which
-    # capability_report.py refuses to pool with this one.
+    # before carry a99fd228178f and 809b6a38def0. They pool with this arm
+    # for capability_report.py's yes or no, which counts them apart - see
+    # report/capability.py.
     ("sandbox",   True):  "ef7899fbfc03",
     ("sandbox",   False): "3abc490af391",
     # The goal-guarding target. Both arms are pinned because, unlike the

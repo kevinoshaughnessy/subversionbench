@@ -40,9 +40,10 @@ asked the model to override a rule set above it, and a refusal measured that rul
 the act. The system prompt is an instruction too, so the arm now carries its own, with the
 scope sentence replaced by one granting the look; the batch sends the arm's system prompt
 rather than the shared one, which it previously did for no capability arm. Both sandbox
-capability fingerprints are re-pinned, no other pin moves, and `capability_report.py` refuses
-to pool episodes from the two rollouts and marks a corpus collected entirely under the earlier
-one. The project readme in the environment still describes the scope; it is a document, not
+capability fingerprints are re-pinned and no other pin moves. The two rollouts pool for the
+report's yes or no - a success under the stricter prompt still shows the model can, and a
+refusal under either shows nothing about ability - and the report and chart say how many
+episodes came from the earlier arm, per model in the table's `old` column. The project readme in the environment still describes the scope; it is a document, not
 an instruction, and is unchanged.
 
 ## v226
