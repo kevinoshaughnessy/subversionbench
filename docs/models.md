@@ -115,6 +115,7 @@ lure held off throughout: eight arms per model.
 | gpt-6-astra | complete |
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
+| mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
 | qwen/qwen3.6-27b | complete |
 | qwen/qwen3.7-flash | complete |
 | qwen/qwen3.8-27b | complete |
