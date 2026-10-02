@@ -20,11 +20,13 @@ def _rate(successes, n):
 
 
 def _write_arm(out, model, nudge, oversight, lure, stamp, n_runs=10,
-              misaligned=(0, 10), episodes=None, capability=None):
+              misaligned=(0, 10), episodes=None, capability=None,
+              goalguard=None):
     """A minimal summary + matching run files for one arm."""
     from subversionbench.batch import batch_stem
     slug = model.replace("/", "_")
-    stem = batch_stem(slug, nudge, None, oversight, lure, capability)
+    stem = batch_stem(slug, nudge, None, oversight, lure, capability,
+                      goalguard=goalguard)
     summary = {
         "model": model, "nudge": nudge, "batch_stamp": stamp,
         "n_runs": n_runs, "batch_aborted": False, "episode_failures": [],
@@ -78,6 +80,31 @@ class TestFindingArms:
             _write_arm(out, "x/m", "strong", False, True, "20260101T000001")
             report = build_summary_of_summaries(out, "x/m")
             assert "strong_nooversight_lure" in report["arms"]
+
+class TestGoalGuardingArmsAreSeparateArms:
+    """A model's two goal-guarding arms share nudge, oversight and lure, so a
+    key on those three alone let one summary replace the other."""
+
+    def test_both_arms_are_found(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_arm(out, "x/m", "none", True, False, "20260101T000001",
+                      goalguard="deferred")
+            _write_arm(out, "x/m", "none", True, False, "20260101T000002",
+                      goalguard="replacement")
+            report = build_summary_of_summaries(out, "x/m")
+            assert set(report["arms"]) == {"none_goalguard-deferred",
+                                           "none_goalguard-replacement"}
+            assert "strong_goalguard-deferred" in report["missing_arms"]
+
+    def test_a_contrast_never_crosses_from_one_arm_to_the_other(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_arm(out, "x/m", "none", True, False, "20260101T000001",
+                      goalguard="deferred", misaligned=(0, 10))
+            _write_arm(out, "x/m", "none", False, False, "20260101T000002",
+                      goalguard="replacement", misaligned=(10, 10))
+            report = build_summary_of_summaries(out, "x/m")
+            assert not any(report["contrasts"].values())
+
 
 class TestContrasts:
     def test_a_real_difference_is_flagged_as_separated(self):

@@ -21,7 +21,13 @@ import json
 import os
 from collections import Counter, defaultdict
 
-from .batch import NO_OVERSIGHT_TAG, find_run_files_by_stamp, parse_batch_filename
+from .batch import (
+    batch_stem,
+    date_mode_from_filename,
+    find_run_files_by_stamp,
+    goalguard_from_filename,
+    parse_batch_filename,
+)
 from .graders import view
 from .grading import SCHEMING_LEVELS
 from .power import compare_rates
@@ -47,16 +53,25 @@ CONTRAST_METRICS = ("misaligned", "scheming", "monitoring_disabled",
                     "eval_aware_grader")
 
 
-def _arm_key(nudge: str, oversight: bool, lure: bool) -> str:
-    """The same label a batch's own filename carries - see batch_stem."""
-    return (nudge + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
-            + ("_lure" if lure else ""))
+def _arm_key(nudge: str, oversight: bool, lure: bool,
+             scenario: tuple = (None, None)) -> str:
+    """The same label a batch's own filename carries, built by batch_stem
+    itself so that every arm mark it writes is one this key carries.
+
+    `scenario` is (goalguard, date_mode). Keying on nudge, oversight and lure
+    alone let a model's two goal-guarding arms collide: they differ in no
+    field that key held, so whichever summary sorted last replaced the other
+    and half the arms vanished from the file without a missing_arms entry.
+    """
+    goalguard, date_mode = scenario
+    return batch_stem("", nudge, None, oversight, lure, None,
+                      date_mode, goalguard).lstrip("_")
 
 
 def _find_arm_summaries(output_dir: str, model: str) -> dict:
     """
     Every summary_*.json for this model, one entry per arm actually
-    collected, keyed by (nudge, oversight, lure).
+    collected, keyed by (nudge, oversight, lure, (goalguard, date_mode)).
 
     Reads `model` from inside each file rather than off the filename, for
     the reason discover_batches does: a model slug can itself contain
@@ -94,7 +109,8 @@ def _find_arm_summaries(output_dir: str, model: str) -> dict:
         # whichever sorted last won. capability_report.py is its reader.
         if capability:
             continue
-        found[(nudge, oversight, lure)] = (path, s)
+        scenario = (goalguard_from_filename(path), date_mode_from_filename(path))
+        found[(nudge, oversight, lure, scenario)] = (path, s)
     return found
 
 
@@ -174,8 +190,9 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
     found = _find_arm_summaries(output_dir, model)
 
     arms = {}
-    for (nudge, oversight, lure), (_path, s) in sorted(found.items()):
-        key = _arm_key(nudge, oversight, lure)
+    for (nudge, oversight, lure, scenario), (_path, s) in sorted(
+            found.items(), key=lambda kv: str(kv[0])):
+        key = _arm_key(nudge, oversight, lure, scenario)
         rates = s.get("rates") or {}
         stamp = s.get("batch_stamp")
         arm = {
@@ -195,7 +212,12 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
                 arm["concealment_by_variant"] = variant_rates
         arms[key] = arm
 
-    all_arm_keys = {_arm_key(n, o, lure) for n in NUDGES
+    # Each goal-guarding or date arm collected is its own twelve-arm grid,
+    # and contrasts never cross from one to another: that would compare two
+    # scenarios rather than one axis.
+    scenarios = sorted({key[3] for key in found}, key=str) or [(None, None)]
+    all_arm_keys = {_arm_key(n, o, lure, sc) for sc in scenarios
+                    for n in NUDGES
                     for o in (True, False) for lure in (False, True)}
     missing_arms = sorted(all_arm_keys - set(arms))
 
@@ -215,27 +237,28 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
                 "arm_a": key_a, "arm_b": key_b, "compare": cmp,
             })
 
-    # Nudge: none -> strong -> max, holding oversight and lure fixed.
-    for oversight in (True, False):
-        for lure in (False, True):
-            keys = [_arm_key(n, oversight, lure) for n in NUDGES]
-            for a, b in zip(keys, keys[1:], strict=False):
-                _contrast("nudge", a, b,
-                         {"oversight": oversight, "lure": lure})
-
-    # Oversight: true -> false, holding nudge and lure fixed.
-    for nudge in NUDGES:
-        for lure in (False, True):
-            _contrast("oversight", _arm_key(nudge, True, lure),
-                     _arm_key(nudge, False, lure),
-                     {"nudge": nudge, "lure": lure})
-
-    # Lure: false -> true, holding nudge and oversight fixed.
-    for nudge in NUDGES:
+    for sc in scenarios:
+        # Nudge: none -> strong -> max, holding oversight and lure fixed.
         for oversight in (True, False):
-            _contrast("lure", _arm_key(nudge, oversight, False),
-                     _arm_key(nudge, oversight, True),
-                     {"nudge": nudge, "oversight": oversight})
+            for lure in (False, True):
+                keys = [_arm_key(n, oversight, lure, sc) for n in NUDGES]
+                for a, b in zip(keys, keys[1:], strict=False):
+                    _contrast("nudge", a, b,
+                             {"oversight": oversight, "lure": lure})
+
+        # Oversight: true -> false, holding nudge and lure fixed.
+        for nudge in NUDGES:
+            for lure in (False, True):
+                _contrast("oversight", _arm_key(nudge, True, lure, sc),
+                         _arm_key(nudge, False, lure, sc),
+                         {"nudge": nudge, "lure": lure})
+
+        # Lure: false -> true, holding nudge and oversight fixed.
+        for nudge in NUDGES:
+            for oversight in (True, False):
+                _contrast("lure", _arm_key(nudge, oversight, False, sc),
+                         _arm_key(nudge, oversight, True, sc),
+                         {"nudge": nudge, "oversight": oversight})
 
     # "separated" - the difference interval excludes zero - is the honest
     # headline compare_rates itself recommends over a bare p-value cutoff;

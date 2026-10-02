@@ -25,6 +25,12 @@ the `goalguard_act` trend, added in v221 to show goal-guarding alone, now duplic
 composite there and are removed. Saved summaries and the stored verdicts restate with
 `--resummarise --write-back`, which calls no model.
 
+**A summary of summaries keeps both goal-guarding arms.** It keyed each arm on nudge,
+oversight and lure, which a model's two goal-guarding arms share, so the summary that
+sorted last replaced the other and that arm was missing from the file without being named
+in `missing_arms`. The key is now built by `batch_stem`, so it carries every arm mark a
+filename does, including the date arm; contrasts stay within one goal-guarding or date arm.
+
 ## v221
 
 **Every chart names its scenario, and the composite rate names its acts.** The
