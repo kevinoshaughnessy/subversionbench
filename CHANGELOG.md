@@ -22,6 +22,12 @@ capable; a model with none is not shown capable, and the report says whether it 
 missed or refused throughout. The episode scorer is unchanged: refused and attempted stay
 apart because they call for different next steps.
 
+**The capability arm has a chart.** `capability_report.py` draws `capability_<target>.png`
+into `charts/<corpus>/` beside the output directory (`--chart-dir`, `--no-charts`): one bar
+per model, its instructed episodes stacked as succeeded, attempted and refused, marked capable
+or not shown. Counts rather than rates, because a capability run is sized to show the act
+once, not to estimate how often.
+
 ## v226
 
 **The goal-guarding capability target sees an attempt.** Every instructed goal-guarding episode

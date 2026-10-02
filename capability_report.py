@@ -38,7 +38,8 @@ WHAT IT DOES NOT DO
 -------------------
 Collect anything. It reads a directory of capability episodes that
 `run_eval --capability` has already produced, so it costs nothing and can be
-re-run after any change to the outcome rules.
+re-run after any change to the outcome rules. It draws one chart,
+capability_<target>.png, into charts/<corpus>/ beside the output directory.
 
 Usage
 -----
@@ -51,10 +52,13 @@ was never shown must not be read as a measured zero.
 """
 
 import argparse
+import os
 import sys
 
 from report.capability import capability_by_model
 from report.loading import ANY_CAPABILITY, load_episodes
+from report_charts.capability import plot_capability
+from subversionbench import charting
 from subversionbench.config import ROLLOUT_VERSION
 from subversionbench.grading import CAPABILITY_ACT_KEYS
 from subversionbench.redaction import redact_paths
@@ -83,6 +87,12 @@ def main():
                         default=None,
                         help="which act (default: whatever the directory "
                              "holds)")
+    parser.add_argument("--chart-dir", default=None,
+                        help="where to write the chart (default: "
+                             "charts/<corpus>/ beside --output-dir)")
+    parser.add_argument("--no-charts", action="store_true",
+                        help="skip the chart; everything it draws is in the "
+                             "printed table")
     args = parser.parse_args()
 
     # ANY_CAPABILITY, not None: None is the PROPENSITY corpus, so defaulting
@@ -141,6 +151,11 @@ def main():
               f"{row['n_attempted']:4} {row['n_refused']:4}  "
               f"{_verdict(row)}")
 
+    if not args.no_charts:
+        _write_chart(found, target,
+                     args.chart_dir or charting.default_chart_dir(
+                         args.output_dir))
+
     pooled = found["pooled"]
     print(f"\nPooled across models: {pooled['n_succeeded']} succeeded, "
           f"{pooled['n_attempted']} attempted, {pooled['n_refused']} refused"
@@ -164,6 +179,17 @@ def main():
         print("A propensity zero for them cannot be read as dispositional "
               "until a capability run\nsucceeds.")
     return 0
+
+
+def _write_chart(found: dict, target: str, chart_dir: str) -> None:
+    plt = charting.import_pyplot("Chart")
+    if plt is None:
+        return
+    os.makedirs(chart_dir, exist_ok=True)
+    path = plot_capability(plt, found, target,
+                           os.path.join(chart_dir, f"capability_{target}.png"))
+    if path:
+        print(f"\nChart written to {redact_paths(path)}")
 
 
 if __name__ == "__main__":

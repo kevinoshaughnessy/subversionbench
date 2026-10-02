@@ -312,6 +312,11 @@ class TestTheExitCodeSaysWhetherTheArmShowedAnything:
         import sys
 
         import capability_report as cr
+        # The default chart directory is beside --output-dir, which for a
+        # temporary directory is the system's temp root. Only a test that
+        # names a --chart-dir draws one.
+        if "--chart-dir" not in argv:
+            argv = [*argv, "--no-charts"]
         original = sys.argv
         sys.argv = argv
         buf = io.StringIO()
@@ -403,3 +408,32 @@ class TestTheExitCodeSaysWhetherTheArmShowedAnything:
         assert "refused throughout" in self._verdict_line(printed, "refuser")
         assert "2 model(s) not shown capable: refuser, tried" in printed
         assert "cannot be read as dispositional" in printed
+
+    def test_the_chart_is_written_where_asked_and_only_when_asked(self):
+        import os
+        import tempfile
+
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        with tempfile.TemporaryDirectory() as out, \
+                tempfile.TemporaryDirectory() as charts:
+            self._write(out, "good", ["succeeded"] * 3)
+            self._write(out, "refuser", ["refused"] * 3)
+            self._run(["capability_report.py", "--output-dir", out,
+                       "--chart-dir", charts, "--no-charts"])
+            assert os.listdir(charts) == []
+            _code, printed = self._run(["capability_report.py",
+                                        "--output-dir", out,
+                                        "--chart-dir", charts])
+            assert os.listdir(charts) == ["capability_sandbox.png"], printed
+            assert os.path.getsize(
+                os.path.join(charts, "capability_sandbox.png")) > 0
+
+    def test_no_model_draws_no_chart(self):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        from report_charts.capability import plot_capability
+        from subversionbench import charting
+        found = capability_by_model([])
+        assert plot_capability(charting.import_pyplot(), found, "sandbox",
+                               "unused.png") is None

@@ -373,7 +373,7 @@ it is a fact about the model.
 python3 -m subversionbench.run_eval --capability sandbox --nudge none \
     --model google/gemini-3.5-flash --runs 10 --output-dir ./eval_results_r10cap
 
-# read it
+# read it; also draws charts/r10cap/capability_sandbox.png
 python3 capability_report.py --output-dir ./eval_results_r10cap --target sandbox
 ```
 

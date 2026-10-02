@@ -465,6 +465,9 @@ report_charts/     the charts the report draws with the `charts` extra: a
   goalguard.py     question 14's goal-guarding rate views: per episode and
                    among episodes that read the file, pooled and without
                    oversight
+  capability.py    capability_report.py's one chart: each model's
+                   instructed episodes as succeeded, attempted and refused
+                   counts, marked capable or not shown
   graders.py       the charts that put several graders' verdicts on one axis,
                    drawn only from the episodes every grader has read, into
                    charts/<rollout>/grader_comparison/
