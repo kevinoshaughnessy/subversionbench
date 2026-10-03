@@ -142,3 +142,90 @@ class TestTheReportEndToEnd:
         assert len(titles) == 3
         assert all("Mainline and goal-guarding scenarios" in t
                    for t in titles), titles
+
+
+class TestTheOverallCommand:
+    """`python3 -m trends --overall`, the command docs/trends.md gives. The
+    report builder above is tested; the command that prints, charts and
+    saves it was not run by anything."""
+
+    def _run(self, *argv):
+        import contextlib
+        import io
+        import sys
+        out, saved = io.StringIO(), sys.argv
+        sys.argv = ["trends", *argv]
+        try:
+            with contextlib.redirect_stdout(out):
+                code = ft.main()
+        finally:
+            sys.argv = saved
+        return code, out.getvalue()
+
+    def _corpora(self, root):
+        mainline, goalguard = (os.path.join(root, d) for d in "mg")
+        os.makedirs(mainline)
+        os.makedirs(goalguard)
+        # p/b has no goal-guarding episodes, so it is excluded and named.
+        _corpus(mainline, models=("p/a", "p/b"))
+        _corpus(goalguard, goalguard="deferred")
+        return mainline, goalguard
+
+    def test_it_prints_the_table_names_the_excluded_and_saves_the_json(self):
+        import json
+        with tempfile.TemporaryDirectory() as root:
+            mainline, goalguard = self._corpora(root)
+            saved = os.path.join(root, "o.json")
+            code, out = self._run("--overall", "--output-dir", mainline,
+                                  "--goalguard-dir", goalguard, "--no-charts",
+                                  "--json-out", saved)
+            with open(saved, encoding="utf-8") as f:
+                report = json.load(f)
+        assert code == 0
+        assert "OVERALL RATE BY MODEL" in out
+        rate = report["overall_by_model"]["p/a"]["rate"]
+        assert any(line.split()[:2] == ["p/a", f"{rate:.1%}"]
+                   for line in out.splitlines()), "p/a's row is not printed"
+        assert report["excluded_models"] == {"p/b": ["goalguard"]}
+        assert "p/b: no goalguard" in out
+        assert "charts" not in report
+
+    def test_the_charts_go_where_asked_and_are_listed_in_the_json(self):
+        import json
+
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        with tempfile.TemporaryDirectory() as root:
+            mainline, goalguard = self._corpora(root)
+            charts, saved = (os.path.join(root, n) for n in ("c", "o.json"))
+            code, out = self._run("--overall", "--output-dir", mainline,
+                                  "--goalguard-dir", goalguard,
+                                  "--chart-dir", charts, "--json-out", saved)
+            written = sorted(os.listdir(charts))
+            with open(saved, encoding="utf-8") as f:
+                listed = json.load(f)["charts"]
+        assert code == 0 and written
+        assert sorted(os.path.basename(p) for p in listed) == written
+        assert f"{len(written)} chart(s) written" in out
+
+    def test_no_model_with_every_act_is_a_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            mainline, goalguard = (os.path.join(root, d) for d in "mg")
+            os.makedirs(mainline)
+            os.makedirs(goalguard)
+            _corpus(mainline)
+            code, out = self._run("--overall", "--output-dir", mainline,
+                                  "--goalguard-dir", goalguard, "--no-charts")
+        assert code == 1 and "No model has all three acts measured" in out
+
+    def test_a_missing_goalguard_directory_is_a_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            code, out = self._run("--overall", "--output-dir", root,
+                                  "--goalguard-dir",
+                                  os.path.join(root, "absent"), "--no-charts")
+        assert code == 1 and "No such directory" in out
+
+    def test_a_metric_is_refused_beside_it(self):
+        with pytest.raises(SystemExit) as stop:
+            self._run("--overall", "--metric", "misaligned")
+        assert stop.value.code == 2
