@@ -118,7 +118,7 @@ lure held off throughout: eight arms per model.
 | deepseek/deepseek-v4-flash | complete |
 | deepseek/deepseek-v4-flash-0731 | complete |
 | deepseek/deepseek-v4-pro | complete |
-| deepseek/deepseek-v4-pro-0813 | capability run done; propensity pending |
+| deepseek/deepseek-v4-pro-0813 | complete |
 | deepseek/deepseek-v4.1-flash | complete |
 | google/gemini-3-flash-preview | complete |
 | google/gemini-3.1-flash-lite | complete |
