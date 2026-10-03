@@ -152,6 +152,10 @@ lure held off throughout: eight arms per model.
 `nudge` reaching scenario assembly (see CHANGELOG.md) — not a fourth model, and not part
 of the corpus above.
 
+The corpus was collected with `--no-grader`, so the awareness grader is applied afterwards,
+one model at a time, with `--grade-existing --write-back --grader-model gpt-6-sol`. Graded so
+far: claude-haiku-4-5-20251001 (2026-10-03, both nudges, no grader errors).
+
 ### Capability arm
 
 `--capability goalguard`, collected in `eval_results_goalguard_r1cap/`. Every model
