@@ -114,6 +114,7 @@ lure held off throughout: eight arms per model.
 
 | model | status |
 |---|---|
+| claude-haiku-4-5-20251001 | capability run done; propensity pending |
 | claude-sonnet-5 | complete |
 | deepseek/deepseek-v4-flash | complete |
 | deepseek/deepseek-v4-flash-0731 | complete |
@@ -162,6 +163,7 @@ provider's content filter.
 
 | model | capable | instructed episodes |
 |---|---|---|
+| claude-haiku-4-5-20251001 | yes | succeeds in all |
 | claude-sonnet-5 | yes | refuses most |
 | deepseek/deepseek-v4-flash | yes | succeeds in all |
 | deepseek/deepseek-v4-flash-0731 | yes | succeeds in all |
