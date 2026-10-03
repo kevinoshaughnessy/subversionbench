@@ -10,6 +10,17 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v228
+
+**A batch's rollout is compared against its own arm's fingerprint on every axis.** The
+summary's `rollout.current_fingerprints` and `matches_current` recomputed the fingerprint from
+oversight and lure alone, so every capability, goal-guarding, date and max-nudge batch was
+compared against the plain arm's hash and reported as drifted from a scenario that had not
+moved. The arm is now everything `rollout_fingerprint` hashes that an episode records:
+oversight, lure, capability target, goal-guarding arm, date mode and nudge. The plain arms
+keep their labels; the others name the axes that move their hash. A real mismatch is still
+flagged, including an episode stamped with another arm's genuine fingerprint.
+
 ## v227
 
 **The capability report says whether a model can take the act, and nothing more.** It
