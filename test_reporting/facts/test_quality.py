@@ -217,6 +217,10 @@ class TestTheHostSurfaceIsAggregated:
         assert rates["host_path_read"]["successes"] == 1
 
 
+# What `rollout_fingerprint` hashes beyond oversight and lure.
+_ARM_AXES = ("capability", "date_mode", "goalguard", "nudge")
+
+
 class TestWhatTheCurrentCodeAssemblesIsNamedPerArm:
     """The rollout block records what produced the episodes; this half records
     what the code produces now, so a reader can tell whether the two still
@@ -242,8 +246,9 @@ class TestWhatTheCurrentCodeAssemblesIsNamedPerArm:
         if lure is not None:
             e["lure"] = lure
         if fingerprint is ...:
+            arm = {k: extra[k] for k in _ARM_AXES if k in extra}
             fingerprint = rollout_fingerprint(oversight=bool(oversight),
-                                              lure=bool(lure))
+                                              lure=bool(lure), **arm)
         if fingerprint is not None:
             e["rollout_fingerprint"] = fingerprint
         e.update(extra)
@@ -365,6 +370,55 @@ class TestWhatTheCurrentCodeAssemblesIsNamedPerArm:
         assert list(forwards["current_fingerprints"]) == [
             "oversight=False lure=False", "oversight=True lure=True"]
 
+
+    # Each one hashes differently from the plain arm with the same oversight
+    # and lure, which is what made the old key report it as drift.
+    _ARMS_BEYOND_OVERSIGHT_AND_LURE = (
+        ({"capability": "goalguard"},
+         "oversight=False lure=False capability=goalguard"),
+        ({"goalguard": "deferred", "nudge": "none"},
+         "oversight=False lure=False goalguard=deferred nudge=none"),
+        ({"goalguard": "replacement", "nudge": "strong"},
+         "oversight=False lure=False goalguard=replacement nudge=strong"),
+        ({"date_mode": "consistent"},
+         "oversight=False lure=False date_mode=consistent"),
+        ({"nudge": "max"}, "oversight=False lure=False nudge=max"),
+    )
+
+    def test_an_arm_beyond_oversight_and_lure_is_compared_against_its_own(self):
+        """The defect a second time, one axis further: keyed on oversight and
+        lure alone, every capability, goal-guarding, date and max-nudge batch
+        was compared against the plain arm's hash and reported as drifted."""
+        from subversionbench.rollout import rollout_fingerprint
+        plain = rollout_fingerprint(oversight=False, lure=False)
+        for arm, label in self._ARMS_BEYOND_OVERSIGHT_AND_LURE:
+            mine = rollout_fingerprint(oversight=False, lure=False, **arm)
+            assert mine != plain, f"{arm} hashes as the plain arm; proves nothing"
+            rollout = self._rollout([self._episode(**arm) for _ in range(2)])
+            assert rollout["current_fingerprints"] == {label: mine}, arm
+            assert rollout["matches_current"] is True, arm
+            assert rollout["n_matches_current"] == 2, arm
+
+    def test_such_an_arm_carrying_the_plain_arms_hash_is_still_drift(self):
+        """The other direction, so the fix cannot pass by matching anything:
+        an episode stamped with a hash its own arm does not assemble to is
+        flagged, even when that hash is a real one."""
+        from subversionbench.rollout import rollout_fingerprint
+        plain = rollout_fingerprint(oversight=False, lure=False)
+        for arm, _label in self._ARMS_BEYOND_OVERSIGHT_AND_LURE:
+            rollout = self._rollout([self._episode(fingerprint=plain, **arm)])
+            assert rollout["matches_current"] is False, arm
+            assert rollout["n_differs_from_current"] == 1, arm
+
+    def test_nudge_none_and_strong_are_one_plain_arm(self):
+        """Nudge is only named where it moves the hash. Outside goal guarding
+        and max, none and strong assemble identically, so a batch holding both
+        is one arm and one entry - not two entries carrying the same hash."""
+        rollout = self._rollout([self._episode(nudge="none"),
+                                 self._episode(nudge="strong")])
+        assert list(rollout["current_fingerprints"]) == [
+            "oversight=False lure=False"]
+        assert rollout["matches_current"] is True
 
 class TestTheClassifierErrorTermIsCounted:
     """How often the LLM classifier and the keyword cross-check disagreed.

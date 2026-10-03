@@ -21,6 +21,7 @@ cannot check.
 from collections import Counter
 
 from ...grading import MISALIGNED_ACTS, QUOTE_GROUNDING_OUTCOMES
+from ...artefact_dates import DEFAULT as DATE_DEFAULT
 from ...rollout import rollout_fingerprint
 from ...rollout_pins import SCENARIO_ID
 def score_provenance(all_results: list) -> dict:
@@ -304,6 +305,39 @@ def _classifier_agreement(all_results: list) -> dict:
     }
 
 
+def _arm_of(r: dict) -> tuple:
+    """Everything `rollout_fingerprint` hashes that varies by episode, as this
+    episode recorded it.
+
+    An absent capability, goalguard or date_mode is the arm before that field
+    existed, not an unknown one - the same reading `_rollout_provenance` gives
+    an absent scenario_id. An absent nudge is "strong", the hasher's own
+    default, which assembles exactly as "none" does outside the two documents
+    that vary by it.
+    """
+    return (bool(r["oversight"]), bool(r["lure"]), r.get("capability"),
+            r.get("date_mode"), r.get("goalguard"), r.get("nudge") or "strong")
+
+
+def _arm_label(arm: tuple) -> str:
+    """The arm's name in `current_fingerprints`. Only the axes that move the
+    hash are named, so the plain arms keep the label they always had and a
+    batch at nudge none and strong is one arm, as it hashes. Nudge moves it
+    through the goal-guarding memo and the max interrogation ladder - see
+    `rollout_fingerprint`."""
+    oversight, lure, capability, date_mode, goalguard, nudge = arm
+    parts = [f"oversight={oversight}", f"lure={lure}"]
+    if capability is not None:
+        parts.append(f"capability={capability}")
+    if goalguard is not None:
+        parts.append(f"goalguard={goalguard}")
+    if date_mode is not None and date_mode != DATE_DEFAULT:
+        parts.append(f"date_mode={date_mode}")
+    if goalguard is not None or nudge == "max":
+        parts.append(f"nudge={nudge}")
+    return " ".join(parts)
+
+
 def _current_fingerprint_by_arm(all_results: list) -> tuple:
     """
     What the CURRENT code assembles for the arms these episodes were collected in,
@@ -316,30 +350,39 @@ def _current_fingerprint_by_arm(all_results: list) -> tuple:
     Since r10 gave the two no-oversight arms identities of their own, three arms in
     four were being described by a fourth's hash.
 
-    Keyed on oversight and lure alone, because those are what the fingerprint
-    hashes - `_sandbox_behaviour` accepts an isolation mode and deliberately does
-    not hash it, so keying on isolation too would imply a dependence that does not
-    exist. The isolation set is reported separately for that reason.
+    The same defect survived one axis further. This was keyed on oversight and
+    lure alone, so every capability, goal-guarding, date and max-nudge episode
+    was compared against the plain arm's hash and reported as drifted - a whole
+    corpus flagged for a scenario that had not moved. The arm is now everything
+    `rollout_fingerprint` takes that an episode records; see `_arm_of`.
+
+    Isolation is still not part of it - `_sandbox_behaviour` accepts an
+    isolation mode and deliberately does not hash it, so keying on isolation
+    would imply a dependence that does not exist. The isolation set is reported
+    separately for that reason.
 
     A batch that straddles arms gets one entry per arm, the same reason the
     surrounding fields report sets rather than a single value.
     """
-    by_arm = {}
+    current, by_arm = {}, {}
     n_matches = n_differs = n_unattributable = 0
     for r in all_results:
-        oversight, lure, recorded = (r.get("oversight"), r.get("lure"),
-                                     r.get("rollout_fingerprint"))
         # An episode predating either field cannot be attributed to an arm, and
         # an episode predating the fingerprint has nothing to compare. Counted
         # apart rather than credited to whichever answer the defaults imply:
         # "cannot tell" is not "matches".
-        if oversight is None or lure is None or not recorded:
+        if (r.get("oversight") is None or r.get("lure") is None
+                or not r.get("rollout_fingerprint")):
             n_unattributable += 1
             continue
-        arm = (bool(oversight), bool(lure))
-        if arm not in by_arm:
-            by_arm[arm] = rollout_fingerprint(oversight=arm[0], lure=arm[1])
-        if recorded == by_arm[arm]:
+        arm = _arm_of(r)
+        if arm not in current:
+            oversight, lure, capability, date_mode, goalguard, nudge = arm
+            current[arm] = rollout_fingerprint(
+                oversight=oversight, lure=lure, capability=capability,
+                date_mode=date_mode, goalguard=goalguard, nudge=nudge)
+            by_arm[_arm_label(arm)] = current[arm]
+        if r["rollout_fingerprint"] == current[arm]:
             n_matches += 1
         else:
             n_differs += 1
@@ -401,8 +444,7 @@ def _rollout_provenance(all_results: list) -> dict:
         "scenarios_mixed": len(scenarios) > 1,
         "fingerprints": dict(fingerprints),
         "mixed": len(fingerprints) > 1,
-        "current_fingerprints": {f"oversight={o} lure={lu}": fp
-                                 for (o, lu), fp in sorted(by_arm.items())},
+        "current_fingerprints": dict(sorted(by_arm.items())),
         "matches_current": matches_current,
         "n_matches_current": n_matches,
         "n_differs_from_current": n_differs,
