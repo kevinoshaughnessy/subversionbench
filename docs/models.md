@@ -131,7 +131,7 @@ lure held off throughout: eight arms per model.
 | google/gemini-3.7-flash | complete |
 | gpt-5.6-luna | complete |
 | gpt-6-astra | complete |
-| inception/mercury-2.5 | capability shown; propensity pending |
+| inception/mercury-2.5 | partial (27/80): Inception's upstream timed out on 43 episodes; the two strong replacement arms stopped after five consecutive failures. To be resumed |
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
 | mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
@@ -157,8 +157,8 @@ of the corpus above.
 The corpus was collected with `--no-grader`, so the awareness grader is applied afterwards,
 one model at a time, with `--grade-existing --write-back --grader-model gpt-6-sol`. Graded so
 far: every model marked complete above (2026-10-03 to 2026-10-04,
-both nudges, no grader errors and no partially graded episodes). Two episodes still have their
-interrogation pending and are completed separately with `--complete-pending`.
+both nudges, no grader errors and no partially graded episodes). The two episodes collected
+with their interrogation pending were completed with `--complete-pending` on 2026-10-04.
 
 ### Capability arm
 
