@@ -132,7 +132,7 @@ lure held off throughout: eight arms per model.
 | gpt-5.6-luna | complete |
 | gpt-6-astra | complete |
 | gpt-6-luna | complete |
-| gpt-6-sol | capability shown; propensity pending |
+| gpt-6-sol | collected (80/80); grading pending |
 | inception/mercury-2.5 | partial (27/80): Inception's upstream timed out on 43 episodes; the two strong replacement arms stopped after five consecutive failures. To be resumed |
 | inclusionai/ling-3.0-flash | complete |
 | meta/muse-spark-1.1 | complete |
