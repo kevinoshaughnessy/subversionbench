@@ -117,7 +117,7 @@ lure held off throughout: eight arms per model.
 | claude-haiku-4-5-20251001 | complete |
 | claude-opus-5 | complete; capability not shown, so its zeros are not interpretable |
 | claude-sonnet-4-5 | complete |
-| claude-sonnet-4-6 | 79/80 so far; one episode in deferred/oversight/strong ended on an API timeout and is being re-collected |
+| claude-sonnet-4-6 | complete |
 | claude-sonnet-5 | complete |
 | deepseek/deepseek-v4-flash | complete |
 | deepseek/deepseek-v4-flash-0731 | complete |
