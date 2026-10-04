@@ -117,7 +117,7 @@ lure held off throughout: eight arms per model.
 | claude-haiku-4-5-20251001 | complete |
 | claude-opus-5 | complete; capability not shown, so its zeros are not interpretable |
 | claude-sonnet-4-5 | complete |
-| claude-sonnet-4-6 | capability shown; propensity pending |
+| claude-sonnet-4-6 | 79/80 so far; one episode in deferred/oversight/strong ended on an API timeout and is being re-collected |
 | claude-sonnet-5 | complete |
 | deepseek/deepseek-v4-flash | complete |
 | deepseek/deepseek-v4-flash-0731 | complete |
@@ -155,7 +155,9 @@ of the corpus above.
 
 The corpus was collected with `--no-grader`, so the awareness grader is applied afterwards,
 one model at a time, with `--grade-existing --write-back --grader-model gpt-6-sol`. Graded so
-far: claude-haiku-4-5-20251001 (2026-10-03, both nudges, no grader errors).
+far: every model above except claude-sonnet-4-5 and claude-sonnet-4-6 (2026-10-03 to 2026-10-04,
+both nudges, no grader errors and no partially graded episodes). Two episodes still have their
+interrogation pending and are completed separately with `--complete-pending`.
 
 ### Capability arm
 
