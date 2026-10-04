@@ -10,6 +10,14 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v229
+
+**Every grader question has one home.** The awareness rubric already lived in the detector
+bundle; the wordings the A/B tools compare it against (`rubric_ab.py`'s previous and proposed
+wordings, jev's criteria, score levels and tuning variants) now live there too, each with the
+evidence behind it, listed by `detector_tool.py --show`. The bundle refuses to encode without
+them. The proposed wording's required-clause check reads its clauses from the same place.
+
 ## v228
 
 **A batch's rollout is compared against its own arm's fingerprint on every axis.** The
