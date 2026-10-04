@@ -156,7 +156,7 @@ of the corpus above.
 
 The corpus was collected with `--no-grader`, so the awareness grader is applied afterwards,
 one model at a time, with `--grade-existing --write-back --grader-model gpt-6-sol`. Graded so
-far: every model above except claude-sonnet-4-6 (2026-10-03 to 2026-10-04,
+far: every model marked complete above (2026-10-03 to 2026-10-04,
 both nudges, no grader errors and no partially graded episodes). Two episodes still have their
 interrogation pending and are completed separately with `--complete-pending`.
 
