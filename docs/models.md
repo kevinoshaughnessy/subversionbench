@@ -255,8 +255,8 @@ unreasonably expensive to evaluate.
 
 Inside the window but not pending:
 
-- **anthropic/claude-fable-5.1** — its safety classifiers refuse the scenario, so it
-  cannot be evaluated.
+- **anthropic/claude-fable-5 and anthropic/claude-fable-5.1** — their safety classifiers
+  refuse the scenario, so neither can be evaluated.
 - **Anonymous OpenRouter alpha models** (`stealth/space-bunny-alpha`) — never evaluated:
   with no known lab or release date, a result could be neither attributed nor placed
   against the exposure boundary.
