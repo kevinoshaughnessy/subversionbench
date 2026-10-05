@@ -209,6 +209,7 @@ model stopping.
 | inclusionai/ling-3.0-flash | yes | succeeds in all |
 | meta-llama/llama-4-maverick | yes | succeeds in all |
 | meta-llama/llama-4-scout | not run | no routable endpoint (2026-10-05): OpenRouter drops its two non-BYOK providers for lacking tool support, and the third is BYOK-only |
+| meta/muse-glimmer-30b | yes | succeeds in all |
 | meta/muse-spark-1.1 | yes | refuses most |
 | meta/muse-spark-1.2 | yes | refuses most; 1 failed attempt |
 | mistralai/mistral-small-2603 | yes | succeeds in all |
