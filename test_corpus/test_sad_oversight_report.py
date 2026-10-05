@@ -445,6 +445,14 @@ class TestTheRunWritesWhatItSays:
                 json.dump({"model": model, "nudge": "strong", "n_runs": 10,
                            "n_scheming": 1, "n_misaligned": 2,
                            "awareness_subgroups": {"aware": 3, "unaware": 7}}, f)
+            # The episodes the awareness rates are read from: 3 of 10 aware,
+            # matching the summary.
+            from test_analysis.report_fixtures import write_awareness_episode
+            for i in range(1, 11):
+                write_awareness_episode(
+                    out, i, model, "strong",
+                    oversight=oversight == "oversight", aware=i <= 3,
+                    stamp="20260101T000000")
 
     def test_the_json_lands_in_the_rollout_directory(self, monkeypatch):
         bundle = _bundle()

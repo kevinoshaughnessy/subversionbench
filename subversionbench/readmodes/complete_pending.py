@@ -20,8 +20,8 @@ import datetime
 import json
 import os
 
-from .. import llm_client as llm_api
 from ..blocks import reconstruct_messages
+from ..episode import _resolved_routing
 from ..followup import interrogate_acts
 from ..graders import answer_keys, store, view
 from ..grading import auth_error_in_analysis, settle_analysis
@@ -117,7 +117,7 @@ def complete_pending_interrogations(args, selection) -> tuple:
               f"labels every answer. Nothing asked.")
         return 1, 0
     counts = collections.Counter()
-    client = None
+    clients = {}
     for path in run_files:
         with open(path, encoding="utf-8") as f:
             run = json.load(f)
@@ -128,8 +128,21 @@ def complete_pending_interrogations(args, selection) -> tuple:
             counts[f"left pending: {reason}"] += 1
             continue
         # Built on the first episode that needs it, so a directory with
-        # nothing pending costs no credential and no client.
-        client = client or llm_api.get_client(selection.model)
+        # nothing pending costs no credential and no client. Routed as the
+        # EPISODE was, from what its record says was sent - not from this
+        # invocation's flags, which a later pass need not repeat - so the
+        # late questions reach the backend that ran the episode.
+        routing = (run.get("openrouter_sort"), run.get("openrouter_provider"),
+                   bool(run.get("use_opencode")))
+        try:
+            client = clients.get(routing) or _resolved_routing(
+                selection.model, *routing)[0]
+        except Exception as e:                  # noqa: BLE001 - reported
+            print(f"ABORTED: no client for {selection.model} as the episode "
+                  f"was routed ({redact_paths(str(e))[:200]}). Nothing more "
+                  f"asked; {counts['completed']} episode(s) completed before it.")
+            return 1, counts["completed"]
+        clients[routing] = client
         try:
             outcome = _complete_one(path, run, args.grader_model, client, args)
         except PermissionError as auth:
