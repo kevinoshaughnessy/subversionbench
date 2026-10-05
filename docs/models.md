@@ -136,7 +136,7 @@ arms are collected and graded; between the two it is marked collected, grading p
 | gpt-6-sol | complete |
 | inception/mercury-2.5 | partial (27/80): Inception's upstream timed out on 43 episodes; the two strong replacement arms stopped after five consecutive failures. To be resumed |
 | inclusionai/ling-3.0-flash | complete |
-| meta-llama/llama-4-maverick | collected (80/80); grading pending |
+| meta-llama/llama-4-maverick | complete |
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
 | mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
@@ -161,7 +161,7 @@ of the corpus above.
 
 The corpus was collected with `--no-grader`, so the awareness grader is applied afterwards,
 one model at a time, with `--grade-existing --write-back --regrade default` (gpt-6-sol is the
-default grader). Graded so far: every model marked complete above (2026-10-03 to 2026-10-04,
+default grader). Graded so far: every model marked complete above (2026-10-03 to 2026-10-05,
 both nudges, no grader errors and no partially graded episodes). The two episodes collected
 with their interrogation pending were completed with `--complete-pending` on 2026-10-04.
 gpt-6-sol's own episodes were graded by gpt-6-sol, so its awareness readings come from a
