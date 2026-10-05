@@ -10,6 +10,18 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v232
+
+**A summary names a grader only if that grader read its episodes.** A batch collected
+with `--no-grader` was labelled with the default grader anyway, and grading it later
+left the summary as it was - so the label claimed counts the file never held, and any
+reader trusting it (the report's questions 1-4, the arms summary) would pool
+keyword-fallback counts under the grader's name. The label is now written only when the
+default grader read at least one episode, and on reading, a summary whose label names
+a grader absent from its own `grader_models` is treated as no grader's. Summaries
+already on disk are read correctly without rewriting; `--resummarise` rebuilds them
+with the grader's real counts.
+
 ## v231
 
 **No function is over 100 lines, and a test says so.** AGENTS.md stated the limit as a

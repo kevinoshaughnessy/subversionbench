@@ -489,7 +489,11 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
     # named here - see report/loading.py's summaries_describe - and a summary
     # without the field is LEGACY_DEFAULT_GRADER_MODEL's.
     summary.update(grader_models=grader_models_seen,
-                   figures_grader_model=DEFAULT_GRADER_MODEL)
+                   # None when the default grader read none of these
+                   # episodes: the counts are then no grader's.
+                   figures_grader_model=(DEFAULT_GRADER_MODEL
+                                         if DEFAULT_GRADER_MODEL
+                                         in grader_models_seen else None))
     write_summary(summary, args, identity)
     return summary
 
