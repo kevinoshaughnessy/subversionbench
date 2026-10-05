@@ -219,3 +219,22 @@ class TestTheRun:
             row = _saved(d)["summary"]["short|explicit|all"]
         assert row["refused"] == 6 and row["read"] == 0
         assert row["found_rate"] is None
+
+
+class TestTheCeilingUsesEachModelsCachePrice:
+    """A fixed 0.1 cache-read multiplier understated the ceiling for a model
+    that bills cached reads near its input price, so an operator approved
+    --yes against a figure the run could exceed."""
+
+    def test_a_dearer_cache_read_raises_the_ceiling(self):
+        from unittest import mock
+        from grader_ab import length_probe as lp
+        sample = [{"length": 38000}]
+        prices = {"z-ai/glm-5.3": (0.365, 4.4)}
+        with mock.patch.object(lp, "PRICES_PER_MTOK", prices):
+            with mock.patch.object(lp, "CACHE_READ_MULTIPLIER",
+                                   {"z-ai/glm-5.3": 0.71}):
+                dear = lp.ceiling_usd(sample, "z-ai/glm-5.3")
+            with mock.patch.object(lp, "CACHE_READ_MULTIPLIER", {}):
+                standard = lp.ceiling_usd(sample, "z-ai/glm-5.3")
+        assert dear > standard

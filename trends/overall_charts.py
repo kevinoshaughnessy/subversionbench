@@ -66,7 +66,7 @@ def _plot_ranked(plt, report: dict, path: str) -> str:
     _caption(fig, report, f"Overall = {report['metric_definition']}.",
              _EFFECTIVE_NOTE + ".")
     _margins(fig, 1.6 + 0.28 * len(rows))
-    fig.savefig(path, dpi=CHART_DPI)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
     return path
 
@@ -95,7 +95,7 @@ def _plot_ranked_by_act(plt, report: dict, path: str) -> str:
     _caption(fig, report, f"Each segment is one act's rate divided by {k}, "
              "so the segments sum to the overall rate.")
     _margins(fig, 1.6 + 0.28 * len(rows))
-    fig.savefig(path, dpi=CHART_DPI)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
     return path
 
@@ -132,7 +132,7 @@ def _plot_grid(plt, report: dict, path: str) -> str:
              "column is the equal-weight mean of the three.")
     fig.subplots_adjust(left=0.3, top=1 - 1.1 / (1.8 + 0.3 * len(rows)),
                         bottom=0.9 / (1.8 + 0.3 * len(rows)))
-    fig.savefig(path, dpi=CHART_DPI)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
     return path
 

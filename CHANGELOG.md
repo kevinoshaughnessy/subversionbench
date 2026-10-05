@@ -10,6 +10,38 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v233
+
+**One read mode per invocation.** run_eval ran the first read mode it reached and
+silently skipped any other named beside it, still exiting 0 - so `--resummarise
+--complete-pending` rebuilt summaries and asked nothing. Two read modes together are
+now refused, and the `--batch-stamp` and `--write-back` errors name all six modes they
+apply to.
+
+**sad_oversight reads both awareness rates under one grader.** Its mixed numerator and
+denominator came from the summaries, whichever grader counted them, while the text-only
+numerator came from the episodes under the current default - one grader's count over
+another's denominator. Both now come from the episodes; the summaries supply only the
+grader-free episode and reasoning counts.
+
+**`--complete-pending` asks through the routing the episode ran under**, read from the
+run file, rather than the model id alone - so the late questions reach the same backend.
+A client that cannot be built ends the pass with a message instead of a traceback.
+
+**Charts with a scenario mark keep it on the page.** The goal-guarding rate chart and
+the overall-rate trend charts now save with a tight bounding box, as the capability chart
+already did: the mark is added after layout, and under an exclusion the title had no room
+for it.
+
+**The CLI's flags have their own module.** `subversionbench/cli_parser.py` builds the
+parser; `run_eval.py` keeps what the flags mean and the dispatch, and re-exports
+`build_parser`. The args-bag guard now treats a module's bag as the options it declares
+plus those of an options module it imports, so it still knows which flags `run_eval`
+can read.
+
+**length_probe's spend ceiling prices cached reads per model**, from the same table cost
+accounting uses, instead of a fixed 0.1 that understated it for glm-5.3.
+
 ## v232
 
 **A summary names a grader only if that grader read its episodes.** A batch collected

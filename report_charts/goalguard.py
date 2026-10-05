@@ -78,6 +78,7 @@ def plot_goalguard_rate_views(plt, report: dict, path: str):
     fig.text(0.01, 0.01, "\n".join(_wrap(c) for c in captions), fontsize=7,
              color="#555555", va="bottom")
     fig.subplots_adjust(left=0.24, bottom=0.3, top=0.9)
-    fig.savefig(path, dpi=CHART_DPI)
+    # Tight, because the scenario mark adds a title line after layout.
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
     plt.close(fig)
     return path

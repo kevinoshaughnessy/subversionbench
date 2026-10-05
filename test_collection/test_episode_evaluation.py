@@ -488,6 +488,33 @@ class TestNoGraderLeavesTheInterrogationPending:
         assert analysis["scheming"] is True
         assert summaries, "the batch's summary was not rebuilt"
 
+    def test_the_episode_is_asked_through_the_routing_it_ran_under(self):
+        """The model client was built from the model id alone, so an episode
+        routed through OpenCode or a pinned provider had its late questions
+        answered by a different backend. It is built from the routing the
+        run file records."""
+        import json
+        from unittest import mock
+        from subversionbench.readmodes import complete_pending as cp
+        calls, seen = [], []
+        with tempfile.TemporaryDirectory() as out:
+            path, _ = self._collect(out, calls)
+            with open(path, encoding="utf-8") as f:
+                run = json.load(f)
+            run.update(openrouter_sort="price", openrouter_provider="P",
+                       use_opencode=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(run, f, default=str)
+            real = cp._resolved_routing
+
+            def spy(model, *routing):
+                seen.append(routing)
+                return real(model, *routing)
+            with mock.patch.object(cp, "_resolved_routing", spy):
+                code, said = self._complete(out, calls)
+        assert code == 0, said
+        assert seen == [("price", "P", True)], seen
+
     def test_a_failed_label_leaves_it_pending_and_the_file_untouched(self):
         """A keyword label decided where that ladder stopped - exactly what
         leaving it pending avoids - so the episode waits for the next pass."""
