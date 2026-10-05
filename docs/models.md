@@ -142,7 +142,7 @@ native route below stands for the model.
 | meta/muse-glimmer-30b | complete |
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
-| meta/muse-spark-1.3 | collected (80/80); grading pending; capability not shown, so its zeros are not interpretable |
+| meta/muse-spark-1.3 | complete; capability not shown, so its zeros are not interpretable |
 | mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
 | qwen/qwen3.6-27b | complete |
 | qwen/qwen3.7-flash | complete |
