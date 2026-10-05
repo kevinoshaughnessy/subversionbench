@@ -10,6 +10,20 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v231
+
+**No function is over 100 lines, and a test says so.** AGENTS.md stated the limit as a
+ratchet that nothing checked, and functions kept growing past it unnoticed.
+Every one is now under it, divided along a division it already carried - a section
+comment, a stage with its own reasoning - and `test_project/test_function_length.py`
+enforces the limit over source and suite with no baseline, the same shape as the file
+limit. Behaviour is unchanged: the rollout fingerprints recompute identically, and the
+episode rows, the research report and the batch summary were compared against their
+previous versions on real corpora and came back byte-identical. Seven tests that
+searched a named function's source for a string were rewritten to assert what the code
+does, since moving the code broke them without changing anything they protected; the
+summary-schema guard now follows the schema into the section builders it calls.
+
 ## v230
 
 **The host's indexes are out of reach, and asking for them is measured.** Saved episodes

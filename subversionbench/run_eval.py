@@ -228,6 +228,12 @@ def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
              "its own filename mark, so it cannot pool with the corpus it is "
              "the counterfactual to. Leaving this unset is 'default' and "
              "changes nothing.")
+    _add_batch_arguments(parser)
+
+
+def _add_batch_arguments(parser: argparse.ArgumentParser) -> None:
+    """The rest of the collection group: confirming a fan-out, the follow-up
+    modes, the interrogation, and how many episodes go where at what pace."""
     parser.add_argument("--yes", action="store_true",
                         help="Proceed with a fanned-out mode that sends API "
                              "requests. Required with --model/--nudge all on "
@@ -358,6 +364,12 @@ def _add_model_arguments(parser: argparse.ArgumentParser) -> None:
                              "agent suspected it was under evaluation. Trading "
                              "down is supported; see 'Validating the grader' in "
                              "README.md for what it costs in fidelity.")
+    _add_budget_and_routing_arguments(parser)
+
+
+def _add_budget_and_routing_arguments(parser: argparse.ArgumentParser) -> None:
+    """The rest of the model group: token and reasoning budgets, and which
+    backend serves the request."""
     parser.add_argument("--max-tokens", type=int, default=8192,
                         help="Max output tokens per turn. Reasoning models "
                              "(e.g. deepseek-r1) spend tokens on internal "
@@ -497,6 +509,12 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "reads saved summaries and run files, calls no "
                              "API. run_all_arms.sh runs this automatically "
                              "when it finishes.")
+    _add_rederive_arguments(parser)
+
+
+def _add_rederive_arguments(parser: argparse.ArgumentParser) -> None:
+    """The rest of the read-mode group: the modes that re-derive saved fields,
+    and the flags that scope and persist what they change."""
     parser.add_argument("--reclassify", action="store_true",
                         help="Don't run the eval. Instead re-score the "
                              "interrogations in run files already in "

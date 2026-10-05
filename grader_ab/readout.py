@@ -176,6 +176,12 @@ def report(results, sample, keys, stored_rubrics):
             row += f"{(100 * s / b if b else 0):3.0f} "
         print(row)
 
+    _print_robustness(results, cells)
+    _print_verdict_rates(results, cells, ref)
+
+
+def _print_robustness(results, cells) -> None:
+    """Whether batching moved answers together, and why any are missing."""
     print(f"\n{'=' * 78}")
     print("CONTAMINATION AND ROBUSTNESS")
     print(f"{'=' * 78}")
@@ -204,6 +210,9 @@ def report(results, sample, keys, stored_rubrics):
     print("  distinguish the two, because the shipped per-question asker reports")
     print("  one error string for both, so per_question cells show `other`.")
 
+
+def _print_verdict_rates(results, cells, ref) -> None:
+    """Each cell's aware rate, against the reference by Fisher's test."""
     print(f"\n{'=' * 78}")
     print("VERDICT RATE BY CELL")
     print(f"{'=' * 78}")

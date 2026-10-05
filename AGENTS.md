@@ -149,21 +149,24 @@ to add an entry to. It is checked rather than remembered because twenty files
 were over when the check was written and nothing said so - two of them created
 already over, which is what a rule with no check allows.
 
-THE FUNCTION LIMIT IS STILL A RATCHET, and the honest version of the rule says
-so: thirty-four functions exceed it, the largest being
-`reporting/summary.py:summary_document` at 336 lines and
-`reporting/facts/rates.py:rate_table` at 179. Nothing new may exceed it, and anything already over may only get
-smaller. A rule declared as absolute while dozens of things violate it is one
-that gets switched off the first time it is inconvenient, which is the same
-reasoning that set the ruff rule set in `pyproject.toml`.
+THE FUNCTION LIMIT IS NOW A PLAIN RULE TOO, checked by
+`TestNoFunctionIsOverTheLimit` in `test_project/test_function_length.py` over
+source and suite alike, with no baseline. It was stated here as a ratchet and
+checked by nothing, and thirty-eight functions were over by the time anyone
+measured - six of them having grown on one branch, one having crossed the line
+there. All thirty-eight were divided, each along a division it already carried,
+and each checked against its previous version on real corpora where its output
+is a document: the episode rows, the report and the summary came back
+byte-identical.
 
 **Length is a proxy; branching is the thing.** Rank by cyclomatic complexity
 rather than by line count before deciding what to divide - `ruff check --select
 C901 --config lint.mccabe.max-complexity=1 --output-format concise` prints a
-number per function, and the two orderings disagree. The longest function here,
-`summary.py:summary_document` at 336 lines, has a complexity of 1: it is a flat
-dict literal, and cutting it up would move text without making anything easier
-to reason about. The worst by branching was `facts/quality.py:quality_facts` at
+number per function, and the two orderings disagree. The longest function here
+was `summary.py:summary_document` at 336 lines with a complexity of 1: a flat
+dict literal, which under the limit became four section builders - a split that
+moves text more than it simplifies, and the reason the limit is a backstop
+rather than the goal. The worst by branching was `facts/quality.py:quality_facts` at
 32, and it came apart into eight named producers because each of its eight loops
 already read the same list for a different reason.
 

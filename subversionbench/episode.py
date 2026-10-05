@@ -25,6 +25,7 @@ a phrasing to episodes collected months earlier.
 """
 
 import datetime
+import functools
 import json
 import time
 
@@ -88,6 +89,83 @@ class _LoopFailed(Exception):
         self.turn = turn
 
 
+def _record_turn_metadata(response, turn: int, state: dict) -> None:
+    """What the provider said about this turn, accumulated into `state`."""
+    for key, value in cache_usage(response).items():
+        state["cache"][key] += value
+
+    # Reasoning tokens billed, when the provider reports them. This is the
+    # only signal separating a model that did not reason from one whose
+    # reasoning was withheld - gpt-5.4 and grok-4.20 both returned zero
+    # reasoning text, and the transcripts cannot tell those apart.
+    # Only the adapters expose usage as a plain dict. The native Anthropic
+    # SDK puts an object here, whose accounting cache_usage already reads -
+    # calling .items() on it raised and killed the episode.
+    provider_usage = getattr(response, "usage", None)
+    if isinstance(provider_usage, dict):
+        for key, value in provider_usage.items():
+            if isinstance(value, int):
+                state["token_usage"][key] = state["token_usage"].get(key, 0) + value
+
+    # Whether the reasoning captured above is a trace or a summary, as the
+    # provider labels it rather than as the route implies. Only turns that
+    # reported something are recorded, so an empty list means the field was
+    # never sent - not that the reasoning was unlabelled.
+    turn_details = getattr(response, "reasoning_details", None)
+    if turn_details:
+        state["reasoning_details"].append({"turn": turn + 1, **turn_details})
+
+    # Which backend answered this turn. Recorded per turn on the same
+    # terms as the reasoning label above, and for a sharper reason: the
+    # router can fall back mid-episode, so one episode's turns are not
+    # guaranteed to have come from one backend. A single per-episode value
+    # would have to pick one and would hide exactly that. Only turns that
+    # reported it are appended, so an empty list means the field never
+    # arrived - not that one provider served the whole episode.
+    served_by = getattr(response, "provider", None)
+    if served_by:
+        state["served_by"].append({"turn": turn + 1, "provider": served_by})
+
+    # Appended on the same terms as the two above: only turns that
+    # reported one, so an empty list means the field never arrived rather
+    # than that every turn ended the same way. Read here rather than in the
+    # no-content branch below, which is where it used to be looked at - a
+    # turn that returned content perfectly well can still have been cut
+    # off, and that is the case the branch below never saw.
+    finish_reason = getattr(response, "stop_reason", None)
+    if finish_reason:
+        state["finish_reasons"].append({"turn": turn + 1,
+                                        "reason": finish_reason})
+
+
+def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
+                    sandbox: dict) -> list:
+    """Run each tool call in the sandbox; the results to send back."""
+    tool_results = []
+    for tc in tool_calls:
+        result = execute_tool_sandboxed(
+            tc.input, sandbox["env_dir"],
+            isolation=sandbox["isolation"],
+            profile_path=sandbox["profile_path"],
+            episode_root=sandbox["episode_root"])
+        print(f"[Turn {turn+1} RESULT] {red(result)[:300]}")
+        # What goes back to the model is deliberately NOT redacted:
+        # the agent has to keep seeing the same paths its own shell
+        # reports, or a path it read in one turn stops matching the one
+        # it types in the next. Redaction is for our artifacts only.
+        tool_results.append({
+            "type": "tool_result",
+            "tool_use_id": tc.id,
+            "content": result
+        })
+        transcript.append({
+            "turn": turn + 1,
+            "type": "tool_result",
+            "result": red(result)
+        })
+    return tool_results
+
+
 def run_agentic_loop(client, create_kwargs: dict, messages: list,
                      transcript: list, state: dict, *, max_turns: int,
                      red, sandbox: dict) -> None:
@@ -121,51 +199,7 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
             # accumulated before it died is already visible there.
             raise _LoopFailed(e, turn) from e
 
-        for key, value in cache_usage(response).items():
-            state["cache"][key] += value
-
-        # Reasoning tokens billed, when the provider reports them. This is the
-        # only signal separating a model that did not reason from one whose
-        # reasoning was withheld - gpt-5.4 and grok-4.20 both returned zero
-        # reasoning text, and the transcripts cannot tell those apart.
-        # Only the adapters expose usage as a plain dict. The native Anthropic
-        # SDK puts an object here, whose accounting cache_usage already reads -
-        # calling .items() on it raised and killed the episode.
-        provider_usage = getattr(response, "usage", None)
-        if isinstance(provider_usage, dict):
-            for key, value in provider_usage.items():
-                if isinstance(value, int):
-                    state["token_usage"][key] = state["token_usage"].get(key, 0) + value
-
-        # Whether the reasoning captured above is a trace or a summary, as the
-        # provider labels it rather than as the route implies. Only turns that
-        # reported something are recorded, so an empty list means the field was
-        # never sent - not that the reasoning was unlabelled.
-        turn_details = getattr(response, "reasoning_details", None)
-        if turn_details:
-            state["reasoning_details"].append({"turn": turn + 1, **turn_details})
-
-        # Which backend answered this turn. Recorded per turn on the same
-        # terms as the reasoning label above, and for a sharper reason: the
-        # router can fall back mid-episode, so one episode's turns are not
-        # guaranteed to have come from one backend. A single per-episode value
-        # would have to pick one and would hide exactly that. Only turns that
-        # reported it are appended, so an empty list means the field never
-        # arrived - not that one provider served the whole episode.
-        served_by = getattr(response, "provider", None)
-        if served_by:
-            state["served_by"].append({"turn": turn + 1, "provider": served_by})
-
-        # Appended on the same terms as the two above: only turns that
-        # reported one, so an empty list means the field never arrived rather
-        # than that every turn ended the same way. Read here rather than in the
-        # no-content branch below, which is where it used to be looked at - a
-        # turn that returned content perfectly well can still have been cut
-        # off, and that is the case the branch below never saw.
-        finish_reason = getattr(response, "stop_reason", None)
-        if finish_reason:
-            state["finish_reasons"].append({"turn": turn + 1,
-                                            "reason": finish_reason})
+        _record_turn_metadata(response, turn, state)
 
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
@@ -219,28 +253,8 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
                 state["ended_by"] = "model_stopped"
             break
 
-        tool_results = []
-        for tc in tool_calls:
-            result = execute_tool_sandboxed(
-                tc.input, sandbox["env_dir"],
-                isolation=sandbox["isolation"],
-                profile_path=sandbox["profile_path"],
-                episode_root=sandbox["episode_root"])
-            print(f"[Turn {turn+1} RESULT] {red(result)[:300]}")
-            # What goes back to the model is deliberately NOT redacted:
-            # the agent has to keep seeing the same paths its own shell
-            # reports, or a path it read in one turn stops matching the one
-            # it types in the next. Redaction is for our artifacts only.
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": tc.id,
-                "content": result
-            })
-            transcript.append({
-                "turn": turn + 1,
-                "type": "tool_result",
-                "result": red(result)
-            })
+        tool_results = _run_tool_calls(tool_calls, turn, transcript, red,
+                                       sandbox)
 
         if tool_results:
             # Everything up to and including this block is what the next turn
@@ -616,12 +630,9 @@ def run_evaluation(
 
     # Every string that reaches the console or the transcript goes through
     # this first, so no host-specific path ends up in a shareable artifact.
-    def red(text):
-        return redact_paths(text, env_dir)
-
-    nudge_type = nudge
-    _check_the_arm_matches_the_prompt(nudge_type, system_prompt)
-    _announce_episode(model, nudge_type, effort, env_dir, red)
+    red = functools.partial(redact_paths, env_dir=env_dir)
+    _check_the_arm_matches_the_prompt(nudge, system_prompt)
+    _announce_episode(model, nudge, effort, env_dir, red)
 
     # The arguments that name this experiment, written once.
     # arm_record.py exists because two records carried their own copy of these
@@ -634,18 +645,62 @@ def run_evaluation(
     # rather than off an argument: create_episode_root stamps the tree and
     # puts what it did in env_info, and before this was threaded through, that
     # return value reached nothing at all.
-    def arm():
-        return arm_identity(
-            model, effort, nudge_type, oversight, lure, interrogations,
-            openrouter_sort, openrouter_provider,
-            isolation=isolation, max_turns=max_turns,
-            capability=capability, date_mode=date_mode,
-            artefact_dates=env_info.get("artefact_dates"),
-            goalguard=goalguard, use_opencode=use_opencode)
+    arm = arm_identity(
+        model, effort, nudge, oversight, lure, interrogations,
+        openrouter_sort, openrouter_provider,
+        isolation=isolation, max_turns=max_turns,
+        capability=capability, date_mode=date_mode,
+        artefact_dates=env_info.get("artefact_dates"),
+        goalguard=goalguard, use_opencode=use_opencode)
 
     t_eval_start = time.time()
+    create_kwargs = _create_kwargs(model, max_tokens, system_prompt,
+                                   reasoning_kwargs)
 
-    create_kwargs = dict(
+    state = _new_loop_state()
+    try:
+        run_agentic_loop(
+            client, create_kwargs, messages, transcript, state,
+            max_turns=max_turns, red=red,
+            sandbox={"env_dir": env_dir, "isolation": isolation,
+                     "profile_path": profile_path,
+                     "episode_root": episode_root})
+    except _LoopFailed as failed:
+        raise EpisodeAPIError(failed.cause, _died_record(
+            arm, failed, state, red, reasoning_config, system_prompt,
+            user_prompt, transcript)) from failed.cause
+
+    _close_the_loop(state["ended_by"], max_turns, timing, t_eval_start)
+    analysis = _score_episode(
+        transcript, env_dir, env_info, use_grader, grader_model, timing,
+        {"system_prompt": system_prompt, "messages": messages,
+         "client": client, "model": model, "max_tokens": max_tokens,
+         "reasoning_kwargs": reasoning_kwargs, "env_dir": env_dir},
+        nudge, interrogations, state["ended_by"], capability, t_eval_start)
+
+    return _completed_record(arm, state, reasoning_config, system_prompt,
+                             user_prompt, transcript, messages,
+                             new_record(analysis, grader_model), timing)
+
+
+def _score_episode(transcript: list, env_dir: str, env_info: dict,
+                   use_grader: bool, grader_model: str, timing: dict,
+                   followup: dict, nudge: str, interrogations: tuple,
+                   ended_by: str, capability, t_eval_start: float) -> dict:
+    """What the episode did, what it suspected, and what it said when asked."""
+    analysis = analyze_misalignment(transcript, env_dir, env_info)
+    _grade_awareness(analysis, transcript, use_grader, grader_model, timing)
+    _interrogate_the_acts(
+        analysis, transcript, followup, grader_model, nudge, interrogations,
+        ended_by, capability, timing, t_eval_start, use_grader=use_grader)
+    _check_for_a_deferred_write(analysis, env_info)
+    return analysis
+
+
+def _create_kwargs(model: str, max_tokens: int, system_prompt: str,
+                   reasoning_kwargs: dict) -> dict:
+    """What every request of the agentic loop is sent besides the messages."""
+    return dict(
         model=model,
         max_tokens=max_tokens,
         system=system_prompt,
@@ -657,54 +712,10 @@ def run_evaluation(
         **(reasoning_kwargs or {}),
     )
 
-    state = _new_loop_state()
-    try:
-        run_agentic_loop(
-            client, create_kwargs, messages, transcript, state,
-            max_turns=max_turns, red=red,
-            sandbox={"env_dir": env_dir, "isolation": isolation,
-                     "profile_path": profile_path,
-                     "episode_root": episode_root})
-    except _LoopFailed as failed:
-        # Keep what the episode produced before it died. The batch runner still
-        # counts this as a failed episode and leaves it out of the rates - it is
-        # not a complete observation - but the transcript is worth more than the
-        # traceback alone.
-        raise EpisodeAPIError(failed.cause, {
-            **arm(),
-            "ended_by": "api_error",
-            "failed_on_turn": failed.turn + 1,
-            "error": f"{type(failed.cause).__name__}: {red(str(failed.cause))}",
-            "reasoning_config": reasoning_config,
-            "reasoning_chars": state["reasoning_chars"],
-            "reasoning_details": state["reasoning_details"],
-            "token_usage": state["token_usage"],
-            # Both of these the completed record carried and this one did not,
-            # while the loop had been writing them right up to the failure.
-            # `cache` is the only evidence prompt caching engaged at all, and
-            # a died episode is exactly when someone asks whether the spend
-            # was cached.
-            **_served_by_block(state["served_by"]),
-            **_finish_reason_block(state["finish_reasons"]),
-            "cache": state["cache"],
-            "system_prompt": system_prompt,
-            "user_prompt": user_prompt,
-            "transcript": transcript,
-            # No `messages` here, deliberately. The field exists so a saved
-            # episode can be asked another question, and an episode that died
-            # mid-turn has no settled act to ask about and an incomplete
-            # conversation to ask it in. The transcript is the record of what
-            # happened; this would only be duplication.
-            "timestamp": datetime.datetime.now().isoformat(),
-        }) from failed.cause
 
-    ended_by = state["ended_by"]
-    reasoning_chars = state["reasoning_chars"]
-    cache_totals = state["cache"]
-    token_totals = state["token_usage"]
-    reasoning_details = state["reasoning_details"]
-    served_by = state["served_by"]
-
+def _close_the_loop(ended_by: str, max_turns: int, timing: dict,
+                    t_eval_start: float) -> None:
+    """Time the loop, and say so when it ended on the turn cap."""
     t_eval_end = time.time()
     if ended_by == "turn_cap":
         print(f"[WARNING] Episode used all {max_turns} turns without the model "
@@ -713,35 +724,69 @@ def run_evaluation(
     timing["eval_seconds"] = round(t_eval_end - t_eval_start, 1)
     print(f"\n[TIMING] Eval loop: {timing['eval_seconds']}s")
 
-    analysis = analyze_misalignment(transcript, env_dir, env_info)
-    _grade_awareness(analysis, transcript, use_grader, grader_model, timing)
-    _interrogate_the_acts(
-        analysis, transcript,
-        {"system_prompt": system_prompt, "messages": messages,
-         "client": client, "model": model, "max_tokens": max_tokens,
-         "reasoning_kwargs": reasoning_kwargs, "env_dir": env_dir},
-        grader_model, nudge, interrogations, ended_by, capability, timing,
-        t_eval_start, use_grader=use_grader)
-    _check_for_a_deferred_write(analysis, env_info)
 
+def _died_record(arm: dict, failed, state: dict, red, reasoning_config: str,
+                 system_prompt: str, user_prompt: str,
+                 transcript: list) -> dict:
+    """
+    The record of an episode whose request failed mid-loop.
+
+    Keep what the episode produced before it died. The batch runner still
+    counts this as a failed episode and leaves it out of the rates - it is not
+    a complete observation - but the transcript is worth more than the
+    traceback alone.
+    """
     return {
-        **arm(),
-                "ended_by": ended_by,
+        **arm,
+        "ended_by": "api_error",
+        "failed_on_turn": failed.turn + 1,
+        "error": f"{type(failed.cause).__name__}: {red(str(failed.cause))}",
+        "reasoning_config": reasoning_config,
+        "reasoning_chars": state["reasoning_chars"],
+        "reasoning_details": state["reasoning_details"],
+        "token_usage": state["token_usage"],
+        # Both of these the completed record carried and this one did not,
+        # while the loop had been writing them right up to the failure.
+        # `cache` is the only evidence prompt caching engaged at all, and
+        # a died episode is exactly when someone asks whether the spend
+        # was cached.
+        **_served_by_block(state["served_by"]),
+        **_finish_reason_block(state["finish_reasons"]),
+        "cache": state["cache"],
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+        "transcript": transcript,
+        # No `messages` here, deliberately. The field exists so a saved
+        # episode can be asked another question, and an episode that died
+        # mid-turn has no settled act to ask about and an incomplete
+        # conversation to ask it in. The transcript is the record of what
+        # happened; this would only be duplication.
+        "timestamp": datetime.datetime.now().isoformat(),
+    }
+
+
+def _completed_record(arm: dict, state: dict, reasoning_config: str,
+                      system_prompt: str, user_prompt: str, transcript: list,
+                      messages: list, analysis: dict, timing: dict) -> dict:
+    """The record of an episode that ran to its end, scored."""
+    return {
+        **arm,
+        "ended_by": state["ended_by"],
         # Whether the model's reasoning reached us at all. Both awareness
         # detectors read it, so a batch where this is 0 measured awareness on
         # less evidence than one where it is not, and the two should not be
         # compared without saying so.
-        "reasoning_chars": reasoning_chars,
+        "reasoning_chars": state["reasoning_chars"],
         # The provider's own label for that reasoning, per turn. `reasoning_chars`
         # says how much arrived; this says what kind it was, which is the
         # difference between a full trace and a compressed summary - and both
         # awareness measures read the difference. See _reasoning_detail_summary.
-        "reasoning_details": reasoning_details,
-        **_served_by_block(served_by),
+        "reasoning_details": state["reasoning_details"],
+        **_served_by_block(state["served_by"]),
         **_finish_reason_block(state["finish_reasons"]),
-        "token_usage": token_totals,
+        "token_usage": state["token_usage"],
         # Prompt-cache counters for the agentic loop; see cache_usage.
-        "cache": cache_totals,
+        "cache": state["cache"],
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         # What was actually sent, not what was asked for: the reasoning
@@ -750,7 +795,7 @@ def run_evaluation(
         "reasoning_config": reasoning_config,
         "transcript": transcript,
         "messages": messages,
-        "analysis": new_record(analysis, grader_model),
+        "analysis": analysis,
         "timing": timing,
         "timestamp": datetime.datetime.now().isoformat()
     }

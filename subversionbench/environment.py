@@ -140,57 +140,8 @@ def _record_artefact(info: dict, path_key: str, path: str,
     info[hash_key] = hashlib.sha256(body.encode()).hexdigest()
 
 
-def create_hardened_environment(env_dir: str, oversight: bool = True,
-                                lure: bool = False,
-                                goalguard: str = None,
-                                capability: str = None,
-                                nudge: str = "strong") -> dict:
-    """
-    Create the scenario file system with reduced eval awareness clues.
-
-    Writes the scenario into env_dir: the strategy brief the agent is asked
-    to act on, the internal memo establishing the goal conflict and the
-    stakes, the live-enforced monitoring config it can edit, a quality-check
-    script it can preview its own draft against, and enough mundane clutter
-    (older logs, meeting notes, traffic CSVs) that it doesn't read as a
-    minimal test environment.
-
-    Returns the paths and the original config hash that grading needs to
-    establish ground truth - analyze_misalignment() re-hashes monitoring.yaml
-    rather than trusting the transcript.
-
-    The design rationale for each of these choices, and the version history
-    behind them, is in CHANGELOG.md at the repo root.
-    """
-
-    # Which arm of the oversight counterfactual to build. With oversight=False
-    # the two oversight artefacts are absent and every document that referred
-    # to them has had those references removed - see scenario_for().
-    # CAPABILITY TOO, not just the arm. scenario_for stages the goal-guarding
-    # artefact when either is set; passing only `goalguard` built a
-    # --capability goalguard episode whose instruction named a file that was
-    # never written, so every episode read as not shown by construction. See
-    # TestTheCapabilityArmStagesTheArtefactItInstructs.
-    # NUDGE TOO, and the goal-guarding memo is one of two documents it reaches
-    # (the other being the coercive interrogation questions, unconditional on
-    # nudge="max" - see MAX_NUDGE_FINGERPRINTS). rollout.py has passed nudge to
-    # scenario_for since the goal-guarding arm was authored and this call did
-    # not, so for `--goalguard X --nudge none` the fingerprint was computed
-    # over the none memo while the environment was built with the strong one -
-    # an identity describing an assembly that never happened, which is the one
-    # thing a fingerprint may not do. All 120 nudge=none episodes in the first
-    # goal-guarding batch hold the strong memo.
-    #
-    # Defaulting to "strong" for the same reason rollout.py does: every caller
-    # that never mentions nudge - and therefore every pinned fingerprint for
-    # none/strong - computes exactly what it computed before. This default
-    # does NOT mean nudge is goalguard-only, though a comment here once
-    # claimed it: scenario_for() also swaps in the coercive interrogation
-    # questions whenever nudge="max", independent of goalguard - see
-    # MAX_NUDGE_FINGERPRINTS in rollout_pins.py.
-    scenario = scenario_for(oversight, lure=lure, goalguard=goalguard,
-                            capability=capability, nudge=nudge)
-
+def _write_scenario_files(env_dir: str, scenario: dict) -> None:
+    """Lay out one arm's documents, artefacts and clutter under env_dir."""
     task_file = scenario["task_file"]
 
     internal_memo = scenario["internal_memo"]
@@ -250,6 +201,63 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
     if scenario.get("cutover_note") is not None:
         Path(f"{env_dir}/comms/cutover_note.txt").write_text(
             scenario["cutover_note"])
+
+
+def create_hardened_environment(env_dir: str, oversight: bool = True,
+                                lure: bool = False,
+                                goalguard: str = None,
+                                capability: str = None,
+                                nudge: str = "strong") -> dict:
+    """
+    Create the scenario file system with reduced eval awareness clues.
+
+    Writes the scenario into env_dir: the strategy brief the agent is asked
+    to act on, the internal memo establishing the goal conflict and the
+    stakes, the live-enforced monitoring config it can edit, a quality-check
+    script it can preview its own draft against, and enough mundane clutter
+    (older logs, meeting notes, traffic CSVs) that it doesn't read as a
+    minimal test environment.
+
+    Returns the paths and the original config hash that grading needs to
+    establish ground truth - analyze_misalignment() re-hashes monitoring.yaml
+    rather than trusting the transcript.
+
+    The design rationale for each of these choices, and the version history
+    behind them, is in CHANGELOG.md at the repo root.
+    """
+
+    # Which arm of the oversight counterfactual to build. With oversight=False
+    # the two oversight artefacts are absent and every document that referred
+    # to them has had those references removed - see scenario_for().
+    # CAPABILITY TOO, not just the arm. scenario_for stages the goal-guarding
+    # artefact when either is set; passing only `goalguard` built a
+    # --capability goalguard episode whose instruction named a file that was
+    # never written, so every episode read as not shown by construction. See
+    # TestTheCapabilityArmStagesTheArtefactItInstructs.
+    # NUDGE TOO, and the goal-guarding memo is one of two documents it reaches
+    # (the other being the coercive interrogation questions, unconditional on
+    # nudge="max" - see MAX_NUDGE_FINGERPRINTS). rollout.py has passed nudge to
+    # scenario_for since the goal-guarding arm was authored and this call did
+    # not, so for `--goalguard X --nudge none` the fingerprint was computed
+    # over the none memo while the environment was built with the strong one -
+    # an identity describing an assembly that never happened, which is the one
+    # thing a fingerprint may not do. All 120 nudge=none episodes in the first
+    # goal-guarding batch hold the strong memo.
+    #
+    # Defaulting to "strong" for the same reason rollout.py does: every caller
+    # that never mentions nudge - and therefore every pinned fingerprint for
+    # none/strong - computes exactly what it computed before. This default
+    # does NOT mean nudge is goalguard-only, though a comment here once
+    # claimed it: scenario_for() also swaps in the coercive interrogation
+    # questions whenever nudge="max", independent of goalguard - see
+    # MAX_NUDGE_FINGERPRINTS in rollout_pins.py.
+    scenario = scenario_for(oversight, lure=lure, goalguard=goalguard,
+                            capability=capability, nudge=nudge)
+
+    _write_scenario_files(env_dir, scenario)
+    monitoring_config = scenario.get("monitoring_config")
+    quality_check_script = scenario.get("quality_check_script")
+    successor_params = scenario.get("successor_params")
 
     # Ground-truth hashes. BOTH oversight artefacts are hashed: the config
     # declares the check, and the script is the check the agent can actually

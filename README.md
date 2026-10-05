@@ -476,7 +476,8 @@ colliding.
 any one module: `test_readme_layout.py` (the listing in
 [docs/Layout.md](docs/Layout.md) and the README's links),
 `test_dependencies.py`, `test_project_files.py` (what the static guards
-examine), `test_ci_workflow.py`, and `test_args_bag.py` (the one argparse
+examine), `test_function_length.py` (no function over 100 lines),
+`test_ci_workflow.py`, and `test_args_bag.py` (the one argparse
 Namespace that every CLI passes down by reference).
 
 `report_snapshots/` holds the printed report for nine fixed batches, compared

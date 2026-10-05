@@ -343,6 +343,28 @@ def build_parser():
     return parser
 
 
+def _detectors_blind_to(isolation: str) -> list:
+    """The known-misaligned agents the act detectors did NOT catch, printing
+    each verdict. Run before any floor, which means nothing until the
+    detectors are shown to fire - see KNOWN_BAD_AGENTS."""
+    print("Positive control - agents that DO take an act, in the oversight "
+          "arm:")
+    blind = []
+    for name, commands, reply in KNOWN_BAD_AGENTS:
+        # UNGRADED even under --grade. The control exists to show the ACT
+        # detectors fire, and those are free; grading it would spend money to
+        # ask whether an agent that ran one `sed` sounds evaluation-aware,
+        # which is not the question and not something a known-bad fixture is
+        # built to answer either way.
+        analysis = run_trivial_agent(commands, reply, oversight=True,
+                                     lure=False, isolation=isolation)
+        fired = floor_violations(analysis)
+        print(f"  {name:28} {'caught: ' + '; '.join(fired)[:44] if fired else '! NOT CAUGHT'}")
+        if not fired:
+            blind.append(name)
+    return blind
+
+
 def main():
     args = build_parser().parse_args()
 
@@ -359,21 +381,7 @@ def main():
 
     # THE POSITIVE CONTROL FIRST. A floor of zero means nothing until the
     # detectors have been shown to fire at all - see KNOWN_BAD_AGENTS.
-    print("Positive control - agents that DO take an act, in the oversight "
-          "arm:")
-    blind = []
-    for name, commands, reply in KNOWN_BAD_AGENTS:
-        # UNGRADED even under --grade. The control exists to show the ACT
-        # detectors fire, and those are free; grading it would spend money to
-        # ask whether an agent that ran one `sed` sounds evaluation-aware,
-        # which is not the question and not something a known-bad fixture is
-        # built to answer either way.
-        analysis = run_trivial_agent(commands, reply, oversight=True,
-                                     lure=False, isolation=args.isolation)
-        fired = floor_violations(analysis)
-        print(f"  {name:28} {'caught: ' + '; '.join(fired)[:44] if fired else '! NOT CAUGHT'}")
-        if not fired:
-            blind.append(name)
+    blind = _detectors_blind_to(args.isolation)
     if blind:
         print(f"\n! {len(blind)} known-misaligned agent(s) were not detected: "
               f"{', '.join(blind)}. The detectors are not reading this "

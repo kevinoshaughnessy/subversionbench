@@ -273,26 +273,11 @@ def reasoning_flag_error(model: str, requested_budget, effort):
 # Substrings the SDKs use when no usable credential was found, or when the one
 # supplied was rejected. Matched case-insensitively against str(exception).
 
-def resolve_thinking_kwargs(model: str, requested_budget=None,
-                            max_tokens: int = 8192, effort=None):
-    """
-    Build the reasoning parameters for one model, whichever generation it is.
-
-    `requested_budget` keeps the CLI's meaning - None is auto, 0 is off,
-    anything else is an explicit token budget - but a token budget is only
-    expressible on the older models. On an adaptive model the request is
-    honoured in kind rather than refused: auto and any explicit budget both
-    become adaptive thinking, since the point of the default is that
-    reasoning is captured, not that it is capped at a particular number.
-
-    Returns (kwargs, description, warnings): kwargs to merge into
-    client.messages.create(...), one line describing what was sent for the
-    console and the summary JSON, and any operator-facing warnings.
-    """
-    surface = thinking_surface(model)
+def _unsurfaced_kwargs(model: str, requested_budget, effort):
+    """resolve_thinking_kwargs for a model with no Anthropic thinking surface:
+    OpenAI's Responses API, or an OpenRouter route that is sent nothing."""
     warnings = []
-
-    if surface is None and is_openai_model(model):
+    if is_openai_model(model):
         # The Responses API returns a reasoning SUMMARY, never the trace, so
         # this model sits in the same regime as the Anthropic 4.6+ models and
         # not with the ones that return a full chain of thought.
@@ -312,21 +297,43 @@ def resolve_thinking_kwargs(model: str, requested_budget=None,
                      + ("" if effort else " (default)"))
         return {"output_config": {"effort": chosen}}, described, warnings
 
+    if requested_budget:
+        warnings.append(
+            f"--thinking-budget {requested_budget} does not apply to "
+            f"OpenRouter model {model}: this harness sends no reasoning "
+            f"parameter on that route. Reasoning is captured when the "
+            f"model returns it, which omitting the parameter does not "
+            f"prevent."
+        )
+    if effort:
+        warnings.append(
+            f"--effort {effort} does not apply to OpenRouter model "
+            f"{model}: this harness sends no reasoning parameter there."
+        )
+    return {}, OPENROUTER_REASONING_CONFIG, warnings
+
+
+def resolve_thinking_kwargs(model: str, requested_budget=None,
+                            max_tokens: int = 8192, effort=None):
+    """
+    Build the reasoning parameters for one model, whichever generation it is.
+
+    `requested_budget` keeps the CLI's meaning - None is auto, 0 is off,
+    anything else is an explicit token budget - but a token budget is only
+    expressible on the older models. On an adaptive model the request is
+    honoured in kind rather than refused: auto and any explicit budget both
+    become adaptive thinking, since the point of the default is that
+    reasoning is captured, not that it is capped at a particular number.
+
+    Returns (kwargs, description, warnings): kwargs to merge into
+    client.messages.create(...), one line describing what was sent for the
+    console and the summary JSON, and any operator-facing warnings.
+    """
+    surface = thinking_surface(model)
+    warnings = []
+
     if surface is None:
-        if requested_budget:
-            warnings.append(
-                f"--thinking-budget {requested_budget} does not apply to "
-                f"OpenRouter model {model}: this harness sends no reasoning "
-                f"parameter on that route. Reasoning is captured when the "
-                f"model returns it, which omitting the parameter does not "
-                f"prevent."
-            )
-        if effort:
-            warnings.append(
-                f"--effort {effort} does not apply to OpenRouter model "
-                f"{model}: this harness sends no reasoning parameter there."
-            )
-        return {}, OPENROUTER_REASONING_CONFIG, warnings
+        return _unsurfaced_kwargs(model, requested_budget, effort)
 
     kwargs = {}
     effort_note = ""
