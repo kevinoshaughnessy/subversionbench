@@ -149,11 +149,9 @@ class _BatchProgress:
 
         self.consecutive_failures = 0
         self.results[i] = record["result"]
-        if record["auth_error"]:
-            # After the assignment above, so the count includes this episode -
-            # it was paid for and is on disk.
-            _print_auth_abort(record["auth_error"], record["env_dir"],
-                              len(self.results), self._batch_stamp)
+        # After the assignment above, so the count includes this episode - it
+        # was paid for and is on disk.
+        if _scoring_auth_failed(record, len(self.results), self._batch_stamp):
             self.aborted = True
             return True
         return False
@@ -662,6 +660,31 @@ def _preflight(args) -> tuple:
     return None, profile_path
 
 
+def _scoring_auth_failed(record: dict, n_saved: int, batch_stamp) -> bool:
+    """
+    Whether an auth failure in the SCORING should stop the batch, announcing it
+    if so. Checked after the episode is saved.
+
+    It cannot come right on retry - the credential will be just as absent for
+    episode two - and its consequence is invisible in the output it produces:
+    every interrogation answer still gets a well-formed verdict, from the
+    keyword cross-check instead of the classifier. Three batches ran to
+    completion that way and published concealment rates no classifier
+    produced. The pre-flight now catches the ordinary case; this catches a
+    credential that stops working mid-batch, or one the environment has but
+    the provider rejects.
+
+    After the save, deliberately. The rollout is the expensive part and this
+    episode's transcript is sound - only its scoring is not - so it is kept,
+    and --resume will not pay for it again.
+    """
+    if not record["auth_error"]:
+        return False
+    _print_auth_abort(record["auth_error"], record["env_dir"], n_saved,
+                      batch_stamp)
+    return True
+
+
 def _run_episodes_sequentially(args, identity, system_prompt, user_prompt,
                                reasoning_kwargs, reasoning_config,
                                effective_effort, profile_path, _arm_tag,
@@ -738,25 +761,7 @@ def _run_episodes_sequentially(args, identity, system_prompt, user_prompt,
         consecutive_failures = 0
         all_results.append(record["result"])
 
-        # An auth failure in the SCORING is checked after the episode is
-        # saved, and it stops the batch.
-        #
-        # It cannot come right on retry - the credential will be just as
-        # absent for episode two - and its consequence is invisible in
-        # the output it produces: every interrogation answer still gets a
-        # well-formed verdict, from the keyword cross-check instead of
-        # the classifier. Three batches ran to completion that way and
-        # published concealment rates no classifier produced. The
-        # pre-flight above now catches the ordinary case; this catches a
-        # credential that stops working mid-batch, or one the environment
-        # has but the provider rejects.
-        #
-        # After the save, deliberately. The rollout is the expensive part
-        # and this episode's transcript is sound - only its scoring is
-        # not - so it is kept, and --resume will not pay for it again.
-        if record["auth_error"]:
-            _print_auth_abort(record["auth_error"], record["env_dir"],
-                              len(all_results), batch_stamp)
+        if _scoring_auth_failed(record, len(all_results), batch_stamp):
             aborted = True
             break
 
@@ -793,6 +798,46 @@ def _report_incomplete_batch(args, failures: list, aborted: bool,
               "so a hand-typed --resume silently re-collects them instead "
               "of\n  resuming. Re-run run_all_arms.sh with no --resume "
               "flag instead; it looks\n  up each arm's own stamp itself.")
+
+
+def _announce_arm(identity) -> str:
+    """Print which arm this batch is, before any spend, and return the short
+    form every run header carries."""
+    # Which arm, stated before the first episode is paid for.
+    #
+    # It was previously visible only in the filenames and in the summary written at
+    # the end, so an operator watching a long counterfactual batch had nothing on
+    # screen confirming it was the counterfactual - and the two arms differ by the
+    # absence of the very artefacts the run is about, which is not something you can
+    # spot from the episode output. The lure is named only when it is on, matching
+    # how batch_stem marks it, so an ordinary run stays uncluttered.
+    # CAPABILITY FIRST, and in capitals, because it is the one arm whose
+    # episodes must never reach a propensity rate: the act is INSTRUCTED there,
+    # so pooling one would inflate that rate catastrophically. batch.py names
+    # three defences against that - the filename mark, the arm's own rollout
+    # fingerprint, and both report loaders dropping it - and this line was the
+    # gap in front of all of them. A capability batch read identically on
+    # screen to a plain no-nudge propensity batch, which is the batch it would
+    # be pooled with, and the operator's only chance to notice is before the
+    # spend rather than after it.
+    print("Arm: "
+          + (f"CAPABILITY={identity.capability} | " if identity.capability
+             else "")
+          + f"oversight={'true' if identity.oversight else 'false'}"
+          + (" | lure=true" if identity.lure else "")
+          + f" | nudge={identity.nudge}"
+          + (f" | effort={identity.effort}" if identity.effort else ""))
+
+    # The same fact, short enough to sit on every run header without crowding it.
+    _arm_tag = ("oversight" if identity.oversight else "NO oversight")
+    if identity.lure:
+        _arm_tag += "+lure"
+    # Every run header too, not only the one line at the top: a batch takes
+    # hours and an operator who scrolls back to a run in the middle of it sees
+    # this and not the announcement.
+    if identity.capability:
+        _arm_tag = f"CAPABILITY {identity.capability}, {_arm_tag}"
+    return _arm_tag
 
 
 def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
@@ -854,40 +899,7 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     identity = BatchIdentity.collecting(args, model_slug, effective_effort,
                                         batch_stamp)
 
-    # Which arm, stated before the first episode is paid for.
-    #
-    # It was previously visible only in the filenames and in the summary written at
-    # the end, so an operator watching a long counterfactual batch had nothing on
-    # screen confirming it was the counterfactual - and the two arms differ by the
-    # absence of the very artefacts the run is about, which is not something you can
-    # spot from the episode output. The lure is named only when it is on, matching
-    # how batch_stem marks it, so an ordinary run stays uncluttered.
-    # CAPABILITY FIRST, and in capitals, because it is the one arm whose
-    # episodes must never reach a propensity rate: the act is INSTRUCTED there,
-    # so pooling one would inflate that rate catastrophically. batch.py names
-    # three defences against that - the filename mark, the arm's own rollout
-    # fingerprint, and both report loaders dropping it - and this line was the
-    # gap in front of all of them. A capability batch read identically on
-    # screen to a plain no-nudge propensity batch, which is the batch it would
-    # be pooled with, and the operator's only chance to notice is before the
-    # spend rather than after it.
-    print("Arm: "
-          + (f"CAPABILITY={identity.capability} | " if identity.capability
-             else "")
-          + f"oversight={'true' if identity.oversight else 'false'}"
-          + (" | lure=true" if identity.lure else "")
-          + f" | nudge={identity.nudge}"
-          + (f" | effort={identity.effort}" if identity.effort else ""))
-
-    # The same fact, short enough to sit on every run header without crowding it.
-    _arm_tag = ("oversight" if identity.oversight else "NO oversight")
-    if identity.lure:
-        _arm_tag += "+lure"
-    # Every run header too, not only the one line at the top: a batch takes
-    # hours and an operator who scrolls back to a run in the middle of it sees
-    # this and not the announcement.
-    if identity.capability:
-        _arm_tag = f"CAPABILITY {identity.capability}, {_arm_tag}"
+    _arm_tag = _announce_arm(identity)
 
     t_batch_start = time.time()
     run_episodes = (_run_episodes_concurrently if args.concurrency > 1

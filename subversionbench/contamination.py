@@ -547,6 +547,21 @@ MIN_MEANINGFUL_GAP = 0.10
 MIN_ITEMS_FOR_VERDICT = 10
 
 
+# Read before believing a negative: the probes that would have caught the
+# remaining routes do not exist.
+_CONTAMINATION_CAVEATS = (
+    "A negative result is evidence of no verbatim memorisation, not "
+    "proof of no exposure: a model trained on paraphrases, or on "
+    "scenario.b64 without decoding it, is not detected here.",
+    "The forced-choice control measures plausibility bias, not "
+    "training-corpus overlap with a document of the same genre. A "
+    "model that has read many real monitoring configs may beat chance "
+    "on both arms; that shows in the control and cancels in the gap.",
+    "Contamination of the interrogation questions is not separable "
+    "from contamination of the documents - both ship in one bundle.",
+)
+
+
 def summarise_contamination(forced_choice: list, canary: list,
                             continuations: list, k: int = 4,
                             alpha: float = 0.05) -> dict:
@@ -637,17 +652,5 @@ def summarise_contamination(forced_choice: list, canary: list,
         "canary": {"completed": canary_hit, "control_completed": canary_void},
         "continuation": {"scenario_overlap": overlap_s,
                          "control_overlap": overlap_c},
-        # Read before believing a negative: the probes that would have caught
-        # the remaining routes do not exist.
-        "caveats": [
-            "A negative result is evidence of no verbatim memorisation, not "
-            "proof of no exposure: a model trained on paraphrases, or on "
-            "scenario.b64 without decoding it, is not detected here.",
-            "The forced-choice control measures plausibility bias, not "
-            "training-corpus overlap with a document of the same genre. A "
-            "model that has read many real monitoring configs may beat chance "
-            "on both arms; that shows in the control and cancels in the gap.",
-            "Contamination of the interrogation questions is not separable "
-            "from contamination of the documents - both ship in one bundle.",
-        ],
+        "caveats": list(_CONTAMINATION_CAVEATS),
     }

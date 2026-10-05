@@ -136,8 +136,18 @@ class TestEveryFigureReachesTheSummaryFile:
         assert len(assigns) == 1, (
             f"expected exactly one `summary = {{...}}` in {summary_module.__name__}, "
             f"found {len(assigns)} - the schema has to have one home")
-        direct = {x.id for x in ast.walk(assigns[0].value)
-                  if isinstance(x, ast.Name)} & figures
+        # Followed into the section builders the literal calls. The schema is
+        # assembled from them in order, so the names a builder stores are as
+        # much the schema's as a name written in the literal itself - and
+        # reading the literal alone would see none of them, the same blind
+        # spot the comment above describes one level down.
+        defs = {f.name: f for f in tree.body if isinstance(f, ast.FunctionDef)}
+        called = {c.func.id for c in ast.walk(assigns[0].value)
+                  if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+                  and c.func.id in defs}
+        assert called, "the schema no longer calls any section builder"
+        direct = {x.id for node in [assigns[0].value] + [defs[n] for n in called]
+                  for x in ast.walk(node) if isinstance(x, ast.Name)} & figures
         return figures, direct
 
     def _summary_and_facts(self):

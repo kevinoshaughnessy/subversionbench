@@ -93,7 +93,7 @@ from .overall_charts import write_overall_charts
 from .report import build_report
 
 
-def main() -> int:
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         # Named, because argparse otherwise takes it from argv[0] - which under
         # `-m` is `__main__.py`, a name that appears nowhere a reader could act
@@ -144,6 +144,11 @@ def main() -> int:
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the charts. Every figure they plot is in the "
                              "table and the JSON either way")
+    return parser
+
+
+def main() -> int:
+    parser = _parser()
     args = parser.parse_args()
     if args.overall and args.metric:
         parser.error("--overall is its own rate; drop --metric")

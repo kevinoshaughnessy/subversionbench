@@ -432,8 +432,13 @@ class TestTheArgvALinuxHostWouldRun:
             try:
                 isolation._mechanism_works = lambda name: name in works
                 isolation.platform.system = lambda: "Linux"
+                # The host masks are stubbed out: with isdir patched True every
+                # one of them would be mounted too, and these tests are about the
+                # temp roots. test_host_index.py covers the masks.
                 with mock.patch.object(isolation, "_temp_roots",
                                        return_value=roots), \
+                        mock.patch.object(isolation, "linux_host_masks",
+                                          return_value=[]), \
                         mock.patch.object(isolation.os.path, "isdir",
                                           return_value=True):
                     yield isolation
@@ -645,6 +650,7 @@ class TestTheConfinementVerdictNamesWhatFailed:
         "absolute_scandir": "PermissionError",
         "write_escape": "Operation not permitted",
         "write_absolute": "PermissionError",
+        "host_index": "",
     }
 
     def _verdict(self, **broken):
@@ -659,6 +665,12 @@ class TestTheConfinementVerdictNamesWhatFailed:
         """The control. Without it every test below would pass against a
         function that always reported a failure."""
         assert self._verdict() is None
+
+    def test_a_host_that_answers_a_search_is_named(self):
+        """A count from Spotlight, or a listing of the per-user runtime
+        directory, is the host telling the model where things are."""
+        got = self._verdict(host_index="1234")
+        assert got and "answered a search" in got, got
 
     def test_an_interpreter_that_did_not_run_is_caught_first(self):
         """Checked before the escape probes because every one of them would

@@ -219,11 +219,29 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
             "reasoning_chars_total": d.get("reasoning_chars_total") or 0,
             # Whose verdicts the grader-dependent counts above are. See
             # summaries_describe.
-            "figures_grader": (d.get("figures_grader_model")
-                               or LEGACY_DEFAULT_GRADER_MODEL),
+            "figures_grader": _figures_grader(d),
             "file": base,
         })
     return rows
+
+
+def _figures_grader(d: dict):
+    """Whose verdicts a summary's grader-dependent counts are, or None.
+
+    A summary with no label predates v218 and is the legacy default's. One
+    labelled with a grader that read none of its episodes holds no grader's
+    counts: until v232 a batch collected with --no-grader was labelled with the
+    default anyway, and grading it later did not rebuild the summary - so the
+    label claimed counts the file never held.
+    """
+    if "figures_grader_model" not in d:
+        return LEGACY_DEFAULT_GRADER_MODEL
+    grader = d["figures_grader_model"]
+    # Only where the file says which graders it held: the two fields were
+    # written together, so a label without the list is taken at its word.
+    if grader is not None and grader not in d.get("grader_models", [grader]):
+        return None
+    return grader
 
 
 def summaries_describe(summaries: list, grader: str) -> bool:
@@ -354,7 +372,8 @@ def report_graders(output_dir: str) -> list:
     report such a directory always got.
     """
     return (graders_in(output_dir)
-            or sorted({s["figures_grader"] for s in load_summaries(output_dir)})
+            or sorted({s["figures_grader"] for s in load_summaries(output_dir)}
+                      - {None})
             or [DEFAULT_GRADER_MODEL])
 
 

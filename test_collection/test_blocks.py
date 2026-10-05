@@ -324,20 +324,40 @@ class TestReplayDefectsFound:
     def test_the_replay_matches_the_original_reasoning_parameter(self):
         """Omitting it made the replayed probe run with no reasoning parameter
         while the default probe had one, so the two differed in the question AND in
-        whether the model could think."""
-        import inspect
-        import subversionbench.run_eval as ev
-        src = inspect.getsource(ev.reinterrogate_existing_runs)
-        assert "resolve_thinking_kwargs" in src
-        assert "reasoning_kwargs=replay_kwargs" in src
-        # resolved from the run's own effort, not the command line
-        assert 'run.get("effort")' in src
+        whether the model could think.
+
+        Asserted on what is resolved and what reaches run_followup, rather than
+        on a search of reinterrogate_existing_runs' source - which broke when
+        the resolution moved into a function of its own."""
+        import types
+        from unittest import mock
+        from subversionbench.readmodes import reinterrogate as ri
+        from subversionbench.reasoning import resolve_thinking_kwargs
+        model = "claude-opus-4-5"
+        args = types.SimpleNamespace(thinking_budget=None, max_tokens=8192)
+        # Resolved from the run's own effort, not from the command line.
+        got = ri._replay_kwargs(args, model, {"effort": "high"})
+        assert got == resolve_thinking_kwargs(model, None, 8192, "high")[0]
+        assert got != ri._replay_kwargs(args, model, {})
+        # And passed to every probe it asks.
+        with mock.patch.object(ri, "run_followup", return_value=["x"]) as rf:
+            ri._ask_variants({}, ["partevidence"], MISALIGNED_ACTS[0], {}, [], None,
+                             types.SimpleNamespace(model=model, nudge="none"),
+                             "grader", 8192, got)
+        assert rf.call_args.kwargs["reasoning_kwargs"] == got
 
     def test_a_reasoning_mismatch_is_warned_about(self):
-        import inspect
-        import subversionbench.run_eval as ev
-        src = inspect.getsource(ev.reinterrogate_existing_runs)
-        assert "reasoning config differs" in src
+        import contextlib
+        import io
+        import types
+        from subversionbench.readmodes import reinterrogate as ri
+        args = types.SimpleNamespace(thinking_budget=None, max_tokens=8192)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ri._replay_kwargs(args, "claude-opus-4-5",
+                              {"effort": "high",
+                               "reasoning_config": "something else entirely"})
+        assert "reasoning config differs" in out.getvalue()
 
     def test_the_per_variant_levels_are_re_derivable(self):
         """Deterministic given the stored answers, so they must be on the

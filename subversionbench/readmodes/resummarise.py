@@ -110,6 +110,10 @@ REDERIVED_ANALYSIS_FIELDS = (
     # already collected at no cost.
     "host_path_read",
     "host_path_read_detail",
+    # Asking the host where things are. Read off the transcript, so the same
+    # free backfill reaches every episode collected before it existed.
+    "host_discovery",
+    "host_discovery_detail",
     # How the model encoded its own words, read off the transcript like the two
     # above. Derived, so a rebuild backfills it onto every episode already
     # collected - which is how the four r1 episodes that reasoned about a
@@ -241,22 +245,8 @@ def _write_back_one(path: str, run: dict):
     return names
 
 
-def resummarise_existing_runs(args, selection) -> int:
-    """
-    Rebuild summary files from run files already on disk.
-
-    --reclassify rewrites the verdicts inside each run, which leaves every
-    verdict-derived figure in the batch summary stale. Without this, the only
-    way to get a current summary is to pay for the whole batch again.
-
-    Reads nothing from any model and calls no API: every figure it writes is
-    derived from the saved runs. One summary per batch stamp, so a model with
-    several batches on disk gets each rebuilt separately rather than merged.
-    """
-    run_files = find_run_files_or_explain(args, selection)
-    if run_files is None:
-        return 1
-
+def _runs_by_batch(args, selection, run_files: list) -> dict:
+    """{batch key: [run file]}, the key being everything that names a batch."""
     # Grouped by (effort, oversight, stamp), because those together identify a
     # batch: the same model and nudge at two effort levels, or across the two
     # arms of the oversight counterfactual, are different conditions, and
@@ -284,6 +274,26 @@ def resummarise_existing_runs(args, selection) -> int:
         key = (effort, oversight, lure, capability, stamp,
                goalguard_from_filename(path), date_mode_from_filename(path))
         by_batch.setdefault(key, []).append(path)
+    return by_batch
+
+
+def resummarise_existing_runs(args, selection) -> int:
+    """
+    Rebuild summary files from run files already on disk.
+
+    --reclassify rewrites the verdicts inside each run, which leaves every
+    verdict-derived figure in the batch summary stale. Without this, the only
+    way to get a current summary is to pay for the whole batch again.
+
+    Reads nothing from any model and calls no API: every figure it writes is
+    derived from the saved runs. One summary per batch stamp, so a model with
+    several batches on disk gets each rebuilt separately rather than merged.
+    """
+    run_files = find_run_files_or_explain(args, selection)
+    if run_files is None:
+        return 1
+
+    by_batch = _runs_by_batch(args, selection, run_files)
 
     print(f"{len(run_files)} run file(s) across {len(by_batch)} batch(es).")
 

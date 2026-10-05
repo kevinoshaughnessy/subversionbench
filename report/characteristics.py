@@ -128,6 +128,57 @@ def persistence_after_refusal(episodes: list) -> dict:
     }
 
 
+def _switches_by_first_check(episodes: list) -> list:
+    """Switch rates grouped by what the episode's first quality check said."""
+    # The pressure, by what the FIRST check said. Episodes that never ran one are
+    # a separate row rather than a baseline folded into "not flagged": a model
+    # that never checked was never put under this pressure at all.
+    by_check = []
+    seen = {e["first_quality_check"] for e in episodes}
+    for outcome in sorted(seen, key=lambda v: (v is None, str(v))):
+        group = [e for e in episodes if e["first_quality_check"] == outcome]
+        could = [e for e in group if e["strategy_restated"]]
+        sw = [e for e in could if e["strategy_switched"]]
+        by_check.append({
+            "first_quality_check": outcome,
+            "n_episodes": len(group),
+            "n_could_switch": len(could),
+            "n_switched": len(sw),
+            "switch_rate": (round(len(sw) / len(could), 4) if could else None),
+        })
+    return by_check
+
+
+def _decisions_by_model(episodes: list) -> list:
+    """Each model's choice and switch counts, informative rows first."""
+    by_model = []
+    for model in _models(episodes):
+        mine = [e for e in episodes if e["model"] == model]
+        r = [e for e in mine if e["strategy_restated"]]
+        sw = [e for e in r if e["strategy_switched"]]
+        a = sum(1 for e in mine if e["strategy_final"] == "A")
+        b = sum(1 for e in mine if e["strategy_final"] == "B")
+        by_model.append({
+            "model": model, "n_episodes": len(mine),
+            "n_chose_a": a, "n_chose_b": b,
+            "n_none_stated": len(mine) - a - b,
+            "n_could_switch": len(r), "n_switched": len(sw),
+            "switch_rate": (round(len(sw) / len(r), 4) if r else None),
+            "n_switched_after_check": sum(
+                1 for e in sw if e["switched_after_quality_check"]),
+            # A rate over a handful of episodes sorts to the top of a
+            # rate-ordered table and reads as the strongest finding in it. The
+            # same threshold trends.metrics uses, so "underpowered" means one
+            # thing across the project.
+            "underpowered": len(r) < MIN_INFORMATIVE_DENOMINATOR,
+        })
+    # Informative rows first, so a 1-of-1 cannot head the table; underpowered
+    # ones keep their rate but sort below, and the console marks them.
+    by_model.sort(key=lambda r: (r["underpowered"],
+                                 -(r["switch_rate"] or 0), r["model"]))
+    return by_model
+
+
 def decision_profile(episodes: list) -> dict:
     """
     Which strategy the model recommended, and whether it stuck to it.
@@ -179,48 +230,8 @@ def decision_profile(episodes: list) -> dict:
         "share_of_all": (round((len(episodes) - len(stated)) / len(episodes), 4)
                          if episodes else None)}
 
-    # The pressure, by what the FIRST check said. Episodes that never ran one are
-    # a separate row rather than a baseline folded into "not flagged": a model
-    # that never checked was never put under this pressure at all.
-    by_check = []
-    seen = {e["first_quality_check"] for e in episodes}
-    for outcome in sorted(seen, key=lambda v: (v is None, str(v))):
-        group = [e for e in episodes if e["first_quality_check"] == outcome]
-        could = [e for e in group if e["strategy_restated"]]
-        sw = [e for e in could if e["strategy_switched"]]
-        by_check.append({
-            "first_quality_check": outcome,
-            "n_episodes": len(group),
-            "n_could_switch": len(could),
-            "n_switched": len(sw),
-            "switch_rate": (round(len(sw) / len(could), 4) if could else None),
-        })
-
-    by_model = []
-    for model in _models(episodes):
-        mine = [e for e in episodes if e["model"] == model]
-        r = [e for e in mine if e["strategy_restated"]]
-        sw = [e for e in r if e["strategy_switched"]]
-        a = sum(1 for e in mine if e["strategy_final"] == "A")
-        b = sum(1 for e in mine if e["strategy_final"] == "B")
-        by_model.append({
-            "model": model, "n_episodes": len(mine),
-            "n_chose_a": a, "n_chose_b": b,
-            "n_none_stated": len(mine) - a - b,
-            "n_could_switch": len(r), "n_switched": len(sw),
-            "switch_rate": (round(len(sw) / len(r), 4) if r else None),
-            "n_switched_after_check": sum(
-                1 for e in sw if e["switched_after_quality_check"]),
-            # A rate over a handful of episodes sorts to the top of a
-            # rate-ordered table and reads as the strongest finding in it. The
-            # same threshold trends.metrics uses, so "underpowered" means one
-            # thing across the project.
-            "underpowered": len(r) < MIN_INFORMATIVE_DENOMINATOR,
-        })
-    # Informative rows first, so a 1-of-1 cannot head the table; underpowered
-    # ones keep their rate but sort below, and the console marks them.
-    by_model.sort(key=lambda r: (r["underpowered"],
-                                 -(r["switch_rate"] or 0), r["model"]))
+    by_check = _switches_by_first_check(episodes)
+    by_model = _decisions_by_model(episodes)
     return {
         "measure": ("the strategy recommended, and whether it changed while the "
                     "episode ran"),

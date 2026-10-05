@@ -126,7 +126,12 @@ class TestWhoseCountsASummaryHolds:
         ident = ev_run.BatchIdentity.collecting(args, "m", None, stamp="probe")
         with contextlib.redirect_stdout(io.StringIO()):
             summary = ev_run.summarise_batch(args, [batch_episode()], ident, {})
-        assert summary["figures_grader_model"] == DEFAULT_GRADER_MODEL
+        # The fixture episode holds no grader's reading, so the counts are no
+        # grader's: labelling them DEFAULT_GRADER_MODEL's is the defect v232
+        # fixed. A graded batch keeps the default's name - see
+        # TestASummaryNamesOnlyAGraderThatReadIt in test_figures_grader.py.
+        assert summary["grader_models"] == []
+        assert summary["figures_grader_model"] is None
 
 
 class TestOneReportPerGrader:

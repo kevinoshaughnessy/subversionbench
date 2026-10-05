@@ -169,7 +169,8 @@ class TestTheHostSurfaceIsAggregated:
         from conftest import batch_episode
         host = self._facts([batch_episode(), batch_episode()])["host_reads"]
         assert host == {"episodes": 0, "commands": 0, "bytes_read": 0,
-                        "prefixes": [], "contents": 0}
+                        "prefixes": [], "contents": 0,
+                        "discovery": {"episodes": 0, "by_mechanism": {}}}
 
     def test_episodes_and_commands_are_counted_separately(self):
         """One episode can make several reads, and the two answer different

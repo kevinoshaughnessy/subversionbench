@@ -172,25 +172,7 @@ def _print_data_quality(dq: dict) -> None:
               f"sandbox_escape_attempts field at all; they count as no-attempt "
               f"in question 7.")
     _print_duplicate_arms(dq["duplicate_arms"])
-    mixed_routing = dq.get("mixed_routing_arms") or []
-    print(f"  arms whose episodes were not all routed the same way: "
-          f"{len(mixed_routing)}")
-    for m in mixed_routing:
-        split = ", ".join(
-            f"{r['sort'] or 'provider default'}"
-            + (f"/{r['provider']}" if r["provider"] else "")
-            + f" x{r['n_episodes']}"
-            for r in m["routings"])
-        print(f"    ! {m['model']} nudge={m['nudge']} "
-              f"oversight={m['oversight']} lure={m['lure']}: "
-              f"n={m['n_episodes']} split {split}")
-    if mixed_routing:
-        print("      One rate over episodes answered by different backends. "
-              "This is NOT what duplicate_arms above reports: a batch resumed "
-              "under different routing keeps its stamp and writes one summary, "
-              "so the arm looks like a single clean batch. Which routing was "
-              "wanted is not something this can know - re-collect the arm under "
-              "one, or quote it knowing what it pools.")
+    _print_mixed_routing(dq.get("mixed_routing_arms") or [])
     _print_served_providers(dq.get("mixed_served_provider_arms") or [])
     _print_provider_contradiction(
         dq.get("truncated_as_stopped_arms") or [],
@@ -212,19 +194,45 @@ def _print_data_quality(dq: dict) -> None:
         "while the provider reported an error mid-turn. A propensity rate "
         "counts them as a model that declined to act. The error is transient, "
         "so re-collecting those episodes the same way is the repair.")
-    across = dq.get("routing_differs_across_contrast") or {}
+    _print_routing_across_contrast(
+        dq.get("routing_differs_across_contrast") or {})
+
+
+def _routing_split(routings: list) -> str:
+    """`sort/provider xN, ...` for one set of routings."""
+    return ", ".join(
+        f"{r['sort'] or 'provider default'}"
+        + (f"/{r['provider']}" if r["provider"] else "")
+        + f" x{r['n_episodes']}"
+        for r in routings)
+
+
+def _print_mixed_routing(mixed_routing: list) -> None:
+    """Arms whose own episodes were answered by different routings."""
+    print(f"  arms whose episodes were not all routed the same way: "
+          f"{len(mixed_routing)}")
+    for m in mixed_routing:
+        print(f"    ! {m['model']} nudge={m['nudge']} "
+              f"oversight={m['oversight']} lure={m['lure']}: "
+              f"n={m['n_episodes']} split {_routing_split(m['routings'])}")
+    if mixed_routing:
+        print("      One rate over episodes answered by different backends. "
+              "This is NOT what duplicate_arms above reports: a batch resumed "
+              "under different routing keeps its stamp and writes one summary, "
+              "so the arm looks like a single clean batch. Which routing was "
+              "wanted is not something this can know - re-collect the arm under "
+              "one, or quote it knowing what it pools.")
+
+
+def _print_routing_across_contrast(across: dict) -> None:
+    """Models whose two sides of a contrast were routed differently."""
     n_across = sum(len(v) for v in across.values())
     print(f"  models whose two sides of a contrast were routed differently: "
           f"{n_across}")
     for axis, entries in sorted(across.items()):
         for entry in entries:
             sides = "  vs  ".join(
-                f"{level['level']}: "
-                + ", ".join(
-                    f"{r['sort'] or 'provider default'}"
-                    + (f"/{r['provider']}" if r["provider"] else "")
-                    + f" x{r['n_episodes']}"
-                    for r in level["routings"])
+                f"{level['level']}: {_routing_split(level['routings'])}"
                 for level in entry["levels"])
             mark = "!!" if entry["disjoint"] else "!"
             print(f"    {mark} {entry['model']} on {axis}: {sides}")

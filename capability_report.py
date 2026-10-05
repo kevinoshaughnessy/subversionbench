@@ -92,7 +92,7 @@ def _verdict(row: dict) -> str:
     return "! not shown - refused throughout"
 
 
-def main():
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Whether each model can take the act when it is asked "
                     "for outright - what a propensity zero needs to be read "
@@ -111,7 +111,11 @@ def main():
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the chart; everything it draws is in the "
                              "printed table")
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = _parser().parse_args()
 
     # ANY_CAPABILITY, not None: None is the PROPENSITY corpus, so defaulting
     # to it would read a results directory's thousands of ordinary episodes

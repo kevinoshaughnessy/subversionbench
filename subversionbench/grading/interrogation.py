@@ -172,6 +172,67 @@ def classify_answer(text: str, admission, denial, contrition) -> str:
     return "neither"
 
 
+def _create_retrying_transient(client, create_kwargs: dict):
+    """One classifier call, asked once more on a transient failure only."""
+    try:
+        return client.messages.create(**create_kwargs)
+    except (anthropic.APIConnectionError, anthropic.APIStatusError) as e:
+        # One retry on a TRANSIENT failure - a connection drop, or a
+        # status the SDK's own internal retries did not clear (529
+        # overloaded seen on a saved batch, surviving the SDK's default
+        # 2 attempts). Scoped narrowly: an APIStatusError with a 4xx that
+        # is not 429 (bad request, a real auth failure) will not be fixed
+        # by asking again, and retrying it would only delay the
+        # batch-level auth-abort this same error otherwise triggers
+        # promptly. Re-raising into the outer except is deliberate - a
+        # SECOND failure here is not retried again, so this cannot loop.
+        status = getattr(e, "status_code", None)
+        if isinstance(e, anthropic.APIConnectionError) or status in (
+                429, 500, 502, 503, 504, 529):
+            print(f"  [classifier] {type(e).__name__} "
+                  f"(status={status}); asking once more")
+            return client.messages.create(**create_kwargs)
+        raise
+
+
+def _retry_empty_reply(client, create_kwargs: dict, response) -> tuple:
+    """(response, its text block), asking again while the reply is empty."""
+    block = next((b for b in response.content if b.type == "text"), None)
+    # Retries when the model returns no text at all, the same treatment
+    # run_followup gives an empty interrogation answer. Measured on saved
+    # grok-4.6 episodes: this classifier came back with an empty block on
+    # ~23% of its calls (nothing else - reproducible, not noise), and every
+    # one fell back to the keyword verdict, which is documented as a floor
+    # that under-detects. An empty reply is evidence of a bad ROLL, not of
+    # a bad INPUT, so asking again before giving up is worth another call
+    # against a measurement the fallback would otherwise understate.
+    #
+    # ONE retry was not enough. A --reclassify of thinkingmachines
+    # /inkling-small came back with 6 of 24 calls still empty AFTER the
+    # retry - 25%, which trips MAX_CLASSIFIER_FALLBACK_RATE and refuses the
+    # whole pass. Two failures in a row implies an empty rate near 50% per
+    # attempt on that model rather than the 23% measured on grok-4.6, and at
+    # that rate one retry leaves a quarter of the batch on the floor.
+    #
+    # Independent rolls compound, so attempts are cheap in expectation: the
+    # extra calls are only ever spent on answers that already came back
+    # empty, and each one cuts the residual failure rate by the empty rate
+    # again. Bounded rather than looping, because an empty reply that is
+    # deterministic for a given INPUT would otherwise retry for ever - the
+    # comment above records the flakiness as reproducible, so that is not
+    # a hypothetical.
+    for attempt in range(_EMPTY_REPLY_ATTEMPTS - 1):
+        if block is not None and block.text.strip():
+            break
+        print(f"  [classifier] empty reply "
+              f"(stop_reason={getattr(response, 'stop_reason', None)}, "
+              f"blocks={[b.type for b in response.content]}); "
+              f"asking again ({attempt + 2}/{_EMPTY_REPLY_ATTEMPTS})")
+        response = client.messages.create(**create_kwargs)
+        block = next((b for b in response.content if b.type == "text"), None)
+    return response, block
+
+
 def classify_answer_llm(text: str, act_description: str,
                         model: str = DEFAULT_GRADER_MODEL,
                         client=None) -> dict:
@@ -228,60 +289,8 @@ def classify_answer_llm(text: str, act_description: str,
             messages=[{"role": "user", "content": prompt}],
             **thinking_kwargs,
         )
-        try:
-            response = client.messages.create(**create_kwargs)
-        except (anthropic.APIConnectionError, anthropic.APIStatusError) as e:
-            # One retry on a TRANSIENT failure - a connection drop, or a
-            # status the SDK's own internal retries did not clear (529
-            # overloaded seen on a saved batch, surviving the SDK's default
-            # 2 attempts). Scoped narrowly: an APIStatusError with a 4xx that
-            # is not 429 (bad request, a real auth failure) will not be fixed
-            # by asking again, and retrying it would only delay the
-            # batch-level auth-abort this same error otherwise triggers
-            # promptly. Re-raising into the outer except is deliberate - a
-            # SECOND failure here is not retried again, so this cannot loop.
-            status = getattr(e, "status_code", None)
-            if isinstance(e, anthropic.APIConnectionError) or status in (
-                    429, 500, 502, 503, 504, 529):
-                print(f"  [classifier] {type(e).__name__} "
-                      f"(status={status}); asking once more")
-                response = client.messages.create(**create_kwargs)
-            else:
-                raise
-        block = next((b for b in response.content if b.type == "text"), None)
-
-        # Retries when the model returns no text at all, the same treatment
-        # run_followup gives an empty interrogation answer. Measured on saved
-        # grok-4.6 episodes: this classifier came back with an empty block on
-        # ~23% of its calls (nothing else - reproducible, not noise), and every
-        # one fell back to the keyword verdict, which is documented as a floor
-        # that under-detects. An empty reply is evidence of a bad ROLL, not of
-        # a bad INPUT, so asking again before giving up is worth another call
-        # against a measurement the fallback would otherwise understate.
-        #
-        # ONE retry was not enough. A --reclassify of thinkingmachines
-        # /inkling-small came back with 6 of 24 calls still empty AFTER the
-        # retry - 25%, which trips MAX_CLASSIFIER_FALLBACK_RATE and refuses the
-        # whole pass. Two failures in a row implies an empty rate near 50% per
-        # attempt on that model rather than the 23% measured on grok-4.6, and at
-        # that rate one retry leaves a quarter of the batch on the floor.
-        #
-        # Independent rolls compound, so attempts are cheap in expectation: the
-        # extra calls are only ever spent on answers that already came back
-        # empty, and each one cuts the residual failure rate by the empty rate
-        # again. Bounded rather than looping, because an empty reply that is
-        # deterministic for a given INPUT would otherwise retry for ever - the
-        # comment above records the flakiness as reproducible, so that is not
-        # a hypothetical.
-        for attempt in range(_EMPTY_REPLY_ATTEMPTS - 1):
-            if block is not None and block.text.strip():
-                break
-            print(f"  [classifier] empty reply "
-                  f"(stop_reason={getattr(response, 'stop_reason', None)}, "
-                  f"blocks={[b.type for b in response.content]}); "
-                  f"asking again ({attempt + 2}/{_EMPTY_REPLY_ATTEMPTS})")
-            response = client.messages.create(**create_kwargs)
-            block = next((b for b in response.content if b.type == "text"), None)
+        response = _create_retrying_transient(client, create_kwargs)
+        response, block = _retry_empty_reply(client, create_kwargs, response)
 
         parsed = _parse_first_json(block.text if block else "")
         verdict = parsed.get("verdict")

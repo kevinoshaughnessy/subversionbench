@@ -289,6 +289,96 @@ def _empty(keys, primitive, error):
                 "error": error} for k in keys}
 
 
+def _jev_questions(keys, primitive: str, criteria, instructions) -> dict:
+    """jev's `questions` payload for `keys` on one primitive, refusing a key
+    that primitive has no criteria for."""
+    if primitive not in ("score", "noul"):
+        raise ValueError(f"unknown primitive {primitive!r}; "
+                         f"expected 'score' or 'noul'")
+    # Named separately per primitive rather than falling back, because a key
+    # with no score levels silently answered as a noul would put two
+    # incompatible scales in one column - a 0-1 probability beside a 0-4
+    # position - and nothing downstream could tell them apart. That is the
+    # defect the --wording label just cost a day to find, one field over.
+    table = JEV_SCORE_LEVELS if primitive == "score" else criteria
+    unknown = [k for k in keys if k not in table]
+    if unknown:
+        raise ValueError(
+            f"jev has no {primitive} criteria for: {unknown}"
+            + ("; score levels are written per question and only "
+               "mentioned_test has them" if primitive == "score" else ""))
+
+    asked = effective_instructions(keys, primitive, instructions)
+    if primitive == "score":
+        questions = {
+            key: {
+                "type": "score",
+                "instructions": asked[key],
+                "criteria": JEV_SCORE_LEVELS[key],
+            }
+            for key in keys
+        }
+    else:
+        questions = {
+            key: {
+                "type": "noul",
+                "instructions": asked[key],
+                "criteria": criteria[key],
+            }
+            for key in keys
+        }
+    return questions
+
+
+def _answer_cells(answers: dict, keys, primitive: str, threshold) -> dict:
+    """One verdict cell per key from jev's answers, thresholded, the raw
+    score kept beside it."""
+    field = "score" if primitive == "score" else "noul"
+    out = {}
+    for key in keys:
+        entry = answers.get(key)
+        raw = entry.get(field) if isinstance(entry, dict) else None
+        # bool is an int subclass - True/False would otherwise sail through
+        # this check and be compared against threshold as 1/0.
+        if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+            out[key] = _empty([key], primitive,
+                              f"no numeric {field!r} for {key!r}")[key]
+            continue
+        # The RAW score travels with the verdict. A threshold is a choice
+        # made after the fact, and keeping only the boolean threw away the
+        # one thing that could re-make it: the first full-corpus pass
+        # disagreed with the stored labels 9x and 31x the noise floor, with
+        # 99-100% of that being jev saying no where opus-5 said yes and a
+        # false-positive budget almost untouched - the signature of a
+        # threshold set too high, and unanswerable without re-running every
+        # call because this field was not saved.
+        cut = effective_threshold(key, primitive, threshold)
+
+        # `raw` is the number the cut was applied to, whichever scale that
+        # was, so one downstream column works for both. `noul` and `score`
+        # stay separate and only one is ever populated: a saved run must not
+        # be able to present a 0-4 position as though it were a probability.
+        out[key] = {
+            "answer": raw >= cut,
+            "primitive": primitive,
+            "raw": raw,
+            "noul": raw if primitive == "noul" else None,
+            "score": raw if primitive == "score" else None,
+            # The distribution, because the docs warn that different
+            # distributions give identical scores - 1.0 can be "certainly
+            # level 1" or "evenly split between 0 and 2", and those are not
+            # the same finding about an episode.
+            "probabilities": (entry.get("probabilities")
+                              if primitive == "score" else None),
+            "confidence": (entry.get("confidence")
+                           if primitive == "score" else None),
+            "threshold": cut,
+            "quote": "",
+            "error": None,
+        }
+    return out
+
+
 def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
                              threshold=None,
                              post=_post, criteria=None,
@@ -371,42 +461,8 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
                 instructions, batched=True, primitive=primitive))
         return answered
 
-    if primitive not in ("score", "noul"):
-        raise ValueError(f"unknown primitive {primitive!r}; "
-                         f"expected 'score' or 'noul'")
-    # Named separately per primitive rather than falling back, because a key
-    # with no score levels silently answered as a noul would put two
-    # incompatible scales in one column - a 0-1 probability beside a 0-4
-    # position - and nothing downstream could tell them apart. That is the
-    # defect the --wording label just cost a day to find, one field over.
-    table = JEV_SCORE_LEVELS if primitive == "score" else criteria
-    unknown = [k for k in keys if k not in table]
-    if unknown:
-        raise ValueError(
-            f"jev has no {primitive} criteria for: {unknown}"
-            + ("; score levels are written per question and only "
-               "mentioned_test has them" if primitive == "score" else ""))
-
+    questions = _jev_questions(keys, primitive, criteria, instructions)
     state = _truncate_for_grader(corpus)
-    asked = effective_instructions(keys, primitive, instructions)
-    if primitive == "score":
-        questions = {
-            key: {
-                "type": "score",
-                "instructions": asked[key],
-                "criteria": JEV_SCORE_LEVELS[key],
-            }
-            for key in keys
-        }
-    else:
-        questions = {
-            key: {
-                "type": "noul",
-                "instructions": asked[key],
-                "criteria": criteria[key],
-            }
-            for key in keys
-        }
     try:
         response = post({"model": model, "state": state, "questions": questions})
     except Exception as e:                          # noqa: BLE001 - reported, not raised
@@ -416,47 +472,4 @@ def ask_rubric_questions_jev(keys, corpus: str, model: str = DEFAULT_JEV_MODEL,
     if not isinstance(answers, dict):
         return _empty(keys, primitive, "reply carried no answers object")
 
-    field = "score" if primitive == "score" else "noul"
-    out = {}
-    for key in keys:
-        entry = answers.get(key)
-        raw = entry.get(field) if isinstance(entry, dict) else None
-        # bool is an int subclass - True/False would otherwise sail through
-        # this check and be compared against threshold as 1/0.
-        if not isinstance(raw, (int, float)) or isinstance(raw, bool):
-            out[key] = _empty([key], primitive,
-                              f"no numeric {field!r} for {key!r}")[key]
-            continue
-        # The RAW score travels with the verdict. A threshold is a choice
-        # made after the fact, and keeping only the boolean threw away the
-        # one thing that could re-make it: the first full-corpus pass
-        # disagreed with the stored labels 9x and 31x the noise floor, with
-        # 99-100% of that being jev saying no where opus-5 said yes and a
-        # false-positive budget almost untouched - the signature of a
-        # threshold set too high, and unanswerable without re-running every
-        # call because this field was not saved.
-        cut = effective_threshold(key, primitive, threshold)
-
-        # `raw` is the number the cut was applied to, whichever scale that
-        # was, so one downstream column works for both. `noul` and `score`
-        # stay separate and only one is ever populated: a saved run must not
-        # be able to present a 0-4 position as though it were a probability.
-        out[key] = {
-            "answer": raw >= cut,
-            "primitive": primitive,
-            "raw": raw,
-            "noul": raw if primitive == "noul" else None,
-            "score": raw if primitive == "score" else None,
-            # The distribution, because the docs warn that different
-            # distributions give identical scores - 1.0 can be "certainly
-            # level 1" or "evenly split between 0 and 2", and those are not
-            # the same finding about an episode.
-            "probabilities": (entry.get("probabilities")
-                              if primitive == "score" else None),
-            "confidence": (entry.get("confidence")
-                           if primitive == "score" else None),
-            "threshold": cut,
-            "quote": "",
-            "error": None,
-        }
-    return out
+    return _answer_cells(answers, keys, primitive, threshold)

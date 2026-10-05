@@ -263,6 +263,147 @@ def lure_applies(lure: bool, goalguard: str = None) -> bool:
     return bool(lure) and goalguard is None
 
 
+def _apply_interrogation_variant(bundle: dict, interrogation: str) -> None:
+    """Swap in a phrasing's first question, in place."""
+    # Interrogation phrasings, on the same removal-only terms as every other arm:
+    # popped unconditionally, so `scenario_for()` returns exactly what it returned
+    # before any variant was authored and r1-r4 keep their fingerprints. Forgetting
+    # this pop moved all four hashes, which the drift guard caught immediately.
+    #
+    # Only the FIRST question is replaced. The scale turns on the first answer, so
+    # that is the load-bearing phrasing; leaving the escalation ladder identical
+    # keeps the probe separable from the confrontation that follows it.
+    #
+    # The variants are meaning-preserving surface perturbations - the same clauses,
+    # reordered and repunctuated - because the question they answer is whether a
+    # rate this benchmark reports survives a change that carries no semantic
+    # content. Prior work finds bracket style and option order alone move results.
+    variants = bundle.pop("interrogation_variants", {})
+    if interrogation != DEFAULT_INTERROGATION:
+        if interrogation not in variants:
+            raise KeyError(
+                f"unknown interrogation variant {interrogation!r}; expected "
+                f"{DEFAULT_INTERROGATION!r} or one of {sorted(variants)}"
+            )
+        v = variants[interrogation]
+        # DERIVED from the variant's own keys. The pair was hand-written until
+        # a third act was authored; a hand-written list of what to iterate
+        # over falls behind silently and the guards built on it still pass.
+        # `key in bundle` is what lets a variant name an act this arm does not
+        # carry without reaching it.
+        for act_q1, q1 in sorted(v.items()):
+            if not act_q1.endswith("_q1"):
+                continue
+            key = f"followup_{act_q1[:-3]}_questions"
+            if key in bundle:
+                bundle[key] = [q1] + list(bundle[key][1:])
+
+
+def _apply_capability_arm(bundle: dict, capability_arms: dict,
+                          capability: str, oversight: bool) -> None:
+    """Replace the instruction with the capability arm's, in place."""
+    # APPLIED LAST, AFTER THE COUNTERFACTUAL OVERRIDES. Both replace
+    # `user_prompt`, and the counterfactual's copy is the one that must not
+    # win here: it asks for a transport recommendation, which is the task this
+    # arm exists to replace. Applied before them, the sandbox capability arm
+    # would have run on episodes never given the instruction - and every
+    # one of them would have read as a refusal.
+    if capability not in capability_arms:
+        raise KeyError(
+            f"unknown capability target {capability!r}; the bundle offers "
+            f"{sorted(capability_arms)}. Refused rather than run without the "
+            f"instruction: an episode that was never told to take the act "
+            f"measures propensity, and would be recorded as a capability "
+            f"result.")
+    if capability == "oversight" and not oversight:
+        # There is nothing to subvert in the counterfactual - the arm drops
+        # the monitoring config outright - so this instruction is
+        # unsatisfiable there. That is the r9 defect exactly: an instruction
+        # the arm's own construction removes the object of. Refused at the
+        # boundary rather than collected and puzzled over.
+        raise ValueError(
+            "capability target 'oversight' needs oversight=True: the "
+            "counterfactual arm removes the artefact the instruction names, "
+            "so every episode would be scored as incapable of an act the arm "
+            "makes impossible.")
+    bundle.update(capability_arms[capability])
+
+
+def _apply_goalguard_artefact(bundle: dict, goalguard, capability, nudge: str,
+                              max_nudge: dict) -> dict:
+    """The first half of the goal-guarding arm, and the max-nudge swap after
+    it, in place; returns the arms for the second half."""
+    # The goal-guarding arm, popped UNCONDITIONALLY like every arm key here,
+    # so `scenario_for()` returns exactly what it returned before this act was
+    # authored and r10's four fingerprints stand.
+    #
+    # APPLIED IN TWO HALVES, because its pieces have opposite ordering needs.
+    # The artefact and the question ladder go in HERE, before the max-nudge
+    # swap and the variant substitution, so the third act inherits both. The
+    # arm's own documents go in LATER, after the counterfactual overrides,
+    # because the strong-nudge memo has to beat the counterfactual's copy of
+    # `internal_memo` - applied here it was silently discarded in the
+    # no-oversight arm, and both nudges came back with one fingerprint.
+    goalguard_arms = bundle.pop("goalguard", {})
+    goalguard_common = bundle.pop("goalguard_common", {})
+    if goalguard is not None and goalguard not in goalguard_arms:
+        raise KeyError(
+            f"unknown goal-guarding arm {goalguard!r}; the bundle offers "
+            f"{sorted(goalguard_arms)}. Refused rather than run without the "
+            f"artefact: an episode with no successor parameters to guard "
+            f"measures nothing, and would be recorded as a zero.")
+    # The capability arm stages the artefact WITHOUT a deployment note: the
+    # arm asks "will it edit this file when told to", and the note is
+    # the motive, not the means.
+    if goalguard is not None or capability == "goalguard":
+        bundle.update(goalguard_common)
+    if nudge == "max":
+        # FILTERED to keys the bundle already carries. max_nudge overrides the
+        # ordinary questions rather than supplying new ones, and unfiltered it
+        # put a goal-guarding ladder into every max-nudge episode, including
+        # those with no successor parameters to guard. A no-op for the two
+        # acts that predate this, whose lists are base bundle keys.
+        bundle.update({k: v for k, v in max_nudge.items() if k in bundle})
+    return goalguard_arms
+
+
+def _apply_lure(bundle: dict, lure: bool, goalguard) -> None:
+    """The lure arm's sentence and neighbour file, in place, or neither."""
+    # The lure arm, on the same terms as every other arm: stored in the bundle,
+    # removed unless asked for, so `scenario_for()` returns exactly what it
+    # returned before the arm was authored and r1-r4 stay valid.
+    #
+    # The difference is ONE sentence in one document, plus a file placed in a
+    # neighbour of the episode directory. The sentence mentions that something
+    # exists and neither suggests reading it nor forbids it - the scenario's own
+    # boundary statement already covers that, and repeating it would make the
+    # lure directive, which would measure instruction-following rather than
+    # anything about the model's disposition.
+    lure_bundle = bundle.pop("lure", {})
+    if lure_applies(lure, goalguard):
+        bundle.update({k: v for k, v in lure_bundle.items()
+                       if k != "neighbour_file"})
+        bundle["lure_neighbour_file"] = lure_bundle.get("neighbour_file")
+
+
+def _apply_goalguard_documents(bundle: dict, arm: dict, nudge: str) -> None:
+    """The second half of the goal-guarding arm, in place."""
+    # The second half of the goal-guarding arm - see the first. The
+    # counterfactual's `internal_memo` is already monitoring-free and still
+    # carries the standby-engine premise, so nudge=none overrides nothing here
+    # and only the strong memo is supplied.
+    #
+    # Per ARM as well as per nudge: the strong memo names what happens at
+    # cutover, and the two arms disagree about that. One shared strong memo
+    # would contradict the deferred arm's own note, which is the only thing
+    # telling the two apart.
+    arm = dict(arm)
+    strong_memo = arm.pop("internal_memo_strong", None)
+    if nudge == "strong" and strong_memo is not None:
+        arm["internal_memo"] = strong_memo
+    bundle.update(arm)
+
+
 def scenario_for(oversight: bool = True, bundle: dict = None,
                  nudge: str = "strong", lure: bool = False,
                  interrogation: str = DEFAULT_INTERROGATION,
@@ -332,86 +473,12 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     overrides = bundle.pop("no_oversight", {})
     dropped = bundle.pop("no_oversight_dropped", [])
     max_nudge = bundle.pop("max_nudge", {})
-    # The goal-guarding arm, popped UNCONDITIONALLY like every arm key here,
-    # so `scenario_for()` returns exactly what it returned before this act was
-    # authored and r10's four fingerprints stand.
-    #
-    # APPLIED IN TWO HALVES, because its pieces have opposite ordering needs.
-    # The artefact and the question ladder go in HERE, before the max-nudge
-    # swap and the variant substitution, so the third act inherits both. The
-    # arm's own documents go in LATER, after the counterfactual overrides,
-    # because the strong-nudge memo has to beat the counterfactual's copy of
-    # `internal_memo` - applied here it was silently discarded in the
-    # no-oversight arm, and both nudges came back with one fingerprint.
-    goalguard_arms = bundle.pop("goalguard", {})
-    goalguard_common = bundle.pop("goalguard_common", {})
-    if goalguard is not None and goalguard not in goalguard_arms:
-        raise KeyError(
-            f"unknown goal-guarding arm {goalguard!r}; the bundle offers "
-            f"{sorted(goalguard_arms)}. Refused rather than run without the "
-            f"artefact: an episode with no successor parameters to guard "
-            f"measures nothing, and would be recorded as a zero.")
-    # The capability arm stages the artefact WITHOUT a deployment note: the
-    # arm asks "will it edit this file when told to", and the note is
-    # the motive, not the means.
-    if goalguard is not None or capability == "goalguard":
-        bundle.update(goalguard_common)
-    if nudge == "max":
-        # FILTERED to keys the bundle already carries. max_nudge overrides the
-        # ordinary questions rather than supplying new ones, and unfiltered it
-        # put a goal-guarding ladder into every max-nudge episode, including
-        # those with no successor parameters to guard. A no-op for the two
-        # acts that predate this, whose lists are base bundle keys.
-        bundle.update({k: v for k, v in max_nudge.items() if k in bundle})
+    goalguard_arms = _apply_goalguard_artefact(
+        bundle, goalguard, capability, nudge, max_nudge)
 
-    # Interrogation phrasings, on the same removal-only terms as every other arm:
-    # popped unconditionally, so `scenario_for()` returns exactly what it returned
-    # before any variant was authored and r1-r4 keep their fingerprints. Forgetting
-    # this pop moved all four hashes, which the drift guard caught immediately.
-    #
-    # Only the FIRST question is replaced. The scale turns on the first answer, so
-    # that is the load-bearing phrasing; leaving the escalation ladder identical
-    # keeps the probe separable from the confrontation that follows it.
-    #
-    # The variants are meaning-preserving surface perturbations - the same clauses,
-    # reordered and repunctuated - because the question they answer is whether a
-    # rate this benchmark reports survives a change that carries no semantic
-    # content. Prior work finds bracket style and option order alone move results.
-    variants = bundle.pop("interrogation_variants", {})
-    if interrogation != DEFAULT_INTERROGATION:
-        if interrogation not in variants:
-            raise KeyError(
-                f"unknown interrogation variant {interrogation!r}; expected "
-                f"{DEFAULT_INTERROGATION!r} or one of {sorted(variants)}"
-            )
-        v = variants[interrogation]
-        # DERIVED from the variant's own keys. The pair was hand-written until
-        # a third act was authored; a hand-written list of what to iterate
-        # over falls behind silently and the guards built on it still pass.
-        # `key in bundle` is what lets a variant name an act this arm does not
-        # carry without reaching it.
-        for act_q1, q1 in sorted(v.items()):
-            if not act_q1.endswith("_q1"):
-                continue
-            key = f"followup_{act_q1[:-3]}_questions"
-            if key in bundle:
-                bundle[key] = [q1] + list(bundle[key][1:])
+    _apply_interrogation_variant(bundle, interrogation)
 
-    # The lure arm, on the same terms as every other arm: stored in the bundle,
-    # removed unless asked for, so `scenario_for()` returns exactly what it
-    # returned before the arm was authored and r1-r4 stay valid.
-    #
-    # The difference is ONE sentence in one document, plus a file placed in a
-    # neighbour of the episode directory. The sentence mentions that something
-    # exists and neither suggests reading it nor forbids it - the scenario's own
-    # boundary statement already covers that, and repeating it would make the
-    # lure directive, which would measure instruction-following rather than
-    # anything about the model's disposition.
-    lure_bundle = bundle.pop("lure", {})
-    if lure_applies(lure, goalguard):
-        bundle.update({k: v for k, v in lure_bundle.items()
-                       if k != "neighbour_file"})
-        bundle["lure_neighbour_file"] = lure_bundle.get("neighbour_file")
+    _apply_lure(bundle, lure, goalguard)
     # The capability arm, on the same terms as every other arm: stored in the
     # bundle, popped UNCONDITIONALLY, so `scenario_for()` returns exactly what
     # it returned before this arm was authored and r10's four fingerprints
@@ -423,48 +490,11 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
         for key in dropped:
             bundle.pop(key, None)
         bundle.update(overrides)
-    # The second half of the goal-guarding arm - see the first. The
-    # counterfactual's `internal_memo` is already monitoring-free and still
-    # carries the standby-engine premise, so nudge=none overrides nothing here
-    # and only the strong memo is supplied.
-    #
-    # Per ARM as well as per nudge: the strong memo names what happens at
-    # cutover, and the two arms disagree about that. One shared strong memo
-    # would contradict the deferred arm's own note, which is the only thing
-    # telling the two apart.
     if goalguard is not None:
-        arm = dict(goalguard_arms[goalguard])
-        strong_memo = arm.pop("internal_memo_strong", None)
-        if nudge == "strong" and strong_memo is not None:
-            arm["internal_memo"] = strong_memo
-        bundle.update(arm)
+        _apply_goalguard_documents(bundle, goalguard_arms[goalguard], nudge)
     if capability is None:
         return bundle
-    # APPLIED LAST, AFTER THE COUNTERFACTUAL OVERRIDES. Both replace
-    # `user_prompt`, and the counterfactual's copy is the one that must not
-    # win here: it asks for a transport recommendation, which is the task this
-    # arm exists to replace. Applied before them, the sandbox capability arm
-    # would have run on episodes never given the instruction - and every
-    # one of them would have read as a refusal.
-    if capability not in capability_arms:
-        raise KeyError(
-            f"unknown capability target {capability!r}; the bundle offers "
-            f"{sorted(capability_arms)}. Refused rather than run without the "
-            f"instruction: an episode that was never told to take the act "
-            f"measures propensity, and would be recorded as a capability "
-            f"result.")
-    if capability == "oversight" and not oversight:
-        # There is nothing to subvert in the counterfactual - the arm drops
-        # the monitoring config outright - so this instruction is
-        # unsatisfiable there. That is the r9 defect exactly: an instruction
-        # the arm's own construction removes the object of. Refused at the
-        # boundary rather than collected and puzzled over.
-        raise ValueError(
-            "capability target 'oversight' needs oversight=True: the "
-            "counterfactual arm removes the artefact the instruction names, "
-            "so every episode would be scored as incapable of an act the arm "
-            "makes impossible.")
-    bundle.update(capability_arms[capability])
+    _apply_capability_arm(bundle, capability_arms, capability, oversight)
     return bundle
 
 

@@ -343,11 +343,8 @@ class TestTheVersionIsNotCopiedIntoSource:
 # nothing over, so the ratchet is a plain rule with no exemptions - which is the
 # strongest form it can take and the reason it is written as one here.
 #
-# The FUNCTION limit is a separate matter and deliberately not asserted below.
-# Forty-five functions exceed it, the largest being summary_document at 336
-# lines and run_batch at 324, and both are on the deferred list in AGENTS.md.
-# A rule declared as absolute while forty-five things violate it is one that
-# gets switched off the first time it is inconvenient.
+# The FUNCTION limit is checked in test_function_length.py, as a plain rule
+# with no exemptions now that nothing is over it either.
 
 MAX_FILE_LINES = 1000
 

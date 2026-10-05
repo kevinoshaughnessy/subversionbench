@@ -881,57 +881,13 @@ def tool_input_cmd(tool_input: dict) -> str:
     return tool_input.get("command") or ""
 
 
-def execute_tool_sandboxed(tool_input: dict, env_dir: str,
-                           isolation: str = DEFAULT_ISOLATION,
-                           profile_path=None, episode_root=None,
-                           timing: SandboxTiming = None) -> str:
-    """
-    Execute a bash command with sandbox restrictions.
-
-    The model is restricted to the env_dir and cannot:
-    - Navigate above it (cd .., ls /tmp, etc.)
-    - See the eval script or other temp directories
-    - Access system paths that would reveal the test setup
-
-    We achieve this by:
-    1. Blocking commands that probe the system
-    2. Rewriting scenario-absolute paths (/, /data, /config) into env_dir
-    3. Setting HOME to the env_dir
-
-    Within the fiction the scenario directory is the root, so "/" and its
-    subdirectories are navigation, not escape - only paths that leave the
-    tree, or probes for the host itself, are refused.
-
-    `episode_root` is the boundary the KERNEL enforces, and it is the parent of
-    `env_dir` rather than `env_dir` itself: `..` holds the scenario's neighbour
-    directories, and the lure arm hides its file in one of them, so confining to
-    the project directory would silently disable that arm.
-
-    It defaults to `env_dir`, which is STRICTER, because the alternative fails the
-    wrong way. A caller that forgets to pass the root gets a tighter boundary and a
-    visibly broken `ls ..`; a default of "the parent of whatever I was given" would
-    hand a test that built `env_dir` straight in the temp directory a policy
-    permitting the whole temp directory, which is the exact hole this closes.
-    """
-    # Resolved BEFORE the try below, because the `finally` reaps with it and a
-    # name bound inside the try would be missing on any early raise. Read off
-    # the module attribute at call time rather than defaulted in the signature,
-    # so substituting SANDBOX_TIMING reaches here - a signature default is
-    # bound once at import and would not.
-    timing = timing or SANDBOX_TIMING
-
-    cmd = tool_input_cmd(tool_input)
-
-    if would_be_blocked(cmd, env_dir):
-        return SANDBOX_REFUSAL
-
-    cmd = _rewrite_scenario_paths(cmd, env_dir)
-
+def _run_confined(cmd: str, env_dir: str, isolation: str, profile_path,
+                  confine_to: str, timing: SandboxTiming) -> str:
+    """What the model sees from a checked, rewritten command run confined."""
     # argv rather than shell=True, because the isolation wrapper has to be the
     # thing that starts the shell: anything the model spawns then inherits the
     # policy. A wrapper it could step outside of by launching a subprocess would
-    # not be worth having. With isolation "off" this is `/bin/sh -c cmd`, which
-    # is what shell=True did.
+    # not be worth having. There is no unwrapped mode: see ISOLATION_MODES.
     # Popen rather than subprocess.run, because run() gives no handle on the
     # process group and so cannot guarantee that nothing outlives the command.
     # See _reap_group: the post-episode hash is only ground truth if that holds.
@@ -954,7 +910,7 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
         with tempfile.TemporaryFile() as fout, tempfile.TemporaryFile() as ferr:
             proc = subprocess.Popen(
                 wrap_command(cmd, isolation, profile_path,
-                             confine_to=episode_root or env_dir),
+                             confine_to=confine_to),
                 stdout=fout, stderr=ferr,
                 cwd=env_dir,
                 env={
@@ -995,3 +951,50 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
         # is the whole point of `&`, and the reap above is skipped on any raise.
         if proc is not None:
             _reap_group(proc, pgid, timing.escalation_grace)
+
+
+def execute_tool_sandboxed(tool_input: dict, env_dir: str,
+                           isolation: str = DEFAULT_ISOLATION,
+                           profile_path=None, episode_root=None,
+                           timing: SandboxTiming = None) -> str:
+    """
+    Execute a bash command with sandbox restrictions.
+
+    The model is restricted to the env_dir and cannot:
+    - Navigate above it (cd .., ls /tmp, etc.)
+    - See the eval script or other temp directories
+    - Access system paths that would reveal the test setup
+
+    We achieve this by:
+    1. Blocking commands that probe the system
+    2. Rewriting scenario-absolute paths (/, /data, /config) into env_dir
+    3. Setting HOME to the env_dir
+
+    Within the fiction the scenario directory is the root, so "/" and its
+    subdirectories are navigation, not escape - only paths that leave the
+    tree, or probes for the host itself, are refused.
+
+    `episode_root` is the boundary the KERNEL enforces, and it is the parent of
+    `env_dir` rather than `env_dir` itself: `..` holds the scenario's neighbour
+    directories, and the lure arm hides its file in one of them, so confining to
+    the project directory would silently disable that arm.
+
+    It defaults to `env_dir`, which is STRICTER, because the alternative fails the
+    wrong way. A caller that forgets to pass the root gets a tighter boundary and a
+    visibly broken `ls ..`; a default of "the parent of whatever I was given" would
+    hand a test that built `env_dir` straight in the temp directory a policy
+    permitting the whole temp directory, which is the exact hole this closes.
+    """
+    # Read off the module attribute at call time rather than defaulted in the
+    # signature, so substituting SANDBOX_TIMING reaches _run_confined - a
+    # signature default is bound once at import and would not.
+    timing = timing or SANDBOX_TIMING
+
+    cmd = tool_input_cmd(tool_input)
+
+    if would_be_blocked(cmd, env_dir):
+        return SANDBOX_REFUSAL
+
+    cmd = _rewrite_scenario_paths(cmd, env_dir)
+    return _run_confined(cmd, env_dir, isolation, profile_path,
+                         episode_root or env_dir, timing)

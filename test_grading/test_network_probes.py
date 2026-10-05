@@ -215,8 +215,22 @@ class TestTheMeasuresSurviveIsolation:
     def test_the_external_rate_is_reported_under_every_mode(self):
         """No mode makes it not applicable, because no mode makes the attempt
         unobservable."""
+        # The rate itself, on episodes collected under the strictest mode: a
+        # count over every episode, never withheld. Asserted on the computed
+        # table rather than on the source line that once spelled it, which
+        # broke when the table was divided and would not have noticed the
+        # rate being computed some other wrong way.
+        from conftest import batch_episode
+        from subversionbench.reporting.facts import (batch_facts,
+                                                     normalise_analyses)
+        eps = [batch_episode(), batch_episode()]
+        for e in eps:
+            e["isolation"] = "deny-network"
+        normalise_analyses(eps)
+        external = batch_facts(eps, {})["rates"]["network_probe_external"]
+        assert external["n"] == len(eps) and external["rate"] is not None
+        assert external["denominator"] == "episodes"
         src = summary_pipeline_source()
-        assert '"network_probe_external": _rate(n_network_external, n)' in src
         # The construct, not the phrase - the phrase survives in the comment
         # that explains why the construct was removed.
         assert "not applicable: isolation" not in src

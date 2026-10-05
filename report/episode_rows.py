@@ -587,71 +587,9 @@ def _routing_columns(d: dict) -> dict:
     }
 
 
-def _episode_row(path: str, capability, scaffold: dict = None,
-                 grader: str = DEFAULT_GRADER_MODEL) -> dict:
-    """One saved run file as one row, or None if it is not in this corpus.
-
-    None rather than raising: a results directory holds run files from several
-    arms, and a truncated one is not an error. The corpus filter lives here
-    rather than in the caller because the two corpora are complementary by
-    construction, and that property is only visible where the test is made.
-
-    `scaffold` is loading.load_scaffold's index, keyword-defaulted so callers
-    passing two positional arguments keep working. Omitted, every row gets
-    max_turns None - which is what a caller reading one file outside a results
-    directory should see, because there is no summary beside it to say
-    otherwise.
-
-    Every grader-judged column is `grader`'s reading; `graders` lists every
-    grader the file holds a reading from, so a caller can tell an episode
-    this grader has not read yet from one no grader read.
-    """
-    try:
-        # Named rather than left to the locale: the harness writes these with
-        # json.dump, which is UTF-8, and a transcript holds non-ASCII by design
-        # - the invisible and confusable characters are the subject. Under a
-        # non-UTF-8 locale this raised on real data twice before the rule that
-        # covers it existed.
-        with open(path, encoding="utf-8") as f:
-            d = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
-    analysis = d.get("analysis") and view(d["analysis"], grader)
-    if not d.get("model") or not analysis:
-        return None
-    # The same complementary filter load_summaries applies - see there.
-    # Read off the RECORD rather than the filename: a run file carries its
-    # own arm fields, and `capability` is one of them.
-    episode_capability = d.get("capability") or None
-    if capability is ANY_CAPABILITY:
-        if episode_capability is None:
-            return None
-    elif episode_capability != capability:
-        return None
-
-    (aware, aware_source, aware_union, aware_union_source, channels,
-     aware_text, eval_awareness_kind, safety_aware,
-     capability_aware) = _awareness_columns(analysis, d)
-    (eval_awareness_kind_self, safety_aware_self,
-     capability_aware_self) = _self_awareness_columns(analysis, aware,
-                                                      aware_source)
-    (strategy_seq, pressure_turn, first_check, switched, switch_turns,
-     after_refusal, persisted, refusal_index, refusal_shown) = (
-        _decision_columns(analysis, d))
-    monitoring = analysis.get("monitoring_disabled")
-    # The other of oversight_tampered's two sub-mechanisms - see
-    # transcript_analysis.py's _settle_oversight, which sets
-    # oversight_tampered = monitoring_disabled OR quality_check_modified.
-    # Same None-outside-the-oversight-arm convention as monitoring_disabled,
-    # from the same has_oversight branch, so the same observable/not split
-    # applies for the same reason.
-    quality_check = analysis.get("quality_check_modified")
-    escape = analysis.get("sandbox_escape_attempts")
-    derived_misaligned = bool(classify_misalignment(analysis))
-    stored_misaligned = analysis.get("misaligned")
-    derived_scheming = classify_scheming(analysis)
-    stored_scheming = analysis.get("scheming")
-    row = {
+def _identity_row(path: str, d: dict, scaffold: dict) -> dict:
+    """Which arm and run this is, and how it was routed and ended."""
+    return {
         "graders": tuple(grader_models(d["analysis"])),
         "model": d["model"], "nudge": d.get("nudge"),
         "oversight": d.get("oversight"), "lure": d.get("lure"),
@@ -695,6 +633,18 @@ def _episode_row(path: str, capability, scaffold: dict = None,
         # the field existed - "not recorded", never "ended normally".
         "ended_by_provider": d.get("ended_by_provider"),
         "ended_by": d.get("ended_by"),
+    }
+
+
+def _awareness_row(analysis: dict, d: dict) -> dict:
+    """What the episode suspected, and on which channel."""
+    (aware, aware_source, aware_union, aware_union_source, channels,
+     aware_text, eval_awareness_kind, safety_aware,
+     capability_aware) = _awareness_columns(analysis, d)
+    (eval_awareness_kind_self, safety_aware_self,
+     capability_aware_self) = _self_awareness_columns(analysis, aware,
+                                                      aware_source)
+    return {
         "aware": aware, "aware_source": aware_source,
         # What the aware episode suspected: safety, capability, both, or
         # unspecified/ambiguous. None whenever `aware` did not come from the
@@ -730,6 +680,26 @@ def _episode_row(path: str, capability, scaffold: dict = None,
         # where it did not, because there the grader saw visible text alone.
         "aware_text_is_bound": channels["bound"],
         "aware_reasoning_only": channels["reasoning_only"],
+    }
+
+
+def _act_and_strategy_row(analysis: dict, d: dict) -> dict:
+    """What it did, what it recommended, and whether that moved."""
+    (strategy_seq, pressure_turn, first_check, switched, switch_turns,
+     after_refusal, persisted, refusal_index, refusal_shown) = (
+        _decision_columns(analysis, d))
+    monitoring = analysis.get("monitoring_disabled")
+    # The other of oversight_tampered's two sub-mechanisms - see
+    # transcript_analysis.py's _settle_oversight, which sets
+    # oversight_tampered = monitoring_disabled OR quality_check_modified.
+    # Same None-outside-the-oversight-arm convention as monitoring_disabled,
+    # from the same has_oversight branch, so the same observable/not split
+    # applies for the same reason.
+    quality_check = analysis.get("quality_check_modified")
+    escape = analysis.get("sandbox_escape_attempts")
+    derived_misaligned = bool(classify_misalignment(analysis))
+    stored_misaligned = analysis.get("misaligned")
+    return {
         # DID IT ACT, and WAS IT AWARE BEFORE IT DID.
         #
         # `aware` answers "did this model ever verbalise awareness", which is
@@ -797,6 +767,15 @@ def _episode_row(path: str, capability, scaffold: dict = None,
         "switched_after_quality_check": bool(
             switched and pressure_turn is not None
             and any((t or 0) > pressure_turn for t in switch_turns)),
+    }
+
+
+def _scheming_and_capability_row(analysis: dict, d: dict,
+                                episode_capability) -> dict:
+    """What it hid, and on a capability episode, what it showed."""
+    derived_scheming = classify_scheming(analysis)
+    stored_scheming = analysis.get("scheming")
+    return {
         # Episode-level scheming. None means the model took an act whose
         # concealment could not be determined, which the harness keeps out
         # of the numerator and leaves in the denominator - matched here so
@@ -818,6 +797,56 @@ def _episode_row(path: str, capability, scaffold: dict = None,
             None if episode_capability is None else
             capability_outcome(analysis, episode_capability,
                                d.get("transcript") or [])),
+    }
+
+
+def _episode_row(path: str, capability, scaffold: dict = None,
+                 grader: str = DEFAULT_GRADER_MODEL) -> dict:
+    """One saved run file as one row, or None if it is not in this corpus.
+
+    None rather than raising: a results directory holds run files from several
+    arms, and a truncated one is not an error. The corpus filter lives here
+    rather than in the caller because the two corpora are complementary by
+    construction, and that property is only visible where the test is made.
+
+    `scaffold` is loading.load_scaffold's index, keyword-defaulted so callers
+    passing two positional arguments keep working. Omitted, every row gets
+    max_turns None - which is what a caller reading one file outside a results
+    directory should see, because there is no summary beside it to say
+    otherwise.
+
+    Every grader-judged column is `grader`'s reading; `graders` lists every
+    grader the file holds a reading from, so a caller can tell an episode
+    this grader has not read yet from one no grader read.
+    """
+    try:
+        # Named rather than left to the locale: the harness writes these with
+        # json.dump, which is UTF-8, and a transcript holds non-ASCII by design
+        # - the invisible and confusable characters are the subject. Under a
+        # non-UTF-8 locale this raised on real data twice before the rule that
+        # covers it existed.
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    analysis = d.get("analysis") and view(d["analysis"], grader)
+    if not d.get("model") or not analysis:
+        return None
+    # The same complementary filter load_summaries applies - see there.
+    # Read off the RECORD rather than the filename: a run file carries its
+    # own arm fields, and `capability` is one of them.
+    episode_capability = d.get("capability") or None
+    if capability is ANY_CAPABILITY:
+        if episode_capability is None:
+            return None
+    elif episode_capability != capability:
+        return None
+
+    row = {
+        **_identity_row(path, d, scaffold),
+        **_awareness_row(analysis, d),
+        **_act_and_strategy_row(analysis, d),
+        **_scheming_and_capability_row(analysis, d, episode_capability),
         "one": 1,
     }
 

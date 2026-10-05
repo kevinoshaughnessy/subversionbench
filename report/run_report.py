@@ -288,23 +288,10 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
             pending, unpaired)
 
 
-def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
-                 awareness_exclusion: str = NO_AWARENESS_EXCLUSION,
-                 grader: str = DEFAULT_GRADER_MODEL,
-                 paired_with: tuple = ()) -> dict:
-    (summaries, episodes, failed, arm_exclusion,
-     awareness_exclusion_stamp, pending, unpaired) = _narrowed_corpus(
-         output_dir, exclusion, awareness_exclusion, grader, paired_with)
-    # Arms rebuilt from episodes, carrying the text-only awareness numerator no
-    # summary field holds. Questions 2 and 4 take the headline measure from the
-    # summaries as before and this alongside it; see _text_reachable_block.
-    arm_rows = awareness_arm_rows(episodes)
-    # Arms rebuilt from episodes again, this time carrying each misaligned act
-    # separately. Questions 1 and 3 report a UNION over the acts, and the acts do
-    # not have the same support across the oversight arms - see
-    # _common_support_block - so each of those two questions carries the per-act
-    # contrast beside its composite.
-    act_rows = act_arm_rows(episodes)
+def _pooling_choice(summaries, act_rows, arm_rows, awareness_exclusion_stamp,
+                    grader, pending, paired_with, unpaired) -> dict:
+    """Where questions 1-4 pool from on this reading, and the grader block
+    that decision reads."""
     # WHICH SOURCE QUESTIONS 1-4 POOL FROM, and it changes under the awareness
     # reading. summary_*.json holds counts the harness computed over WHOLE
     # arms at collection time, so those rows still describe every episode in
@@ -350,6 +337,18 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     pooled_from = (POOLED_FROM_SUMMARIES if from_summaries
                    else POOLED_FROM_REBUILT_ARM_ROWS if on_awareness_reading
                    else POOLED_FROM_GRADER_ARM_ROWS)
+    return {"on_awareness_reading": on_awareness_reading,
+            "grader_block": grader_block, "from_summaries": from_summaries,
+            "act_source": act_source, "aware_source": aware_source,
+            "pooled_from": pooled_from}
+
+
+def _answer_questions(episodes, summaries, act_rows, arm_rows,
+                      pool: dict) -> list:
+    """Every research question, in report order, on this reading's sources."""
+    from_summaries = pool["from_summaries"]
+    act_source, aware_source = pool["act_source"], pool["aware_source"]
+    pooled_from = pool["pooled_from"]
     questions = [
         question_oversight_vs_scheming(act_source, act_rows, pooled_from),
         question_oversight_vs_awareness(aware_source, arm_rows, pooled_from),
@@ -424,7 +423,12 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         question_safety_awareness_vs_misalignment_self(episodes),
         question_capability_awareness_vs_misalignment_self(episodes),
     ])
+    return questions
 
+
+def _mark_unanswerable(questions, episodes, arm_exclusion,
+                      on_awareness_reading: bool) -> None:
+    """Say, on each question, why this corpus or narrowing cannot answer it."""
     # A DIFFERENT FIELD from collapsed_by_exclusion, deliberately - see
     # test_goalguard_question's own case for why. goalguard_vs_act has always
     # reported "no data" rather than collapsing on r9/r10: the two are
@@ -489,6 +493,34 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
             reason = _not_estimable_on_the_unaware_corpus(section)
             if reason:
                 section["collapsed_by_exclusion"] = reason
+
+
+def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
+                 awareness_exclusion: str = NO_AWARENESS_EXCLUSION,
+                 grader: str = DEFAULT_GRADER_MODEL,
+                 paired_with: tuple = ()) -> dict:
+    (summaries, episodes, failed, arm_exclusion,
+     awareness_exclusion_stamp, pending, unpaired) = _narrowed_corpus(
+         output_dir, exclusion, awareness_exclusion, grader, paired_with)
+    # Arms rebuilt from episodes, carrying the text-only awareness numerator no
+    # summary field holds. Questions 2 and 4 take the headline measure from the
+    # summaries as before and this alongside it; see _text_reachable_block.
+    arm_rows = awareness_arm_rows(episodes)
+    # Arms rebuilt from episodes again, this time carrying each misaligned act
+    # separately. Questions 1 and 3 report a UNION over the acts, and the acts do
+    # not have the same support across the oversight arms - see
+    # _common_support_block - so each of those two questions carries the per-act
+    # contrast beside its composite.
+    act_rows = act_arm_rows(episodes)
+    pool = _pooling_choice(summaries, act_rows, arm_rows,
+                           awareness_exclusion_stamp, grader, pending,
+                           paired_with, unpaired)
+    from_summaries = pool["from_summaries"]
+    aware_source, grader_block = pool["aware_source"], pool["grader_block"]
+    questions = _answer_questions(episodes, summaries, act_rows, arm_rows,
+                                  pool)
+    _mark_unanswerable(questions, episodes, arm_exclusion,
+                       pool["on_awareness_reading"])
 
     return {
         "version": VERSION,

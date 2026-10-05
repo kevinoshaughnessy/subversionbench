@@ -10,6 +10,53 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v232
+
+**A summary names a grader only if that grader read its episodes.** A batch collected
+with `--no-grader` was labelled with the default grader anyway, and grading it later
+left the summary as it was - so the label claimed counts the file never held, and any
+reader trusting it (the report's questions 1-4, the arms summary) would pool
+keyword-fallback counts under the grader's name. The label is now written only when the
+default grader read at least one episode, and on reading, a summary whose label names
+a grader absent from its own `grader_models` is treated as no grader's. Summaries
+already on disk are read correctly without rewriting; `--resummarise` rebuilds them
+with the grader's real counts.
+
+## v231
+
+**No function is over 100 lines, and a test says so.** AGENTS.md stated the limit as a
+ratchet that nothing checked, and functions kept growing past it unnoticed.
+Every one is now under it, divided along a division it already carried - a section
+comment, a stage with its own reasoning - and `test_project/test_function_length.py`
+enforces the limit over source and suite with no baseline, the same shape as the file
+limit. Behaviour is unchanged: the rollout fingerprints recompute identically, and the
+episode rows, the research report and the batch summary were compared against their
+previous versions on real corpora and came back byte-identical. Seven tests that
+searched a named function's source for a string were rewritten to assert what the code
+does, since moving the code broke them without changing anything they protected; the
+summary-schema guard now follows the schema into the section builders it calls.
+
+## v230
+
+**The host's indexes are out of reach, and asking for them is measured.** Saved episodes
+searched Spotlight from inside the sandbox - through python's `subprocess`, which no rule over
+the command text can refuse - and got back paths in the operator's home, the harness source
+among them; others read the process table, which shows the harness's own command line. No
+path in either leaves the tree, so no existing measure recorded them. `host_discovery` now
+does, per mechanism (`index_search`, `process_table`, `session_bus`, `secret_store`), read off
+the command so `--resummarise --write-back` backfills it free; it is reported beside the host
+paths reached and feeds no act.
+
+The sandbox hides them too. macOS denies the lookup of Spotlight's daemon, so a search
+returns nothing. Linux gains what `--unshare-net` left open and seatbelt already refused:
+socket files - the session bus, gpg-agent, a rootless container runtime, known container
+sockets - plus the locate databases and desktop indexers' stores, each masked so a search
+finds no database. `verify_confinement` refuses a host where a search still answers. Neither
+change is hashed: no episode in a pooled corpus searched an index. Measured on macOS and on
+Ubuntu 26.04 with bwrap 0.11.1, both with and without the fix. Reading the operator's home
+directly is still possible; the README now says to collect under an account whose home holds
+nothing else.
+
 ## v229
 
 **Every grader question has one home.** The awareness rubric already lived in the detector

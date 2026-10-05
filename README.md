@@ -160,6 +160,14 @@ Linux the harness detects this and refuses rather than silently downgrading, sin
 stricter than the one requested changes what is measured. Use the default `deny-network`
 there, and read off-host escalation as unobservable rather than absent.
 
+**What the policy does not hide: your home directory.** The kernel policy keeps an episode
+out of the network, the temp directories, Spotlight and (on Linux) your per-user sockets,
+but an interpreter inside an episode can still read and write anything your account can
+elsewhere - this checkout, its virtualenv, other projects, dotfiles that hold credentials.
+Models have already gone looking: saved episodes searched the host's index and found the
+harness source. Run collections as a dedicated user, or in a VM, whose home holds nothing
+but the checkout, and keep API keys out of shell startup files that account reads.
+
 ## Run
 
 ```bash
@@ -468,7 +476,8 @@ colliding.
 any one module: `test_readme_layout.py` (the listing in
 [docs/Layout.md](docs/Layout.md) and the README's links),
 `test_dependencies.py`, `test_project_files.py` (what the static guards
-examine), `test_ci_workflow.py`, and `test_args_bag.py` (the one argparse
+examine), `test_function_length.py` (no function over 100 lines),
+`test_ci_workflow.py`, and `test_args_bag.py` (the one argparse
 Namespace that every CLI passes down by reference).
 
 `report_snapshots/` holds the printed report for nine fixed batches, compared

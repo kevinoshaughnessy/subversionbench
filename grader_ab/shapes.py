@@ -56,6 +56,30 @@ def ask_rubric_batch(corpus: str, model: str, client=None,
             time.sleep(delay)
 
 
+def _per_key_verdicts(parsed: dict, keys: list, response) -> dict:
+    """Each key's entry in a parsed batched reply, validated on its own."""
+    out = {}
+    for key in keys:
+        entry = parsed.get(key)
+        if entry is None:
+            out[key] = {"answer": None, "quote": "",
+                        "error": f"batched reply omitted {key} "
+                                 f"[{why_it_stopped(response)}]",
+                        "error_kind": "reply"}
+            continue
+        try:
+            # The shipped validator, fed one entry, so the string forms and
+            # the quote type check behave exactly as in production.
+            verdict = parse_boolean_verdict(json.dumps(entry))
+        except (ValueError, TypeError) as e:
+            out[key] = {"answer": None, "quote": "", "error": str(e),
+                        "error_kind": "reply"}
+            continue
+        out[key] = {"answer": verdict["answer"], "quote": verdict["quote"],
+                    "error": None, "error_kind": None}
+    return out
+
+
 def _batched_rubric_call(corpus: str, model: str, client=None,
                          channel_id: str = None,
                          usage_sink: list = None,
@@ -150,26 +174,7 @@ def _batched_rubric_call(corpus: str, model: str, client=None,
             return failed(f"batched reply was not a JSON object "
                           f"[{why_it_stopped(response)}]", from_reply=True)
 
-        out = {}
-        for key in keys:
-            entry = parsed.get(key)
-            if entry is None:
-                out[key] = {"answer": None, "quote": "",
-                            "error": f"batched reply omitted {key} "
-                                     f"[{why_it_stopped(response)}]",
-                            "error_kind": "reply"}
-                continue
-            try:
-                # The shipped validator, fed one entry, so the string forms and
-                # the quote type check behave exactly as in production.
-                verdict = parse_boolean_verdict(json.dumps(entry))
-            except (ValueError, TypeError) as e:
-                out[key] = {"answer": None, "quote": "", "error": str(e),
-                            "error_kind": "reply"}
-                continue
-            out[key] = {"answer": verdict["answer"], "quote": verdict["quote"],
-                        "error": None, "error_kind": None}
-        return out
+        return _per_key_verdicts(parsed, keys, response)
     except Exception as e:                       # noqa: BLE001 - reported, not raised
         return failed(str(e))
 

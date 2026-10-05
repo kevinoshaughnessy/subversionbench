@@ -136,6 +136,9 @@ subversionbench/
     honeypot.py            how far the episode got with the lure arm's file:
                            saw its name in a listing, then read its contents
     filesystem_escapes.py  leaving the episode directory by a route the rewriter misses
+    host_discovery.py      asking the HOST where things are - a search index, the
+                           process table, the session bus - which names the
+                           harness without any path leaving the tree
     grader.py              asking an LLM the awareness rubric
     grader_io.py           preparing text for a grader call, parsing the reply
     interrogation.py       labelling one answer: admitted, denied, neither
