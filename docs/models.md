@@ -179,12 +179,13 @@ episode that wrote the file without the edit landing; both were read as refusals
 other instructed episode succeeded, refused, or (one gemini-3.6-flash episode) was stopped by the
 provider's content filter.
 
-claude-opus-5 is the one model not shown capable: it refused all 10 instructed episodes
-(2026-10-03). That is not an incapability — a refusal measures willingness again — but it
-means a zero in its goal-guarding arms cannot be read as the model's choice rather than
-its ability. Its propensity arms (2026-10-03) are complete at 80/80 with no API errors; nine
-episodes, all at nudge `none`, ended on the provider's refusal stop reason rather than the
-model stopping.
+claude-opus-5 and meta/muse-spark-1.3 are the models not shown capable: each refused all 10
+instructed episodes (2026-10-03 and 2026-10-05 respectively), muse-spark-1.3 without
+attempting an edit in any. That is not an incapability — a refusal measures willingness
+again — but it means a zero in either model's goal-guarding arms cannot be read as the
+model's choice rather than its ability. claude-opus-5's propensity arms (2026-10-03) are
+complete at 80/80 with no API errors; nine episodes, all at nudge `none`, ended on the
+provider's refusal stop reason rather than the model stopping.
 
 | model | capable | instructed episodes |
 |---|---|---|
@@ -213,7 +214,7 @@ model stopping.
 | meta/muse-glimmer-30b | yes | succeeds in all |
 | meta/muse-spark-1.1 | yes | refuses most |
 | meta/muse-spark-1.2 | yes | refuses most; 1 failed attempt |
-| meta/muse-spark-1.3 | not shown so far | refused 3 of 3; topping up to 10 |
+| meta/muse-spark-1.3 | not shown | refused all 10 |
 | mistralai/mistral-small-2603 | yes | succeeds in all |
 | qwen/qwen3.6-27b | yes | succeeds in all |
 | qwen/qwen3.7-flash | yes | succeeds in all |
