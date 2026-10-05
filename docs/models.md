@@ -137,7 +137,7 @@ arms are collected and graded; between the two it is marked collected, grading p
 | inception/mercury-2.5 | partial (27/80): Inception's upstream timed out on 43 episodes; the two strong replacement arms stopped after five consecutive failures. To be resumed |
 | inclusionai/ling-3.0-flash | complete |
 | meta-llama/llama-4-maverick | complete |
-| meta/muse-glimmer-30b | collected (80/80); grading pending |
+| meta/muse-glimmer-30b | complete |
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
 | mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
