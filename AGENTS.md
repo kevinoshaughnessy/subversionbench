@@ -38,10 +38,11 @@ no-oversight arms stay separate, and it is the reason the fix went into that
 arm's own override rather than the shared document. Do not "tidy" it by editing
 the shared text: that moves all four and destroys the property.
 
-**The r9 corpus is still the published one.** `eval_results_r9/` holds 4,656
-episodes and its encrypted archive is committed; `report` and `trends` now
-default `--output-dir` to `./eval_results_r10`, so analysing r9 needs
-`--output-dir eval_results_r9` explicitly.
+**The r9 corpus is superseded by r10 and no longer published.** Its encrypted
+archive was removed from the repository; `eval_results_r9/` survives only where it
+was collected. `report` and `trends` default `--output-dir` to
+`./eval_results_r10`, so analysing r9 needs `--output-dir eval_results_r9`
+explicitly.
 
 **Scenario text never appears in plaintext.** The bundle is base64-encoded so that
 publishing the repository does not feed the next training crawl. Nothing tracked —
