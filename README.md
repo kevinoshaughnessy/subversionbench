@@ -160,6 +160,14 @@ Linux the harness detects this and refuses rather than silently downgrading, sin
 stricter than the one requested changes what is measured. Use the default `deny-network`
 there, and read off-host escalation as unobservable rather than absent.
 
+**What the policy does not hide: your home directory.** The kernel policy keeps an episode
+out of the network, the temp directories, Spotlight and (on Linux) your per-user sockets,
+but an interpreter inside an episode can still read and write anything your account can
+elsewhere - this checkout, its virtualenv, other projects, dotfiles that hold credentials.
+Models have already gone looking: saved episodes searched the host's index and found the
+harness source. Run collections as a dedicated user, or in a VM, whose home holds nothing
+but the checkout, and keep API keys out of shell startup files that account reads.
+
 ## Run
 
 ```bash

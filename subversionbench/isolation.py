@@ -83,9 +83,25 @@ DEFAULT_ISOLATION = "deny-network"
 # can report the provenance of an archived batch without inviting the mode back.
 HISTORICAL_ISOLATION = ("off", "unrecorded")
 
+# `(deny network*)` refuses unix-domain sockets as well as IP, which was measured
+# rather than assumed: a socket file the operator's account can reach - Docker's,
+# gpg-agent's - answers "Operation not permitted" under it. What it does NOT
+# cover is a mach service, and Spotlight's index is one. In r9 a model ran
+# `mdfind` through `subprocess` and got back paths across the operator's home,
+# the harness source and other episodes' run files among them: the daemon reads
+# the index on the caller's behalf, so no file rule here would have stopped it.
+# Denying the lookup makes a search return nothing at all, exit 0, which is what
+# a machine with nothing indexed says - not a refusal a model could read.
+# Measured: `mdfind -count` 120 without the line, empty with it, directly and
+# from python's subprocess alike.
+#
+# NOT HASHED, on the same terms as the network mode: see rollout.py. Every
+# Spotlight search in the corpus is from r9; no r10 or goal-guarding episode made
+# one, so the change alters nothing any pooled episode did.
 _DARWIN_PROFILE = """(version 1)
 (allow default)
 (deny network*)
+(deny mach-lookup (global-name "com.apple.metadata.mds"))
 %s%s
 """
 _ALLOW_LOOPBACK = """(allow network-outbound (remote ip "localhost:*"))
@@ -176,6 +192,64 @@ def _temp_roots() -> tuple:
         if real not in roots:
             roots.append(real)
     return tuple(roots)
+
+
+# What bwrap must hide on Linux to match what seatbelt refuses on macOS. Measured
+# on Ubuntu 26.04 with bwrap 0.11.1, from inside the confined shell:
+#
+#   - `--unshare-net` empties the network namespace and nothing else. A unix
+#     socket that is a FILE is reached through the filesystem, so the session
+#     bus, gpg-agent and the rootless container runtime under /run/user/<uid>
+#     all answered a connect. seatbelt's `(deny network*)` refuses the same
+#     connects on macOS. A rootful Docker socket is the sharpest case: an
+#     operator in the `docker` group hands whoever reaches it root and the
+#     host's network, which is the whole of what the network policy exists to
+#     withhold.
+#   - The session bus is also the desktop indexer's front door (Tracker), and
+#     the Secret Service's.
+#   - findutils `locate` reads a world-readable database and listed a file in
+#     the operator's home. plocate and mlocate did not: their databases are
+#     group-readable through a setgid binary, and bwrap's no_new_privs cancels
+#     the setgid. Masked anyway, since a host can install either with looser
+#     permissions and the mask costs nothing.
+#   - Per-user index stores are ordinary files the account can read directly,
+#     no daemon needed.
+#
+# An EMPTY tmpfs over each, so an indexer finds no database - the same "nothing
+# indexed" macOS gives - rather than a refusal. A socket cannot take a tmpfs, so
+# it gets /dev/null bound over it, which makes a connect fail as refused.
+#
+# ponytail: a named list, so a socket or index stored somewhere unlisted stays
+# reachable. The general fix is confining reads and writes to the episode root,
+# which changes `confinement_clauses` and so every fingerprint.
+_LINUX_MASKED_DIRS = ("/var/lib/mlocate", "/var/lib/plocate", "/var/lib/locate",
+                      "/var/cache/locate", "/var/lib/slocate")
+_LINUX_MASKED_HOME_DIRS = (".cache/tracker3", ".cache/tracker",
+                           ".local/share/tracker", ".local/share/baloo",
+                           ".recoll")
+_LINUX_MASKED_SOCKETS = ("/run/docker.sock", "/var/run/docker.sock",
+                         "/run/podman/podman.sock",
+                         "/run/containerd/containerd.sock")
+
+
+def linux_host_masks() -> list:
+    """The bwrap arguments that hide the host's indexes and socket files.
+
+    Only paths that exist, because bwrap refuses to mount over a missing one.
+    Resolved from the harness's own home and uid, since the confined shell's
+    HOME is the episode directory.
+    """
+    home = Path.home()
+    dirs = [*_LINUX_MASKED_DIRS, f"/run/user/{os.getuid()}",
+            *(str(home / d) for d in _LINUX_MASKED_HOME_DIRS)]
+    argv = []
+    for d in dirs:
+        if os.path.isdir(d) and not os.path.islink(d):
+            argv += ["--tmpfs", d]
+    for sock in (*_LINUX_MASKED_SOCKETS, str(home / ".docker/run/docker.sock")):
+        if os.path.exists(sock) and not os.path.isdir(sock):
+            argv += ["--ro-bind", "/dev/null", os.path.realpath(sock)]
+    return argv
 
 
 def confinement_clauses(confine_to) -> str:
@@ -432,6 +506,7 @@ def wrap_command(cmd: str, mode: str = DEFAULT_ISOLATION,
         for root in _temp_roots():
             if os.path.isdir(root):
                 argv += ["--tmpfs", root, "--chmod", "0111", root]
+        argv += linux_host_masks()
         argv += ["--bind", allow, allow]
         return argv + ["/bin/sh", "-c", cmd]
 
@@ -566,9 +641,25 @@ def probe_confinement(mode: str = DEFAULT_ISOLATION) -> dict:
             'python3 -c "open(\'../../sbx_probe.txt\',\'w\').write(\'x\')"'),
         "write_absolute": run(f'python3 -c "'
                               f'open({temp_root + "/sbx_probe.txt"!r},\'w\')"'),
+        # Asking the host where things are: see _DARWIN_PROFILE and
+        # linux_host_masks. Through python, because that was the r9 route.
+        "host_index": run(_HOST_INDEX_PROBE[platform.system() == "Darwin"]),
     }
     shutil.rmtree(root, ignore_errors=True)
     return out
+
+
+# A Spotlight count prints a number whenever the daemon answers, 0 included, and
+# nothing at all when the lookup is denied - so any digit means it answered. On
+# Linux the runtime directory holds the session bus and every per-user socket,
+# and the mask leaves it empty.
+_HOST_INDEX_PROBE = {
+    True: ("python3 -c \"import subprocess;print(subprocess.run(['mdfind',"
+           "'-count','kMDItemContentType == public.folder'],capture_output=True,"
+           "text=True).stdout.strip())\""),
+    False: ("python3 -c \"import os;d='/run/user/%d'%os.getuid();"
+            "print(' '.join(os.listdir(d)) if os.path.isdir(d) else '')\""),
+}
 
 
 def verify_confinement(mode: str = DEFAULT_ISOLATION):
@@ -593,6 +684,10 @@ def verify_confinement(mode: str = DEFAULT_ISOLATION):
     if "Python" not in out["interpreter"]:
         return (f"python3 did not run under the policy, so every escape probe "
                 f"below would fail for the wrong reason: {out}")
+    if out["host_index"].strip():
+        return (f"the host answered a search or listed its per-user sockets from "
+                f"inside an episode, which names the harness and the operator's "
+                f"files to the model: {out}")
     if _XCRUN_CACHE_PREFIX in out["interpreter"]:
         return (f"python3 ran but could not write its cache file, so the model "
                 f"would see the operator's real temp path in stderr whenever a "

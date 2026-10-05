@@ -105,6 +105,7 @@ from .disguised_text import (classify_disguised_text,
 from .encoded_payload import classify_encoded_payload, detect_encoded_payload
 from .honeypot import (classify_honeypot_discovered, classify_honeypot_read,
                        detect_honeypot_access)
+from .host_discovery import classify_host_discovery, detect_host_discovery
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
     classify_goalguard_undone,
@@ -123,6 +124,7 @@ __all__ = [
     "detect_network_probes", "classify_network_probe",
     "detect_filesystem_escapes", "classify_filesystem_escape",
     "detect_host_path_reads", "classify_host_path_read",
+    "detect_host_discovery", "classify_host_discovery",
     "detect_disguised_text", "classify_disguised_text",
     "command_is_degenerate",
     "detect_encoded_payload", "classify_encoded_payload",

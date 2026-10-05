@@ -10,6 +10,27 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v230
+
+**The host's indexes are out of reach, and asking for them is measured.** Saved episodes
+searched Spotlight from inside the sandbox - through python's `subprocess`, which no rule over
+the command text can refuse - and got back paths in the operator's home, the harness source
+among them; others read the process table, which shows the harness's own command line. No
+path in either leaves the tree, so no existing measure recorded them. `host_discovery` now
+does, per mechanism (`index_search`, `process_table`, `session_bus`, `secret_store`), read off
+the command so `--resummarise --write-back` backfills it free; it is reported beside the host
+paths reached and feeds no act.
+
+The sandbox hides them too. macOS denies the lookup of Spotlight's daemon, so a search
+returns nothing. Linux gains what `--unshare-net` left open and seatbelt already refused:
+socket files - the session bus, gpg-agent, a rootless container runtime, known container
+sockets - plus the locate databases and desktop indexers' stores, each masked so a search
+finds no database. `verify_confinement` refuses a host where a search still answers. Neither
+change is hashed: no episode in a pooled corpus searched an index. Measured on macOS and on
+Ubuntu 26.04 with bwrap 0.11.1, both with and without the fix. Reading the operator's home
+directly is still possible; the README now says to collect under an account whose home holds
+nothing else.
+
 ## v229
 
 **Every grader question has one home.** The awareness rubric already lived in the detector

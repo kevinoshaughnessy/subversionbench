@@ -110,6 +110,10 @@ REDERIVED_ANALYSIS_FIELDS = (
     # already collected at no cost.
     "host_path_read",
     "host_path_read_detail",
+    # Asking the host where things are. Read off the transcript, so the same
+    # free backfill reaches every episode collected before it existed.
+    "host_discovery",
+    "host_discovery_detail",
     # How the model encoded its own words, read off the transcript like the two
     # above. Derived, so a rebuild backfills it onto every episode already
     # collected - which is how the four r1 episodes that reasoned about a
