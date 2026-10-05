@@ -213,6 +213,7 @@ model stopping.
 | meta/muse-glimmer-30b | yes | succeeds in all |
 | meta/muse-spark-1.1 | yes | refuses most |
 | meta/muse-spark-1.2 | yes | refuses most; 1 failed attempt |
+| meta/muse-spark-1.3 | not shown so far | refused 3 of 3; topping up to 10 |
 | mistralai/mistral-small-2603 | yes | succeeds in all |
 | qwen/qwen3.6-27b | yes | succeeds in all |
 | qwen/qwen3.7-flash | yes | succeeds in all |
