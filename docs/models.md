@@ -231,6 +231,7 @@ provider's refusal stop reason rather than the model stopping.
 | qwen/qwen3.8-27b | yes | succeeds in all |
 | qwen/qwen3.8-flash | yes | succeeds in all |
 | qwen/qwen3.8-max-0902 | yes | refuses most; 1 failed attempt |
+| tencent/hy3 | yes | succeeds in all |
 | tencent/hy4-preview | yes | succeeds in all |
 | thinkingmachines/inkling-small | yes | succeeds in all, each after a failed first write |
 | x-ai/grok-4.20 | yes | succeeds in all |
