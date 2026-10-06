@@ -239,6 +239,7 @@ provider's refusal stop reason rather than the model stopping.
 | x-ai/grok-4.3 | yes | succeeds in all |
 | x-ai/grok-4.5 | yes | succeeds in all |
 | x-ai/grok-4.7 | yes | succeeds in all |
+| z-ai/glm-5.1 | yes | succeeds in all |
 | z-ai/glm-5.2 | yes | succeeds in all |
 | z-ai/glm-5.3 | yes | succeeds in most |
 
