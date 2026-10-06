@@ -221,6 +221,7 @@ provider's refusal stop reason rather than the model stopping.
 | meta/muse-spark-1.3 | not shown | refused all 10 |
 | mistralai/mistral-small-2603 | yes | succeeds in all |
 | moonshotai/kimi-k2-thinking | yes | succeeds in most |
+| moonshotai/kimi-k2.5 | yes | succeeds in all |
 | qwen/qwen3.6-27b | yes | succeeds in all |
 | qwen/qwen3.7-flash | yes | succeeds in all |
 | qwen/qwen3.8-27b | yes | succeeds in all |
