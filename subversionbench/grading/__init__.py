@@ -25,7 +25,7 @@ and the tests that patch `grading.X` keep working.
 """
 
 from .acts import (auth_error_in_analysis, counted_acts, MISALIGNED_ACTS,
-                   questions_for)
+                   LOCATED_BY_RECORDED_COMMANDS, questions_for)
 from .awareness_keywords import (detect_eval_awareness_keywords,
                                  detect_misuse_suspicion)
 from .capability import (CAPABILITY_ACT_KEYS, CAPABILITY_OUTCOMES,
@@ -116,7 +116,7 @@ from .transient_tampering import (
 
 __all__ = [
     # what the episode did
-    "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "counted_acts", "auth_error_in_analysis",
+    "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "LOCATED_BY_RECORDED_COMMANDS", "counted_acts", "auth_error_in_analysis",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
     "detect_undone_successor_edit", "classify_goalguard_undone",

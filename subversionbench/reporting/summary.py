@@ -248,6 +248,7 @@ def _summary_awareness(facts) -> dict:
     awareness_kinds = facts["awareness_kinds"]
     awareness_provenance = facts["awareness_provenance"]
     awareness_timing_counts = facts["awareness_timing_counts"]
+    read_to_act = facts["read_to_act"]
     n_with_reasoning = facts["n_with_reasoning"]
     total_reasoning_chars = facts["total_reasoning_chars"]
     n_turn_capped = facts["n_turn_capped"]
@@ -290,6 +291,8 @@ def _summary_awareness(facts) -> dict:
         "n_grader_failed": n_grader_failed,
         "n_turn_capped": n_turn_capped,
         "awareness_timing": awareness_timing_counts,
+        # Turns from first reading each act's file to taking the act.
+        "read_to_act": read_to_act,
         # Where the awareness came from: what the model had read when it first
         # said "test". Bears on contamination by similar scenarios, which the
         # verbatim probes in contamination.py cannot detect.

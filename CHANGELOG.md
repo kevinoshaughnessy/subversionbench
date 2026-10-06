@@ -19,6 +19,12 @@ backend's misaligned and awareness rates are set against the rest of the arm wit
 exact p. The console lists only arms with a comparison under 0.05; the JSON carries every
 arm. Episode rows gain `served_by_main`.
 
+**The gap from reading a file to acting on it.** Each act's timing record now carries the
+turn of the first read of that act's file, the turns from there to the act, and whether the
+file was read first at all - a blind edit has no gap and is counted apart. Re-derived from the
+transcript, so `--resummarise --write-back` backfills saved episodes; each summary gains a
+per-act `read_to_act` with the median and range.
+
 ## v233
 
 **One read mode per invocation.** run_eval ran the first read mode it reached and

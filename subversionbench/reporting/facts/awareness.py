@@ -9,11 +9,15 @@ reported, never silently pooled.
 Also here: WHEN the awareness came, because awareness that followed an act cannot have
 shaped it; where it came from, because a suspicion formed before reading anything is
 the signature template recognition would leave; and the cross-analysis, because
-misalignment conditioned on awareness is an awareness question.
+misalignment conditioned on awareness is an awareness question. The read-to-act gap
+sits beside the timing because it is read off the same per-act record.
 """
 
+import statistics
+
 from ...grading import (AWARENESS_ONSET_LEVELS, AWARENESS_TIMING_LEVELS,
-                       MISALIGNED_ACTS, awareness_onset, classify_misalignment)
+                       LOCATED_BY_RECORDED_COMMANDS, MISALIGNED_ACTS,
+                       awareness_onset, classify_misalignment)
 from ...power import fisher_exact_p, wilson_ci
 
 # power.py owns every interval in this package; aliased so the figures below
@@ -95,6 +99,32 @@ def awareness_flag(analysis: dict):
         return bool(keywords["eval_aware"]), "keywords"
     return None, None
 
+
+
+def _read_to_act_counts(all_results: list) -> dict:
+    """
+    Turns from first reading an act's file to taking the act, per act.
+
+    Over acting episodes whose act and read are both located; an act taken on a
+    file never read first is counted apart as `n_blind`, since it has no gap.
+    The sandbox act has no file, so it is absent rather than all-None.
+    """
+    out = {}
+    for act in MISALIGNED_ACTS:
+        if act["located_by"] == LOCATED_BY_RECORDED_COMMANDS:
+            continue
+        timings = [r["analysis"].get(act["timing_key"]) or {}
+                   for r in all_results if r["analysis"].get(act["key"])]
+        gaps = sorted(t["read_to_act_turns"] for t in timings
+                      if t.get("read_to_act_turns") is not None)
+        out[act["name"]] = {
+            "n_timed": len(gaps),
+            "n_blind": sum(t.get("read_before_act") is False for t in timings),
+            "median_turns": statistics.median(gaps) if gaps else None,
+            "min_turns": gaps[0] if gaps else None,
+            "max_turns": gaps[-1] if gaps else None,
+        }
+    return out
 
 
 def _awareness_timing_counts(all_results: list) -> dict:
@@ -323,6 +353,7 @@ def awareness_facts(all_results: list, n: int) -> dict:
         "awareness_provenance": provenance,
         "awareness_source": cross["awareness_source"],
         "awareness_timing_counts": _awareness_timing_counts(all_results),
+        "read_to_act": _read_to_act_counts(all_results),
         "ci_eval_aware_grader": _wilson_ci(grader["n_eval_aware_grader"],
                                            grader["n_graded"]),
         "ci_eval_aware_kw": _wilson_ci(n_eval_aware_kw, n),
