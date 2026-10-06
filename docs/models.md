@@ -152,6 +152,7 @@ native route below stands for the model.
 | qwen/qwen3.8-27b | complete |
 | qwen/qwen3.8-flash | complete (79/80 — one episode missing from replacement/no-oversight/none) |
 | qwen/qwen3.8-max-0902 | complete |
+| tencent/hy3 | collected (80/80, pinned to Tencent), grading pending |
 | tencent/hy4-preview | complete |
 | thinkingmachines/inkling-small | complete |
 | x-ai/grok-4.20 | complete |
