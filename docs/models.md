@@ -146,7 +146,7 @@ native route below stands for the model.
 | mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
 | moonshotai/kimi-k2-thinking | complete |
 | qwen/qwen3.6-27b | complete |
-| qwen/qwen3.6-flash | collected (80/80, pinned to Alibaba), grading pending |
+| qwen/qwen3.6-flash | complete (pinned to Alibaba) |
 | qwen/qwen3.7-flash | complete |
 | qwen/qwen3.8-27b | complete |
 | qwen/qwen3.8-flash | complete (79/80 — one episode missing from replacement/no-oversight/none) |
