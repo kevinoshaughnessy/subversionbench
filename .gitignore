@@ -82,3 +82,6 @@ agentic_misalignment.json
 # Decoded detector working copy - see subversionbench/detectors.py
 detectors.json
 subversionbench/detectors.json
+
+# Unpublished design drafts. Never committed, in any form.
+docs/proposals/
