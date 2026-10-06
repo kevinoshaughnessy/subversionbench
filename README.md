@@ -583,7 +583,9 @@ than the interval is wide. OpenRouter may also route across backends mid-batch, 
 intervals assume it does not. From v129 each episode records which backend actually answered
 each turn, so this is measurable rather than assumed - the data-quality block reports arms
 answered by more than one backend, episodes that changed backend mid-run, and contrasts whose
-two sides were not collected alike. Episodes collected before v129 record only the routing that
+two sides were not collected alike. Within each arm answered by more than one backend it also
+sets each backend's misaligned and awareness rates against the rest of the arm, counting an
+episode under the backend that answered most of its turns. Episodes collected before v129 record only the routing that
 was *requested*, which is unset wherever nothing was pinned, so for those the question cannot be
 answered after the fact. Pin with `--openrouter-provider` to make a batch reproducible.
 

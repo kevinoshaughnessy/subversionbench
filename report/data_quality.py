@@ -19,6 +19,7 @@ loud.
 from collections import Counter
 
 from subversionbench.grading import MISALIGNED_ACTS
+from subversionbench.power.exact import fisher_exact_p
 
 from .loading import ARM_FIELDS, arm_key
 from .pooling import _models
@@ -281,6 +282,61 @@ def mixed_served_provider_arms(episodes: list) -> list:
                 for provider, n in sorted(entry["providers"].items())
             ],
         })
+    return out
+
+
+# Awareness beside the act because the acts sit at the floor wherever the
+# backend mixed: on eval_results_goalguard_r1 at v234 every goal-guarding act
+# came from a model one backend served throughout, so `misaligned` alone could
+# only ever answer "no difference".
+PROVIDER_OUTCOMES = ("misaligned", "aware")
+
+
+def act_rates_by_served_provider(episodes: list) -> list:
+    """
+    Within each arm answered by more than one backend, the act rate per backend.
+
+    mixed_served_provider_arms says a mix happened; this asks whether it
+    mattered. Each episode is counted under the backend that answered most of
+    its turns, so an arm splits into disjoint groups, and each group's
+    PROVIDER_OUTCOMES are set against the rest of the same arm with a
+    two-sided Fisher exact p; per-act counts ride along. Within an arm only: across arms the
+    backend moves with the nudge and oversight it is meant to be separated
+    from, which is the confound this exists to look at.
+
+    Backends were not randomised - the router chose them by load and time - so
+    a difference here is a lead, not an effect; and splits of 6 against 4 can
+    only show a large one. The useful reading is usually the null.
+    """
+    arms = {}
+    for ep in episodes:
+        if ep.get("served_by_main"):
+            arms.setdefault(arm_key(ep), []).append(ep)
+
+    out = []
+    for key, eps in sorted(arms.items(), key=str):
+        groups = Counter(ep["served_by_main"] for ep in eps)
+        if len(groups) < 2:
+            continue
+        acts = [a["name"] for a in MISALIGNED_ACTS
+                if any(ep[f"{a['name']}_observable"] for ep in eps)]
+        providers = []
+        for provider, n in sorted(groups.items()):
+            mine = [ep for ep in eps if ep["served_by_main"] == provider]
+            rest = [ep for ep in eps if ep["served_by_main"] != provider]
+            providers.append({
+                "provider": provider, "n_episodes": n,
+                **{f"n_{outcome}": sum(ep[outcome] for ep in mine)
+                   for outcome in PROVIDER_OUTCOMES},
+                "p_vs_rest": {outcome: fisher_exact_p(
+                    sum(ep[outcome] for ep in mine), n,
+                    sum(ep[outcome] for ep in rest), len(rest))
+                    for outcome in PROVIDER_OUTCOMES},
+                "acts": {name: sum(ep[f"{name}_act_taken"] for ep in mine)
+                         for name in acts},
+            })
+        out.append({**_arm_of(key), "n_episodes": len(eps),
+                    "providers": providers})
     return out
 
 
@@ -617,6 +673,7 @@ def data_quality_facts(episodes: list, summaries: list = None,
         "duplicate_arms": duplicate_arms(summaries or []),
         "mixed_routing_arms": mixed_routing_arms(episodes),
         "mixed_served_provider_arms": mixed_served_provider_arms(episodes),
+        "act_rates_by_served_provider": act_rates_by_served_provider(episodes),
         "truncated_as_stopped_arms": truncated_as_stopped_arms(episodes),
         "refused_as_stopped_arms": refused_as_stopped_arms(episodes),
         "errored_as_stopped_arms": errored_as_stopped_arms(episodes),

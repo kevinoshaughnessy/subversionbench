@@ -679,6 +679,14 @@ is the only check that can see backend mixing, and it has no corpus to run again
 r10 it reaches its "no providers recorded" guard and stops. So for those corpora the subject
 statement rests on the model ID and the route inferred from it, and not on a recorded backend.
 
+Where the backend was recorded and an arm was answered by more than one,
+`act_rates_by_served_provider` asks whether the mix mattered: each episode is counted under the
+backend that answered most of its turns, and each backend's misaligned and awareness rates are
+set against the rest of the same arm with a Fisher exact test. Only within an arm, because
+across arms the backend moves with the nudge and oversight it would need to be separated from.
+Backends were chosen by the router rather than randomised, so a difference is a lead and not an
+effect, and the within-arm splits are small enough that only a large one could show.
+
 **Batches that differ on the reasoning regime are not comparable on awareness.** That one does
 hold for the published corpora, because `reasoning_config` is on every episode — which is why
 the regime is on the record rather than in a footnote.

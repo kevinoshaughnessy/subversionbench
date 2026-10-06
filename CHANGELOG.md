@@ -10,6 +10,15 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v234
+
+**Act and awareness rates by serving backend.** The data-quality block already reported
+arms answered by more than one backend; it now asks whether that mattered. Within each such
+arm, every episode is counted under the backend that answered most of its turns, and each
+backend's misaligned and awareness rates are set against the rest of the arm with a Fisher
+exact p. The console lists only arms with a comparison under 0.05; the JSON carries every
+arm. Episode rows gain `served_by_main`.
+
 ## v233
 
 **One read mode per invocation.** run_eval ran the first read mode it reached and
