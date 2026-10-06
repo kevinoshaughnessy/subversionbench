@@ -239,6 +239,191 @@ provider's refusal stop reason rather than the model stopping.
 `capability_report.py` reports the same yes-or-no: one success is capable, so the six that
 refuse most are capable too, and their propensity zeros read as the model's.
 
+### Provider routing
+
+Collected through OpenRouter, a model can be served by any of several providers hosting the
+same weights, which may differ in quantisation, chat template and reasoning handling. Until
+2026-10-06 the goal-guarding corpus used OpenRouter's default routing, so the provider varied
+between episodes and sometimes within one, and in some models it lines up with the arms: a
+contrast between two arms served by different providers is partly a contrast between providers.
+`served_by` records the provider of every turn, so this is measured rather than assumed.
+
+**From 2026-10-06, each model is pinned to one provider** with `--openrouter-provider`, chosen as follows:
+
+1. Exclude any endpoint without tool or reasoning support, or under 99% uptime over the last day.
+2. Prefer the developer's own endpoint where OpenRouter lists one, unless it is more than twice
+   as slow as the fastest: it is the reference deployment.
+3. Otherwise take the fastest endpoint priced at no more than twice the cheapest. Throughput is
+   shown on each model's OpenRouter Providers page, not in the public endpoints API; running the
+   capability arm with `--openrouter-sort throughput` and reading `served_by` also finds it.
+4. The capability arm and the propensity arms use the same pinned provider.
+
+Price is rarely the deciding factor: among the models still to run, providers differ by at most
+about twice in price per token.
+
+**Audit of the goal-guarding corpus against this rule (2026-10-06).** Models reached through
+their developer's own API (claude-*, gpt-*) and the OpenRouter models not listed below meet it:
+one provider throughout, capability included. "Google" and "Google AI Studio" are counted as one
+provider. The mainline corpus cannot be audited: `served_by` was added after the last r10 episode.
+
+| model | episodes by provider | episodes switching mid-episode | capability arm served by | developer endpoint listed on OpenRouter (2026-10-06) |
+|---|---|---|---|---|
+| deepseek/deepseek-v4-flash-0731 | Relace 65, Wafer 8, StreamLake 7 | 5 | Relace | no |
+| deepseek/deepseek-v4-pro | StreamLake 44, GMICloud 27, Relace 6, Baidu 2, SiliconFlow 1 | 18 | GMICloud, StreamLake | no |
+| deepseek/deepseek-v4-pro-0813 | Baidu 80 | 1 | Baidu | yes, not used |
+| deepseek/deepseek-v4.1-flash | CoreWeave 21, Together 20, Novita 19, Wafer 15, Relace 5 | 5 | AtlasCloud, Together | yes, not used |
+| google/gemini-3-flash-preview | Google 80 | 0 | not recorded | no |
+| inclusionai/ling-3.0-flash | Novita 79, DeepInfra 1 | 6 | Novita | no |
+| meta-llama/llama-4-maverick | Parasail 65, DigitalOcean 15 | 11 | DigitalOcean | no |
+| meta/muse-glimmer-30b | Together 76, Phala 4 | 17 | DeepInfra, Phala | no |
+| moonshotai/kimi-k2-thinking | Google 44, Novita 36 | 9 | Google | no |
+| qwen/qwen3.6-27b | Chutes 66, Phala 8, SiliconFlow 6 | 12 | Chutes | yes, not used |
+| qwen/qwen3.8-27b | Wafer 55, Reka 25 | 2 | Wafer | yes, not used |
+| qwen/qwen3.8-flash | Alibaba 70, Makora 9 | 28 | Alibaba | no |
+| tencent/hy4-preview | Novita 56, SiliconFlow 24 | 15 | Novita, SiliconFlow, Tencent | yes, not used |
+| x-ai/grok-4.6 | xAI 80 | 0 | not recorded | no |
+| z-ai/glm-5.2 | Mistral 40, Relace 18, Together 10, Baidu 9, DigitalOcean 3 | 5 | Mistral, Together | yes, not used |
+| z-ai/glm-5.3 | Wafer 40, Together 20, Modal 20 | 2 | Friendli, Mistral, Wafer | yes, not used |
+
+"Episodes by provider" counts each episode under the provider that served most of its turns.
+A developer endpoint listed today may not have been listed when the model was collected.
+moonshotai/kimi-k2.5 is not in the table: its first 11 episodes were served by SiliconFlow under
+default routing, and its provider is being settled under the rule above.
+
+<details>
+<summary>Episodes per arm and provider, for the models above</summary>
+
+Each arm is nudge / goal-guarding variant / oversight; runs are numbered within the batch stamp.
+
+- **deepseek/deepseek-v4-flash-0731**
+  - none / deferred / oversight: Relace runs 1-2 of `20261002T131325`; Wafer runs 3-10 of `20261002T131325` (switched mid-episode: 3)
+  - none / deferred / no oversight: Relace runs 1-10 of `20261002T143450`
+  - none / replacement / oversight: Relace runs 1-10 of `20261002T121945` (switched mid-episode: 9)
+  - none / replacement / no oversight: StreamLake runs 1-6 of `20261002T134712` (switched mid-episode: 6); Relace runs 7-10 of `20261002T134712`
+  - strong / deferred / oversight: Relace runs 1-2,4-10 of `20261002T162439` (switched mid-episode: 2); StreamLake runs 3 of `20261002T162439` (switched mid-episode: 3)
+  - strong / deferred / no oversight: Relace runs 1-10 of `20261002T172725`
+  - strong / replacement / oversight: Relace runs 1-10 of `20261002T153252`
+  - strong / replacement / no oversight: Relace runs 1-10 of `20261002T171009`
+- **deepseek/deepseek-v4-pro**
+  - none / deferred / oversight: Relace runs 1,3,5 of `20260929T181319` (switched mid-episode: 1,3,5); SiliconFlow runs 2 of `20260929T181319` (switched mid-episode: 2); StreamLake runs 4,6-10 of `20260929T181319` (switched mid-episode: 4,9-10)
+  - none / deferred / no oversight: GMICloud runs 1-10 of `20260929T193417`
+  - none / replacement / oversight: GMICloud runs 1-9 of `20260929T173414` (switched mid-episode: 9); Relace runs 10 of `20260929T173414`
+  - none / replacement / no oversight: StreamLake runs 1-7 of `20260929T190328` (switched mid-episode: 1-2,7); Relace runs 8-9 of `20260929T190328` (switched mid-episode: 9); GMICloud runs 10 of `20260929T190328` (switched mid-episode: 10)
+  - strong / deferred / oversight: GMICloud runs 1 of `20260929T204405`; StreamLake runs 2-10 of `20260929T204405` (switched mid-episode: 2)
+  - strong / deferred / no oversight: StreamLake runs 1-10 of `20260929T214531`
+  - strong / replacement / oversight: Baidu runs 1-2 of `20260929T194913` (switched mid-episode: 2); StreamLake runs 3-4 of `20260929T194913`; GMICloud runs 5-10 of `20260929T194913` (switched mid-episode: 5)
+  - strong / replacement / no oversight: StreamLake runs 1-10 of `20260929T212116` (switched mid-episode: 1,8)
+- **deepseek/deepseek-v4-pro-0813**
+  - none / deferred / oversight: Baidu runs 1-10 of `20261002T222758`
+  - none / deferred / no oversight: Baidu runs 1-10 of `20261002T232756`
+  - none / replacement / oversight: Baidu runs 1-10 of `20261002T215614`
+  - none / replacement / no oversight: Baidu runs 1-10 of `20261002T225422` (switched mid-episode: 4)
+  - strong / deferred / oversight: Baidu runs 1-10 of `20261003T005305`
+  - strong / deferred / no oversight: Baidu runs 1-10 of `20261003T020306`
+  - strong / replacement / oversight: Baidu runs 1-10 of `20261003T000326`
+  - strong / replacement / no oversight: Baidu runs 1-10 of `20261003T014243`
+- **deepseek/deepseek-v4.1-flash**
+  - none / deferred / oversight: Relace runs 1-3,9-10 of `20260927T115356` (switched mid-episode: 1); Wafer runs 4-8 of `20260927T115356`
+  - none / deferred / no oversight: Novita runs 1-10 of `20260927T125113`
+  - none / replacement / oversight: Wafer runs 1-10 of `20260927T104628` (switched mid-episode: 5)
+  - none / replacement / no oversight: CoreWeave runs 1 of `20260927T123451`; Novita runs 2-10 of `20260927T123451` (switched mid-episode: 2)
+  - strong / deferred / oversight: Together runs 1-10 of `20260927T133411`
+  - strong / deferred / no oversight: CoreWeave runs 1-10 of `20260927T141240`
+  - strong / replacement / oversight: Together runs 1-10 of `20260927T130811` (switched mid-episode: 1,7)
+  - strong / replacement / no oversight: CoreWeave runs 1-10 of `20260927T135843`
+- **inclusionai/ling-3.0-flash**
+  - none / deferred / oversight: Novita runs 1-4,6-10 of `20261004T164846`; DeepInfra runs 5 of `20261004T164846` (switched mid-episode: 5)
+  - none / deferred / no oversight: Novita runs 1-10 of `20261004T170612`
+  - none / replacement / oversight: Novita runs 1-10 of `20261004T163813` (switched mid-episode: 3)
+  - none / replacement / no oversight: Novita runs 1-10 of `20261004T165905` (switched mid-episode: 7)
+  - strong / deferred / oversight: Novita runs 1-10 of `20261004T172521`
+  - strong / deferred / no oversight: Novita runs 1-10 of `20261004T182301` (switched mid-episode: 3)
+  - strong / replacement / oversight: Novita runs 1-10 of `20261004T171413` (switched mid-episode: 2-3)
+  - strong / replacement / no oversight: Novita runs 1-10 of `20261004T173544`
+- **meta-llama/llama-4-maverick**
+  - none / deferred / oversight: Parasail runs 1-10 of `20261005T023744` (switched mid-episode: 1)
+  - none / deferred / no oversight: DigitalOcean runs 1,4-6 of `20261005T025537` (switched mid-episode: 1,4); Parasail runs 2-3,7-10 of `20261005T025537` (switched mid-episode: 7)
+  - none / replacement / oversight: DigitalOcean runs 1-2,10 of `20261005T022731` (switched mid-episode: 1-2,10); Parasail runs 3-9 of `20261005T022731`
+  - none / replacement / no oversight: DigitalOcean runs 1,9-10 of `20261005T024720` (switched mid-episode: 9); Parasail runs 2-8 of `20261005T024720` (switched mid-episode: 2)
+  - strong / deferred / oversight: Parasail runs 1-10 of `20261005T052806`
+  - strong / deferred / no oversight: Parasail runs 1-10 of `20261005T054313`
+  - strong / replacement / oversight: DigitalOcean runs 1-4 of `20261005T051802` (switched mid-episode: 4); Parasail runs 5-10 of `20261005T051802`
+  - strong / replacement / no oversight: DigitalOcean runs 1 of `20261005T053542`; Parasail runs 2-10 of `20261005T053542` (switched mid-episode: 2)
+- **meta/muse-glimmer-30b**
+  - none / deferred / oversight: Together runs 1-10 of `20261005T102300`
+  - none / deferred / no oversight: Together runs 1-6,9-10 of `20261005T111011` (switched mid-episode: 6); Phala runs 7-8 of `20261005T111011` (switched mid-episode: 7-8)
+  - none / replacement / oversight: Phala runs 1 of `20261005T095908` (switched mid-episode: 1); Together runs 2-10 of `20261005T095908` (switched mid-episode: 3,7)
+  - none / replacement / no oversight: Together runs 1-10 of `20261005T104941` (switched mid-episode: 1)
+  - strong / deferred / oversight: Phala runs 1 of `20261005T115551`; Together runs 2-10 of `20261005T115551` (switched mid-episode: 6,8)
+  - strong / deferred / no oversight: Together runs 1-10 of `20261005T123454` (switched mid-episode: 4-5)
+  - strong / replacement / oversight: Together runs 1-10 of `20261005T113321` (switched mid-episode: 1-2,7-8,10)
+  - strong / replacement / no oversight: Together runs 1-10 of `20261005T121951` (switched mid-episode: 1)
+- **moonshotai/kimi-k2-thinking**
+  - none / deferred / oversight: Novita runs 1-8 of `20261005T235922` (switched mid-episode: 8); Google runs 9-10 of `20261005T235922` (switched mid-episode: 9)
+  - none / deferred / no oversight: Novita runs 1-5 of `20261006T071930` (switched mid-episode: 5); Google runs 6-10 of `20261006T071930`
+  - none / replacement / oversight: Google runs 1-6 of `20261005T234140`; Novita runs 7-10 of `20261005T234140` (switched mid-episode: 7)
+  - none / replacement / no oversight: Google runs 1-3 of `20261006T070422` (switched mid-episode: 1); Novita runs 4-10 of `20261006T070422` (switched mid-episode: 4)
+  - strong / deferred / oversight: Google runs 1-2 of `20261006T074054`; Novita runs 3-10 of `20261006T074054` (switched mid-episode: 3)
+  - strong / deferred / no oversight: Google runs 1-6 of `20261006T081117`; Novita runs 7-10 of `20261006T081117` (switched mid-episode: 7,10)
+  - strong / replacement / oversight: Google runs 1-10 of `20261006T073112`
+  - strong / replacement / no oversight: Google runs 1-10 of `20261006T080345`
+- **qwen/qwen3.6-27b**
+  - none / deferred / oversight: SiliconFlow runs 1-2 of `20260930T080651` (switched mid-episode: 2); Phala runs 3-10 of `20260930T080651`
+  - none / deferred / no oversight: Chutes runs 1-10 of `20260930T090212`
+  - none / replacement / oversight: Chutes runs 1-6 of `20260930T071824` (switched mid-episode: 4-6); SiliconFlow runs 7-10 of `20260930T071824` (switched mid-episode: 7)
+  - none / replacement / no oversight: Chutes runs 1-10 of `20260930T084141` (switched mid-episode: 9)
+  - strong / deferred / oversight: Chutes runs 1-10 of `20260930T101710`
+  - strong / deferred / no oversight: Chutes runs 1-10 of `20260930T111602` (switched mid-episode: 5,9-10)
+  - strong / replacement / oversight: Chutes runs 1-10 of `20260930T092423` (switched mid-episode: 6,8-9)
+  - strong / replacement / no oversight: Chutes runs 1-10 of `20260930T105217`
+- **qwen/qwen3.8-27b**
+  - none / deferred / oversight: Wafer runs 1-10 of `20260930T140038`
+  - none / deferred / no oversight: Reka runs 1 of `20260930T154651`; Wafer runs 2-10 of `20260930T154651`
+  - none / replacement / oversight: Wafer runs 1-10 of `20260930T130913`
+  - none / replacement / no oversight: Reka runs 1-10 of `20260930T143643`
+  - strong / deferred / oversight: Wafer runs 1-10 of `20260930T172706`
+  - strong / deferred / no oversight: Reka runs 1-3 of `20260930T184939`; Wafer runs 4-10 of `20260930T184939` (switched mid-episode: 4)
+  - strong / replacement / oversight: Reka runs 1 of `20260930T162324`; Wafer runs 2-10 of `20260930T162324` (switched mid-episode: 2)
+  - strong / replacement / no oversight: Reka runs 1-10 of `20260930T181106`
+- **qwen/qwen3.8-flash**
+  - none / deferred / oversight: Alibaba runs 1-9 of `20260913T184000` (switched mid-episode: 3-4,6,9); Makora runs 10 of `20260913T184000` (switched mid-episode: 10)
+  - none / deferred / no oversight: Makora runs 1,8 of `20260913T203009` (switched mid-episode: 1,8); Alibaba runs 2-7,9-10 of `20260913T203009` (switched mid-episode: 2,5,7)
+  - none / replacement / oversight: Alibaba runs 1-10 of `20260913T172534` (switched mid-episode: 1,10)
+  - none / replacement / no oversight: Alibaba runs 1-5,9-10 of `20260913T194351` (switched mid-episode: 1-3,9); Makora runs 7-8 of `20260913T194351` (switched mid-episode: 7-8)
+  - strong / deferred / oversight: Alibaba runs 1-7,9-10 of `20260914T042630` (switched mid-episode: 4,7,9-10); Makora runs 8 of `20260914T042630`
+  - strong / deferred / no oversight: Alibaba runs 1-9 of `20260914T062009` (switched mid-episode: 9); Makora runs 10 of `20260914T062009` (switched mid-episode: 10)
+  - strong / replacement / oversight: Alibaba runs 1-10 of `20260913T211829` (switched mid-episode: 1,7-8)
+  - strong / replacement / no oversight: Makora runs 1-2 of `20260914T053001` (switched mid-episode: 2); Alibaba runs 3-10 of `20260914T053001`
+- **tencent/hy4-preview**
+  - none / deferred / oversight: Novita runs 1-10 of `20260927T200530` (switched mid-episode: 5)
+  - none / deferred / no oversight: SiliconFlow runs 1-8 of `20260927T225448`; Novita runs 9-10 of `20260927T225448` (switched mid-episode: 9)
+  - none / replacement / oversight: Novita runs 1-10 of `20260927T183425` (switched mid-episode: 4,9)
+  - none / replacement / no oversight: Novita runs 1-8 of `20260927T214328` (switched mid-episode: 8); SiliconFlow runs 9-10 of `20260927T214328`
+  - strong / deferred / oversight: Novita runs 1-10 of `20260928T081913` (switched mid-episode: 1,7,9-10)
+  - strong / deferred / no oversight: SiliconFlow runs 1-10 of `20260928T104502`
+  - strong / replacement / oversight: Novita runs 1-10 of `20260928T062317` (switched mid-episode: 2-4,9)
+  - strong / replacement / no oversight: Novita runs 1-6 of `20260928T095728` (switched mid-episode: 2,4); SiliconFlow runs 7-10 of `20260928T095728`
+- **z-ai/glm-5.2**
+  - none / deferred / oversight: Mistral runs 1-10 of `20261001T114111` (switched mid-episode: 4)
+  - none / deferred / no oversight: Mistral runs 1-10 of `20261001T115929` (switched mid-episode: 2)
+  - none / replacement / oversight: Mistral runs 1-10 of `20261001T112814`
+  - none / replacement / no oversight: Mistral runs 1-10 of `20261001T115138` (switched mid-episode: 1)
+  - strong / deferred / oversight: Relace runs 1-8 of `20261001T122420`; Baidu runs 9-10 of `20261001T122420` (switched mid-episode: 9)
+  - strong / deferred / no oversight: DigitalOcean runs 1-2,10 of `20261001T130641`; Baidu runs 3-9 of `20261001T130641`
+  - strong / replacement / oversight: Relace runs 1-10 of `20261001T120725`
+  - strong / replacement / no oversight: Together runs 1-10 of `20261001T125308` (switched mid-episode: 1)
+- **z-ai/glm-5.3**
+  - none / deferred / oversight: Modal runs 1-10 of `20260929T104123`
+  - none / deferred / no oversight: Wafer runs 1-10 of `20260929T111312` (switched mid-episode: 5)
+  - none / replacement / oversight: Modal runs 1-10 of `20260929T101423`
+  - none / replacement / no oversight: Wafer runs 1-10 of `20260929T110629`
+  - strong / deferred / oversight: Together runs 1-10 of `20260929T115750`
+  - strong / deferred / no oversight: Wafer runs 1-10 of `20260929T123832`
+  - strong / replacement / oversight: Together runs 1-10 of `20260929T111928` (switched mid-episode: 1)
+  - strong / replacement / no oversight: Wafer runs 1-10 of `20260929T123215`
+
+</details>
+
 ## Pending evaluation
 
 Models not yet in the mainline corpus that fall inside the selection window: first listed
