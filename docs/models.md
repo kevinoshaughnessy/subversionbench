@@ -144,6 +144,7 @@ native route below stands for the model.
 | meta/muse-spark-1.2 | complete |
 | meta/muse-spark-1.3 | complete; capability not shown, so its zeros are not interpretable |
 | mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
+| moonshotai/kimi-k2-thinking | partial (15/80): the connection to OpenRouter was lost partway through the deferred/oversight/none arm and never recovered, so that arm and the six after it stopped after five consecutive failures. To be resumed |
 | qwen/qwen3.6-27b | complete |
 | qwen/qwen3.7-flash | complete |
 | qwen/qwen3.8-27b | complete |
