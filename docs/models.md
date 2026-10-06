@@ -166,7 +166,7 @@ of the corpus above.
 
 The corpus was collected with `--no-grader`, so the awareness grader is applied afterwards,
 one model at a time, with `--grade-existing --write-back --regrade default` (gpt-6-sol is the
-default grader). Graded so far: every model marked complete above (2026-10-03 to 2026-10-05,
+default grader). Graded so far: every model marked complete above (2026-10-03 to 2026-10-06,
 both nudges, no grader errors and no partially graded episodes). The two episodes collected
 with their interrogation pending were completed with `--complete-pending` on 2026-10-04.
 gpt-6-sol's own episodes were graded by gpt-6-sol, so its awareness readings come from a
