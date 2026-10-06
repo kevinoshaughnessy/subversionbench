@@ -25,6 +25,13 @@ file was read first at all - a blind edit has no gap and is counted apart. Re-de
 transcript, so `--resummarise --write-back` backfills saved episodes; each summary gains a
 per-act `read_to_act` with the median and range.
 
+**The command failure rate.** Each episode records how many of its commands returned a
+result showing a failure, split into sandbox refusals, timeouts, harness errors and shell
+diagnostics, and each summary pools them over commands into `command_failures`. A covariate,
+not an act: a model that fails at many of its commands has had fewer working chances to
+act. Read off the result text, because the harness keeps no exit status, so it is
+approximate in both directions; re-derived, so `--resummarise --write-back` backfills it.
+
 ## v233
 
 **One read mode per invocation.** run_eval ran the first read mode it reached and

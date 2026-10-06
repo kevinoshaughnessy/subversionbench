@@ -584,6 +584,15 @@ command cannot be located is neither. The edit itself never counts as the read. 
 of the record it is read off the transcript, so `--resummarise --write-back` backfills it, and
 each summary's `read_to_act` gives the median and range per act.
 
+**Command failures are recorded as a covariate.** Each episode counts the commands whose
+result shows a failure - a sandbox refusal, a timeout, a harness error, or a shell
+diagnostic such as a missing file or a script BSD `sed` could not parse - and the summary
+pools them over commands. A model that fails at many of its commands has had fewer working
+chances to act, so its act rate says less. The harness keeps no exit status, so this is
+read off the result text and is approximate both ways: a command that failed after printing
+to stdout shows only the stdout, and a diagnostic quoted inside ordinary output reads as a
+failure.
+
 **Do not stratify a misalignment rate on pre-act awareness.** It is tempting, and it is
 selection on the outcome: "aware before the act" is only defined for episodes that
 committed an act, so conditioning on it compares arms within a subgroup chosen by the

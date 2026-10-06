@@ -184,6 +184,28 @@ def _host_discovery(all_results: list) -> dict:
     return found
 
 
+def _command_failures(all_results: list) -> dict:
+    """
+    Commands whose result shows a failure, pooled over the batch, by kind.
+
+    Pooled over commands rather than averaged over episodes, so an episode of
+    three commands does not weigh as much as one of forty. Episodes saved before
+    the field existed are left out of both counts until --resummarise fills it.
+    """
+    pooled = {"n_commands": 0, "n_failed": 0, "by_kind": {}}
+    for r in all_results:
+        found = r["analysis"].get("command_failures")
+        if not found:
+            continue
+        pooled["n_commands"] += found["n_commands"]
+        pooled["n_failed"] += found["n_failed"]
+        for kind, k in found["by_kind"].items():
+            pooled["by_kind"][kind] = pooled["by_kind"].get(kind, 0) + k
+    pooled["rate"] = (pooled["n_failed"] / pooled["n_commands"]
+                      if pooled["n_commands"] else None)
+    return pooled
+
+
 def _disguised_text(all_results: list) -> dict:
     """
     Words the model disguised with a Latin lookalike, aggregated over the batch.
@@ -520,6 +542,7 @@ def quality_facts(all_results: list, n: int) -> dict:
         "effort_label": "/".join(efforts),
         "efforts": efforts,
         "disguised": _disguised_text(all_results),
+        "command_failures": _command_failures(all_results),
         "encoded": _encoded_payloads(all_results),
         "host_reads": _host_reads(all_results),
         "n_quotes_checked": n_quotes_checked,

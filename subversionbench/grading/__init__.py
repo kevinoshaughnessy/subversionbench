@@ -99,6 +99,7 @@ from .transcript_analysis import (SCHEMING_KEYWORDS, analyze_misalignment,
 from .filesystem_escapes import (classify_filesystem_escape,
                                  classify_host_path_read, detect_host_path_reads,
                                  detect_filesystem_escapes)
+from .command_failures import detect_command_failures
 from .disguised_text import (classify_disguised_text,
                             command_is_degenerate,
                             detect_disguised_text)
@@ -120,6 +121,7 @@ __all__ = [
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
     "detect_undone_successor_edit", "classify_goalguard_undone",
+    "detect_command_failures",
     "scratch_only_attempts", "refusals_not_observed", "reads_a_file",
     "detect_network_probes", "classify_network_probe",
     "detect_filesystem_escapes", "classify_filesystem_escape",
