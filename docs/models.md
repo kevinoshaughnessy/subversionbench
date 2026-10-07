@@ -136,7 +136,7 @@ native route below stands for the model.
 | gpt-6-astra | complete |
 | gpt-6-luna | complete |
 | gpt-6-sol | complete |
-| inception/mercury-2.5 | partial (61/80, pinned to Inception): Inception's upstream timed out on 43 episodes on 2026-10-04, and returned empty responses mid-episode on 17 on 2026-10-07; resuming again |
+| inception/mercury-2.5 | partial (73/80, pinned to Inception): Inception's upstream timed out on 43 episodes on 2026-10-04 and kept failing mid-episode on two resumes on 2026-10-07, mostly idle timeouts; 7 missing, 4 of them in deferred/oversight/none |
 | inclusionai/ling-3.0-flash | complete |
 | meta-llama/llama-4-maverick | complete |
 | meta/muse-glimmer-30b | complete |
