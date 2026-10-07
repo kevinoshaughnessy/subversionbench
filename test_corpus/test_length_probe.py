@@ -197,6 +197,16 @@ class TestTheRun:
             else:
                 assert row["found"] == row["read"] > 0, key
 
+    def test_a_grader_id_with_a_slash_still_saves(self):
+        """The result is written once, at the end, so a "/" in the grader id
+        - every OpenRouter id - would lose the whole paid run."""
+        with tempfile.TemporaryDirectory() as d:
+            _corpus(d)
+            with _grader():
+                code, text = _main(d, "--yes", "--grader", "z-ai/glm-5.3")
+            assert code == 0, text
+            assert next(Path(d).glob("length_probe_z-ai_glm-5.3_*.json"))
+
     def test_a_grader_blind_to_the_middle_shows_up_as_a_long_band_miss(self):
         """The check that the probe can answer no: a grader that reads only
         the first 8,000 and last 12,000 characters of the request misses the

@@ -151,7 +151,10 @@ class _ResultFile:
         self._args = args
         self._sample = sample
         self.stored = {ep["run"]: ep["stored_rubric"] for ep in sample}
-        graders_tag = "+".join(g.removeprefix("claude-")
+        # "/" replaced because OpenRouter ids carry one: z-ai/glm-5.3 in the
+        # name made the path a subdirectory that does not exist, and the save
+        # after the first cell raised, losing that cell's paid calls.
+        graders_tag = "+".join(g.removeprefix("claude-").replace("/", "_")
                                for g in sorted(args.graders))
         shapes_tag = "+".join(sorted(args.shapes))
         self.path = os.path.join(
@@ -365,6 +368,9 @@ def main():
         return 0
 
     result_file = _ResultFile(args, sample)
+    # Written once before any call, so a path that cannot be written fails
+    # here, free, rather than at the first save after a cell is paid for.
+    result_file.save({}, {}, complete=False)
     grid = _run_grid(args, sample, result_file)
     if grid is None:
         return 1

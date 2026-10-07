@@ -10,6 +10,15 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v239
+
+**A grader id with a "/" no longer loses a paid run.** grader_ab and length_probe put the
+grader's id in the result filename, and an OpenRouter id such as `z-ai/glm-5.3` turned it
+into a subdirectory that does not exist: grader_ab raised at the save after its first cell,
+and length_probe, which writes once at the end, would have lost the whole run. The "/" is
+now replaced, as elsewhere in the repository, and grader_ab writes its result file once
+before any call so a path that cannot be written fails before anything is spent.
+
 ## v238
 
 **grader_ab asks the awareness category question.** A third shape, `category`, puts the

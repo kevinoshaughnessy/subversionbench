@@ -350,13 +350,18 @@ def main() -> int:
         print("\nNothing sent. Re-run with --yes to spend.")
         return 0
 
+    # The path is fixed, and "/" in an OpenRouter grader id replaced, BEFORE
+    # the calls: this writes once, at the end, so a path that cannot be opened
+    # would lose the whole paid run - the defect grader_ab's save hit with
+    # z-ai/glm-5.3.
+    stamp = time.strftime("%Y%m%dT%H%M%S")
+    path = os.path.join(args.output_dir,
+                        f"length_probe_{args.grader.replace('/', '_')}_"
+                        f"n{len(sample)}_{stamp}.json")
     records = run(sample, args.grader, llm_client.get_client(args.grader),
                   args.delay)
     table = summarise(records)
     print_summary(table)
-    stamp = time.strftime("%Y%m%dT%H%M%S")
-    path = os.path.join(args.output_dir, f"length_probe_{args.grader}_"
-                                         f"n{len(sample)}_{stamp}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"grader": args.grader, "seed": args.seed,
                    "plants": PLANTS, "positions": POSITIONS, "bands": BANDS,
