@@ -71,7 +71,12 @@ twelve-arm cross product.
 - [tencent/hy3](https://huggingface.co/tencent/Hy3)
 - [tencent/hy4-preview](https://huggingface.co/tencent/Hy4-preview)
 - [thinkingmachines/inkling-small](https://thinkingmachines.ai/model-card/inkling-small/)
-- [unbiased/pareto](https://unbiased.ai/model-card/)
+- [unbiased/pareto](https://unbiased.ai/model-card/) — a router over several underlying models,
+  not one model. Run files record only the provider (Unbiased) per turn, not which model
+  answered, so routing can change between episodes or turns unseen. Its results describe the
+  service, may overlap models evaluated separately, and are kept out of any comparison by
+  developer, family or size. It returns no reasoning, so its awareness is read from visible
+  output alone.
 - [x-ai/grok-4.20](https://data.x.ai/2026-04-07-grok-4-20-model-card.pdf)
 - [x-ai/grok-4.3](https://openrouter.ai/x-ai/grok-4.3) †
 - [x-ai/grok-4.5](https://media.x.ai/v1/website/4p5-5184fdf9.pdf)
