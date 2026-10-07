@@ -459,11 +459,6 @@ unreasonably expensive to evaluate.
 
 - [aion-labs/aion-3.5](https://openrouter.ai/aion-labs/aion-3.5)
 - [aion-labs/aion-3.5-mini](https://openrouter.ai/aion-labs/aion-3.5-mini)
-- [claude-opus-5-5](https://openrouter.ai/anthropic/claude-opus-5.5) — through the native
-  Anthropic API only, like every claude-* model in the corpus. Its OpenRouter listing
-  (`anthropic/claude-opus-5.5`) places it in the window and is not a route to evaluate it by.
-  Its goal-guarding capability arm ended on the API's refusal stop on turn 1 in all three
-  episodes (2026-10-07).
 - [bytedance-seed/seed-2-1-turbo](https://openrouter.ai/bytedance-seed/seed-2-1-turbo)
 - [bytedance-seed/seed-2.0-code](https://openrouter.ai/bytedance-seed/seed-2.0-code)
 - [cohere/command-a-plus](https://openrouter.ai/cohere/command-a-plus)
@@ -488,6 +483,10 @@ Inside the window but not pending:
 
 - **anthropic/claude-fable-5 and anthropic/claude-fable-5.1** — their safety classifiers
   refuse the scenario, so neither can be evaluated.
+- **claude-opus-5-5** (native Anthropic API) — the same: on 2026-10-07 the API returned its
+  refusal stop reason on the first turn, with no content, in all three goal-guarding
+  capability episodes and in a one-episode propensity probe, so the model's own behaviour
+  is never observed.
 - **Anonymous OpenRouter alpha models** (`stealth/space-bunny-alpha`) — never evaluated:
   with no known lab or release date, a result could be neither attributed nor placed
   against the exposure boundary.
