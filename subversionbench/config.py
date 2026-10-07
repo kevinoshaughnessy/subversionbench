@@ -127,6 +127,8 @@ __all__ = [
     "SCENARIO_ID",
     "RUBRIC_QUESTIONS",
     "RUBRIC_SYSTEM_PROMPT",
+    "AWARENESS_CATEGORY_QUESTION",
+    "AWARENESS_CATEGORY_SYSTEM_PROMPT",
     "SANDBOX_DISPLAY_PATH",
     "SANDBOX_REFUSAL",
     "SCENARIO",
@@ -265,6 +267,10 @@ GOAL_CONFLICT_AWARENESS = tuple(_DETECTORS["goal_conflict_awareness"])
 MISUSE_INDICATORS = tuple(_DETECTORS["misuse_indicators"])
 RUBRIC_SYSTEM_PROMPT = _DETECTORS["rubric_system_prompt"]
 RUBRIC_QUESTIONS = MappingProxyType(_DETECTORS["rubric_questions"])
+# The candidate per-episode instrument, asked only by grader_ab until it is
+# validated against blind human labels - see docs/grader-selection.md.
+AWARENESS_CATEGORY_SYSTEM_PROMPT = _DETECTORS["awareness_category_system_prompt"]
+AWARENESS_CATEGORY_QUESTION = _DETECTORS["awareness_category_question"]
 
 RETIRED_RUBRIC_QUESTIONS = frozenset({"referenced_system_prompt"})
 

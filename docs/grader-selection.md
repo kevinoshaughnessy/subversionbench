@@ -80,13 +80,14 @@ is blind.
    the 20 test-set episodes with the most explicit awareness, for each
    candidate grader. Any candidate that leaves more than one in twenty
    unanswered is dropped before labelling effort is spent on it.
-3. **Build the cell runner.** `grader_ab` already crosses grader against call
-   shape on a blinded sample and writes nothing back. Its shape axis becomes
-   an instrument axis (`rubric`, `category`); that is the smallest change that
-   gives graders x instruments on one sample. Its `--dry-run` prints the call
-   count before anything is spent. `grader_ab/prices.py` has no entry yet
-   for gpt-6.1-sol or claude-sonnet-5-5 and needs one before its cost figure
-   can be trusted.
+3. **Build the cell runner.** Done in v238. `grader_ab` crosses grader
+   against call shape on a sample and writes nothing back; the category
+   question is a third shape, `category`, asked over the agent's whole text,
+   so `--shapes per_question category` gives graders x instruments on one
+   sample. `--runs-file` grades a fixed list of episodes (the blind sample, a
+   test set) and refuses a list its directory cannot grade. Its `--dry-run`
+   prints the call count before anything is spent. gpt-6.1-sol and
+   claude-sonnet-5-5 are priced, from third-party listings.
 4. **Label the random sample** (operator, from the blind pack), on the four
    categories.
 5. **Run the grid** on all three sources: each surviving grader x

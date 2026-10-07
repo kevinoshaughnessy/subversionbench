@@ -87,6 +87,12 @@ _MODEL_SURFACES = (
     ("claude-opus-4-8",       _Surface("adaptive", _EFFORT_FULL,     True,  True)),
     ("claude-opus-4-7",       _Surface("adaptive", _EFFORT_FULL,     True,  True)),
     ("claude-opus-4-6",       _Surface("adaptive", _EFFORT_NO_XHIGH, True,  False)),
+    # Before "claude-sonnet-5", which is a prefix of it. The thinking docs
+    # (2026-10-07) say it "rejects thinking: {type: "disabled"} with a 400
+    # error"; its lowest setting is a between-tools mode this harness does not
+    # send. Inheriting Sonnet 5's row would have made every grader call a 400,
+    # the failure the Opus 5.5 row above records.
+    ("claude-sonnet-5-5",     _Surface("adaptive", _EFFORT_FULL,     False, True)),
     ("claude-sonnet-5",       _Surface("adaptive", _EFFORT_FULL,     True,  True)),
     ("claude-sonnet-4-6",     _Surface("adaptive", _EFFORT_NO_XHIGH, True,  False)),
     ("claude-opus-4-5",       _Surface("budget",   _EFFORT_BASIC,    False, False)),

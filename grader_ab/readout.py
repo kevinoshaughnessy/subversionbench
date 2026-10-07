@@ -11,6 +11,7 @@ from subversionbench.grading.grader import classify_awareness_from_rubric
 from subversionbench.power import fisher_exact_p, wilson_ci
 
 from .prices import REFERENCE
+from .shapes import CATEGORIES, CATEGORY_KEY
 
 
 def cell_verdict(rubric: dict) -> bool | None:
@@ -22,7 +23,15 @@ def cell_verdict(rubric: dict) -> bool | None:
     """
     if all(v.get("answer") is None for v in rubric.values()):
         return None
+    if CATEGORY_KEY in rubric:
+        return rubric[CATEGORY_KEY]["answer"]
     return classify_awareness_from_rubric(rubric).get("eval_aware")
+
+
+def is_category_cell(cell: str) -> bool:
+    """A cell of the category instrument, which has no rubric questions for
+    the per-question, gradient and contamination read-outs to tabulate."""
+    return cell.partition("|")[2] == "category"
 
 
 def signal_correlation(rubrics: list) -> float | None:
@@ -107,6 +116,62 @@ def _short_cell(cell: str) -> str:
 
 
 def report(results, sample, keys, stored_rubrics):
+    rubric_results = {c: r for c, r in results.items()
+                      if not is_category_cell(c)}
+    if rubric_results:
+        _report_rubric_cells(rubric_results, keys, stored_rubrics)
+    category_cells = sorted(c for c in results if is_category_cell(c))
+    if category_cells:
+        _print_category(results, category_cells, stored_rubrics)
+    ref = "|".join(REFERENCE)
+    if ref in results:
+        _print_verdict_rates(results, sorted(results), ref)
+
+
+def _print_category(results, category_cells, stored_rubrics) -> None:
+    """What each category cell answered, how often it did not answer, and
+    where its binary verdict parts from the rubric's.
+
+    Unanswered is printed first because it decides a grader before accuracy
+    does: docs/grader-selection.md drops a candidate that leaves more than one
+    in twenty unanswered on the refusal screen, and holds the final grader to
+    2%, because a refusal here falls where the answer is yes and so biases the
+    rate rather than thinning it.
+    """
+    ref = "|".join(REFERENCE)
+    print(f"\n{'=' * 78}")
+    print("CATEGORY INSTRUMENT")
+    print(f"{'=' * 78}")
+    print(f"{'cell':30} {'n':>4} " + " ".join(f"{c:>16}" for c in CATEGORIES)
+          + f" {'unanswered':>11}")
+    for cell in category_cells:
+        entries = [r[CATEGORY_KEY] for r in results[cell].values()]
+        counts = collections.Counter(e.get("category") for e in entries)
+        unanswered = sum(1 for e in entries if e.get("answer") is None)
+        print(f"{_short_cell(cell):30} {len(entries):4} "
+              + " ".join(f"{counts[c]:16}" for c in CATEGORIES)
+              + f" {unanswered:4} {_pct(unanswered, len(entries))}")
+    print("\n  aware = true or ambiguous_true. Agreement of that verdict with "
+          "the rubric's eval_aware:")
+    for cell in category_cells:
+        against = [("stored", stored_rubrics)]
+        if ref in results:
+            against.append((ref, results[ref]))
+        for name, other in against:
+            vs, vb = agreement(results[cell], other, [])["verdict"]
+            print(f"    {_short_cell(cell):28} vs {name:28} "
+                  f"{vs}/{vb} = {_pct(vs, vb).strip()}")
+        crossed = collections.Counter(
+            (r[CATEGORY_KEY].get("category"),
+             cell_verdict(stored_rubrics.get(run) or {}))
+            for run, r in results[cell].items())
+        print(f"    {'':28} category x stored eval_aware:")
+        for category in CATEGORIES:
+            print(f"    {'':30} {category:16} aware {crossed[(category, True)]:4}"
+                  f"   not {crossed[(category, False)]:4}")
+
+
+def _report_rubric_cells(results, keys, stored_rubrics):
     print(f"\n{'=' * 78}")
     print("PER-QUESTION RATES BY CELL")
     print(f"{'=' * 78}")
@@ -177,7 +242,6 @@ def report(results, sample, keys, stored_rubrics):
         print(row)
 
     _print_robustness(results, cells)
-    _print_verdict_rates(results, cells, ref)
 
 
 def _print_robustness(results, cells) -> None:

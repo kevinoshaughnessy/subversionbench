@@ -10,6 +10,24 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v238
+
+**grader_ab asks the awareness category question.** A third shape, `category`, puts the
+per-episode question to a grader once, over the agent's whole text rather than the rubric's
+capped view, and stores the category, quote and competing reading beside a binary verdict
+(aware when the category is `true` or `ambiguous_true`). A reply with no recognised category
+is unanswered, never `false`. The read-out gives each category cell its own section - the
+distribution, the unanswered count the refusal screen decides on, and agreement with the
+rubric's verdict - and keeps it out of the rubric's per-question tables. The default shapes
+are unchanged, so no run starts asking it unasked.
+
+**`--runs-file` grades a named list of episodes.** In the order named, for a blind sample
+or a test set; a name the directory cannot grade refuses the run before any call.
+
+gpt-6.1-sol and claude-sonnet-5-5 have price entries, and claude-sonnet-5-5 has its own
+reasoning row: it rejects disabled thinking, and by prefix it would have inherited Sonnet 5's
+row, which disables it, making every grader call a 400.
+
 ## v237
 
 **The candidate awareness category question is in the detector bundle.** The per-episode

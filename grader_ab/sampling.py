@@ -12,6 +12,7 @@ import os
 
 from subversionbench.graders import view
 from subversionbench.grading import agent_corpus, scenario_corpus
+from subversionbench.grading.quote_grounding import format_agent_text
 
 
 def load_candidates(output_dir: str) -> list:
@@ -111,3 +112,48 @@ def stratified_sample(candidates, per_model, models=None, oversample=(),
                 break
         picked = rr
     return picked
+
+
+def whole_agent_text(output_dir: str, run: str) -> str:
+    """The agent's own text with no length cap, for the shapes that read all
+    of it. Read per episode when it is asked for, rather than held for every
+    candidate: load_candidates reads the whole directory, and the uncapped
+    text of every episode in it is a cost no rubric cell needs."""
+    with open(os.path.join(output_dir, run), encoding="utf-8") as f:
+        return format_agent_text(json.load(f).get("transcript") or [])
+
+
+def read_runs_file(path: str) -> list:
+    """Run filenames, in file order, from a file naming the episodes to grade.
+
+    A line is either a bare filename or a JSON object carrying it under "run"
+    (a grader_ab sample, a blind pack's key) or "file" (the test-set lists).
+    Blank lines are skipped. Anything else is refused rather than skipped, so a
+    malformed list cannot quietly grade fewer episodes than it names.
+    """
+    runs = []
+    with open(path, encoding="utf-8") as f:
+        for n, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("{"):
+                row = json.loads(line)
+                run = row.get("run") or row.get("file")
+            else:
+                run = line
+            if not run or os.sep in run or not run.startswith("run_"):
+                raise ValueError(f"{path}:{n} names no run file")
+            runs.append(run)
+    return runs
+
+
+def select_runs(candidates: list, runs: list) -> tuple:
+    """(sample, missing): the named episodes, in the order named, and the names
+    that are not gradable candidates here. Missing is returned rather than
+    dropped, so the caller can refuse a list that does not match its
+    directory instead of grading the part that does."""
+    by_run = {c["run"]: c for c in candidates}
+    sample = [by_run[r] for r in dict.fromkeys(runs) if r in by_run]
+    missing = [r for r in dict.fromkeys(runs) if r not in by_run]
+    return sample, missing

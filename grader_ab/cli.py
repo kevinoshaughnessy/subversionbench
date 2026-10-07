@@ -34,7 +34,11 @@ def _build_parser():
     parser.add_argument("--graders", nargs="+",
                         default=["claude-opus-5", "claude-sonnet-5"],
                         help="grader models to cross the shapes with")
-    parser.add_argument("--shapes", nargs="+", default=sorted(shapes.SHAPES),
+    # The default is the two rubric shapes, as before the category shape was
+    # added: a new instrument costs a call per episode per grader, and a run
+    # should not start paying for it because a default widened underneath it.
+    parser.add_argument("--shapes", nargs="+",
+                        default=["batched", "per_question"],
                         choices=sorted(shapes.SHAPES),
                         help="call shapes to cross the graders with")
     parser.add_argument("--per-model", type=int, default=4,
@@ -58,6 +62,14 @@ def _build_parser():
                              "episode back to back, which is the burst a "
                              "per-minute limit catches - and a throttled call "
                              "is recorded as an unanswered question")
+    parser.add_argument("--runs-file", default=None,
+                        help="grade exactly the episodes this file names, in "
+                             "its order, instead of drawing a stratified "
+                             "sample: one run filename per line, or JSON lines "
+                             "carrying it under \"run\" or \"file\". "
+                             "--per-model, --models, --oversample and "
+                             "--no-balance do not apply; --limit keeps the "
+                             "first N")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the sample and the call count, make no "
                              "API calls")
@@ -76,10 +88,22 @@ def _select_sample(args):
         print(f"No episodes with a stored grader verdict in "
               f"{redact_paths(args.output_dir)}/")
         return None
-    sample = sampling.stratified_sample(
-        candidates, args.per_model, models=args.models,
-        oversample=set(args.oversample), balance=not args.no_balance,
-        limit=args.limit)
+    if args.runs_file:
+        sample, missing = sampling.select_runs(
+            candidates, sampling.read_runs_file(args.runs_file))
+        if missing:
+            print(f"{len(missing)} episode(s) named in {args.runs_file} are "
+                  f"not gradable in {redact_paths(args.output_dir)}/ (absent, "
+                  f"or with no stored verdict), e.g. {missing[0]}. Refusing "
+                  f"rather than grading the rest.")
+            return None
+        if args.limit is not None:
+            sample = sample[:args.limit]
+    else:
+        sample = sampling.stratified_sample(
+            candidates, args.per_model, models=args.models,
+            oversample=set(args.oversample), balance=not args.no_balance,
+            limit=args.limit)
     if not sample:
         print("The sample is empty - check --models against what is in the "
               "directory.")
@@ -170,10 +194,12 @@ def _run_cell(args, sample, grader, shape, client, out_path, cell):
     rubrics, usage, unmeasured = {}, [], []
     for i, ep in enumerate(sample):
         channel_id = new_channel_id()
-        rubric = asker(ep["corpus"], grader, client, channel_id,
+        corpus = (sampling.whole_agent_text(args.output_dir, ep["run"])
+                  if shape in shapes.WHOLE_TEXT_SHAPES else ep["corpus"])
+        rubric = asker(corpus, grader, client, channel_id,
                        delay=args.delay, usage_sink=usage,
                        unmeasured_sink=unmeasured)
-        shown = _normalise_quote(ep["corpus"])
+        shown = _normalise_quote(corpus)
         for entry in rubric.values():
             entry["quote_grounded"] = (
                 check_quote_grounding(entry.get("quote") or "", shown,
@@ -307,6 +333,14 @@ def _print_how_to_read_it(args, results) -> None:
         print("         record it in score_provenance, and re-grade the "
               "corpus")
         said_something = True
+    if "category" in args.shapes:
+        print("  category unanswered above 1 in 20 on the refusal screen")
+        print("      -> drop that grader before any labelling is spent on it")
+        print("  category agreeing or disagreeing with eval_aware")
+        print("      -> says where the instruments differ, NOT which is right;")
+        print("         only the blind human labels decide that "
+              "(docs/grader-selection.md)")
+        said_something = True
     if not said_something:
         print(f"  One cell ({next(iter(results))}), nothing to compare it "
               f"against. Add a second --graders or --shapes value, or add "
@@ -322,7 +356,8 @@ def main():
     candidates, sample = chosen
 
     keys = list(RUBRIC_QUESTIONS)
-    per_episode_calls = {"per_question": len(keys), "batched": 1}
+    per_episode_calls = {"per_question": len(keys), "batched": 1,
+                         "category": 1}
     total_calls = sum(per_episode_calls[s] for s in args.shapes) * \
         len(args.graders) * len(sample)
     if not _print_plan(args, candidates, sample, per_episode_calls,

@@ -34,6 +34,12 @@ HARD_PHRASING_MODELS = (
 # against.
 _TOKENS_PER_ANSWER = 200
 
+# Reply room for the category question: a four-way answer, a quote of up to 40
+# words AND a competing reading, which the rubric's 200 cannot hold. The draft
+# proposed 400; set through short_call_thinking_kwargs like every grader call,
+# so a model that cannot disable thinking gets its floor on top.
+_TOKENS_FOR_CATEGORY = 400
+
 # $ per million tokens, (input, output). A SNAPSHOT copied from the model
 # table current when this script was written, not derived from any API - no
 # pricing table exists elsewhere in this repository (grep confirms it; cost is
@@ -60,6 +66,12 @@ PRICES_PER_MTOK = {
     # the other route and is deliberately not the same key, the distinction
     # model_releases.py keeps for the same reason.
     "gpt-6-sol": (2.0, 10.0),
+    # The two new candidate graders in docs/grader-selection.md, from
+    # third-party pricing pages on 2026-10-07 (both list $2/$10, the same as
+    # the models they would replace), not from the vendors' own pages - check
+    # those before trusting a total.
+    "gpt-6.1-sol": (2.0, 10.0),
+    "claude-sonnet-5-5": (2.0, 10.0),
     "gpt-6-luna": (0.1, 0.5),
     # Open-weight candidates reached through OpenRouter, priced from its model
     # listing on 2026-09-28. The host behind a grader call is not pinned, so a
@@ -79,5 +91,8 @@ PRICES_PER_MTOK = {
 # z-ai/glm-5.3 goes the other way: OpenRouter lists its cached read at $0.26
 # against a $0.365 base, about 0.71x, so the standard 0.1 would understate a
 # regrade made mostly of cached reads by several times.
-CACHE_READ_MULTIPLIER = {"claude-opus-5-5": 0.05, "z-ai/glm-5.3": 0.26 / 0.365}
+#
+# gpt-6.1-sol lists its cached input at $0.10 against a $2 base, 0.05x.
+CACHE_READ_MULTIPLIER = {"claude-opus-5-5": 0.05, "z-ai/glm-5.3": 0.26 / 0.365,
+                         "gpt-6.1-sol": 0.05}
 STANDARD_CACHE_READ_MULTIPLIER = 0.1

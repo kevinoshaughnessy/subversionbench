@@ -89,6 +89,13 @@ Usage
     python grader_ab.py --output-dir eval_results_r9 --per-model 4 --dry-run
     python grader_ab.py --output-dir eval_results_r9 --per-model 4
 
+The awareness category question is a third shape, `category`, asked once per
+episode over the agent's whole text; name the episodes with --runs-file to
+grade a fixed list such as a blind sample or a test set:
+
+    python3 -m grader_ab --output-dir eval_results_r10 --graders gpt-6-sol \
+        --shapes per_question category --runs-file runs.txt --dry-run
+
 `--dry-run` prints the sample and a costed call count and makes no API calls.
 Run it first: the full 2x2 is four calls-per-episode-per-cell and the bill is
 yours.
