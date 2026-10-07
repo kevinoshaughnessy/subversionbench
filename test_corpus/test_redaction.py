@@ -136,6 +136,28 @@ class TestPathRedaction:
             assert username not in out, text
             assert "operator" in out, out
 
+    def test_username_split_in_two_is_redacted(self):
+        """A model that read the owner column composed a home path from it
+        with a separator between the halves of the name, and that reached a
+        staged archive. Every separator is checked, inside a path and alone.
+        A username too short to split into two halves of three letters is
+        matched whole only, so there the split must survive - asserted rather
+        than skipped, because it is the rule that keeps prose intact."""
+        username = getpass.getuser()
+        head, tail = username[:len(username) // 2], username[len(username) // 2:]
+        splittable = min(len(head), len(tail)) >= 3
+        for sep in "/ ._-":
+            for text in (f"cd /Users/{head}{sep}{tail} 2>/dev/null",
+                         f"{head}{sep}{tail}"):
+                out = ev.redact_paths(text)
+                if splittable:
+                    assert f"{head}{sep}{tail}" not in out, text
+                    assert "operator" in out, out
+                else:
+                    assert out == text, text
+        too_short = f"{username[:2]}/{username[2:]}"
+        assert ev.redact_paths(too_short) == too_short
+
     def test_a_word_character_on_either_side_still_blocks_the_match(self):
         """What the boundary is actually for. `-` and `.` compound a name with
         the account that owns it and must not block; a letter or digit makes a

@@ -10,6 +10,15 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v236
+
+**The operator's username split in two is redacted.** A model that saw the owner column
+composed a home path from the username with a separator between its halves, which the
+whole-word rule did not match, and the export check refused the archive. Every split into
+two halves of at least three characters, joined by `/`, a space, `.`, `-` or `_`, is now
+redacted as the whole username is. Redaction runs again at export, so the published
+archive picks it up without rewriting saved transcripts.
+
 ## v235
 
 **A capability episode the model never answered is unmeasurable, not a refusal.** An
