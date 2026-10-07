@@ -162,7 +162,7 @@ native route below stands for the model.
 | tencent/hy3 | complete (pinned to Tencent) |
 | tencent/hy4-preview | complete |
 | thinkingmachines/inkling-small | complete |
-| unbiased/pareto | collected, grading pending (pinned to Unbiased) |
+| unbiased/pareto | complete (pinned to Unbiased); a router, see its entry above |
 | x-ai/grok-4.20 | complete |
 | x-ai/grok-4.3 | complete |
 | x-ai/grok-4.5 | complete |
