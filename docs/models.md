@@ -161,6 +161,7 @@ native route below stands for the model.
 | x-ai/grok-4.5 | complete |
 | x-ai/grok-4.6 | complete |
 | x-ai/grok-4.7 | complete |
+| z-ai/glm-5.1 | collected 80/80 (pinned to Z.AI), grading pending |
 | z-ai/glm-5.2 | complete |
 | z-ai/glm-5.3 | complete |
 
