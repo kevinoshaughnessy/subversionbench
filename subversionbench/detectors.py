@@ -134,6 +134,13 @@ REQUIRED = (
     "jev_original_criteria",
     "jev_criteria_variants",
     "jev_rationale",
+    # The per-episode awareness category question and the system prompt it
+    # needs - a four-way answer with a quote and a competing reading, which
+    # the rubric's yes/no prompt cannot carry. Additive: the rubric still
+    # produces eval_aware. A candidate instrument is the protocol as surely as
+    # the shipped one is, so it lives here and not in the labelling draft.
+    "awareness_category_system_prompt",
+    "awareness_category_question",
 )
 
 # The documents a reader and a crawler actually read. Derived by glob rather

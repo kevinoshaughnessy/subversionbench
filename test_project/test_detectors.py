@@ -168,6 +168,21 @@ class TestTheDetectorIsNotInTrackedSource(unittest.TestCase):
         offenders = [f for f in _tracked_text_files() if _count(f, lines)]
         assert not offenders, offenders
 
+    def test_no_line_of_the_awareness_category_text_appears_in_tracked_source(
+            self):
+        """The candidate awareness question carries rulings on where the
+        boundary sits, which is the protocol at its most readable, so every
+        distinctive line is checked, as for the misuse codebook."""
+        bundle = load_detectors()
+        lines = [line.strip().lower()
+                 for key in ("awareness_category_system_prompt",
+                             "awareness_category_question")
+                 for line in bundle[key].splitlines()
+                 if len(line.strip()) >= 40 and len(line.split()) >= 5]
+        assert lines, "empty category text passes this guard with everything broken"
+        offenders = [f for f in _tracked_text_files() if _count(f, lines)]
+        assert not offenders, offenders
+
     def test_no_length_probe_plant_appears_in_tracked_source(self):
         plants = [s.lower().rstrip(".")
                   for s in load_detectors()["length_probe_plants"].values()]

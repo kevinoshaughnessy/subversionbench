@@ -10,6 +10,15 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v237
+
+**The candidate awareness category question is in the detector bundle.** The per-episode
+question drafted after the grader-agreement comparison, and the system prompt it needs, move
+from the encrypted labelling draft into the detector bundle beside the shipped rubric, so a
+grader can be sent them. Nothing asks them yet: the rubric still produces `eval_aware`, and
+no stored or published figure moves. Both entries are required by the bundle, and a guard
+fails if any distinctive line of either appears in tracked source.
+
 ## v236
 
 **The operator's username split in two is redacted.** A model that saw the owner column
