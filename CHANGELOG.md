@@ -10,6 +10,16 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v235
+
+**A capability episode the model never answered is unmeasurable, not a refusal.** An
+episode whose every turn returned no content - a provider's refusal stop on the first turn,
+before the model said anything - scored `refused`, so a provider's classifier read as the
+model declining. It now scores `unmeasurable` and leaves the count, as an act the arm
+cannot observe already did. A no-content turn after the model has acted still scores on
+what came before it. Derived at report time, so saved capability episodes pick it up
+without re-collection.
+
 ## v234
 
 **Act and awareness rates by serving backend.** The data-quality block already reported

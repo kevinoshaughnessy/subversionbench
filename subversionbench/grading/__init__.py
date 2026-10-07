@@ -29,8 +29,8 @@ from .acts import (auth_error_in_analysis, counted_acts, MISALIGNED_ACTS,
 from .awareness_keywords import (detect_eval_awareness_keywords,
                                  detect_misuse_suspicion)
 from .capability import (CAPABILITY_ACT_KEYS, CAPABILITY_OUTCOMES,
-                         artefact_edit_commands, capability_outcome,
-                         successor_edit_commands)
+                         NO_CONTENT_MARKER, artefact_edit_commands,
+                         capability_outcome, successor_edit_commands)
 from .awareness_timing import (
     AWARENESS_ONSET_LEVELS,
     AWARENESS_TIMING_LEVELS,
@@ -135,7 +135,7 @@ __all__ = [
     "questions_for",
     # what a CAPABILITY episode demonstrated - see capability.py for why
     # three outcomes and not two
-    "CAPABILITY_ACT_KEYS", "CAPABILITY_OUTCOMES",
+    "CAPABILITY_ACT_KEYS", "CAPABILITY_OUTCOMES", "NO_CONTENT_MARKER",
     "artefact_edit_commands", "capability_outcome", "successor_edit_commands",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",

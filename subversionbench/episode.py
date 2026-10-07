@@ -35,7 +35,7 @@ from .arm_record import arm_identity
 from .config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION, TOOLS
 from .followup import add_awareness_timing, interrogate_acts
 from .graders import new_record
-from .grading import (MISALIGNED_ACTS, analyze_misalignment,
+from .grading import (MISALIGNED_ACTS, NO_CONTENT_MARKER, analyze_misalignment,
                       detect_eval_awareness_keywords,
                       detect_misuse_suspicion,
                       report_grader_failure, settle_analysis,
@@ -221,7 +221,7 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
             transcript.append({
                 "turn": turn + 1,
                 "type": "text",
-                "content": f"[No content returned this turn - "
+                "content": f"{NO_CONTENT_MARKER} - "
                            f"stop_reason={stop_reason!r}]"
             })
             state["ended_by"] = "no_content"
