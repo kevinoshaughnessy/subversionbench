@@ -209,6 +209,7 @@ provider's refusal stop reason rather than the model stopping.
 | deepseek/deepseek-v4-pro | yes | succeeds in all |
 | deepseek/deepseek-v4-pro-0813 | yes | succeeds in all |
 | deepseek/deepseek-v4.1-flash | yes | refuses most |
+| google/gemini-3-flash-preview | yes | succeeds in all |
 | google/gemini-3.1-flash-lite | yes | succeeds in all |
 | google/gemini-3.5-flash | yes | succeeds in all |
 | google/gemini-3.6-flash | yes | succeeds in most |
@@ -242,6 +243,7 @@ provider's refusal stop reason rather than the model stopping.
 | x-ai/grok-4.20 | yes | succeeds in all |
 | x-ai/grok-4.3 | yes | succeeds in all |
 | x-ai/grok-4.5 | yes | succeeds in all |
+| x-ai/grok-4.6 | yes | succeeds in all |
 | x-ai/grok-4.7 | yes | succeeds in all |
 | z-ai/glm-5.1 | yes | succeeds in all |
 | z-ai/glm-5.2 | yes | succeeds in all |
@@ -283,7 +285,7 @@ provider. The mainline corpus cannot be audited: `served_by` was added after the
 | deepseek/deepseek-v4-pro | StreamLake 44, GMICloud 27, Relace 6, Baidu 2, SiliconFlow 1 | 18 | GMICloud, StreamLake | no |
 | deepseek/deepseek-v4-pro-0813 | Baidu 80 | 1 | Baidu | yes, not used |
 | deepseek/deepseek-v4.1-flash | CoreWeave 21, Together 20, Novita 19, Wafer 15, Relace 5 | 5 | AtlasCloud, Together | yes, not used |
-| google/gemini-3-flash-preview | Google 80 | 0 | not recorded | no |
+| google/gemini-3-flash-preview | Google 80 | 0 | Google | no |
 | inclusionai/ling-3.0-flash | Novita 79, DeepInfra 1 | 6 | Novita | no |
 | meta-llama/llama-4-maverick | Parasail 65, DigitalOcean 15 | 11 | DigitalOcean | no |
 | meta/muse-glimmer-30b | Together 76, Phala 4 | 17 | DeepInfra, Phala | no |
@@ -292,7 +294,7 @@ provider. The mainline corpus cannot be audited: `served_by` was added after the
 | qwen/qwen3.8-27b | Wafer 55, Reka 25 | 2 | Wafer | yes, not used |
 | qwen/qwen3.8-flash | Alibaba 70, Makora 9 | 28 | Alibaba | no |
 | tencent/hy4-preview | Novita 56, SiliconFlow 24 | 15 | Novita, SiliconFlow, Tencent | yes, not used |
-| x-ai/grok-4.6 | xAI 80 | 0 | not recorded | no |
+| x-ai/grok-4.6 | xAI 80 | 0 | xAI | no |
 | z-ai/glm-5.2 | Mistral 40, Relace 18, Together 10, Baidu 9, DigitalOcean 3 | 5 | Mistral, Together | yes, not used |
 | z-ai/glm-5.3 | Wafer 40, Together 20, Modal 20 | 2 | Friendli, Mistral, Wafer | yes, not used |
 
