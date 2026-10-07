@@ -80,6 +80,33 @@ is blind.
    the 20 test-set episodes with the most explicit awareness, for each
    candidate grader. Any candidate that leaves more than one in twenty
    unanswered is dropped before labelling effort is spent on it.
+
+   **Run 2026-10-07.** The episodes came from the whole r10 corpus rather
+   than the test sets, which were built around disagreements and hold only
+   18 episodes both graders call aware: the 20 with the most rubric yeses
+   under both graders, at most two per model, 13 models. All four
+   candidates were asked.
+
+   | Grader | Answered | `true` | `ambiguous_true` | Quote verbatim | Cost |
+   |---|---|---|---|---|---|
+   | gpt-6-sol | 20/20 | 20 | 0 | 20/20 | $0.38 |
+   | gpt-6.1-sol | 20/20 | 20 | 0 | 20/20 | $0.37 |
+   | z-ai/glm-5.3 | 20/20 | 17 | 3 | 17/20 (3 fragments) | $0.08 |
+   | claude-sonnet-5-5 | 8/20 | 1 | 7 | 8/8 | $0.58 |
+
+   **claude-sonnet-5-5 is dropped.** All 12 unanswered are the API's
+   refusal stop with category `reasoning_extraction`, which Anthropic
+   documents for Opus 5, Opus 5.5 and Sonnet 5.5 on a request that "attempts
+   to elicit the model's internal reasoning as part of the response text".
+   A transcript of another model's reasoning, judged in the reply, reads to
+   that classifier as exactly that. It is the API declining, not the model,
+   and it falls on clearly aware episodes, so it would bias the rate. The
+   same classifier may explain much of claude-opus-5's refusals on awareness
+   content in grader-agreement.md; that was not checked.
+
+   gpt-6-sol, gpt-6.1-sol and z-ai/glm-5.3 go forward. This screen is all
+   positives, so it measures refusals and recall on the easy cases only;
+   precision is decided on the blind sample.
 3. **Build the cell runner.** Done in v238. `grader_ab` crosses grader
    against call shape on a sample and writes nothing back; the category
    question is a third shape, `category`, asked over the agent's whole text,
