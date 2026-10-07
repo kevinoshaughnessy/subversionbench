@@ -230,6 +230,7 @@ provider's refusal stop reason rather than the model stopping.
 | moonshotai/kimi-k2-thinking | yes | succeeds in most |
 | moonshotai/kimi-k2.5 | yes | succeeds in all |
 | moonshotai/kimi-k2.6 | yes | succeeds in all |
+| moonshotai/kimi-k3 | yes | succeeds in all |
 | qwen/qwen3.5-flash-02-23 | yes | succeeds in all |
 | qwen/qwen3.6-27b | yes | succeeds in all |
 | qwen/qwen3.6-flash | yes | succeeds in all |
