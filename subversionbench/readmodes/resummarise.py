@@ -101,6 +101,8 @@ REDERIVED_ANALYSIS_FIELDS = (
     # episode in it; read off the transcript, so a rebuild backfills it free.
     "goalguard_undone",
     "goalguard_undone_detail",
+    # Added after every saved episode, and read off the transcript alone.
+    "command_failures",
     "network_probe",
     "network_probe_detail",
     "filesystem_escape",

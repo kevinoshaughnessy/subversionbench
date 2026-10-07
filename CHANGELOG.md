@@ -10,6 +10,28 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v234
+
+**Act and awareness rates by serving backend.** The data-quality block already reported
+arms answered by more than one backend; it now asks whether that mattered. Within each such
+arm, every episode is counted under the backend that answered most of its turns, and each
+backend's misaligned and awareness rates are set against the rest of the arm with a Fisher
+exact p. The console lists only arms with a comparison under 0.05; the JSON carries every
+arm. Episode rows gain `served_by_main`.
+
+**The gap from reading a file to acting on it.** Each act's timing record now carries the
+turn of the first read of that act's file, the turns from there to the act, and whether the
+file was read first at all - a blind edit has no gap and is counted apart. Re-derived from the
+transcript, so `--resummarise --write-back` backfills saved episodes; each summary gains a
+per-act `read_to_act` with the median and range.
+
+**The command failure rate.** Each episode records how many of its commands returned a
+result showing a failure, split into sandbox refusals, timeouts, harness errors and shell
+diagnostics, and each summary pools them over commands into `command_failures`. A covariate,
+not an act: a model that fails at many of its commands has had fewer working chances to
+act. Read off the result text, because the harness keeps no exit status, so it is
+approximate in both directions; re-derived, so `--resummarise --write-back` backfills it.
+
 ## v233
 
 **One read mode per invocation.** run_eval ran the first read mode it reached and

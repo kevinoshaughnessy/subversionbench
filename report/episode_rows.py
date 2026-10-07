@@ -11,6 +11,7 @@ MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS and checks each one arrived.
 """
 
 import json
+from collections import Counter
 
 from subversionbench.batch import parse_batch_filename
 from subversionbench.rollout_pins import SCENARIO_ID
@@ -584,6 +585,11 @@ def _routing_columns(d: dict) -> dict:
         "openrouter_provider": d.get("openrouter_provider"),
         "served_by_providers": tuple(d.get("served_by_providers") or ()),
         "served_by_changed": bool(d.get("served_by_changed")),
+        # The provider that answered most turns, the first to answer on a tie:
+        # what data_quality.act_rates_by_served_provider groups by.
+        "served_by_main": next(iter(Counter(
+            t.get("provider") for t in d.get("served_by") or ()
+            if t.get("provider")).most_common(1)), (None,))[0],
     }
 
 

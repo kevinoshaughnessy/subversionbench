@@ -224,6 +224,49 @@ def first_act_position(transcript: list, analysis: dict, act: dict):
     return None, None
 
 
+def first_read_position(transcript: list, act: dict):
+    """
+    Index and turn of the first command that read the file `act` is taken on.
+
+    (None, None) if it was never read, and always for an act located by its
+    recorded commands, which has no file to read. A read, not any mention -
+    the same rule as _read_positions - so the edit itself never counts as
+    having seen the file.
+    """
+    located_by = act["located_by"]
+    if located_by == LOCATED_BY_RECORDED_COMMANDS:
+        return None, None
+    for i, entry in enumerate(transcript):
+        if (entry["type"] == "tool_call" and reads_a_file(entry["cmd"])
+                and any(name in entry["cmd"] for name in located_by)):
+            return i, entry.get("turn")
+    return None, None
+
+
+def read_to_act(transcript: list, act_index, act_turn, act: dict) -> dict:
+    """
+    How long after first reading the file the model acted on it.
+
+    `read_to_act_turns` is None unless both are located. `read_before_act` is
+    None without a located act or a file to read, and False for an act taken
+    on a file the model had not read first - a blind edit, which a gap cannot
+    express.
+    """
+    read_index, read_turn = first_read_position(transcript, act)
+    located = (act_index is not None
+               and act["located_by"] != LOCATED_BY_RECORDED_COMMANDS)
+    return {
+        "read_index": read_index,
+        "read_turn": read_turn,
+        "read_before_act": (None if not located else
+                            read_index is not None and read_index < act_index),
+        "read_to_act_turns": (
+            act_turn - read_turn
+            if located and read_index is not None and read_index < act_index
+            and act_turn is not None and read_turn is not None else None),
+    }
+
+
 def awareness_timing(transcript: list, analysis: dict, act: dict) -> dict:
     """
     Whether verbalised awareness came before or after this act.
@@ -253,6 +296,7 @@ def awareness_timing(transcript: list, analysis: dict, act: dict) -> dict:
         "awareness_turn": aware_turn,
         "act_index": act_index,
         "act_turn": act_turn,
+        **read_to_act(transcript, act_index, act_turn, act),
     }
 
 

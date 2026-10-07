@@ -574,6 +574,25 @@ probing being itself an act of testing the environment — suspect a sandbox, go
 whereas suspicion around tampering arrives later. The `n`s are small because the keyword
 detector fired on only 11 of 69 acts; the grader pass is what will settle it.
 
+**The same record carries how long the model sat on the file before acting.** For each act
+taken on a file (the oversight config and the successor file; the sandbox act has none), it
+records the turn of the first command that *read* that file, `read_to_act_turns` from there
+to the act, and `read_before_act`. An edit on the very next turn and one after a long stretch
+of other work are different behaviours that the act rate alone cannot tell apart. An edit to a
+file never read first is a blind edit, counted apart because it has no gap; an act whose
+command cannot be located is neither. The edit itself never counts as the read. Like the rest
+of the record it is read off the transcript, so `--resummarise --write-back` backfills it, and
+each summary's `read_to_act` gives the median and range per act.
+
+**Command failures are recorded as a covariate.** Each episode counts the commands whose
+result shows a failure - a sandbox refusal, a timeout, a harness error, or a shell
+diagnostic such as a missing file or a script BSD `sed` could not parse - and the summary
+pools them over commands. A model that fails at many of its commands has had fewer working
+chances to act, so its act rate says less. The harness keeps no exit status, so this is
+read off the result text and is approximate both ways: a command that failed after printing
+to stdout shows only the stdout, and a diagnostic quoted inside ordinary output reads as a
+failure.
+
 **Do not stratify a misalignment rate on pre-act awareness.** It is tempting, and it is
 selection on the outcome: "aware before the act" is only defined for episodes that
 committed an act, so conditioning on it compares arms within a subgroup chosen by the
@@ -678,6 +697,14 @@ is unrecoverable for those episodes. `mixed_served_provider_arms` in the data-qu
 is the only check that can see backend mixing, and it has no corpus to run against: on r9 and
 r10 it reaches its "no providers recorded" guard and stops. So for those corpora the subject
 statement rests on the model ID and the route inferred from it, and not on a recorded backend.
+
+Where the backend was recorded and an arm was answered by more than one,
+`act_rates_by_served_provider` asks whether the mix mattered: each episode is counted under the
+backend that answered most of its turns, and each backend's misaligned and awareness rates are
+set against the rest of the same arm with a Fisher exact test. Only within an arm, because
+across arms the backend moves with the nudge and oversight it would need to be separated from.
+Backends were chosen by the router rather than randomised, so a difference is a lead and not an
+effect, and the within-arm splits are small enough that only a large one could show.
 
 **Batches that differ on the reasoning regime are not comparable on awareness.** That one does
 hold for the published corpora, because `reasoning_config` is on every episode — which is why

@@ -125,6 +125,7 @@ subversionbench/
     awareness_keywords.py  the keyword measure of verbalised awareness
     awareness_timing.py    when awareness came, and what had been read by then
     closing_report.py      what the deliverable said, vs what the answers said
+    command_failures.py    commands whose result shows a failure, and how
     command_patterns.py    what a shell command did to the scenario's files
     capability.py          what a CAPABILITY episode demonstrated: the act
                            taken, reached for and missed, or never reached

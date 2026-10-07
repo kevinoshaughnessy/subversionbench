@@ -67,7 +67,8 @@ from .grading import (classify_awareness_from_rubric,
                       classify_host_discovery, classify_host_path_read,
                       classify_network_probe, command_is_degenerate,
                       classify_goalguard_undone,
-                      classify_transient_tampering, detect_disguised_text,
+                      classify_transient_tampering, detect_command_failures,
+                      detect_disguised_text,
                       detect_encoded_payload,
                       detect_eval_awareness_keywords,
                       detect_filesystem_escapes, detect_honeypot_access,
@@ -291,6 +292,8 @@ def _artefact_measures(analysis: dict, transcript: list) -> None:
         analysis["goalguard_undone_detail"] = detect_undone_successor_edit(
             transcript)
     analysis["goalguard_undone"] = classify_goalguard_undone(analysis)
+    if transcript:
+        analysis["command_failures"] = detect_command_failures(transcript)
 
 
 def _transcript_measures(analysis: dict, transcript: list) -> None:
