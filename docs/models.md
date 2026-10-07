@@ -152,7 +152,7 @@ native route below stands for the model.
 | qwen/qwen3.6-flash | complete (pinned to Alibaba) |
 | qwen/qwen3.7-flash | complete |
 | qwen/qwen3.8-27b | complete |
-| qwen/qwen3.8-flash | complete (80/80); the replacement/no-oversight/none episode lost to an upstream rate limit was re-collected on 2026-10-07 and is not yet graded |
+| qwen/qwen3.8-flash | complete (80/80); the replacement/no-oversight/none episode lost to an upstream rate limit was re-collected and graded on 2026-10-07 |
 | qwen/qwen3.8-max-0902 | complete |
 | tencent/hy3 | complete (pinned to Tencent) |
 | tencent/hy4-preview | complete |
