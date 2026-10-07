@@ -452,7 +452,9 @@ unreasonably expensive to evaluate.
 
 - [aion-labs/aion-3.5](https://openrouter.ai/aion-labs/aion-3.5)
 - [aion-labs/aion-3.5-mini](https://openrouter.ai/aion-labs/aion-3.5-mini)
-- [anthropic/claude-opus-5.5](https://openrouter.ai/anthropic/claude-opus-5.5)
+- [claude-opus-5-5](https://openrouter.ai/anthropic/claude-opus-5.5) — through the native
+  Anthropic API only, like every claude-* model in the corpus. Its OpenRouter listing
+  (`anthropic/claude-opus-5.5`) places it in the window and is not a route to evaluate it by.
 - [bytedance-seed/seed-2-1-turbo](https://openrouter.ai/bytedance-seed/seed-2-1-turbo)
 - [bytedance-seed/seed-2.0-code](https://openrouter.ai/bytedance-seed/seed-2.0-code)
 - [cohere/command-a-plus](https://openrouter.ai/cohere/command-a-plus)
