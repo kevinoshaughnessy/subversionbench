@@ -145,7 +145,7 @@ native route below stands for the model.
 | meta/muse-spark-1.3 | complete; capability not shown, so its zeros are not interpretable |
 | mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
 | moonshotai/kimi-k2-thinking | complete |
-| moonshotai/kimi-k2.5 | collected 79/80 (pinned to SiliconFlow), grading pending; one episode of replacement/no-oversight/none failed on a malformed upstream reply and is being re-collected; two episodes ended at the turn cap |
+| moonshotai/kimi-k2.5 | collected 80/80 (pinned to SiliconFlow), grading pending; one episode was re-collected with `--resume` after a malformed upstream reply; two episodes ended at the turn cap |
 | qwen/qwen3.5-flash-02-23 | complete (pinned to Alibaba); one episode ended on a tool call written as text and one at the turn cap |
 | qwen/qwen3.6-27b | complete |
 | qwen/qwen3.6-flash | complete (pinned to Alibaba) |
