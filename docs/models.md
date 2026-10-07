@@ -130,7 +130,7 @@ native route below stands for the model.
 | google/gemini-3-flash-preview | complete |
 | google/gemini-3.1-flash-lite | complete |
 | google/gemini-3.5-flash | complete |
-| google/gemini-3.6-flash | complete (78/80 — one episode missing from each of replacement/oversight/none and replacement/oversight/strong) |
+| google/gemini-3.6-flash | collected 79/80, grading pending for the top-up. Gemini's filter blocked three episodes mid-run, each after the model had read the successor file once and before any edit: one in each of replacement/oversight/none and replacement/oversight/strong on 2026-09-30, and the retry of the first on 2026-10-07 (pinned to Google). The strong episode was replaced on 2026-10-07; replacement/oversight/none is left at 9 rather than retried again |
 | google/gemini-3.7-flash | complete |
 | gpt-5.6-luna | complete |
 | gpt-6-astra | complete |
