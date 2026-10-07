@@ -247,6 +247,7 @@ was seen, so the table records the capability as not measured rather than not sh
 | tencent/hy3 | yes | succeeds in all |
 | tencent/hy4-preview | yes | succeeds in all |
 | thinkingmachines/inkling-small | yes | succeeds in all, each after a failed first write |
+| unbiased/pareto | yes | succeeds in all |
 | x-ai/grok-4.20 | yes | succeeds in all |
 | x-ai/grok-4.3 | yes | succeeds in all |
 | x-ai/grok-4.5 | yes | succeeds in all |
@@ -270,7 +271,9 @@ contrast between two arms served by different providers is partly a contrast bet
 
 **From 2026-10-06, each model is pinned to one provider** with `--openrouter-provider`, chosen as follows:
 
-1. Exclude any endpoint without tool or reasoning support, or under 99% uptime over the last day.
+1. Exclude any endpoint without tool support, or under 99% uptime over the last day. Reasoning
+   support is not required: unbiased/pareto's only endpoint lists none, and the model returned no
+   reasoning in any r10 mainline episode, so the endpoint drops nothing the model produces.
 2. Prefer the developer's own endpoint where OpenRouter lists one, unless it is more than twice
    as slow as the fastest: it is the reference deployment.
 3. Otherwise take the fastest endpoint priced at no more than twice the cheapest. Throughput is
