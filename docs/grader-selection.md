@@ -1,7 +1,8 @@
 # Choosing the awareness grader and question (draft for decision)
 
-Status: proposal, 2026-10-04. Nothing here has been run. Every paid step below
-is started by the operator, not by an agent.
+Status: proposal, 2026-10-04; in progress. Steps 1 to 3 are done (v237,
+v238, and the refusal screen on 2026-10-07); labelling is next. Every paid
+step below is started by the operator, not by an agent.
 
 ## The decision
 
@@ -11,9 +12,9 @@ Two choices, which have to be made together:
    questions, any awareness yes making `eval_aware`) or the per-episode
    category question drafted after [grader-agreement.md](grader-agreement.md),
    which returns one of `true`, `ambiguous_true`, `ambiguous_false`, `false`.
-2. **Which model asks it.** gpt-6-sol (the current default), gpt-6.1-sol, or
-   claude-sonnet-5-5. z-ai/glm-5.3 is an optional fourth: it is already partly
-   qualified as a backup grader from another vendor, and costs little to add.
+2. **Which model asks it.** gpt-6-sol (the current default), gpt-6.1-sol or
+   z-ai/glm-5.3. claude-sonnet-5-5 was a fourth candidate and was dropped at
+   the refusal screen (step 2).
 
 They are decided together because each changes what "aware" counts, and each
 means regrading the corpus once it is adopted. Deciding them one after the
@@ -37,13 +38,15 @@ episode), not written over them.
 
 | Grader | For | Against |
 |---|---|---|
-| gpt-6-sol | The incumbent. Graded the goal-guarding corpus and the r10 comparison with no refusals and almost no errors. | Single vendor, which has already deactivated the account once. Grades its own family (gpt-6-astra, gpt-6-luna, and gpt-6-sol itself). |
-| gpt-6.1-sol | Probably the closest to the incumbent, so the cheapest switch if it is better. | Same vendor and same own-family problem. Released 2026-09-29, so it has no record here yet. |
-| claude-sonnet-5-5 | Another vendor, which takes away the single point of failure. | Anthropic graders refuse these transcripts: in a 212-episode comparison, opus-5 errored on 17.7% and Opus 5.5 on 22.6%. Those refusals fall almost only where the answer is yes, so they bias the rate rather than just thinning it. It grades its own family, the Claude models. |
-| z-ai/glm-5.3 | A third vendor, open weights, cheap. | Not yet checked against human labels. |
+| Grader | Status | For | Against |
+|---|---|---|---|
+| gpt-6-sol | In the grid | The incumbent. Graded the goal-guarding corpus and the r10 comparison with no refusals and almost no errors; answered all 20 at the refusal screen, every quote verbatim. | Single vendor, which has already deactivated the account once. Grades its own family (gpt-6-astra, gpt-6-luna, and gpt-6-sol itself). |
+| gpt-6.1-sol | In the grid | Probably the closest to the incumbent, so the cheapest switch if it is better. Answered all 20 at the refusal screen, every quote verbatim. | Same vendor and same own-family problem. Released 2026-09-29; the screen is its only record here. |
+| z-ai/glm-5.3 | In the grid | A third vendor, open weights, about a fifth of the others' cost. Answered all 20 at the refusal screen. Under the tie rule below it is preferred wherever the intervals overlap. | Not yet checked against human labels. Three of its 20 screen quotes were fragments rather than verbatim. Reached through OpenRouter, where the serving host is not pinned for grader calls. |
+| claude-sonnet-5-5 | Dropped | Another vendor, which would have taken away the single point of failure. | Left 12 of 20 unanswered at the refusal screen, every one the API's `reasoning_extraction` refusal stop; see step 2. |
 
-The refusal question decides claude-sonnet-5-5 on its own, so it is measured
-first and cheaply (step 2 below).
+The refusal question decided claude-sonnet-5-5 on its own, which is why it was
+measured first and cheaply (step 2 below).
 
 ## The evidence
 
@@ -72,7 +75,8 @@ is blind.
 
 1. **Merge the bundle change** (branch `bundle-grader-wordings`), so every
    question text lives in `detectors.b64`. Then add the category question and
-   its system prompt to the bundle. That moves the draft from the encrypted
+   its system prompt to the bundle. Done: the branch is merged, and the two
+   entries were added in v237. That moves the draft from the encrypted
    archive to the base64 bundle, the same protection the shipped rubric has.
    A grader cannot ask a question it cannot read, so this has to happen
    before anything runs.
@@ -155,8 +159,12 @@ binary verdict.
 
 ## Open questions for the operator
 
-1. Is glm-5.3 in the grid, or only kept as a backup?
-2. Is the random-sample size of about 120 enough? Four per model keeps per-model
+1. Is the random-sample size of about 120 enough? Four per model keeps per-model
    claims out of reach; it is sized for the overall decision only.
-3. May the category question move into the bundle (step 1)? It is the
-   prerequisite for every other step.
+2. The draft question's three open review points - worked phrases or rules
+   only, naming the model-charter case, and the in-situation monitoring rule -
+   need a ruling before labelling, since the labels are made on the same four
+   categories.
+
+Settled: glm-5.3 is in the grid, having passed the refusal screen, and the
+category question is in the bundle (v237).
