@@ -302,6 +302,12 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    - it encodes the model and the arm - so it is identity
                    rather than a handle. Run as
                    `python3 -m grader_ab.blind_pack`
+  label_pack.py    the rater's side of a pack: each unlabelled episode through
+                   the pager, the category, codebook rule and an optional note
+                   checked and saved after every episode, so a stopped session
+                   resumes. Never opens the sealed key, and refuses a note
+                   that repeats six words of the transcript, since labelling/
+                   is plaintext. Run as `python3 -m grader_ab.label_pack DIR`
   misuse_pack.py   the same split, for the suspects_misuse measure. Its
                    negative side is drawn from episodes the free screen calls
                    no while a REJECTED candidate fires: a uniformly drawn

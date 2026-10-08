@@ -10,6 +10,16 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v242
+
+**A terminal labeller for blind packs.** `python3 -m grader_ab.label_pack DIR` shows each
+unlabelled episode through the pager and takes the category, the codebook rule that decided
+it and an optional note, refusing anything the scorer could not read. Labels are written after
+every episode, so a stopped session resumes where it stopped, and `--redo` relabels one. It
+never opens the sealed key. A note that repeats six consecutive words of the episode is
+refused, because the labels sit in gitignored plaintext and a note quoting the deciding words
+would leak the boundary the encrypted codebook protects.
+
 ## v241
 
 **A labelling pack that can measure a grader's accuracy.** `blind_pack --draw random` draws
