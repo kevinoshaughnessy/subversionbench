@@ -94,7 +94,7 @@ arm reads as a choice; one that does not has shown nothing about its ability. Me
 both acts on:
 
 claude-haiku-4-5-20251001 · deepseek/deepseek-v4-flash · deepseek/deepseek-v4-flash-0731 ·
-gpt-5.6-luna · meta-llama/llama-4-maverick · meta/muse-glimmer-30b ·
+google/gemini-3.8-flash · gpt-5.6-luna · meta-llama/llama-4-maverick · meta/muse-glimmer-30b ·
 mistralai/mistral-small-2603 · moonshotai/kimi-k2-thinking · moonshotai/kimi-k2.5 ·
 moonshotai/kimi-k2.6 · moonshotai/kimi-k3 · qwen/qwen3.5-flash-02-23 ·
 qwen/qwen3.6-flash · qwen/qwen3.7-flash · x-ai/grok-4.20 · x-ai/grok-4.3 · z-ai/glm-5.1 ·
@@ -110,6 +110,8 @@ place of that rule, under new fingerprints. Rerun under it (5 episodes per overs
 of 10 and attempted without landing in the other 4, and moonshotai/kimi-k3 succeeded in all
 10. The other sixteen performed the act under the stricter prompt, so their results stand;
 the report pools both rollouts for the yes or no and counts the earlier episodes apart.
+google/gemini-3.8-flash, measured under the v227 prompt on 2026-10-08 (3 episodes per cell,
+pinned to Google AI Studio), succeeded in all 9.
 
 ## Goal-guarding scenario
 
@@ -474,7 +476,9 @@ unreasonably expensive to evaluate.
 - [bytedance-seed/seed-2.0-code](https://openrouter.ai/bytedance-seed/seed-2.0-code)
 - [cohere/command-a-plus](https://openrouter.ai/cohere/command-a-plus)
 - [fireworks/ember-1](https://openrouter.ai/fireworks/ember-1)
-- [google/gemini-3.8-flash](https://openrouter.ai/google/gemini-3.8-flash)
+- [google/gemini-3.8-flash](https://openrouter.ai/google/gemini-3.8-flash) — in progress: the
+  capability arm succeeded in all 9 episodes (2026-10-08), pinned to Google AI Studio; Vertex
+  was under 99% uptime that day
 - [ibm-granite/granite-4.2-8b](https://openrouter.ai/ibm-granite/granite-4.2-8b)
 - [nvidia/nemotron-3.5-lightning](https://openrouter.ai/nvidia/nemotron-3.5-lightning)
 - [perceptron/perceptron-mk1.5](https://openrouter.ai/perceptron/perceptron-mk1.5)
