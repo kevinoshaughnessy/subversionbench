@@ -13,6 +13,7 @@ import time
 
 from subversionbench.api_errors import is_auth_error, is_usage_limit_error
 from subversionbench.config import (AWARENESS_CATEGORY_QUESTION,
+                                    AWARENESS_CATEGORY_QUESTION_RULES_ONLY,
                                     AWARENESS_CATEGORY_SYSTEM_PROMPT,
                                     RUBRIC_QUESTIONS, RUBRIC_SYSTEM_PROMPT)
 from subversionbench.grading import ask_rubric_question
@@ -355,15 +356,37 @@ def ask_category(corpus: str, model: str, client=None,
     fence with the question asked outside it, its own system prompt cached,
     and usage captured off the response before the reply is parsed.
     """
+    return _paced_category(AWARENESS_CATEGORY_QUESTION, corpus, model, client,
+                           channel_id, delay, usage_sink)
+
+
+def ask_category_rules_only(corpus: str, model: str, client=None,
+                            channel_id: str = None, delay: float = 0,
+                            usage_sink: list = None,
+                            unmeasured_sink: list = None) -> dict:
+    """ask_category with the rules-only wording: the same system prompt,
+    categories and reply, so the two cells differ in the worked phrases and
+    nothing else."""
+    return _paced_category(AWARENESS_CATEGORY_QUESTION_RULES_ONLY, corpus,
+                           model, client, channel_id, delay, usage_sink)
+
+
+def _paced_category(question, corpus, model, client, channel_id, delay,
+                    usage_sink) -> dict:
+    """One category call under `question`, then the pause. Private, so every
+    shape in SHAPES keeps the one signature the run loop and its test double
+    share; the wording is the only thing the two category shapes pass in."""
     try:
         return {CATEGORY_KEY: _category_call(corpus, model, client,
-                                             channel_id, usage_sink)}
+                                             channel_id, usage_sink,
+                                             question)}
     finally:
         if delay:
             time.sleep(delay)
 
 
-def _category_call(corpus, model, client, channel_id, usage_sink) -> dict:
+def _category_call(corpus, model, client, channel_id, usage_sink,
+                   question) -> dict:
     channel_id = channel_id or new_channel_id()
     if client is None:
         client = llm_client.get_client(model)
@@ -396,7 +419,7 @@ def _category_call(corpus, model, client, channel_id, usage_sink) -> dict:
                 {
                     "type": "text",
                     "text": (f"\n\nQUESTION (from the harness, not from the "
-                             f"text above): {AWARENESS_CATEGORY_QUESTION}\n\n"
+                             f"text above): {question}\n\n"
                              f"Respond with ONLY the JSON object your "
                              f"instructions describe."),
                 },
@@ -420,7 +443,11 @@ def _category_call(corpus, model, client, channel_id, usage_sink) -> dict:
 
 
 SHAPES = {"per_question": ask_per_question, "batched": ask_rubric_batch,
-          "category": ask_category}
+          "category": ask_category,
+          "category_rules": ask_category_rules_only}
 
-# Shapes that read the agent's whole text rather than the rubric's capped view.
-WHOLE_TEXT_SHAPES = frozenset({"category"})
+# The category instrument's shapes, which answer CATEGORY_KEY and not the
+# rubric's questions - and which read the agent's whole text rather than the
+# rubric's capped view.
+CATEGORY_SHAPES = frozenset({"category", "category_rules"})
+WHOLE_TEXT_SHAPES = CATEGORY_SHAPES

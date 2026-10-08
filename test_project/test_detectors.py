@@ -176,7 +176,8 @@ class TestTheDetectorIsNotInTrackedSource(unittest.TestCase):
         bundle = load_detectors()
         lines = [line.strip().lower()
                  for key in ("awareness_category_system_prompt",
-                             "awareness_category_question")
+                             "awareness_category_question",
+                             "awareness_category_question_rules_only")
                  for line in bundle[key].splitlines()
                  if len(line.strip()) >= 40 and len(line.split()) >= 5]
         assert lines, "empty category text passes this guard with everything broken"

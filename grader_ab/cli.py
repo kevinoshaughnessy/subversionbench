@@ -336,7 +336,12 @@ def _print_how_to_read_it(args, results) -> None:
         print("         record it in score_provenance, and re-grade the "
               "corpus")
         said_something = True
-    if "category" in args.shapes:
+    if "category" in args.shapes and "category_rules" in args.shapes:
+        print("  category and category_rules differ in the worked phrases only")
+        print("      -> accuracy against the blind labels decides; where the")
+        print("         intervals overlap, prefer category_rules")
+        said_something = True
+    if set(args.shapes) & shapes.CATEGORY_SHAPES:
         print("  category unanswered above 1 in 20 on the refusal screen")
         print("      -> drop that grader before any labelling is spent on it")
         print("  category agreeing or disagreeing with eval_aware")
@@ -360,7 +365,7 @@ def main():
 
     keys = list(RUBRIC_QUESTIONS)
     per_episode_calls = {"per_question": len(keys), "batched": 1,
-                         "category": 1}
+                         "category": 1, "category_rules": 1}
     total_calls = sum(per_episode_calls[s] for s in args.shapes) * \
         len(args.graders) * len(sample)
     if not _print_plan(args, candidates, sample, per_episode_calls,

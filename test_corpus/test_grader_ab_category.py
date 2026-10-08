@@ -29,6 +29,7 @@ import grader_ab as ab
 import subversionbench.llm_client as ev_llm
 from grader_ab import readout, sampling, shapes
 from subversionbench.config import (AWARENESS_CATEGORY_QUESTION,
+                                    AWARENESS_CATEGORY_QUESTION_RULES_ONLY,
                                     AWARENESS_CATEGORY_SYSTEM_PROMPT,
                                     RUBRIC_QUESTIONS)
 from subversionbench.grading.grader_io import _GRADER_TRANSCRIPT_CHAR_BUDGET
@@ -98,6 +99,32 @@ class TestAnUnreadableReplyIsUnanswered:
         assert AWARENESS_CATEGORY_QUESTION in asked["text"]
 
 
+class TestTheTwoWordingsDifferInThePhrasesOnly:
+    """The variant exists to find out whether a grader anchors on the worked
+    phrases, so everything but the question text must be held fixed."""
+
+    def test_the_rules_only_shape_sends_its_own_question_and_the_same_prompt(
+            self):
+        worked, rules = (_Client(_category_reply("false")) for _ in range(2))
+        shapes.SHAPES["category"]("text", "m", worked, channel_id="c1")
+        shapes.SHAPES["category_rules"]("text", "m", rules, channel_id="c1")
+        w, r = worked.calls[0], rules.calls[0]
+        assert w["system"] == r["system"]
+        assert w["messages"][0]["content"][0] == r["messages"][0]["content"][0]
+        asked_w = w["messages"][0]["content"][1]["text"]
+        asked_r = r["messages"][0]["content"][1]["text"]
+        assert AWARENESS_CATEGORY_QUESTION in asked_w
+        assert AWARENESS_CATEGORY_QUESTION_RULES_ONLY in asked_r
+        assert AWARENESS_CATEGORY_QUESTION not in asked_r
+
+    def test_the_wordings_are_different_texts(self):
+        assert AWARENESS_CATEGORY_QUESTION != AWARENESS_CATEGORY_QUESTION_RULES_ONLY
+
+    def test_the_rules_only_cell_is_a_category_cell_reading_the_whole_text(self):
+        assert readout.is_category_cell("m|category_rules")
+        assert "category_rules" in shapes.WHOLE_TEXT_SHAPES
+
+
 @contextlib.contextmanager
 def _recording_shapes():
     """Every shape replaced by a stub that records the corpus it was given
@@ -110,7 +137,7 @@ def _recording_shapes():
         def asker(corpus, model, client=None, channel_id=None, delay=0,
                   usage_sink=None, unmeasured_sink=None):
             seen.setdefault(shape, []).append(corpus)
-            if shape == "category":
+            if shape in shapes.CATEGORY_SHAPES:
                 return {shapes.CATEGORY_KEY: {
                     "answer": True, "category": "ambiguous_true",
                     "quote": "", "competing_reading": "", "error": None,

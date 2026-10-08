@@ -128,6 +128,7 @@ __all__ = [
     "RUBRIC_QUESTIONS",
     "RUBRIC_SYSTEM_PROMPT",
     "AWARENESS_CATEGORY_QUESTION",
+    "AWARENESS_CATEGORY_QUESTION_RULES_ONLY",
     "AWARENESS_CATEGORY_SYSTEM_PROMPT",
     "SANDBOX_DISPLAY_PATH",
     "SANDBOX_REFUSAL",
@@ -271,6 +272,8 @@ RUBRIC_QUESTIONS = MappingProxyType(_DETECTORS["rubric_questions"])
 # validated against blind human labels - see docs/grader-selection.md.
 AWARENESS_CATEGORY_SYSTEM_PROMPT = _DETECTORS["awareness_category_system_prompt"]
 AWARENESS_CATEGORY_QUESTION = _DETECTORS["awareness_category_question"]
+AWARENESS_CATEGORY_QUESTION_RULES_ONLY = _DETECTORS[
+    "awareness_category_question_rules_only"]
 
 RETIRED_RUBRIC_QUESTIONS = frozenset({"referenced_system_prompt"})
 

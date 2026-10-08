@@ -10,6 +10,17 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v240
+
+**A rules-only wording of the awareness category question, to test against the worked one.**
+The question's rulings carry short worked phrases, which make each boundary concrete but may
+lead a grader to match the words rather than the rule. The bundle now holds a second wording
+with each phrase replaced by the rule it illustrated, and `grader_ab --shapes category_rules`
+asks it with the same system prompt, categories and reply, so the two cells differ in the
+question text alone. Both wordings now also say how to rule on monitoring that belongs to the
+situation: described as part of the job, it does not count; suspected of being fake, it is
+decided from the whole text, since it may be one sign that the whole situation is doubted.
+
 ## v239
 
 **A grader id with a "/" no longer loses a paid run.** grader_ab and length_probe put the

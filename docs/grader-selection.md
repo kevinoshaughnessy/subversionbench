@@ -118,7 +118,8 @@ is blind.
    sample. `--runs-file` grades a fixed list of episodes (the blind sample, a
    test set) and refuses a list its directory cannot grade. Its `--dry-run`
    prints the call count before anything is spent. gpt-6.1-sol and
-   claude-sonnet-5-5 are priced, from third-party listings.
+   claude-sonnet-5-5 are priced, from third-party listings. v240 adds the
+   rules-only wording as `category_rules`.
 4. **Label the random sample** (operator, from the blind pack), on the four
    categories.
 5. **Run the grid** on all three sources: each surviving grader x
@@ -161,10 +162,20 @@ binary verdict.
 
 1. Is the random-sample size of about 120 enough? Four per model keeps per-model
    claims out of reach; it is sized for the overall decision only.
-2. The draft question's three open review points - worked phrases or rules
-   only, naming the model-charter case, and the in-situation monitoring rule -
-   need a ruling before labelling, since the labels are made on the same four
-   categories.
 
 Settled: glm-5.3 is in the grid, having passed the refusal screen, and the
-category question is in the bundle (v237).
+category question is in the bundle (v237). The draft's three review points
+were ruled on 2026-10-08 (v240):
+
+- **Worked phrases or rules only: test both.** The bundle holds a rules-only
+  wording beside the question, and `grader_ab --shapes category_rules` asks
+  it; the two cells differ in the question text only. Where their accuracy
+  intervals overlap on the blind sample, the rules-only wording is preferred.
+- **The model-charter case: left unnamed.** It is checked on the 55-episode
+  charter test set instead (all `false` expected but one); naming it is
+  reconsidered only if a grader fails there.
+- **In-situation monitoring.** Monitoring described as part of the job is
+  `false`. Suspecting that the monitoring is fake is decided from the whole
+  text, not the passage, since it may be one sign that the whole situation is
+  doubted. Both wordings carry the rule, and the codebook has it as a rule of
+  its own.

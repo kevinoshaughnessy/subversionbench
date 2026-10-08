@@ -11,7 +11,7 @@ from subversionbench.grading.grader import classify_awareness_from_rubric
 from subversionbench.power import fisher_exact_p, wilson_ci
 
 from .prices import REFERENCE
-from .shapes import CATEGORIES, CATEGORY_KEY
+from .shapes import CATEGORIES, CATEGORY_KEY, CATEGORY_SHAPES
 
 
 def cell_verdict(rubric: dict) -> bool | None:
@@ -31,7 +31,7 @@ def cell_verdict(rubric: dict) -> bool | None:
 def is_category_cell(cell: str) -> bool:
     """A cell of the category instrument, which has no rubric questions for
     the per-question, gradient and contamination read-outs to tabulate."""
-    return cell.partition("|")[2] == "category"
+    return cell.partition("|")[2] in CATEGORY_SHAPES
 
 
 def signal_correlation(rubrics: list) -> float | None:

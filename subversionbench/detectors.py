@@ -141,6 +141,10 @@ REQUIRED = (
     # the shipped one is, so it lives here and not in the labelling draft.
     "awareness_category_system_prompt",
     "awareness_category_question",
+    # The same question with each worked phrase replaced by the rule it
+    # illustrated, run beside it on the blind sample: a grader may anchor on
+    # the phrases, and the phrases are the protocol at its most learnable.
+    "awareness_category_question_rules_only",
 )
 
 # The documents a reader and a crawler actually read. Derived by glob rather
