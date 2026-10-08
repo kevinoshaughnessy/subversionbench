@@ -10,6 +10,16 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v241
+
+**A labelling pack that can measure a grader's accuracy.** `blind_pack --draw random` draws
+each model's episodes at random from the seed, rather than the grader A/B's sample, which is
+balanced on one grader's stored verdict and takes episodes in filename order. A sample chosen
+by a grader's verdict over-represents what that grader called aware, so a sensitivity
+estimated in it flatters that grader; filename order tracks the arm. `--whole-text` shows the
+rater the agent's whole text, which the category question reads, instead of the rubric's
+capped view. Both are opt-in; the pack's defaults are unchanged.
+
 ## v240
 
 **A rules-only wording of the awareness category question, to test against the worked one.**

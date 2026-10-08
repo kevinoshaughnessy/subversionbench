@@ -52,9 +52,12 @@ measured first and cheaply (step 2 below).
 
 Three sources, used for different things.
 
-1. **A random sample, labelled blind.** About 120 episodes, four per model
-   across the r10 and goal-guarding corpora, drawn by
-   `grader_ab.blind_pack` with a fixed seed. The rater sees the agent's text
+1. **A random sample, labelled blind.** About 110 episodes: one per model
+   from each of the r10 and goal-guarding corpora, two for the four models
+   whose awareness is phrased unusually, drawn by
+   `grader_ab.blind_pack --draw random --whole-text` with a fixed seed: at
+   random within each model, never balanced on a grader's verdict, and shown
+   whole, as the category question reads it. The rater sees the agent's text
    only: not the model, the arm, or any grader's reading. This is the only
    source that estimates accuracy on the corpus as it is, so the decision
    rests on it.

@@ -9,6 +9,7 @@ that derives the forbidden set from a REAL candidate is what proves the naming
 right.
 """
 
+import collections
 import contextlib
 import io
 import json
@@ -16,7 +17,7 @@ import os
 import sys
 import tempfile
 
-from grader_ab import blind_pack
+from grader_ab import blind_pack, sampling
 from subversionbench import blinding
 from test_corpus.grader_ab_fixtures import _graded_episode
 
@@ -213,3 +214,61 @@ class TestTheCommandLine:
         """A second copy of the block size here would be a second thing to
         keep in step."""
         assert blind_pack.BLOCK_SIZE is blinding.BLOCK_SIZE
+
+
+class TestTheRandomDrawMeasuresAccuracy:
+    """The labelled sample estimates each grader's accuracy, so it cannot be
+    chosen by any grader's verdict, nor by filename order, which tracks the
+    arm."""
+
+    def _pool(self, aware_for=lambda i: i % 2 == 0):
+        return [{"run": f"run_{i:02d}_m{i % 3}.json", "model": f"v/m{i % 3}",
+                 "stored_aware": aware_for(i)} for i in range(60)]
+
+    def test_the_same_seed_draws_the_same_episodes_and_another_seed_does_not(
+            self):
+        def draw(seed):
+            return [c["run"] for c in sampling.random_per_model(
+                self._pool(), 2, seed)]
+        assert draw(7) == draw(7)
+        assert draw(7) != draw(8)
+
+    def test_the_draw_ignores_every_stored_verdict(self):
+        """Flipping every verdict leaves the sample unchanged - the property a
+        sample balanced on one grader's verdict does not have."""
+        flipped = self._pool(aware_for=lambda i: i % 2 == 1)
+        a = [c["run"] for c in sampling.random_per_model(self._pool(), 3, 5)]
+        b = [c["run"] for c in sampling.random_per_model(flipped, 3, 5)]
+        assert a == b
+
+    def test_it_is_not_just_the_first_episodes_in_filename_order(self):
+        firsts = {f"run_{i:02d}_m{i % 3}.json" for i in range(3)}
+        drawn = [{c["run"] for c in sampling.random_per_model(
+            self._pool(), 1, seed)} for seed in range(10)]
+        assert any(d != firsts for d in drawn)
+
+    def test_each_model_gives_its_share_and_oversampled_models_double(self):
+        got = collections.Counter(c["model"] for c in sampling.random_per_model(
+            self._pool(), 2, 1, oversample={"v/m1"}))
+        assert got == {"v/m0": 2, "v/m1": 4, "v/m2": 2}
+
+    def test_whole_text_puts_the_uncapped_text_in_the_pack(self):
+        from subversionbench.grading.grader_io import (
+            _GRADER_TRANSCRIPT_CHAR_BUDGET as cap)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _graded_episode(tmp, 1, model="p/m")
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["transcript"] = [{"turn": 1, "type": "text",
+                                   "content": "w" * (cap * 2)}]
+            path.write_text(json.dumps(data), encoding="utf-8")
+            for flag, longer in (([], False), (["--whole-text"], True)):
+                dest = os.path.join(tmp, f"pack{len(flag)}")
+                code, out = _run_blind_pack([
+                    "--output-dir", tmp, "--per-model", "1", "--seed", "1",
+                    "--block", "2", "--draw", "random", "--dest", dest,
+                    *flag])
+                assert code == 0, out
+                text = "".join(open(os.path.join(dest, n), encoding="utf-8")
+                               .read() for n in os.listdir(dest)
+                               if n.startswith("block_"))
+                assert ("w" * (cap * 2) in text) is longer, flag

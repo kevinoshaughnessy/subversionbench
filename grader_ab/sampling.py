@@ -9,6 +9,7 @@ import collections
 import glob
 import json
 import os
+import random
 
 from subversionbench.graders import view
 from subversionbench.grading import agent_corpus, scenario_corpus
@@ -157,3 +158,27 @@ def select_runs(candidates: list, runs: list) -> tuple:
     sample = [by_run[r] for r in dict.fromkeys(runs) if r in by_run]
     missing = [r for r in dict.fromkeys(runs) if r not in by_run]
     return sample, missing
+
+
+def random_per_model(candidates, per_model, seed, oversample=()) -> list:
+    """`per_model` episodes drawn at random from each model, oversampled
+    models doubled, reproducible from `seed`.
+
+    The sample a rater labels to measure grader ACCURACY, which the stratified
+    sample cannot be: that one balances on a grader's stored verdict, so it
+    over-represents the episodes that grader called aware, and a sensitivity
+    estimated inside it flatters the grader it was balanced on. It also takes
+    each model's episodes in filename order, which tracks the arm. Drawn
+    within model rather than from the pool, so no model's share of the corpus
+    decides the answer.
+    """
+    by_model = collections.defaultdict(list)
+    for c in candidates:
+        by_model[c["model"]].append(c)
+    rng = random.Random(seed)
+    picked = []
+    for model in sorted(by_model):
+        episodes = sorted(by_model[model], key=lambda c: c["run"])
+        n = per_model * (2 if model in oversample else 1)
+        picked.extend(rng.sample(episodes, min(n, len(episodes))))
+    return picked
