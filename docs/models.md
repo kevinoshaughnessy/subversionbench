@@ -44,8 +44,10 @@ twelve-arm cross product.
 - [google/gemini-3.6-flash](https://deepmind.google/models/model-cards/gemini-3-6-flash/)
 - [google/gemini-3.7-flash](https://deepmind.google/models/model-cards/gemini-3-7-flash/)
 - [google/gemini-3.8-flash](https://openrouter.ai/google/gemini-3.8-flash) † — collected
-  2026-10-08 (120/120, pinned to Google AI Studio; Vertex was under 99% uptime that day),
-  grading pending; goal-guarding collected the same day, also pinned to Google AI Studio
+  2026-10-08 (120/120, pinned to Google AI Studio; Vertex was under 99% uptime that day) and
+  graded the same day by gpt-6-sol (all three nudges, no grader errors, no partially graded
+  episodes); the claude-opus-5 grader was not applied, as for most models, because of its
+  refusals; goal-guarding collected the same day, also pinned to Google AI Studio
 - [gpt-5.6-luna](https://deploymentsafety.openai.com/gpt-5-6/gpt-5-6.pdf)
 - [gpt-6-astra](https://deploymentsafety.openai.com/gpt-6-astra)
 - [gpt-6-luna](https://deploymentsafety.openai.com/gpt-6-astra/sec:appendix-sol-luna)
