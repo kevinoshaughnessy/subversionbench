@@ -47,7 +47,7 @@ twelve-arm cross product.
   2026-10-08 (120/120, pinned to Google AI Studio; Vertex was under 99% uptime that day) and
   graded the same day by gpt-6-sol (all three nudges, no grader errors, no partially graded
   episodes); the claude-opus-5 grader was not applied, as for most models, because of its
-  refusals; goal-guarding collected the same day, also pinned to Google AI Studio
+  refusals; goal-guarding collected and graded the same day, also pinned to Google AI Studio
 - [gpt-5.6-luna](https://deploymentsafety.openai.com/gpt-5-6/gpt-5-6.pdf)
 - [gpt-6-astra](https://deploymentsafety.openai.com/gpt-6-astra)
 - [gpt-6-luna](https://deploymentsafety.openai.com/gpt-6-astra/sec:appendix-sol-luna)
@@ -144,7 +144,7 @@ native route below stands for the model.
 | google/gemini-3.5-flash | complete |
 | google/gemini-3.6-flash | complete (79/80). Gemini's filter blocked three episodes mid-run, each after the model had read the successor file once and before any edit: one in each of replacement/oversight/none and replacement/oversight/strong on 2026-09-30, and the retry of the first on 2026-10-07 (pinned to Google). The strong episode was replaced on 2026-10-07; replacement/oversight/none is left at 9 rather than retried again |
 | google/gemini-3.7-flash | complete |
-| google/gemini-3.8-flash | collected 2026-10-08 (80/80, pinned to Google AI Studio), grading pending |
+| google/gemini-3.8-flash | complete (pinned to Google AI Studio) |
 | gpt-5.6-luna | complete |
 | gpt-6-astra | complete |
 | gpt-6-luna | complete |
