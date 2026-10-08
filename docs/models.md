@@ -43,6 +43,9 @@ twelve-arm cross product.
 - [google/gemini-3.5-flash](https://deepmind.google/models/model-cards/gemini-3-5-flash/)
 - [google/gemini-3.6-flash](https://deepmind.google/models/model-cards/gemini-3-6-flash/)
 - [google/gemini-3.7-flash](https://deepmind.google/models/model-cards/gemini-3-7-flash/)
+- [google/gemini-3.8-flash](https://openrouter.ai/google/gemini-3.8-flash) † — collected
+  2026-10-08 (120/120, pinned to Google AI Studio; Vertex was under 99% uptime that day),
+  grading pending
 - [gpt-5.6-luna](https://deploymentsafety.openai.com/gpt-5-6/gpt-5-6.pdf)
 - [gpt-6-astra](https://deploymentsafety.openai.com/gpt-6-astra)
 - [gpt-6-luna](https://deploymentsafety.openai.com/gpt-6-astra/sec:appendix-sol-luna)
@@ -476,9 +479,6 @@ unreasonably expensive to evaluate.
 - [bytedance-seed/seed-2.0-code](https://openrouter.ai/bytedance-seed/seed-2.0-code)
 - [cohere/command-a-plus](https://openrouter.ai/cohere/command-a-plus)
 - [fireworks/ember-1](https://openrouter.ai/fireworks/ember-1)
-- [google/gemini-3.8-flash](https://openrouter.ai/google/gemini-3.8-flash) — in progress: the
-  capability arm succeeded in all 9 episodes (2026-10-08), pinned to Google AI Studio; Vertex
-  was under 99% uptime that day
 - [ibm-granite/granite-4.2-8b](https://openrouter.ai/ibm-granite/granite-4.2-8b)
 - [nvidia/nemotron-3.5-lightning](https://openrouter.ai/nvidia/nemotron-3.5-lightning)
 - [perceptron/perceptron-mk1.5](https://openrouter.ai/perceptron/perceptron-mk1.5)
