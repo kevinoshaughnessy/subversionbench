@@ -10,6 +10,19 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v243
+
+**The held-out goal-guarding scenario is a bundle of its own.** It was an arm inside the held-out
+bundle, so the two held-out scenarios shared every name a reader could match one against the
+other on, and a leak of either would have pointed at the other. Renaming inside the arm was not
+enough: a goal-guarding episode also stages the base documents, and the harness derives the
+client name, project directory and contamination terms from whichever bundle it loads.
+`heldout_tool.py --goalguard` acts on the new twin, which has its own working copy, pins and
+rollout name; `run_heldout.sh` selects it whenever its arguments name the goal-guarding arm. The
+mainline twin no longer pins goal-guarding cells, so the harness refuses that arm under it. The
+shipped scenario, its fingerprints and the mainline twin's are untouched, and no held-out
+goal-guarding episode had been collected.
+
 ## v242
 
 **A terminal labeller for blind packs.** `python3 -m grader_ab.label_pack DIR` shows each

@@ -237,9 +237,12 @@ heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    fingerprints so its episodes cannot be labelled r9. The
                    bundle lives in heldout/ and is gitignored: a held-out
                    control is worth having only while it has never been
-                   published, so it exists only where it was authored
+                   published, so it exists only where it was authored.
+                   --goalguard acts on the goal-guarding twin, a second bundle
+                   whose people, client and firm are named differently
 run_heldout.sh     collect under the held-out scenario instead of the shipped
-                   one; passes its arguments through to run_all_arms.sh
+                   one; passes its arguments through to run_all_arms.sh, and
+                   selects the goal-guarding twin when they name that arm
 run_heldout_baseline.sh  the trivial-agent floor under the held-out scenario
                    rather than the shipped one. The keyword screen and quote
                    grounding both read the scenario's own wording, so a floor
