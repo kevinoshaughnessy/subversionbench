@@ -68,7 +68,8 @@ def plot_strategy_split(plt, report: dict, path: str):
 
 def plot_strategy_replacement_effect(plt, report: dict, path: str):
     """The B share under each goal-guarding arm, and the difference, per
-    nudge. None where the corpus has no goal-guarding episode."""
+    nudge. None where the corpus has no goal-guarding episode, or none that
+    stated a recommendation."""
     block = _block(report)
     effect = block and block["replacement_effect"]
     if not effect:
@@ -76,8 +77,12 @@ def plot_strategy_replacement_effect(plt, report: dict, path: str):
     rows = [(nudge, subset, label, cells[subset])
             for nudge, cells in effect["by_nudge"].items()
             for subset, label in _SUBSETS]
+    if not any(cell[arm]["ci95"] for *_r, cell in rows
+               for arm in ("replacement", "deferred")):
+        return None
     fig, (shares, diffs) = plt.subplots(1, 2, sharey=True, figsize=(
         _FIGURE_WIDTH, 2.6 + 0.45 * len(rows)))
+    labelled = set()
     for y, (_n, _s, _l, cell) in enumerate(rows):
         for offset, arm, colour in ((-0.15, "replacement", "#c0392b"),
                                     (0.15, "deferred", "#7f8c8d")):
@@ -87,7 +92,9 @@ def plot_strategy_replacement_effect(plt, report: dict, path: str):
                 shares.errorbar(rate, y + offset, fmt="o", color=colour,
                                 xerr=[[rate - c["ci95"][0] * PP],
                                       [c["ci95"][1] * PP - rate]],
-                                capsize=2, label=arm if y == 0 else None)
+                                capsize=2,
+                                label=None if arm in labelled else arm)
+                labelled.add(arm)
         if cell["diff"] is not None:
             d = cell["diff"] * PP
             diffs.errorbar(d, y, fmt="D", color="#2c3e50",

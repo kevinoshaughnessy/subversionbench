@@ -91,3 +91,6 @@ class TestTheChartsDraw:
             propensity = self._report([_row("A"), _row("B")])
             assert plot_strategy_replacement_effect(plt, propensity,
                                                     effect) is None
+            unstated = self._report(_guarded("--", "-"))
+            assert plot_strategy_replacement_effect(plt, unstated,
+                                                    effect) is None
