@@ -10,6 +10,11 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v245
+
+**A release date for qwen/qwen3.8-2.4t-a95b**, so the release-date charts place it
+once it shares a family with another collected model.
+
 ## v244
 
 **Misaligned acts by turns since first verbalised awareness.** A new characteristic,
