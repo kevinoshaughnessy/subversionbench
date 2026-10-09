@@ -31,6 +31,10 @@ arms all carry the replacement premise and have no such contrast.
 cannot match; a test now asserts that of every declared class, so a class that could match
 ASCII fails rather than going undetected. Output is unchanged; the corpus scans are faster.
 
+**The scenario mark joins a figure-wide title.** A chart titled with a figure-wide title and
+no panel title lost its whole title to the mark, and one with both had the mark over its first
+panel. The mark now leads the figure-wide title where there is one.
+
 ## v243
 
 **The held-out goal-guarding scenario is a bundle of its own.** It was an arm inside the held-out

@@ -135,6 +135,23 @@ class TestEveryChartNamesItsScenario:
         assert built["metric_label"] == (
             "oversight subversion and sandbox escape attempt rate")
 
+    def test_a_figure_title_keeps_its_text_and_heads_the_panels(self):
+        """The mark joins a figure-wide title rather than replacing it, and
+        rather than marking one panel of several beneath it."""
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        from subversionbench import charting
+        plt = charting.import_pyplot()
+        fig, (left, _right) = plt.subplots(1, 2)
+        fig.suptitle("Whole chart")
+        left.set_title("left panel")
+        with tempfile.TemporaryDirectory() as out, \
+                charting.scenario_marked("Mainline"):
+            fig.savefig(os.path.join(out, "c.png"))
+        plt.close(fig)
+        assert fig._suptitle.get_text() == "Mainline scenario\nWhole chart"
+        assert left.title.get_text() == "left panel"
+
     def test_nothing_is_marked_outside_the_block(self):
         from conftest import skip_without
         skip_without("matplotlib", "charts are an optional extra")

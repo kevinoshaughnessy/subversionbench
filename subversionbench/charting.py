@@ -151,6 +151,13 @@ def scenario_marked(scenario):
     mark = f"{scenario} scenario" + ("s" if " and " in scenario else "")
 
     def savefig(fig, *args, **kwargs):
+        # A figure-wide title heads the chart, so it takes the mark ahead of
+        # any panel's: replacing it lost a chart's whole title, and marking
+        # the first panel instead put the scenario over one panel of two.
+        suptitle = getattr(fig, "_suptitle", None)
+        if suptitle is not None and suptitle.get_text():
+            suptitle.set_text(f"{mark}\n{suptitle.get_text()}")
+            return original(fig, *args, **kwargs)
         # The Text objects themselves rather than set_title, which would reset
         # each chart's own font size to the default. `_left_title` is private
         # but has been the left title's home for as long as `loc` has existed.
