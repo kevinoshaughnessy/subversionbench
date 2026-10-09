@@ -237,9 +237,12 @@ heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    fingerprints so its episodes cannot be labelled r9. The
                    bundle lives in heldout/ and is gitignored: a held-out
                    control is worth having only while it has never been
-                   published, so it exists only where it was authored
+                   published, so it exists only where it was authored.
+                   --goalguard acts on the goal-guarding twin, a second bundle
+                   whose people, client and firm are named differently
 run_heldout.sh     collect under the held-out scenario instead of the shipped
-                   one; passes its arguments through to run_all_arms.sh
+                   one; passes its arguments through to run_all_arms.sh, and
+                   selects the goal-guarding twin when they name that arm
 run_heldout_baseline.sh  the trivial-agent floor under the held-out scenario
                    rather than the shipped one. The keyword screen and quote
                    grounding both read the scenario's own wording, so a floor
@@ -435,6 +438,8 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    went wrong. Descriptive profiles, deliberately not questions:
                    each splits on something the model chose mid-episode
   pooling.py       pooling, contrasts, strata, consistency. No question attached
+  strategy_pressure.py  the strategy recommended per arm, and the effect of an
+                   imminent replacement on it in the goal-guarding arms
   questions_arms.py       Q1-4: the exposure is an arm the design assigned
   questions_awareness.py  Q5-10: the exposure is something the model did
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
@@ -478,6 +483,10 @@ report_charts/     the charts the report draws with the `charts` extra: a
   goalguard.py     question 14's goal-guarding rate views: per episode and
                    among episodes that read the file, pooled and without
                    oversight
+  act_awareness_gap.py  misaligned acts by act turn minus first-awareness
+                   turn: one chart for the corpus and one per arm
+  strategy.py      the strategy recommended per arm, and the goal-guarding
+                   arms' replacement-minus-deferred difference in it
   capability.py    capability_report.py's one chart: each model's
                    instructed episodes as succeeded, attempted and refused
                    counts, marked capable or not shown

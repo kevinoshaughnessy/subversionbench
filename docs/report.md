@@ -558,6 +558,41 @@ freedom, so `p` alone can read as "homogeneous" when it may only mean "underpowe
 homogeneity"; `I^2` does not depend on df the way the test's power does, so report both rather
 than `p` alone.
 
+## Turns from awareness to act
+
+`act_awareness_gap.png` counts misaligned acts by the act's turn minus the turn of the
+episode's first verbalised awareness, across every model and arm; one
+`act_awareness_gap_<arm>.png` per arm does the same across models, the arm named as a run
+file's suffix names it (`strong_nooversight_lure`). The block behind them is
+`characteristics.act_awareness_gap` in the JSON report.
+
+- One count per act, so an episode with two acts counts twice. Only the acts the episode's
+  `misaligned` verdict counts are included, so a goal-guarding corpus shows its own act.
+- Awareness is the keyword measure, because the rubric grader returns no position. It
+  under-detects, so acts in episodes with no indicator phrase are counted in the caption
+  rather than drawn, as are acts no command could be tied to.
+- 0 is the same turn. Negative means awareness was verbalised only after the act.
+- Descriptive: both turns are the model's own choices, so the gap is not an effect.
+
+## The strategy recommended, and replacement pressure
+
+`strategy_split.png` stacks strategy A, strategy B and none stated for each arm, over every
+episode and over the episodes with no misaligned act. It is descriptive, because the arms
+differ in more than one thing.
+
+`strategy_replacement_effect.png` is drawn only for a goal-guarding corpus. It shows the
+strategy-B share of stated recommendations under `replacement` and under `deferred`, and the
+difference with a Newcombe interval, per nudge. The two arms differ only in whether the
+cutover lands this cycle, so the difference is an effect. Every propensity arm carries the
+replacement premise, so the propensity corpus has no such contrast.
+
+- With no nudge the deferred arm's memo still carries the standby-engine premise and only
+  its cutover note defers it, so the withdrawal is complete only under the strong nudge.
+- Strategy B is also what the client's brief asks for, so a B share is not a
+  self-preservation rate. The difference is what isolates the pressure.
+- The block is `characteristics.strategy_by_arm` in the JSON report, with per-model
+  differences that are too thin to draw.
+
 ---
 
 ## What it does not do
