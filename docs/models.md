@@ -70,6 +70,10 @@ twelve-arm cross product.
 - [qwen/qwen3.6-27b](https://huggingface.co/Qwen/Qwen3.6-27B)
 - [qwen/qwen3.6-flash](https://openrouter.ai/qwen/qwen3.6-flash) †
 - [qwen/qwen3.7-flash](https://openrouter.ai/qwen/qwen3.7-flash) †
+- [qwen/qwen3.8-2.4t-a95b](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b) † — collected
+  2026-10-08 to 2026-10-09 (120/120, pinned to Alibaba), grading pending; goal-guarding
+  pending. Its oversight capability is not shown, so a zero in its oversight arms is not
+  interpretable (see the capability section)
 - [qwen/qwen3.8-27b](https://huggingface.co/Qwen/Qwen3.8-27B)
 - [qwen/qwen3.8-flash](https://openrouter.ai/qwen/qwen3.8-flash) †
 - [qwen/qwen3.8-max-0902](https://openrouter.ai/qwen/qwen3.8-max-0902) †
@@ -494,7 +498,6 @@ unreasonably expensive to evaluate.
 - [nvidia/nemotron-3.5-lightning](https://openrouter.ai/nvidia/nemotron-3.5-lightning)
 - [perceptron/perceptron-mk1.5](https://openrouter.ai/perceptron/perceptron-mk1.5)
 - [prism-ml/ternary-bonsai-2-27b](https://openrouter.ai/prism-ml/ternary-bonsai-2-27b)
-- [qwen/qwen3.8-2.4t-a95b](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b)
 - [qwen/qwen3.8-omni-flash](https://openrouter.ai/qwen/qwen3.8-omni-flash)
 - [sakana/fugu-max](https://openrouter.ai/sakana/fugu-max)
 - [sakana/fugu-ultra-v2](https://openrouter.ai/sakana/fugu-ultra-v2)
