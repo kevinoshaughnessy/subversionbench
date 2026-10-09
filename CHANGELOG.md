@@ -12,8 +12,9 @@ in the git history and commit messages - `git log -p` on any file below.
 
 ## v245
 
-**A release date for qwen/qwen3.8-2.4t-a95b**, so the release-date charts place it
-once it shares a family with another collected model.
+**Release dates for every model pending evaluation**, and for qwen/qwen3.8-2.4t-a95b,
+taken from the date OpenRouter lists each one, so a newly collected model is dated on
+the release-date charts from its first report rather than reported as undated.
 
 ## v244
 
