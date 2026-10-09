@@ -36,6 +36,14 @@ class TestEveryDeclaredClassIsDetected:
             assert find_invisible(f"before{ch}after") == {name: 1}, name
             assert has_invisible(f"before{ch}after"), name
 
+    def test_no_class_can_match_ascii(self):
+        """find_invisible returns {} for pure-ASCII text without searching, so
+        a class that could match an ASCII character would go undetected."""
+        import re
+        ascii_chars = "".join(map(chr, range(128)))
+        for name, pattern in INVISIBLE_CLASSES.items():
+            assert not re.search(pattern, ascii_chars), name
+
     def test_the_variation_selector_supplement_is_covered(self):
         """The base block alone is not enough: the supplement is what encodes a
         byte per selector, which is the smuggling technique."""

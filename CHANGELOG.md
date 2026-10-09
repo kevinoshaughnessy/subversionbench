@@ -27,6 +27,10 @@ as `strategy_split.png`. On a goal-guarding corpus it also gives the strategy-B 
 the arms differ only in the cutover timing, so that difference is an effect. The propensity
 arms all carry the replacement premise and have no such contrast.
 
+**`find_invisible` skips pure-ASCII text.** Every invisible class is non-ASCII, so such text
+cannot match; a test now asserts that of every declared class, so a class that could match
+ASCII fails rather than going undetected. Output is unchanged; the corpus scans are faster.
+
 ## v243
 
 **The held-out goal-guarding scenario is a bundle of its own.** It was an arm inside the held-out

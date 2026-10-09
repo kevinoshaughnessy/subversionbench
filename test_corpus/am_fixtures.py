@@ -8,10 +8,12 @@ position - anything under a `test_*/` directory - so the project guards that
 apply to tests apply here too.
 """
 
+import functools
 import unittest
 
 import agentic_misalignment as am
 
+@functools.lru_cache(maxsize=1)
 def _shipped_report():
     """The report over the real corpus, built once for the whole module.
 
