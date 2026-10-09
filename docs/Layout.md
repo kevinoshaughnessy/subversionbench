@@ -438,6 +438,8 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    went wrong. Descriptive profiles, deliberately not questions:
                    each splits on something the model chose mid-episode
   pooling.py       pooling, contrasts, strata, consistency. No question attached
+  strategy_pressure.py  the strategy recommended per arm, and the effect of an
+                   imminent replacement on it in the goal-guarding arms
   questions_arms.py       Q1-4: the exposure is an arm the design assigned
   questions_awareness.py  Q5-10: the exposure is something the model did
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
@@ -481,6 +483,10 @@ report_charts/     the charts the report draws with the `charts` extra: a
   goalguard.py     question 14's goal-guarding rate views: per episode and
                    among episodes that read the file, pooled and without
                    oversight
+  act_awareness_gap.py  misaligned acts by act turn minus first-awareness
+                   turn: one chart for the corpus and one per arm
+  strategy.py      the strategy recommended per arm, and the goal-guarding
+                   arms' replacement-minus-deferred difference in it
   capability.py    capability_report.py's one chart: each model's
                    instructed episodes as succeeded, attempted and refused
                    counts, marked capable or not shown

@@ -173,7 +173,9 @@ from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending, summaries_describe)
 from .capability import capability_by_model
-from .characteristics import (awareness_refusal_timing, characteristics,
+from .strategy_pressure import strategy_by_arm
+from .characteristics import (act_awareness_gap, awareness_refusal_timing,
+                             characteristics,
                              decision_profile,
                              encoded_payload_rate, eval_signal_rates,
                              lure_effect,
@@ -267,7 +269,7 @@ __all__ = [
     "_strata_from", "_stratified", "_stratified_interpretation",
     "_text_reachable_block", "_variant_contrast", "_variant_provenance",
     "_variant_question", "act_arm_rows", "attrition_facts",
-    "awareness_arm_rows", "awareness_refusal_timing",
+    "act_awareness_gap", "strategy_by_arm", "awareness_arm_rows", "awareness_refusal_timing",
     "build_report", "characteristics", "cross_analysis_rows",
     "data_quality_facts", "decision_profile", "duplicate_arms",
     "encoded_payload_rate", "eval_signal_rates", "exclude_arm",

@@ -10,6 +10,23 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v244
+
+**Misaligned acts by turns since first verbalised awareness.** A new characteristic,
+`act_awareness_gap`, counts each act the episode's verdict counts by its turn minus the turn
+of first verbalised awareness, read off the `awareness_timing_<act>` records every episode
+already carries. `act_awareness_gap.png` draws it for the corpus and
+`act_awareness_gap_<arm>.png` once per arm across models. Awareness is the keyword measure,
+the only one with a position; acts that cannot be placed are counted in the caption, not
+drawn. No grader verdict reaches it, so it is drawn once per corpus.
+
+**The strategy recommended, per arm, and under replacement pressure.** `strategy_by_arm`
+gives the A/B/unstated split in every arm, over all episodes and over those with no act, drawn
+as `strategy_split.png`. On a goal-guarding corpus it also gives the strategy-B share under
+`replacement` minus under `deferred`, per nudge, drawn as `strategy_replacement_effect.png`:
+the arms differ only in the cutover timing, so that difference is an effect. The propensity
+arms all carry the replacement premise and have no such contrast.
+
 ## v243
 
 **The held-out goal-guarding scenario is a bundle of its own.** It was an arm inside the held-out

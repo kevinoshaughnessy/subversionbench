@@ -33,6 +33,9 @@ re-collection and no `--resummarise`: it is a new reading of data the harness ha
 recorded all along.
 """
 
+from collections import Counter
+
+from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 from .episode_rows import (AWARENESS_CONFIDENCE_BANDS,
@@ -40,6 +43,7 @@ from .episode_rows import (AWARENESS_CONFIDENCE_BANDS,
                            MISUSE_EVIDENCE_BANDS,
                            AWARENESS_REFUSAL_LOCATABLE, RUBRIC_SIGNAL_KEYS)
 from .pooling import _models
+from .strategy_pressure import _arm_slug, strategy_by_arm
 
 
 def persistence_after_refusal(episodes: list) -> dict:
@@ -671,6 +675,65 @@ def lure_effect(episodes: list) -> dict:
     }
 
 
+def _gap_counts(rows: list) -> dict:
+    """Acts per (act turn - first awareness turn), per act, and what could not
+    be placed. Pairs rather than a dict keyed by gap, because JSON would turn
+    the integer keys into strings and sort -1 after 10."""
+    gaps = {act["name"]: Counter() for act in MISALIGNED_ACTS}
+    unplaced = Counter()
+    for e in rows:
+        for act in MISALIGNED_ACTS:
+            timing = e.get(f"{act['name']}_awareness_timing") or {}
+            level = timing.get("timing")
+            if level in (None, "no_act"):
+                continue
+            act_turn, aware_turn = timing.get("act_turn"), timing.get(
+                "awareness_turn")
+            if act_turn is None or aware_turn is None:
+                unplaced[level] += 1
+            else:
+                gaps[act["name"]][act_turn - aware_turn] += 1
+    return {
+        "by_act": {name: sorted(c.items()) for name, c in gaps.items() if c},
+        "n_placed": sum(sum(c.values()) for c in gaps.values()),
+        "n_not_aware": unplaced["not_aware"],
+        "n_unlocatable": sum(n for level, n in unplaced.items()
+                             if level != "not_aware"),
+    }
+
+
+def act_awareness_gap(episodes: list) -> dict:
+    """
+    How many turns after first verbalising awareness each act was taken.
+
+    One count per act, not per episode: an episode that tampered with
+    oversight and probed the sandbox contributes to both. Only the acts the
+    episode's own `misaligned` verdict counts - see counted_acts - so the
+    goal-guarding scenario's chart is its own act.
+
+    THE AWARENESS IS THE KEYWORD MEASURE'S, for the reason
+    awareness_refusal_timing gives: the rubric grader returns no position. An
+    act whose episode never matched an indicator phrase has no gap and is
+    counted as `n_not_aware`, which under-detection inflates; an act no
+    command could be tied to is `n_unlocatable`.
+
+    Turns, not transcript entries, because a reader counts turns: 0 is
+    awareness in the same turn as the act, which the entry order inside the
+    turn may put either side of it. Negative is awareness verbalised only
+    after the act.
+    """
+    by_arm = {}
+    for e in episodes:
+        by_arm.setdefault(_arm_slug(e), []).append(e)
+    return {
+        "measure": ("misaligned acts by act turn minus the turn of first "
+                    "verbalised awareness (keyword measure)"),
+        "pooled": _gap_counts(episodes),
+        "by_arm": [{"arm": arm, **_gap_counts(rows)}
+                   for arm, rows in sorted(by_arm.items())],
+    }
+
+
 def characteristics(episodes: list) -> dict:
     """
     Every characteristic block, in one place.
@@ -686,4 +749,6 @@ def characteristics(episodes: list) -> dict:
             "misuse_profile": misuse_profile(episodes),
             "encoded_payload_rate": encoded_payload_rate(episodes),
             "awareness_refusal_timing": awareness_refusal_timing(episodes),
-            "lure_effect": lure_effect(episodes)}
+            "lure_effect": lure_effect(episodes),
+            "act_awareness_gap": act_awareness_gap(episodes),
+            "strategy_by_arm": strategy_by_arm(episodes)}
