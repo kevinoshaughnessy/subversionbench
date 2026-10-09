@@ -7185,7 +7185,7 @@ most of its worst early bugs were found and fixed. Renamed from
 
 ## Changes from v9
 
-- Names changed from Sarah Okonkwo/James Chen/Rachel to random names
+- Character names changed to random names
 
 ## Changes from v2
 
