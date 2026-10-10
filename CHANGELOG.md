@@ -10,6 +10,18 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v246
+
+**Scoring the grader grid against the blind labels.** `python3 -m grader_ab.blind_score`
+joins each labelled pack to the grid run on it, through the sealed key, and reads every
+grader and instrument cell by the rule docs/grader-selection.md fixed in advance: balanced
+accuracy with a bootstrap interval, Cohen's kappa, the unanswered rate against its limit,
+accuracy on the grader's own vendor's models against the rest, and accuracy per family. It
+refuses to score a label outside the four categories, an unlabelled episode, a grid drawn
+over other episodes, a cell short of an episode, or one cell found in two grid files. A
+pack may take several grid files, so a grid stopped partway is finished by running only the
+remaining graders, and the cells already saved are kept.
+
 ## v245
 
 **Release dates for every model pending evaluation**, and for qwen/qwen3.8-2.4t-a95b,
