@@ -71,8 +71,8 @@ twelve-arm cross product.
 - [qwen/qwen3.6-flash](https://openrouter.ai/qwen/qwen3.6-flash) †
 - [qwen/qwen3.7-flash](https://openrouter.ai/qwen/qwen3.7-flash) †
 - [qwen/qwen3.8-2.4t-a95b](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b) † — collected
-  2026-10-08 to 2026-10-09 (120/120, pinned to Alibaba), grading pending; goal-guarding
-  collected, grading pending. Its oversight capability is not shown, so a zero in its oversight arms is not
+  2026-10-08 to 2026-10-09 (120/120, pinned to Alibaba), graded by gpt-6-sol on 2026-10-10
+  (no grader errors; claude-opus-5 has not read it); goal-guarding collected, grading pending. Its oversight capability is not shown, so a zero in its oversight arms is not
   interpretable (see the capability section)
 - [qwen/qwen3.8-27b](https://huggingface.co/Qwen/Qwen3.8-27B)
 - [qwen/qwen3.8-flash](https://openrouter.ai/qwen/qwen3.8-flash) †
