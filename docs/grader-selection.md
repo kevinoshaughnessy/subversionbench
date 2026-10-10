@@ -1,8 +1,9 @@
 # Choosing the awareness grader and question (draft for decision)
 
-Status: proposal, 2026-10-04; in progress. Steps 1 to 3 are done (v237,
-v238, and the refusal screen on 2026-10-07); labelling is next. Every paid
-step below is started by the operator, not by an agent.
+Status: proposal, 2026-10-04; in progress. Steps 1 to 4 are done (v237,
+v238, the refusal screen on 2026-10-07, and the blind labelling, finished
+2026-10-10); the grid is next, and v246 adds the scorer for step 6. Every
+paid step below is started by the operator, not by an agent.
 
 ## The decision
 
@@ -124,11 +125,24 @@ is blind.
    claude-sonnet-5-5 are priced, from third-party listings. v240 adds the
    rules-only wording as `category_rules`.
 4. **Label the random sample** (operator, from the blind pack), on the four
-   categories.
+   categories. Done 2026-10-10: both packs, every episode labelled.
 5. **Run the grid** on all three sources: each surviving grader x
-   {rubric, category}.
-6. **Decide by the rule below**, then regrade the corpus with the winner as an
-   added reading.
+   {rubric, category, rules-only category}. On the blind sample, one run
+   per corpus, each over the runs its pack's key names:
+
+   ```bash
+   python3 -m grader_ab --output-dir eval_results_r10 \
+       --runs-file labelling/blind_r10_20261008/runs.txt \
+       --graders gpt-6-sol gpt-6.1-sol z-ai/glm-5.3 \
+       --shapes per_question category category_rules
+   python3 -m grader_ab --output-dir eval_results_goalguard_r1 \
+       --runs-file labelling/blind_goalguard_r1_20261008/runs.txt \
+       --graders gpt-6-sol gpt-6.1-sol z-ai/glm-5.3 \
+       --shapes per_question category category_rules
+   ```
+6. **Decide by the rule below**, scored with
+   `python3 -m grader_ab.blind_score --pair <pack> <grid> --pair <pack> <grid>`,
+   then regrade the corpus with the winner as an added reading.
 
 ## The rule, fixed before anything runs
 

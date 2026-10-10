@@ -311,6 +311,13 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    resumes. Never opens the sealed key, and refuses a note
                    that repeats six words of the transcript, since labelling/
                    is plaintext. Run as `python3 -m grader_ab.label_pack DIR`
+  blind_score.py   the step after labelling: joins each pack's labels through
+                   its sealed key to a grid run on that pack, and reads every
+                   cell by grader-selection.md's rule - balanced accuracy with
+                   a bootstrap interval, kappa, the unanswered rate against its
+                   limit, own vendor against the rest, per family. Refuses a
+                   join that is not exact. Run as
+                   `python3 -m grader_ab.blind_score --pair PACK GRID [GRID ...]`
   misuse_pack.py   the same split, for the suspects_misuse measure. Its
                    negative side is drawn from episodes the free screen calls
                    no while a REJECTED candidate fires: a uniformly drawn
