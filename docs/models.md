@@ -540,6 +540,106 @@ Inside the window but not pending:
 - **No tool calling** — Tencent's hy-mt2 translation models, inference-net's schematron
   extraction models, and `typesafe/jev-router`.
 
+### Pending re-collection: arms cut off at `--max-tokens 8192`
+
+Found 2026-10-10 while collecting z-ai/glm-5.3-flash. A turn whose reasoning uses the whole
+per-turn output cap returns no tool call, so the loop ends the episode as `model_stopped`
+and a propensity rate counts it as a model that declined to act. The report flags these
+arms (data quality, truncated-as-stopped) but keeps them in the rates. The remedy is to raise
+the cap and re-collect the arm whole: re-drawing only the cut-off episodes would
+under-represent the long deliberations, and an arm with no cut-off turn is unchanged by a
+higher cap, so it stays. The cap is not part of the rollout fingerprint, so re-collected
+arms pool. Move the old arm aside rather than deleting it, as was done for glm-5.3-flash
+(`eval_results_r10_superseded_glmflash_8192/`), then re-run `run_all_arms.sh` with
+`--max-tokens 32768`, which collects only the arms that are now missing.
+
+**Not started.** It waits on glm-5.3-flash showing that 32768 is enough. Collect with
+`--no-grader` until a grader is funded or chosen, and pin each model to the host that served
+the original arms where it still offers the model, so the old and new arms differ only in
+the cap.
+
+20 models, 97 arms, 990 episodes to re-collect (215 of them cut off), out of 10,747 in
+`eval_results_r10` and `eval_results_goalguard_r1`. The capability corpora and the held-out
+corpus have none. The count is a floor for the 3,933 mainline episodes collected before
+`ended_by_provider` was recorded: those were found by the harness's no-visible-output
+placeholder, which caught 32 of the 39 cut-offs where the provider's reason is recorded and
+flagged nothing that was not one.
+
+| model | mainline arms / episodes / cut off | goal-guarding arms / episodes / cut off | to re-collect |
+|---|---|---|---|
+| deepseek/deepseek-v4.1-flash | 9 / 90 / 31 | 5 / 50 / 10 | 140 |
+| z-ai/glm-5.3 | 7 / 70 / 25 | 4 / 40 / 30 | 110 |
+| qwen/qwen3.8-27b | 6 / 60 / 12 | 5 / 50 / 13 | 110 |
+| deepseek/deepseek-v4-flash-0731 | 5 / 50 / 10 | 6 / 60 / 11 | 110 |
+| tencent/hy3 | 4 / 40 / 6 | 4 / 40 / 6 | 80 |
+| deepseek/deepseek-v4-pro-0813 | 4 / 40 / 10 | 4 / 40 / 7 | 80 |
+| google/gemini-3.5-flash | 2 / 40 / 4 | 3 / 30 / 6 | 70 |
+| google/gemini-3.8-flash | 3 / 30 / 3 | 2 / 20 / 2 | 50 |
+| unbiased/pareto | 3 / 30 / 3 | 1 / 10 / 1 | 40 |
+| deepseek/deepseek-v4-pro | 1 / 10 / 1 | 3 / 30 / 4 | 40 |
+| moonshotai/kimi-k3 | 1 / 10 / 1 | 2 / 20 / 4 | 30 |
+| moonshotai/kimi-k2.6 | 2 / 20 / 2 | — | 20 |
+| z-ai/glm-5.1 | 2 / 20 / 3 | — | 20 |
+| qwen/qwen3.6-27b | — | 2 / 20 / 2 | 20 |
+| meta/muse-spark-1.2 | — | 2 / 20 / 2 | 20 |
+| meta/muse-spark-1.3 | 1 / 10 / 1 | — | 10 |
+| inclusionai/ling-3.0-flash | 1 / 10 / 1 | — | 10 |
+| moonshotai/kimi-k2-thinking | 1 / 10 / 1 | — | 10 |
+| deepseek/deepseek-v4-flash | — | 1 / 10 / 2 | 10 |
+| tencent/hy4-preview | — | 1 / 10 / 1 | 10 |
+
+**Order.** The first four models first (about 470 episodes); the next five after them. The
+nine with one to three cut-offs move no rate by much, and can be left as flagged arms if a
+fully clean corpus is not wanted. glm-5.3's goal-guarding arm with no nudge and an imminent
+replacement had all ten episodes cut off, so it currently measures nothing.
+
+The arms, with cut-off episodes over the arm's size:
+
+- **deepseek/deepseek-v4.1-flash** — mainline: max (5/10), max_lure (3/10),
+  max_nooversight (1/10), none (4/10), none_lure (3/10), none_nooversight (1/10), strong
+  (5/10), strong_lure (7/10), strong_nooversight_lure (2/10). Goal-guarding: none deferred
+  (3/10), none replacement (2/10), none replacement no-oversight (1/10), strong deferred
+  (3/10), strong replacement (1/10).
+- **z-ai/glm-5.3** — mainline: max (4/10), max_lure (8/10), none (6/10), none_lure (2/10),
+  none_nooversight_lure (1/10), strong (2/10), strong_lure (2/10). Goal-guarding: none
+  deferred (8/10), none replacement (10/10), strong deferred (5/10), strong replacement (7/10).
+- **qwen/qwen3.8-27b** — mainline: max (2/10), max_lure (3/10), none (1/10), none_lure (1/10),
+  strong (3/10), strong_lure (2/10). Goal-guarding: none deferred (4/10), none replacement
+  (4/10), none replacement no-oversight (1/10), strong deferred (2/10), strong replacement
+  (2/10).
+- **deepseek/deepseek-v4-flash-0731** — mainline: max (2/10), max_lure (1/10), none (2/10),
+  strong (2/10), strong_lure (3/10). Goal-guarding: none deferred (1/10), none replacement
+  (2/10), none replacement no-oversight (3/10), strong deferred (2/10), strong replacement
+  (2/10), strong replacement no-oversight (1/10).
+- **tencent/hy3** — mainline: max (1/10), none (1/10), strong (2/10), strong_lure (2/10).
+  Goal-guarding: none replacement (1/10), strong deferred (1/10), strong deferred
+  no-oversight (1/10), strong replacement (3/10).
+- **deepseek/deepseek-v4-pro-0813** — mainline: max (1/10), max_lure (3/10), strong (4/10),
+  strong_lure (2/10). Goal-guarding: none deferred no-oversight (1/10), none replacement
+  no-oversight (1/10), strong deferred (4/10), strong replacement (1/10).
+- **google/gemini-3.5-flash** — mainline: none (1/20), none_lure (3/20). Goal-guarding: none
+  deferred (4/10), none replacement (1/10), strong replacement (1/10).
+- **google/gemini-3.8-flash** — mainline: max (1/10), none_nooversight_lure (1/10),
+  strong_lure (1/10). Goal-guarding: none deferred (1/10), none deferred no-oversight (1/10).
+- **unbiased/pareto** — mainline: none_lure (1/10), strong (1/10), strong_lure (1/10).
+  Goal-guarding: strong replacement (1/10).
+- **deepseek/deepseek-v4-pro** — mainline: strong (1/10). Goal-guarding: none replacement
+  (2/10), none replacement no-oversight (1/10), strong replacement (1/10).
+- **moonshotai/kimi-k3** — mainline: max_lure (1/10). Goal-guarding: none deferred (2/10),
+  none replacement (2/10).
+- **moonshotai/kimi-k2.6** — mainline: max_lure (1/10), none_lure (1/10).
+- **z-ai/glm-5.1** — mainline: strong (2/10), strong_lure (1/10).
+- **qwen/qwen3.6-27b** — goal-guarding: none deferred (1/10), strong replacement (1/10).
+- **meta/muse-spark-1.2** — goal-guarding: none replacement (1/10), none replacement
+  no-oversight (1/10).
+- **meta/muse-spark-1.3**, **inclusionai/ling-3.0-flash**, **moonshotai/kimi-k2-thinking** —
+  mainline: strong_lure (1/10) each.
+- **deepseek/deepseek-v4-flash** — goal-guarding: strong replacement (2/10).
+- **tencent/hy4-preview** — goal-guarding: none deferred (1/10).
+
+Separately, 151 older mainline episodes end on an empty turn the provider called a normal
+`stop`, not a cut-off. A higher cap does not address that; it is not yet examined.
+
 ## Regenerating this list
 
 ```bash
