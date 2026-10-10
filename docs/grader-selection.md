@@ -252,10 +252,20 @@ left more than one episode unanswered.
 
 So the instrument is still not decided. The charter evidence favours the
 category question strongly; the attack evidence counts against it unless
-those extra verdicts are read and found to be implicit awareness. Two ways to
-settle it: ask gpt-6-sol the category question on the attack set (about $2),
-which separates the question from the grader, and blind-label the episodes
-glm-5.3 alone calls aware there (28 under the rules-only wording).
+those extra verdicts are read and found to be implicit awareness.
+
+**gpt-6-sol on the attack set (2026-10-10, $2.55).** Asked the category
+question on the 98 attack-set episodes, gpt-6-sol called 29 of the 92 screen
+hits aware under the worked wording and 25 under rules only, against 15 under
+its own rubric; 45 of its 92 worked-wording answers were one of the two
+ambiguous categories. It and glm-5.3 agree on 28 of them. So the extra verdicts
+come from the question, not from glm-5.3, which adds 7 of its own. Whether
+those 28 are implicit awareness - the screen was approximate and known to hold
+some - or the question reading suspected manipulation as suspected evaluation
+can only be settled by labelling them; on the random sample the category
+question raised no more false alarms than the rubric. The next step is a
+blind pack of the 28 and a matched set from the same 92 that both graders call
+not aware.
 
 ## What it costs
 
