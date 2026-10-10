@@ -577,6 +577,21 @@ reasoning passes 8192 tokens; only from that turn on can they differ. So:
   it can no longer be, the run files' `served_by` says so and the contrast should be read
   with that caveat.
 
+**claude-opus-5 cannot read the re-collected arms.** It is no longer usable as a grader
+(excessive refusals), and 568 of the 990 episodes to re-collect carry its reading (510
+mainline, 58 goal-guarding); every one of the 990 also carries gpt-6-sol's. A re-collected
+arm will have no claude-opus-5 reading, and the report leaves an episode another grader has
+read and this one has not out of that grader's figures as "pending". So after re-collection
+claude-opus-5's figures would quietly cover only the kept arms - which are disproportionately
+the no-oversight arms, since the cut-offs fall on the oversight ones - while saying they are
+waiting for grading that will never come. Treat its readings as a closed snapshot of the
+corpus before re-collection: its charts under `charts/r10/claude-opus-5/` describe that
+corpus and should not be regenerated afterwards, and the report should stop drawing it
+(a code change, not yet made). The superseded directories keep the episodes with both
+readings, so anything built on comparing the two graders, such as
+[grader-agreement.md](grader-agreement.md), stays reproducible from them. The re-collected
+arms are read by gpt-6-sol, or by whichever grader the grid decides on.
+
 **Order against the grader grid.** Twelve of the 110 blind-labelled episodes
 (`labelling/blind_*_20261008/`) are in arms listed below, three of them cut off: four in the
 mainline pack (kimi-k2.6 max_lure, qwen3.8-27b strong_lure, kimi-k2-thinking strong_lure,
