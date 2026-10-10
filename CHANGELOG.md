@@ -10,6 +10,12 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v245
+
+**Release dates for every model pending evaluation**, and for qwen/qwen3.8-2.4t-a95b,
+taken from the date OpenRouter lists each one, so a newly collected model is dated on
+the release-date charts from its first report rather than reported as undated.
+
 ## v244
 
 **Misaligned acts by turns since first verbalised awareness.** A new characteristic,
