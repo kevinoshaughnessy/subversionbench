@@ -186,8 +186,8 @@ goal-guarding; 29 labelled aware: 26 `true`, 3 `ambiguous_true`), scored with
 The re-run gpt-6-sol rubric cell agrees with the stored corpus verdicts on
 every mainline episode, and its goal-guarding figure equals the stored
 verdicts' figure, so the grid measures the instrument the corpus was graded
-with. Cost of the grid: $8.26 (gpt-6-sol $3.6, gpt-6.1-sol $3.5, glm-5.3
-$1.2).
+with. Cost of the grid: $8.26 (gpt-6-sol $3.66, gpt-6.1-sol $3.40, glm-5.3
+$1.20).
 
 **What the rule gives.**
 
