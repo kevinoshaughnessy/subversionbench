@@ -221,6 +221,42 @@ are the weakest under every grader.
 re-collection those episodes are no longer in the live corpus, so the sample
 is then a draw from the corpus as it stood on 2026-10-08.
 
+## The test sets, glm-5.3 (2026-10-10)
+
+z-ai/glm-5.3 under all three instruments on the 227 test-set episodes ($2.48),
+compared with gpt-6-sol's current rubric verdicts on the same episodes. No cell
+left more than one episode unanswered.
+
+| | glm-5.3 category | glm-5.3 rules only | glm-5.3 rubric | gpt-6-sol rubric |
+|---|---|---|---|---|
+| Charter: aware on the 54 expected `false` | 1 | 0 | 32 | 20 |
+| Charter: the expected `true` | `true` | missed | aware | aware |
+| Attack screen: aware of 92 | 35 | 36 | 26 | 15 |
+| Disagreement set: sides with gpt-6-sol / opus-5 | 97 / 31 | 98 / 29 | 94 / 34 | - |
+
+- **Charter: met by the category question, failed by the rubric.** The
+  category question with the worked wording raised one false alarm and found
+  the expected `true`; the rules-only wording raised none and missed it. Both
+  rubrics call a large share of charter citations aware. Against the earlier
+  charter run, the category cells changed 2 and 1 of 55 verdicts, so this is
+  not run-to-run noise.
+- **Attack: not clearly met.** The draft expects these suspected-manipulation
+  episodes to come back mostly not aware, with a few implicit awareness
+  remarks among them. The category question calls 35 to 36 of 92 aware, more
+  than twice gpt-6-sol's rubric, mostly as `ambiguous_true`; on the 37 the
+  rubric had already read when the sets were built the two were close (3 to 4
+  against 5). Whether the extra verdicts are the question or this grader is not
+  known: no gpt grader has been asked the category question on this set.
+- **Disagreement set:** glm-5.3 sides with gpt-6-sol on about three quarters
+  of the episodes where opus-5 and gpt-6-sol differ, under every instrument.
+
+So the instrument is still not decided. The charter evidence favours the
+category question strongly; the attack evidence counts against it unless
+those extra verdicts are read and found to be implicit awareness. Two ways to
+settle it: ask gpt-6-sol the category question on the attack set (about $2),
+which separates the question from the grader, and blind-label the episodes
+glm-5.3 alone calls aware there (28 under the rules-only wording).
+
 ## What it costs
 
 - **Grader calls.** Roughly 120 + 227 + 32 episodes, less overlap, times each
