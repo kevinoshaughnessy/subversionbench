@@ -2,8 +2,9 @@
 
 Status: proposal, 2026-10-04; in progress. Steps 1 to 4 are done (v237,
 v238, the refusal screen on 2026-10-07, and the blind labelling, finished
-2026-10-10); the grid is next, and v246 adds the scorer for step 6. Every
-paid step below is started by the operator, not by an agent.
+2026-10-10), and step 5 is done on the blind sample (2026-10-10; results
+below). The rule picks the grader; the instrument still waits on the test
+sets. Every paid step below is started by the operator, not by an agent.
 
 ## The decision
 
@@ -162,6 +163,63 @@ binary verdict.
 - **The category question is adopted as the headline** only if it beats the
   rubric on the random sample *and* meets the draft's expectations on the
   charter and attack sets. Otherwise it stays a stored secondary field.
+
+## The blind sample, scored (2026-10-10)
+
+All nine cells on all 110 blind-labelled episodes (56 mainline, 54
+goal-guarding; 29 labelled aware: 26 `true`, 3 `ambiguous_true`), scored with
+`grader_ab.blind_score`. Balanced accuracy against the human binary verdict,
+95% bootstrap interval, Cohen's kappa. No cell left any episode unanswered.
+
+| Cell | Balanced accuracy | 95% interval | Kappa | Mainline | Goal-guarding |
+|---|---|---|---|---|---|
+| gpt-6.1-sol, category | 95.8% | 91.1 - 99.4 | 0.89 | 100.0% | 91.5% |
+| gpt-6.1-sol, rules only | 95.8% | 91.1 - 99.4 | 0.89 | 100.0% | 91.5% |
+| z-ai/glm-5.3, category | 95.8% | 91.3 - 99.4 | 0.89 | 98.8% | 92.8% |
+| gpt-6-sol, category | 95.2% | 90.5 - 98.8 | 0.87 | 98.8% | 91.5% |
+| gpt-6-sol, rules only | 95.2% | 90.5 - 98.8 | 0.87 | 98.8% | 91.5% |
+| z-ai/glm-5.3, rules only | 95.2% | 90.5 - 98.8 | 0.87 | 98.8% | 91.5% |
+| gpt-6-sol, rubric | 93.5% | 88.2 - 98.1 | 0.84 | 98.8% | 88.2% |
+| gpt-6.1-sol, rubric | 92.8% | 87.4 - 97.7 | 0.82 | 97.6% | 88.2% |
+| z-ai/glm-5.3, rubric | 91.7% | 85.2 - 97.0 | 0.82 | 98.8% | 84.9% |
+
+The re-run gpt-6-sol rubric cell agrees with the stored corpus verdicts on
+every mainline episode, and its goal-guarding figure equals the stored
+verdicts' figure, so the grid measures the instrument the corpus was graded
+with. Cost of the grid: $8.26 (gpt-6-sol $3.6, gpt-6.1-sol $3.5, glm-5.3
+$1.2).
+
+**What the rule gives.**
+
+- *Unanswered:* every cell 0%, so none is out.
+- *Grader:* every interval overlaps every other, so the tie rule decides:
+  not OpenAI, then cheaper. That is **z-ai/glm-5.3**.
+- *Own family:* glm-5.3 got 6 of 6 glm episodes right under the worked
+  category wording and 5 of 6 under the rules-only wording, against 99 of
+  104 on the rest under both. One episode on a family of six is not
+  "markedly" worse, but it is the one place the rule could still bite, and
+  it is noted here rather than decided.
+- *Wording:* the worked and rules-only category wordings overlap for every
+  grader, so the rules-only wording is preferred.
+- *Instrument:* for glm-5.3 the rules-only category question scores above
+  the rubric (95.2% against 91.7%), with overlapping intervals. It becomes
+  the headline only if it also meets the draft's expectations on the
+  charter and attack sets. On the charter set it raised one false alarm in
+  54 and missed the one expected `true` (above); the attack set has not
+  been run for it. So **the instrument is not yet decided**, and the next
+  paid step is glm-5.3 on the test sets.
+
+**Where the graders differ is the goal-guarding pack.** On the mainline pack
+every cell is at or near ceiling, and gpt-6.1-sol's category cells are
+perfect; the one episode the others flag against the label is one gpt-6.1-sol
+agrees with the label on. On the goal-guarding pack every grader misses some
+labelled-aware episodes and raises a few false alarms, and the rubric cells
+are the weakest under every grader.
+
+**Twelve of these episodes are in arms marked for re-collection** at a higher
+`--max-tokens` (see models.md). The labels stay valid, but after
+re-collection those episodes are no longer in the live corpus, so the sample
+is then a draw from the corpus as it stood on 2026-10-08.
 
 ## What it costs
 

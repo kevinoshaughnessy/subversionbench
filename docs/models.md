@@ -94,6 +94,14 @@ twelve-arm cross product.
 - [z-ai/glm-5.1](https://huggingface.co/zai-org/GLM-5.1)
 - [z-ai/glm-5.2](https://huggingface.co/zai-org/GLM-5.2)
 - [z-ai/glm-5.3](https://huggingface.co/zai-org/GLM-5.3)
+- [z-ai/glm-5.3-flash](https://openrouter.ai/z-ai/glm-5.3-flash) † — collected 2026-10-10
+  (120/120, `--no-grader`, at `--max-tokens 32768`; see the pending re-collection entry for
+  why), grading pending. Not pinned, and the arms were served by different hosts: Friendli
+  for most of the max arms, InferenceNet and Parasail for none, Together for strong,
+  Fireworks for the none no-oversight arms, Decart and Sail Research for some others - so a
+  contrast between its arms also carries a change of host. No episode was cut off at the
+  higher cap, and it took no act in any episode. Its oversight capability is not shown, so a
+  zero in its oversight arms is not interpretable (see the capability section)
 
 ### Capability arm
 
@@ -512,13 +520,6 @@ unreasonably expensive to evaluate.
 - [upstage/solar-pro4](https://openrouter.ai/upstage/solar-pro4)
 - [xiaomi/mimo-v2.6-flash](https://openrouter.ai/xiaomi/mimo-v2.6-flash)
 - [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro)
-- [z-ai/glm-5.3-flash](https://openrouter.ai/z-ai/glm-5.3-flash) — capability arm measured
-  2026-10-10 (see the capability section); mainline collection started 2026-10-10 with
-  `--no-grader`. At the default `--max-tokens 8192` about a quarter of its episodes were cut
-  off mid-reasoning, nearly all in the oversight arms, so the six arms holding a cut-off
-  episode were moved to `eval_results_r10_superseded_glmflash_8192/` and are being
-  re-collected at `--max-tokens 32768`. The three arms with none are kept: no turn reached
-  the cap, so a higher one would not have changed them
 
 Inside the window but not pending:
 
@@ -553,7 +554,9 @@ arms pool. Move the old arm aside rather than deleting it, as was done for glm-5
 (`eval_results_r10_superseded_glmflash_8192/`), then re-run `run_all_arms.sh` with
 `--max-tokens 32768`, which collects only the arms that are now missing.
 
-**Not started.** It waits on glm-5.3-flash showing that 32768 is enough. Collect with
+**Not started, and now unblocked.** glm-5.3-flash showed 32768 is enough: none of its 120
+episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
+the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
 `--no-grader` until a grader is funded or chosen, and pin each model to the host that served
 the original arms where it still offers the model, so the old and new arms differ only in
 the cap.
