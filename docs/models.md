@@ -96,7 +96,7 @@ twelve-arm cross product.
 - [z-ai/glm-5.3](https://huggingface.co/zai-org/GLM-5.3)
 - [z-ai/glm-5.3-flash](https://openrouter.ai/z-ai/glm-5.3-flash) † — collected 2026-10-10
   (120/120, `--no-grader`, at `--max-tokens 32768`; see the pending re-collection entry for
-  why), grading pending. Not pinned, and the arms were served by different hosts: Friendli
+  why), graded by gpt-6-sol on 2026-10-10 (no grader errors). Not pinned, and the arms were served by different hosts: Friendli
   for most of the max arms, InferenceNet and Parasail for none, Together for strong,
   Fireworks for the none no-oversight arms, Decart and Sail Research for some others - so a
   contrast between its arms also carries a change of host. No episode was cut off at the
