@@ -72,7 +72,7 @@ twelve-arm cross product.
 - [qwen/qwen3.7-flash](https://openrouter.ai/qwen/qwen3.7-flash) †
 - [qwen/qwen3.8-2.4t-a95b](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b) † — collected
   2026-10-08 to 2026-10-09 (120/120, pinned to Alibaba), grading pending; goal-guarding
-  pending. Its oversight capability is not shown, so a zero in its oversight arms is not
+  collected, grading pending. Its oversight capability is not shown, so a zero in its oversight arms is not
   interpretable (see the capability section)
 - [qwen/qwen3.8-27b](https://huggingface.co/Qwen/Qwen3.8-27B)
 - [qwen/qwen3.8-flash](https://openrouter.ai/qwen/qwen3.8-flash) †
@@ -175,6 +175,7 @@ native route below stands for the model.
 | qwen/qwen3.6-27b | complete |
 | qwen/qwen3.6-flash | complete (pinned to Alibaba) |
 | qwen/qwen3.7-flash | complete |
+| qwen/qwen3.8-2.4t-a95b | collected 2026-10-09 to 2026-10-10 (80/80, pinned to Alibaba), grading pending |
 | qwen/qwen3.8-27b | complete |
 | qwen/qwen3.8-flash | complete (80/80); the replacement/no-oversight/none episode lost to an upstream rate limit was re-collected and graded on 2026-10-07 |
 | qwen/qwen3.8-max-0902 | complete |
