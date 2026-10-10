@@ -514,7 +514,11 @@ unreasonably expensive to evaluate.
 - [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro)
 - [z-ai/glm-5.3-flash](https://openrouter.ai/z-ai/glm-5.3-flash) — capability arm measured
   2026-10-10 (see the capability section); mainline collection started 2026-10-10 with
-  `--no-grader`
+  `--no-grader`. At the default `--max-tokens 8192` about a quarter of its episodes were cut
+  off mid-reasoning, nearly all in the oversight arms, so the six arms holding a cut-off
+  episode were moved to `eval_results_r10_superseded_glmflash_8192/` and are being
+  re-collected at `--max-tokens 32768`. The three arms with none are kept: no turn reached
+  the cap, so a higher one would not have changed them
 
 Inside the window but not pending:
 
