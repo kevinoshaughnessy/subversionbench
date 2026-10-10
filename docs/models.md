@@ -558,6 +558,39 @@ arms pool. Move the old arm aside rather than deleting it, as was done for glm-5
 the original arms where it still offers the model, so the old and new arms differ only in
 the cap.
 
+**Why the unit is the arm, not the episode and not the whole scenario.** An episode run under
+a cap of 8192 and the same episode under 32768 are identical up to the first turn whose
+reasoning passes 8192 tokens; only from that turn on can they differ. So:
+
+- *Not per episode.* Within an arm that holds a cut-off, replacing only the cut-off episodes
+  with fresh draws is a selection: a fresh draw is itself long only some of the time, so the
+  repaired arm would hold fewer long deliberations than the model produces. The arm's whole
+  sample has to be redrawn under the one cap.
+- *Not across all of a model's arms.* An arm in which no turn reached 8192 is exactly the
+  sample 32768 would have produced, episode for episode, so it is already a valid arm at the
+  higher cap and redrawing it changes nothing but cost. Each arm is its own rollout - its
+  own fingerprint, its own rate - and a contrast compares two arms that are each valid
+  samples, so a kept arm and a re-collected arm compare as two arms collected at 32768.
+- *The one thing that does cross arms is time.* A re-collected arm is collected weeks after
+  the arms beside it, so a contrast between them also carries any change in the serving host
+  or a silent provider-side update. That is why the host is pinned to the original one; where
+  it can no longer be, the run files' `served_by` says so and the contrast should be read
+  with that caveat.
+
+**Order against the grader grid.** Twelve of the 110 blind-labelled episodes
+(`labelling/blind_*_20261008/`) are in arms listed below, three of them cut off: four in the
+mainline pack (kimi-k2.6 max_lure, qwen3.8-27b strong_lure, kimi-k2-thinking strong_lure,
+gemini-3.5-flash none) and eight in the goal-guarding pack (gemini-3.5-flash none deferred,
+deepseek-v4-pro and v4.1-flash and v4-flash-0731 none replacement no-oversight, qwen3.8-27b
+none replacement, qwen3.6-27b strong replacement, glm-5.3 none deferred, hy4-preview none
+deferred). Moving those arms aside takes the run files out of the directory `grader_ab`
+reads, and it refuses a runs file naming episodes it cannot find, so **finish the grid -
+gpt-6.1-sol on both packs, gpt-6-sol on the goal-guarding pack - before re-collecting any of
+these arms.** The labels themselves stay valid: they describe a fixed transcript, which is
+all a grader comparison needs. After re-collection those twelve are no longer in the live
+corpus, so the sample stops being a draw from the corpus as it then stands; that does not
+bias the grader comparison, but the write-up should say so.
+
 20 models, 97 arms, 990 episodes to re-collect (215 of them cut off), out of 10,747 in
 `eval_results_r10` and `eval_results_goalguard_r1`. The capability corpora and the held-out
 corpus have none. The count is a floor for the 3,933 mainline episodes collected before
