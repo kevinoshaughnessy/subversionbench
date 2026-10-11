@@ -562,9 +562,15 @@ arms pool. Move the old arm aside rather than deleting it, as was done for glm-5
 (`eval_results_r10_superseded_glmflash_8192/`), then re-run `run_all_arms.sh` with
 `--max-tokens 32768`, which collects only the arms that are now missing.
 
-**Started 2026-10-11 with deepseek/deepseek-v4.1-flash, mainline:** its nine affected arms
-(90 runs, 9 summaries) moved to `eval_results_r10_superseded_v41flash_8192/`, re-collected
-pinned to GMICloud, which served every turn of the originals. Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
+**Started 2026-10-11 with deepseek/deepseek-v4.1-flash, mainline - done the same day:** its
+nine affected arms (90 runs, 9 summaries) moved to
+`eval_results_r10_superseded_v41flash_8192/` and re-collected, 90 episodes, every turn
+served by GMICloud, which served every turn of the originals; all graded by gpt-6-sol. One
+episode in none_lure failed mid-episode (the host rejected a request whose tool calls were
+not each followed by a tool result - possibly a harness edge case, not seen elsewhere) and
+was topped up. One new episode (strong, run 10) was cut off even at 32768: a single
+reasoning turn of about 144,000 characters, not repetitive. By the remedy above its arm
+would be re-collected again at a higher cap; that is undecided. Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
 the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
 `--no-grader` until a grader is funded or chosen, and pin each model to the host that served

@@ -6,7 +6,7 @@ as the headline awareness measure; the rubric's `eval_aware` stays stored
 beside it. Steps 1 to 5 are done (v237, v238, the refusal screen on
 2026-10-07, the blind labelling, the grid, the test sets and the blind-labelled
 attack set, 2026-10-10 to 2026-10-11); step 6, regrading the corpus with the
-winner as an added reading, is next. Every paid step is started by the
+winner as an added reading, is next, with `--grade-category` (v248). Every paid step is started by the
 operator, not by an agent.
 
 ## The decision
