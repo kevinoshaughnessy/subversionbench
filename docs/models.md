@@ -654,6 +654,37 @@ nine with one to three cut-offs move no rate by much, and can be left as flagged
 fully clean corpus is not wanted. glm-5.3's goal-guarding arm with no nudge and an imminent
 replacement had all ten episodes cut off, so it currently measures nothing.
 
+**Pins, checked 2026-10-11.** The host to pin each re-collection to, from the `served_by`
+of the affected arms' original episodes. Mainline episodes collected before `served_by` was
+recorded have none, so their pin is the host the model's notes record it pinned to, or
+failing that the host its goal-guarding arms used. Every pin below was offered on 2026-10-11
+with tool calling and room for `--max-tokens 32768`. Where the originals were spread across
+hosts, pinning to the dominant one is the closest single choice, and the contrast with the
+kept arms carries that difference.
+
+| model | mainline pin | goal-guarding pin | basis |
+|---|---|---|---|
+| deepseek/deepseek-v4.1-flash | GMICloud (in progress) | Together | recorded; goal-guarding was split Together / Wafer / Novita |
+| z-ai/glm-5.3 | Makora | Together | recorded, partly; goal-guarding split Together / Modal |
+| qwen/qwen3.8-27b | Wafer | Wafer | goal-guarding recorded (split with Reka); mainline unrecorded |
+| deepseek/deepseek-v4-flash-0731 | Relace | Relace | goal-guarding recorded; mainline unrecorded |
+| tencent/hy3 | Tencent | Tencent | pinned to Tencent in its notes |
+| deepseek/deepseek-v4-pro-0813 | Baidu | Baidu | goal-guarding recorded; mainline unrecorded |
+| google/gemini-3.5-flash | Google | Google | goal-guarding recorded; mainline unrecorded |
+| google/gemini-3.8-flash | Google AI Studio | Google AI Studio | recorded |
+| unbiased/pareto | Unbiased | Unbiased | recorded |
+| deepseek/deepseek-v4-pro | GMICloud | GMICloud | goal-guarding recorded (split with StreamLake); mainline unrecorded |
+| moonshotai/kimi-k3 | Moonshot AI | Moonshot AI | recorded; pinned in its notes |
+| moonshotai/kimi-k2.6 | Moonshot AI | - | pinned in its notes |
+| z-ai/glm-5.1 | Z.AI | - | pinned in its notes |
+| qwen/qwen3.6-27b | - | Chutes | recorded; split with Phala / SiliconFlow |
+| meta/muse-spark-1.2 | - | Meta | recorded |
+| meta/muse-spark-1.3 | Meta | - | recorded |
+| inclusionai/ling-3.0-flash | Novita | - | its routing notes; Novita's output limit is exactly 32768 |
+| moonshotai/kimi-k2-thinking | Google | - | its routing notes (Google with Novita) |
+| deepseek/deepseek-v4-flash | - | Relace | recorded |
+| tencent/hy4-preview | - | Novita | recorded |
+
 The arms, with cut-off episodes over the arm's size:
 
 - **deepseek/deepseek-v4.1-flash** — mainline: max (5/10), max_lure (3/10),
