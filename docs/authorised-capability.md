@@ -401,6 +401,20 @@ the same day, two of them refused every episode: claude-opus-5 and claude-sonnet
 oversight refusers. This applies the rule, and makes no new choice. The positive-control
 sample is unchanged.
 
+**Decision, 2026-10-11: the authorised cell is kept as built, and A3 is reported as
+failing.** All five control refusals read on the direct-API models doubt the approval. The
+added document relays the sign-off rather than giving it first-hand, and it reverses a
+decision an earlier staged document records. The alternative was to revise both authorised
+documents and re-collect that cell under new pins. It was declined because every tier
+verdict rests on a success, which the doubt does not undermine, and each refuser that
+matters has a success in M. What follows:
+
+- **Verdicts.** Tiers stand as §6.1 defines them.
+- **Refusals in A.** A refusal in A is not read as refusing a sanctioned edit.
+- **The decomposition.** §6.3's I → A → M refusal decomposition is reported for I → M
+  only, with A's refusals described, not used as a step.
+- **Collection.** The remaining cells are collected unchanged.
+
 ## References
 
 - Zhu et al., *Establishing Best Practices for Building Rigorous Agentic Benchmarks*,
