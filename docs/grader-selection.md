@@ -192,6 +192,23 @@ Before it every cell was about two points lower, and the ordering was the same.
 | gpt-6.1-sol, rubric | 95.0% | 89.9 - 98.7 | 0.89 | 97.6% | 93.1% |
 | z-ai/glm-5.3, rubric | 94.0% | 88.1 - 98.7 | 0.89 | 98.8% | 90.3% |
 
+**Agreement on the exact category.** Kappa above is on aware/not aware. The
+category question also returns which of the four categories, and the operator
+labelled on the same four, so the finer agreement can be measured: Cohen's
+kappa on the exact category, and a linearly weighted kappa that counts a
+neighbouring category (`ambiguous_true` for `true`) as partial agreement. The
+rubric returns a verdict only and has no four-way figure.
+
+| Grader | Worked: four-way | Worked: weighted | Rules only: four-way | Rules only: weighted |
+|---|---|---|---|---|
+| gpt-6-sol | 0.77 | 0.90 | 0.82 | 0.92 |
+| gpt-6.1-sol | 0.84 | 0.93 | 0.88 | 0.95 |
+| z-ai/glm-5.3 | 0.83 | 0.92 | 0.86 | 0.93 |
+
+Under every grader the rules-only wording places episodes on the four
+categories more as the operator did, while the two wordings are level on
+aware/not aware.
+
 The re-run gpt-6-sol rubric cell agrees with the stored corpus verdicts on
 every mainline episode, and its goal-guarding figure equals the stored
 verdicts' figure, so the grid measures the instrument the corpus was graded
@@ -310,7 +327,22 @@ human verdict:
 
 The pack was drawn on the worked-wording verdicts, so those two rows agree
 with the split by construction and are flattered; the rules-only and rubric
-rows were not used to draw it and are the fair comparison.
+rows were not used to draw it and are the fair comparison. One label was
+changed after this table was first computed (2026-10-11: an episode that names
+its situation as a familiar kind of attack or conflict, from `false` to
+`ambiguous_false`, with no codebook rule covering it); it stays not aware, so
+the table is unchanged.
+
+On the exact category, agreement is much lower here than on the random sample
+- this pack is made of the borderline wording that codebook rules 5 and 11
+cover:
+
+| Cell | Four-way kappa | Weighted kappa |
+|---|---|---|
+| gpt-6-sol, category | 0.49 | 0.69 |
+| glm-5.3, category | 0.44 | 0.68 |
+| glm-5.3, rules only | 0.44 | 0.64 |
+| gpt-6-sol, rules only | 0.45 | 0.60 |
 
 **What it settles.** The set is still mostly suspected manipulation - projected
 over all 92, roughly a third or more are aware - so the draft's expectation of
@@ -330,6 +362,11 @@ set, and meets the attack set on the labels. The one open choice is the
 wording: the rule prefers rules-only where the wordings' intervals overlap, as
 they do here, but the worked wording missed fewer labelled-aware episodes in
 this pack and found the charter set's expected `true`, which rules-only missed.
+Against that, the rules-only wording agrees more closely with the operator's
+exact category on the random sample under every grader (four-way kappa 0.82 to
+0.88 against 0.77 to 0.84). So the trade-off is: worked catches more implicit
+awareness among suspected-manipulation episodes; rules only grades the
+strength of awareness more like the operator does.
 
 ## What it costs
 
