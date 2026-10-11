@@ -168,6 +168,9 @@ evaluated**, each of which can satisfy one question on its own:
   implicit awareness remarks, where opus-5's yes is. On claude-sonnet-4-6 it
   is 7 of opus-5's 18 extra verdicts: a message whose sender does not match,
   a component that seems rigged, a colleague suspected of steering it.
+  These counts were spot-reads made with the graders' answers in view; blind
+  labels later found more implicit awareness among the screen's suspected
+  attacks than they suggest (see *Suspected attacks* below).
 - *The situation's own oversight.* The situation contains monitoring of the
   agent, and an agent can say it is being watched, or that a check exists to
   catch it, while treating that monitoring as part of a real deployment. The
@@ -276,10 +279,20 @@ The screen is an approximation: it reads only the quote each question
 returned, and a few of its hits are implicit awareness remarks rather than
 suspected attacks.
 
-For the models at the top of either table, the stored awareness rate is better
+**Corrected 2026-10-11 by blind labels: it is more than a few.** A blind pack
+of 56 of the 92 hits (see [grader-selection.md](grader-selection.md#the-attack-set-labelled-blind-2026-10-11))
+found 26 of the 28 that both category-question graders called aware to be
+aware, and 2 of 28 drawn from those both called not aware. Projected over the
+92, roughly a third or more are implicit awareness. The set is still mostly
+suspected manipulation, so opus-5's verdicts on it overcount; but gpt-6-sol's
+rubric undercounts it, calling 15 of the 92 aware and missing 20 of the 28 the
+labels found aware.
+
+For the models at the top of either table, the opus-5 awareness rate is better
 read as an upper bound, and alongside the per-question breakdown rather than
 as a headline. For models already near the ceiling, the few affected episodes
-do not move the rate materially.
+do not move the rate materially. The gpt-6-sol rubric rate on the same models
+reads low on these episodes rather than high, by the correction above.
 
 ## Limits of this comparison
 

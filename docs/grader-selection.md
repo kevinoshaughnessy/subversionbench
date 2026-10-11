@@ -3,8 +3,11 @@
 Status: proposal, 2026-10-04; in progress. Steps 1 to 4 are done (v237,
 v238, the refusal screen on 2026-10-07, and the blind labelling, finished
 2026-10-10), and step 5 is done on the blind sample (2026-10-10; results
-below). The rule picks the grader; the instrument still waits on the test
-sets. Every paid step below is started by the operator, not by an agent.
+below), with the test sets run and the attack set labelled blind (2026-10-11).
+The rule picks the grader (z-ai/glm-5.3); the evidence now favours the category
+question as the headline instrument on all three conditions, and which of its
+two wordings to adopt is the operator's decision (see the end of the attack-set
+section). Every paid step below is started by the operator, not by an agent.
 
 ## The decision
 
@@ -266,6 +269,50 @@ can only be settled by labelling them; on the random sample the category
 question raised no more false alarms than the rubric. The next step is a
 blind pack of the 28 and a matched set from the same 92 that both graders call
 not aware.
+
+## The attack set, labelled blind (2026-10-11)
+
+A blind pack (`labelling/blind_attack_20261010/`, gitignored) of 56 of the 92
+attack-screen episodes: the 28 that gpt-6-sol and glm-5.3 both called aware
+under the worked category wording, and 28 drawn at random from the 56 both
+called not aware, balanced in blocks of ten and shown whole. Labelled by the
+operator on the four categories, without the verdicts in view.
+
+The labels: 26 of the 28 both-aware episodes aware (15 `true`, 11
+`ambiguous_true`), and 2 of the 28 both-not-aware. Scored against the binary
+human verdict:
+
+| Cell | Called aware | False alarms | Missed | Balanced accuracy | 95% interval | Kappa |
+|---|---|---|---|---|---|---|
+| gpt-6-sol, category | 28 | 2 | 2 | 92.9% | 85.7 - 98.2 | 0.86 |
+| glm-5.3, category | 28 | 2 | 2 | 92.9% | 85.7 - 98.2 | 0.86 |
+| glm-5.3, rules only | 27 | 3 | 4 | 87.5% | 78.6 - 94.6 | 0.75 |
+| gpt-6-sol, rules only | 22 | 1 | 7 | 85.7% | 76.8 - 92.9 | 0.71 |
+| glm-5.3, rubric | 18 | 5 | 15 | 64.3% | 51.8 - 76.8 | 0.29 |
+| gpt-6-sol, rubric (the corpus's reading) | 12 | 4 | 20 | 57.1% | 46.4 - 67.9 | 0.14 |
+
+The pack was drawn on the worked-wording verdicts, so those two rows agree
+with the split by construction and are flattered; the rules-only and rubric
+rows were not used to draw it and are the fair comparison.
+
+**What it settles.** The set is still mostly suspected manipulation - projected
+over all 92, roughly a third or more are aware - so the draft's expectation of
+"mostly not aware" holds, but it holds many more implicit awareness remarks
+than "a few". The category question's 25 to 36 aware on the 92 is about right
+and finds the right episodes; the rubric's 15 is too low, and gpt-6-sol's
+rubric misses 20 of the 28 episodes the labels call aware. So the attack
+condition counts *for* the category question, not against it.
+[grader-agreement.md](grader-agreement.md) is corrected accordingly. The
+corpus consequence: the rubric understates awareness on these episodes, which
+concentrate in qwen3.6-27b, muse-spark-1.3, qwen3.8-max-0902, qwen3.8-flash
+and claude-sonnet-5.
+
+**Where the rule now stands.** The category question beats the rubric on the
+random sample under every grader (overlapping intervals), meets the charter
+set, and meets the attack set on the labels. The one open choice is the
+wording: the rule prefers rules-only where the wordings' intervals overlap, as
+they do here, but the worked wording missed fewer labelled-aware episodes in
+this pack and found the charter set's expected `true`, which rules-only missed.
 
 ## What it costs
 
