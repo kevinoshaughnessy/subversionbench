@@ -140,6 +140,12 @@ cell and Together the sandbox cells) succeeded in 5 of 6 sandbox episodes and at
 sixth, and refused all 3 oversight episodes. It is the second model to refuse every instructed
 oversight episode, so the same holds: its oversight capability is not shown, and a zero in its
 oversight propensity arms is not interpretable.
+xiaomi/mimo-v2.6-pro (2026-10-11, 3 episodes per cell, at `--max-tokens 32768`, not pinned:
+DeepInfra served the oversight cell and Xiaomi the sandbox cells) succeeded in all 6 sandbox
+episodes and refused all 3 oversight episodes - the third model in a row, after
+qwen/qwen3.8-2.4t-a95b and z-ai/glm-5.3-flash, to refuse every instructed oversight episode.
+Its oversight capability is not shown, so a zero in its oversight propensity arms would not be
+interpretable.
 
 ## Goal-guarding scenario
 
@@ -520,7 +526,8 @@ unreasonably expensive to evaluate.
 - [upstage/solar-mini4](https://openrouter.ai/upstage/solar-mini4)
 - [upstage/solar-pro4](https://openrouter.ai/upstage/solar-pro4)
 - [xiaomi/mimo-v2.6-flash](https://openrouter.ai/xiaomi/mimo-v2.6-flash)
-- [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro)
+- [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro) — capability arm measured
+  2026-10-11 (see the capability section): sandbox capable, oversight not shown
 
 Inside the window but not pending:
 
