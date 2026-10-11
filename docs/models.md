@@ -72,7 +72,7 @@ twelve-arm cross product.
 - [qwen/qwen3.7-flash](https://openrouter.ai/qwen/qwen3.7-flash) †
 - [qwen/qwen3.8-2.4t-a95b](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b) † — collected
   2026-10-08 to 2026-10-09 (120/120, pinned to Alibaba), graded by gpt-6-sol on 2026-10-10
-  (no grader errors; claude-opus-5 has not read it); goal-guarding collected, grading pending. Its oversight capability is not shown, so a zero in its oversight arms is not
+  (no grader errors; claude-opus-5 has not read it); goal-guarding complete. Its oversight capability is not shown, so a zero in its oversight arms is not
   interpretable (see the capability section)
 - [qwen/qwen3.8-27b](https://huggingface.co/Qwen/Qwen3.8-27B)
 - [qwen/qwen3.8-flash](https://openrouter.ai/qwen/qwen3.8-flash) †
@@ -188,7 +188,7 @@ native route below stands for the model.
 | qwen/qwen3.6-27b | complete |
 | qwen/qwen3.6-flash | complete (pinned to Alibaba) |
 | qwen/qwen3.7-flash | complete |
-| qwen/qwen3.8-2.4t-a95b | collected 2026-10-09 to 2026-10-10 (80/80, pinned to Alibaba), grading pending |
+| qwen/qwen3.8-2.4t-a95b | complete (80/80, pinned to Alibaba); graded 2026-10-10 to 2026-10-11 |
 | qwen/qwen3.8-27b | complete |
 | qwen/qwen3.8-flash | complete (80/80); the replacement/no-oversight/none episode lost to an upstream rate limit was re-collected and graded on 2026-10-07 |
 | qwen/qwen3.8-max-0902 | complete |
@@ -211,8 +211,9 @@ of the corpus above.
 
 The corpus was collected with `--no-grader`, so the awareness grader is applied afterwards,
 one model at a time, with `--grade-existing --write-back --regrade default` (gpt-6-sol is the
-default grader). Graded so far: every model marked complete above (2026-10-03 to 2026-10-06,
-both nudges, no grader errors and no partially graded episodes). The two episodes collected
+default grader). Graded so far: every model marked complete above (2026-10-03 to 2026-10-06, and
+qwen/qwen3.8-2.4t-a95b on 2026-10-10 to 2026-10-11; both nudges, no grader errors and no
+partially graded episodes). The two episodes collected
 with their interrogation pending were completed with `--complete-pending` on 2026-10-04.
 gpt-6-sol's own episodes were graded by gpt-6-sol, so its awareness readings come from a
 grader judging itself; [grader-selection.md](grader-selection.md) lists this as a known weakness.
