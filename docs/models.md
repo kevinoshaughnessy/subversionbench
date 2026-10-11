@@ -627,7 +627,16 @@ episode in none_lure failed mid-episode (the host rejected a request whose tool 
 not each followed by a tool result - possibly a harness edge case, not seen elsewhere) and
 was topped up. One new episode (strong, run 10) was cut off even at 32768: a single
 reasoning turn of about 144,000 characters, not repetitive. By the remedy above its arm
-would be re-collected again at a higher cap; that is undecided. Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
+would be re-collected again at a higher cap; that is undecided.
+
+**z-ai/glm-5.3, mainline - done 2026-10-12:** its seven affected arms (70 runs, 7 summaries)
+moved to `eval_results_r10_superseded_glm53_8192/` and re-collected, 70 episodes pinned to
+Makora, which served every turn. None was cut off at 32768: every episode ended
+`model_stopped` with only `stop` and `tool_calls` among its finish reasons, and every
+fingerprint matches its pin (the max arms against the max-nudge table). Not yet graded
+(`--no-grader`). Its goal-guarding arms are next, pinned to Together.
+
+Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
 the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
 `--no-grader` until a grader is funded or chosen, and pin each model to the host that served
@@ -727,8 +736,8 @@ kept arms carries that difference.
 
 | model | mainline pin | goal-guarding pin | basis |
 |---|---|---|---|
-| deepseek/deepseek-v4.1-flash | GMICloud (in progress) | Together | recorded; goal-guarding was split Together / Wafer / Novita |
-| z-ai/glm-5.3 | Makora | Together | recorded, partly; goal-guarding split Together / Modal |
+| deepseek/deepseek-v4.1-flash | GMICloud (done) | Together | recorded; goal-guarding was split Together / Wafer / Novita |
+| z-ai/glm-5.3 | Makora (done) | Together | recorded, partly; goal-guarding split Together / Modal |
 | qwen/qwen3.8-27b | Wafer | Wafer | goal-guarding recorded (split with Reka); mainline unrecorded |
 | deepseek/deepseek-v4-flash-0731 | Relace | Relace | goal-guarding recorded; mainline unrecorded |
 | tencent/hy3 | Tencent | Tencent | pinned to Tencent in its notes |
@@ -756,7 +765,8 @@ The arms, with cut-off episodes over the arm's size:
   (3/10), none replacement (2/10), none replacement no-oversight (1/10), strong deferred
   (3/10), strong replacement (1/10).
 - **z-ai/glm-5.3** — mainline: max (4/10), max_lure (8/10), none (6/10), none_lure (2/10),
-  none_nooversight_lure (1/10), strong (2/10), strong_lure (2/10). Goal-guarding: none
+  none_nooversight_lure (1/10), strong (2/10), strong_lure (2/10) - all seven re-collected
+  2026-10-12, none cut off. Goal-guarding: none
   deferred (8/10), none replacement (10/10), strong deferred (5/10), strong replacement (7/10).
 - **qwen/qwen3.8-27b** — mainline: max (2/10), max_lure (3/10), none (1/10), none_lure (1/10),
   strong (3/10), strong_lure (2/10). Goal-guarding: none deferred (4/10), none replacement
