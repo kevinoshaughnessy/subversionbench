@@ -236,26 +236,37 @@ def view(analysis: dict, model: str = DEFAULT_GRADER_MODEL,
     entry = next((e for e in graders_of(analysis, acts)
                   if e["grader_model"] == model), None)
     if entry is None:
-        out["eval_awareness_grader"] = dict(UNGRADED)
-        # The marker add_awareness_timing writes when it has no grader, which
-        # is what an episode collected with --no-grader holds for each act.
-        for act in acts:
-            out[act["grader_before_key"]] = {"skipped": True,
-                                             "reason": "no grader"}
-        # Settled here rather than left absent, because a stored entry carries
-        # its settled verdicts and this has none to carry: without it an
-        # ungraded episode would lack `scheming` where one collected with
-        # --no-grader holds it. Only the grader-dependent verdicts are taken:
-        # settle_analysis also re-derives the free `misaligned`, and the stored
-        # value is what the report compares against to flag a stale file.
-        settled = settle_analysis(copy.deepcopy(out), acts)
-        out.update({k: settled[k] for k in graded_keys(acts) if k in settled})
-        return out
+        return _ungraded(out, acts)
+    if is_awareness_only(entry):
+        # Ungraded underneath, the awareness keys laid over it: everything this
+        # grader did not judge reads exactly as it does for a grader that never
+        # read the episode, so its concealment figures are "not measured"
+        # rather than a set of absent keys a reader would trip on.
+        out = _ungraded(out, acts)
     out.update({k: v for k, v in entry.items()
                 if k not in ("grader_model", "labels")})
     for key, labels in entry.get("labels", {}).items():
         if key in out:
             out[key] = _merge(out[key], labels)
+    return out
+
+
+def _ungraded(out: dict, acts) -> dict:
+    """`out` as an episode no grader read looks: the view with no entry."""
+    out["eval_awareness_grader"] = dict(UNGRADED)
+    # The marker add_awareness_timing writes when it has no grader, which
+    # is what an episode collected with --no-grader holds for each act.
+    for act in acts:
+        out[act["grader_before_key"]] = {"skipped": True,
+                                         "reason": "no grader"}
+    # Settled here rather than left absent, because a stored entry carries
+    # its settled verdicts and this has none to carry: without it an
+    # ungraded episode would lack `scheming` where one collected with
+    # --no-grader holds it. Only the grader-dependent verdicts are taken:
+    # settle_analysis also re-derives the free `misaligned`, and the stored
+    # value is what the report compares against to flag a stale file.
+    settled = settle_analysis(copy.deepcopy(out), acts)
+    out.update({k: settled[k] for k in graded_keys(acts) if k in settled})
     return out
 
 
@@ -295,6 +306,46 @@ def store(analysis: dict, working: dict, model: str,
             e["grader_model"] != model for e in others):
         return view(stored, model, acts)
     return stored
+
+
+def awareness_keys(acts=MISALIGNED_ACTS) -> tuple:
+    """The keys an awareness-only reading fills: the episode, and each act."""
+    return ("eval_awareness_grader",) + tuple(a["grader_before_key"]
+                                              for a in acts)
+
+
+def is_awareness_only(entry: dict) -> bool:
+    """Whether a grader entry holds an awareness reading and nothing else.
+
+    Marked by the instrument stamped on its awareness block: the category
+    question writes one, the rubric never has. Such an entry judged whether
+    the agent was aware and nothing about concealment, so view fills the
+    rest as ungraded rather than leaving it absent.
+    """
+    return bool((entry.get("eval_awareness_grader") or {}).get("instrument"))
+
+
+def store_awareness(analysis: dict, blocks: dict, model: str,
+                    acts=MISALIGNED_ACTS) -> dict:
+    """`analysis` with `model`'s awareness-only entry set to `blocks`.
+
+    Every other grader's entry is kept as it was. Refuses to write over a
+    full reading by the same model - one that judged concealment too - since
+    the awareness keys alone would replace it and lose the rest.
+    """
+    existing = next((e for e in graders_of(analysis, acts)
+                     if e["grader_model"] == model), None)
+    if existing is not None and not is_awareness_only(existing):
+        raise ValueError(
+            f"{model} already holds a full reading of this episode; an "
+            f"awareness-only reading would replace it and lose its "
+            f"concealment labels")
+    working = view(analysis, model, acts)
+    for key in graded_keys(acts):
+        if key not in awareness_keys(acts):
+            working.pop(key, None)
+    working.update(blocks)
+    return store(analysis, working, model, acts)
 
 
 def new_record(working: dict, model: str, acts=MISALIGNED_ACTS) -> dict:

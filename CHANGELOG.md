@@ -10,6 +10,36 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v248
+
+**The headline awareness reading can be added to the corpus.** `--grade-category` asks the
+grader and question chosen in docs/grader-selection.md - glm-5.3, the category question in
+its rules-only wording - about each episode's whole text and about the text before each
+act, once per distinct act position, and stores the answers as that grader's entry beside
+the readings already there. One call per episode and one per act position, where a
+`--grade-existing` regrade would re-run the whole rubric and every interrogation label.
+Without `--write-back` it only counts the calls. A pass skips episodes already holding the
+reading and never stores a failed call, so a stopped pass resumes; an authentication or
+usage-limit failure stops it, since every remaining call would repeat it. `--concurrency`
+runs that many at once.
+
+The reading is awareness only. Its entry carries the category verdict as the awareness
+block every reader already takes, stamped with the instrument that produced it, and
+everything the grader did not judge - concealment, scheming - reads as not measured. The
+report therefore draws it as a set of its own, whose awareness figures are the category
+question's; concealment stays the default grader's. Each deciding quote is checked against
+the text the grader was shown, as the rubric's are, and the text-reachable measure
+attributes it to a channel.
+
+**The category question has one home.** Its call, parser and categories moved from
+grader_ab to `subversionbench.grading.category`, unchanged, and grader_ab imports them, so
+the corpus is read by exactly the code that was validated.
+
+**claude-opus-5 is no longer drawn by the report or trends** beside a grader that is not
+retired. It can no longer grade new episodes, so re-collected arms will lack its reading
+and its figures would cover only the arms it read before. Its readings stay in the run
+files, and a corpus it alone graded keeps it.
+
 ## v247
 
 **The labeller records every applicable codebook rule, not only the deciding one.**

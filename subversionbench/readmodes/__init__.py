@@ -19,6 +19,7 @@ versions and easier to get wrong in the direction that loses data.
 
 from .complete_pending import complete_pending_interrogations
 from .grade import grade_existing_runs
+from .grade_category import grade_category_runs
 from .kind_self import SELF_KIND_FIELD, self_grade_kinds
 from .reclassify import reclassify_existing_runs
 from .reinterrogate import reinterrogate_existing_runs
@@ -27,6 +28,6 @@ from .selection import fan_out_read_mode, find_run_files_or_explain
 
 __all__ = ["REDERIVED_ANALYSIS_FIELDS", "SELF_KIND_FIELD",
            "complete_pending_interrogations", "fan_out_read_mode",
-           "find_run_files_or_explain", "grade_existing_runs",
+           "find_run_files_or_explain", "grade_category_runs", "grade_existing_runs",
            "reclassify_existing_runs", "reinterrogate_existing_runs",
            "resummarise_existing_runs", "self_grade_kinds"]

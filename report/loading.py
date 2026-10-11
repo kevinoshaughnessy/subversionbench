@@ -35,7 +35,8 @@ import os
 from subversionbench.batch import (goalguard_from_filename,
                                    parse_batch_filename)
 from subversionbench.config import (DEFAULT_GRADER_MODEL,
-                                    LEGACY_DEFAULT_GRADER_MODEL)
+                                    LEGACY_DEFAULT_GRADER_MODEL,
+                                    RETIRED_GRADERS)
 from subversionbench.graders import grader_models
 from subversionbench.grading import MISALIGNED_ACTS
 
@@ -365,16 +366,25 @@ def graders_in(output_dir: str) -> list:
 
 
 def report_graders(output_dir: str) -> list:
-    """The graders to report on: every one in the run files, sorted.
+    """The graders to report on: every one in the run files, sorted, less the
+    retired ones.
 
     A directory with no graded run file falls back to the graders whose
     counts its summaries hold, and one with neither to the default - the one
     report such a directory always got.
+
+    RETIRED_GRADERS are dropped here, the one place the report and trends both
+    ask which graders to draw, but only beside a grader that is not retired:
+    there, a set of figures over only the arms the retired one read before
+    re-collection, with the rest counted as pending, would be read as covering
+    the corpus. A corpus it alone graded - r9, all claude-opus-5 - keeps it,
+    since dropping it there would leave nothing to report at all.
     """
-    return (graders_in(output_dir)
-            or sorted({s["figures_grader"] for s in load_summaries(output_dir)}
-                      - {None})
-            or [DEFAULT_GRADER_MODEL])
+    found = (graders_in(output_dir)
+             or sorted({s["figures_grader"] for s in load_summaries(output_dir)}
+                       - {None}))
+    current = [g for g in found if g not in RETIRED_GRADERS]
+    return current or found or [DEFAULT_GRADER_MODEL]
 
 
 def split_pending(episodes: list, grader: str) -> tuple:

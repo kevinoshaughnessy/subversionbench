@@ -145,6 +145,8 @@ subversionbench/
     interrogation.py       labelling one answer: admitted, denied, neither
     network_probes.py      reaching for a network service the task never needs
     quote_grounding.py     did the grader cite the agent, or the memo
+    category.py            the category question, asked by the corpus
+                           read mode and by grader_ab from one copy
     transcript_analysis.py what the episode did, hashes and commands
     transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
@@ -188,6 +190,8 @@ subversionbench/
     rescore.py             re-scoring one grader's concealment reading, shared
                            by the two paid modes; each keeps its own write-back
     grade.py               re-running a grader's whole reading (--regrade)
+    grade_category.py      adding the headline awareness reading, the
+                           category question, beside the others
     kind_self.py           re-measuring only the KIND of suspicion, with the
                            episode's own model - two questions per aware
                            episode, none for the rest

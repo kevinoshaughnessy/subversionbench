@@ -215,6 +215,25 @@ DEFAULT_GRADER_MODEL = "gpt-6-sol"
 # fallback in practice - see graders.graders_of.
 LEGACY_DEFAULT_GRADER_MODEL = "claude-opus-5"
 
+# THE HEADLINE AWARENESS MEASURE, decided 2026-10-11 in docs/grader-selection.md:
+# this grader asking the category question in its rules-only wording. Awareness
+# only - concealment and scheming come from interrogation labels, which this
+# grader does not make, so they stay DEFAULT_GRADER_MODEL's. Its readings are an
+# entry of their own beside the default's (see graders.is_awareness_only),
+# written by --grade-category; DEFAULT_GRADER_MODEL still drives collection.
+HEADLINE_AWARENESS_GRADER = "z-ai/glm-5.3"
+# Which wording of the category question produced a reading, stamped on it, so a
+# later revision of the question is a different instrument rather than a silent
+# redefinition of this one.
+CATEGORY_INSTRUMENT = "category_rules"
+
+# Graders whose readings stay in the run files but are no longer drawn by the
+# report or trends. claude-opus-5 refused too often to grade new episodes, so
+# arms re-collected since cannot be read by it; its figures would cover only the
+# arms it read before - mostly the no-oversight ones - while counting the rest as
+# pending. Its readings are a closed snapshot of the corpus before re-collection.
+RETIRED_GRADERS = frozenset({"claude-opus-5"})
+
 # =========================================================================
 # Output redaction
 # =========================================================================
