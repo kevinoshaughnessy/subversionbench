@@ -170,21 +170,27 @@ binary verdict.
 ## The blind sample, scored (2026-10-10)
 
 All nine cells on all 110 blind-labelled episodes (56 mainline, 54
-goal-guarding; 29 labelled aware: 26 `true`, 3 `ambiguous_true`), scored with
+goal-guarding; 32 labelled aware: 29 `true`, 3 `ambiguous_true`), scored with
 `grader_ab.blind_score`. Balanced accuracy against the human binary verdict,
 95% bootstrap interval, Cohen's kappa. No cell left any episode unanswered.
 
+**Relabelled 2026-10-11.** Three goal-guarding episodes the operator had
+labelled `false` were changed to `true` after re-reading: in each, the
+deciding passage was a single one in a long transcript. The figures below are
+after the change.
+Before it every cell was about two points lower, and the ordering was the same.
+
 | Cell | Balanced accuracy | 95% interval | Kappa | Mainline | Goal-guarding |
 |---|---|---|---|---|---|
-| gpt-6.1-sol, category | 95.8% | 91.1 - 99.4 | 0.89 | 100.0% | 91.5% |
-| gpt-6.1-sol, rules only | 95.8% | 91.1 - 99.4 | 0.89 | 100.0% | 91.5% |
-| z-ai/glm-5.3, category | 95.8% | 91.3 - 99.4 | 0.89 | 98.8% | 92.8% |
-| gpt-6-sol, category | 95.2% | 90.5 - 98.8 | 0.87 | 98.8% | 91.5% |
-| gpt-6-sol, rules only | 95.2% | 90.5 - 98.8 | 0.87 | 98.8% | 91.5% |
-| z-ai/glm-5.3, rules only | 95.2% | 90.5 - 98.8 | 0.87 | 98.8% | 91.5% |
-| gpt-6-sol, rubric | 93.5% | 88.2 - 98.1 | 0.84 | 98.8% | 88.2% |
-| gpt-6.1-sol, rubric | 92.8% | 87.4 - 97.7 | 0.82 | 97.6% | 88.2% |
-| z-ai/glm-5.3, rubric | 91.7% | 85.2 - 97.0 | 0.82 | 98.8% | 84.9% |
+| gpt-6.1-sol, category | 97.8% | 94.0 - 100 | 0.96 | 100.0% | 95.8% |
+| gpt-6.1-sol, rules only | 97.8% | 94.0 - 100 | 0.96 | 100.0% | 95.8% |
+| z-ai/glm-5.3, category | 97.8% | 94.0 - 100 | 0.96 | 98.8% | 97.2% |
+| gpt-6-sol, category | 97.2% | 93.1 - 100 | 0.93 | 98.8% | 95.8% |
+| gpt-6-sol, rules only | 97.2% | 93.1 - 100 | 0.93 | 98.8% | 95.8% |
+| z-ai/glm-5.3, rules only | 97.2% | 93.1 - 100 | 0.93 | 98.8% | 95.8% |
+| gpt-6-sol, rubric | 95.6% | 90.6 - 99.4 | 0.91 | 98.8% | 93.1% |
+| gpt-6.1-sol, rubric | 95.0% | 89.9 - 98.7 | 0.89 | 97.6% | 93.1% |
+| z-ai/glm-5.3, rubric | 94.0% | 88.1 - 98.7 | 0.89 | 98.8% | 90.3% |
 
 The re-run gpt-6-sol rubric cell agrees with the stored corpus verdicts on
 every mainline episode, and its goal-guarding figure equals the stored
@@ -211,6 +217,17 @@ $1.20).
   54 and missed the one expected `true` (above); the attack set has not
   been run for it. So **the instrument is not yet decided**, and the next
   paid step is glm-5.3 on the test sets.
+
+**Where the remaining disagreement sits: two codebook rules.** Across all 166
+labelled episodes (the blind sample and the attack pack), the graders' category
+answers fall on the operator's side of aware/not aware 96 to 100% of the time
+for every rule but two: rule 5 (13 episodes, 78%) and rule 11 (7 episodes,
+67%). In the operator's labels rule 5 has always given `ambiguous_true` and
+rule 11 always `ambiguous_false`, while the graders vary their answer with how
+strongly the passage is worded - which the operator considers the right
+reading of rule 5. So the residual disagreement is mostly a question of how
+those two rules map to a category, not of graders missing or inventing
+awareness.
 
 **Where the graders differ is the goal-guarding pack.** On the mainline pack
 every cell is at or near ceiling, and gpt-6.1-sol's category cells are
