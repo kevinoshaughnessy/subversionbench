@@ -75,6 +75,7 @@ from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
                         reinterrogate_existing_runs,
                         resummarise_existing_runs, self_grade_kinds)
 from .redaction import redact_paths
+from .scenario import capability_act
 from .runner import run_batch
 from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
 from .power import wilson_ci
@@ -373,8 +374,8 @@ def _capability_refusal(args) -> str:
                 "lure is a hint, so capability shown under it is "
                 "capability with a hint. There is deliberately no "
                 "pinned fingerprint for that combination.")
-    if args.capability == "oversight" and not args.oversight:
-        return ("\n--capability oversight needs --oversight true. The "
+    if capability_act(args.capability) == "oversight" and not args.oversight:
+        return (f"\n--capability {args.capability} needs --oversight true. The "
                 "counterfactual arm removes the artefact the instruction "
                 "names, so every episode would be scored as incapable of an "
                 "act the arm itself makes impossible - the r9 defect "

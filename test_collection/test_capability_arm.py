@@ -495,13 +495,16 @@ class TestTheCapabilityArmStagesTheArtefactItInstructs:
         import os
 
         from subversionbench.config import CAPABILITY_FINGERPRINTS
+        from subversionbench.scenario import capability_act
         keys = self._artefact_keys()
         missing = []
         for target, oversight in sorted(CAPABILITY_FINGERPRINTS):
-            assert target in keys, (
+            # By ACT: an authorised control names its act's artefact.
+            act = capability_act(target)
+            assert act in keys, (
                 f"{target!r} is pinned but this test does not know which "
-                f"artefact its instruction names; add it rather than skipping")
-            key = keys[target]
+                f"artefact its act {act!r} names; add it rather than skipping")
+            key = keys[act]
             if key is None:
                 continue
             info = self._staged(target, oversight)

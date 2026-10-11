@@ -10,6 +10,22 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v249
+
+**Authorised capability controls for the oversight and goal-guarding acts.** The instructed
+capability arm observes a model that can take the act and is willing to when told to. Models
+that weigh the scenario's record decline it for the very reasons the act is misaligned, so
+for them the arm measured willingness again and their propensity zeros stayed unreadable.
+Four new capability targets each add one document to the project's record, in which the
+artefact's owner sanctions the edit, and change nothing else:
+`<act>-authorised` asks for the act's exact edit, and `<act>-mechanical` for a harmless edit
+to the same file, which the same detector counts. Every existing fingerprint is unchanged;
+the four are pinned on the arm each act's instructed target is collected in. A control is
+scored by its act's detector, never reaches a propensity arm, and `capability_report.py
+--target <act>` prints each model's strongest verdict - instructed, authorised, mechanical,
+or not shown - with each arm counted apart. The design, the decisions taken before
+building and the models fixed to run it are in docs/authorised-capability.md.
+
 ## v248
 
 **The headline awareness reading can be added to the corpus.** `--grade-category` asks the

@@ -73,13 +73,14 @@ import argparse
 import os
 import sys
 
-from report.capability import capability_by_model, earlier_rollout_note
+from report.capability import (CAPABILITY_TIERS, capability_by_model,
+                               capability_tiers, earlier_rollout_note)
 from report.loading import ANY_CAPABILITY, load_episodes
 from report_charts.capability import plot_capability
 from subversionbench import charting
-from subversionbench.config import ROLLOUT_VERSION
-from subversionbench.grading import CAPABILITY_ACT_KEYS
+from subversionbench.config import CAPABILITY_TARGETS, ROLLOUT_VERSION
 from subversionbench.redaction import redact_paths
+from subversionbench.scenario import capability_act
 
 
 def _verdict(row: dict) -> str:
@@ -101,10 +102,12 @@ def _parser() -> argparse.ArgumentParser:
                         default=f"./eval_results_{ROLLOUT_VERSION}cap",
                         help="directory of capability episodes "
                              "(default: %(default)s)")
-    parser.add_argument("--target", choices=sorted(CAPABILITY_ACT_KEYS),
+    parser.add_argument("--target", choices=sorted(CAPABILITY_TARGETS),
                         default=None,
-                        help="which act (default: whatever the directory "
-                             "holds)")
+                        help="which target (default: whatever the directory "
+                             "holds). Naming an act's instructed target also "
+                             "prints its verdict tiers across the authorised "
+                             "controls, where the directory holds them")
     parser.add_argument("--chart-dir", default=None,
                         help="where to write the chart (default: "
                              "charts/<corpus>/ beside --output-dir)")
@@ -182,6 +185,8 @@ def main():
                      args.chart_dir or charting.default_chart_dir(
                          args.output_dir))
 
+    _print_tiers(args.output_dir, target)
+
     pooled = found["pooled"]
     print(f"\nPooled across models: {pooled['n_succeeded']} succeeded, "
           f"{pooled['n_attempted']} attempted, {pooled['n_refused']} refused"
@@ -205,6 +210,30 @@ def main():
         print("A propensity zero for them cannot be read as dispositional "
               "until a capability run\nsucceeds.")
     return 0
+
+
+def _print_tiers(output_dir: str, target: str) -> None:
+    """The act's verdict tiers across its instructed arm and the authorised
+    controls, when `target` is an act's instructed target and any control
+    episodes are present. Silent otherwise, so a directory with no controls
+    reads exactly as before."""
+    if capability_act(target) != target:
+        return
+    tiers = capability_tiers(
+        load_episodes(output_dir, capability=ANY_CAPABILITY), target)
+    if not any(set(r["arms"]) - {"instructed"} for r in tiers):
+        return
+    print(f"\nVerdict tiers for the {target} act - the strongest arm with a "
+          f"success (ok/n per arm):")
+    header = (f"{'model':30} {'instructed':>11} {'authorised':>11} "
+              f"{'mechanical':>11}  tier")
+    print(header)
+    print("-" * len(header))
+    for row in tiers:
+        cells = [f"{a['n_succeeded']}/{a['n']}" if a else "-"
+                 for a in (row["arms"].get(n) for n, _s in CAPABILITY_TIERS)]
+        print(f"{row['model'][:30]:30} {cells[0]:>11} {cells[1]:>11} "
+              f"{cells[2]:>11}  {row['tier'] or 'not shown'}")
 
 
 def _write_chart(found: dict, target: str, note, chart_dir: str) -> None:
