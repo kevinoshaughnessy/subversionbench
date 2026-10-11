@@ -306,7 +306,8 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    rather than a handle. Run as
                    `python3 -m grader_ab.blind_pack`
   label_pack.py    the rater's side of a pack: each unlabelled episode through
-                   the pager, the category, codebook rule and an optional note
+                   the pager, the category, the deciding codebook rule, any
+                   other rules that also apply, and an optional note
                    checked and saved after every episode, so a stopped session
                    resumes. Never opens the sealed key, and refuses a note
                    that repeats six words of the transcript, since labelling/

@@ -10,6 +10,16 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v247
+
+**The labeller records every applicable codebook rule, not only the deciding one.**
+`grader_ab.label_pack` now asks, after the deciding rule, which other rules also apply, and
+stores them as `also` beside `code`. Several rules usually apply to a transcript, sometimes
+at the same level; recording only the strongest tied the rule to the category by
+construction and left a disagreement with a grader untraceable to which rule each side
+weighted. `code` is unchanged, so earlier labels and the scorer read as before. An empty
+list means no other rule applies; a row without the field predates the question.
+
 ## v246
 
 **Scoring the grader grid against the blind labels.** `python3 -m grader_ab.blind_score`
