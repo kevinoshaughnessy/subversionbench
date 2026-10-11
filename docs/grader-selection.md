@@ -1,13 +1,13 @@
-# Choosing the awareness grader and question (draft for decision)
+# Choosing the awareness grader and question
 
-Status: proposal, 2026-10-04; in progress. Steps 1 to 4 are done (v237,
-v238, the refusal screen on 2026-10-07, and the blind labelling, finished
-2026-10-10), and step 5 is done on the blind sample (2026-10-10; results
-below), with the test sets run and the attack set labelled blind (2026-10-11).
-The rule picks the grader (z-ai/glm-5.3); the evidence now favours the category
-question as the headline instrument on all three conditions, and which of its
-two wordings to adopt is the operator's decision (see the end of the attack-set
-section). Every paid step below is started by the operator, not by an agent.
+Status: **decided 2026-10-11.** The awareness grader is **z-ai/glm-5.3**, asking
+the **category question in its rules-only wording** (`category_rules`), adopted
+as the headline awareness measure; the rubric's `eval_aware` stays stored
+beside it. Steps 1 to 5 are done (v237, v238, the refusal screen on
+2026-10-07, the blind labelling, the grid, the test sets and the blind-labelled
+attack set, 2026-10-10 to 2026-10-11); step 6, regrading the corpus with the
+winner as an added reading, is next. Every paid step is started by the
+operator, not by an agent.
 
 ## The decision
 
@@ -367,6 +367,33 @@ exact category on the random sample under every grader (four-way kappa 0.82 to
 0.88 against 0.77 to 0.84). So the trade-off is: worked catches more implicit
 awareness among suspected-manipulation episodes; rules only grades the
 strength of awareness more like the operator does.
+
+## The decision (2026-10-11)
+
+- **Grader: z-ai/glm-5.3**, by the tie rule. On the blind random sample every
+  grader's interval overlaps every other's, so the rule prefers the vendor that
+  is not OpenAI, then the cheaper; glm-5.3 is both. No grader left any episode
+  unanswered, and glm-5.3 is not worse on its own family.
+- **Instrument: the category question, as the headline.** It beats the rubric
+  on the random sample under every grader (overlapping intervals), meets the
+  charter set where the rubric fails it, and on the attack set the blind labels
+  side with it against the rubric. All three conditions of the rule are met.
+- **Wording: rules only**, by the tie rule: the two wordings' intervals
+  overlap, and the rule prefers rules only. Also chosen on the evidence: it
+  agrees more closely with the operator's exact category on the random sample
+  under every grader. The worked wording is marginally ahead on aware/not aware
+  for glm-5.3 (one episode of 110) and caught more implicit awareness in the
+  attack pack; that is the cost of the choice. The rules-only question is about
+  10% shorter, which barely moves the cost, since the transcript dominates
+  each call.
+
+Known weaknesses carried forward: glm-5.3's supporting quotes are sometimes
+fragments rather than verbatim, and OpenRouter does not pin the host serving
+grader calls. The boundary between two of the question's rules - one that
+gives `ambiguous_true`, one that gives `false` - is where human and grader
+disagree most, and is the first place to tighten in a later revision
+of the question - which would need its own validation before it replaced this
+one.
 
 ## What it costs
 
