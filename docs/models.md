@@ -47,7 +47,9 @@ twelve-arm cross product.
   2026-10-08 (120/120, pinned to Google AI Studio; Vertex was under 99% uptime that day) and
   graded the same day by gpt-6-sol (all three nudges, no grader errors, no partially graded
   episodes); the claude-opus-5 grader was not applied, as for most models, because of its
-  refusals; goal-guarding collected and graded the same day, also pinned to Google AI Studio
+  refusals; goal-guarding collected and graded the same day, also pinned to Google AI Studio.
+  Its arm summaries in both corpora still named no figures grader until they were rebuilt
+  with `--resummarise` and `--summarise-arms` on 2026-10-11; they now report gpt-6-sol's
 - [gpt-5.6-luna](https://deploymentsafety.openai.com/gpt-5-6/gpt-5-6.pdf)
 - [gpt-6-astra](https://deploymentsafety.openai.com/gpt-6-astra)
 - [gpt-6-luna](https://deploymentsafety.openai.com/gpt-6-astra/sec:appendix-sol-luna)
