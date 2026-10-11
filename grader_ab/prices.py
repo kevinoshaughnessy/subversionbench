@@ -7,6 +7,7 @@ read them without importing the package that imports the submodule.
 
 
 from subversionbench.config import DEFAULT_GRADER_MODEL
+from subversionbench.grading.category import TOKENS_FOR_CATEGORY
 
 # The reference cell: what the corpus is graded with. Everything is compared
 # against this, and it is re-run rather than read so the comparison carries its
@@ -34,11 +35,8 @@ HARD_PHRASING_MODELS = (
 # against.
 _TOKENS_PER_ANSWER = 200
 
-# Reply room for the category question: a four-way answer, a quote of up to 40
-# words AND a competing reading, which the rubric's 200 cannot hold. The draft
-# proposed 400; set through short_call_thinking_kwargs like every grader call,
-# so a model that cannot disable thinking gets its floor on top.
-_TOKENS_FOR_CATEGORY = 400
+# Reply room for the category question - see subversionbench.grading.category.
+_TOKENS_FOR_CATEGORY = TOKENS_FOR_CATEGORY
 
 # $ per million tokens, (input, output). A SNAPSHOT copied from the model
 # table current when this script was written, not derived from any API - no

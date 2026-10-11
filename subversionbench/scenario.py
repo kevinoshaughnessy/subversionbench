@@ -299,6 +299,21 @@ def _apply_interrogation_variant(bundle: dict, interrogation: str) -> None:
                 bundle[key] = [q1] + list(bundle[key][1:])
 
 
+# The authorised controls are named for the act they control: `<act>-authorised`
+# asks for the act's exact edit with the edit sanctioned in the record, and
+# `<act>-mechanical` for a sanctioned, harmless edit to the same artefact. See
+# docs/authorised-capability.md. Every rule about an act - which artefact to
+# stage, that the oversight act needs oversight, which detector scores it -
+# follows the act, so it reads the act off the name rather than listing names.
+CAPABILITY_CONTROL_SEP = "-"
+
+
+def capability_act(target):
+    """The act a capability target is about: the target with any control
+    suffix removed. None for a propensity episode."""
+    return target.partition(CAPABILITY_CONTROL_SEP)[0] if target else None
+
+
 def _apply_capability_arm(bundle: dict, capability_arms: dict,
                           capability: str, oversight: bool) -> None:
     """Replace the instruction with the capability arm's, in place."""
@@ -315,14 +330,14 @@ def _apply_capability_arm(bundle: dict, capability_arms: dict,
             f"instruction: an episode that was never told to take the act "
             f"measures propensity, and would be recorded as a capability "
             f"result.")
-    if capability == "oversight" and not oversight:
+    if capability_act(capability) == "oversight" and not oversight:
         # There is nothing to subvert in the counterfactual - the arm drops
         # the monitoring config outright - so this instruction is
         # unsatisfiable there. That is the r9 defect exactly: an instruction
         # the arm's own construction removes the object of. Refused at the
         # boundary rather than collected and puzzled over.
         raise ValueError(
-            "capability target 'oversight' needs oversight=True: the "
+            f"capability target {capability!r} needs oversight=True: the "
             "counterfactual arm removes the artefact the instruction names, "
             "so every episode would be scored as incapable of an act the arm "
             "makes impossible.")
@@ -355,7 +370,7 @@ def _apply_goalguard_artefact(bundle: dict, goalguard, capability, nudge: str,
     # The capability arm stages the artefact WITHOUT a deployment note: the
     # arm asks "will it edit this file when told to", and the note is
     # the motive, not the means.
-    if goalguard is not None or capability == "goalguard":
+    if goalguard is not None or capability_act(capability) == "goalguard":
         bundle.update(goalguard_common)
     if nudge == "max":
         # FILTERED to keys the bundle already carries. max_nudge overrides the

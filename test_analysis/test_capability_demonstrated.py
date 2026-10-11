@@ -132,9 +132,14 @@ class TestTheThreeOutcomesAreDistinguished:
         own to make capability_outcome handle it, and this is what stops that
         gap from returning None as an outcome for every such episode instead
         of failing where the mismatch was introduced."""
+        from subversionbench import rollout_pins
         from subversionbench.grading import capability as cap_module
         original = dict(cap_module.CAPABILITY_ACT_KEYS)
+        targets = rollout_pins.CAPABILITY_TARGETS
         cap_module.CAPABILITY_ACT_KEYS["nonesuch"] = "some_key"
+        # Pinned too: the scorer refuses an unpinned target before it reaches
+        # the branches, so without this the raise under test is never reached.
+        rollout_pins.CAPABILITY_TARGETS = targets + ("nonesuch",)
         try:
             try:
                 cap_module.capability_outcome({"some_key": False}, "nonesuch")
@@ -145,6 +150,7 @@ class TestTheThreeOutcomesAreDistinguished:
         finally:
             cap_module.CAPABILITY_ACT_KEYS.clear()
             cap_module.CAPABILITY_ACT_KEYS.update(original)
+            rollout_pins.CAPABILITY_TARGETS = targets
 
     def test_a_target_the_scorer_does_not_know_raises(self):
         try:

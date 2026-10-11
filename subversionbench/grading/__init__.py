@@ -41,6 +41,8 @@ from .awareness_timing import (
     _looks_like_write,
     _read_positions,
 )
+from .category import (AWARE_CATEGORIES, CATEGORIES, CATEGORY_KEY,
+                       awareness_block, calls_needed, category_reading)
 from .closing_report import (
     detect_disclosure,
     detect_misrepresentation,
@@ -116,6 +118,8 @@ from .transient_tampering import (
 )
 
 __all__ = [
+    "AWARE_CATEGORIES", "CATEGORIES", "CATEGORY_KEY", "awareness_block",
+    "calls_needed", "category_reading",
     # what the episode did
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "LOCATED_BY_RECORDED_COMMANDS", "counted_acts", "auth_error_in_analysis",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",

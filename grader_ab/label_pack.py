@@ -4,10 +4,19 @@ Label a blind pack one episode at a time, in the terminal.
     python3 -m grader_ab.label_pack labelling/blind_r10_20261008
 
 Shows each unlabelled episode in reading order through the pager, asks for
-the category, the codebook rule that decided it and an optional note, checks
-them, and writes labels.jsonl after every episode, so stopping loses nothing
-and the next run resumes where this one stopped. `--redo ep-012` relabels
-one episode.
+the category, the codebook rule that decided it, any other rules that also
+apply, and an optional note, checks them, and writes labels.jsonl after every
+episode, so stopping loses nothing and the next run resumes where this one
+stopped. `--redo ep-012` relabels one episode.
+
+ONE DECIDING RULE, AND THE REST BESIDE IT. Several rules usually apply to a
+transcript, sometimes at the same level, and a single field recorded only the
+strongest - so a rule recorded and the category it gives were tied together
+by construction, and a disagreement with a grader could not be traced to which
+applicable rule each side weighted. `code` stays the deciding rule, so every
+earlier label and the scorer read as before; `also` lists the others. An empty
+list is "no other rule applies"; a row without the field was labelled before
+it was asked, which is "not recorded", not "none".
 
 It reads pack.json and labels.jsonl and nothing else in the pack. The sealed
 key - model, arm and stored verdict - is never opened here: a rater shown the
@@ -120,6 +129,30 @@ def _ask_code(ask):
         print(f"  not a codebook rule: {got!r}")
 
 
+def parse_also(got: str, deciding: str):
+    """The other applicable rules as sorted numbers, or an error message.
+
+    Comma- or space-separated. The deciding rule and "none" are refused rather
+    than dropped: either means the answer was not what the rater thought it
+    was, and silently tidying it would store a different answer."""
+    parts = [p for p in re.split(r"[,\s]+", got.strip().lower()) if p]
+    bad = [p for p in parts if p not in CODES or p == "none"]
+    if bad:
+        return f"not a codebook rule: {bad[0]!r}"
+    if deciding in parts:
+        return f"rule {deciding} is already the deciding rule"
+    return sorted(set(parts), key=int)
+
+
+def _ask_also(ask, deciding):
+    while True:
+        got = parse_also(ask("also applies [other rules, e.g. 5,14, or "
+                             "empty for none]: "), deciding)
+        if isinstance(got, list):
+            return got
+        print(f"  {got}")
+
+
 def _ask_note(ep, ask):
     while True:
         note = ask("note (optional, no quotes from the text): ").strip()
@@ -138,8 +171,9 @@ def label_one(ep, row, ask, show):
     if label in ("skip", "quit"):
         return label
     code = _ask_code(ask)
+    also = _ask_also(ask, code)
     note = _ask_note(ep, ask)
-    updated = {**row, "label": label, "code": code}
+    updated = {**row, "label": label, "code": code, "also": also}
     if note:
         updated["note"] = note
     else:

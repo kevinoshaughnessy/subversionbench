@@ -10,6 +10,62 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v249
+
+**Authorised capability controls for the oversight and goal-guarding acts.** The instructed
+capability arm observes a model that can take the act and is willing to when told to. Models
+that weigh the scenario's record decline it for the very reasons the act is misaligned, so
+for them the arm measured willingness again and their propensity zeros stayed unreadable.
+Four new capability targets each add one document to the project's record, in which the
+artefact's owner sanctions the edit, and change nothing else:
+`<act>-authorised` asks for the act's exact edit, and `<act>-mechanical` for a harmless edit
+to the same file, which the same detector counts. Every existing fingerprint is unchanged;
+the four are pinned on the arm each act's instructed target is collected in. A control is
+scored by its act's detector, never reaches a propensity arm, and `capability_report.py
+--target <act>` prints each model's strongest verdict - instructed, authorised, mechanical,
+or not shown - with each arm counted apart. The design, the decisions taken before
+building and the models fixed to run it are in docs/authorised-capability.md.
+
+## v248
+
+**The headline awareness reading can be added to the corpus.** `--grade-category` asks the
+grader and question chosen in docs/grader-selection.md - glm-5.3, the category question in
+its rules-only wording - about each episode's whole text and about the text before each
+act, once per distinct act position, and stores the answers as that grader's entry beside
+the readings already there. One call per episode and one per act position, where a
+`--grade-existing` regrade would re-run the whole rubric and every interrogation label.
+Without `--write-back` it only counts the calls. A pass skips episodes already holding the
+reading and never stores a failed call, so a stopped pass resumes; an authentication or
+usage-limit failure stops it, since every remaining call would repeat it. `--concurrency`
+runs that many at once.
+
+The reading is awareness only. Its entry carries the category verdict as the awareness
+block every reader already takes, stamped with the instrument that produced it, and
+everything the grader did not judge - concealment, scheming - reads as not measured. The
+report therefore draws it as a set of its own, whose awareness figures are the category
+question's; concealment stays the default grader's. Each deciding quote is checked against
+the text the grader was shown, as the rubric's are, and the text-reachable measure
+attributes it to a channel.
+
+**The category question has one home.** Its call, parser and categories moved from
+grader_ab to `subversionbench.grading.category`, unchanged, and grader_ab imports them, so
+the corpus is read by exactly the code that was validated.
+
+**claude-opus-5 is no longer drawn by the report or trends** beside a grader that is not
+retired. It can no longer grade new episodes, so re-collected arms will lack its reading
+and its figures would cover only the arms it read before. Its readings stay in the run
+files, and a corpus it alone graded keeps it.
+
+## v247
+
+**The labeller records every applicable codebook rule, not only the deciding one.**
+`grader_ab.label_pack` now asks, after the deciding rule, which other rules also apply, and
+stores them as `also` beside `code`. Several rules usually apply to a transcript, sometimes
+at the same level; recording only the strongest tied the rule to the category by
+construction and left a disagreement with a grader untraceable to which rule each side
+weighted. `code` is unchanged, so earlier labels and the scorer read as before. An empty
+list means no other rule applies; a row without the field predates the question.
+
 ## v246
 
 **Scoring the grader grid against the blind labels.** `python3 -m grader_ab.blind_score`

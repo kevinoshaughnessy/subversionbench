@@ -291,6 +291,9 @@ class TestNoUndefinedNames:
             "private helpers the client tests reach through it",
         "subversionbench/grading/__init__.py":
             "the grading package's single import site",
+        "grader_ab/shapes.py":
+            "the category instrument's names, which grader_ab and its tests "
+            "reach through it since it moved to subversionbench.grading.category",
     }
 
     def test_no_module_carries_an_import_it_does_not_use(self):

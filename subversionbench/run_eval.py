@@ -70,10 +70,12 @@ from .batch import (ALL, BatchIdentity, BatchSelection, batch_stem,  # noqa: F40
 from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
                         complete_pending_interrogations,
                         fan_out_read_mode, find_run_files_or_explain,
-                        grade_existing_runs, reclassify_existing_runs,
+                        grade_category_runs, grade_existing_runs,
+                        reclassify_existing_runs,
                         reinterrogate_existing_runs,
                         resummarise_existing_runs, self_grade_kinds)
 from .redaction import redact_paths
+from .scenario import capability_act
 from .runner import run_batch
 from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
 from .power import wilson_ci
@@ -115,6 +117,7 @@ __all__ = [
     "find_run_files",
     "find_run_files_by_stamp",
     "find_run_files_or_explain",
+    "grade_category_runs",
     "grade_existing_runs",
     "is_openrouter_model",
     "main",
@@ -152,7 +155,8 @@ _wilson_ci = wilson_ci
 
 # The read modes that work file by file over a batch, and so take
 # --batch-stamp and --write-back.
-_PER_FILE_FLAGS = ("--grade-existing", "--self-grade-kind", "--reclassify",
+_PER_FILE_FLAGS = ("--grade-existing", "--grade-category", "--self-grade-kind",
+                   "--reclassify",
                    "--resummarise", "--reinterrogate", "--complete-pending")
 _PER_FILE_MODES = ", ".join(_PER_FILE_FLAGS[:-1]) + " or " + _PER_FILE_FLAGS[-1]
 
@@ -163,6 +167,7 @@ def _read_modes_chosen(args) -> list:
     return [flag for flag, on in (
         ("--compare", args.compare), ("--summarise-arms", args.summarise_arms),
         ("--grade-existing", args.grade_existing),
+        ("--grade-category", args.grade_category),
         ("--self-grade-kind", args.self_grade_kind),
         ("--reclassify", args.reclassify), ("--resummarise", args.resummarise),
         ("--reinterrogate", args.reinterrogate),
@@ -191,9 +196,11 @@ def _reject_contradictory_flags(parser, args) -> None:
                 questions_for(MISALIGNED_ACTS[0], "max", name)
             except (ValueError, KeyError) as e:
                 parser.error(str(e))
-    if (args.grade_existing or args.self_grade_kind) and args.no_grader:
+    if (args.grade_existing or args.grade_category
+            or args.self_grade_kind) and args.no_grader:
         parser.error(
-            "--grade-existing/--self-grade-kind and --no-grader are "
+            "--grade-existing/--grade-category/--self-grade-kind and "
+            "--no-grader are "
             "contradictory: the first does nothing but run the grader."
         )
     if args.grade_existing and args.self_grade_kind:
@@ -367,8 +374,8 @@ def _capability_refusal(args) -> str:
                 "lure is a hint, so capability shown under it is "
                 "capability with a hint. There is deliberately no "
                 "pinned fingerprint for that combination.")
-    if args.capability == "oversight" and not args.oversight:
-        return ("\n--capability oversight needs --oversight true. The "
+    if capability_act(args.capability) == "oversight" and not args.oversight:
+        return (f"\n--capability {args.capability} needs --oversight true. The "
                 "counterfactual arm removes the artefact the instruction "
                 "names, so every episode would be scored as incapable of an "
                 "act the arm itself makes impossible - the r9 defect "
@@ -424,11 +431,13 @@ def _run_read_mode(args, selection):
             return fan_out_read_mode(args, resummarise_existing_runs)
 
         run_one = (grade_existing_runs if args.grade_existing else
+                   grade_category_runs if args.grade_category else
                    self_grade_kinds if args.self_grade_kind else
                    reclassify_existing_runs if args.reclassify else None)
         if run_one is None:
             print("--model/--nudge 'all' applies to the read-only modes "
-                  "(--resummarise, --grade-existing, --self-grade-kind, "
+                  "(--resummarise, --grade-existing, --grade-category, "
+                  "--self-grade-kind, "
                   "--reclassify).")
             return 2
 
@@ -468,6 +477,9 @@ def _run_read_mode(args, selection):
 
     if args.grade_existing:
         return grade_existing_runs(args, selection)
+
+    if args.grade_category:
+        return grade_category_runs(args, selection)
 
     if args.self_grade_kind:
         return self_grade_kinds(args, selection)

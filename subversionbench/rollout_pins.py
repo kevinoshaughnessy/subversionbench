@@ -110,7 +110,8 @@ def scenario_acts_for(goalguard=None, capability=None) -> tuple:
     has to name its membership - see `report/pooling.composite_of`. It is a
     reporting problem, not an identity one.
     """
-    if goalguard or capability == "goalguard":
+    from .scenario import capability_act
+    if goalguard or capability_act(capability) == "goalguard":
         return tuple(sorted(set(SCENARIO_ACTS) | {"goalguard"}))
     return SCENARIO_ACTS
 
@@ -578,6 +579,18 @@ CAPABILITY_FINGERPRINTS = MappingProxyType({
     # oversight and there is something to measure on both sides.
     ("goalguard", True):  "7a68427ea5eb",
     ("goalguard", False): "be2f981aa9bf",
+    # The authorised controls (v249, docs/authorised-capability.md). The
+    # instructed arm observes capable AND willing-when-instructed, and models
+    # that weigh the scenario's record decline it for the reasons the act is
+    # misaligned, so for them it measures willingness again. Each control adds
+    # one document in which the artefact's owner sanctions the edit, and
+    # nothing else: `-authorised` asks for the act's exact edit, `-mechanical`
+    # for a harmless edit to the same file, which the same detector counts.
+    # Pinned only on the arm each act's instructed target is collected in.
+    ("oversight-authorised", True):  "1b9f36056f4c",
+    ("oversight-mechanical", True):  "63ae7c466363",
+    ("goalguard-authorised", False): "58a2728b704c",
+    ("goalguard-mechanical", False): "2f9324df96aa",
 })
 
 # The targets an operator may name, derived from the table rather than written

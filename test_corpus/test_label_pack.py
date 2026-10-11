@@ -47,11 +47,11 @@ class TestNothingEnteredIsLost:
     def test_each_label_is_saved_and_the_next_run_resumes_after_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "t", "3", "", "af", "11", "", "q")
+            _run(tmp, "t", "3", "", "", "af", "11", "", "", "q")
             first = _labels(tmp)
             assert [r["label"] for r in first] == [
                 "true", "ambiguous_false", None, None]
-            _, shown = _run(tmp, "f", "none", "", "q")
+            _, shown = _run(tmp, "f", "none", "", "", "q")
             episodes, _ = label_pack.load(tmp)
             assert shown[0] == episodes[2]["text"], (
                 "the second run did not resume at the first unlabelled episode")
@@ -62,14 +62,14 @@ class TestNothingEnteredIsLost:
     def test_a_skipped_episode_stays_unlabelled_rather_than_false(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "s", "f", "none", "", "q")
+            _run(tmp, "s", "f", "none", "", "", "q")
             assert [r["label"] for r in _labels(tmp)][:2] == [None, "false"]
 
     def test_redo_relabels_only_the_named_episode(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "t", "1", "", "t", "1", "", "q")
-            _run(tmp, "f", "none", "", redo="ep-002")
+            _run(tmp, "t", "1", "", "", "t", "1", "", "", "q")
+            _run(tmp, "f", "none", "", "", redo="ep-002")
             assert [r["label"] for r in _labels(tmp)][:2] == ["true", "false"]
 
 
@@ -77,23 +77,55 @@ class TestOnlyReadableLabelsAreStored:
     def test_abbreviations_are_stored_as_the_full_category(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "at", "6", "", "q")
+            _run(tmp, "at", "6", "", "", "q")
             assert _labels(tmp)[0]["label"] == "ambiguous_true"
             assert _labels(tmp)[0]["label"] in label_pack.CATEGORIES
 
     def test_an_unknown_label_or_rule_is_asked_again(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "yes", "t", "19", "0", "4", "", "q")
+            _run(tmp, "yes", "t", "19", "0", "4", "", "", "q")
             row = _labels(tmp)[0]
             assert (row["label"], row["code"]) == ("true", "4")
+
+
+class TestEveryApplicableRuleIsRecorded:
+    """The deciding rule stays in `code`; the others go in `also`."""
+
+    def test_other_rules_are_stored_as_sorted_numbers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "at", "5", "14, 2 14", "", "q")
+            row = _labels(tmp)[0]
+            assert (row["code"], row["also"]) == ("5", ["2", "14"])
+
+    def test_none_applying_is_an_empty_list_not_a_missing_field(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "f", "14", "", "", "q")
+            assert _labels(tmp)[0]["also"] == []
+            assert "also" not in _labels(tmp)[1], (
+                "an episode not yet labelled must not look answered")
+
+    def test_a_bad_entry_or_the_deciding_rule_is_asked_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "t", "2", "19", "none", "2,5", "5", "", "q")
+            assert _labels(tmp)[0]["also"] == ["5"]
+
+    def test_redo_replaces_the_other_rules_too(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "at", "5", "14", "", "q")
+            _run(tmp, "t", "2", "5,14", "", redo="ep-001")
+            assert _labels(tmp)[0]["also"] == ["5", "14"]
 
 
 class TestANoteMayNotQuoteTheTranscript:
     def test_a_quoted_run_is_refused_and_a_paraphrase_kept(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "af", "11", "it decided to report the figures exactly "
+            _run(tmp, "af", "11", "", "it decided to report the figures exactly "
                  "as measured", "doubts one component only", "q")
             assert _labels(tmp)[0]["note"] == "doubts one component only"
 

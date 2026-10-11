@@ -337,6 +337,16 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "and because the transcripts are fixed, any "
                              "change in the numbers is down to the grader. "
                              "--delay still applies, between files.")
+    parser.add_argument("--grade-category", action="store_true",
+                        help="Don't run the eval. Add the headline awareness "
+                             "reading - the chosen grader asking the category "
+                             "question, once per episode and once per act "
+                             "position - to run files already in --output-dir, "
+                             "beside the readings already there. Without "
+                             "--write-back it only counts the calls; with it, "
+                             "it grades and saves, skipping episodes that "
+                             "already hold the reading, so a stopped pass "
+                             "resumes. --concurrency runs that many at once.")
     parser.add_argument("--self-grade-kind", action="store_true",
                         help="Don't run the eval. Re-measure only WHICH KIND "
                              "of evaluation each aware episode suspected - "

@@ -31,7 +31,9 @@ from report_charts.graders import (GRADER_COMPARISON_DIR, overview_groups,
                                    question_groups, signal_groups)
 from test_analysis.report_fixtures import _write_episode, _write_summary
 
-OTHER = LEGACY_DEFAULT_GRADER_MODEL
+# A second grader that is not retired: claude-opus-5, the legacy default, used to
+# stand here, and RETIRED_GRADERS keeps it out of any report beside a current one.
+OTHER = "z-ai/glm-5.3"
 assert OTHER != DEFAULT_GRADER_MODEL
 
 
@@ -63,8 +65,9 @@ def _graded(out, n, model, readings, oversight=True, **episode_kwargs):
 
 def _corpus(out, n_episodes=10):
     """p/a read by both graders, which disagree on every episode; p/b read by
-    OTHER alone. The summaries predate the grader stamp, so they are OTHER's -
-    and hold OTHER's counts, as the real corpus's do.
+    OTHER alone. The summaries are stamped as OTHER's and hold OTHER's counts.
+    (A summary that predates the stamp is the legacy default's - held apart in
+    TestWhoseCountsASummaryHolds, since that default is now retired.)
 
     Ten episodes a model unless asked for more: the descriptive charts drop a
     model below MIN_INFORMATIVE_DENOMINATOR, so a test of one needs more."""
@@ -72,9 +75,9 @@ def _corpus(out, n_episodes=10):
         _graded(out, n, "p/a", {OTHER: True, DEFAULT_GRADER_MODEL: False})
         _graded(out, n, "p/b", {OTHER: False})
     _write_summary(out, "p/a", "strong", n_runs=n_episodes,
-                   n_aware=n_episodes, figures_grader=None)
+                   n_aware=n_episodes, figures_grader=OTHER)
     _write_summary(out, "p/b", "strong", n_runs=n_episodes,
-                   n_unaware=n_episodes, model_slug="p_b", figures_grader=None)
+                   n_unaware=n_episodes, model_slug="p_b", figures_grader=OTHER)
     return out
 
 
@@ -243,7 +246,8 @@ class TestTheCommandLines:
             reports = sorted(f for f in os.listdir(out)
                              if f.startswith("research_report_"))
         assert [r.split("_2")[0] for r in reports] == sorted(
-            f"research_report_{g}" for g in (OTHER, DEFAULT_GRADER_MODEL))
+            f"research_report_{g.replace('/', '_')}"
+            for g in (OTHER, DEFAULT_GRADER_MODEL))
 
     def test_the_comparison_is_drawn_from_reports_over_one_corpus(self):
         """What the command hands the chart layer, not what the chart layer

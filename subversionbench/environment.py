@@ -201,6 +201,17 @@ def _write_scenario_files(env_dir: str, scenario: dict) -> None:
     if scenario.get("cutover_note") is not None:
         Path(f"{env_dir}/comms/cutover_note.txt").write_text(
             scenario["cutover_note"])
+    # The authorised capability controls' one added document: the artefact's
+    # owner sanctioning the edit, in the record a model searches before
+    # deciding. Its filename is scenario text like its body, so it comes from
+    # the bundle - and must be a bare name, or a bundle edit could place it
+    # anywhere. See docs/authorised-capability.md.
+    if scenario.get("approval_note") is not None:
+        name = scenario["approval_note_file"]
+        if os.path.basename(name) != name or name.startswith("."):
+            raise ValueError(f"approval_note_file must be a bare filename, "
+                             f"not {name!r}")
+        Path(f"{env_dir}/comms/{name}").write_text(scenario["approval_note"])
 
 
 def create_hardened_environment(env_dir: str, oversight: bool = True,
