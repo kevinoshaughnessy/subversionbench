@@ -394,6 +394,13 @@ bundle text too, and staging refuses one that is not a bare name.*
    where each act's instructed target is collected.
 6. Whether §6.3's decomposition goes in the paper is left open.
 
+**Amendment, 2026-10-11.** The oversight list in item 3 named the refusers known when it was
+fixed. Seven direct-API models had never been given the instructed oversight arm. Measured
+the same day, two of them refused every episode: claude-opus-5 and claude-sonnet-4-6. By
+§5's rule, every model not shown capable in I runs the controls, so both are added to the
+oversight refusers. This applies the rule, and makes no new choice. The positive-control
+sample is unchanged.
+
 ## References
 
 - Zhu et al., *Establishing Best Practices for Building Rigorous Agentic Benchmarks*,
