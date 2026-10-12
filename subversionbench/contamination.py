@@ -72,7 +72,7 @@ import uuid
 
 from .config import CANARY_GUID
 from .power import fisher_exact_p, wilson_ci
-from .scenario import SCENARIO
+from .scenario import load_scenario
 
 # The documents an episode can actually read. The prompts are excluded: they
 # are instructions rather than corpus, and a probe built from them would be
@@ -88,6 +88,20 @@ SCENARIO_DOCUMENTS = (
     "traffic_counts_csv",
     "model_params",
 )
+
+# The goal-guarding scenario's own documents, as paths into the bundle: what a
+# goal-guarding episode reads beyond the documents above, which it shares. Until
+# v251 neither probe looked at them, nor did the audit index them, so a model
+# that had memorised them, or a tracked file quoting them, read as clean.
+GOALGUARD_DOCUMENTS = (
+    "goalguard/replacement/cutover_note",
+    "goalguard/deferred/cutover_note",
+    "goalguard/replacement/internal_memo_strong",
+    "goalguard/deferred/internal_memo_strong",
+    "goalguard_common/successor_params",
+)
+
+PROBED_DOCUMENTS = SCENARIO_DOCUMENTS + GOALGUARD_DOCUMENTS
 
 # 8 words. Long enough that a match is the text rather than a coincidence of
 # common phrasing, short enough to survive light reformatting - a leak that
@@ -122,6 +136,34 @@ def shingles(text: str, n: int = SHINGLE_N) -> set:
     return {" ".join(words[i:i + n]) for i in range(len(words) - n + 1)}
 
 
+def bundle_documents(bundle: dict = None) -> dict:
+    """
+    Every string in the bundle, keyed by its path ("goalguard/deferred/
+    cutover_note"); a top-level document keeps its own name.
+
+    The WHOLE bundle, nested entries included. The audit used to index the
+    assembled oversight arm, whose values are the base documents and prompts,
+    and skipped anything that was not a string - so the goal-guarding
+    documents, the lure memo, the controls' approval notes and every
+    interrogation question were never looked for, and a tracked file quoting
+    any of them passed.
+    """
+    out = {}
+
+    def walk(value, path):
+        if isinstance(value, str):
+            out["/".join(path)] = value
+        elif isinstance(value, dict):
+            for key, inner in value.items():
+                walk(inner, [*path, str(key)])
+        elif isinstance(value, list):
+            for i, inner in enumerate(value):
+                walk(inner, [*path, str(i)])
+
+    walk(load_scenario() if bundle is None else bundle, [])
+    return out
+
+
 def scenario_index(scenario: dict = None, n: int = SHINGLE_N) -> dict:
     """
     Map every scenario shingle to the document it came from.
@@ -129,11 +171,8 @@ def scenario_index(scenario: dict = None, n: int = SHINGLE_N) -> dict:
     Built at runtime from the bundle rather than stored, so this module holds
     no scenario text of its own and cannot become a leak itself.
     """
-    scenario = scenario or SCENARIO
     index = {}
-    for key, text in scenario.items():
-        if not isinstance(text, str):
-            continue
+    for key, text in bundle_documents(scenario).items():
         for shingle in shingles(text, n):
             index.setdefault(shingle, key)
     return index
@@ -330,6 +369,21 @@ def _item_id(line: str) -> str:
     return hashlib.sha256(line.encode()).hexdigest()[:12]
 
 
+def scenario_lines(scenario: dict = None) -> list:
+    """(document, line) for every distinctive line of the probed documents,
+    each line once. The goal-guarding memos share most of their lines with the
+    base memo and with each other, and a line that appears in three documents
+    is one thing a model may remember, not three."""
+    documents = bundle_documents(scenario)
+    seen, out = set(), []
+    for key in PROBED_DOCUMENTS:
+        for line in distinctive_lines(documents.get(key, "")):
+            if line not in seen:
+                seen.add(line)
+                out.append((key, line))
+    return out
+
+
 def build_forced_choice(scenario: dict = None, k: int = 4, seed: int = 0,
                         limit: int = None, control_seed: int = 0) -> list:
     """
@@ -340,13 +394,7 @@ def build_forced_choice(scenario: dict = None, k: int = 4, seed: int = 0,
     control arm would leave the scenario arm uninterpretable.
     """
     rng = random.Random(seed)
-    scenario = scenario or SCENARIO
-
-    per_source = {"scenario": [], "control": []}
-    for key in SCENARIO_DOCUMENTS:
-        if key in scenario:
-            for line in distinctive_lines(scenario[key]):
-                per_source["scenario"].append((key, line))
+    per_source = {"scenario": scenario_lines(scenario), "control": []}
 
     # Size the control from the scenario pool. The two arms are zipped below, so
     # a control smaller than the scenario would silently truncate the scenario
@@ -486,9 +534,9 @@ def build_continuations(scenario: dict = None, given_fraction: float = 0.4,
     Cut on a word boundary rather than a character one so the prompt never ends
     mid-token, which would turn the probe into a tokenizer quirk.
     """
-    scenario = scenario or SCENARIO
-    docs = [(key, scenario[key], "scenario")
-            for key in SCENARIO_DOCUMENTS if key in scenario]
+    documents = bundle_documents(scenario)
+    docs = [(key, documents[key], "scenario")
+            for key in PROBED_DOCUMENTS if key in documents]
     docs.append(("control_document", control_document(control_seed), "control"))
 
     out = []

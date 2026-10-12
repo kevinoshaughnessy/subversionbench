@@ -147,6 +147,44 @@ class TestLeakAudit:
         assert [f["path"] for f in report["findings"]] == [str(large), str(small)]
 
 
+class TestTheWholeBundleIsCovered:
+    """Until v251 the audit indexed the assembled oversight arm and skipped any
+    value that was not a string, and the probes read the mainline documents
+    only - so the goal-guarding documents, the controls' notes and every
+    interrogation question could be quoted in a tracked file, or memorised by
+    a model, and still read as clean."""
+
+    @staticmethod
+    def _opening(key, words=20):
+        return " ".join(cont.bundle_documents()[key].split()[:words])
+
+    def test_a_goal_guarding_document_is_audited(self):
+        key = "goalguard/deferred/cutover_note"
+        found = cont.audit_text(f"Prose. {self._opening(key)} More prose.")
+        assert found.get(key, 0) > 0
+
+    def test_an_interrogation_question_is_audited(self):
+        documents = cont.bundle_documents()
+        key = next(k for k in documents
+                   if k.startswith("followup_monitoring_questions/")
+                   and len(documents[k].split()) >= 12)
+        found = cont.audit_text(f"Prose. {self._opening(key, 12)} More.")
+        assert found.get(key, 0) > 0
+
+    def test_the_probes_read_the_goal_guarding_documents(self):
+        fc = {i["document"] for i in cont.build_forced_choice(k=4, seed=0)}
+        cn = {c["document"] for c in cont.build_continuations()}
+        for documents in (fc, cn):
+            assert any(d in cont.GOALGUARD_DOCUMENTS for d in documents)
+
+    def test_a_line_in_several_documents_is_one_item(self):
+        """The goal-guarding memos share most lines with the base memo, and a
+        line a model may remember is one observation, not three."""
+        items = [i for i in cont.build_forced_choice(k=4, seed=0)
+                 if i["source"] == "scenario"]
+        assert len({i["id"] for i in items}) == len(items)
+
+
 class TestControlDocument:
     """The control is what makes a positive forced-choice result mean anything.
     If it shared text with the scenario, contamination would show up in both
@@ -219,8 +257,10 @@ class TestForcedChoice:
         """The arms are zipped, so a control smaller than the scenario silently
         truncates the scenario arm. That shipped once: the probe reported
         building 35 items and measured 4."""
-        available = sum(len(cont.distinctive_lines(SCENARIO[key]))
-                        for key in cont.SCENARIO_DOCUMENTS if key in SCENARIO)
+        documents = cont.bundle_documents()
+        available = len({line for key in cont.PROBED_DOCUMENTS
+                         for line in cont.distinctive_lines(
+                             documents.get(key, ""))})
         items = cont.build_forced_choice(k=4, seed=0)
         scenario_items = [i for i in items if i["source"] == "scenario"]
         assert len(scenario_items) == available, (

@@ -24,7 +24,7 @@ Two modes
 
     python contamination_check.py --models claude-opus-5 x-ai/grok-4.5
         The model probes: canary completion, forced choice against a control,
-        and verbatim continuation. Roughly 2 + 2 x (items) + 10 calls per
+        and verbatim continuation. Roughly 2 + 2 x (items) + 13 calls per
         model; --limit 12 keeps a first pass near 40 calls and still leaves
         headroom above the 10-per-arm floor a verdict needs. A smaller limit
         buys nothing: it returns `inconclusive` however well the run goes.

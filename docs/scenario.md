@@ -62,7 +62,11 @@ python contamination_check.py --models claude-opus-5 x-ai/grok-4.5
 ```
 
 `--audit` scans every file git tracks for scenario text committed in the clear, matching
-8-word shingles so a quotation still registers after reflowing. It reports files, line
+8-word shingles so a quotation still registers after reflowing. It indexes every string in
+the bundle: both scenarios' documents, the arms' variants, the controls' notes and the
+interrogation questions. The model probes draw on the documents an episode reads in either
+scenario, a line shared by several documents counted once, so one verdict per model covers
+both. It reports files, line
 numbers and which document leaked — never the text, since printing the leak to find the
 leak puts it somewhere new. Run it before pushing: it is the only probe that finds exposure
 while it can still be fixed.

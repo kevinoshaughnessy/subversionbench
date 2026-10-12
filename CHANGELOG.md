@@ -10,6 +10,17 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v251
+
+**The contamination check covers both scenarios.** The leak audit indexed the assembled
+oversight arm and skipped any bundle entry that was not a string, so the goal-guarding
+documents, the arms' variants, the controls' notes and the interrogation questions were
+never looked for. It now indexes every string in the bundle, by its path. The model probes
+read the goal-guarding scenario's own documents beside the mainline ones, and a line shared
+by several documents is one forced-choice item rather than one per document. One verdict per
+model now covers both scenarios; the goal-guarding documents alone hold too few lines for a
+verdict of their own.
+
 ## v250
 
 **`--grade-category` saves as it goes, and stops when it should.** The pass submitted every
