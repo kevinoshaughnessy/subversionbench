@@ -249,6 +249,16 @@ class TestTheCommandLines:
             f"research_report_{g.replace('/', '_')}"
             for g in (OTHER, DEFAULT_GRADER_MODEL))
 
+    @staticmethod
+    def _not_drawn():
+        """report_charts.write_charts replaced by a recorder, for the tests
+        that assert on the comparison step alone. Drawing every grader's full
+        chart set took most of their runtime and nothing here looked at it.
+        Each such test asserts the recorder WAS called, so a run that stopped
+        before the chart step cannot pass by having drawn nothing."""
+        from unittest import mock
+        return mock.patch("report_charts.write_charts", return_value=[])
+
     def test_the_comparison_is_drawn_from_reports_over_one_corpus(self):
         """What the command hands the chart layer, not what the chart layer
         does with it: built from the per-grader reports instead, the markers
@@ -260,10 +270,11 @@ class TestTheCommandLines:
             return []
         with tempfile.TemporaryDirectory() as out, mock.patch(
                 "report_charts.write_grader_comparison_charts",
-                side_effect=capture):
+                side_effect=capture), self._not_drawn() as drawn:
             self._main(run_report.main, [
                 "report", "--output-dir", _corpus(out),
                 "--chart-dir", os.path.join(out, "charts")])
+        assert drawn.called
         assert set(seen) == {OTHER, DEFAULT_GRADER_MODEL}
         assert {r["n_episode_files"] for r in seen.values()} == {10}
         assert all(r["grader"]["paired_with"] == sorted(seen)
@@ -271,8 +282,10 @@ class TestTheCommandLines:
 
     def _comparison_dir_after(self, out, *flags):
         charts = os.path.join(out, "charts")
-        self._main(run_report.main, ["report", "--output-dir", out,
-                                     "--chart-dir", charts, *flags])
+        with self._not_drawn() as drawn:
+            self._main(run_report.main, ["report", "--output-dir", out,
+                                         "--chart-dir", charts, *flags])
+        assert drawn.called, "the run never reached the chart step"
         return os.path.join(charts, GRADER_COMPARISON_DIR)
 
     def test_no_comparison_under_the_awareness_reading(self):
@@ -293,11 +306,10 @@ class TestTheCommandLines:
                            n_runs=MIN_INFORMATIVE_DENOMINATOR,
                            n_unaware=MIN_INFORMATIVE_DENOMINATOR,
                            figures_grader=None)
+            # _comparison_dir_after asserts the per-grader chart step was
+            # reached, which is the evidence that anything ran at all.
             path = self._comparison_dir_after(
                 out, "--exclude-aware", report.EXCLUDE_AWARE_PRIMARY)
-            # Its own directory, since the reading writes elsewhere; the
-            # per-grader charts must still be there, or nothing ran at all.
-            assert os.path.isdir(os.path.dirname(path))
             assert not os.path.exists(path)
 
     def test_no_comparison_when_the_graders_share_no_episode(self):

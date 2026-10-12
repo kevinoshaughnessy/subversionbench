@@ -175,8 +175,13 @@ def _reachable(entry: str, graph: dict) -> set:
     return seen
 
 
-def _option_dests(relative) -> set:
-    """The attribute names argparse will set, from the add_argument calls."""
+@functools.cache
+def _option_dests(relative) -> frozenset:
+    """The attribute names argparse will set, from the add_argument calls.
+
+    Cached on the path, as _tree is: _fields_a_module_may_read_in asks it of
+    every entry point once per module, and uncached that was 21,741 walks of
+    whole syntax trees - nearly all of this file's runtime."""
     dests = set()
     for node in ast.walk(_tree(relative)):
         if not (isinstance(node, ast.Call)
@@ -196,7 +201,7 @@ def _option_dests(relative) -> set:
             dests.add(flags[0][2:].replace("-", "_"))
         elif positional:
             dests.add(positional[0].replace("-", "_"))
-    return dests
+    return frozenset(dests)
 
 
 def _bag_targets(node) -> list:

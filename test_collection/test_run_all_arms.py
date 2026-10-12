@@ -43,10 +43,13 @@ import unittest
 import conftest
 
 SCRIPT = conftest.PROJECT_ROOT / "run_all_arms.sh"
-# 2 oversight x 2 lure x 1 nudge = 4 arms, enough that an interrupt after the
-# first has arms left to prove were not started.
-ARGS = ["--model", "test/stub-model", "--runs", "1", "--nudges", "none"]
-ARMS = 4
+# 2 oversight x 1 lure x 1 nudge = 2 arms: enough that an interrupt after the
+# first has an arm left to prove was not started, and that a failing first arm
+# has one after it to continue to. Each arm starts Python twice, so a third
+# and fourth arm doubled every test here while asserting nothing more.
+ARGS = ["--model", "test/stub-model", "--runs", "1", "--nudges", "none",
+        "--lures", "false"]
+ARMS = 2
 
 
 def _wait_for_first_arm(process) -> str:
@@ -400,8 +403,8 @@ class TestTheSkipCheckSurvivesTheShellBoundary(unittest.TestCase):
 
     def test_an_arm_already_on_disk_is_skipped(self):
         """With the census broken the count arrived empty, no branch was taken,
-        and the arm was re-collected. One arm of the four is complete here, so
-        three should run."""
+        and the arm was re-collected. One of the arms is complete here, so the
+        rest should run."""
         out = self._dir("run_1_test_stub-model_none_20260101T000000.json")
         done = self._run(out)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
@@ -412,7 +415,7 @@ class TestTheSkipCheckSurvivesTheShellBoundary(unittest.TestCase):
     def test_a_capability_episode_does_not_skip_a_propensity_arm(self):
         """It carries the same nudge, oversight and lure in its name, and the
         act in it was INSTRUCTED, so it is not one of the episodes this arm was
-        asked for. All four arms must still run."""
+        asked for. Every arm must still run."""
         out = self._dir(
             "run_1_test_stub-model_none_capability-sandbox_20260101T000000.json")
         done = self._run(out)

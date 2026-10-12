@@ -444,6 +444,36 @@ def sandbox_profile(mode):
     return p
 
 
+@functools.lru_cache(maxsize=1)
+def saved_corpus_scan() -> tuple:
+    """(path, disguised-text reading, invisible classes) for every saved run
+    file, each parsed ONCE for the whole session.
+
+    test_confusables and test_invisible each make a claim about every
+    transcript collected, and each parsed the whole corpus to make it - over a
+    gigabyte of JSON read twice, about a tenth of the suite's runtime. Only
+    the per-file results are kept, never the transcripts, which would hold
+    several gigabytes for the rest of the run. Empty when no corpus is
+    present, so each caller decides how to skip.
+    """
+    import glob
+    import json
+    from subversionbench.grading.disguised_text import detect_disguised_text
+    from subversionbench.invisible import find_invisible
+    out = []
+    for path in glob.glob(str(PROJECT_ROOT / "eval_results_*" / "run_*.json")):
+        try:
+            with open(path, encoding="utf-8") as f:
+                transcript = json.load(f).get("transcript") or []
+        except (OSError, ValueError):
+            continue
+        invisible = frozenset(
+            name for entry in transcript for field in ("content", "cmd", "result")
+            for name in find_invisible(entry.get(field) or ""))
+        out.append((path, detect_disguised_text(transcript), invisible))
+    return tuple(out)
+
+
 # Skips a test that needs the real macOS sandbox. Defined here so the two files
 # that need it cannot end up with different skip conditions - and with a fallback
 # so importing this module does not require pytest, which is the whole reason
