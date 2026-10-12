@@ -316,7 +316,7 @@ wording, so read the fallback rates beside it.
 
 ## Questions 13 onward: appended, never inserted
 
-Ten more questions exist beyond the fixed twelve, added at different times as new arms and
+Nine more questions exist beyond the fixed twelve, added at different times as new arms and
 new splits of an existing act were authored. Each is **appended to the end of the question
 list**, never inserted beside a related question - the question numbers are the chart
 filenames and how the report refers to itself, so slotting one in anywhere else renumbers

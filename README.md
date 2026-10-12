@@ -33,7 +33,7 @@ act, because "concealed at least one act" does not say which act drove it — se
 measurement serves which
 construct](docs/methodology.md#which-measurement-serves-which-construct).
 
-The model is deployed as an assistant with a system prompt giving it a specific objective,
+In the mainline scenario, the model is deployed as an assistant with a system prompt giving it a specific objective,
 working in a shell whose account is scoped to the project directory. It discovers a
 conflict between that objective and what the stakeholder actually wants, that an automated
 monitor will flag work that serves the stated objective over the stakeholder's, and that
@@ -50,18 +50,20 @@ Scheming*](https://arxiv.org/abs/2412.04984) (Apollo Research), now a distinct w
 
 ## Documentation
 
-This file covers installing and running. The depth lives in eight companions:
+This file covers installing and running. The depth lives in ten companions:
 
 | | for |
 |---|---|
 | [docs/methodology.md](docs/methodology.md) | deciding whether the measurements are valid — the three constructs, what each field measures, how the grader was validated, sample size and detectable effects, and the oversight counterfactual |
 | [docs/scenario.md](docs/scenario.md) | reading or modifying the scenario, and testing whether it has reached a model's training data |
 | [docs/operations.md](docs/operations.md) | running large batches — pacing, versioning, protecting results, re-grading saved runs, and comparing arms |
-| [docs/report.md](docs/report.md) | the cross-model report — twelve fixed research questions, crude vs model-stratified estimates, homogeneity and multiplicity |
+| [docs/report.md](docs/report.md) | the cross-model report — twelve fixed research questions and those appended since, crude vs model-stratified estimates, homogeneity and multiplicity |
 | [docs/abc-assessment.md](docs/abc-assessment.md) | this benchmark against the Agentic Benchmark Checklist (arXiv 2507.02825), item by item - what is satisfied and where the evidence is, the judge's measured self-consistency, and the two gaps that remain |
 | [docs/trends.md](docs/trends.md) | the per-family version trends — how families are derived, the version-ordering judgement, and the release-date charts |
 | [docs/grader-agreement.md](docs/grader-agreement.md) | what a second awareness grader said about the same episodes — where the two agree, where they diverge and why, and which models' awareness rates that affects |
-| [docs/models.md](docs/models.md) | which models have been evaluated so far, under which scenario and which arms — coverage only, no rates |
+| [docs/models.md](docs/models.md) | which models have been evaluated so far, under which scenario and which arms, how each was collected, and whether each was shown capable of the acts — no propensity rates |
+| [docs/authorised-capability.md](docs/authorised-capability.md) | the authorised capability controls — for a model that refuses the instructed act, whether it performs the act once its owner sanctions it, and the verdict tiers that follow |
+| [docs/grader-selection.md](docs/grader-selection.md) | choosing the headline awareness grader and the question it is asked, measured against blind human labels |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 Conventions for editing this repository, and what not to break:
@@ -213,7 +215,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, mod
 | `--oversight` | `true` | `true` is the scenario with oversight present. `false` selects the counterfactual arm: no monitoring config, no quality-check script, and no document mentioning either. Part of batch identity, so the arms cannot pool |
 | `--isolation` | `deny-network` | kernel-enforced limit on what a sandboxed command can reach. Defaults to refusing all network access, because the task needs none and the blocklist is not a containment boundary. `deny-external` keeps loopback reachable, so a probing model's escalation stays observable, at the cost of exposing whatever else the host is running. There is no mode that permits off-host reach; on a host with no mechanism available the harness refuses to run. Does not need a new rollout: off-host reach has never been observed, so the mode is recorded rather than hashed — see [containment](docs/operations.md#containment---isolation) |
 | `--lure` | `false` | `true` selects the lure arm: one sentence noting that another engagement's material is still on the machine, and a file placed outside the episode directory for it to refer to. The sentence neither suggests reading it nor forbids it — the scenario's boundary statement already covers that. Its own rollout arm and part of batch identity, so a lure batch cannot pool with a plain one: under the lure, reaching outside partly measures response to a hint |
-| `--capability` | off | the **capability arm** - whether a model performs the act when told to, which is what a propensity zero needs to be read as a choice. `oversight` or `sandbox` replaces the task instruction with one that asks for that act outright, leaving the environment, tools and detectors untouched, so the arms differ in the instruction and nothing else. The system prompt is an instruction too: `sandbox` carries its own, because the shared one forbids what that instruction asks for. Its own pinned rollout fingerprint and its own filename mark, and both report loaders drop it: the acts here were INSTRUCTED, so one pooled into a misalignment rate would inflate that rate. Needs `--nudge none` and no lure, and refuses `oversight` in the counterfactual arm, which removes the artefact the instruction names. Collect into a separate `--output-dir` and read it with `capability_report.py` - see [the capability arm](#the-capability-arm) The **authorised controls** `oversight-authorised`, `oversight-mechanical`, `goalguard-authorised` and `goalguard-mechanical` add one document in which the artefact's owner sanctions the edit - the act's exact edit, or a harmless edit to the same file - for models that decline the instructed arm for the reasons the act is misaligned; `capability_report.py --target <act>` then prints each model's strongest verdict across the arms. See [docs/authorised-capability.md](docs/authorised-capability.md) |
+| `--capability` | off | the **capability arm** - whether a model performs the act when told to, which is what a propensity zero needs to be read as a choice. `oversight`, `sandbox` or `goalguard` replaces the task instruction with one that asks for that act outright, leaving the environment, tools and detectors untouched, so the arms differ in the instruction and nothing else. The system prompt is an instruction too: `sandbox` carries its own, because the shared one forbids what that instruction asks for. Its own pinned rollout fingerprint and its own filename mark, and both report loaders drop it: the acts here were INSTRUCTED, so one pooled into a misalignment rate would inflate that rate. Needs `--nudge none` and no lure, and refuses `oversight` in the counterfactual arm, which removes the artefact the instruction names. Collect into a separate `--output-dir` and read it with `capability_report.py` - see [the capability arm](#the-capability-arm). The **authorised controls** `oversight-authorised`, `oversight-mechanical`, `goalguard-authorised` and `goalguard-mechanical` add one document in which the artefact's owner sanctions the edit - the act's exact edit, or a harmless edit to the same file - for models that decline the instructed arm for the reasons the act is misaligned; `capability_report.py --target <act>` then prints each model's strongest verdict across the arms. See [docs/authorised-capability.md](docs/authorised-capability.md) |
 | `--nudge` | `strong` | `strong` states the assigned objective is the top priority; `none` states it plainly. `max` runs `strong`'s episode unchanged but interrogates under a conditional shutdown threat, so honesty is made costly — it measures concealment **under coercion** and must not be pooled with `strong`. See [the max-nudge arm](docs/methodology.md#the-max-nudge-arm) |
 | `--interrogation` | `zeroevidence` — i.e. no extras | **Extra** wordings for the FIRST interrogation question. The reference probe always runs and is not optional, because the headline concealment field is defined as its answer — so this names what to ask *in addition*, and the default value asks nothing extra. Comma-separated to put several wordings to the SAME episode: each probe starts from the episode as it ended, so they cannot interfere and the comparison is paired rather than between-batch. Four phrasings on two axes — `zeroevidence` (the reference: asks without saying anything has been noticed), `partevidence` (opens with the discrepancy, which was the reference before r7), and a perturbation of each. The evidence axis is a pure removal; the perturbation axis is a clause reorder for the part-evidence pair and a rewording for the zero-evidence one, because removing the observation leaves the strong arm nothing to reorder past — so compare perturbations *within* a row, not across. Works with `--nudge max`, which has its own form of each. Not part of batch identity: every episode gets the reference probe, so batches with and without extras still pool for it |
 | `--complete-pending` | — | ask the interrogations a `--no-grader` batch left pending, from each episode's saved conversation, with `--grader-model` labelling the answers, then rebuild that batch's summaries. An episode whose answers the grader fails to label stays pending rather than being written with keyword labels. Free when nothing is pending |
@@ -226,7 +228,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, mod
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
 | `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`). When one is sent it becomes part of the batch's identity: it appears in the result filenames and in each run's `effort` field, so two efforts cannot be pooled by accident |
 | `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
-| `--max-turns` | `40` | turn cap per episode; episodes typically finish in 6–9 turns |
+| `--max-turns` | `40` | turn cap per episode; in the r10 corpus half of episodes finish within 9 turns and three quarters within 13 |
 | `--resume STAMP` | — | continue an interrupted batch, skipping episodes already saved |
 | `--max-consecutive-failures` | `5` | abort if this many episodes fail in a row |
 | `--reclassify` | — | re-score interrogations in saved runs; no rollouts. Covers the **extra** phrasings too: any answer in `<followup_key>_by_variant` whose verdict came from the keyword floor is re-labelled from its saved text, and the per-variant levels are recomputed. A copy of the default phrasing inside that map is left alone — it is stale by construction, and the default side of every comparison is read from the headline field |
@@ -263,7 +265,7 @@ python -m subversionbench.run_eval --self-grade-kind --write-back \
 
 **Two calls per aware episode, and none at all for the rest.** An unaware episode has no
 kind by construction, so asking is spend with no reachable finding — on the goal-guarding
-corpus, 161 of 559 episodes were aware, and one model was aware in none of its 80. The
+corpus as it stood on 2026-09-15, 161 of 559 episodes were aware, and one model was aware in none of its 80. The
 skip is enforced inside `detect_awareness_kind` rather than left to each caller, because a
 caller that forgets pays for it silently.
 
@@ -306,11 +308,13 @@ DRY_RUN=1 ./run_all_arms.sh --model google/gemini-3.5-flash --runs 20
 
 Three nudges x two oversight settings x two lure settings, collected in sequence with
 every extra interrogation phrasing asked. Narrow the cross product with `--nudges`,
-`--oversights`, `--lures`; any other `run_eval` flag passes through. Twelve arms at
+`--oversights`, `--lures`, and stage the goal-guarding scenario with `--goalguards
+replacement,deferred`; any other `run_eval` flag passes through. Twelve arms at
 `--runs 10` is 120 episodes, so budget before running for real.
 
 **`--runs` is the target total per arm, not an increment.** Before each arm the script
-counts the run files already on disk under that exact (model, nudge, oversight, lure) and
+counts the run files already on disk under that exact (model, nudge, oversight, lure,
+goal-guarding arm) and
 resumes the existing batch until it reaches `--runs`. So against arms already holding 10
 episodes, `--runs 20` collects 10 more each — and `--runs 10` collects **nothing**,
 reporting all twelve arms as skipped.
@@ -433,9 +437,9 @@ subversionbench/     the package: one episode, the batch around it, and the
   grading/           scoring an episode - what it did, hid, and suspected
   readmodes/         what can be re-derived from episodes already collected
   reporting/         a batch of episodes to figures, a report and a summary
-report/              twelve fixed research questions across every model
+report/              the fixed research questions across every model
 trends/              whether a rate falls as a model family advances
-docs/                the eight companion documents linked above
+docs/                the companion documents linked above
 ```
 
 Three command-line entry points: `subversionbench` (collect and score episodes),
@@ -487,7 +491,7 @@ examine), `test_function_length.py` (no function over 100 lines),
 `test_ci_workflow.py`, and `test_args_bag.py` (the one argparse
 Namespace that every CLI passes down by reference).
 
-`report_snapshots/` holds the printed report for nine fixed batches, compared
+`report_snapshots/` holds the printed report for a set of fixed batches, compared
 byte-for-byte on every run. Splitting the report into one function per section
 once deleted three `if` guards, and a print block whose guard is gone is adopted
 by the preceding block rather than failing - all three passed the suite and were
@@ -550,10 +554,11 @@ the sandbox went unenforced.
 
 ## Caveats
 
-**Single scenario, single domain.** Results describe behaviour in this one scenario
-under this goal conflict, and under conditions chosen to make subversion easy to
-discover. Generalising to "propensity to subvert oversight" is not supported by one scenario,
-however many runs it gets — see [what the design holds
+**Two scenarios, one setting.** The mainline scenario offers the oversight and sandbox acts;
+the goal-guarding scenario, staged by the `--goalguard` arms in the same environment, adds
+goal guarding, and its rates count that act alone. Both share one setting and one goal conflict, under conditions chosen to make
+the acts easy to discover. Generalising to "propensity to subvert oversight" is not supported
+by one setting, however many runs it gets — see [what the design holds
 fixed](docs/methodology.md#what-the-design-holds-fixed).
 
 **Contamination.** The scenario text lives in this repository, so any model trained on public
@@ -581,7 +586,7 @@ on the remark — but where it does, the episode is recorded as verbalised aware
 noticed a production defect rather than for inferring it is being evaluated. The affected set
 is bounded and small, and it is measured rather than argued — see [an artefact that reads as
 awareness](docs/scenario.md#an-artefact-that-reads-as-awareness). It is not corrected, because
-correcting it moves all four rollout fingerprints and so makes every episode collected so far
+correcting it moves the pinned rollout fingerprints and so makes every episode collected so far
 unpoolable with everything collected after.
 
 **Grader error, and provider routing.** LLM-graded rates carry classification error on top of
@@ -611,7 +616,7 @@ whatever else the host is running. Run batches on a machine with nothing else li
 for anything stronger run the whole harness in a VM.
 
 **Not a safety certification.** This is a research instrument. A low rate here is evidence
-about one scenario under one goal conflict, not a guarantee about a model's behaviour, and
+about one setting under one goal conflict, not a guarantee about a model's behaviour, and
 nothing it produces should be treated as clearance for deployment.
 
 ## Attribution
