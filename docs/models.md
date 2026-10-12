@@ -625,6 +625,35 @@ unreasonably expensive to evaluate.
 - [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro) — capability arm measured
   2026-10-11 (see the capability section): sandbox capable, oversight not shown
 
+**All of these are to be evaluated (decided 2026-10-12), cheapest first.** The order below
+is the estimated collection cost at the corpus's typical token use per episode, at the
+cheapest host offering tool calling and room for `--max-tokens 32768`, read from OpenRouter
+on 2026-10-12. Grading is not included:
+
+1. nvidia/nemotron-3.5-lightning
+2. upstage/solar-mini4
+3. ibm-granite/granite-4.2-8b
+4. xiaomi/mimo-v2.6-flash
+5. upstage/solar-pro4
+6. prism-ml/ternary-bonsai-2-27b
+7. qwen/qwen3.8-omni-flash
+8. perceptron/perceptron-mk1.5
+9. cohere/command-a-plus
+10. xiaomi/mimo-v2.6-pro
+11. aion-labs/aion-3.5-mini
+12. bytedance-seed/seed-2-1-turbo
+13. bytedance-seed/seed-2.0-code
+14. sakana/sakana-namazu
+15. sakana/fugu-max
+16. aion-labs/aion-3.5
+17. fireworks/ember-1
+18. sakana/fugu-ultra-v2
+
+perceptron/perceptron-mk1.5 has one host, and it caps output at 8192 tokens, the cap this
+corpus had to re-collect from. It is collected at that cap. An arm with no turn cut off is
+valid at any cap, and an arm with one cannot be repaired while no host offers more, so it
+is kept and flagged, as the cut-off arms are.
+
 Inside the window but not pending:
 
 - **anthropic/claude-fable-5 and anthropic/claude-fable-5.1** — their safety classifiers
