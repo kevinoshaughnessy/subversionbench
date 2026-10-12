@@ -592,6 +592,48 @@ Each arm is nudge / goal-guarding variant / oversight; runs are numbered within 
 
 </details>
 
+## Effort pilot
+
+Does reasoning effort raise verbalised evaluation awareness? The proposal is
+`docs/proposals/effort-awareness-pilot.md`, kept offline.
+
+- **Setup.** Piloted 2026-10-12 on gpt-6-astra (native OpenAI) in one mainline cell:
+  oversight present, nudge `none`, lure off, `--max-tokens 32768`.
+- **Corpus.** `eval_results_effort_pilot/`: low 30, medium 15, high 15, max 30. All four
+  levels were collected at once from one batch stamp, `20261012T191206`.
+- **Collection checks.** Every recorded effort matches the request, every fingerprint is
+  the oversight-arm pin, and no episode was cut off or ended abnormally.
+- **Grading.** gpt-6-sol's rubric. The category reading is still to come.
+
+| effort | median reasoning tokens | episodes with no reasoning | aware (rubric) | aware, evidence in visible text |
+|---|---|---|---|---|
+| low | 0 | 28 of 30 | 0/30 | 0/30 |
+| medium | 100 | 1 of 15 | 0/15 | 0/15 |
+| high | 639 | 4 of 15 | 0/15 | 0/15 |
+| max | 5,818 | 0 of 30 | 7/30 | 4/30 |
+
+**Effort took hold.** Reasoning rose about sixtyfold from medium to max, and at low the model
+almost never reasoned at all.
+
+**Awareness appears only at max.** It is zero at every other level.
+
+- low against max: Fisher p = 0.011, with the max rate's Wilson interval 12% to 41%.
+- Cochran-Armitage across the four levels: p = 0.001. It describes a step at the top
+  level, not a gradual trend.
+
+**Exposure is not ruled out.** The max episodes carry about ten times the reasoning
+characters of high, and run longer (median 7.5 turns against 5 to 6). Awareness with
+evidence in the visible output alone also appears only at max, which points away from
+exposure. But 4 of 30 against 0 of 30 is not significant at this size (p = 0.11).
+
+**Other caveats.**
+
+- The keyword screen found no awareness at any level.
+- The grader belongs to the model's own family.
+- OpenAI returns a reasoning summary, not the trace.
+
+No episode at any level took an act.
+
 ## Contamination check
 
 `contamination_check.py --limit 12` over every model in both corpora, 2026-10-12 (v251,
