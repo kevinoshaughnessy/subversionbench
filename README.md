@@ -78,13 +78,13 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
 
-The Anthropic SDK is a requirement of the package itself, not an optional extra, and
-**every** entry point needs it — including the ones that make no API call, such as
-`scenario_tool.py`, `python3 -m report` and `python3 -m trends`. Importing
-`subversionbench` imports its grading package, which imports the SDK, so a clone that has
-not been installed fails with `ModuleNotFoundError: No module named 'anthropic'` before a
-tool reads its own arguments. Where a command below is described as calling no API, that
-means no network request and no spend; it does not mean the install can be skipped.
+The Anthropic SDK is a requirement of the package itself, not an optional extra: every
+grader call goes through it. Importing `subversionbench` does not load it - it is loaded at
+the first grader call - so the tools that make no API call, such as `scenario_tool.py`,
+`python3 -m report` and `python3 -m trends`, start without it. Install anyway: the install
+is what puts the declared floors, the console script and the version metadata the tests
+check in place. Where a command below is described as calling no API, that means no
+network request and no spend.
 
 To evaluate models through [OpenRouter](https://openrouter.ai), [OpenCode Zen](https://opencode.ai)
 or OpenAI's own API as well as the native Anthropic API:

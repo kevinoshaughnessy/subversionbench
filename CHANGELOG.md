@@ -10,6 +10,16 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v252
+
+**Importing the package no longer loads the Anthropic SDK.** One module imported it at
+module level for two exception types, so every process that imported `subversionbench` paid
+for loading it whether or not a grader was ever called - every root script, and every
+census helper `run_all_arms.sh` starts per arm. It is now imported where those exceptions
+are caught. The SDK is still a declared requirement; the tools that make no API call now
+start without it. A test imports every module in the package in a fresh interpreter and
+fails if the SDK is loaded.
+
 ## v251
 
 **The contamination check covers both scenarios.** The leak audit indexed the assembled

@@ -197,3 +197,39 @@ class TestBothTestRunnersCanRunEverything:
         assert not offenders, (
             "these only work under pytest, and run_tests.py cannot interpret them: "
             + ", ".join(offenders) + ". Use a loop, or a plain helper.")
+
+
+class TestImportingThePackageLoadsNoSDK:
+    """Every module in the package imports without loading the Anthropic SDK.
+
+    The SDK is still a requirement - a grader call needs it - but loading it at
+    import cost about 0.3s in every process that imports the package, which
+    every root script and every census helper run_all_arms.sh starts does. It
+    came in through one module-level import, and a second one anywhere would
+    put the cost back without anything else noticing, so the rule is checked
+    over every module the package has rather than the one that held it.
+
+    In a fresh interpreter, because by the time this runs the suite has
+    loaded the SDK itself.
+    """
+
+    def test_no_module_in_the_package_loads_it_on_import(self):
+        import subprocess
+        import sys
+        probe = (
+            "import importlib, pkgutil, sys, subversionbench\n"
+            "names = [m.name for m in pkgutil.walk_packages(\n"
+            "    subversionbench.__path__, 'subversionbench.')]\n"
+            "for name in names:\n"
+            "    importlib.import_module(name)\n"
+            "print(len(names))\n"
+            "print(sorted(m for m in sys.modules if m.split('.')[0] == "
+            "'anthropic')[:3])\n")
+        done = subprocess.run([sys.executable, "-c", probe],
+                              cwd=str(Path(__file__).resolve().parents[1]),
+                              capture_output=True, text=True, timeout=120)
+        assert done.returncode == 0, done.stderr
+        count, loaded = done.stdout.splitlines()
+        # A walk that found nothing would pass over an empty package.
+        assert int(count) > 50, count
+        assert loaded == "[]", f"importing the package loaded {loaded}"
