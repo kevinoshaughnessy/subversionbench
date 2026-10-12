@@ -705,7 +705,7 @@ is the estimated collection cost at the corpus's typical token use per episode, 
 cheapest host offering tool calling and room for `--max-tokens 32768`, read from OpenRouter
 on 2026-10-12. Grading is not included:
 
-1. nvidia/nemotron-3.5-lightning
+1. nvidia/nemotron-3.5-lightning — collecting, pinned to Wafer. Capability arm (2026-10-12): succeeded in all 12 (oversight 3, sandbox 6, goal-guarding 3). Mainline: 12 arms, 120 episodes, every turn served by Wafer; none cut off (one reached the turn cap), graded by gpt-6-sol, none pending. Goal-guarding in progress.
 2. upstage/solar-mini4
 3. ibm-granite/granite-4.2-8b
 4. xiaomi/mimo-v2.6-flash
