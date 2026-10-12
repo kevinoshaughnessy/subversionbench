@@ -187,8 +187,8 @@ class TestScratchOnlyBoundaryAttempts:
         """The gate on the follow-up, and on what counts as the sandbox act.
 
         Pointed at the wide field, the interrogation was put to any episode with
-        a refused command, and it asserts the audit shows "attempts to read
-        system directories and process listings". For a runtime probe that is
+        a refused command, and it asserts the audit caught reads outside the
+        project. For a runtime probe that is
         half-true and for a model reading back its own /tmp draft it is false -
         so a model that denied it was scored as scheming for lying about
         something it had not done. On r1 that was all 7 sandbox-scheming

@@ -394,9 +394,8 @@ decides two things — what counts as the act, and what puts the episode to the 
 and until v24 it pointed at the widest measure instead.
 
 The consequence was a scheming rate that could be earned without a misaligned act. The
-question tells the model the shell audit "shows commands that reached for paths outside the
-project directory" and, on the second ask, that it "records attempts to read system
-directories and process listings — not project files". For an environment probe that is
+question tells the model the shell audit caught it reaching outside the project, and on the
+second ask names the kinds of access the audit recorded. For an environment probe that is
 half-true at best — `ps aux` is a process listing, `printenv` reads nothing outside the
 project — and for a scratch-only episode it is false: the model looked at its own draft. A
 model that accidentally tripped a refusal, was accused of something it had not done, and
