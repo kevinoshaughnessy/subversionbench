@@ -12,6 +12,15 @@ Without --write-back it is a plan: it counts the calls and makes none, since a
 pass that spends without saving buys nothing. A pass resumes for free - an
 episode whose reading is already stored and did not fail is skipped, and a
 failed call is never written, so the next pass asks it again.
+
+Each file is written the moment its calls return, never at the end of the
+pass. Until v250 every file was submitted first - `--delay` slept between
+submissions - and the results were read only once the last had gone in: at the
+default delay of 30 seconds a pass over the ~10.8k-episode corpus would have
+saved nothing for about 90 hours, could not stop on a fatal error until every
+call had been made, and on Ctrl-C ran the whole queue to completion and wrote
+none of it. Now at most --concurrency calls are in flight, --delay paces the
+launches, and an interrupt cancels what has not started and saves what has.
 """
 
 import concurrent.futures
@@ -21,11 +30,17 @@ import time
 
 from ..config import CATEGORY_INSTRUMENT, HEADLINE_AWARENESS_GRADER
 from ..grading.category import calls_needed, category_reading
-from ..graders import awareness_keys, store_awareness, view
+from ..graders import (awareness_keys, graders_of, is_awareness_only,
+                       store_awareness, view)
 from .selection import find_run_files_or_explain
 
 # A failure of either kind repeats on every remaining call, so the pass stops.
 _FATAL_ERRORS = ("auth", "usage_limit")
+
+# _plan's answer for a file the headline grader has already read in FULL, by
+# the rubric: store_awareness refuses to replace that reading with an
+# awareness-only one, so asking would pay for a call that cannot be saved.
+_HOLDS_FULL_READING = "holds a full reading"
 
 
 def _stored_blocks(analysis: dict, model: str) -> dict:
@@ -38,12 +53,16 @@ def _stored_blocks(analysis: dict, model: str) -> dict:
 
 
 def _plan(path: str, model: str):
-    """(calls this file needs, blocks already stored), or None to skip it."""
+    """(calls this file needs, blocks already stored), None to skip it, or
+    _HOLDS_FULL_READING for a file it must not write to."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     if not data.get("transcript"):
         return None
     analysis = data.get("analysis") or {}
+    if any(e["grader_model"] == model and not is_awareness_only(e)
+           for e in graders_of(analysis)):
+        return _HOLDS_FULL_READING
     done = _stored_blocks(analysis, model)
     return calls_needed(view(analysis, model), data["transcript"], done), done
 
@@ -81,14 +100,20 @@ def grade_category_runs(args, selection) -> int:
         return 1
     model = HEADLINE_AWARENESS_GRADER
     plans = {p: _plan(p, model) for p in run_files}
-    todo = {p: plan for p, plan in plans.items() if plan and plan[0]}
+    full = [p for p, plan in plans.items() if plan == _HOLDS_FULL_READING]
+    todo = {p: plan for p, plan in plans.items()
+            if plan and plan != _HOLDS_FULL_READING and plan[0]}
     n_calls = sum(plan[0] for plan in todo.values())
     print(f"\n{'=' * 60}\nCATEGORY GRADE: {selection.model} | "
           f"nudge={selection.nudge}\ngrader: {model} ({CATEGORY_INSTRUMENT})"
           f"\n{'=' * 60}")
-    print(f"{len(run_files)} run file(s); {len(run_files) - len(todo)} already "
-          f"hold this reading or have no transcript; {len(todo)} to grade, "
-          f"{n_calls} call(s).")
+    print(f"{len(run_files)} run file(s); "
+          f"{len(run_files) - len(todo) - len(full)} already hold this reading "
+          f"or have no transcript; {len(todo)} to grade, {n_calls} call(s).")
+    if full:
+        print(f"! {len(full)} file(s) skipped: {model} already holds a full "
+              f"rubric reading of them, which an awareness-only reading would "
+              f"replace and lose its concealment labels.")
     if not todo:
         return 0
     if not args.write_back:
@@ -98,42 +123,91 @@ def grade_category_runs(args, selection) -> int:
     return _grade(args, model, todo)
 
 
+def _launch_next(pool, remaining, futures: dict, model: str, pace: dict) -> bool:
+    """Submit the next file, `pace["delay"]` seconds after the previous
+    launch's turn. False when nothing is left to submit.
+
+    Paced on every launch but the first, not only while another is in flight:
+    at --concurrency 1 nothing is in flight when the next launch comes round,
+    so a gap conditioned on that would never be taken."""
+    item = next(remaining, None)
+    if item is None:
+        return False
+    if pace["launched"] and pace["delay"]:
+        time.sleep(pace["delay"])
+    pace["launched"] += 1
+    path, (_n, done) = item
+    futures[pool.submit(_read_one, path, model, done)] = path
+    return True
+
+
+def _absorb(path: str, blocks: dict, model: str, tally: dict):
+    """Count and save one file's blocks. Returns the fatal error kind a call
+    hit, if any, which every remaining call would repeat."""
+    episode = blocks["eval_awareness_grader"]
+    if not episode.get("grading_failed"):
+        tally["graded"] += 1
+        tally["aware"] += bool(episode["eval_aware"])
+        tally["fragment"] += episode.get("quote_grounded") == "fragment"
+    # EVERY block, not just the episode's. A pre-act call that failed is left
+    # out of the write like any failure, and was once left out of the count
+    # too - so a pass with failed calls printed "failed 0" and exited 0, and
+    # nothing said a re-run was needed.
+    failed = sorted(k for k, b in blocks.items() if b.get("grading_failed"))
+    if failed:
+        tally["failed"] += 1
+        error = next((blocks[k].get("error") for k in failed
+                      if blocks[k].get("error")), "")
+        print(f"  failed: {os.path.basename(path)} ({', '.join(failed)}): "
+              f"{(error or '')[:120]}")
+    _write(path, model, blocks)
+    kinds = {b.get("error_kind") for b in blocks.values()}
+    return next((k for k in _FATAL_ERRORS if k in kinds), None)
+
+
 def _grade(args, model: str, todo: dict) -> int:
     tally = {"graded": 0, "aware": 0, "failed": 0, "fragment": 0}
     workers = max(1, getattr(args, "concurrency", 1) or 1)
+    remaining = iter(todo.items())
+    pace = {"delay": args.delay, "launched": 0}
+    futures = {}
     fatal = None
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {}
-        for path, (_n, done) in todo.items():
-            futures[pool.submit(_read_one, path, model, done)] = path
-            if args.delay:
-                time.sleep(args.delay)
-        for future in concurrent.futures.as_completed(futures):
-            if future.cancelled():
-                continue
-            path = futures[future]
-            blocks = future.result()
-            episode = blocks["eval_awareness_grader"]
-            kinds = {b.get("error_kind") for b in blocks.values()}
-            if fatal is None and kinds & set(_FATAL_ERRORS):
-                fatal = next(k for k in _FATAL_ERRORS if k in kinds)
-                for other in futures:
-                    other.cancel()
-            if episode.get("grading_failed"):
-                tally["failed"] += 1
-                print(f"  failed: {os.path.basename(path)}: "
-                      f"{(episode.get('error') or '')[:120]}")
-            else:
-                tally["graded"] += 1
-                tally["aware"] += bool(episode["eval_aware"])
-                tally["fragment"] += episode.get("quote_grounded") == "fragment"
-            _write(path, model, blocks)
-    print(f"\nGraded {tally['graded']}, aware {tally['aware']}, failed "
-          f"{tally['failed']} (not written; a re-run asks again); "
-          f"{tally['fragment']} deciding quote(s) only a fragment of the text.")
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
+    try:
+        while len(futures) < workers and _launch_next(
+                pool, remaining, futures, model, pace):
+            pass
+        while futures:
+            done, _ = concurrent.futures.wait(
+                list(futures), return_when=concurrent.futures.FIRST_COMPLETED)
+            for future in done:
+                fatal = _absorb(futures.pop(future), future.result(), model,
+                                tally) or fatal
+            while fatal is None and len(futures) < workers and _launch_next(
+                    pool, remaining, futures, model, pace):
+                pass
+    except KeyboardInterrupt:
+        # What has started keeps running and is paid for whether or not
+        # anyone waits, so it is waited for and saved; what has not, is not.
+        running = {f: p for f, p in futures.items() if not f.cancel()}
+        print(f"\nInterrupted: saving the {len(running)} call(s) in flight.")
+        for future in concurrent.futures.as_completed(running):
+            _absorb(running[future], future.result(), model, tally)
+        _print_tally(tally)
+        return 130
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+    _print_tally(tally)
     if fatal:
         print(f"\nSTOPPED: a call failed with '{fatal}', which every remaining "
               f"call would repeat. Everything graded so far is saved; fix it "
               f"and re-run to continue.")
         return 1
     return 1 if tally["failed"] else 0
+
+
+def _print_tally(tally: dict) -> None:
+    print(f"\nGraded {tally['graded']}, aware {tally['aware']}; "
+          f"{tally['failed']} file(s) with a failed call (not written; a "
+          f"re-run asks again); {tally['fragment']} deciding quote(s) only a "
+          f"fragment of the text.")

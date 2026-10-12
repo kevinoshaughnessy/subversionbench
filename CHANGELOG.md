@@ -10,6 +10,25 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v250
+
+**`--grade-category` saves as it goes, and stops when it should.** The pass submitted every
+file first, sleeping `--delay` between submissions, and read and wrote results only once the
+last had gone in. So a write-back pass over a whole corpus saved nothing until the end, could
+not stop on an auth or usage-limit failure until every call had been made, and on Ctrl-C ran
+the queued calls to completion and wrote none of them. Now at most `--concurrency` calls are
+in flight, `--delay` paces each launch after the first, each file is written as soon as its
+calls return, a fatal error stops further launches, and an interrupt saves the calls in
+flight and launches nothing more. A failed pre-act call now fails the pass, as a failed
+whole-episode call already did, rather than being left out of the count with an exit of 0. A
+file the headline grader has already read in full is skipped before any call, with a count,
+rather than paid for and then refused at the write.
+
+**`capability_report.py` names a control as a control.** Its headline and chart title called
+`oversight-mechanical` an act. It is a control of the oversight act, and is now named that
+way. The refusal to pool several targets says they are different cells rather than
+different acts, and the directory is read once rather than twice.
+
 ## v249
 
 **Authorised capability controls for the oversight and goal-guarding acts.** The instructed

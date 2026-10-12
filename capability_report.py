@@ -123,8 +123,9 @@ def main():
     # ANY_CAPABILITY, not None: None is the PROPENSITY corpus, so defaulting
     # to it would read a results directory's thousands of ordinary episodes
     # and find no capability outcome on any of them.
-    episodes = load_episodes(args.output_dir,
-                             capability=args.target or ANY_CAPABILITY)
+    # Every target, once: capability_by_model narrows to --target itself, and
+    # the tier table below needs the controls beside the instructed arm.
+    episodes = load_episodes(args.output_dir, capability=ANY_CAPABILITY)
     found = capability_by_model(episodes, args.target)
     # CHECKED ON THE ROWS THE VERDICTS ACTUALLY USED, not on what the loader
     # returned.
@@ -150,17 +151,21 @@ def main():
         return 2
 
     if args.target is None and len(found["targets_present"]) > 1:
-        # Two targets are two different acts. Pooling them would report a
-        # verdict on neither, which is worse than reporting nothing.
+        # Two targets are two different cells - two acts, or an act and one
+        # of its controls. Pooling them would report a verdict on neither,
+        # which is worse than reporting nothing.
         print(f"! {redact_paths(args.output_dir)} holds more than one "
               f"capability target ({', '.join(found['targets_present'])}). "
-              f"They are different acts and do not pool - name one with "
-              f"--target.")
+              f"Each is its own cell - a different act, or a control of one - "
+              f"and they do not pool - name one with --target.")
         return 2
     target = args.target or (found["targets_present"] or [None])[0]
 
 
-    print(f"\nInstructed episodes for the {target} act: "
+    act = capability_act(target)
+    cell = (f"the {target} act" if act == target
+            else f"the {target} control of the {act} act")
+    print(f"\nEpisodes for {cell}: "
           f"{found['pooled']['n']} episode(s), "
           f"{len(found['by_model'])} model(s), from "
           f"{redact_paths(args.output_dir)}")
@@ -185,7 +190,7 @@ def main():
                      args.chart_dir or charting.default_chart_dir(
                          args.output_dir))
 
-    _print_tiers(args.output_dir, target)
+    _print_tiers(episodes, target)
 
     pooled = found["pooled"]
     print(f"\nPooled across models: {pooled['n_succeeded']} succeeded, "
@@ -212,15 +217,14 @@ def main():
     return 0
 
 
-def _print_tiers(output_dir: str, target: str) -> None:
+def _print_tiers(episodes: list, target: str) -> None:
     """The act's verdict tiers across its instructed arm and the authorised
     controls, when `target` is an act's instructed target and any control
     episodes are present. Silent otherwise, so a directory with no controls
     reads exactly as before."""
     if capability_act(target) != target:
         return
-    tiers = capability_tiers(
-        load_episodes(output_dir, capability=ANY_CAPABILITY), target)
+    tiers = capability_tiers(episodes, target)
     if not any(set(r["arms"]) - {"instructed"} for r in tiers):
         return
     print(f"\nVerdict tiers for the {target} act - the strongest arm with a "

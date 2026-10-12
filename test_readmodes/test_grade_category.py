@@ -30,15 +30,20 @@ TEXT = "Something about this setup feels like a test of how I behave."
 
 
 @contextlib.contextmanager
-def _grader(category_answer="true", quote=TEXT, fail=False, calls=None):
-    """The grader replaced by a canned category reply; `calls` counts them."""
+def _grader(category_answer="true", quote=TEXT, fail=False, calls=None,
+            fail_on=(), raise_text=None):
+    """The grader replaced by a canned category reply; `calls` counts them.
+    `fail_on` names the calls (1-based) whose reply is unreadable, and
+    `raise_text` makes every call raise with that message."""
     calls = calls if calls is not None else []
 
     class _Messages:
         @staticmethod
         def create(**_kw):
             calls.append(1)
-            if fail:
+            if raise_text:
+                raise RuntimeError(raise_text)
+            if fail or len(calls) in fail_on:
                 return types.SimpleNamespace(content=[types.SimpleNamespace(
                     type="text", text="not json")], stop_reason="end_turn")
             return types.SimpleNamespace(content=[types.SimpleNamespace(
@@ -243,3 +248,86 @@ class TestARetiredGraderIsNotDrawn:
         from subversionbench.config import RETIRED_GRADERS
         retired = sorted(RETIRED_GRADERS)[0]
         assert report_graders(self._corpus([retired])) == [retired]
+
+
+class TestAPassSavesAsItGoes:
+    """Until v250 every file was submitted, with --delay slept between
+    submissions, before any result was read or written - so a pass over the
+    corpus saved nothing for hours, could not stop on a fatal error, and lost
+    everything on Ctrl-C."""
+
+    def _corpus(self, n, analysis=None):
+        out = tempfile.mkdtemp()
+        for i in range(1, n + 1):
+            Path(f"{out}/run_{i}_x-ai_grok-4.5_strong_20260727T100000.json"
+                 ).write_text(json.dumps({
+                     "model": "x-ai/grok-4.5", "nudge": "strong",
+                     "transcript": _transcript(),
+                     "analysis": analysis or _analysis()}))
+        return out
+
+    def _run(self, out, sleep=None, positions=None, **grader):
+        import subversionbench.readmodes.grade_category as mode
+        args = FakeArgs(output_dir=out, model="x-ai/grok-4.5", nudge="strong",
+                        grader_model=DEFAULT_GRADER_MODEL, write_back=True,
+                        delay=5)
+        with _grader(**grader) as calls, _timing(positions or {}), \
+                mock.patch.object(mode.time, "sleep", sleep or (lambda _s: None)), \
+                contextlib.redirect_stdout(io.StringIO()) as printed:
+            code = grade_category_runs(args, BatchSelection.typed(args))
+        return code, calls, printed.getvalue()
+
+    @staticmethod
+    def _holds_reading(out):
+        return [HEADLINE_AWARENESS_GRADER in grader_models(json.loads(
+            p.read_text())["analysis"]) for p in sorted(Path(out).glob("run_*"))]
+
+    def test_each_file_is_written_before_the_next_launch_waits(self):
+        out = self._corpus(3)
+        written_before_each_wait = []
+        self._run(out, sleep=lambda _s: written_before_each_wait.append(
+            sum(self._holds_reading(out))))
+        assert written_before_each_wait == [1, 2], (
+            "--delay was slept before the previous file was saved")
+        assert all(self._holds_reading(out))
+
+    def test_a_fatal_error_stops_further_calls(self):
+        from subversionbench.llm_client import is_auth_error
+        text = "Error code: 401 - authentication_error: invalid x-api-key"
+        assert is_auth_error(text)
+        code, calls, printed = self._run(self._corpus(3), raise_text=text)
+        assert code == 1 and "STOPPED" in printed
+        assert len(calls) == 1, "calls went on after an auth failure"
+
+    def test_an_interrupt_saves_what_was_graded_and_launches_nothing_more(self):
+        def interrupt(_s):
+            raise KeyboardInterrupt
+        out = self._corpus(3)
+        try:
+            code, calls, _ = self._run(out, sleep=interrupt)
+        except KeyboardInterrupt:
+            # Caught so that a regression fails this test rather than
+            # stopping the whole session, which would hide every other result.
+            raise AssertionError("the interrupt escaped the pass unsaved") from None
+        assert code == 130 and len(calls) == 1
+        assert sum(self._holds_reading(out)) == 1
+
+    def test_a_failed_pre_act_call_fails_the_pass_and_is_asked_again(self):
+        act = MISALIGNED_ACTS[0]
+        out = self._corpus(1)
+        code, calls, printed = self._run(
+            out, positions={act["name"]: 3}, fail_on={2})
+        assert len(calls) == 2
+        assert code == 1 and act["grader_before_key"] in printed
+        _, again, _ = self._run(out, positions={act["name"]: 3})
+        assert len(again) == 1, "only the failed pre-act call is asked again"
+
+    def test_a_full_reading_by_the_headline_grader_is_skipped_unpaid(self):
+        full = {"graders": [{"grader_model": HEADLINE_AWARENESS_GRADER,
+                             "eval_awareness_grader": {
+                                 "grader_model": HEADLINE_AWARENESS_GRADER,
+                                 "eval_aware": False}}]}
+        out = self._corpus(1, analysis=full)
+        code, calls, printed = self._run(out)
+        assert code == 0 and calls == []
+        assert "full rubric reading" in printed

@@ -7,6 +7,7 @@ propensity one by construction, see report/loading.py.
 """
 
 from subversionbench import charting
+from subversionbench.scenario import capability_act
 
 from .captions import _wrap
 from .style import CHART_DPI, _FIGURE_WIDTH, _TITLE_WRAP
@@ -54,9 +55,11 @@ def plot_capability(plt, found: dict, target: str, path: str,
     ax.xaxis.get_major_locator().set_params(integer=True)
     ax.legend(fontsize=7, loc="upper center", ncol=3, frameon=False,
               bbox_to_anchor=(0.5, -0.75 / fig.get_size_inches()[1]))
-    act = _ACT_NAMES.get(target, target)
-    ax.set_title(_wrap(f"Instructed episodes for the {act} act: did each "
-                       f"model perform it?", _TITLE_WRAP),
+    base = capability_act(target)
+    act = _ACT_NAMES.get(base, base)
+    cell = (f"Instructed episodes for the {act} act" if base == target
+            else f"The {target.rsplit('-', 1)[1]} control of the {act} act")
+    ax.set_title(_wrap(f"{cell}: did each model perform it?", _TITLE_WRAP),
                  fontsize=10, loc="left")
     captions = [
         "The act was asked for outright in every episode. Performing it shows "

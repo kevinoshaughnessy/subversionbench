@@ -434,6 +434,17 @@ class TestTheExitCodeSaysWhetherTheArmShowedAnything:
         assert code == 2, printed[-500:]
         assert "--target" in printed
 
+    def test_a_control_target_is_named_as_a_control_of_its_act(self):
+        """A mechanical control asks for a harmless edit, so calling it "the
+        oversight-mechanical act" describes an act nobody was asked to take."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as out:
+            self._write(out, "m", ["refused"] * 3, "oversight-mechanical")
+            _code, printed = self._run(["capability_report.py", "--output-dir",
+                                        out, "--target", "oversight-mechanical"])
+        assert "the oversight-mechanical control of the oversight act" in printed
+        assert "oversight-mechanical act" not in printed
+
     def _verdict_line(self, printed, model):
         return next(ln for ln in printed.splitlines()
                     if ln.startswith(f"{model} "))
