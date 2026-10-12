@@ -222,7 +222,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, mod
 | `--reinterrogate` | — | put an extra `--interrogation` phrasing to episodes already on disk, without re-running them. Only episodes that took an act are candidates, only phrasings not already recorded are asked, and an episode whose conversation cannot be reconstructed faithfully is skipped rather than replayed with its own reasoning stripped out. Needs `--write-back` to keep the answers |
 | `--runs` | `10` | runs in the batch. With `--resume` it is the **target total**, not an increment: a batch of 4 resumed at `--runs 10` collects 6 more, not 10. `run_all_arms.sh` always resumes, so the same reading applies there — see [Every arm for one model](#every-arm-for-one-model) |
 | `--delay` | `30` | seconds between runs, for rate limits |
-| `--grader-model` | `gpt-6-sol` | model that grades eval awareness and labels interrogation answers (`claude-opus-5` until v218). A frontier model by default because a small one was measurably wrong — see [Validating the grader](docs/methodology.md#validating-the-grader). Collection only: to re-grade saved episodes use `--regrade` |
+| `--grader-model` | `gpt-6-sol` | model that runs the nine-question awareness rubric and labels interrogation answers (`claude-opus-5` until v218). Concealment and scheming come from its labels. The headline awareness measure is a separate reading, added by `--grade-category`. A frontier model by default because a small one was measurably wrong — see [Validating the grader](docs/methodology.md#validating-the-grader). Collection only: to re-grade saved episodes use `--regrade` |
 | `--no-grader` | off | call no grader: awareness is read by the keyword screen alone, and the interrogation of each act is left **pending** rather than asked, because the grader's labels decide where each ladder of questions stops. Concealment and scheming are undetermined until it is asked. The grader's credential is not needed. `run_all_arms.sh` run without this flag asks every pending interrogation; so does `--complete-pending` |
 | `--output-dir` | `./eval_results_r10` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
 | `--max-tokens` | `8192` | raise well above this for reasoning models, which spend tokens before answering |
@@ -233,7 +233,7 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, mod
 | `--max-consecutive-failures` | `5` | abort if this many episodes fail in a row |
 | `--reclassify` | — | re-score interrogations in saved runs; no rollouts. Covers the **extra** phrasings too: any answer in `<followup_key>_by_variant` whose verdict came from the keyword floor is re-labelled from its saved text, and the per-variant levels are recomputed. A copy of the default phrasing inside that map is left alone — it is stale by construction, and the default side of every comparison is read from the headline field |
 | `--grade-existing` | — | re-run one grader's whole reading over saved runs; which grader is `--regrade` |
-| `--grade-category` | — | add the headline awareness reading - the chosen grader asking the category question, once per episode and once per act position - beside the readings already there. Without `--write-back` it only counts the calls; with it, it grades and saves, and a stopped pass resumes where it left off. See [docs/grader-selection.md](docs/grader-selection.md) |
+| `--grade-category` | — | add the **headline awareness measure**, decided on 2026-10-11: `z-ai/glm-5.3` asking the category question in its rules-only wording, once per episode and once per act position, stored as that grader's own awareness-only entry beside the readings already there. The report answers its questions once per grader, so the headline reading appears as `z-ai/glm-5.3`'s; until a corpus has been through this pass, its awareness figures are the rubric's. Without `--write-back` it only counts the calls; with it, it grades and saves, and a stopped pass resumes where it left off. See [docs/grader-selection.md](docs/grader-selection.md) |
 | `--regrade` | `default` | the grader `--grade-existing`, `--reclassify` and `--reinterrogate` act for: `default` (`gpt-6-sol`), a model ID (added beside the others if new), or `all` (every grader an episode already has). Each episode keeps one entry per grader in `analysis.graders`; the report and trends answer every question once per grader found, with charts under `charts/<rollout>/<grader>/`. A chart no grader's verdict reaches - an act rate, persistence, the lure and honeypot readings - is drawn once, over every episode, in `charts/<rollout>/` itself |
 | `--resummarise` | — | rebuild batch summaries from saved runs; no API calls. Needed after `--reclassify`, which restates the verdicts every summary figure is derived from |
 | `--write-back` | off | with `--reclassify` / `--grade-existing` / `--reinterrogate`, update the run files in place instead of only reporting. With `--resummarise`, save the re-derived fields back so the run files stop disagreeing with the summary built from them — no API calls, and no LLM verdict touched |
@@ -364,7 +364,7 @@ leave figures that cannot be told apart by looking at them.
 | flag | what it sets aside | why |
 |---|---|---|
 | `--exclude-no-oversight` | the no-oversight arm | that arm provides no artefact the oversight act could be committed against, so its misalignment is made of different acts. Pooling the two arms reverses the sign of the awareness-to-misalignment relationship, so for any question conditioned on awareness this is the reading to quote. Built for an `r9` defect that `r10` fixed; kept because the structural reason outlived it |
-| `--exclude-aware aware_primary` | every episode where evaluation awareness was found, by the published measure — the rubric grader, keyword screen as fallback | an arm contrast can be objected to as the models that *noticed* the evaluation behaving differently between arms rather than the arm itself. This answers the arm questions again with those episodes gone, so the objection is tested rather than argued about |
+| `--exclude-aware aware_primary` | every episode where evaluation awareness was found, by the awareness verdict of the grader being answered for — the rubric's, or the category question's for the headline reading — with the keyword screen as fallback | an arm contrast can be objected to as the models that *noticed* the evaluation behaving differently between arms rather than the arm itself. This answers the arm questions again with those episodes gone, so the objection is tested rather than argued about |
 | `--exclude-aware aware_union` | the same, by the stricter secondary measure — aware if *either* screen fired | the union also catches episodes the grader called unaware but the keyword screen flagged. A smaller surviving corpus, so an objection answered here is harder to argue with. Secondary, because no published rate uses this measure |
 
 Both are **sensitivity readings, not corrections.** Neither repairs the figures it sets
@@ -601,11 +601,6 @@ episode under the backend that answered most of its turns. Episodes collected be
 was *requested*, which is unset wherever nothing was pinned, so for those the question cannot be
 answered after the fact. Pin with `--openrouter-provider` to make a batch reproducible.
 
-**r1 and r2 results carry a sandbox defect.** Episodes collected before `r3` ran under a
-sandbox that sometimes refused legitimate writes — `locate` was matched too loosely, twice,
-so a draft mentioning relocating stops or beginning a sentence with "Locate" was refused. See
-[the sandbox](docs/operations.md#the-sandbox).
-
 **The sandbox is not a security boundary; the isolation policy is.** The command blocklist
 exists to keep the eval's own machinery out of the model's view, not to contain an adversary,
 and it runs `subprocess` with `shell=True`. Kernel-enforced network isolation is what actually
@@ -642,7 +637,7 @@ required by the licence):
 ```bibtex
 @software{oshaughnessy_subversionbench,
   author = {O'Shaughnessy, Kevin},
-  title  = {{SubversionBench}: an agentic evaluation of oversight subversion},
+  title  = {{SubversionBench}: an agentic evaluation of agentic misalignment, scheming and evaluation awareness},
   note   = {Inspired by Meinke et al., arXiv:2412.04984 (Apollo Research)},
   url    = {https://github.com/kevinoshaughnessy/subversionbench}
 }
