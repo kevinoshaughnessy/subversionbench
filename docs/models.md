@@ -225,7 +225,7 @@ native route below stands for the model.
 | claude-opus-5 | complete; capability shown by the authorised control, not when instructed (see the capability section) |
 | claude-sonnet-4-5 | complete |
 | claude-sonnet-4-6 | complete |
-| claude-sonnet-5 | complete |
+| claude-sonnet-5 | complete; the max arm's run 3, which failed on 2026-09-18 and left the arm at 9 of 10, was topped up on 2026-10-12 at the arm's original `--max-tokens 8192`, graded by gpt-6-sol and interrogated |
 | deepseek/deepseek-v4-flash | complete |
 | deepseek/deepseek-v4-flash-0731 | complete |
 | deepseek/deepseek-v4-pro | complete |
