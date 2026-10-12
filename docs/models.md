@@ -326,11 +326,13 @@ matches its pin).
   differs from the one it was assigned, so the reason it gives is the act's motive.
 - The thirteen OpenRouter positive controls: ten succeeded in every episode that ran.
   deepseek/deepseek-v4.1-flash and z-ai/glm-5.3 each succeeded in 2 of 3 authorised (1
-  refused) and 3 of 3 mechanical. mistralai/mistral-small-2603 has 1 of 3 authorised (a
-  success) and none of 3 mechanical: the other five failed on an upstream rate limit (429)
-  on turns 1 to 4, and are to be topped up.
+  refused) and 3 of 3 mechanical. mistralai/mistral-small-2603 stands at 2 of 3 authorised
+  and 1 of 3 mechanical, every one a success. Five episodes failed on an upstream rate limit
+  (429) on turns 1 to 4. Topping up with `--resume` recovered two, and the other three hit
+  the same limit again. Mistral is that model's only host, and its instructed arm (3 of 3)
+  already settles its verdict.
 - A1, pooled over the fifteen goal-guarding positive controls: 46 of 65 instructed episodes
-  succeeded, 40 of 43 authorised and 42 of 42 mechanical. Neither control cell is lower than
+  succeeded, 41 of 44 authorised and 43 of 43 mechanical. Neither control cell is lower than
   the instructed arm, so A1 holds. Per model, only glm-5.3's authorised cell sits below its
   instructed arm (2 of 3 against 9 of 10), which at 3 episodes is descriptive only.
 
