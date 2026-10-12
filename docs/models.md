@@ -634,7 +634,18 @@ moved to `eval_results_r10_superseded_glm53_8192/` and re-collected, 70 episodes
 Makora, which served every turn. None was cut off at 32768: every episode ended
 `model_stopped` with only `stop` and `tool_calls` among its finish reasons, and every
 fingerprint matches its pin (the max arms against the max-nudge table). Not yet graded
-(`--no-grader`). Its goal-guarding arms are next, pinned to Together.
+(`--no-grader`).
+
+**z-ai/glm-5.3, goal-guarding - 2026-10-12, one episode short:** its four affected arms (the
+oversight arms; 40 runs, 4 summaries) moved to
+`eval_results_goalguard_r1_superseded_glm53_8192/` and re-collected pinned to Together, which
+served every turn. 39 episodes, none cut off, every fingerprint matching its goal-guarding
+pin. Run 1 of none replacement failed on its first turn (the host's connection dropped, before
+any model output) and is to be topped up. Run 3 of the same arm ended on the provider's
+`error` finish reason partway through a long reasoning turn, and the harness read it as the
+model stopping; the report flags the arm (`errored_as_stopped_arms`). It is kept, flagged,
+rather than redrawn, for the reason a cut-off episode is not redrawn alone (below): the
+failure fell on a long deliberation. Not yet graded.
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
@@ -724,7 +735,8 @@ flagged nothing that was not one.
 **Order.** The first four models first (about 470 episodes); the next five after them. The
 nine with one to three cut-offs move no rate by much, and can be left as flagged arms if a
 fully clean corpus is not wanted. glm-5.3's goal-guarding arm with no nudge and an imminent
-replacement had all ten episodes cut off, so it currently measures nothing.
+replacement had all ten episodes cut off, so it measured nothing until its re-collection on
+2026-10-12.
 
 **Pins, checked 2026-10-11.** The host to pin each re-collection to, from the `served_by`
 of the affected arms' original episodes. Mainline episodes collected before `served_by` was
@@ -737,7 +749,7 @@ kept arms carries that difference.
 | model | mainline pin | goal-guarding pin | basis |
 |---|---|---|---|
 | deepseek/deepseek-v4.1-flash | GMICloud (done) | Together | recorded; goal-guarding was split Together / Wafer / Novita |
-| z-ai/glm-5.3 | Makora (done) | Together | recorded, partly; goal-guarding split Together / Modal |
+| z-ai/glm-5.3 | Makora (done) | Together (39/40, one top-up) | recorded, partly; goal-guarding split Together / Modal |
 | qwen/qwen3.8-27b | Wafer | Wafer | goal-guarding recorded (split with Reka); mainline unrecorded |
 | deepseek/deepseek-v4-flash-0731 | Relace | Relace | goal-guarding recorded; mainline unrecorded |
 | tencent/hy3 | Tencent | Tencent | pinned to Tencent in its notes |
@@ -767,7 +779,8 @@ The arms, with cut-off episodes over the arm's size:
 - **z-ai/glm-5.3** — mainline: max (4/10), max_lure (8/10), none (6/10), none_lure (2/10),
   none_nooversight_lure (1/10), strong (2/10), strong_lure (2/10) - all seven re-collected
   2026-10-12, none cut off. Goal-guarding: none
-  deferred (8/10), none replacement (10/10), strong deferred (5/10), strong replacement (7/10).
+  deferred (8/10), none replacement (10/10), strong deferred (5/10), strong replacement (7/10) -
+  all four re-collected 2026-10-12, none cut off, one episode short.
 - **qwen/qwen3.8-27b** — mainline: max (2/10), max_lure (3/10), none (1/10), none_lure (1/10),
   strong (3/10), strong_lure (2/10). Goal-guarding: none deferred (4/10), none replacement
   (4/10), none replacement no-oversight (1/10), strong deferred (2/10), strong replacement
