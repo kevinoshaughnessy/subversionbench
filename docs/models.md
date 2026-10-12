@@ -721,8 +721,8 @@ claude-opus-5's figures would quietly cover only the kept arms - which are dispr
 the no-oversight arms, since the cut-offs fall on the oversight ones - while saying they are
 waiting for grading that will never come. Treat its readings as a closed snapshot of the
 corpus before re-collection: its charts under `charts/r10/claude-opus-5/` describe that
-corpus and should not be regenerated afterwards, and the report should stop drawing it
-(a code change, not yet made). The superseded directories keep the episodes with both
+corpus and should not be regenerated afterwards. The report no longer draws it beside a
+current grader (`RETIRED_GRADERS` in config). The superseded directories keep the episodes with both
 readings, so anything built on comparing the two graders, such as
 [grader-agreement.md](grader-agreement.md), stays reproducible from them. The re-collected
 arms are read by gpt-6-sol, or by whichever grader the grid decides on.
