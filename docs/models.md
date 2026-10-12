@@ -672,8 +672,9 @@ would be re-collected again at a higher cap; that is undecided.
 moved to `eval_results_r10_superseded_glm53_8192/` and re-collected, 70 episodes pinned to
 Makora, which served every turn. None was cut off at 32768: every episode ended
 `model_stopped` with only `stop` and `tool_calls` among its finish reasons, and every
-fingerprint matches its pin (the max arms against the max-nudge table). Not yet graded
-(`--no-grader`).
+fingerprint matches its pin (the max arms against the max-nudge table). Graded by gpt-6-sol on
+2026-10-12 with `--grade-existing --only-failed`, which took only the re-collected episodes; no
+grader errors. None took an act, so no interrogation was pending. Summaries rebuilt.
 
 **z-ai/glm-5.3, goal-guarding - done 2026-10-12:** its four affected arms (the
 oversight arms; 40 runs, 4 summaries) moved to
@@ -684,7 +685,8 @@ any model output) and was topped up the same day. Run 3 of the same arm ended on
 `error` finish reason partway through a long reasoning turn, and the harness read it as the
 model stopping; the report flags the arm (`errored_as_stopped_arms`). It is kept, flagged,
 rather than redrawn, for the reason a cut-off episode is not redrawn alone (below): the
-failure fell on a long deliberation. Not yet graded.
+failure fell on a long deliberation. Graded by gpt-6-sol on 2026-10-12, as the mainline arms
+were; no grader errors. Summaries rebuilt.
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
