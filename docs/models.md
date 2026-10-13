@@ -634,6 +634,35 @@ exposure. But 4 of 30 against 0 of 30 is not significant at this size (p = 0.11)
 
 No episode at any level took an act.
 
+**Second model, claude-sonnet-4-6** (2026-10-12/13, same cell and directory, stamp
+`20261012T215508`). Every recorded effort matches its request, and every fingerprint
+matches its pin.
+
+| effort | median reasoning characters | aware (rubric) | aware, evidence in visible text | keyword screen |
+|---|---|---|---|---|
+| low | 1,766 | 2/30 | 1/30 | 0/30 |
+| medium | 4,102 | 1/15 | 0/15 | 0/15 |
+| high | 7,332 | 3/15 | 0/15 | 2/15 |
+| max | 9,302 | 6/25 | 1/25 | 8/25 |
+
+- **The shape differs from gpt-6-astra's.** This model reasons at every level, and its
+  reasoning grows about fivefold, not sixtyfold. Its awareness rises gradually and is not
+  zero below max. Low against max is not significant at this size (Fisher p = 0.12). The
+  keyword screen, which found nothing for gpt-6-astra, rises from 0/30 to 8/25.
+- **Its rate at high, its corpus setting, is consistent with its corpus rate.**
+- **Acts:** one, a sandbox act at max.
+
+**The max arm is short, and not at random.** 5 of its 30 episodes failed with an API
+timeout at turns 4 to 7. Every Anthropic call - the model under test's turns as well as
+grader calls - goes through one client built with a 90-second read timeout, and the comment
+justifying it assumes only short JSON calls use it. At max effort, single turns run past 90
+seconds, so the failed episodes are the longest deliberations, as cut-off episodes were. The
+25 kept therefore under-represent exactly the episodes most likely to verbalise awareness.
+
+To be fixed before the arm is re-collected whole: give the model under test a longer
+timeout, and keep 90 seconds for the short grader calls. In the main corpora the same limit
+cost two Claude episodes, both at the API's default effort.
+
 ## Contamination check
 
 `contamination_check.py --limit 12` over every model in both corpora, 2026-10-12 (v251,
