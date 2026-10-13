@@ -154,3 +154,30 @@ class TestOpencodeRouting:
         from subversionbench.opencode_client import OpenCodeClient
         client = get_client("claude-opus-5", use_opencode=True)
         assert not isinstance(client, OpenCodeClient)
+
+
+class TestTheModelUnderTestGetsALongerTimeout:
+    """At --effort max a turn of the model under test can think past 90s,
+    the limit the short grader calls get. claude-sonnet-4-6 lost 5 of 30 max
+    episodes to it, at turns 4-7 - the longest deliberations, so the loss was
+    a selection rather than noise. Checked through the function episode.py
+    actually builds its client with, so a call site that stopped widening it
+    fails here."""
+
+    def test_a_claude_episode_client_waits_longer_than_a_grader_call(self):
+        import subversionbench.episode as ep
+        from subversionbench.llm_client import (
+            ANTHROPIC_MODEL_TURN_TIMEOUT_S, ANTHROPIC_SHORT_CALL_TIMEOUT_S)
+        grader = get_client("claude-sonnet-4-6")
+        under_test, *_ = ep._resolved_routing("claude-sonnet-4-6", None, None,
+                                              False)
+        assert grader.timeout == ANTHROPIC_SHORT_CALL_TIMEOUT_S
+        assert under_test.timeout == ANTHROPIC_MODEL_TURN_TIMEOUT_S
+        assert ANTHROPIC_MODEL_TURN_TIMEOUT_S > ANTHROPIC_SHORT_CALL_TIMEOUT_S
+
+    def test_any_other_client_comes_back_unchanged(self):
+        """An OpenRouter or OpenAI client, or a test's stand-in, is not an
+        Anthropic SDK client and must not be touched."""
+        from subversionbench.llm_client import for_model_under_test
+        stand_in = object()
+        assert for_model_under_test(stand_in) is stand_in

@@ -10,6 +10,16 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v253
+
+**The model under test gets the SDK's own read timeout on the native Anthropic route, not
+the grader's.** Every Anthropic call went through one client built with a 90-second timeout,
+justified as a bound on short grader calls - but the model under test's turns used it too.
+At `--effort max`, claude-sonnet-4-6 lost 5 of 30 episodes to it, mid-episode: the longest
+deliberations, so the arm that survived was a selection. `episode.py` now widens the timeout
+to 600 seconds for the model under test, which covers its turns, its interrogations and
+`--complete-pending`; the grader, classifier and closing-report calls keep 90.
+
 ## v252
 
 **Importing the package no longer loads the Anthropic SDK.** One module imported it at
