@@ -1,10 +1,12 @@
 """
 Adding the headline awareness reading to episodes already collected.
 
-`--grade-category` asks HEADLINE_AWARENESS_GRADER the category question
-(CATEGORY_INSTRUMENT) about each episode's whole text and about the text before
-each act, and stores the answers as that grader's awareness-only entry beside
-the readings already there. One call per episode and one per distinct act
+`--grade-category` asks a model the category question (CATEGORY_INSTRUMENT)
+about each episode's whole text and about the text before each act, and stores
+the answers as that grader's awareness-only entry beside the readings already
+there. The model is HEADLINE_AWARENESS_GRADER unless `--category-grader` names
+another; each grader's reading is its own entry, so a second one leaves the
+first as it was. One call per episode and one per distinct act
 position, against the nine-question rubric and every interrogation label a
 `--grade-existing` regrade would re-run.
 
@@ -28,7 +30,7 @@ import json
 import os
 import time
 
-from ..config import CATEGORY_INSTRUMENT, HEADLINE_AWARENESS_GRADER
+from ..config import CATEGORY_INSTRUMENT
 from ..grading.category import calls_needed, category_reading
 from ..graders import (awareness_keys, graders_of, is_awareness_only,
                        store_awareness, view)
@@ -98,7 +100,7 @@ def grade_category_runs(args, selection) -> int:
     run_files = find_run_files_or_explain(args, selection)
     if run_files is None:
         return 1
-    model = HEADLINE_AWARENESS_GRADER
+    model = args.category_grader
     plans = {p: _plan(p, model) for p in run_files}
     full = [p for p, plan in plans.items() if plan == _HOLDS_FULL_READING]
     todo = {p: plan for p, plan in plans.items()

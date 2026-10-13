@@ -18,7 +18,7 @@ except ImportError:
     HAS_PYTEST = False
 
 import subversionbench as ev
-from subversionbench.config import DEFAULT_GRADER_MODEL
+from subversionbench.config import DEFAULT_GRADER_MODEL, HEADLINE_AWARENESS_GRADER
 
 # Placeholder credentials for the whole session.
 #
@@ -263,6 +263,8 @@ class FakeArgs:
         self.interrogation = kw.get("interrogation", "default")
         self.write_back = kw.get("write_back", False)
         self.delay = kw.get("delay", 0)
+        self.category_grader = kw.get("category_grader",
+                                      HEADLINE_AWARENESS_GRADER)
         # Read by the summary schema through `setting()`, so a builder without
         # them cannot stand in for args where a document is assembled. Defaults
         # match run_eval's own, so a test that does not care about them gets the

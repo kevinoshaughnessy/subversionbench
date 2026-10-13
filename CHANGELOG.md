@@ -10,6 +10,14 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v254
+
+**`--category-grader` asks another model the category question.** `--grade-category` always
+asked the headline grader. The storage already kept one entry per grader, so a second
+model's category reading is stored as its own entry and leaves the headline one as it was.
+A model that already holds a full rubric reading of an episode cannot also hold an
+awareness-only one there, and the pass skips and counts those episodes before any call.
+
 ## v253
 
 **The model under test gets the SDK's own read timeout on the native Anthropic route, not
