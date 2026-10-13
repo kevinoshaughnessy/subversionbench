@@ -10,6 +10,13 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v255
+
+**The forced-choice probe allows 8000 tokens.** Reasoning models reached over OpenRouter,
+where thinking cannot be switched off, spent the 2000-token ceiling reasoning and returned
+no visible answer on some items. The dropped items left those models without a verdict.
+A ceiling is not a spend, so models that answer at once are unaffected.
+
 ## v254
 
 **`--category-grader` asks another model the category question.** `--grade-category` always

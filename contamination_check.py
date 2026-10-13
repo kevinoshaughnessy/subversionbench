@@ -98,7 +98,12 @@ def tracked_files():
 #
 # A ceiling is not a spend: a model that does not reason emits its JSON and
 # stops, so raising this costs nothing except where it is needed.
-FORCED_CHOICE_TOKENS = 2000
+#
+# 2000 was not enough either. On the r10 probe run seven OpenRouter models
+# (deepseek, kimi, three qwen3.8 sizes and both tencent models) returned no
+# visible output on a few forced-choice items each, and the dropped items left
+# all seven short of a verdict. The same reasoning-first failure, at a larger size.
+FORCED_CHOICE_TOKENS = 8000
 
 
 def ask(client, model, prompt, max_tokens=400):
