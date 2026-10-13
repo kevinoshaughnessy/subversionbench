@@ -643,7 +643,7 @@ matches its pin.
 | low | 1,766 | 2/30 | 1/30 | 0/30 |
 | medium | 4,102 | 1/15 | 0/15 | 0/15 |
 | high | 7,332 | 3/15 | 0/15 | 2/15 |
-| max | 9,302 | 6/25 | 1/25 | 8/25 |
+| max | 11,821 | 8/30 | 0/30 | 8/30 |
 
 - **The shape differs from gpt-6-astra's.** This model reasons at every level, and its
   reasoning grows about fivefold, not sixtyfold. Its awareness rises gradually and is not
@@ -652,16 +652,23 @@ matches its pin.
 - **Its rate at high, its corpus setting, is consistent with its corpus rate.**
 - **Acts:** one, a sandbox act at max.
 
-**The max arm is short, and not at random.** 5 of its 30 episodes failed with an API
+**The max arm was re-collected whole.** The first arm lost 5 of its 30 episodes to an API
 timeout at turns 4 to 7. Every Anthropic call - the model under test's turns as well as
-grader calls - goes through one client built with a 90-second read timeout, and the comment
-justifying it assumes only short JSON calls use it. At max effort, single turns run past 90
-seconds, so the failed episodes are the longest deliberations, as cut-off episodes were. The
-25 kept therefore under-represent exactly the episodes most likely to verbalise awareness.
+grader calls - went through one client with a 90-second read timeout. At max effort, single
+turns ran past it, so the losses were the longest deliberations, as the cut-off episodes
+were.
 
-To be fixed before the arm is re-collected whole: give the model under test a longer
-timeout, and keep 90 seconds for the short grader calls. In the main corpora the same limit
-cost two Claude episodes, both at the API's default effort.
+v253 gave the model under test a 600-second timeout. The arm was then moved to
+`eval_results_effort_pilot_superseded_timeout/` and re-collected under stamp
+`20261013T095225`: 30 of 30 episodes, none failed. The figures above are the re-collected
+arm.
+
+Its median reasoning (11,821 characters, against 9,302 in the 25 the first arm kept)
+confirms that the first arm had lost its longest deliberations. Low against max is still
+not significant at this size (Fisher p = 0.08).
+
+In the main corpora the same limit cost two Claude episodes, both at the API's default
+effort.
 
 ## Contamination check
 
