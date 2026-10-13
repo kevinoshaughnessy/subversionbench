@@ -11,8 +11,6 @@ list scoring a whole reply can avoid that; naming the act in the prompt can.
 
 import re
 
-import anthropic
-
 from .grader_io import _parse_first_json, wrap_untrusted
 from ..config import (DEFAULT_GRADER_MODEL,
                       INTERROGATION_CLASSIFIER_SYSTEM_PROMPT, VERSION)
@@ -174,6 +172,12 @@ def classify_answer(text: str, admission, denial, contrition) -> str:
 
 def _create_retrying_transient(client, create_kwargs: dict):
     """One classifier call, asked once more on a transient failure only."""
+    # IMPORTED HERE, not at the top of the module. This was the only import of
+    # the SDK at module level in the package, so `import subversionbench` -
+    # which every root script and every census helper run_all_arms.sh starts
+    # does - paid about 0.3s to load it whether or not a grader was ever
+    # called. Measured: 113 child processes of one suite run, about 35s.
+    import anthropic
     try:
         return client.messages.create(**create_kwargs)
     except (anthropic.APIConnectionError, anthropic.APIStatusError) as e:

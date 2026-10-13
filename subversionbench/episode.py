@@ -279,9 +279,9 @@ def _resolved_routing(model: str, sort, provider, use_opencode: bool) -> tuple:
     use_opencode = bool(use_opencode and is_or)
     sort = sort if (is_or and not use_opencode) else None
     provider = provider if (is_or and not use_opencode) else None
-    client = llm_api.get_client(model, provider_sort=sort,
-                                provider_name=provider,
-                                use_opencode=use_opencode)
+    client = llm_api.for_model_under_test(llm_api.get_client(
+        model, provider_sort=sort, provider_name=provider,
+        use_opencode=use_opencode))
     return client, sort, provider, use_opencode
 
 

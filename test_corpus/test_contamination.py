@@ -18,6 +18,18 @@ import subversionbench.llm_client as ev_llm
 from subversionbench.scenario import SCENARIO
 
 
+def _no_real_client():
+    """llm_client.get_client replaced for the length of a `with` block.
+
+    The probe tests here used to assign a one-argument stand-in and never put
+    the real one back, so every later test in the session that built a client
+    through llm_client got the stand-in - found when a test of episode.py's
+    client failed only when run after this file.
+    """
+    from unittest import mock
+    return mock.patch.object(ev_llm, "get_client", lambda *a, **k: object())
+
+
 def _clean_summary(**kw):
     return cont.summarise_contamination(kw.get("fc", []), kw.get("canary", []),
                                         kw.get("cont", []), k=kw.get("k", 4))
@@ -486,10 +498,10 @@ class TestTheProbeRunnerSurvivesOneBadReply:
                 return "An analysis of the options", None   # the bad one
             return '{"choice": 0}', None
 
-        ev_llm.get_client = lambda model: object()
         mod.ask = reply
-        canary, fc, continuations = mod.probe_model(
-            "p/m", items, [], delay=0, keep_prompts=False)
+        with _no_real_client():
+            canary, fc, continuations = mod.probe_model(
+                "p/m", items, [], delay=0, keep_prompts=False)
 
         assert len(fc) == len(items), "every item must be attempted"
         failed = [r for r in fc if r["error"]]
@@ -503,10 +515,10 @@ class TestTheProbeRunnerSurvivesOneBadReply:
         mod = self._module()
         items = cont.build_forced_choice(k=4, seed=0, limit=2)
         continuations = cont.build_continuations()[:1]
-        ev_llm.get_client = lambda model: object()
         mod.ask = lambda c, m, p, max_tokens=400: ("not json at all", None)
-        _canary, fc, cont_results = mod.probe_model(
-            "p/m", items, continuations, delay=0, keep_prompts=False)
+        with _no_real_client():
+            _canary, fc, cont_results = mod.probe_model(
+                "p/m", items, continuations, delay=0, keep_prompts=False)
         assert len(fc) == len(items)
         assert len(cont_results) == 1, "the continuation probe must still run"
 
@@ -570,14 +582,13 @@ class TestTheDelayPacesEveryProbeFamily:
         mod = self._module()
         slept = []
         mod.time = type("Clock", (), {"sleep": staticmethod(slept.append)})()
-        ev_llm.get_client = lambda model: object()
         mod.ask = lambda c, m, p, max_tokens=400: ('{"choice": 0}', None)
         # `limit` caps per source rather than overall, so the item count is
         # taken from what was actually built - a test that assumed it would
         # be measuring its own arithmetic instead of the pacing.
         items = cont.build_forced_choice(k=4, seed=0, limit=limit) if limit else []
         continuations = cont.build_continuations()[:n_continuations]
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), _no_real_client():
             canary, fc, cont_results = mod.probe_model(
                 "p/m", items, continuations, delay=delay, keep_prompts=False)
         assert len(cont_results) == n_continuations
