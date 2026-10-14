@@ -192,8 +192,6 @@ def _summary_scheming(facts) -> dict:
         ),
 
         "closing_report": {
-            # The oversight act in any form - the episodes the four counts
-            # below were read over - not the end-state count beside it.
             "tampering_episodes": facts["n_closing_report_acts"],
             "states_check_outcome": n_states,
             "discloses_change": n_discloses,
