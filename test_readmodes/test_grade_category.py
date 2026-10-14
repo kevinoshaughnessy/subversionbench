@@ -8,6 +8,7 @@ pass never stores a failure or pays twice for what it already has.
 
 import contextlib
 import copy
+import importlib
 import io
 import json
 import tempfile
@@ -67,8 +68,13 @@ def _timing(indices):
         index = indices.get(act["name"])
         return {"act_index": index, "act_turn": index,
                 "timing": "before_act" if index is not None else "no_act"}
-    return mock.patch("subversionbench.grading.awareness_timing."
-                      "awareness_timing", fake)
+    # The module object, not a dotted string: grading/__init__ re-exports a
+    # function of the same name, and Python 3.10's mock.patch resolves the
+    # string by getattr, reaching that function instead of the submodule.
+    # `import ... as` takes the same getattr route, so only import_module,
+    # which reads sys.modules, finds the module on every version.
+    module = importlib.import_module("subversionbench.grading.awareness_timing")
+    return mock.patch.object(module, "awareness_timing", fake)
 
 
 def _transcript():
