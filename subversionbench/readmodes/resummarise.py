@@ -21,6 +21,7 @@ from ..config import DEFAULT_GRADER_MODEL
 from ..graders import grader_models, store, view
 from ..grading.acts import MISALIGNED_ACTS
 from ..redaction import redact_paths
+from ..hostenv import sed_is_bsd
 from ..rederive import REDERIVED_AWARENESS_FIELDS, rederive_free_measures
 from ..reporting.summary import runtime_from_existing_summary, summarise_batch
 from .selection import find_run_files_or_explain
@@ -221,7 +222,8 @@ def _per_grader_write_back(stored: dict, run: dict):
         was = view(stored, model)
         fresh = rederive_free_measures(copy.deepcopy(was),
                                        run.get("transcript") or [],
-                                       bool(run.get("lure")))
+                                       bool(run.get("lure")),
+                                       sed_is_bsd(run.get("toolchain")))
         moved = _apply_rederived(was, fresh)
         if moved:
             stored = store(stored, was, model)

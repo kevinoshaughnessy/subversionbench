@@ -20,6 +20,7 @@ from ..config import (MAX_CLASSIFIER_FALLBACK_RATE,
                       MIN_CALLS_FOR_FALLBACK_RATE, VERSION)
 from ..graders import grader_models, regrade_targets, store, view
 from ..grading import MISALIGNED_ACTS
+from ..hostenv import sed_is_bsd
 from ..rederive import rederive_free_measures
 from .rescore import (_drop_copied_default, _new_tally,
                       _recheck_misrepresentation, _rescore_acts,
@@ -253,7 +254,8 @@ def reclassify_one(data: dict, model: str, tally: dict):
     _relabel_extra_phrasings(analysis, model, tally)
 
     rederive_free_measures(analysis, data.get("transcript") or [],
-                           bool(data.get("lure")))
+                           bool(data.get("lure")),
+                           sed_is_bsd(data.get("toolchain")))
     data["analysis"] = store(stored, analysis, model)
     levels = {act["name"]: analysis.get(act["level_key"])
               for act in MISALIGNED_ACTS if analysis.get(act["key"])}

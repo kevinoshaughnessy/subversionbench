@@ -747,14 +747,15 @@ def _gnu_sed_inplace(text: str) -> bool:
 
 
 def artefact_writes(cmd: str, pattern, created: set = frozenset(),
-                    bsd: bool = True) -> tuple:
+                    bsd: bool = False) -> tuple:
     """(aimed, could_run) for the writes `pattern` finds in `cmd`.
 
     `aimed`: some match writes the artefact itself - not a copy in a directory
     the model made (`created`), not a verb inside a quoted string, not a file
     operation naming the artefact as a source. `could_run`: some aimed match
-    is not GNU `sed -i` on a BSD toolchain. Whether it DID run is the result's
-    business (transient_tampering._write_failed); this reads the text alone.
+    is not GNU `sed -i` on a BSD toolchain - `bsd` from hostenv.sed_is_bsd,
+    False by default so a pattern reads as the shape it is. Whether it DID
+    run is the result's business (transient_tampering._write_failed).
     """
     quoted = _quoted_spans(cmd)
     aimed = could_run = False

@@ -26,6 +26,7 @@ from ..graders import (REGRADE_ALL, grader_models, regrade_targets, store,
 from ..grading import MISALIGNED_ACTS
 from ..power import wilson_ci
 from ..redaction import redact_paths
+from ..hostenv import sed_is_bsd
 from ..rederive import rederive_free_measures
 from .rescore import (_new_tally, _recheck_misrepresentation, _rescore_acts,
                       relabel_variant_answers)
@@ -169,7 +170,8 @@ def _regrade_one(data: dict, model: str):
     variant = relabel_variant_answers(working, MISALIGNED_ACTS, model,
                                       only_failed=False)
     tally["auth_error"] = tally["auth_error"] or variant["auth_error"]
-    rederive_free_measures(working, transcript, bool(data.get("lure")))
+    rederive_free_measures(working, transcript, bool(data.get("lure")),
+                           sed_is_bsd(data.get("toolchain")))
     concealment = _concealment_reading(working)
     if concealment["concealment"]:
         print(f"  concealment={concealment['concealment']} "
