@@ -643,12 +643,16 @@ matches its pin.
 | low | 1,766 | 2/30 | 1/30 | 0/30 |
 | medium | 4,102 | 1/15 | 0/15 | 0/15 |
 | high | 7,332 | 3/15 | 0/15 | 2/15 |
-| max | 11,821 | 8/30 | 0/30 | 8/30 |
+| max | 11,821 | pending | pending | 8/30 |
 
+- **The max arm has no rubric reading yet** (corrected 2026-10-14). Every gpt-6-sol call
+  for its 30 re-collected episodes failed: the OpenAI account had run out of credit, and the
+  calls returned 429 `insufficient_quota`. An earlier version of this table gave the
+  keyword count, 8/30, in the rubric column, and the gradient and Fisher tests drawn from
+  it are withdrawn until the arm is regraded.
 - **The shape differs from gpt-6-astra's.** This model reasons at every level, and its
-  reasoning grows about fivefold, not sixtyfold. Its awareness rises gradually and is not
-  zero below max. Low against max is not significant at this size (Fisher p = 0.12). The
-  keyword screen, which found nothing for gpt-6-astra, rises from 0/30 to 8/25.
+  reasoning grows about fivefold, not sixtyfold. The keyword screen, which found nothing
+  for gpt-6-astra, rises from 0/30 at low to 8/30 at max.
 - **Its rate at high, its corpus setting, is consistent with its corpus rate.**
 - **Acts:** one, a sandbox act at max.
 
@@ -664,8 +668,7 @@ v253 gave the model under test a 600-second timeout. The arm was then moved to
 arm.
 
 Its median reasoning (11,821 characters, against 9,302 in the 25 the first arm kept)
-confirms that the first arm had lost its longest deliberations. Low against max is still
-not significant at this size (Fisher p = 0.08).
+confirms that the first arm had lost its longest deliberations.
 
 In the main corpora the same limit cost two Claude episodes, both at the API's default
 effort.
@@ -741,8 +744,8 @@ is the estimated collection cost at the corpus's typical token use per episode, 
 cheapest host offering tool calling and room for `--max-tokens 32768`, read from OpenRouter
 on 2026-10-12. Grading is not included:
 
-1. nvidia/nemotron-3.5-lightning — collecting, pinned to Wafer. Capability arm (2026-10-12): succeeded in all 12 (oversight 3, sandbox 6, goal-guarding 3). Mainline: 12 arms, 120 episodes, every turn served by Wafer; none cut off (one reached the turn cap), graded by gpt-6-sol, none pending. Goal-guarding (2026-10-13): 8 arms, 80 episodes, every turn served by Wafer, none cut off (four reached the turn cap), graded by gpt-6-sol, none pending; no episode guarded, all 80 read the file. **Complete** (rubric grading); the headline category reading is not yet added.
-2. upstage/solar-mini4
+1. nvidia/nemotron-3.5-lightning — collecting, pinned to Wafer. Capability arm (2026-10-12): succeeded in all 12 (oversight 3, sandbox 6, goal-guarding 3). Mainline: 12 arms, 120 episodes, every turn served by Wafer; none cut off (one reached the turn cap), graded by gpt-6-sol, none pending. Goal-guarding (2026-10-13): 8 arms, 80 episodes, every turn served by Wafer, none cut off (four reached the turn cap), no episode guarded, all 80 read the file. Grading: 28 graded by gpt-6-sol; 52 have no reading because every gpt-6-sol call failed when the OpenAI credit ran out (found 2026-10-14; an earlier note here said none pending), and 3 of the 28 lost some rubric questions the same way. **Collection complete**; the rubric regrade and the headline category reading are pending.
+2. upstage/solar-mini4 — collected 2026-10-13/14, not pinned (every turn served by Upstage, its only host). Capability arm: capable of all three acts (oversight 2 of 3, 1 refused; sandbox 6 of 6; goal-guarding 3 of 3), so no authorised controls are needed. Mainline: 12 arms, 120 episodes, none failed or cut off (12 reached the turn cap). Goal-guarding: 8 arms, 80 episodes, none failed or cut off (10 reached the turn cap); no episode guarded, 72 read the file. Every fingerprint matches its pin. **Ungraded:** every gpt-6-sol call failed on the exhausted OpenAI credit, so all 200 episodes need the rubric regrade and the headline category reading.
 3. ibm-granite/granite-4.2-8b
 4. xiaomi/mimo-v2.6-flash
 5. upstage/solar-pro4
