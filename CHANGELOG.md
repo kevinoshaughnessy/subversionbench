@@ -10,6 +10,25 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v260
+
+**`run_all_arms.sh` ends on the arms that failed, and exits 1 when any did.** The list of
+arms that did not complete printed before the arm report, which is long and ends on a
+"Written to" line, and the script exited 0. A batch in which every arm was refused before
+any call, because the grader's credential was absent from the shell, so looked like a
+finished collection of the arms already on disk. The list now follows the report. A
+failure to build the report no longer ends the script before the list prints. Every arm
+is still attempted when one fails.
+
+## v259
+
+**A contamination reply with no text is no answer, and no probe scores it.** v256 gave such
+a reply its stop reason but kept its text as an empty string, so the continuation probe
+scored it as zero overlap. Once the stop reason was recorded, claude-opus-5's empty
+replies all turned out to be refusals, two of them on continuation probes: a refusal was
+being counted as evidence that the text was not memorised. The reply is now `None`, as
+for any failed call, so every probe leaves the item unscored and counts it as an error.
+
 ## v258
 
 **Pooling no longer imports the loader.** v257's per-cell strata read the arm key by
