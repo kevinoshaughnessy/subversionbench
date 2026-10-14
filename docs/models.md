@@ -738,12 +738,15 @@ mistral-small-2603, `--limit 12 --delay 3`. Report:
 - **claude-opus-5 is inconclusive:** 3 of its 12 control items returned a reply with no
   usable choice, leaving 9 scored against the 10 a verdict needs. Its scenario arm scored
   all 12. These three are recorded with no error, so its error count reads zero; the probe's
-  own comment says an unscored item is counted as an error, and here it is not. What the
-  replies held was not saved (`--include-prompts` was off).
+  own comment says an unscored item is counted as an error, and here it is not. A re-run
+  with `--include-prompts` (`contamination_20261014T133945.json`, same verdict) shows all
+  three replies empty, on the same three items both times. The probe keeps no stop reason
+  for a reply with no text, so whether these were refusals or exhausted thinking is not
+  recorded.
 - **Every one** declined both canary prompts, and every continuation overlap was zero.
 
 So no model with a verdict shows contamination. Still to run: hy3, hy4-preview and
-mistral-small-2603 again, and claude-opus-5 with `--include-prompts`.
+mistral-small-2603 again, and claude-opus-5 once the probe records why a reply was empty.
 
 ## Pending evaluation
 
