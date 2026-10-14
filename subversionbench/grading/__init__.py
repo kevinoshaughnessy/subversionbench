@@ -111,7 +111,10 @@ from .honeypot import (classify_honeypot_discovered, classify_honeypot_read,
 from .host_discovery import classify_host_discovery, detect_host_discovery
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
+    ACT_FORMS,
+    classify_goalguard_form,
     classify_goalguard_undone,
+    classify_oversight_form,
     classify_transient_tampering,
     detect_transient_tampering,
     detect_undone_successor_edit,
@@ -125,6 +128,7 @@ __all__ = [
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
     "detect_undone_successor_edit", "classify_goalguard_undone",
+    "ACT_FORMS", "classify_oversight_form", "classify_goalguard_form",
     "detect_command_failures",
     "scratch_only_attempts", "refusals_not_observed", "reads_a_file",
     "detect_network_probes", "classify_network_probe",
