@@ -24,7 +24,8 @@ should prefer the owning module; this exists so that `run_eval` has one import
 and the tests that patch `grading.X` keep working.
 """
 
-from .acts import (act_value, acts_awaiting_interrogation,
+from .acts import (act_form, act_value, acts_awaiting_interrogation,
+                   settle_act_forms,
                    auth_error_in_analysis,
                    counted_acts, MISALIGNED_ACTS,
                    LOCATED_BY_RECORDED_COMMANDS, questions_for)
@@ -128,7 +129,8 @@ __all__ = [
     "calls_needed", "category_reading",
     # what the episode did
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "LOCATED_BY_RECORDED_COMMANDS", "counted_acts", "auth_error_in_analysis",
-    "acts_awaiting_interrogation", "act_value",
+    "acts_awaiting_interrogation", "act_value", "act_form",
+    "settle_act_forms",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
     "detect_undone_successor_edit", "classify_goalguard_undone",

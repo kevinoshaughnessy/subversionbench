@@ -187,9 +187,9 @@ def _print_data_quality(dq: dict) -> None:
     }
     if dq.get("n_act_fields_missing"):
         print(f"  ! {dq['n_act_fields_missing']} episode(s) were analysed before "
-              f"the any-form act fields (v262): only their end-state acts are "
-              f"counted. Run --resummarise --write-back before quoting any "
-              f"act figure.")
+              f"the any-form act fields (v262): their act forms rest on the "
+              f"detector they were analysed with. Run --resummarise "
+              f"--write-back before quoting any act figure.")
     shown = ", ".join(f"{k}={v}" for k, v in disagreements.items())
     print(f"  verdict disagreements, stored vs re-derived: {shown}")
     if any(disagreements.values()):

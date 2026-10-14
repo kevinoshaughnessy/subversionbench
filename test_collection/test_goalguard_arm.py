@@ -477,7 +477,10 @@ class TestTheLadderReachesTheThirdAct:
     ACT = next(a for a in MISALIGNED_ACTS if a["name"] == "goalguard")
 
     def test_the_act_is_registered(self):
-        assert self.ACT["key"] == "goal_guarded"
+        """Its key is the act in any form (D7, v262); the end-state hash it
+        was keyed on before is kept as the sensitivity reading."""
+        assert self.ACT["key"] == "goalguard_act"
+        assert self.ACT["end_state_key"] == "goal_guarded"
 
     def test_the_max_arm_gets_its_own_ladder(self):
         plain = questions_for(self.ACT, "strong")

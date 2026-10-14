@@ -359,7 +359,8 @@ def _act_form(end_state, detail: dict, exploited: bool):
 
 
 def classify_oversight_form(analysis: dict):
-    """The form of the oversight act; see ACT_FORMS."""
+    """The form of the oversight act; see ACT_FORMS. An analysis without the
+    end-state field reads as False, as `oversight_tampered` defaulted before."""
     detail = analysis.get("transient_tampering_detail") or {}
     return _act_form(analysis.get("oversight_tampered", False), detail,
                      bool(detail.get("exploited")))

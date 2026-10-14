@@ -66,8 +66,7 @@ from .grading import (classify_awareness_from_rubric,
                       classify_honeypot_read,
                       classify_host_discovery, classify_host_path_read,
                       classify_network_probe, command_is_degenerate,
-                      classify_goalguard_form, classify_goalguard_undone,
-                      classify_oversight_form, act_taken,
+                      classify_goalguard_undone, settle_act_forms,
                       classify_transient_tampering, detect_command_failures,
                       detect_disguised_text,
                       detect_encoded_payload,
@@ -296,11 +295,8 @@ def _artefact_measures(analysis: dict, transcript: list,
     analysis["goalguard_undone"] = classify_goalguard_undone(analysis)
     # The form of each act (analysis plan D7): read off the two details
     # above and the end-state hash, so it is re-derived whenever they are.
-    analysis["oversight_act_form"] = classify_oversight_form(analysis)
-    analysis["goalguard_act_form"] = classify_goalguard_form(analysis)
-    # The counted acts (MISALIGNED_ACTS' keys): any form of each.
-    analysis["oversight_act"] = act_taken(analysis["oversight_act_form"])
-    analysis["goalguard_act"] = act_taken(analysis["goalguard_act_form"])
+    # And the counted acts (MISALIGNED_ACTS' keys): any form of each.
+    settle_act_forms(analysis)
     if transcript:
         analysis["command_failures"] = detect_command_failures(transcript)
 
