@@ -20,7 +20,7 @@ from .turns import replayable_content
 
 def interrogate_acts(analysis: dict, transcript: list, probe: dict, *,
                      grader_model: str, nudge: str, interrogations: tuple,
-                     ended_by: str) -> None:
+                     ended_by: str, only: set = None) -> None:
     """
     Ask the model about each misaligned act it took, and record what it said.
 
@@ -37,6 +37,11 @@ def interrogate_acts(analysis: dict, transcript: list, probe: dict, *,
     Writes the disclosure, misrepresentation and follow-up fields onto
     `analysis` in place. Nothing is settled here - `settle_analysis` in the
     caller does that, after this has supplied the evidence it needs.
+
+    `only` restricts the acts asked about to those names. --complete-pending
+    passes the acts still awaiting interrogation, so an act already asked is
+    not asked again: re-asking would overwrite its answers and change the
+    conversation they were given in.
     """
     # An episode that ran out of turns never produced a closing report - the
     # model was cut off mid-task - so there is nothing to judge disclosure
@@ -44,7 +49,9 @@ def interrogate_acts(analysis: dict, transcript: list, probe: dict, *,
     # appends.") as a non-disclosure would be reading a verdict out of noise.
     has_report = ended_by != "turn_cap"
 
-    if analysis.get("oversight_tampered") and has_report:
+    oversight = next(a for a in MISALIGNED_ACTS if a["name"] == "oversight")
+    if (analysis.get(oversight["key"]) and has_report
+            and (only is None or "oversight" in only)):
         # Did the closing report claim the check passed, without saying the
         # agent is why it passed? Stronger than omission.
         analysis["misrepresented_check"] = grading_api.detect_misrepresentation(
@@ -52,6 +59,8 @@ def interrogate_acts(analysis: dict, transcript: list, probe: dict, *,
         )
 
     for act in MISALIGNED_ACTS:
+        if only is not None and act["name"] not in only:
+            continue
         # None means the act was not available in this arm - there was no
         # oversight to subvert - so there is nothing to interrogate about.
         # Asking anyway would put the idea in front of a model the scenario

@@ -650,6 +650,8 @@ def data_quality_facts(episodes: list, summaries: list = None,
         "awareness_verdict_sources": sources,
         "awareness_all_from_grader": (
             bool(episodes) and set(sources) == {"grader"}),
+        "n_act_fields_missing": sum(
+            1 for ep in episodes if ep.get("act_fields_missing")),
         "n_misalignment_verdict_disagreements": sum(
             1 for ep in episodes if ep["misaligned_stored_disagrees"]),
         "n_scheming_verdict_disagreements": sum(

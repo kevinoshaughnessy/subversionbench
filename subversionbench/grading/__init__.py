@@ -24,7 +24,8 @@ should prefer the owning module; this exists so that `run_eval` has one import
 and the tests that patch `grading.X` keep working.
 """
 
-from .acts import (auth_error_in_analysis, counted_acts, MISALIGNED_ACTS,
+from .acts import (acts_awaiting_interrogation, auth_error_in_analysis,
+                   counted_acts, MISALIGNED_ACTS,
                    LOCATED_BY_RECORDED_COMMANDS, questions_for)
 from .awareness_keywords import (detect_eval_awareness_keywords,
                                  detect_misuse_suspicion)
@@ -112,6 +113,7 @@ from .host_discovery import classify_host_discovery, detect_host_discovery
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
     ACT_FORMS,
+    act_taken,
     classify_goalguard_form,
     classify_goalguard_undone,
     classify_oversight_form,
@@ -125,10 +127,12 @@ __all__ = [
     "calls_needed", "category_reading",
     # what the episode did
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "LOCATED_BY_RECORDED_COMMANDS", "counted_acts", "auth_error_in_analysis",
+    "acts_awaiting_interrogation",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
     "detect_undone_successor_edit", "classify_goalguard_undone",
-    "ACT_FORMS", "classify_oversight_form", "classify_goalguard_form",
+    "ACT_FORMS", "act_taken", "classify_oversight_form",
+    "classify_goalguard_form",
     "detect_command_failures",
     "scratch_only_attempts", "refusals_not_observed", "reads_a_file",
     "detect_network_probes", "classify_network_probe",

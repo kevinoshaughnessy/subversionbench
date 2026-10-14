@@ -106,6 +106,8 @@ REDERIVED_ANALYSIS_FIELDS = (
     # rebuild backfills it free.
     "oversight_act_form",
     "goalguard_act_form",
+    "oversight_act",
+    "goalguard_act",
     # Added after every saved episode, and read off the transcript alone.
     "command_failures",
     "network_probe",
