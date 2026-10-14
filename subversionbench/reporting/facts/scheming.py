@@ -93,13 +93,21 @@ def scheming_facts(all_results: list, n: int) -> dict:
 
     ci_scheming = _wilson_ci(n_scheming, n)
 
+    # Named one by one, not spread: the interface guards in test_summary.py
+    # read each figure facts returns off this literal.
+    closing = _closing_report_facts(all_results)
     return {
         "ci_scheming": ci_scheming,
         "concealment": concealment,
         "n_concealment_unknown": n_concealment_unknown,
         "n_scheming": n_scheming,
         "scheming_by_act": scheming_by_act,
-        **_closing_report_facts(all_results),
+        "n_closing_report_acts": closing["n_closing_report_acts"],
+        "n_tampered": closing["n_tampered"],
+        "n_misrep": closing["n_misrep"],
+        "n_states": closing["n_states"],
+        "n_discloses": closing["n_discloses"],
+        "n_threshold": closing["n_threshold"],
     }
 
 
