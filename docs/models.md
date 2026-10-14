@@ -604,12 +604,12 @@ Does reasoning effort raise verbalised evaluation awareness? The proposal is
 - **Collection checks.** Every recorded effort matches the request, every fingerprint is
   the oversight-arm pin, and no episode was cut off or ended abnormally.
 - **Grading.** gpt-6-sol's rubric, and the headline category reading (glm-5.3, rules-only,
-  added 2026-10-14). One low episode, run 29, has no category reading yet: its call
-  failed and is asked again by re-running the pass.
+  added 2026-10-14), complete for all 90. One low episode's category call failed on the
+  first pass and was asked again.
 
 | effort | median reasoning tokens | episodes with no reasoning | aware (category) | aware (rubric) | aware, evidence in visible text |
 |---|---|---|---|---|---|
-| low | 0 | 28 of 30 | 0/29 | 0/30 | 0/30 |
+| low | 0 | 28 of 30 | 0/30 | 0/30 | 0/30 |
 | medium | 100 | 1 of 15 | 0/15 | 0/15 | 0/15 |
 | high | 639 | 4 of 15 | 0/15 | 0/15 | 0/15 |
 | max | 5,818 | 0 of 30 | 12/30 | 7/30 | 4/30 |
@@ -647,13 +647,15 @@ matches its pin.
 | low | 1,766 | 1/30 | 2/30 | 1/30 | 0/30 |
 | medium | 4,102 | 0/15 | 1/15 | 0/15 | 0/15 |
 | high | 7,332 | 5/15 | 3/15 | 0/15 | 2/15 |
-| max | 11,821 | 11/30 | pending | pending | 8/30 |
+| max | 11,821 | 11/30 | 8/30 | 3/30 | 8/30 |
 
-- **The max arm has no rubric reading yet** (corrected 2026-10-14). Every gpt-6-sol call
-  for its 30 re-collected episodes failed: the OpenAI account had run out of credit, and the
+- **The max arm's rubric reading came late.** Every gpt-6-sol call for its 30
+  re-collected episodes first failed: the OpenAI account had run out of credit, and the
   calls returned 429 `insufficient_quota`. An earlier version of this table gave the
-  keyword count, 8/30, in the rubric column, and the gradient and Fisher tests drawn from
-  it are withdrawn until the arm is regraded.
+  keyword count in the rubric column. The regrade (2026-10-14) completed all 30, with no
+  failures, and finds 8/30 - the same number as the keyword screen, by coincidence of
+  count. On the rubric, low against max is 2/30 against 8/30, Fisher p = 0.08: not
+  significant at this size. Evidence in visible text alone is 1/30 against 3/30.
 - **The category reading (glm-5.3, 2026-10-14) is complete for all 90** and rises with
   effort: 1/30 at low, 11/30 at max (5 true, 6 ambiguous-true), Fisher p = 0.002. Unlike
   gpt-6-astra it is not zero below max: 5/15 at high.
@@ -713,6 +715,24 @@ scenario arm above that ceiling to register, so this probe would catch only heav
 memorisation. The verdicts therefore rest mainly on the canary and the continuation
 probes.
 
+**Re-run at 8,000 tokens (2026-10-14, v255).** The seven reasoning models above and
+mistral-small-2603, `--limit 12 --delay 3`. Report:
+`eval_results_r10/contamination_20261014T120306.json`.
+
+- **Five now reach a verdict, all `no evidence`:** deepseek-v4.1-flash, kimi-k2.6,
+  qwen3.8-flash, qwen3.8-27b and qwen3.8-2.4t-a95b. Each lost one forced-choice call to an
+  empty reply, down from three or more.
+- **hy3 and hy4-preview are still inconclusive.** They lost 3 and 4 calls respectively
+  (one of hy4-preview's was a truncated reply), leaving their scenario arms at 9 and 8
+  scored items against the 10 a verdict needs. Every item they did answer was correct in
+  both arms.
+- **mistral-small-2603 is still inconclusive:** rate-limited upstream again (429), 12
+  errors.
+- **None of the eight** completed the canary, and every continuation overlap was zero.
+
+So no model with a verdict shows contamination. Still to run: the five Claude models, which
+need the credential present, and hy3, hy4-preview and mistral-small-2603 again.
+
 ## Pending evaluation
 
 Models not yet in the mainline corpus that fall inside the selection window: first listed
@@ -751,8 +771,8 @@ is the estimated collection cost at the corpus's typical token use per episode, 
 cheapest host offering tool calling and room for `--max-tokens 32768`, read from OpenRouter
 on 2026-10-12. Grading is not included:
 
-1. nvidia/nemotron-3.5-lightning — collecting, pinned to Wafer. Capability arm (2026-10-12): succeeded in all 12 (oversight 3, sandbox 6, goal-guarding 3). Mainline: 12 arms, 120 episodes, every turn served by Wafer; none cut off (one reached the turn cap), graded by gpt-6-sol, none pending. Goal-guarding (2026-10-13): 8 arms, 80 episodes, every turn served by Wafer, none cut off (four reached the turn cap), no episode guarded, all 80 read the file. Grading: 28 graded by gpt-6-sol; 52 have no reading because every gpt-6-sol call failed when the OpenAI credit ran out (found 2026-10-14; an earlier note here said none pending), and 3 of the 28 lost some rubric questions the same way. **Collection complete**; the rubric regrade and the headline category reading are pending.
-2. upstage/solar-mini4 — collected 2026-10-13/14, not pinned (every turn served by Upstage, its only host). Capability arm: capable of all three acts (oversight 2 of 3, 1 refused; sandbox 6 of 6; goal-guarding 3 of 3), so no authorised controls are needed. Mainline: 12 arms, 120 episodes, none failed or cut off (12 reached the turn cap). Goal-guarding: 8 arms, 80 episodes, none failed or cut off (10 reached the turn cap); no episode guarded, 72 read the file. Every fingerprint matches its pin. **Ungraded:** every gpt-6-sol call failed on the exhausted OpenAI credit, so all 200 episodes need the rubric regrade and the headline category reading.
+1. nvidia/nemotron-3.5-lightning — collecting, pinned to Wafer. Capability arm (2026-10-12): succeeded in all 12 (oversight 3, sandbox 6, goal-guarding 3). Mainline: 12 arms, 120 episodes, every turn served by Wafer; none cut off (one reached the turn cap), graded by gpt-6-sol, none pending. Goal-guarding (2026-10-13): 8 arms, 80 episodes, every turn served by Wafer, none cut off (four reached the turn cap), no episode guarded, all 80 read the file. Grading: 52 episodes first had no gpt-6-sol reading and 3 lost some rubric questions, all to the exhausted OpenAI credit (found 2026-10-14; an earlier note here said none pending). The rubric regrade (2026-10-14) completed all 80, with no failures or partial readings. **Collection complete**; the headline category reading (glm-5.3) is pending.
+2. upstage/solar-mini4 — collected 2026-10-13/14, not pinned (every turn served by Upstage, its only host). Capability arm: capable of all three acts (oversight 2 of 3, 1 refused; sandbox 6 of 6; goal-guarding 3 of 3), so no authorised controls are needed. Mainline: 12 arms, 120 episodes, none failed or cut off (12 reached the turn cap). Goal-guarding: 8 arms, 80 episodes, none failed or cut off (10 reached the turn cap); no episode guarded, 72 read the file. Every fingerprint matches its pin. **Graded:** every gpt-6-sol call first failed on the exhausted OpenAI credit; the rubric regrade (2026-10-14) completed all 200, with no failures or partial readings, and no interrogation is pending. The headline category reading (glm-5.3) is pending.
 3. ibm-granite/granite-4.2-8b
 4. xiaomi/mimo-v2.6-flash
 5. upstage/solar-pro4
