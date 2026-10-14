@@ -10,6 +10,18 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v257
+
+**An association with awareness is stratified by model × arm cell, not by model alone.**
+The arm moves both awareness and whether the act can be taken at all, so within one
+model it is a confounder, and model-only strata left it in: an effect of awareness could
+be entirely the arm's. Each awareness question's Mantel-Haenszel and Breslow-Day estimates
+now hold model and arm constant, one stratum per `arm_key` (model, nudge, oversight, lure,
+goal-guarding arm). Contrasts between arms stay stratified by model, because there the arm
+is the exposure. The per-model table, consistency and multiplicity are unchanged. The
+stratified block names the unit it holds constant, and the crude-against-stratified check
+reads its event counts from that block rather than from a second copy of the strata.
+
 ## v256
 
 **Every unscored contamination probe item is counted as an error, with its reason.** A

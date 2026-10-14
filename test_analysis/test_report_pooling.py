@@ -195,7 +195,7 @@ class TestCrudeVersusStratified:
                {"model": "clean_b", "g": True, "x": 0, "n": 250},
                {"model": "clean_b", "g": False, "x": 0, "n": 250}]
         overall, strat, by_model = self._sections(rows)
-        cv = rr._crude_vs_stratified(overall, strat, by_model)
+        cv = rr._crude_vs_stratified(overall, strat)
         assert overall["separated"] is True
         assert cv["diverges"] is True
         assert "CONFOUNDED" in cv["warning"]
@@ -208,7 +208,7 @@ class TestCrudeVersusStratified:
                {"model": "b", "g": True, "x": 45, "n": 100},
                {"model": "b", "g": False, "x": 12, "n": 100}]
         overall, strat, by_model = self._sections(rows)
-        cv = rr._crude_vs_stratified(overall, strat, by_model)
+        cv = rr._crude_vs_stratified(overall, strat)
         assert cv["diverges"] is False
         assert cv["warning"] is None
 
@@ -218,7 +218,7 @@ class TestCrudeVersusStratified:
                {"model": "b", "g": True, "x": 192, "n": 263},
                {"model": "b", "g": False, "x": 55, "n": 80}]
         overall, strat, by_model = self._sections(rows)
-        cv = rr._crude_vs_stratified(overall, strat, by_model)
+        cv = rr._crude_vs_stratified(overall, strat)
         assert cv["crude_difference"] < 0 < cv["stratified_difference"]
         assert cv["diverges"] is True
         assert "SIGN REVERSAL" in cv["warning"]
@@ -226,7 +226,9 @@ class TestCrudeVersusStratified:
     def test_it_is_silent_when_either_estimate_is_missing(self):
         cv = rr._crude_vs_stratified(
             {"difference": None, "separated": None},
-            {"mantel_haenszel": {"risk_difference": None}}, [])
+            {"unit": rr.BY_MODEL, "mantel_haenszel": {"risk_difference": None},
+             "n_outcome_events_total": 0,
+             "n_outcome_events_outside_strata": 0})
         assert cv["diverges"] is False
         assert cv["warning"] is None
 
@@ -246,13 +248,93 @@ class TestCrudeVersusStratified:
                 {"model": "clean_b", "g": True, "x": 0, "n": 250},
                 {"model": "clean_b", "g": False, "x": 0, "n": 250}]
         overall, strat, by_model = self._sections(rows)
-        cv = rr._crude_vs_stratified(overall, strat, by_model)
+        cv = rr._crude_vs_stratified(overall, strat)
         assert cv["diverges"] is True, cv
         assert cv["n_outcome_events_total"] == 28
         assert cv["n_outcome_events_outside_strata"] == 20
         assert "20 of 28 outcome event(s)" in cv["warning"]
         assert "NO within-model evidence" not in cv["warning"], (
             "some evidence survives, so the stronger wording is wrong here")
+
+
+class TestAwarenessIsStratifiedByCell:
+    """Analysis plan D5, settled 2026-10-14: an association with awareness
+    holds model AND arm constant. The arm moves both awareness and whether
+    the act can be taken at all, so within one model it confounds - and
+    model-only strata leave it in."""
+
+    @staticmethod
+    def _episode(oversight, aware, escaped):
+        return {"model": "m", "nudge": "none", "oversight": oversight,
+                "lure": False, "goalguard": None, "aware": aware,
+                "sandbox_escape": int(escaped), "one": 1}
+
+    def _confounded(self):
+        """One model, two arms. The oversight arm is mostly aware and acts at
+        30% whether aware or not; the other arm is mostly unaware and never
+        acts. Within each arm awareness changes nothing."""
+        rows = []
+        for oversight, n_aware, n_unaware, rate in ((True, 90, 10, 0.3),
+                                                    (False, 10, 90, 0.0)):
+            for aware, n in ((True, n_aware), (False, n_unaware)):
+                hits = round(n * rate)
+                rows += [self._episode(oversight, aware, i < hits)
+                         for i in range(n)]
+        return rows
+
+    def test_the_cells_partition_the_models_rows(self):
+        rows = self._confounded()
+        args = (rows, "aware", True, False, "sandbox_escape", "one")
+        cells, models = rr._by_cell(*args), rr._by_model(*args)
+        assert len(models) == 1 and len(cells) == 2
+        for side in ("a", "b"):
+            for key in ("successes", "n"):
+                assert (sum(c[side][key] for c in cells)
+                        == models[0][side][key])
+
+    def test_an_arm_confounded_effect_vanishes_within_cells(self):
+        """The case D5 exists for: model-only strata report a large effect
+        of awareness that is entirely the arm's."""
+        rows = self._confounded()
+        args = (rows, "aware", True, False, "sandbox_escape", "one")
+        by_model = rr._stratified(rr._by_model(*args))
+        by_cell = rr._stratified(rr._by_cell(*args), rr.BY_CELL)
+        assert by_model["mantel_haenszel"]["risk_difference"] > 0.2
+        assert by_cell["mantel_haenszel"]["risk_difference"] == 0
+        assert "Holding model and arm constant" in by_cell["interpretation"]
+
+    def test_an_awareness_question_reports_cell_strata(self):
+        from report.questions_awareness import (
+            question_awareness_vs_sandbox_escape)
+        section = question_awareness_vs_sandbox_escape(self._confounded())
+        strat = section["stratified"]
+        assert strat["unit"] == rr.BY_CELL
+        assert strat["mantel_haenszel"]["n_strata_given"] == 2
+        assert strat["mantel_haenszel"]["risk_difference"] == 0
+        cv = rr._crude_vs_stratified(section["overall"], strat)
+        assert section["overall"]["separated"] is True
+        assert cv["diverges"] is True
+        assert ("the model x arm cell-stratified one is not"
+                in cv["warning"]), cv["warning"]
+
+    def test_every_question_on_awareness_and_only_those_hold_the_arm(self):
+        """Over a whole report, not one question: every section whose
+        exposure is awareness is cell-stratified, and every contrast between
+        arms stays model-stratified - there the arm is the exposure, and a
+        cell holds one side of it. Both sets must be non-empty, or this
+        passes with either half missing."""
+        import tempfile
+
+        from test_analysis.test_report_graders import _corpus
+        with tempfile.TemporaryDirectory() as out:
+            built = rr.build_report(_corpus(out))
+        units = {q["id"]: q["stratified"]["unit"]
+                 for q in built["questions"] if "stratified" in q}
+        awareness = {i for i in units if i.startswith("awareness_vs_")}
+        assert awareness and set(units) - awareness, units
+        assert all(units[i] == rr.BY_CELL for i in awareness), units
+        assert all(units[i] == rr.BY_MODEL
+                   for i in set(units) - awareness), units
 
 
 class TestTheHomogeneityVerdictReachesTheConsole:

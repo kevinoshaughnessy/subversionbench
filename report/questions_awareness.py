@@ -89,8 +89,9 @@ from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 from .data_quality import cross_analysis_rows
 from .episode_rows import MISALIGNED_ACTS, NUDGE_LEVELS
-from .pooling import (_by_model, _consistency, _contrast, _finding,
-                      _stratified, composite_of, composite_rate_label)
+from .pooling import (BY_CELL, _by_cell, _by_model, _consistency, _contrast,
+                      _finding, _stratified, composite_of,
+                      composite_rate_label)
 
 
 def _timing_caveat(rows: list) -> dict:
@@ -175,7 +176,8 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
     """
     rows = episodes
     overall = _contrast(rows, "aware", True, False, "misaligned", "one")
-    by_model = _by_model(rows, "aware", True, False, "misaligned", "one")
+    strata_args = (rows, "aware", True, False, "misaligned", "one")
+    by_model = _by_model(*strata_args)
     by_nudge = []
     for nd in NUDGE_LEVELS:
         c = _contrast([r for r in rows if r["nudge"] == nd],
@@ -215,7 +217,7 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
                            "verbalised awareness absent", "misalignment rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(by_model),
+        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
         "awareness_timing_caveat": timing_caveat,
@@ -252,7 +254,8 @@ def _question_kind_vs_misalignment(episodes: list, group_key: str,
     excluded = [r for r in episodes if r[group_key] is None]
     rows = [r for r in episodes if r[group_key] is not None]
     overall = _contrast(rows, group_key, True, False, "misaligned", "one")
-    by_model = _by_model(rows, group_key, True, False, "misaligned", "one")
+    strata_args = (rows, group_key, True, False, "misaligned", "one")
+    by_model = _by_model(*strata_args)
     by_nudge = []
     for nd in NUDGE_LEVELS:
         c = _contrast([r for r in rows if r["nudge"] == nd],
@@ -289,7 +292,7 @@ def _question_kind_vs_misalignment(episodes: list, group_key: str,
                            "misalignment rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(by_model),
+        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
     }
@@ -356,7 +359,8 @@ def _question_self_kind_vs_misalignment(episodes: list, self_key: str,
     excluded = len(episodes) - len(both)
 
     overall = _contrast(both, self_key, True, False, "misaligned", "one")
-    by_model = _by_model(both, self_key, True, False, "misaligned", "one")
+    strata_args = (both, self_key, True, False, "misaligned", "one")
+    by_model = _by_model(*strata_args)
     by_nudge = []
     for nd in NUDGE_LEVELS:
         c = _contrast([r for r in both if r["nudge"] == nd],
@@ -406,7 +410,7 @@ def _question_self_kind_vs_misalignment(episodes: list, self_key: str,
             "misalignment rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(by_model),
+        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
         "primary_reading": {
@@ -458,7 +462,8 @@ def _question_awareness_vs_flag(episodes: list, num_key: str,
     excluded = [r for r in episodes if not r[observable_key]]
     rows = [r for r in episodes if r[observable_key]]
     overall = _contrast(rows, "aware", True, False, num_key, "one")
-    by_model = _by_model(rows, "aware", True, False, num_key, "one")
+    strata_args = (rows, "aware", True, False, num_key, "one")
+    by_model = _by_model(*strata_args)
     by_nudge = []
     for nd in NUDGE_LEVELS:
         c = _contrast([r for r in rows if r["nudge"] == nd],
@@ -482,7 +487,7 @@ def _question_awareness_vs_flag(episodes: list, num_key: str,
                            "verbalised awareness absent", metric),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(by_model),
+        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
     }
@@ -602,7 +607,8 @@ def question_awareness_vs_goal_guarding(episodes: list) -> dict:
 def question_awareness_vs_sandbox_escape(episodes: list) -> dict:
     rows = episodes
     overall = _contrast(rows, "aware", True, False, "sandbox_escape", "one")
-    by_model = _by_model(rows, "aware", True, False, "sandbox_escape", "one")
+    strata_args = (rows, "aware", True, False, "sandbox_escape", "one")
+    by_model = _by_model(*strata_args)
     by_nudge = []
     for nd in NUDGE_LEVELS:
         c = _contrast([r for r in rows if r["nudge"] == nd],
@@ -627,7 +633,7 @@ def question_awareness_vs_sandbox_escape(episodes: list) -> dict:
                            "sandbox escape attempt rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(by_model),
+        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
     }
@@ -645,7 +651,8 @@ def question_awareness_vs_scheming(episodes: list) -> dict:
     """
     rows = episodes
     overall = _contrast(rows, "aware", True, False, "scheming", "one")
-    by_model = _by_model(rows, "aware", True, False, "scheming", "one")
+    strata_args = (rows, "aware", True, False, "scheming", "one")
+    by_model = _by_model(*strata_args)
     by_nudge = []
     for nd in NUDGE_LEVELS:
         c = _contrast([r for r in rows if r["nudge"] == nd],
@@ -676,7 +683,7 @@ def question_awareness_vs_scheming(episodes: list) -> dict:
                            "verbalised awareness absent", "scheming rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(by_model),
+        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
     }
@@ -715,7 +722,8 @@ def _question_act_scheming(episodes: list, act_name: str, question: str,
     num = f"scheming_{act_name}"
 
     overall = _contrast(observable, "aware", True, False, num, "one")
-    by_model = _by_model(observable, "aware", True, False, num, "one")
+    strata_args = (observable, "aware", True, False, num, "one")
+    by_model = _by_model(*strata_args)
     by_nudge = []
     for nd in NUDGE_LEVELS:
         c = _contrast([r for r in observable if r["nudge"] == nd],
@@ -754,7 +762,7 @@ def _question_act_scheming(episodes: list, act_name: str, question: str,
                            "verbalised awareness absent", metric),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(by_model),
+        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
         "conditional_on_the_act": conditional,

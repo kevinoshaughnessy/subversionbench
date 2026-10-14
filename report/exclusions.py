@@ -67,6 +67,14 @@ means one place to look for what was dropped.
 # about what awareness does inside an episode. Excluding the arm does not fix
 # that; stratifying by model does, and the report always reports both.
 #
+# NOR DOES v257'S MODEL x ARM STRATIFICATION MAKE THIS EXCLUSION REDUNDANT.
+# Cell strata keep the two arms' episodes apart, which removes the arm as a
+# confounder, but Mantel-Haenszel still pools the cells into ONE common effect
+# - the average of the two opposite effects above. That is effect
+# modification, which stratification does not remove; Breslow-Day across
+# cells is where it shows. Excluding the arm still gives the effect in the
+# arm that has the artefact.
+#
 # So this is still a SENSITIVITY READING and not a correction - it repairs
 # nothing, it reports what is left once the arm is excluded - but it is no
 # longer a workaround for a bug. It is the arm-stratified reading of every

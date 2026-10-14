@@ -128,8 +128,11 @@ more and hide it no more, which is a different claim from either half alone.
 Each question is answered four ways, in this order:
 
 1. **Crude pooled** — every episode in the directory, one 2×2 table.
-2. **Stratified by model** — Mantel-Haenszel, holding model constant, with a Breslow-Day
-   homogeneity test, and a warning if the two estimates diverge.
+2. **Stratified** — Mantel-Haenszel with a Breslow-Day homogeneity test, and a warning if
+   the crude and stratified estimates diverge. A contrast between arms holds model
+   constant. An association with awareness holds model **and arm** constant, one stratum
+   per model × arm cell (nudge, oversight, lure and goal-guarding arm): the arm moves both
+   awareness and whether the act can be taken at all, so within a model it confounds.
 3. **Per-model consistency** — direction per model, and which per-model effects survive
    multiplicity correction.
 4. **By the other axes** — the same contrast within each nudge level, each lure setting, and
@@ -527,7 +530,9 @@ meant.
 ## Reading the output
 
 Illustrative output, to show the shape and the order of the blocks. The figures in it are from
-a corpus snapshot and are not current - see the note at the top of this file.
+a corpus snapshot and are not current - see the note at the top of this file. It predates
+v257: an awareness question now prints `STRATIFIED BY MODEL X ARM CELL (Mantel-Haenszel -
+holds model and arm constant)` and counts cells where this shows models.
 
 ```
 CRUDE POOLED: 30/1622=1.8%     vs 58/1609=3.6%     diff=-1.8%  p=0.002355  SEPARATED
