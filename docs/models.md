@@ -891,8 +891,10 @@ off, none failed, every fingerprint matching its goal-guarding pin; graded by gp
 during collection with no failures, no interrogation pending, and no `Command timed out.`
 in any transcript. No episode guarded. The three no-oversight arms with no cut-off are
 kept. A first attempt collected nothing: the grader's credential was absent from the
-shell, so `run_eval` refused each arm before any call. The glm-5.3 category reading of the
-re-collected arms is pending.
+shell, so `run_eval` refused each arm before any call. The glm-5.3 category reading
+(2026-10-14) covers all 80 of the model's goal-guarding episodes - the 30 in the kept arms
+had none either. Summaries rebuilt and the arm report written at v260, no batch aborted and
+no episode failed. **Complete.**
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
