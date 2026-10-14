@@ -8,8 +8,9 @@ printing all live in the sibling modules - `report/__init__.py` says which
 module holds what.
 
 Questions 1-10 are answered four ways: the crude pooled effect across every
-episode in --output-dir, the model-stratified effect (Mantel-Haenszel, with a
-Breslow-Day homogeneity test), per-model consistency with multiplicity
+episode in --output-dir, the stratified effect (Mantel-Haenszel, with a
+Breslow-Day homogeneity test) - by model for a contrast between arms, by model
+x arm cell for an association with awareness, where the arm confounds - per-model consistency with multiplicity
 correction, and how the effect moves under the other manipulated axes named in
 the question. Questions 11-12 are paired and are appended after that loop rather
 than being made to carry fields that do not apply to them.
@@ -364,13 +365,13 @@ def _answer_questions(episodes, summaries, act_rows, arm_rows,
         question_awareness_vs_oversight_scheming(episodes),
         question_awareness_vs_sandbox_scheming(episodes),
     ]
-    # Attached here rather than inside each question: it reads three fields
+    # Attached here rather than inside each question: it reads two fields
     # every question already has, so building it once centrally keeps the ten
     # question functions from each carrying the same four lines - and keeps
     # _stratified from being computed twice per question.
     for section in questions:
         section["crude_vs_stratified"] = _crude_vs_stratified(
-            section["overall"], section["stratified"], section["by_model"])
+            section["overall"], section["stratified"])
 
     # Questions 11-12 are a different shape - a list of paired contrasts rather
     # than one contrast with strata - so they are appended after the loop above

@@ -434,7 +434,9 @@ def _print_by_act(block: dict) -> None:
 
 def _print_stratified(strat: dict) -> None:
     mh, bd = strat["mantel_haenszel"], strat["breslow_day"]
-    print("\nSTRATIFIED BY MODEL (Mantel-Haenszel - holds model constant):")
+    unit = strat["unit"]
+    print(f"\nSTRATIFIED BY {unit.upper()} (Mantel-Haenszel - holds "
+          f"{strat['holds_constant']} constant):")
     if mh.get("risk_difference") is None:
         print(f"    no stratified estimate ({mh.get('note', 'no data')})")
         return
@@ -443,7 +445,7 @@ def _print_stratified(strat: dict) -> None:
             if mh.get("p") is not None else "CMH test undefined")
     print(f"    risk difference {mh['risk_difference']:+.1%}  "
           f"95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]  {test}  "
-          f"({mh['n_strata_used']}/{mh['n_strata_given']} models)")
+          f"({mh['n_strata_used']}/{mh['n_strata_given']} {unit}s)")
     if mh.get("odds_ratio") is not None:
         or_ci = mh.get("odds_ratio_ci95")
         or_ci_txt = f"  95% CI [{or_ci[0]}, {or_ci[1]}]" if or_ci else ""
@@ -455,7 +457,7 @@ def _print_stratified(strat: dict) -> None:
                    else "does not reject homogeneity")
         print(f"    Breslow-Day {verdict}: chi2={bd['statistic']} "
               f"df={bd['df']} p={bd['p']:.4g} I^2={bd['i_squared']:.1%} "
-              f"({bd['n_strata_used']} informative model(s))")
+              f"({bd['n_strata_used']} informative {unit}(s))")
     else:
         print(f"    Breslow-Day: {bd.get('note', 'not computed')}")
     print(f"    {strat['interpretation']}")
