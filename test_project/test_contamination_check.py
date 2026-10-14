@@ -131,26 +131,44 @@ class TestContaminationCheckAsk:
         text, error = cc.ask(client, "claude-opus-5", "prompt")
         assert (text, error) == ('{"choice": 2}', None)
 
-    def test_a_reply_that_is_all_thinking_is_empty_and_says_why(self):
+    def test_a_reply_that_is_all_thinking_is_no_answer_and_says_why(self):
         """The failure FORCED_CHOICE_TOKENS was raised for: the model spent
-        its ceiling reasoning and emitted no text. The text stays "", not
-        None - "" is scored where an empty answer means something, None
-        leaves the item out of both the numerator and the denominator - but
-        it now carries the stop reason, which was discarded: claude-opus-5's
-        empty replies could not be told apart as refusals or exhausted
-        thinking."""
+        its ceiling reasoning and emitted no text. That is no answer, so
+        None like a failed call - every probe then leaves the item out of
+        both numerator and denominator - with the stop reason, without which
+        claude-opus-5's empty replies could not be told apart as refusals or
+        exhausted thinking."""
         import contamination_check as cc
         client = _RecordingClient(_Reply(_Block("thinking", "still going"),
                                          stop_reason="max_tokens"))
-        text, error = cc.ask(client, "claude-opus-5", "p")
-        assert text == ""
-        assert error == "no visible output (stop_reason=max_tokens)"
+        assert cc.ask(client, "claude-opus-5", "p") == (
+            None, "no visible output (stop_reason=max_tokens)")
 
     def test_a_refusal_is_named_as_one(self):
         import contamination_check as cc
         client = _RecordingClient(_Reply(stop_reason="refusal"))
         assert cc.ask(client, "claude-opus-5", "p") == (
-            "", "no visible output (stop_reason=refusal)")
+            None, "no visible output (stop_reason=refusal)")
+
+    def test_a_refused_continuation_is_not_scored_as_zero_overlap(self):
+        """Through the real ask(), not a stub of it. claude-opus-5 refused
+        two continuation probes, and v256 scored each as 0% overlap - a
+        refusal counted as evidence the text was not memorised."""
+        import contamination_check as cc
+        import subversionbench.contamination as cont
+        client = _RecordingClient(_Reply(stop_reason="refusal"))
+        saved = ev_llm.get_client
+        ev_llm.get_client = lambda model: client
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                _canary, _fc, results = cc.probe_model(
+                    "claude-opus-5", [], cont.build_continuations()[:2],
+                    delay=0, keep_prompts=False)
+        finally:
+            ev_llm.get_client = saved
+        assert len(results) == 2
+        assert all(r["overlap"] is None for r in results), results
+        assert all("refusal" in r["error"] for r in results)
 
     def test_the_forced_choice_ceiling_leaves_room_after_reasoning(self):
         """2000 was measured too small: seven reasoning models on OpenRouter

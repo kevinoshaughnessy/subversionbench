@@ -119,13 +119,15 @@ def ask(client, model, prompt, max_tokens=400):
         )
         block = next((b for b in response.content if b.type == "text"), None)
         if block is None:
-            # Still "", so a probe that scores an empty answer still scores
-            # it - but with the reason, which was discarded. claude-opus-5
-            # returned no text on the same three forced-choice items in two
-            # runs, recorded with no error, and nothing could say whether it
-            # had refused or spent the ceiling thinking.
-            return "", (f"no visible output (stop_reason="
-                        f"{getattr(response, 'stop_reason', None)})")
+            # No answer, so None like any failed call, and with the reason.
+            # claude-opus-5 returned no text on the same three forced-choice
+            # items in two runs, recorded with no error; once the stop reason
+            # was kept (v256) every one read `refusal`, and so did two of its
+            # continuation probes. v256 returned "" here, which the
+            # continuation probe scored as zero overlap - a refusal counted
+            # as evidence of no memorisation.
+            return None, (f"no visible output (stop_reason="
+                          f"{getattr(response, 'stop_reason', None)})")
         return block.text, None
     except Exception as e:
         return None, str(e)
