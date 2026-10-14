@@ -958,9 +958,18 @@ flagged nothing that was not one.
 | deepseek/deepseek-v4-flash | — | 1 / 10 / 2 | 10 |
 | tencent/hy4-preview | — | 1 / 10 / 1 | 10 |
 
-**Order.** The first four models first (about 470 episodes); the next five after them. The
-nine with one to three cut-offs move no rate by much, and can be left as flagged arms if a
-fully clean corpus is not wanted. glm-5.3's goal-guarding arm with no nudge and an imminent
+**Order, decided 2026-10-14.** Three tiers, by the models' order in the table above:
+
+- **Heavy, the first four** (about 470 episodes, of which glm-5.3 entirely and
+  deepseek-v4.1-flash's mainline are done; 270 left, 56 cut off). Re-collected first.
+- **Middle, the next five** (hy3 to unbiased/pareto: 320 episodes, 48 cut off).
+  Re-collected next.
+- **Light, the remaining eleven** (200 episodes, 25 cut off: at most five per model, and
+  mostly one in ten per arm). Kept as flagged arms for now. Whether to re-collect them is
+  reviewed once the first two tiers are re-collected and graded, weighing how far
+  re-collection moved those arms' rates against their flagged originals.
+
+glm-5.3's goal-guarding arm with no nudge and an imminent
 replacement had all ten episodes cut off, so it measured nothing until its re-collection on
 2026-10-12.
 
