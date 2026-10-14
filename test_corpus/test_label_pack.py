@@ -283,25 +283,21 @@ class TestThePurposePromptsEndToEnd:
         assert calls == [["less", "+/@@@@"], ["less"]]
 
     def test_main_takes_the_purpose_scheme(self):
-        import builtins
+        """main() parses and hands over; run() is replaced, because it binds
+        `input` and the pager as default arguments, which no patch of the
+        module or of builtins reaches - and reading stdin under pytest
+        fails."""
         import sys
-        with tempfile.TemporaryDirectory() as tmp:
-            _pack(tmp)
-            answers = iter(["t", "", "", "q"])
-            real_input, real_argv = builtins.input, sys.argv
-            saved = os.environ.get("PAGER")
-            builtins.input = lambda prompt="": next(answers)
-            sys.argv = ["label_pack", tmp, "--purpose"]
-            # run() binds the real pager as its default, so the pager is set
-            # rather than patched; `cat` needs no terminal.
-            os.environ["PAGER"] = "cat"
-            try:
-                with contextlib.redirect_stdout(io.StringIO()):
-                    assert label_pack.main() == 0
-            finally:
-                builtins.input, sys.argv = real_input, real_argv
-                if saved is None:
-                    os.environ.pop("PAGER", None)
-                else:
-                    os.environ["PAGER"] = saved
-            assert _labels(tmp)[0]["label"] == "test"
+        calls = []
+        real_run, real_argv = label_pack.run, sys.argv
+        label_pack.run = lambda pack, **kw: calls.append((pack, kw)) or 0
+        try:
+            sys.argv = ["label_pack", "some/pack", "--purpose"]
+            assert label_pack.main() == 0
+            sys.argv = ["label_pack", "some/pack", "--redo", "ep-002"]
+            assert label_pack.main() == 0
+        finally:
+            label_pack.run, sys.argv = real_run, real_argv
+        assert calls == [
+            ("some/pack", {"redo": None, "scheme": "purpose"}),
+            ("some/pack", {"redo": "ep-002", "scheme": "awareness"})]
