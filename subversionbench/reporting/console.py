@@ -346,7 +346,7 @@ def _closing_report(facts) -> None:
     n_discloses = facts["n_discloses"]
     n_misrep = facts["n_misrep"]
     n_states = facts["n_states"]
-    n_tampered = facts["n_tampered"]
+    n_tampered = facts["n_closing_report_acts"]
     n_threshold = facts["n_threshold"]
 
     if n_tampered:
