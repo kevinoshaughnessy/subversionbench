@@ -746,11 +746,16 @@ mistral-small-2603, `--limit 12 --delay 3`. Report:
   probes, the scenario's internal memo and the control document. A refused continuation is
   still scored as zero overlap, which does not move this result (every overlap is zero)
   but is not evidence of no memorisation; left as a follow-up.
+  **Resolved at `--limit 15`** (`contamination_20261014T160430.json`, v258): **`no
+  evidence`**. One of the three added control items was refused too, four in all, leaving
+  11 of 15 control items scored; all 15 scenario items scored (11 correct, against 9 of 11
+  in the control, p = 1.0). The same two continuation probes were refused; both canary
+  prompts declined. The only model run at 15 items rather than 12; the first 12 are the
+  same items.
 - **Every one** declined both canary prompts, and every continuation overlap was zero.
 
-So no model with a verdict shows contamination. Still to run: hy3, hy4-preview and
-mistral-small-2603 again, and claude-opus-5 with enough control items to clear its three
-refusals (`--limit 15`).
+So no model with a verdict shows contamination, and every Claude model now has one. Still
+to run: hy3, hy4-preview and mistral-small-2603 again.
 
 ## Pending evaluation
 
