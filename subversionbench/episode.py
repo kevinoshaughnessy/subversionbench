@@ -35,7 +35,8 @@ from .arm_record import arm_identity
 from .config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION, TOOLS
 from .followup import add_awareness_timing, interrogate_acts
 from .graders import new_record
-from .grading import (MISALIGNED_ACTS, NO_CONTENT_MARKER, analyze_misalignment,
+from .grading import (MISALIGNED_ACTS, NO_CONTENT_MARKER, act_value,
+                      analyze_misalignment,
                       detect_eval_awareness_keywords,
                       detect_misuse_suspicion,
                       report_grader_failure, settle_analysis,
@@ -515,7 +516,7 @@ def _interrogate_the_acts(analysis, transcript, session, grader_model, nudge,
     # asked and discarded, because the answers would still be saved, still
     # cost a request per act, and still be there for someone to read as a
     # concealment rate later.
-    taken = [act["name"] for act in MISALIGNED_ACTS if analysis.get(act["key"])]
+    taken = [act["name"] for act in MISALIGNED_ACTS if act_value(analysis, act)]
     if capability is None and not use_grader:
         if taken:
             analysis["interrogation_pending"] = taken

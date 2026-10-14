@@ -23,7 +23,7 @@ from ..batch import unique_batch_stamp
 from ..followup import add_awareness_timing
 from ..graders import (REGRADE_ALL, grader_models, regrade_targets, store,
                        view)
-from ..grading import MISALIGNED_ACTS
+from ..grading import MISALIGNED_ACTS, act_value
 from ..power import wilson_ci
 from ..redaction import redact_paths
 from ..hostenv import sed_is_bsd
@@ -103,7 +103,7 @@ def _concealment_reading(analysis: dict) -> dict:
     return {"scheming": analysis.get("scheming"),
             "concealment": {act["name"]: analysis.get(act["level_key"])
                             for act in MISALIGNED_ACTS
-                            if analysis.get(act["key"])}}
+                            if act_value(analysis, act)}}
 
 
 def _stored_concealment(stored: dict, model: str, prefix: str) -> dict:

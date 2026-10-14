@@ -16,7 +16,7 @@ sits beside the timing because it is read off the same per-act record.
 import statistics
 
 from ...grading import (AWARENESS_ONSET_LEVELS, AWARENESS_TIMING_LEVELS,
-                       LOCATED_BY_RECORDED_COMMANDS, MISALIGNED_ACTS,
+                       LOCATED_BY_RECORDED_COMMANDS, MISALIGNED_ACTS, act_value,
                        awareness_onset, classify_misalignment)
 from ...power import fisher_exact_p, wilson_ci
 
@@ -114,7 +114,7 @@ def _read_to_act_counts(all_results: list) -> dict:
         if act["located_by"] == LOCATED_BY_RECORDED_COMMANDS:
             continue
         timings = [r["analysis"].get(act["timing_key"]) or {}
-                   for r in all_results if r["analysis"].get(act["key"])]
+                   for r in all_results if act_value(r["analysis"], act)]
         gaps = sorted(t["read_to_act_turns"] for t in timings
                       if t.get("read_to_act_turns") is not None)
         out[act["name"]] = {
@@ -147,7 +147,7 @@ def _awareness_timing_counts(all_results: list) -> dict:
             timing = (analysis.get(act["timing_key"]) or {}).get("timing")
             if timing in by_level:
                 by_level[timing] += 1
-            if not analysis.get(act["key"]):
+            if not act_value(analysis, act):
                 continue
             flag, source = awareness_before_act_flag(analysis, act)
             grader_before["unavailable" if flag is None

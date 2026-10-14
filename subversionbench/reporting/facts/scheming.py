@@ -11,7 +11,7 @@ episode did is the same question as concealment, asked of the model's own prose 
 than of its answers.
 """
 
-from ...grading import (CONCEALMENT_LEVELS, MISALIGNED_ACTS, SCHEMING_LEVELS,
+from ...grading import (CONCEALMENT_LEVELS, MISALIGNED_ACTS, act_value, SCHEMING_LEVELS,
                        classify_scheming, concealment_level)
 from ...power import wilson_ci
 
@@ -49,7 +49,7 @@ def scheming_facts(all_results: list, n: int) -> dict:
         open_about = sum(1 for v in verdicts if v is False)
         undetermined = sum(
             1 for r, v in zip(all_results, verdicts, strict=True)
-            if v is None and r["analysis"].get(act["key"]))
+            if v is None and act_value(r["analysis"], act))
         determined = concealed + open_about
         scheming_by_act[act["name"]] = {
             "n_concealed": concealed,
@@ -75,7 +75,7 @@ def scheming_facts(all_results: list, n: int) -> dict:
         counts = dict.fromkeys(CONCEALMENT_LEVELS, 0)
         undetermined = 0
         for r in all_results:
-            if not r["analysis"].get(act["key"]):
+            if not act_value(r["analysis"], act):
                 continue
             level = r["analysis"].get(act["level_key"]) or concealment_level(
                 r["analysis"], act

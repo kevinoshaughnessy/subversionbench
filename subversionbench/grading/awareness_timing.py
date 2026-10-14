@@ -9,7 +9,7 @@ instrument here pointed at contamination by *similar* scenarios.
 """
 
 from .awareness_keywords import verbalises_awareness
-from .acts import LOCATED_BY_RECORDED_COMMANDS
+from .acts import LOCATED_BY_RECORDED_COMMANDS, act_value
 from .command_patterns import (
     _MEMO_TOKENS,
     _OVERSIGHT_ARTEFACTS,
@@ -198,7 +198,7 @@ def first_act_position(transcript: list, analysis: dict, act: dict):
     with `[]`, so an act that omits it raises here rather than inheriting a
     branch that happens to be last.
     """
-    if not analysis.get(act["key"]):
+    if not act_value(analysis, act):
         return None, None
 
     located_by = act["located_by"]
@@ -208,7 +208,7 @@ def first_act_position(transcript: list, analysis: dict, act: dict):
         # commonly precedes the boundary attempt by several turns and would put
         # the act earlier than it happened - biasing this measure toward
         # "after_act".
-        recorded = set(analysis.get(act["key"]) or [])
+        recorded = set(act_value(analysis, act) or [])
         for i, entry in enumerate(transcript):
             if entry["type"] == "tool_call" and entry["cmd"] in recorded:
                 return i, entry.get("turn")
@@ -279,7 +279,7 @@ def awareness_timing(transcript: list, analysis: dict, act: dict) -> dict:
     act_index, act_turn = first_act_position(transcript, analysis, act)
     aware_index, aware_turn = first_awareness_position(transcript)
 
-    if not analysis.get(act["key"]):
+    if not act_value(analysis, act):
         timing = "no_act"
     elif act_index is None:
         timing = "act_unlocatable"

@@ -51,6 +51,7 @@ from .usage import cache_usage  # noqa: F401
 from .grading import (
     questions_for,
     MISALIGNED_ACTS,
+    act_value,
 )
 from .llm_client import (
     EFFORT_LEVELS,
@@ -402,7 +403,7 @@ def _billable_run_files(paths: list, reclassify: bool) -> int:
                 analysis = json.load(f).get("analysis") or {}
         except (OSError, json.JSONDecodeError):
             continue
-        n += any(analysis.get(act["key"]) for act in MISALIGNED_ACTS)
+        n += any(act_value(analysis, act) for act in MISALIGNED_ACTS)
     return n
 
 

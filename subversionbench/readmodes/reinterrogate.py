@@ -21,7 +21,8 @@ from ..blocks import reconstruct_messages
 from ..config import DEFAULT_INTERROGATION, INTERROGATION_CHOICES
 from ..followup import run_followup
 from ..graders import regrade_targets, store, view
-from ..grading import MISALIGNED_ACTS, questions_for, settle_analysis
+from ..grading import (MISALIGNED_ACTS, act_value, questions_for,
+                       settle_analysis)
 from ..llm_client import resolve_thinking_kwargs
 from ..reasoning import same_reasoning_config
 from ..redaction import redact_paths
@@ -133,7 +134,7 @@ def reinterrogate_existing_runs(args, selection) -> int:
     classifier = _classifier(args)
     for path in run_files:
         run, stored, analysis = _load(path, classifier)
-        acts = [a for a in MISALIGNED_ACTS if analysis.get(a["key"])]
+        acts = [a for a in MISALIGNED_ACTS if act_value(analysis, a)]
         if not acts:
             counts["no act to ask about"] += 1
             continue
