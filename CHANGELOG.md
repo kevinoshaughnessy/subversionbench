@@ -10,6 +10,18 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v256
+
+**Every unscored contamination probe item is counted as an error, with its reason.** A
+forced-choice reply that parsed but held no valid choice was left unscored with no error,
+so a model could fall short of a verdict while its error count read zero. And a reply with
+no text on the native Anthropic route was recorded as an empty answer with its stop reason
+discarded, so a refusal could not be told from thinking that used the whole ceiling. Both
+now carry an error: `no valid choice in reply`, and `no visible output (stop_reason=...)`.
+The empty text is still scored where an empty answer means something. A canary call with
+no text now counts as unusable, so a model whose canary replies are both empty no longer
+reaches a verdict on the canary.
+
 ## v255
 
 **The forced-choice probe allows 8000 tokens.** Reasoning models reached over OpenRouter,

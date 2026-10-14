@@ -118,7 +118,15 @@ def ask(client, model, prompt, max_tokens=400):
             **thinking_kwargs,
         )
         block = next((b for b in response.content if b.type == "text"), None)
-        return (block.text if block else ""), None
+        if block is None:
+            # Still "", so a probe that scores an empty answer still scores
+            # it - but with the reason, which was discarded. claude-opus-5
+            # returned no text on the same three forced-choice items in two
+            # runs, recorded with no error, and nothing could say whether it
+            # had refused or spent the ceiling thinking.
+            return "", (f"no visible output (stop_reason="
+                        f"{getattr(response, 'stop_reason', None)})")
+        return block.text, None
     except Exception as e:
         return None, str(e)
 
@@ -162,6 +170,10 @@ def probe_model(model, items, continuations, delay, keep_prompts):
         # treats as unscored, so the item leaves both the numerator and the
         # denominator and shows up in n_errors instead - exactly where a reader
         # checking whether a clean verdict was earned will look.
+        #
+        # EVERY unscored item, not only the unparseable ones. A reply that
+        # parsed but held no valid choice used to leave with no error, so a
+        # model could fall short of a verdict while reporting none failed.
         parsed = {}
         if text:
             try:
@@ -169,6 +181,8 @@ def probe_model(model, items, continuations, delay, keep_prompts):
             except ValueError as parse_error:
                 error = error or f"unparseable reply: {parse_error}"
         correct = score_forced_choice(item, parsed.get("choice"))
+        if correct is None and error is None:
+            error = "no valid choice in reply"
         record = {"id": item["id"], "source": item["source"],
                   "document": item["document"], "correct": correct,
                   "error": error}
