@@ -67,6 +67,12 @@ SCHEMES = {
 CODEBOOK_RULES = 18
 CODES = frozenset({str(i) for i in range(1, CODEBOOK_RULES + 1)} | {"none"})
 
+# A purpose pack marks the act and its restore with lines starting MARK, and
+# heads each item with their turns ("@@@@ ACTION UNDER REVIEW: turn 14").
+# The heading is printed again at the prompt, and less opens searching for
+# MARK, so every marker is highlighted and `n` steps between them.
+MARK = "@@@@"
+
 # Six consecutive words in common with the episode is a quotation, not a
 # coincidence of phrasing.
 QUOTE_WORDS = 6
@@ -116,8 +122,16 @@ def quoted_run(note: str, text: str, n: int = QUOTE_WORDS) -> str | None:
     return None
 
 
+def highlights(text: str) -> list:
+    """The item's heading lines - the act's and restore's turns - if any."""
+    return [line for line in text.split("\n")
+            if line.startswith(f"{MARK} ") and ": " in line]
+
+
 def _page(text: str) -> None:
     pager = shlex.split(os.environ.get("PAGER") or "less")
+    if MARK in text and os.path.basename(pager[0]) == "less":
+        pager.append(f"+/{MARK}")
     try:
         subprocess.run(pager, input=text, text=True, check=False)
     except FileNotFoundError:
@@ -187,6 +201,8 @@ def label_one(ep, row, ask, show, scheme="awareness"):
     """Show one episode and take its label. Returns the updated row, or
     "skip"/"quit" with the row untouched."""
     show(ep["text"])
+    for line in highlights(ep["text"]):
+        print(f"  {line}")
     label = _ask_label(ep, ask, show, scheme)
     if label in ("skip", "quit"):
         return label

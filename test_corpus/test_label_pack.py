@@ -176,3 +176,10 @@ class TestThePurposeScheme:
             _run(tmp, "u", "decided to report the figures exactly as",
                  "the model gave no reason", "q", scheme="purpose")
             assert _labels(tmp)[0]["note"] == "the model gave no reason"
+
+    def test_the_act_and_restore_turns_are_printed_at_the_prompt(self):
+        text = ("@@@@ ACTION UNDER REVIEW: turn 14\n\n@@@@ RESTORE: turn 19"
+                "\n\n@@@@ >>> ACTION UNDER REVIEW, turn 14 >>>\nbody")
+        assert label_pack.highlights(text) == [
+            "@@@@ ACTION UNDER REVIEW: turn 14", "@@@@ RESTORE: turn 19"]
+        assert label_pack.highlights(_TEXT) == []
