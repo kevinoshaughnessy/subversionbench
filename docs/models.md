@@ -740,13 +740,17 @@ mistral-small-2603, `--limit 12 --delay 3`. Report:
   all 12. These three are recorded with no error, so its error count reads zero; the probe's
   own comment says an unscored item is counted as an error, and here it is not. A re-run
   with `--include-prompts` (`contamination_20261014T133945.json`, same verdict) shows all
-  three replies empty, on the same three items both times. The probe keeps no stop reason
-  for a reply with no text, so whether these were refusals or exhausted thinking is not
-  recorded.
+  three replies empty, on the same three items both times. A third run at v258, which
+  records the stop reason (`contamination_20261014T155553.json`, same verdict), shows all
+  three were refusals (`stop_reason=refusal`), and so were two of its 13 continuation
+  probes, the scenario's internal memo and the control document. A refused continuation is
+  still scored as zero overlap, which does not move this result (every overlap is zero)
+  but is not evidence of no memorisation; left as a follow-up.
 - **Every one** declined both canary prompts, and every continuation overlap was zero.
 
 So no model with a verdict shows contamination. Still to run: hy3, hy4-preview and
-mistral-small-2603 again, and claude-opus-5 once the probe records why a reply was empty.
+mistral-small-2603 again, and claude-opus-5 with enough control items to clear its three
+refusals (`--limit 15`).
 
 ## Pending evaluation
 
