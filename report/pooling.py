@@ -19,8 +19,6 @@ from subversionbench.power import (benjamini_hochberg, breslow_day,
                                    compare_rates, holm_bonferroni,
                                    mantel_haenszel)
 
-from .loading import arm_key
-
 # What a stratified estimate holds constant, and the phrase each reads as.
 BY_MODEL = "model"
 BY_CELL = "model x arm cell"
@@ -78,10 +76,12 @@ def _by_model(rows: list, group_key: str, level_a, level_b,
 
 
 def _by_cell(rows: list, group_key: str, level_a, level_b,
-             num_key: str, den_key: str) -> list:
+             num_key: str, den_key: str, cell_of) -> list:
     """
-    One contrast per model x arm cell - loading.arm_key, so nudge, oversight,
-    lure and goal-guarding arm as well as model.
+    One contrast per model x arm cell, `cell_of(row)` naming the cell -
+    loading.arm_key, so nudge, oversight, lure and goal-guarding arm as well
+    as model, with the model first. Passed in rather than imported: pooling
+    knows nothing of where its rows came from (TestTheLayersDoNotPointBackwards).
 
     THE STRATA FOR AN AWARENESS-TO-ACT ASSOCIATION (analysis plan D5, settled
     2026-10-14). The arm moves both awareness and whether the act can be
@@ -93,7 +93,7 @@ def _by_cell(rows: list, group_key: str, level_a, level_b,
     """
     cells = {}
     for r in rows:
-        cells.setdefault(arm_key(r), []).append(r)
+        cells.setdefault(cell_of(r), []).append(r)
     out = []
     for key in sorted(cells, key=repr):
         c = _contrast(cells[key], group_key, level_a, level_b,

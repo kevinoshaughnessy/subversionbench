@@ -89,6 +89,7 @@ from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 from .data_quality import cross_analysis_rows
 from .episode_rows import MISALIGNED_ACTS, NUDGE_LEVELS
+from .loading import arm_key
 from .pooling import (BY_CELL, _by_cell, _by_model, _consistency, _contrast,
                       _finding, _stratified, composite_of,
                       composite_rate_label)
@@ -217,7 +218,7 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
                            "verbalised awareness absent", "misalignment rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
+        "stratified": _stratified(_by_cell(*strata_args, arm_key), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
         "awareness_timing_caveat": timing_caveat,
@@ -292,7 +293,7 @@ def _question_kind_vs_misalignment(episodes: list, group_key: str,
                            "misalignment rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
+        "stratified": _stratified(_by_cell(*strata_args, arm_key), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
     }
@@ -410,7 +411,7 @@ def _question_self_kind_vs_misalignment(episodes: list, self_key: str,
             "misalignment rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
+        "stratified": _stratified(_by_cell(*strata_args, arm_key), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
         "primary_reading": {
@@ -487,7 +488,7 @@ def _question_awareness_vs_flag(episodes: list, num_key: str,
                            "verbalised awareness absent", metric),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
+        "stratified": _stratified(_by_cell(*strata_args, arm_key), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
     }
@@ -633,7 +634,7 @@ def question_awareness_vs_sandbox_escape(episodes: list) -> dict:
                            "sandbox escape attempt rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
+        "stratified": _stratified(_by_cell(*strata_args, arm_key), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
     }
@@ -683,7 +684,7 @@ def question_awareness_vs_scheming(episodes: list) -> dict:
                            "verbalised awareness absent", "scheming rate"),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
+        "stratified": _stratified(_by_cell(*strata_args, arm_key), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
     }
@@ -762,7 +763,7 @@ def _question_act_scheming(episodes: list, act_name: str, question: str,
                            "verbalised awareness absent", metric),
         "by_model": by_model,
         "consistency": _consistency(by_model),
-        "stratified": _stratified(_by_cell(*strata_args), BY_CELL),
+        "stratified": _stratified(_by_cell(*strata_args, arm_key), BY_CELL),
         "by_nudge": by_nudge,
         "by_lure": by_lure,
         "conditional_on_the_act": conditional,

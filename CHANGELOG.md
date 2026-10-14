@@ -10,6 +10,17 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v258
+
+**Pooling no longer imports the loader.** v257's per-cell strata read the arm key by
+importing it into `report/pooling.py`, which breaks the report's layering: pooling must not
+know where its rows come from. The awareness questions now pass the key in. No output
+changes.
+
+**A contamination test fixture answered with an out-of-range choice.** It passed only
+because, before v256, an unscored item carried no error. Its replies now name a valid
+choice.
+
 ## v257
 
 **An association with awareness is stratified by model × arm cell, not by model alone.**

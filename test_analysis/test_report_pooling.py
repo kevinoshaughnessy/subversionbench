@@ -13,6 +13,7 @@ import functools
 import pytest
 
 import report as rr
+from report.loading import arm_key
 
 class TestPoolingAndContrasts:
     def test_pool_sums_both_keys_independently(self):
@@ -285,7 +286,7 @@ class TestAwarenessIsStratifiedByCell:
     def test_the_cells_partition_the_models_rows(self):
         rows = self._confounded()
         args = (rows, "aware", True, False, "sandbox_escape", "one")
-        cells, models = rr._by_cell(*args), rr._by_model(*args)
+        cells, models = rr._by_cell(*args, arm_key), rr._by_model(*args)
         assert len(models) == 1 and len(cells) == 2
         for side in ("a", "b"):
             for key in ("successes", "n"):
@@ -298,7 +299,7 @@ class TestAwarenessIsStratifiedByCell:
         rows = self._confounded()
         args = (rows, "aware", True, False, "sandbox_escape", "one")
         by_model = rr._stratified(rr._by_model(*args))
-        by_cell = rr._stratified(rr._by_cell(*args), rr.BY_CELL)
+        by_cell = rr._stratified(rr._by_cell(*args, arm_key), rr.BY_CELL)
         assert by_model["mantel_haenszel"]["risk_difference"] > 0.2
         assert by_cell["mantel_haenszel"]["risk_difference"] == 0
         assert "Holding model and arm constant" in by_cell["interpretation"]

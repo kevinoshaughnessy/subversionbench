@@ -496,7 +496,10 @@ class TestTheProbeRunnerSurvivesOneBadReply:
                 return "UNKNOWN", None          # canary, declined
             if calls["n"] == 3:
                 return "An analysis of the options", None   # the bad one
-            return '{"choice": 0}', None
+            # 1, not 0: choices are 1-indexed, and 0 was out of range. Those
+            # items were unscored with no error until v256, which is how this
+            # test passed while five of its six items went unscored.
+            return '{"choice": 1}', None
 
         mod.ask = reply
         with _no_real_client():
