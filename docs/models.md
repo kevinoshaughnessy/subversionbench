@@ -873,6 +873,14 @@ rather than redrawn, for the reason a cut-off episode is not redrawn alone (belo
 failure fell on a long deliberation. Graded by gpt-6-sol on 2026-10-12, as the mainline arms
 were; no grader errors. Summaries rebuilt.
 
+**deepseek/deepseek-v4.1-flash, goal-guarding - collecting from 2026-10-14:** the first
+heavy-tier model. Its five affected arms (none deferred, none replacement, none replacement
+no-oversight, strong deferred, strong replacement; 50 runs, 5 summaries, 6 failed-episode
+records) moved to `eval_results_goalguard_r1_superseded_v41flash_8192/`, re-collecting
+pinned to Together with `--max-tokens 32768` and graded by gpt-6-sol as it goes. The three
+no-oversight arms with no cut-off are kept. A first attempt collected nothing: the grader's
+credential was absent from the shell, so `run_eval` refused each arm before any call.
+
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
 the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
