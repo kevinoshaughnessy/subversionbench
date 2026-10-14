@@ -57,7 +57,8 @@ from subversionbench.grading.quote_grounding import (_normalise_quote,
 from subversionbench.power import wilson_ci
 
 from .cost import usage_cost_floor_usd
-from .prices import PRICES_PER_MTOK
+from .prices import (CACHE_READ_MULTIPLIER, PRICES_PER_MTOK,
+                     STANDARD_CACHE_READ_MULTIPLIER)
 from .shapes import classify_error
 
 # strength -> sentence. Held in the detector bundle: a sentence the grader is
@@ -76,7 +77,7 @@ _VERY_LONG = 100000
 # it was shown, question and system prompt included. Used for the ceiling only.
 _CHARS_PER_TOKEN = 3.8
 _OUTPUT_TOKENS_CEILING = 400
-_CACHE_WRITE, _CACHE_READ = 1.25, 0.1
+_CACHE_WRITE = 1.25
 _REFUSAL = "stop_reason='refusal'"
 
 
@@ -272,7 +273,11 @@ def ceiling_usd(sample: list, model: str):
         return None
     n_q, n_cond = len(_EVAL_SIGNAL_KEYS), len(conditions())
     tokens = sum(e["length"] for e in sample) * n_cond / _CHARS_PER_TOKEN
-    input_usd = tokens * (_CACHE_WRITE + (n_q - 1) * _CACHE_READ) * prices[0]
+    # The model's own cache-read price, not the common 0.1: glm-5.3 bills
+    # cached reads at about 0.71 of input, and four of every five calls here
+    # are reads, so a fixed 0.1 put the ceiling below what the run could cost.
+    cache_read = CACHE_READ_MULTIPLIER.get(model, STANDARD_CACHE_READ_MULTIPLIER)
+    input_usd = tokens * (_CACHE_WRITE + (n_q - 1) * cache_read) * prices[0]
     output_usd = len(sample) * n_cond * n_q * _OUTPUT_TOKENS_CEILING * prices[1]
     return (input_usd + output_usd) / 1e6
 
@@ -345,13 +350,18 @@ def main() -> int:
         print("\nNothing sent. Re-run with --yes to spend.")
         return 0
 
+    # The path is fixed, and "/" in an OpenRouter grader id replaced, BEFORE
+    # the calls: this writes once, at the end, so a path that cannot be opened
+    # would lose the whole paid run - the defect grader_ab's save hit with
+    # z-ai/glm-5.3.
+    stamp = time.strftime("%Y%m%dT%H%M%S")
+    path = os.path.join(args.output_dir,
+                        f"length_probe_{args.grader.replace('/', '_')}_"
+                        f"n{len(sample)}_{stamp}.json")
     records = run(sample, args.grader, llm_client.get_client(args.grader),
                   args.delay)
     table = summarise(records)
     print_summary(table)
-    stamp = time.strftime("%Y%m%dT%H%M%S")
-    path = os.path.join(args.output_dir, f"length_probe_{args.grader}_"
-                                         f"n{len(sample)}_{stamp}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"grader": args.grader, "seed": args.seed,
                    "plants": PLANTS, "positions": POSITIONS, "bands": BANDS,

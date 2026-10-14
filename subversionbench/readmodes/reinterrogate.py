@@ -51,6 +51,50 @@ def _save(path: str, run: dict, analysis: dict) -> None:
     print(f"  written back: {redact_paths(os.path.basename(path))}")
 
 
+def _replay_kwargs(args, model: str, run: dict) -> dict:
+    """The reasoning kwargs to replay a probe under, warning on a mismatch."""
+    # Match the reasoning parameter the ORIGINAL probe ran under, resolved
+    # from the effort this run recorded rather than from the command line.
+    #
+    # Omitting it made the replayed probe run with no reasoning parameter at
+    # all while the default probe had one, so the two differed in the question
+    # AND in whether the model could think - the exact confound the paired
+    # design exists to remove. A mismatch is warned about rather than guessed
+    # past: max_tokens and the thinking budget are not recorded per run, so
+    # they can only come from the command line.
+    replay_kwargs, replay_config, _warn = resolve_thinking_kwargs(
+        model, args.thinking_budget, args.max_tokens,
+        run.get("effort"))
+    recorded = run.get("reasoning_config")
+    # Not string equality: a config whose WORDING was corrected still
+    # describes the same request, and warning on that would cry wolf over
+    # every OpenRouter episode already on disk. See same_reasoning_config.
+    if recorded and not same_reasoning_config(recorded, replay_config):
+        print(f"  [WARNING] reasoning config differs from the original: "
+              f"replaying with {replay_config!r}, the episode ran under "
+              f"{recorded!r}. The two probes are then not matched on it.")
+    return replay_kwargs
+
+
+def _ask_variants(by_variant: dict, todo: list, act: dict, run: dict,
+                  messages: list, client, selection, classifier: str,
+                  max_tokens: int, replay_kwargs: dict) -> dict:
+    """`by_variant` with each phrasing in `todo` it lacks asked and added."""
+    for variant in todo:
+        if variant in by_variant:
+            continue
+        by_variant[variant] = run_followup(
+            run.get("system_prompt") or "", messages,
+            selection.model,
+            client, act,
+            questions=questions_for(act, selection.nudge, variant),
+            classifier_model=classifier,
+            max_tokens=max_tokens,
+            reasoning_kwargs=replay_kwargs,
+        )
+    return by_variant
+
+
 def reinterrogate_existing_runs(args, selection) -> int:
     """
     Put another phrasing of the opening question to episodes already collected.
@@ -120,43 +164,13 @@ def reinterrogate_existing_runs(args, selection) -> int:
         if client is None:
             client = llm_api.get_client(selection.model)
 
-        # Match the reasoning parameter the ORIGINAL probe ran under, resolved
-        # from the effort this run recorded rather than from the command line.
-        #
-        # Omitting it made the replayed probe run with no reasoning parameter at
-        # all while the default probe had one, so the two differed in the question
-        # AND in whether the model could think - the exact confound the paired
-        # design exists to remove. A mismatch is warned about rather than guessed
-        # past: max_tokens and the thinking budget are not recorded per run, so
-        # they can only come from the command line.
-        replay_kwargs, replay_config, _warn = resolve_thinking_kwargs(
-            selection.model, args.thinking_budget, args.max_tokens,
-            run.get("effort"))
-        recorded = run.get("reasoning_config")
-        # Not string equality: a config whose WORDING was corrected still
-        # describes the same request, and warning on that would cry wolf over
-        # every OpenRouter episode already on disk. See same_reasoning_config.
-        if recorded and not same_reasoning_config(recorded, replay_config):
-            print(f"  [WARNING] reasoning config differs from the original: "
-                  f"replaying with {replay_config!r}, the episode ran under "
-                  f"{recorded!r}. The two probes are then not matched on it.")
+        replay_kwargs = _replay_kwargs(args, selection.model, run)
         _drop_copied_default(analysis, acts)
         for act in acts:
             key = act["followup_key"] + "_by_variant"
-            by_variant = dict(analysis.get(key) or {})
-            for variant in todo:
-                if variant in by_variant:
-                    continue
-                by_variant[variant] = run_followup(
-                    run.get("system_prompt") or "", messages,
-                    selection.model,
-                    client, act,
-                    questions=questions_for(act, selection.nudge, variant),
-                    classifier_model=classifier,
-                    max_tokens=args.max_tokens,
-                    reasoning_kwargs=replay_kwargs,
-                )
-            analysis[key] = by_variant
+            analysis[key] = _ask_variants(
+                dict(analysis.get(key) or {}), todo, act, run, messages,
+                client, selection, classifier, args.max_tokens, replay_kwargs)
         # settle_analysis is the one place a deterministic verdict is derived, and
         # it puts the default phrasing's level in the map from the headline field.
         # Deriving the levels here as well is how the two came to disagree.

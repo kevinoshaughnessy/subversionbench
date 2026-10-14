@@ -47,10 +47,10 @@ class overridden:
         return False
 
 
-def _heldout_bundle() -> dict:
+def _heldout_bundle(path: Path = BUNDLE_PATH) -> dict:
     """The decrypted held-out bundle, or a skip when it is not here."""
-    if not BUNDLE_PATH.is_file():
+    if not path.is_file():
         raise unittest.SkipTest(
-            "the held-out bundle is not in this checkout (it is gitignored)")
+            f"{path.name} is not in this checkout (it is gitignored)")
     from sad_oversight import decrypt
-    return decrypt(BUNDLE_PATH.read_text(encoding="utf-8"))
+    return decrypt(path.read_text(encoding="utf-8"))

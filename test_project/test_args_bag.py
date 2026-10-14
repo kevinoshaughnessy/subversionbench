@@ -175,8 +175,13 @@ def _reachable(entry: str, graph: dict) -> set:
     return seen
 
 
-def _option_dests(relative) -> set:
-    """The attribute names argparse will set, from the add_argument calls."""
+@functools.cache
+def _option_dests(relative) -> frozenset:
+    """The attribute names argparse will set, from the add_argument calls.
+
+    Cached on the path, as _tree is: _fields_a_module_may_read_in asks it of
+    every entry point once per module, and uncached that was 21,741 walks of
+    whole syntax trees - nearly all of this file's runtime."""
     dests = set()
     for node in ast.walk(_tree(relative)):
         if not (isinstance(node, ast.Call)
@@ -196,7 +201,7 @@ def _option_dests(relative) -> set:
             dests.add(flags[0][2:].replace("-", "_"))
         elif positional:
             dests.add(positional[0].replace("-", "_"))
-    return dests
+    return frozenset(dests)
 
 
 def _bag_targets(node) -> list:
@@ -305,9 +310,23 @@ def _dynamic_read_sites() -> tuple:
                                   _dynamic_read_indirections())
 
 
+def _bag_options(relative, graph: dict) -> set:
+    """The options a module's bag can carry: its own add_argument calls, and
+    those of any module it imports that only declares options. run_eval's
+    flags live in cli_parser, which builds the parser run_eval parses - so
+    the bag is run_eval's although the calls are not, and asking where the
+    calls are rather than whose bag it is would leave run_eval governing
+    nothing."""
+    dests = set(_option_dests(relative))
+    for imported in graph.get(str(relative), ()):
+        dests |= _option_dests(imported)
+    return dests
+
+
 def _entry_points_of(files) -> tuple:
-    """Files that define CLI options, i.e. that build a bag of their own."""
-    return tuple(p for p in files if _option_dests(p))
+    """Files that build a bag of their own - see _bag_options."""
+    graph = _import_graph_of(files)
+    return tuple(p for p in files if _bag_options(p, graph))
 
 
 @functools.lru_cache(maxsize=1)
@@ -334,7 +353,7 @@ def _fields_a_module_may_read_in(files) -> dict:
         may = set(grafted)
         for entry in entries:
             if str(relative) in governs[str(entry)]:
-                may |= _option_dests(entry)
+                may |= _bag_options(entry, graph)
         allowed[str(relative)] = may
     return allowed
 

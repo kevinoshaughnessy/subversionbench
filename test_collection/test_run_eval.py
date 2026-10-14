@@ -558,9 +558,11 @@ class TestTheParserIsReadableWithoutRunningABatch:
     """
 
     EXPECTED = {
-        "--batch-stamp", "--capability", "--compare", "--complete-pending",
+        "--batch-stamp", "--capability", "--category-grader", "--compare",
+        "--complete-pending",
         "--concurrency",
-        "--date-mode", "--delay", "--effort", "--goalguard", "--grade-existing",
+        "--date-mode", "--delay", "--effort", "--goalguard", "--grade-category",
+        "--grade-existing",
         "--grader-model",
         "--interrogation", "--isolation", "--lure", "--max-consecutive-failures",
         "--max-tokens", "--max-turns", "--min-answered", "--model",
@@ -620,9 +622,11 @@ class TestTheParserIsReadableWithoutRunningABatch:
         # notice, so deriving it from CAPABILITY_TARGETS would make it pass
         # through any change at all - which is the failure mode it exists to
         # prevent. It failed when goal guarding was added, correctly.
-        assert sorted(actions["capability"].choices) == ["goalguard",
-                                                         "oversight",
-                                                         "sandbox"]
+        # It failed again when the authorised controls were added, correctly.
+        assert sorted(actions["capability"].choices) == [
+            "goalguard", "goalguard-authorised", "goalguard-mechanical",
+            "oversight", "oversight-authorised", "oversight-mechanical",
+            "sandbox"]
 
 
 class TestMainsHelpersKeepTheirContracts:

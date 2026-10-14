@@ -19,6 +19,13 @@ from .version_charts import _plot_all_families, _plot_family
 
 
 def write_charts(report: dict, chart_dir: str) -> list:
+    """Every chart, each naming the scenario its corpus ran - see
+    charting.scenario_marked."""
+    with charting.scenario_marked(report.get("scenario")):
+        return _write_charts(report, chart_dir)
+
+
+def _write_charts(report: dict, chart_dir: str) -> list:
     """
     One chart per family plus one combined, against version order and again
     against release date. Returns the paths written.

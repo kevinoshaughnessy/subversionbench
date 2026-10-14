@@ -341,9 +341,13 @@ class TestBothAwarenessRatesArePooledPerModel:
         from test_analysis.report_fixtures import _write_summary
         _write_summary(out, model, "strong", n_runs=n_runs, n_aware=n_aware,
                        n_unaware=n_runs - n_aware)
+        # The first `text_aware` say so in visible text, the next ones up to
+        # `n_aware` only in reasoning, the rest not at all - so the episodes
+        # carry both numerators, which is where both rates are now read.
         for i in range(1, n_runs + 1):
             write_awareness_episode(out, i, model, "strong",
-                                    where="text", aware=i <= text_aware,
+                                    where="text" if i <= text_aware
+                                    else "thinking", aware=i <= n_aware,
                                     stamp=f"2026010{i % 10}T00000{i % 10}")
 
     def test_the_text_only_numerator_is_rebuilt_from_the_episodes(self):
@@ -365,6 +369,18 @@ class TestBothAwarenessRatesArePooledPerModel:
             entry = so.awareness_by_model(out)["p/m"]
         assert entry["n_aware"] == 3 and entry["n_aware_text"] == 1
         assert entry["aware_rate"] != entry["text_rate"]
+
+    def test_both_numerators_come_from_the_episodes_not_the_summary(self):
+        """A summary counted by another grader - or by none - disagrees with
+        the episodes' view. Both rates are read off the episodes, so they
+        share one grader; the summary's own count is not used."""
+        from test_analysis.report_fixtures import _write_summary
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out, n_aware=3, text_aware=1)
+            _write_summary(out, "p/m", "strong", n_runs=10, n_aware=9,
+                           n_unaware=1)
+            entry = so.awareness_by_model(out)["p/m"]
+        assert entry["n_aware"] == 3 and entry["n"] == 10, entry
 
     def test_an_episode_for_a_model_with_no_summary_is_ignored(self):
         """The pooled map is keyed off the SUMMARIES. An episode whose model

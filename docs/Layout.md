@@ -125,6 +125,7 @@ subversionbench/
     awareness_keywords.py  the keyword measure of verbalised awareness
     awareness_timing.py    when awareness came, and what had been read by then
     closing_report.py      what the deliverable said, vs what the answers said
+    command_failures.py    commands whose result shows a failure, and how
     command_patterns.py    what a shell command did to the scenario's files
     capability.py          what a CAPABILITY episode demonstrated: the act
                            taken, reached for and missed, or never reached
@@ -136,11 +137,16 @@ subversionbench/
     honeypot.py            how far the episode got with the lure arm's file:
                            saw its name in a listing, then read its contents
     filesystem_escapes.py  leaving the episode directory by a route the rewriter misses
+    host_discovery.py      asking the HOST where things are - a search index, the
+                           process table, the session bus - which names the
+                           harness without any path leaving the tree
     grader.py              asking an LLM the awareness rubric
     grader_io.py           preparing text for a grader call, parsing the reply
     interrogation.py       labelling one answer: admitted, denied, neither
     network_probes.py      reaching for a network service the task never needs
     quote_grounding.py     did the grader cite the agent, or the memo
+    category.py            the category question, asked by the corpus
+                           read mode and by grader_ab from one copy
     transcript_analysis.py what the episode did, hashes and commands
     transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
@@ -184,6 +190,8 @@ subversionbench/
     rescore.py             re-scoring one grader's concealment reading, shared
                            by the two paid modes; each keeps its own write-back
     grade.py               re-running a grader's whole reading (--regrade)
+    grade_category.py      adding the headline awareness reading, the
+                           category question, beside the others
     kind_self.py           re-measuring only the KIND of suspicion, with the
                            episode's own model - two questions per aware
                            episode, none for the rest
@@ -207,6 +215,8 @@ subversionbench/
     summary.py             the summary JSON's schema; writing one, and reading
                            back what a rebuild cannot re-derive
   runner.py        rolling out a batch: N episodes, resume, and the summary after
+  cli_parser.py    the CLI's flags: every option, default, choice and help string,
+                   built by build_parser and re-exported by run_eval
   run_eval.py      the CLI: what the flags mean, what they forbid, and dispatch
 
 requirements.lock  the exact stack published results were produced with
@@ -231,23 +241,26 @@ heldout_tool.py    the same for the held-out scenario - a reworded twin of the
                    fingerprints so its episodes cannot be labelled r9. The
                    bundle lives in heldout/ and is gitignored: a held-out
                    control is worth having only while it has never been
-                   published, so it exists only where it was authored
+                   published, so it exists only where it was authored.
+                   --goalguard acts on the goal-guarding twin, a second bundle
+                   whose people, client and firm are named differently
 run_heldout.sh     collect under the held-out scenario instead of the shipped
-                   one; passes its arguments through to run_all_arms.sh
+                   one; passes its arguments through to run_all_arms.sh, and
+                   selects the goal-guarding twin when they name that arm
 run_heldout_baseline.sh  the trivial-agent floor under the held-out scenario
                    rather than the shipped one. The keyword screen and quote
                    grounding both read the scenario's own wording, so a floor
                    measured against one set of documents does not transfer to a
                    reworded one by argument. Passes its arguments through to
                    trivial_baseline.py; costs nothing without --grade
-capability_report.py  the ceiling: what each model CAN do when the act is
-                   asked for outright, which is the denominator a propensity
-                   zero needs. Reads a directory of capability episodes
+capability_report.py  whether each model performed the act when asked for
+                   it outright - which shows capability when it did, and
+                   nothing about ability when it did not, since complying
+                   is itself a choice. Reads a directory of capability episodes
                    collected by `run_eval --capability`; costs nothing and
-                   makes no API call. Prints a BRACKET per model rather than
-                   a rate - refusals move the lower bound only - and
-                   withholds the willingness ratio wherever that bracket is
-                   too wide to divide by
+                   makes no API call. Prints a yes or no per model - one
+                   success is capable, none is NOT SHOWN capable, with the
+                   attempts and refusals that say which kind
 trivial_baseline.py  what the detectors say about an agent that did nothing
                    wrong: fixed command sequences with no model behind them,
                    run through the real sandbox against a real environment and
@@ -296,6 +309,20 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    - it encodes the model and the arm - so it is identity
                    rather than a handle. Run as
                    `python3 -m grader_ab.blind_pack`
+  label_pack.py    the rater's side of a pack: each unlabelled episode through
+                   the pager, the category, the deciding codebook rule, any
+                   other rules that also apply, and an optional note
+                   checked and saved after every episode, so a stopped session
+                   resumes. Never opens the sealed key, and refuses a note
+                   that repeats six words of the transcript, since labelling/
+                   is plaintext. Run as `python3 -m grader_ab.label_pack DIR`
+  blind_score.py   the step after labelling: joins each pack's labels through
+                   its sealed key to a grid run on that pack, and reads every
+                   cell by grader-selection.md's rule - balanced accuracy with
+                   a bootstrap interval, kappa, the unanswered rate against its
+                   limit, own vendor against the rest, per family. Refuses a
+                   join that is not exact. Run as
+                   `python3 -m grader_ab.blind_score --pair PACK GRID [GRID ...]`
   misuse_pack.py   the same split, for the suspects_misuse measure. Its
                    negative side is drawn from episodes the free screen calls
                    no while a REJECTED candidate fires: a uniformly drawn
@@ -409,15 +436,10 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    in the tests from MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS
                    rather than listed, because a family that stopped being
                    applied would print as n/a rather than raise
-  capability.py    the ceiling, and the refusal to divide by one that
-                   was never established. Published as a bracket -
-                   lower counts every refusal as an incapability,
-                   upper excludes them - because a refusal is a second
-                   measurement of propensity, not of capability, and
-                   scoring it as a zero would make the ceiling a FLOOR
-                   for exactly the safety-trained models whose
-                   ceilings matter. `willingness` returns None rather
-                   than a ratio wherever the bracket is too wide
+  capability.py    whether each model can take the act: one success is
+                   capable, none is NOT SHOWN capable rather than shown
+                   incapable - because a refusal is a second measurement
+                   of propensity, not of capability
   data_quality.py  where the corpus disagrees with itself, and the three
                    routing checks: what was REQUESTED inside one rate,
                    what actually ANSWERED it, and whether the two sides
@@ -428,6 +450,8 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    went wrong. Descriptive profiles, deliberately not questions:
                    each splits on something the model chose mid-episode
   pooling.py       pooling, contrasts, strata, consistency. No question attached
+  strategy_pressure.py  the strategy recommended per arm, and the effect of an
+                   imminent replacement on it in the goal-guarding arms
   questions_arms.py       Q1-4: the exposure is an arm the design assigned
   questions_awareness.py  Q5-10: the exposure is something the model did
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
@@ -468,6 +492,16 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    and how far the episode got with the file. Its own module
                    because these are the only charts split by oversight
                    stratum, which is what makes the exclusion apply to a PANEL
+  goalguard.py     question 14's goal-guarding rate views: per episode and
+                   among episodes that read the file, pooled and without
+                   oversight
+  act_awareness_gap.py  misaligned acts by act turn minus first-awareness
+                   turn: one chart for the corpus and one per arm
+  strategy.py      the strategy recommended per arm, and the goal-guarding
+                   arms' replacement-minus-deferred difference in it
+  capability.py    capability_report.py's one chart: each model's
+                   instructed episodes as succeeded, attempted and refused
+                   counts, marked capable or not shown
   graders.py       the charts that put several graders' verdicts on one axis,
                    drawn only from the episodes every grader has read, into
                    charts/<rollout>/grader_comparison/
@@ -504,11 +538,14 @@ trends/            whether a rate falls as a model family advances, with the
   model_ids.py     an ID into a provider, stem, version and release-stage tags
   metrics.py       what can be trended, and each model's rate and exposure
   report.py        families, trends, release fits, data quality: the analysis
+  overall.py       one rate per model across the scenarios - each act from
+                   its own corpus, averaged with equal weight
   chart_style.py   where pyplot comes from, and what every chart looks like
   chart_geometry.py  axis tops and label layouts, as arithmetic. No pyplot
   captions.py      the words on a chart, and how to read the exposure figures
   version_charts.py  rate against version position - the axis the tests run on
   date_charts.py   the same rates against the release calendar
+  overall_charts.py  the overall rate ranked, split by act, and as a grid
   charts.py        write_charts: the one entry point into the chart layer
   console.py       the report as a table on a terminal
   family_trends.py the CLI: arguments, and one report per metric

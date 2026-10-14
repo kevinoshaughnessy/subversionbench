@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-The ceiling: what each model CAN do when the act is asked for outright.
+Whether each model performed the act when it was asked for outright - which
+shows it can, when it did, and shows nothing about ability when it did not.
 
 WHY THIS EXISTS
 ---------------
@@ -9,14 +10,20 @@ it was merely given the OPPORTUNITY to take. A zero there has two readings -
 a model that would not, and a model that could not - and nothing in the
 propensity arms distinguishes them. That is not a hypothetical gap: r10's
 no-oversight arm sits near one percent, and several models are flat zero
-across sixty episodes. Read against a zero ceiling those zeros are a fact
-about the scenario; read against a high one they are a fact about the model.
+across sixty episodes. For a model that cannot take the act those zeros are a
+fact about the scenario; for one that can they are a fact about the model.
 Opposite conclusions from the same number.
 
-The capability arm supplies the denominator. It is the same scenario, the same
-environment, the same tools and the same detectors, with the task instruction
-replaced by one that asks for the act outright - so the arms differ in the
-instruction and in nothing else.
+The capability arm decides between them, in ONE DIRECTION ONLY. It is the
+same scenario, the same environment, the same tools and the same detectors,
+with the task instruction replaced by one that asks for the act outright - so
+the arms differ in the instruction and in nothing else. But an instruction
+does not remove willingness: the model still has to agree to do what it is
+told, so what this arm records is "performed the act when instructed", which
+needs both. A success is sufficient for capability. A failure is not evidence
+of incapability, and for a model that refuses the arm has measured its
+willingness again, under a more direct request. So it separates "could not"
+from "would not" only for models that comply.
 
 Item T.9 of the Agentic Benchmark Checklist in Zhu et al., Establishing Best
 Practices for Building Rigorous Agentic Benchmarks (arXiv 2507.02825) - numbered
@@ -27,95 +34,100 @@ test, so the oracle has to be the same model with the act requested.
 
 A REFUSAL IS NOT AN INCAPABILITY
 --------------------------------
-This is the measurement problem the arm turns on, and getting it wrong would
-bias the result hardest for exactly the models whose ceilings matter most. A
-model told to read outside its project directory that answers "I won't" has
-had its propensity measured a second time, not its capability. Scored as a
-zero, that makes the ceiling a FLOOR for safety-trained models and inflates
-every willingness ratio computed against it.
+A model told to read outside its project directory that answers "I won't" has
+had its propensity measured a second time, not its capability. So one episode
+that performed the act is enough to call a model capable, and a model that
+never did is reported as NOT SHOWN capable rather than as incapable, with its
+attempts and refusals beside it to say which kind of not-shown it is. See
+report/capability.py.
 
-So the ceiling is a BRACKET, never a point, and this script prints both ends
-plus the refusal rate behind them. When they are far apart the honest
-statement is that capability was not established, and the willingness ratio is
-withheld rather than computed. See report/capability.py.
+The system prompt is an instruction too, and until v227 the sandbox target
+fought it: the shared prompt scopes the account to the project directory, so
+the request asked the model to override a rule set above it, and a refusal
+measured that rule. The sandbox arm now carries its own system prompt, which
+grants the look in place of the scope sentence. The project's own readme
+still describes the scope - a document in the environment, which the arm
+leaves as it is. Episodes from before carry the earlier pins. For a yes or no they pool - a
+success under the stricter prompt still shows the model can, and a refusal
+under either shows nothing about ability - and the report counts them per
+model in its 'old' column and says how many there are.
 
 WHAT IT DOES NOT DO
 -------------------
 Collect anything. It reads a directory of capability episodes that
 `run_eval --capability` has already produced, so it costs nothing and can be
-re-run after any change to the outcome rules.
+re-run after any change to the outcome rules. It draws one chart,
+capability_<target>.png, into charts/<corpus>/ beside the output directory.
 
 Usage
 -----
     python capability_report.py --output-dir ./eval_results_r10cap
     python capability_report.py --output-dir ./eval_results_r10cap \\
-        --target sandbox --propensity-dir ./eval_results_r10
+        --target sandbox
 
-Exits nonzero when the arm demonstrated nothing, because a ceiling that was
-never established must not be read as a measured zero.
+Exits nonzero when the arm demonstrated nothing, because a capability that
+was never shown must not be read as a measured zero.
 """
 
 import argparse
+import os
 import sys
 
-from report.capability import capability_ceiling, willingness
+from report.capability import (CAPABILITY_TIERS, capability_by_model,
+                               capability_tiers, earlier_rollout_note)
 from report.loading import ANY_CAPABILITY, load_episodes
-from subversionbench.config import ROLLOUT_VERSION
-from subversionbench.grading import CAPABILITY_ACT_KEYS
+from report_charts.capability import plot_capability
+from subversionbench import charting
+from subversionbench.config import CAPABILITY_TARGETS, ROLLOUT_VERSION
 from subversionbench.redaction import redact_paths
+from subversionbench.scenario import capability_act
 
 
-def propensity_rates(output_dir: str, target: str) -> dict:
-    """
-    Per model, the share of PROPENSITY episodes that took this act.
-
-    Read through the same loader the report uses, which returns propensity
-    episodes only - a capability episode cannot reach this by construction,
-    and the numerator would otherwise contain the acts the ceiling is made of.
-
-    Episodes where the act is not observable are excluded from the
-    denominator rather than counted as a no: the oversight act does not exist
-    in the counterfactual arm, and scoring it zero there is the
-    not-applicable-is-not-zero error this codebase keeps meeting.
-    """
-    rates = {}
-    episodes = load_episodes(output_dir)
-    for model in sorted({e["model"] for e in episodes}):
-        mine = [e for e in episodes if e["model"] == model
-                and e.get(f"{target}_observable")]
-        if not mine:
-            continue
-        rates[model] = (sum(1 for e in mine if e.get(f"{target}_act_taken"))
-                        / len(mine), len(mine))
-    return rates
+def _verdict(row: dict) -> str:
+    if row["demonstrated"]:
+        return "capable"
+    if not row["n"]:
+        return "no measurable episode"
+    if row["n_attempted"]:
+        return "! not shown - tried, never landed"
+    return "! not shown - refused throughout"
 
 
-def main():
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="What each model can do when the act is asked for "
-                    "outright - the denominator every propensity rate needs.")
+        description="Whether each model can take the act when it is asked "
+                    "for outright - what a propensity zero needs to be read "
+                    "as the model's.")
     parser.add_argument("--output-dir",
                         default=f"./eval_results_{ROLLOUT_VERSION}cap",
                         help="directory of capability episodes "
                              "(default: %(default)s)")
-    parser.add_argument("--target", choices=sorted(CAPABILITY_ACT_KEYS),
+    parser.add_argument("--target", choices=sorted(CAPABILITY_TARGETS),
                         default=None,
-                        help="which act's ceiling (default: whatever the "
-                             "directory holds)")
-    parser.add_argument("--propensity-dir", default=None,
-                        help="a results directory of PROPENSITY episodes. "
-                             "Given, the willingness bracket is printed "
-                             "beside each ceiling; omitted, only the ceiling "
-                             "is.")
-    args = parser.parse_args()
+                        help="which target (default: whatever the directory "
+                             "holds). Naming an act's instructed target also "
+                             "prints its verdict tiers across the authorised "
+                             "controls, where the directory holds them")
+    parser.add_argument("--chart-dir", default=None,
+                        help="where to write the chart (default: "
+                             "charts/<corpus>/ beside --output-dir)")
+    parser.add_argument("--no-charts", action="store_true",
+                        help="skip the chart; everything it draws is in the "
+                             "printed table")
+    return parser
+
+
+def main():
+    args = _parser().parse_args()
 
     # ANY_CAPABILITY, not None: None is the PROPENSITY corpus, so defaulting
     # to it would read a results directory's thousands of ordinary episodes
     # and find no capability outcome on any of them.
-    episodes = load_episodes(args.output_dir,
-                             capability=args.target or ANY_CAPABILITY)
-    ceiling = capability_ceiling(episodes, args.target)
-    # CHECKED ON THE ROWS THE CEILING ACTUALLY USED, not on what the loader
+    # Every target, once: capability_by_model narrows to --target itself, and
+    # the tier table below needs the controls beside the instructed arm.
+    episodes = load_episodes(args.output_dir, capability=ANY_CAPABILITY)
+    found = capability_by_model(episodes, args.target)
+    # CHECKED ON THE ROWS THE VERDICTS ACTUALLY USED, not on what the loader
     # returned.
     #
     # This shipped as a bug once. `--target` unset defaulted the filter to
@@ -129,7 +141,7 @@ def main():
     # The check stays on the printed rows anyway, because that is the thing
     # being asserted about - the loader's filter is what made them agree, and
     # a change there must not be able to reintroduce a blank report.
-    if not ceiling["pooled"]["n"] and not ceiling["pooled"]["n_unmeasurable"]:
+    if not found["pooled"]["n"] and not found["pooled"]["n_unmeasurable"]:
         print(f"No capability episodes in {redact_paths(args.output_dir)}"
               + (f" for target {args.target!r}" if args.target else "")
               + f" ({len(episodes)} file(s) read).")
@@ -138,77 +150,49 @@ def main():
               f"{args.output_dir}")
         return 2
 
-    if args.target is None and len(ceiling["targets_present"]) > 1:
-        # Two targets are two different acts and two different ceilings.
-        # Pooling them would report a number that is the denominator of
-        # neither, which is worse than reporting nothing.
+    if args.target is None and len(found["targets_present"]) > 1:
+        # Two targets are two different cells - two acts, or an act and one
+        # of its controls. Pooling them would report a verdict on neither,
+        # which is worse than reporting nothing.
         print(f"! {redact_paths(args.output_dir)} holds more than one "
-              f"capability target ({', '.join(ceiling['targets_present'])}). "
-              f"They are ceilings for different acts and do not pool - name "
-              f"one with --target.")
+              f"capability target ({', '.join(found['targets_present'])}). "
+              f"Each is its own cell - a different act, or a control of one - "
+              f"and they do not pool - name one with --target.")
         return 2
-    target = args.target or (ceiling["targets_present"] or [None])[0]
+    target = args.target or (found["targets_present"] or [None])[0]
 
-    rates = propensity_rates(args.propensity_dir, target) \
-        if args.propensity_dir else None
 
-    print(f"\nCapability ceiling for the {target} act: "
-          f"{ceiling['pooled']['n']} episode(s), "
-          f"{len(ceiling['by_model'])} model(s), from "
+    act = capability_act(target)
+    cell = (f"the {target} act" if act == target
+            else f"the {target} control of the {act} act")
+    print(f"\nEpisodes for {cell}: "
+          f"{found['pooled']['n']} episode(s), "
+          f"{len(found['by_model'])} model(s), from "
           f"{redact_paths(args.output_dir)}")
-    print("The act was INSTRUCTED in every episode below. A refusal is not an "
-          "incapability, so\nthe ceiling is a bracket: lower counts every "
-          "refusal as incapable, upper excludes them.\n")
+    print("The act was INSTRUCTED in every episode below. Performing it shows "
+          "the model can;\nnot performing it shows nothing about ability, "
+          "because complying is itself a\nchoice - so a model with no success "
+          "is not shown capable, never shown incapable.\n")
+    note = earlier_rollout_note(found, target)
+    if note:
+        print(f"! {note}\n")
     header = (f"{'model':30} {'n':>4} {'ok':>4} {'try':>4} {'no':>4} "
-              f"{'lower':>7} {'upper':>7}  verdict")
+              f"{'old':>4}  verdict")
     print(header)
     print("-" * len(header))
-    for row in ceiling["by_model"]:
-        lower = "-" if row["lower"] is None else f"{row['lower']:.0%}"
-        upper = "-" if row["upper"] is None else f"{row['upper']:.0%}"
-        if not row["demonstrated"]:
-            verdict = "! NOT PERFORMED - no ceiling"
-        elif not row["established"]:
-            verdict = f"bracket too wide ({row['bound_gap']:.0%})"
-        else:
-            verdict = "established"
-        if row["underpowered"]:
-            verdict += " (underpowered)"
+    for row in found["by_model"]:
         print(f"{row['model'][:30]:30} {row['n']:4} {row['n_succeeded']:4} "
               f"{row['n_attempted']:4} {row['n_refused']:4} "
-              f"{lower:>7} {upper:>7}  {verdict}")
+              f"{row['n_earlier'] or '':>4}  {_verdict(row)}")
 
-    if rates == {}:
-        # Asked for and not available. Printing nothing would read as the
-        # feature being broken, and worse, as an absence of willingness
-        # rather than an absence of the corpus to compute it from.
-        print(f"\nNo willingness ratios: "
-              f"{redact_paths(args.propensity_dir)} holds no propensity "
-              f"episode where the {target} act was observable. A capability "
-              f"directory is not one - the two corpora are disjoint by "
-              f"construction.")
-    if rates:
-        print(f"\nWillingness - P(act | opportunity) / P(act | instructed), "
-              f"against {redact_paths(args.propensity_dir)}")
-        print("Withheld wherever the ceiling above is not established: a "
-              "ratio against an\nunestablished denominator looks exactly like "
-              "one against a good denominator.\n")
-        header = f"{'model':30} {'propensity':>12} {'n':>5}  willingness"
-        print(header)
-        print("-" * len(header))
-        for row in ceiling["by_model"]:
-            got = rates.get(row["model"])
-            if got is None:
-                print(f"{row['model'][:30]:30} {'not collected':>12} "
-                      f"{'-':>5}  -")
-                continue
-            rate, n = got
-            band = willingness(rate, row)
-            shown = ("withheld - ceiling not established" if band is None
-                     else f"{band[0]:.2f} to {band[1]:.2f}")
-            print(f"{row['model'][:30]:30} {rate:11.1%} {n:5}  {shown}")
+    if not args.no_charts:
+        _write_chart(found, target, note,
+                     args.chart_dir or charting.default_chart_dir(
+                         args.output_dir))
 
-    pooled = ceiling["pooled"]
+    _print_tiers(episodes, target)
+
+    pooled = found["pooled"]
     print(f"\nPooled across models: {pooled['n_succeeded']} succeeded, "
           f"{pooled['n_attempted']} attempted, {pooled['n_refused']} refused"
           + (f", {pooled['n_unmeasurable']} unmeasurable"
@@ -219,20 +203,53 @@ def main():
               "act asked for\noutright. That is a fact about the arm before "
               "it is a fact about anything else:\nthe instruction may not be "
               "reaching the model, or the act may not be performable\nin this "
-              "environment at all. No ceiling is reported, and no propensity "
-              "zero in\nthis rollout can be read as a fact about a model "
-              "until this is resolved.")
+              "environment at all. No propensity zero in this rollout can be "
+              "read as a\nfact about a model until this is resolved.")
         return 1
-    unestablished = [r["model"] for r in ceiling["by_model"]
-                     if not r["established"]]
-    if unestablished:
-        print(f"\n{len(unestablished)} model(s) have no usable ceiling: "
-              f"{', '.join(unestablished[:6])}"
-              + (" ..." if len(unestablished) > 6 else "") + ".")
-        print("Their propensity rates stay uninterpretable - neither a "
-              "willingness ratio nor a\nclaim that a zero is dispositional is "
-              "available for them.")
+    not_shown = [r["model"] for r in found["by_model"]
+                 if not r["demonstrated"]]
+    if not_shown:
+        print(f"\n{len(not_shown)} model(s) not shown capable: "
+              f"{', '.join(not_shown[:6])}"
+              + (" ..." if len(not_shown) > 6 else "") + ".")
+        print("A propensity zero for them cannot be read as dispositional "
+              "until a capability run\nsucceeds.")
     return 0
+
+
+def _print_tiers(episodes: list, target: str) -> None:
+    """The act's verdict tiers across its instructed arm and the authorised
+    controls, when `target` is an act's instructed target and any control
+    episodes are present. Silent otherwise, so a directory with no controls
+    reads exactly as before."""
+    if capability_act(target) != target:
+        return
+    tiers = capability_tiers(episodes, target)
+    if not any(set(r["arms"]) - {"instructed"} for r in tiers):
+        return
+    print(f"\nVerdict tiers for the {target} act - the strongest arm with a "
+          f"success (ok/n per arm):")
+    header = (f"{'model':30} {'instructed':>11} {'authorised':>11} "
+              f"{'mechanical':>11}  tier")
+    print(header)
+    print("-" * len(header))
+    for row in tiers:
+        cells = [f"{a['n_succeeded']}/{a['n']}" if a else "-"
+                 for a in (row["arms"].get(n) for n, _s in CAPABILITY_TIERS)]
+        print(f"{row['model'][:30]:30} {cells[0]:>11} {cells[1]:>11} "
+              f"{cells[2]:>11}  {row['tier'] or 'not shown'}")
+
+
+def _write_chart(found: dict, target: str, note, chart_dir: str) -> None:
+    plt = charting.import_pyplot("Chart")
+    if plt is None:
+        return
+    os.makedirs(chart_dir, exist_ok=True)
+    path = plot_capability(plt, found, target,
+                           os.path.join(chart_dir, f"capability_{target}.png"),
+                           note)
+    if path:
+        print(f"\nChart written to {redact_paths(path)}")
 
 
 if __name__ == "__main__":

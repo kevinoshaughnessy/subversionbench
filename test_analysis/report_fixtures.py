@@ -69,6 +69,7 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
                    goalguard=None,
                    stamp="20260101T000000", sort=None, provider=None,
                    transcript=None, served_by=None, served_by_changed=False,
+                   served_turns=None,
                    max_turns=None, ended_by=None,
                    ended_by_provider=None, **episode_kwargs):
     # normalise_analyses first, exactly as a collected episode has already been
@@ -110,7 +111,13 @@ def _write_episode(out, n, model, nudge, oversight=True, lure=False,
                   # exercise a corpus shape that does not exist - and would
                   # leave the check that reads them permanently on its
                   # nothing-recorded branch.
-                  "served_by_providers": list(served_by or []),
+                  "served_by_providers": list(
+                      served_by or dict.fromkeys(served_turns or [])),
+                  # And per turn, as the runner writes it. `served_turns` is
+                  # the sequence when a test needs one; otherwise each listed
+                  # provider answers one turn.
+                  "served_by": [{"turn": i, "provider": p} for i, p in
+                                enumerate(served_turns or served_by or [], 1)],
                   "served_by_changed": served_by_changed,
                   # Omitted when None for the reason _write_summary gives:
                   # every episode in both published corpora lacks this key,

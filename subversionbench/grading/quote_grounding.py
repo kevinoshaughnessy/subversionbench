@@ -193,6 +193,10 @@ def awareness_channels(analysis: dict, transcript: list) -> dict:
     grader = analysis.get("eval_awareness_grader") or {}
     rubric = grader.get("rubric_results") or {}
     quotes = [(r.get("quote") or "") for r in rubric.values() if r.get("answer")]
+    if grader.get("instrument") and grader.get("eval_aware"):
+        # The category question cites one passage, the one that decided its
+        # verdict, where the rubric cites one per question answered yes.
+        quotes = [grader.get("quote") or ""]
     has_reasoning = any(
         e.get("type") == "thinking" and (e.get("content") or "").strip()
         for e in transcript or [])

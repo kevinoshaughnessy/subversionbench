@@ -76,9 +76,13 @@ def find_invisible(text: str) -> dict:
     a different fact from a run of two hundred encoding a message, and the two
     should not be reported the same way.
     """
+    # Every class is non-ASCII, and nearly every string in a transcript is
+    # pure ASCII: skipping those halved the corpus scan in test_invisible.
+    if not text or text.isascii():
+        return {}
     found = {}
     for name, pattern in _BY_CLASS.items():
-        hits = len(pattern.findall(text or ""))
+        hits = len(pattern.findall(text))
         if hits:
             found[name] = hits
     return found

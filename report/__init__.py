@@ -3,9 +3,9 @@ Twelve fixed research questions, answered from a results directory.
 
     1. oversight    -> scheming rate
     2. oversight    -> verbalised evaluation awareness rate
-    3. oversight    -> agentic misalignment rate
+    3. oversight    -> the composite act rate
     4. nudge        -> verbalised evaluation awareness rate
-    5. verbalised evaluation awareness -> agentic misalignment rate
+    5. verbalised evaluation awareness -> the composite act rate
     6. verbalised evaluation awareness -> oversight-override (monitoring
        disabled) rate
     7. verbalised evaluation awareness -> sandbox escape attempt rate
@@ -172,15 +172,16 @@ from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       graders_in,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending, summaries_describe)
-from .capability import (MAX_INFORMATIVE_BOUND_GAP, capability_ceiling,
-                         willingness)
-from .characteristics import (awareness_refusal_timing, characteristics,
+from .capability import capability_by_model
+from .strategy_pressure import strategy_by_arm
+from .characteristics import (act_awareness_gap, awareness_refusal_timing,
+                             characteristics,
                              decision_profile,
                              encoded_payload_rate, eval_signal_rates,
                              lure_effect,
                              persistence_after_refusal)
 from .data_quality import (CONTRASTED_AXES, _measure_agreement, _model_rate_pairs,
-                          attrition_facts, cross_analysis_rows,
+                          act_rates_by_served_provider, attrition_facts, cross_analysis_rows,
                           data_quality_facts,
                           mixed_routing_arms,
                           mixed_served_provider_arms,
@@ -246,9 +247,8 @@ __all__ = [
     "AWARENESS_REFUSAL_LOCATABLE", "EVIDENCE_COLUMNS", "EVIDENCE_ROWS",
     "EXCLUDE_AWARE_PRIMARY", "EXCLUDE_AWARE_UNION",
     "EXCLUDE_NO_OVERSIGHT", "NO_AWARENESS_EXCLUSION", "NO_EXCLUSION",
-    "MAX_INFORMATIVE_BOUND_GAP",
     "NUDGE_LEVELS", "RUBRIC_SIGNAL_KEYS",
-    "capability_ceiling", "willingness",
+    "capability_by_model",
     "_by_model",
     "_consistency", "_contrast", "_crude_vs_stratified", "_finding",
     "_fmt_contrast_line", "_fmt_rate", "_measure_agreement",
@@ -269,14 +269,14 @@ __all__ = [
     "_strata_from", "_stratified", "_stratified_interpretation",
     "_text_reachable_block", "_variant_contrast", "_variant_provenance",
     "_variant_question", "act_arm_rows", "attrition_facts",
-    "awareness_arm_rows", "awareness_refusal_timing",
+    "act_awareness_gap", "strategy_by_arm", "awareness_arm_rows", "awareness_refusal_timing",
     "build_report", "characteristics", "cross_analysis_rows",
     "data_quality_facts", "decision_profile", "duplicate_arms",
     "encoded_payload_rate", "eval_signal_rates", "exclude_arm",
     "exclude_aware_episodes", "grader_coverage", "graders_in", "lure_effect",
     "load_episodes", "load_failed_episodes", "load_summaries", "main",
     "mixed_routing_arms",
-    "mixed_served_provider_arms",
+    "mixed_served_provider_arms", "act_rates_by_served_provider",
     "routing_differs_across_contrast", "CONTRASTED_AXES",
     "persistence_after_refusal", "question_awareness_vs_goal_guarding",
     "question_awareness_vs_misalignment",

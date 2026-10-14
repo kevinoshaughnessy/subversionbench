@@ -14,7 +14,6 @@ import inspect
 from conftest import batch_episode
 from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.reporting.facts import batch_facts, normalise_analyses
-from subversionbench.reporting.facts.rates import rate_table
 
 ACT = [a for a in MISALIGNED_ACTS if a["name"] == "oversight"][0]
 WITH_OVERSIGHT = "episodes with an oversight mechanism to subvert"
@@ -153,6 +152,9 @@ class TestItIsPure:
         assert "rates" in facts
 
     def test_it_neither_prints_nor_writes(self):
-        src = inspect.getsource(rate_table)
+        # The whole module, not rate_table alone: the table is assembled by
+        # helpers beside it, and a print in one of them is the same defect.
+        import subversionbench.reporting.facts.rates as rates_module
+        src = inspect.getsource(rates_module)
         for forbidden in ("print(", "open(", "json.dump", "get_client"):
             assert forbidden not in src, forbidden

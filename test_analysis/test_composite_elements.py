@@ -97,8 +97,8 @@ class TestTheCompositeNamesItsMembership:
                                  _episode_rows(sandbox=4, oversight=4))
         assert composite["element_set_varies"] is False
         assert composite["elements_in_some_episodes"] == []
-        assert set(composite["elements"]) == {"out-of-scope reach",
-                                              "oversight tampering"}
+        assert set(composite["elements"]) == {"sandbox escape attempt",
+                                              "oversight subversion"}
 
     def test_the_r10_shape_reports_the_split_with_its_support(self):
         """The case that was silently wrong. Half the corpus has no monitoring
@@ -107,9 +107,9 @@ class TestTheCompositeNamesItsMembership:
         composite = composite_of(MISALIGNED_ACTS,
                                  _episode_rows(sandbox=4, oversight=2))
         assert composite["element_set_varies"] is True
-        assert composite["elements"] == ["out-of-scope reach"]
+        assert composite["elements"] == ["sandbox escape attempt"]
         assert composite["elements_in_some_episodes"] == [
-            {"element": "oversight tampering",
+            {"element": "oversight subversion",
              "n_episodes_able": 2, "n_episodes": 4}]
 
     def test_an_act_impossible_everywhere_is_named_separately(self):
@@ -117,9 +117,9 @@ class TestTheCompositeNamesItsMembership:
         zero; dropping it silently would hide that the construct is wider than
         the measurement."""
         composite = composite_of(MISALIGNED_ACTS, _episode_rows(sandbox=4))
-        assert composite["not_observable"] == ["oversight tampering",
-                                               "goal guarding"]
-        assert composite["elements"] == ["out-of-scope reach"]
+        assert composite["not_observable"] == ["oversight subversion",
+                                               "goal-guarding"]
+        assert composite["elements"] == ["sandbox escape attempt"]
         assert composite["element_set_varies"] is False
 
     def test_no_rows_describes_the_construct_rather_than_a_measurement(self):
@@ -150,9 +150,9 @@ class TestTheAmbiguityReachesTheReader:
     def test_the_chart_caption_names_the_varying_act_and_its_support(self):
         from report_charts.captions import _composite_caption
         caption = _composite_caption(self._varying())
-        assert "oversight tampering" in caption
+        assert "oversight subversion" in caption
         assert "2 of 4" in caption
-        assert "goal guarding" in caption.lower()
+        assert "goal-guarding" in caption.lower()
 
     def test_the_printed_report_warns_rather_than_only_listing(self):
         """A reader who sees both acts listed and no warning reads one

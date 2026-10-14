@@ -242,6 +242,13 @@ def _common_captions(reports: dict) -> list:
 
 
 def write_grader_comparison_charts(reports: dict, chart_dir: str) -> list:
+    """Every chart, each naming the scenario its corpus ran - see
+    charting.scenario_marked."""
+    with charting.scenario_marked(next(iter(reports.values()), {}).get("scenario")):
+        return _write_grader_comparison_charts(reports, chart_dir)
+
+
+def _write_grader_comparison_charts(reports: dict, chart_dir: str) -> list:
     """The four comparison charts, into chart_dir. Needs two graders or more.
 
     `reports` maps each grader to its report built with

@@ -35,7 +35,8 @@ import os
 from subversionbench.batch import (goalguard_from_filename,
                                    parse_batch_filename)
 from subversionbench.config import (DEFAULT_GRADER_MODEL,
-                                    LEGACY_DEFAULT_GRADER_MODEL)
+                                    LEGACY_DEFAULT_GRADER_MODEL,
+                                    RETIRED_GRADERS)
 from subversionbench.graders import grader_models
 from subversionbench.grading import MISALIGNED_ACTS
 
@@ -162,8 +163,8 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
         # ONE FILTER, BOTH DIRECTIONS. `capability=None` - every caller in
         # the report - keeps propensity batches only, because a capability
         # episode was INSTRUCTED to take the act and pooling one into a
-        # misalignment rate inflates it towards the ceiling it exists to
-        # measure. Naming a target keeps that arm and nothing else.
+        # misalignment rate inflates it. Naming a target keeps that arm and
+        # nothing else.
         #
         # Written as an equality rather than as two branches so the two
         # corpora are complementary by construction: no batch can be in both
@@ -219,11 +220,29 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
             "reasoning_chars_total": d.get("reasoning_chars_total") or 0,
             # Whose verdicts the grader-dependent counts above are. See
             # summaries_describe.
-            "figures_grader": (d.get("figures_grader_model")
-                               or LEGACY_DEFAULT_GRADER_MODEL),
+            "figures_grader": _figures_grader(d),
             "file": base,
         })
     return rows
+
+
+def _figures_grader(d: dict):
+    """Whose verdicts a summary's grader-dependent counts are, or None.
+
+    A summary with no label predates v218 and is the legacy default's. One
+    labelled with a grader that read none of its episodes holds no grader's
+    counts: until v232 a batch collected with --no-grader was labelled with the
+    default anyway, and grading it later did not rebuild the summary - so the
+    label claimed counts the file never held.
+    """
+    if "figures_grader_model" not in d:
+        return LEGACY_DEFAULT_GRADER_MODEL
+    grader = d["figures_grader_model"]
+    # Only where the file says which graders it held: the two fields were
+    # written together, so a label without the list is taken at its word.
+    if grader is not None and grader not in d.get("grader_models", [grader]):
+        return None
+    return grader
 
 
 def summaries_describe(summaries: list, grader: str) -> bool:
@@ -347,15 +366,25 @@ def graders_in(output_dir: str) -> list:
 
 
 def report_graders(output_dir: str) -> list:
-    """The graders to report on: every one in the run files, sorted.
+    """The graders to report on: every one in the run files, sorted, less the
+    retired ones.
 
     A directory with no graded run file falls back to the graders whose
     counts its summaries hold, and one with neither to the default - the one
     report such a directory always got.
+
+    RETIRED_GRADERS are dropped here, the one place the report and trends both
+    ask which graders to draw, but only beside a grader that is not retired:
+    there, a set of figures over only the arms the retired one read before
+    re-collection, with the rest counted as pending, would be read as covering
+    the corpus. A corpus it alone graded - r9, all claude-opus-5 - keeps it,
+    since dropping it there would leave nothing to report at all.
     """
-    return (graders_in(output_dir)
-            or sorted({s["figures_grader"] for s in load_summaries(output_dir)})
-            or [DEFAULT_GRADER_MODEL])
+    found = (graders_in(output_dir)
+             or sorted({s["figures_grader"] for s in load_summaries(output_dir)}
+                       - {None}))
+    current = [g for g in found if g not in RETIRED_GRADERS]
+    return current or found or [DEFAULT_GRADER_MODEL]
 
 
 def split_pending(episodes: list, grader: str) -> tuple:

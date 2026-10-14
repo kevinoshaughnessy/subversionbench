@@ -204,9 +204,13 @@ class TestVersionOrdering:
         """A default that differs between the library call and the flag would
         make the JSON disagree with the chart beside it."""
         import inspect
+        from trends.family_trends import _parser
         assert inspect.signature(
             ft.build_report).parameters["style"].default == "decimal"
-        assert 'default="decimal"' in inspect.getsource(ft.main)
+        # The parsed default, not a search of main()'s source: that broke the
+        # moment the parser moved into a function of its own, with nothing
+        # about the default having changed.
+        assert _parser().parse_args([]).version_style == "decimal"
 
     def test_the_disagreement_is_detected(self):
         grok = [ft.parse_model_id(m) for m in

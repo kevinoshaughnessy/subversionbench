@@ -85,13 +85,15 @@ from subversionbench.redaction import redact_paths
 # From the siblings directly rather than through the package, which would be a
 # cycle: `trends/__init__.py` imports this module in order to re-export main().
 from .charts import write_charts
-from .console import _print_report
+from .console import _print_overall, _print_report
 from .metrics import METRIC_ALL, METRICS
 from .model_ids import VERSION_STYLES
+from .overall import build_overall_report
+from .overall_charts import write_overall_charts
 from .report import build_report
 
 
-def main() -> int:
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         # Named, because argparse otherwise takes it from argv[0] - which under
         # `-m` is `__main__.py`, a name that appears nowhere a reader could act
@@ -105,10 +107,20 @@ def main() -> int:
                         default=f"./eval_results_{ROLLOUT_VERSION}",
                         help="results directory to analyse "
                              "(default: %(default)s)")
-    parser.add_argument("--metric", default="misaligned",
+    parser.add_argument("--metric", default=None,
                         choices=sorted(METRICS) + [METRIC_ALL],
                         help="which rate to trend, or 'all' for one report per "
-                             "metric (default: %(default)s)")
+                             "metric (default: misaligned)")
+    parser.add_argument("--overall", action="store_true",
+                        help="trend the overall misalignment rate instead: "
+                             "each act from the corpus built for it - "
+                             "oversight and sandbox from --output-dir, "
+                             "goal-guarding from --goalguard-dir - averaged "
+                             "with equal weight. Charts go to charts/overall/")
+    parser.add_argument("--goalguard-dir",
+                        default="./eval_results_goalguard_r1",
+                        help="the goal-guarding corpus --overall reads "
+                             "(default: %(default)s)")
     parser.add_argument("--version-style", default="decimal",
                         choices=VERSION_STYLES,
                         help="how to order a version: 'decimal' reads 4.20 as "
@@ -132,13 +144,25 @@ def main() -> int:
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the charts. Every figure they plot is in the "
                              "table and the JSON either way")
+    return parser
+
+
+def main() -> int:
+    parser = _parser()
     args = parser.parse_args()
+    if args.overall and args.metric:
+        parser.error("--overall is its own rate; drop --metric")
 
-    if not os.path.isdir(args.output_dir):
-        print(f"No such directory: {redact_paths(args.output_dir)}")
-        return 1
+    for directory in ([args.output_dir, args.goalguard_dir] if args.overall
+                      else [args.output_dir]):
+        if not os.path.isdir(directory):
+            print(f"No such directory: {redact_paths(directory)}")
+            return 1
+    if args.overall:
+        return _report_overall(args)
 
-    metrics = sorted(METRICS) if args.metric == METRIC_ALL else [args.metric]
+    metric = args.metric or "misaligned"
+    metrics = sorted(METRICS) if metric == METRIC_ALL else [metric]
     # One report per grader the run files hold for a metric a grader's verdict
     # reaches, as the research report does. A metric read off the act keys is
     # every grader's alike, so it gets ONE report over every episode - see
@@ -177,6 +201,40 @@ def main() -> int:
     return 1 if failed else 0
 
 
+def _report_overall(args) -> int:
+    """The overall rate end to end: table, charts and JSON, as
+    _report_one_metric does for one corpus's rate."""
+    report = build_overall_report(args.output_dir, args.goalguard_dir,
+                                  args.version_style)
+    if not report["overall_by_model"]:
+        print("No model has all three acts measured across "
+              f"{redact_paths(args.output_dir)} and "
+              f"{redact_paths(args.goalguard_dir)}")
+        return 1
+    _print_report(report)
+    _print_overall(report)
+    if not args.no_charts:
+        # Beside both corpora's own chart directories, named for neither.
+        chart_dir = args.chart_dir or os.path.join(
+            os.path.dirname(charting.default_chart_dir(args.output_dir)),
+            "overall")
+        written = (write_overall_charts(report, chart_dir)
+                   + write_charts(report, chart_dir))
+        if written:
+            print(f"\n{len(written)} chart(s) written to "
+                  f"{redact_paths(chart_dir)}:")
+            for path in written:
+                print(f"  {os.path.basename(path)}")
+            report["charts"] = [redact_paths(p) for p in written]
+    out = args.json_out or os.path.join(
+        args.output_dir,
+        f"family_trends_overall_{time.strftime('%Y%m%dT%H%M%S')}.json")
+    with open(out, "w") as f:
+        json.dump(report, f, indent=2)
+    print(f"\nJSON written to {redact_paths(out)}")
+    return 0
+
+
 # The `grader` a metric no grader's verdict reaches is reported under: one
 # report over every episode, its charts in the chart directory itself and its
 # JSON named without a grader. Drawn once per grader instead, each copy left
@@ -197,13 +255,14 @@ def _report_one_metric(args, metric: str, grader: str, episodes: list,
                           grader, episodes)
     if not report["families"]:
         # A metric read from episodes finds nothing in a directory that holds
-        # only summaries. That is a gap in what this corpus can answer, not a
-        # failure of the run - and under `--metric all` it must not take the
-        # metrics that DID compute down with it.
+        # only summaries, and the goal-guarding rate finds nothing in a corpus
+        # with no goal-guarding arm. That is a gap in what this corpus can
+        # answer, not a failure of the run - and under `--metric all` it must
+        # not take the metrics that DID compute down with it.
         if METRICS[metric].get("from_episodes"):
             print(f"Skipping --metric {metric}: it is derived per episode, and "
-                  f"{redact_paths(args.output_dir)} holds no run files to "
-                  f"derive it from.")
+                  f"{redact_paths(args.output_dir)} holds no episode it "
+                  f"applies to - no run files, or none that could take it.")
             return 0
         print(f"No family with two or more members in "
               f"{redact_paths(args.output_dir)}")

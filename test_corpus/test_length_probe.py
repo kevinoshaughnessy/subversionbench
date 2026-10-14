@@ -197,6 +197,16 @@ class TestTheRun:
             else:
                 assert row["found"] == row["read"] > 0, key
 
+    def test_a_grader_id_with_a_slash_still_saves(self):
+        """The result is written once, at the end, so a "/" in the grader id
+        - every OpenRouter id - would lose the whole paid run."""
+        with tempfile.TemporaryDirectory() as d:
+            _corpus(d)
+            with _grader():
+                code, text = _main(d, "--yes", "--grader", "z-ai/glm-5.3")
+            assert code == 0, text
+            assert next(Path(d).glob("length_probe_z-ai_glm-5.3_*.json"))
+
     def test_a_grader_blind_to_the_middle_shows_up_as_a_long_band_miss(self):
         """The check that the probe can answer no: a grader that reads only
         the first 8,000 and last 12,000 characters of the request misses the
@@ -219,3 +229,22 @@ class TestTheRun:
             row = _saved(d)["summary"]["short|explicit|all"]
         assert row["refused"] == 6 and row["read"] == 0
         assert row["found_rate"] is None
+
+
+class TestTheCeilingUsesEachModelsCachePrice:
+    """A fixed 0.1 cache-read multiplier understated the ceiling for a model
+    that bills cached reads near its input price, so an operator approved
+    --yes against a figure the run could exceed."""
+
+    def test_a_dearer_cache_read_raises_the_ceiling(self):
+        from unittest import mock
+        from grader_ab import length_probe as lp
+        sample = [{"length": 38000}]
+        prices = {"z-ai/glm-5.3": (0.365, 4.4)}
+        with mock.patch.object(lp, "PRICES_PER_MTOK", prices):
+            with mock.patch.object(lp, "CACHE_READ_MULTIPLIER",
+                                   {"z-ai/glm-5.3": 0.71}):
+                dear = lp.ceiling_usd(sample, "z-ai/glm-5.3")
+            with mock.patch.object(lp, "CACHE_READ_MULTIPLIER", {}):
+                standard = lp.ceiling_usd(sample, "z-ai/glm-5.3")
+        assert dear > standard

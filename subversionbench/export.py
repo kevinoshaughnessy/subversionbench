@@ -93,6 +93,33 @@ def is_publishable(name: str) -> bool:
     return os.path.basename(name).startswith(ARCHIVED_PREFIXES)
 
 
+def _stage_json(s: str, d: str, counts: dict) -> None:
+    """Write one run file's redacted copy from `s` to `d`, counting it."""
+    counts["json"] += 1
+    # UTF-8 named rather than left to the machine's locale. Under a
+    # non-UTF-8 locale this raised UnicodeDecodeError on any run file
+    # holding a non-ASCII character - and the corpus holds them by
+    # design, since the invisible characters are the subject. Strict
+    # still, so a genuinely undecodable file stops the build rather
+    # than being written to the archive mangled.
+    raw = Path(s).read_text(encoding="utf-8")
+    try:
+        data = json.loads(raw)
+    except Exception:
+        # A truncated run file is data too: copy it rather than dropping it,
+        # but redact it as text since it cannot be parsed.
+        Path(d).write_text(redact_paths(raw), encoding="utf-8")
+        counts["unreadable"] += 1
+        counts["written"] += 1
+        return
+    clean = _redact_value(data)
+    Path(d).write_text(json.dumps(clean, indent=2, default=str),
+                       encoding="utf-8")
+    counts["written"] += 1
+    if clean != data:
+        counts["changed"] += 1
+
+
 def redact_tree(src: str, into: str) -> dict:
     """
     Copy `src` into `into/<basename>`, redacting every JSON file on the way.
@@ -155,29 +182,7 @@ def redact_tree(src: str, into: str) -> dict:
                 counts["copied"] += 1
                 counts["written"] += 1
                 continue
-            counts["json"] += 1
-            # UTF-8 named rather than left to the machine's locale. Under a
-            # non-UTF-8 locale this raised UnicodeDecodeError on any run file
-            # holding a non-ASCII character - and the corpus holds them by
-            # design, since the invisible characters are the subject. Strict
-            # still, so a genuinely undecodable file stops the build rather
-            # than being written to the archive mangled.
-            raw = Path(s).read_text(encoding="utf-8")
-            try:
-                data = json.loads(raw)
-            except Exception:
-                # A truncated run file is data too: copy it rather than dropping it,
-                # but redact it as text since it cannot be parsed.
-                Path(d).write_text(redact_paths(raw), encoding="utf-8")
-                counts["unreadable"] += 1
-                counts["written"] += 1
-                continue
-            clean = _redact_value(data)
-            Path(d).write_text(json.dumps(clean, indent=2, default=str),
-                               encoding="utf-8")
-            counts["written"] += 1
-            if clean != data:
-                counts["changed"] += 1
+            _stage_json(s, d, counts)
 
     if links:
         raise ExportRefused(

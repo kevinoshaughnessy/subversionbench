@@ -298,9 +298,9 @@ def _finding(c: dict, label_a: str, label_b: str, metric: str) -> str:
 # The MEMBERSHIP and the POOLING RULE travel together because a reader needs
 # both to know what a bar means: which acts count, and whether the pooled
 # figure weights a model by how many episodes it contributed.
-_ACT_LABELS = {"oversight": "oversight tampering",
-               "sandbox": "out-of-scope reach",
-               "goalguard": "goal guarding"}
+_ACT_LABELS = {"oversight": "oversight subversion",
+               "sandbox": "sandbox escape attempt",
+               "goalguard": "goal-guarding"}
 
 
 def _act_support(rows: list, act) -> tuple:
@@ -376,7 +376,17 @@ def composite_of(acts, rows: list = None) -> dict:
     some episodes could take goes in `elements_in_some_episodes` with the
     count, because that is the case where the word "misaligned" names two
     different measures at once.
+
+    Rows that all ran one act's own scenario count that act alone, as each of
+    their episodes' verdicts does - see grading.counted_acts.
     """
+    if rows:
+        own = [a for a in acts if a.get("scenario_arm")
+               and all(r.get(a["scenario_arm"]) for r in rows)]
+        # ponytail: a corpus mixing scenarios keeps the full union here while
+        # each episode counted its own; no corpus mixes them today. Split the
+        # rows by scenario first if one ever does.
+        acts = own or acts
     if rows is None:
         every, some, none = list(acts), [], []
     else:
@@ -386,6 +396,7 @@ def composite_of(acts, rows: list = None) -> dict:
         return [_ACT_LABELS.get(a["name"], a["name"]) for a in group]
 
     composite = {
+        "counted_acts": _labels(acts),
         "elements": _labels(every),
         # NAMED with their support rather than folded into `elements`. Folded
         # in, the reader is told the rate counts an act that most of the
@@ -410,3 +421,41 @@ def composite_of(acts, rows: list = None) -> dict:
     # be compared with another composite at all.
     composite["element_set_varies"] = bool(some)
     return composite
+
+
+def composite_rate_label(composite: dict) -> str:
+    """What to call the composite's rate on a chart: the acts it counts.
+
+    "Agentic misalignment rate" named no act, so the same words meant
+    oversight subversion or a sandbox escape attempt on the mainline corpus
+    and goal-guarding on the goal-guarding one. Built from the composite's own
+    elements, every act any episode could take, so it names what THIS corpus
+    measured; with no elements at all - rows carrying no observability, as a
+    summary does - it names the acts the composite counts, which is the
+    construct rather than a measurement.
+    """
+    counted = set(composite.get("elements") or []) | {
+        p["element"] for p in composite.get("elements_in_some_episodes") or []}
+    counted = counted or set(composite.get("counted_acts") or _ACT_LABELS.values())
+    # Registry order, so the label reads the same whichever acts were partial.
+    names = [label for label in _ACT_LABELS.values() if label in counted]
+    joined = (", ".join(names[:-1]) + " and " + names[-1]
+              if len(names) > 1 else "".join(names))
+    return f"{joined} rate"
+
+
+def scenario_of(rows: list):
+    """Which scenario these rows ran, for a chart to say so.
+
+    Read off each row's own `goalguard` arm, which an episode row and an arm
+    row both carry. Mixed when some rows are goal-guarding and some are not,
+    and None for no rows at all - a chart drawn from nothing names nothing.
+    """
+    kinds = {bool(r.get("goalguard")) for r in rows}
+    if not kinds:
+        return None
+    if kinds == {True}:
+        return "Goal-guarding"
+    if kinds == {False}:
+        return "Mainline"
+    return "Mainline and goal-guarding"

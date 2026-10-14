@@ -168,6 +168,22 @@ class TestTheDetectorIsNotInTrackedSource(unittest.TestCase):
         offenders = [f for f in _tracked_text_files() if _count(f, lines)]
         assert not offenders, offenders
 
+    def test_no_line_of_the_awareness_category_text_appears_in_tracked_source(
+            self):
+        """The candidate awareness question carries rulings on where the
+        boundary sits, which is the protocol at its most readable, so every
+        distinctive line is checked, as for the misuse codebook."""
+        bundle = load_detectors()
+        lines = [line.strip().lower()
+                 for key in ("awareness_category_system_prompt",
+                             "awareness_category_question",
+                             "awareness_category_question_rules_only")
+                 for line in bundle[key].splitlines()
+                 if len(line.strip()) >= 40 and len(line.split()) >= 5]
+        assert lines, "empty category text passes this guard with everything broken"
+        offenders = [f for f in _tracked_text_files() if _count(f, lines)]
+        assert not offenders, offenders
+
     def test_no_length_probe_plant_appears_in_tracked_source(self):
         plants = [s.lower().rstrip(".")
                   for s in load_detectors()["length_probe_plants"].values()]
@@ -224,6 +240,79 @@ class TestTheDetectorStaysReadable(unittest.TestCase):
     # never fail, which is the defect this suite exists to catch, one level
     # up. The protection is real and stronger than a test - it is just not
     # this test doing it.
+
+
+class TestTheOneCommandWorks(unittest.TestCase):
+    """detector_tool.py is the "one command" the class above promises, and
+    nothing ran it. Every run here is against copies in a temporary directory,
+    and no assertion message quotes an entry: a failure would otherwise print
+    the detector text to the terminal it is kept out of."""
+
+    def _run(self, *steps):
+        """Each step is an argv for the tool, or a callable run between two
+        of them. Returns the tool's exit codes, its stdout and its stderr, and
+        leaves the bundle as the steps left it in self.after."""
+        import contextlib
+        import io
+        import tempfile
+        from unittest import mock
+
+        import subversionbench.detectors as mod
+        out, err = io.StringIO(), io.StringIO()
+        with tempfile.TemporaryDirectory() as d:
+            bundle = Path(d, "detectors.b64")
+            bundle.write_bytes(mod._BUNDLE_PATH.read_bytes())
+            working = Path(d, "detectors.json")
+            with mock.patch.object(mod, "_BUNDLE_PATH", bundle), \
+                 mock.patch.object(mod, "WORKING_COPY", working), \
+                 contextlib.redirect_stdout(out), \
+                 contextlib.redirect_stderr(err):
+                codes = []
+                for step in steps:
+                    if callable(step):
+                        step(working)
+                    else:
+                        codes.append(mod._main(step))
+            self.after = load_detectors(bundle)
+        return codes, out.getvalue(), err.getvalue()
+
+    def test_list_names_every_required_entry(self):
+        codes, out, _ = self._run(["--list"])
+        assert codes == [0]
+        listed = {line.split()[0] for line in out.splitlines()}
+        assert set(REQUIRED) <= listed, "an entry is missing from --list"
+
+    def test_show_prints_the_entry_as_json(self):
+        name = REQUIRED[0]
+        codes, out, _ = self._run(["--show", name])
+        assert codes == [0]
+        assert json.loads(out) == load_detectors()[name], (
+            "--show did not print the entry it was asked for")
+
+    def test_show_refuses_a_name_it_does_not_hold(self):
+        codes, out, err = self._run(["--show", "no-such-entry"])
+        assert codes == [1] and not out
+        assert "--list shows the names" in err
+
+    def test_encode_refuses_without_a_working_copy(self):
+        codes, _, err = self._run(["--encode"])
+        assert codes == [1] and "--decode first" in err
+
+    def test_an_edit_to_the_working_copy_reaches_the_bundle(self):
+        """--decode, edit, --encode: the round trip a maintainer makes. The
+        edit is to the rationale, so it lands without any detector value
+        being read out."""
+        def edit(working):
+            data = json.loads(working.read_text(encoding="utf-8"))
+            data["rationale"]["_planted"] = "x"
+            working.write_text(json.dumps(data), encoding="utf-8")
+
+        original = load_detectors()
+        codes, _, _ = self._run(["--decode"], edit, ["--encode"])
+        assert codes == [0, 0]
+        assert self.after["rationale"].pop("_planted") == "x", (
+            "the edit did not reach the bundle")
+        assert self.after == original, "the round trip changed another entry"
 
 
 class TestItIsSeparateFromTheScenarioBundle(unittest.TestCase):

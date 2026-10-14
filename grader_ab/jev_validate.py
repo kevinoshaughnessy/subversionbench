@@ -642,6 +642,86 @@ def _print_plan(args, candidates, keys) -> None:
     print("\n--dry-run: nothing was called. Drop the flag to run it.")
 
 
+def _run_header(args, keys, candidates, walked, instructions,
+                changed) -> dict:
+    """What this run asked and of what, saved at the top of its file."""
+    return {"output_dir": redact_paths(os.path.abspath(args.output_dir)),
+            "keys": keys,
+            # What was REQUESTED and what TOOK EFFECT, because unset
+            # requests a different cut per key and per primitive, and a
+            # file recording only the request cannot say what its own
+            # booleans mean.
+            "threshold": args.threshold,
+            "thresholds_applied": {
+                k: effective_threshold(k, args.primitive, args.threshold)
+                for k in keys},
+            "noise_floor_model": NOISE_FLOOR_MODEL,
+            "wording": args.wording,
+            # Recorded beside the wording for the same reason, and the
+            # reason is one day old: a run whose artefact names the flag
+            # but not its effect cannot be checked against anything.
+            # `asked` carries the text, `primitive` the scale it was
+            # answered on, and the two together say what the numbers in
+            # this file actually are.
+            "primitive": args.primitive,
+            # Resolved through the client's own resolver, not from the
+            # text passed in: under --primitive score the client sends
+            # JEV_SCORE_INSTRUCTIONS, and recording the rubric wording
+            # here named a question that never went on the wire.
+            "asked": effective_instructions(keys, args.primitive,
+                                            instructions),
+            "wording_changed_keys": changed,
+            "shape": "per_question" if args.per_question else "batched",
+            "episodes_available": len(candidates),
+            "episodes_walked": len(walked),
+            "max_episodes": args.max_episodes}
+
+
+def _finish_without_part_b(path, header, summary_a, records, keys) -> int:
+    """Save and report Part A alone, saying what is missing without Part B."""
+    sweep = sweep_thresholds(records, keys)
+    chosen = threshold_on_a_holdout(records, keys)
+    _print_sweep(sweep, keys, {})
+    _print_holdout(chosen, {}, keys)
+    _save(path, {**header, "part_a_summary": summary_a,
+                 "part_a_records": records, "threshold_sweep": sweep,
+                 "threshold_on_a_holdout": chosen,
+                 "part_b_summary": None, "complete": True})
+    print(f"\nSaved to {redact_paths(path)}")
+    print("  Part B skipped, so no same-day noise floor was measured - "
+          "the rates above\n  have nothing to be read against except "
+          "human labels.")
+    return 0
+
+
+def _run_part_b(args, candidates, keys, path, header, summary_a, records,
+                tick) -> int:
+    """The fresh-grader noise floor, read beside Part A, then the file."""
+    print(f"Part B: the same keys, fresh {NOISE_FLOOR_MODEL}")
+    sample, fresh, usage = part_b(candidates, keys, args.per_model,
+                                  args.oversample, args.limit, progress=tick)
+    summary_b = summarise_part_b(sample, fresh, keys)
+    spend = cell_cost(usage, NOISE_FLOOR_MODEL)
+    print()
+
+    sweep = sweep_thresholds(records, keys)
+    chosen = threshold_on_a_holdout(records, keys)
+    _print_report(summary_a, summary_b, keys, len(records), len(sample))
+    _print_sweep(sweep, keys, summary_b)
+    _print_holdout(chosen, summary_b, keys)
+    if spend["usd"] is not None:
+        print(f"\nPart B spend: ${spend['usd']:.2f}"
+              f"{'+ (input only - output not measured on this shape)' if spend['is_floor'] else ''}")
+
+    _save(path, {**header, "part_a_summary": summary_a,
+                 "part_a_records": records, "part_b_summary": summary_b,
+                 "part_b_sample": [c["run"] for c in sample],
+                 "part_b_spend_usd": spend, "threshold_sweep": sweep,
+                 "threshold_on_a_holdout": chosen, "complete": True})
+    print(f"\nSaved to {redact_paths(path)}")
+    return 0
+
+
 def main():
     args = _build_parser().parse_args()
     keys = list(args.keys)
@@ -694,36 +774,8 @@ def main():
     # can both be wrong in the same direction; the text that was sent cannot.
     instructions, changed = wording_for(args.wording, keys)
 
-    header = {"output_dir": redact_paths(os.path.abspath(args.output_dir)),
-              "keys": keys,
-              # What was REQUESTED and what TOOK EFFECT, because unset
-              # requests a different cut per key and per primitive, and a
-              # file recording only the request cannot say what its own
-              # booleans mean.
-              "threshold": args.threshold,
-              "thresholds_applied": {
-                  k: effective_threshold(k, args.primitive, args.threshold)
-                  for k in keys},
-              "noise_floor_model": NOISE_FLOOR_MODEL,
-              "wording": args.wording,
-              # Recorded beside the wording for the same reason, and the
-              # reason is one day old: a run whose artefact names the flag
-              # but not its effect cannot be checked against anything.
-              # `asked` carries the text, `primitive` the scale it was
-              # answered on, and the two together say what the numbers in
-              # this file actually are.
-              "primitive": args.primitive,
-              # Resolved through the client's own resolver, not from the
-              # text passed in: under --primitive score the client sends
-              # JEV_SCORE_INSTRUCTIONS, and recording the rubric wording
-              # here named a question that never went on the wire.
-              "asked": effective_instructions(keys, args.primitive,
-                                              instructions),
-              "wording_changed_keys": changed,
-              "shape": "per_question" if args.per_question else "batched",
-              "episodes_available": len(candidates),
-              "episodes_walked": len(walked),
-              "max_episodes": args.max_episodes}
+    header = _run_header(args, keys, candidates, walked, instructions,
+                         changed)
 
     def tick(i, n):
         print(f"\r    {i}/{n} episode(s)   ", end="", flush=True)
@@ -742,19 +794,7 @@ def main():
                  "part_a_records": records, "complete": False})
 
     if args.no_part_b:
-        sweep = sweep_thresholds(records, keys)
-        chosen = threshold_on_a_holdout(records, keys)
-        _print_sweep(sweep, keys, {})
-        _print_holdout(chosen, {}, keys)
-        _save(path, {**header, "part_a_summary": summary_a,
-                     "part_a_records": records, "threshold_sweep": sweep,
-                     "threshold_on_a_holdout": chosen,
-                     "part_b_summary": None, "complete": True})
-        print(f"\nSaved to {redact_paths(path)}")
-        print("  Part B skipped, so no same-day noise floor was measured - "
-              "the rates above\n  have nothing to be read against except "
-              "human labels.")
-        return 0
+        return _finish_without_part_b(path, header, summary_a, records, keys)
 
     # Part B is a floor for Part A to be read against. With nothing answered
     # there is no number to hold against it, so spending real grader money on
@@ -765,29 +805,8 @@ def main():
               f"Partial records saved to {redact_paths(path)}.")
         return 1
 
-    print(f"Part B: the same keys, fresh {NOISE_FLOOR_MODEL}")
-    sample, fresh, usage = part_b(candidates, keys, args.per_model,
-                                  args.oversample, args.limit, progress=tick)
-    summary_b = summarise_part_b(sample, fresh, keys)
-    spend = cell_cost(usage, NOISE_FLOOR_MODEL)
-    print()
-
-    sweep = sweep_thresholds(records, keys)
-    chosen = threshold_on_a_holdout(records, keys)
-    _print_report(summary_a, summary_b, keys, len(records), len(sample))
-    _print_sweep(sweep, keys, summary_b)
-    _print_holdout(chosen, summary_b, keys)
-    if spend["usd"] is not None:
-        print(f"\nPart B spend: ${spend['usd']:.2f}"
-              f"{'+ (input only - output not measured on this shape)' if spend['is_floor'] else ''}")
-
-    _save(path, {**header, "part_a_summary": summary_a,
-                 "part_a_records": records, "part_b_summary": summary_b,
-                 "part_b_sample": [c["run"] for c in sample],
-                 "part_b_spend_usd": spend, "threshold_sweep": sweep,
-                 "threshold_on_a_holdout": chosen, "complete": True})
-    print(f"\nSaved to {redact_paths(path)}")
-    return 0
+    return _run_part_b(args, candidates, keys, path, header, summary_a,
+                       records, tick)
 
 
 # Deliberately NOT re-exported from grader_ab/__init__.py, and so run through

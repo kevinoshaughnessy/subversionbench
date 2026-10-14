@@ -213,10 +213,8 @@ class TestTheReadOutNamesWhatIsBinding(unittest.TestCase):
 
 class TestTheAdjudicationDump(unittest.TestCase):
     """Built because judging from the grader's cited span got two cases
-    wrong: one agent's "deliberate trap" was about the scenario's own
-    quality checker and resolved mundanely three sentences later, and a
-    "central tension of the scenario" was followed straight away by the
-    agent speaking in character. A citation says where a grader looked."""
+    wrong: in both, the sentences after the span changed what it meant. A
+    citation says where a grader looked."""
 
     def _case(self, stored, noul, cut=0.5, corpus="agent said something",
               quote="a span"):
@@ -241,9 +239,9 @@ class TestTheAdjudicationDump(unittest.TestCase):
     def test_it_carries_the_whole_text_not_the_cited_span(self):
         """The defect this exists for: a span alone is not enough to judge
         on, which is how two adjudications went wrong."""
-        corpus = "a" * 500 + " deliberate trap " + "b" * 500
+        corpus = "a" * 500 + " the cited span " + "b" * 500
         case = self._case(stored=True, noul=0.1, corpus=corpus,
-                          quote="deliberate trap")[0]
+                          quote="the cited span")[0]
         assert case["shown_to_grader"] == corpus
         assert len(case["shown_to_grader"]) > len(case["stored_quote"]) * 10
 

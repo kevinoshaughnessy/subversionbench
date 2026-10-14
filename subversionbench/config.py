@@ -127,6 +127,9 @@ __all__ = [
     "SCENARIO_ID",
     "RUBRIC_QUESTIONS",
     "RUBRIC_SYSTEM_PROMPT",
+    "AWARENESS_CATEGORY_QUESTION",
+    "AWARENESS_CATEGORY_QUESTION_RULES_ONLY",
+    "AWARENESS_CATEGORY_SYSTEM_PROMPT",
     "SANDBOX_DISPLAY_PATH",
     "SANDBOX_REFUSAL",
     "SCENARIO",
@@ -212,6 +215,25 @@ DEFAULT_GRADER_MODEL = "gpt-6-sol"
 # fallback in practice - see graders.graders_of.
 LEGACY_DEFAULT_GRADER_MODEL = "claude-opus-5"
 
+# THE HEADLINE AWARENESS MEASURE, decided 2026-10-11 in docs/grader-selection.md:
+# this grader asking the category question in its rules-only wording. Awareness
+# only - concealment and scheming come from interrogation labels, which this
+# grader does not make, so they stay DEFAULT_GRADER_MODEL's. Its readings are an
+# entry of their own beside the default's (see graders.is_awareness_only),
+# written by --grade-category; DEFAULT_GRADER_MODEL still drives collection.
+HEADLINE_AWARENESS_GRADER = "z-ai/glm-5.3"
+# Which wording of the category question produced a reading, stamped on it, so a
+# later revision of the question is a different instrument rather than a silent
+# redefinition of this one.
+CATEGORY_INSTRUMENT = "category_rules"
+
+# Graders whose readings stay in the run files but are no longer drawn by the
+# report or trends. claude-opus-5 refused too often to grade new episodes, so
+# arms re-collected since cannot be read by it; its figures would cover only the
+# arms it read before - mostly the no-oversight ones - while counting the rest as
+# pending. Its readings are a closed snapshot of the corpus before re-collection.
+RETIRED_GRADERS = frozenset({"claude-opus-5"})
+
 # =========================================================================
 # Output redaction
 # =========================================================================
@@ -265,6 +287,12 @@ GOAL_CONFLICT_AWARENESS = tuple(_DETECTORS["goal_conflict_awareness"])
 MISUSE_INDICATORS = tuple(_DETECTORS["misuse_indicators"])
 RUBRIC_SYSTEM_PROMPT = _DETECTORS["rubric_system_prompt"]
 RUBRIC_QUESTIONS = MappingProxyType(_DETECTORS["rubric_questions"])
+# The candidate per-episode instrument, asked only by grader_ab until it is
+# validated against blind human labels - see docs/grader-selection.md.
+AWARENESS_CATEGORY_SYSTEM_PROMPT = _DETECTORS["awareness_category_system_prompt"]
+AWARENESS_CATEGORY_QUESTION = _DETECTORS["awareness_category_question"]
+AWARENESS_CATEGORY_QUESTION_RULES_ONLY = _DETECTORS[
+    "awareness_category_question_rules_only"]
 
 RETIRED_RUBRIC_QUESTIONS = frozenset({"referenced_system_prompt"})
 

@@ -109,6 +109,21 @@ class TestTheChart:
             ],
         }
 
+    def _gap_markers(self, report) -> dict:
+        """{(x, y): the scatter kwargs} for every gap-panel marker drawn."""
+        import unittest.mock
+        plt = self._plt_or_skip()
+        drawn = {}
+        original = plt.Axes.scatter
+
+        def spy(ax, x, y, *a, **k):
+            drawn[(x, y)] = k
+            return original(ax, x, y, *a, **k)
+        with unittest.mock.patch.object(plt.Axes, "scatter", spy):
+            with tempfile.TemporaryDirectory() as out:
+                am.charts.write_chart(report, str(Path(out) / "c.png"))
+        return drawn
+
     def _plt_or_skip(self):
         from subversionbench import charting
         if charting.import_pyplot() is None:
@@ -145,9 +160,13 @@ class TestTheChart:
         the assertion that the chart actually encodes that rather than just
         plotting every point the same way."""
         self._plt_or_skip()
-        import inspect
-        source = inspect.getsource(am.charts.write_chart)
-        assert "agree" in source and "#c44e52" in source and "#4c72b0" in source
+        # Read off what was DRAWN, not off write_chart's source: a source
+        # search broke when the gap panel moved into a function of its own.
+        drawn = self._gap_markers(self._report())
+        assert len(drawn) == 2, drawn
+        # a agrees with its external pair on the gap's sign and b does not.
+        first, second = (k["edgecolors"] for k in drawn.values())
+        assert first != second, drawn
 
     def test_a_pair_with_no_suppression_gap_is_excluded_not_zeroed(self):
         """model c has no aware episodes, so its local gap is None. Plotting
@@ -184,10 +203,18 @@ class TestTheChart:
         flag already on each pair is the marker's only caution. A filled dot
         promises more certainty than a bucket this small can support."""
         self._plt_or_skip()
-        import inspect
-        source = inspect.getsource(am.charts.write_chart)
-        assert "aware_side_underpowered" in source
-        assert 'facecolors=("none"' in source
+        report = self._report()
+        pairs = report["pairs_by_pooling"]["any_aware"]
+        a = next(p for p in pairs if p["local_model"] == "a")
+        assert not a["local"]["aware_side_underpowered"], (
+            "the fixture already marks a as underpowered, so this test would "
+            "pass however the marker was drawn")
+        filled = self._gap_markers(report)
+        a["local"]["aware_side_underpowered"] = True
+        hollow = self._gap_markers(report)
+        key = next(k for k in filled if filled[k]["facecolors"] != "none")
+        assert hollow[key]["facecolors"] == "none", hollow
+        assert hollow[key]["edgecolors"] == filled[key]["edgecolors"]
 
     def test_subplots_is_called_for_two_side_by_side_panels(self):
         """write_chart closes its figure before returning, so the panel

@@ -19,9 +19,8 @@ with this, because the scenario is code.
 
 Base64 is not security and is not meant to be — bulk training pipelines ingest text, they
 do not decode it. Reading and editing the scenario is one command, once the package is
-installed — `pip install -e .`, see [Install](../README.md#install). The tool calls no API,
-but importing `subversionbench` pulls in the Anthropic SDK, so on a bare clone it fails
-with `ModuleNotFoundError: No module named 'anthropic'` rather than printing the bundle:
+installed — `pip install -e .`, see [Install](../README.md#install). The tool calls no API
+and does not load the Anthropic SDK:
 
 ```bash
 python scenario_tool.py --list           # entries and sizes
@@ -62,7 +61,11 @@ python contamination_check.py --models claude-opus-5 x-ai/grok-4.5
 ```
 
 `--audit` scans every file git tracks for scenario text committed in the clear, matching
-8-word shingles so a quotation still registers after reflowing. It reports files, line
+8-word shingles so a quotation still registers after reflowing. It indexes every string in
+the bundle: both scenarios' documents, the arms' variants, the controls' notes and the
+interrogation questions. The model probes draw on the documents an episode reads in either
+scenario, a line shared by several documents counted once, so one verdict per model covers
+both. It reports files, line
 numbers and which document leaked — never the text, since printing the leak to find the
 leak puts it somewhere new. Run it before pushing: it is the only probe that finds exposure
 while it can still be fixed.

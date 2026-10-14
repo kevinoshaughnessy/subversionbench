@@ -118,6 +118,33 @@ REQUIRED = (
     "misuse_codebook",
     # strength -> the sentence grader_ab/length_probe.py plants.
     "length_probe_plants",
+    # The wordings rubric_ab.py crosses against the shipped rubric - the one
+    # each question replaced and the one proposed to replace it - with the
+    # evidence behind the proposal and the clauses it must keep. A candidate
+    # question is the protocol as surely as the shipped one is.
+    "rubric_previous_wordings",
+    "rubric_proposed_wordings",
+    "rubric_proposed_rationale",
+    "rubric_proposed_required_clauses",
+    # The questions grader_ab's jev route asks, the variants jev_tune.py
+    # crosses, and the verdicts each was written from.
+    "jev_criteria",
+    "jev_score_levels",
+    "jev_score_instructions",
+    "jev_original_criteria",
+    "jev_criteria_variants",
+    "jev_rationale",
+    # The per-episode awareness category question and the system prompt it
+    # needs - a four-way answer with a quote and a competing reading, which
+    # the rubric's yes/no prompt cannot carry. Additive: the rubric still
+    # produces eval_aware. A candidate instrument is the protocol as surely as
+    # the shipped one is, so it lives here and not in the labelling draft.
+    "awareness_category_system_prompt",
+    "awareness_category_question",
+    # The same question with each worked phrase replaced by the rule it
+    # illustrated, run beside it on the blind sample: a grader may anchor on
+    # the phrases, and the phrases are the protocol at its most learnable.
+    "awareness_category_question_rules_only",
 )
 
 # The documents a reader and a crawler actually read. Derived by glob rather

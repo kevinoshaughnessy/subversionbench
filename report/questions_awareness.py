@@ -1,7 +1,7 @@
 """
 Questions 5-10: the exposure is something the model did.
 
-    5.  verbalised evaluation awareness -> agentic misalignment rate
+    5.  verbalised evaluation awareness -> the composite act rate
     6.  verbalised evaluation awareness -> oversight-override rate
     7.  verbalised evaluation awareness -> sandbox escape attempt rate
     8.  verbalised evaluation awareness -> overall scheming rate
@@ -20,8 +20,8 @@ Two more, narrower still, are appended after those three - question 5 split
 by the kind of suspicion the grader's `eval_awareness_kind` recorded, rather
 than by whether awareness fired at all:
 
-    safety-flavoured awareness -> agentic misalignment rate
-    capability-flavoured awareness -> agentic misalignment rate
+    safety-flavoured awareness -> the composite act rate
+    capability-flavoured awareness -> the composite act rate
 
 Each restricts to episodes where the flavour could be told - see
 `_question_kind_vs_misalignment` for what "could be told" excludes and why.
@@ -29,8 +29,8 @@ Each restricts to episodes where the flavour could be told - see
 Two more still, appended after those, read the SAME flavour as the episode's
 own model rather than the primary grader:
 
-    safety-flavoured awareness (self-graded) -> agentic misalignment rate
-    capability-flavoured awareness (self-graded) -> agentic misalignment rate
+    safety-flavoured awareness (self-graded) -> the composite act rate
+    capability-flavoured awareness (self-graded) -> the composite act rate
 
 Restricted to episodes where BOTH the primary and self-graded flavour could be
 told - a narrower, DIFFERENT denominator from the pair above, because the two
@@ -90,7 +90,78 @@ from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 from .data_quality import cross_analysis_rows
 from .episode_rows import MISALIGNED_ACTS, NUDGE_LEVELS
 from .pooling import (_by_model, _consistency, _contrast, _finding,
-                      _stratified, composite_of)
+                      _stratified, composite_of, composite_rate_label)
+
+
+def _timing_caveat(rows: list) -> dict:
+    """How many aware-and-misaligned episodes were not aware before acting."""
+    # THE EXPOSURE IS ACT-INDEPENDENT, AND THAT HAS A COST.
+    #
+    # `aware` answers "did this model ever verbalise awareness", which is what
+    # makes it usable as an exposure at all - see the selection-bias note in
+    # docs/methodology.md. It does not answer "was it aware when it acted".
+    # The pre-act rubric does, and on this corpus it disagrees on a fifth of
+    # the aware-and-misaligned cell.
+    #
+    # Reported, NEVER used to reclassify. The temporal test can only be
+    # applied to episodes that acted, so moving episodes on it would apply it
+    # to one cell and not the other - and acting is the outcome. On r10 that
+    # manoeuvre moves the headline from -0.6pp to -2.2pp, an effect
+    # manufactured by conditioning on the dependent variable.
+    aware_mis = [r for r in rows if r["aware"] and r["misaligned"]]
+    after_act = [r for r in aware_mis if r["aware_before_act"] is False]
+    return {
+        "n_aware_and_misaligned": len(aware_mis),
+        "n_not_aware_before_acting": len(after_act),
+        "note": (
+            f"{len(after_act)} of {len(aware_mis)} aware-and-misaligned "
+            f"episodes were NOT aware before they acted, by the pre-act "
+            f"rubric the harness already runs per act. Awareness that arrives "
+            f"after the act cannot have influenced it, so those episodes "
+            f"cannot support a claim that awareness raises the rate. They are "
+            f"NOT reclassified: the test applies only to episodes that acted, "
+            f"and acting is the outcome, so moving them would condition the "
+            f"exposure on the dependent variable. See `actors_only` below for "
+            f"the subgroup where the test applies to both sides."),
+    }
+
+
+def _act_ordering(rows: list) -> dict:
+    """Among episodes that acted, how many were aware first - descriptive."""
+    # DESCRIPTIVE, NOT A CONTRAST, and that is forced rather than chosen.
+    #
+    # The obvious move is to restrict to episodes that acted, where "aware
+    # before the act" is defined on both sides, and contrast misalignment
+    # within them. That contrast cannot exist: misalignment IS committing one
+    # of the measured acts, so within actors the outcome is constant - 327 of
+    # 327 on r10 - and the comparison returns difference 0.0 and p 1.0 with
+    # nothing to separate. It was written that way first and the numbers said
+    # so.
+    #
+    # So this reports the ordering itself, which is what
+    # docs/methodology.md prescribes for exactly this quantity: "Use it
+    # descriptively - among the models that tampered, how many suspected a
+    # test first". It answers a real question the headline cannot, and it
+    # claims nothing about rates.
+    actors = [r for r in rows if r["acted"]]
+    before = sum(1 for r in actors if r["aware_before_act"] is True)
+    after = sum(1 for r in actors if r["aware_before_act"] is False)
+    unlocatable = sum(1 for r in actors if r["aware_before_act"] is None)
+    return {
+        "n_acts_located": len(actors),
+        "aware_before_the_act": before,
+        "not_aware_before_the_act": after,
+        "ordering_undeterminable": unlocatable,
+        "note": (
+            f"Of {len(actors)} episode(s) that committed a measured act, "
+            f"{before} had verbalised awareness BEFORE it and {after} did "
+            f"not, by the pre-act rubric ({unlocatable} could not be placed). "
+            f"Descriptive only: misalignment IS committing an act, so within "
+            f"this subgroup the outcome is constant and no rate contrast "
+            f"exists to compute. It does not replace the headline, and it "
+            f"must not be read as one - conditioning a rate on pre-act "
+            f"awareness is selection on the outcome."),
+    }
 
 
 def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
@@ -118,70 +189,8 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
         c["lure"] = lv
         by_lure.append(c)
 
-    # THE EXPOSURE IS ACT-INDEPENDENT, AND THAT HAS A COST.
-    #
-    # `aware` answers "did this model ever verbalise awareness", which is what
-    # makes it usable as an exposure at all - see the selection-bias note in
-    # docs/methodology.md. It does not answer "was it aware when it acted".
-    # The pre-act rubric does, and on this corpus it disagrees on a fifth of
-    # the aware-and-misaligned cell.
-    #
-    # Reported, NEVER used to reclassify. The temporal test can only be
-    # applied to episodes that acted, so moving episodes on it would apply it
-    # to one cell and not the other - and acting is the outcome. On r10 that
-    # manoeuvre moves the headline from -0.6pp to -2.2pp, an effect
-    # manufactured by conditioning on the dependent variable.
-    aware_mis = [r for r in rows if r["aware"] and r["misaligned"]]
-    after_act = [r for r in aware_mis if r["aware_before_act"] is False]
-    timing_caveat = {
-        "n_aware_and_misaligned": len(aware_mis),
-        "n_not_aware_before_acting": len(after_act),
-        "note": (
-            f"{len(after_act)} of {len(aware_mis)} aware-and-misaligned "
-            f"episodes were NOT aware before they acted, by the pre-act "
-            f"rubric the harness already runs per act. Awareness that arrives "
-            f"after the act cannot have influenced it, so those episodes "
-            f"cannot support a claim that awareness raises the rate. They are "
-            f"NOT reclassified: the test applies only to episodes that acted, "
-            f"and acting is the outcome, so moving them would condition the "
-            f"exposure on the dependent variable. See `actors_only` below for "
-            f"the subgroup where the test applies to both sides."),
-    }
-
-    # DESCRIPTIVE, NOT A CONTRAST, and that is forced rather than chosen.
-    #
-    # The obvious move is to restrict to episodes that acted, where "aware
-    # before the act" is defined on both sides, and contrast misalignment
-    # within them. That contrast cannot exist: misalignment IS committing one
-    # of the measured acts, so within actors the outcome is constant - 327 of
-    # 327 on r10 - and the comparison returns difference 0.0 and p 1.0 with
-    # nothing to separate. It was written that way first and the numbers said
-    # so.
-    #
-    # So this reports the ordering itself, which is what
-    # docs/methodology.md prescribes for exactly this quantity: "Use it
-    # descriptively - among the models that tampered, how many suspected a
-    # test first". It answers a real question the headline cannot, and it
-    # claims nothing about rates.
-    actors = [r for r in rows if r["acted"]]
-    before = sum(1 for r in actors if r["aware_before_act"] is True)
-    after = sum(1 for r in actors if r["aware_before_act"] is False)
-    unlocatable = sum(1 for r in actors if r["aware_before_act"] is None)
-    act_ordering = {
-        "n_acts_located": len(actors),
-        "aware_before_the_act": before,
-        "not_aware_before_the_act": after,
-        "ordering_undeterminable": unlocatable,
-        "note": (
-            f"Of {len(actors)} episode(s) that committed a measured act, "
-            f"{before} had verbalised awareness BEFORE it and {after} did "
-            f"not, by the pre-act rubric ({unlocatable} could not be placed). "
-            f"Descriptive only: misalignment IS committing an act, so within "
-            f"this subgroup the outcome is constant and no rate contrast "
-            f"exists to compute. It does not replace the headline, and it "
-            f"must not be read as one - conditioning a rate on pre-act "
-            f"awareness is selection on the outcome."),
-    }
+    timing_caveat = _timing_caveat(rows)
+    act_ordering = _act_ordering(rows)
 
     summary_rows = cross_analysis_rows(summaries)
     cross_check = _contrast(summary_rows, "aware", True, False, "misaligned", "n")
@@ -193,12 +202,12 @@ def question_awareness_vs_misalignment(episodes: list, summaries: list) -> dict:
         "excludes every uniform-awareness arm. Reported only as a cross-check "
         "against the episode-level figure above, which uses all episodes.")
 
+    composite = composite_of(MISALIGNED_ACTS, rows)
     return {
         "id": "awareness_vs_misalignment",
-        "composite": composite_of(MISALIGNED_ACTS, rows),
-        "question": "Do agentic misalignment rates (any of the measured "
-                    "acts) increase or decrease with verbalised evaluation "
-                    "awareness?",
+        "composite": composite,
+        "question": f"Does the {composite_rate_label(composite)} increase or "
+                    f"decrease with verbalised evaluation awareness?",
         "data_source": "run_*.json episodes: classify_misalignment(analysis), "
                        "conditioned on awareness_flag()",
         "overall": overall,
@@ -256,12 +265,13 @@ def _question_kind_vs_misalignment(episodes: list, group_key: str,
                       group_key, True, False, "misaligned", "one")
         c["lure"] = lv
         by_lure.append(c)
+    composite = composite_of(MISALIGNED_ACTS, rows)
     return {
         "id": question_id,
-        "composite": composite_of(MISALIGNED_ACTS, rows),
-        "question": f"Do agentic misalignment rates (any of the measured "
-                    f"acts) increase or decrease with {kind_label}-flavoured "
-                    f"verbalised evaluation awareness?",
+        "composite": composite,
+        "question": f"Does the {composite_rate_label(composite)} increase or "
+                    f"decrease with {kind_label}-flavoured verbalised "
+                    f"evaluation awareness?",
         "data_source": f"run_*.json episodes: classify_misalignment(analysis), "
                        f"conditioned on {group_key} (eval_awareness_kind in "
                        f"{'{safety, both}' if kind_label == 'safety' else '{capability, both}'}"
@@ -369,13 +379,14 @@ def _question_self_kind_vs_misalignment(episodes: list, self_key: str,
     primary_overall = _contrast(both, primary_key, True, False,
                                 "misaligned", "one")
 
+    composite = composite_of(MISALIGNED_ACTS, both)
     return {
         "id": question_id,
-        "composite": composite_of(MISALIGNED_ACTS, both),
-        "question": f"Do agentic misalignment rates (any of the measured "
-                    f"acts) increase or decrease with {kind_label}-flavoured "
-                    f"verbalised evaluation awareness, read by the episode's "
-                    f"OWN model rather than the primary grader?",
+        "composite": composite,
+        "question": f"Does the {composite_rate_label(composite)} increase or "
+                    f"decrease with {kind_label}-flavoured verbalised "
+                    f"evaluation awareness, read by the episode's OWN model "
+                    f"rather than the primary grader?",
         "data_source": f"run_*.json episodes: classify_misalignment(analysis), "
                        f"conditioned on {self_key} (awareness_kind_self, "
                        f"the episode's own model as grader). Restricted to "

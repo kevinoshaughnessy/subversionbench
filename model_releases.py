@@ -48,12 +48,17 @@ dates, and joining it to a corpus is the caller's job.
 import sys
 from datetime import date
 
-# Every model evaluated in this corpus, with the date OpenRouter lists it.
+# Every model evaluated in this corpus or pending evaluation, with the date
+# OpenRouter lists it.
 # Grouped by provider and ordered by release within each group, so that adding a
 # model puts it somewhere a reader would look for it. The grouping is a
 # courtesy to whoever edits this next - nothing reads it, and
 # `by_release_date()` returns the whole table in date order regardless.
 RELEASE_DATES = {
+    # aion-labs
+    "aion-labs/aion-3.5": date(2026, 9, 23),
+    "aion-labs/aion-3.5-mini": date(2026, 9, 23),
+
     # anthropic
     "anthropic/claude-sonnet-4.5": date(2025, 9, 29),
     # Also bare, and also a distinct route from the anthropic/-prefixed entry
@@ -89,12 +94,22 @@ RELEASE_DATES = {
     # has stem "claude-opus-5.5" and does not collide with the dashes.
     "claude-opus-5-5": date(2026, 9, 22),
 
+    # bytedance-seed
+    "bytedance-seed/seed-2-1-turbo": date(2026, 8, 12),
+    "bytedance-seed/seed-2.0-code": date(2026, 8, 12),
+
+    # cohere
+    "cohere/command-a-plus": date(2026, 9, 22),
+
     # deepseek
     "deepseek/deepseek-v4-pro": date(2026, 4, 24),
     "deepseek/deepseek-v4-flash": date(2026, 4, 24),
     "deepseek/deepseek-v4-flash-0731": date(2026, 7, 31),
     "deepseek/deepseek-v4-pro-0813": date(2026, 8, 12),
     "deepseek/deepseek-v4.1-flash": date(2026, 9, 10),
+
+    # fireworks
+    "fireworks/ember-1": date(2026, 9, 24),
 
     # google
     "google/gemini-3-flash-preview": date(2025, 12, 17),
@@ -105,6 +120,9 @@ RELEASE_DATES = {
     "google/gemini-3.6-flash": date(2026, 7, 21),
     "google/gemini-3.7-flash": date(2026, 8, 13),
     "google/gemini-3.8-flash": date(2026, 9, 2),
+
+    # ibm-granite
+    "ibm-granite/granite-4.2-8b": date(2026, 8, 31),
 
     # inception
     "inception/mercury-2.5": date(2026, 9, 8),
@@ -148,6 +166,15 @@ RELEASE_DATES = {
     "meta/muse-glimmer-30b": date(2026, 8, 9),
     "meta/muse-spark-1.3": date(2026, 9, 2),
 
+    # nvidia
+    "nvidia/nemotron-3.5-lightning": date(2026, 8, 11),
+
+    # perceptron
+    "perceptron/perceptron-mk1.5": date(2026, 9, 25),
+
+    # prism-ml
+    "prism-ml/ternary-bonsai-2-27b": date(2026, 9, 18),
+
     # qwen
     "qwen/qwen3.5-flash-02-23": date(2026, 2, 25),
     # Same OpenRouter release day as the 3.6 flash below. Placed before it so
@@ -158,9 +185,16 @@ RELEASE_DATES = {
     "qwen/qwen3.6-flash": date(2026, 4, 27),
     "qwen/qwen3.7-max": date(2026, 5, 21),
     "qwen/qwen3.7-flash": date(2026, 7, 27),
+    "qwen/qwen3.8-2.4t-a95b": date(2026, 8, 12),
     "qwen/qwen3.8-27b": date(2026, 8, 14),
     "qwen/qwen3.8-flash": date(2026, 8, 26),
     "qwen/qwen3.8-max-0902": date(2026, 9, 3),
+    "qwen/qwen3.8-omni-flash": date(2026, 9, 21),
+
+    # sakana
+    "sakana/sakana-namazu": date(2026, 8, 11),
+    "sakana/fugu-max": date(2026, 9, 11),
+    "sakana/fugu-ultra-v2": date(2026, 9, 11),
 
     # tencent
     "tencent/hy3": date(2026, 7, 6),
@@ -175,12 +209,20 @@ RELEASE_DATES = {
     # unbiased
     "unbiased/pareto": date(2026, 9, 17),
 
+    # upstage
+    "upstage/solar-pro4": date(2026, 8, 10),
+    "upstage/solar-mini4": date(2026, 9, 23),
+
     # x-ai
     "x-ai/grok-4.20": date(2026, 3, 31),
     "x-ai/grok-4.3": date(2026, 5, 1),
     "x-ai/grok-4.5": date(2026, 7, 8),
     "x-ai/grok-4.6": date(2026, 8, 12),
     "x-ai/grok-4.7": date(2026, 9, 21),
+
+    # xiaomi
+    "xiaomi/mimo-v2.6-flash": date(2026, 9, 21),
+    "xiaomi/mimo-v2.6-pro": date(2026, 9, 21),
 
     # z-ai
     "z-ai/glm-5": date(2026, 2, 11),

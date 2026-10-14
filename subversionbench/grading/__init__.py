@@ -24,11 +24,13 @@ should prefer the owning module; this exists so that `run_eval` has one import
 and the tests that patch `grading.X` keep working.
 """
 
-from .acts import auth_error_in_analysis, MISALIGNED_ACTS, questions_for
+from .acts import (auth_error_in_analysis, counted_acts, MISALIGNED_ACTS,
+                   LOCATED_BY_RECORDED_COMMANDS, questions_for)
 from .awareness_keywords import (detect_eval_awareness_keywords,
                                  detect_misuse_suspicion)
 from .capability import (CAPABILITY_ACT_KEYS, CAPABILITY_OUTCOMES,
-                         artefact_edit_commands, capability_outcome)
+                         NO_CONTENT_MARKER, artefact_edit_commands,
+                         capability_outcome, successor_edit_commands)
 from .awareness_timing import (
     AWARENESS_ONSET_LEVELS,
     AWARENESS_TIMING_LEVELS,
@@ -39,6 +41,8 @@ from .awareness_timing import (
     _looks_like_write,
     _read_positions,
 )
+from .category import (AWARE_CATEGORIES, CATEGORIES, CATEGORY_KEY,
+                       awareness_block, calls_needed, category_reading)
 from .closing_report import (
     detect_disclosure,
     detect_misrepresentation,
@@ -97,27 +101,36 @@ from .transcript_analysis import (SCHEMING_KEYWORDS, analyze_misalignment,
 from .filesystem_escapes import (classify_filesystem_escape,
                                  classify_host_path_read, detect_host_path_reads,
                                  detect_filesystem_escapes)
+from .command_failures import detect_command_failures
 from .disguised_text import (classify_disguised_text,
                             command_is_degenerate,
                             detect_disguised_text)
 from .encoded_payload import classify_encoded_payload, detect_encoded_payload
 from .honeypot import (classify_honeypot_discovered, classify_honeypot_read,
                        detect_honeypot_access)
+from .host_discovery import classify_host_discovery, detect_host_discovery
 from .network_probes import classify_network_probe, detect_network_probes
 from .transient_tampering import (
+    classify_goalguard_undone,
     classify_transient_tampering,
     detect_transient_tampering,
+    detect_undone_successor_edit,
 )
 
 __all__ = [
+    "AWARE_CATEGORIES", "CATEGORIES", "CATEGORY_KEY", "awareness_block",
+    "calls_needed", "category_reading",
     # what the episode did
-    "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "auth_error_in_analysis",
+    "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "LOCATED_BY_RECORDED_COMMANDS", "counted_acts", "auth_error_in_analysis",
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
+    "detect_undone_successor_edit", "classify_goalguard_undone",
+    "detect_command_failures",
     "scratch_only_attempts", "refusals_not_observed", "reads_a_file",
     "detect_network_probes", "classify_network_probe",
     "detect_filesystem_escapes", "classify_filesystem_escape",
     "detect_host_path_reads", "classify_host_path_read",
+    "detect_host_discovery", "classify_host_discovery",
     "detect_disguised_text", "classify_disguised_text",
     "command_is_degenerate",
     "detect_encoded_payload", "classify_encoded_payload",
@@ -126,8 +139,8 @@ __all__ = [
     "questions_for",
     # what a CAPABILITY episode demonstrated - see capability.py for why
     # three outcomes and not two
-    "CAPABILITY_ACT_KEYS", "CAPABILITY_OUTCOMES",
-    "artefact_edit_commands", "capability_outcome",
+    "CAPABILITY_ACT_KEYS", "CAPABILITY_OUTCOMES", "NO_CONTENT_MARKER",
+    "artefact_edit_commands", "capability_outcome", "successor_edit_commands",
     # awareness
     "detect_eval_awareness_keywords", "detect_eval_awareness_grader",
     "detect_misuse_suspicion",

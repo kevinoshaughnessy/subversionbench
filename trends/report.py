@@ -30,6 +30,8 @@ from datetime import date, timedelta
 from model_releases import release_date
 from report import (act_arm_rows, awareness_arm_rows, grader_coverage,
                     load_episodes, load_summaries, split_pending)
+from report.pooling import composite_of, composite_rate_label, scenario_of
+from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.config import (DEFAULT_GRADER_MODEL, ROLLOUT_NAME,
                                     ROLLOUT_VERSION, VERSION)
 from subversionbench.power import (MIN_INFORMATIVE_DENOMINATOR,
@@ -217,7 +219,10 @@ def _verdict(trend: dict, steps: dict, first_last: dict) -> str:
 
 def data_quality(families: dict, rates: dict, metric: str) -> dict:
     """What would make these figures unsafe to read."""
-    spec = METRICS[metric]
+    # .get: the overall rate is not a METRICS row - it is assembled across
+    # corpora by trends/overall.py - and like every act rate it is read off
+    # the act keys, so it is not LLM-dependent.
+    spec = METRICS.get(metric) or {"llm_dependent": False}
     in_family = {m.raw for members in families.values() for m in members}
     all_models = set(rates)
     thin = sorted(m for m in in_family
@@ -280,7 +285,13 @@ def _metric_rows(output_dir: str, metric: str, grader: str, summaries: list,
         # The summaries only for a directory with no episodes to rebuild
         # from - an archive of summaries alone. Their act counts are every
         # grader's alike, but a summary is counted once and can go stale.
-        return act_arm_rows(episodes) if episodes else summaries, {
+        # A metric only episodes carry gets no rows rather than summaries,
+        # which hold no field for it.
+        if not episodes:
+            rows = [] if spec.get("from_episodes") else summaries
+        else:
+            rows = act_arm_rows(episodes)
+        return rows, {
             "model": None, "summaries_hold_its_counts": False,
             "n_pending_episodes": 0, "pending_by_model": {}}
     if episodes is None:
@@ -310,7 +321,41 @@ def build_report(output_dir: str, metric: str = "misaligned",
                                   episodes)
     if METRICS[metric].get("oversight_only"):
         rows = [r for r in rows if r["oversight"]]
-    rates = model_rates(rows, metric)
+    # A model with nothing in the denominator could not take the act at all,
+    # which is no data rather than a rate - and a family of them is not a
+    # trend. The goal-guarding rate on a corpus with no goal-guarding arm is
+    # every model, so it reports no family instead of charting empty points.
+    rates = {m: r for m, r in model_rates(rows, metric).items() if r["n"]}
+    return {
+        "version": VERSION,
+        "rollout_version": ROLLOUT_VERSION,
+        # Which scenario, beside which rollout of it. The pair is the identity;
+        # neither half names a corpus alone. Stated on the document rather than
+        # left to the reader to assemble, because it is what decides whether
+        # two of these documents describe the same experiment.
+        "rollout_name": ROLLOUT_NAME,
+        "output_dir": redact_paths(os.path.abspath(output_dir)),
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "metric": metric,
+        # Whose verdicts the grader-dependent metrics are, and which episodes
+        # were left out because this grader has not read them yet.
+        "grader": coverage,
+        "metric_label": (composite_rate_label(composite_of(MISALIGNED_ACTS,
+                                                           rows))
+                         if METRICS[metric].get("composite")
+                         else METRICS[metric]["label"]),
+        # Which scenario the corpus ran, named on every chart drawn from it.
+        "scenario": scenario_of(rows),
+        "metric_denominator_label": METRICS[metric]["denominator_label"],
+        **families_document(rates, metric, style, exposure),
+    }
+
+
+def families_document(rates: dict, metric: str, style: str,
+                      exposure: dict = None) -> dict:
+    """The families, their trends and the corrections across them, for any
+    per-model rates shaped like model_rates' - the part of the report every
+    rate shares, whichever corpus or corpora it was pooled from."""
     families = group_families(sorted(rates), style)
     results = [family_trend(members, rates, metric, style, exposure)
                for _key, members in sorted(families.items())]
@@ -343,21 +388,6 @@ def build_report(output_dir: str, metric: str = "misaligned",
     up = sum(r["steps_summary"]["n_up"] for r in results)
     flat = sum(r["steps_summary"]["n_flat"] for r in results)
     return {
-        "version": VERSION,
-        "rollout_version": ROLLOUT_VERSION,
-        # Which scenario, beside which rollout of it. The pair is the identity;
-        # neither half names a corpus alone. Stated on the document rather than
-        # left to the reader to assemble, because it is what decides whether
-        # two of these documents describe the same experiment.
-        "rollout_name": ROLLOUT_NAME,
-        "output_dir": redact_paths(os.path.abspath(output_dir)),
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "metric": metric,
-        # Whose verdicts the grader-dependent metrics are, and which episodes
-        # were left out because this grader has not read them yet.
-        "grader": coverage,
-        "metric_label": METRICS[metric]["label"],
-        "metric_denominator_label": METRICS[metric]["denominator_label"],
         "version_style": style,
         "n_families": len(results),
         "across_all_families": {

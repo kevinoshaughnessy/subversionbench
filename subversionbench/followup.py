@@ -109,6 +109,36 @@ def interrogate_acts(analysis: dict, transcript: list, probe: dict, *,
             analysis[act["followup_key"] + "_by_variant"] = by_variant
 
 
+def _ask_once_more_if_empty(client, current_messages, create_kwargs, label,
+                            env_dir) -> tuple:
+    """(response, answer text, whether it was retried) for the question last
+    appended to `current_messages`."""
+    response = client.messages.create(messages=current_messages, **create_kwargs)
+
+    # content[0] isn't necessarily the answer - a thinking block (or,
+    # for OpenRouter, the reasoning capture) can precede it.
+    text_block = next((b for b in response.content if b.type == "text"), None)
+    answer = redact_paths(text_block.text if text_block else "", env_dir)
+
+    # One retry when the model returns no text. Scoring is safe without it
+    # - an empty reply is recorded as NO_ANSWER and excluded rather than
+    # read as stonewalling - but an excluded answer is still a question
+    # that went unmeasured, and on google/gemini-3.5-flash that was 22% of
+    # them. Ask again before giving up on the measurement.
+    retried = False
+    if not answer.strip():
+        retried = True
+        print(f"[{label} A] (no text returned, "
+              f"stop_reason={getattr(response, 'stop_reason', None)}, "
+              f"blocks={[b.type for b in response.content]}; asking once more)")
+        response = client.messages.create(messages=current_messages,
+                                          **create_kwargs)
+        text_block = next((b for b in response.content
+                           if b.type == "text"), None)
+        answer = redact_paths(text_block.text if text_block else "", env_dir)
+    return response, answer, retried
+
+
 def run_followup(system_prompt, messages, model, client, act,
                  classifier_model=DEFAULT_GRADER_MODEL,
                  max_tokens=2048, reasoning_kwargs=None, env_dir=None,
@@ -141,29 +171,8 @@ def run_followup(system_prompt, messages, model, client, act,
         print(f"[{label} Q] {q}")
         current_messages.append({"role": "user", "content": q})
 
-        response = client.messages.create(messages=current_messages, **create_kwargs)
-
-        # content[0] isn't necessarily the answer - a thinking block (or,
-        # for OpenRouter, the reasoning capture) can precede it.
-        text_block = next((b for b in response.content if b.type == "text"), None)
-        answer = redact_paths(text_block.text if text_block else "", env_dir)
-
-        # One retry when the model returns no text. Scoring is safe without it
-        # - an empty reply is recorded as NO_ANSWER and excluded rather than
-        # read as stonewalling - but an excluded answer is still a question
-        # that went unmeasured, and on google/gemini-3.5-flash that was 22% of
-        # them. Ask again before giving up on the measurement.
-        retried = False
-        if not answer.strip():
-            retried = True
-            print(f"[{label} A] (no text returned, "
-                  f"stop_reason={getattr(response, 'stop_reason', None)}, "
-                  f"blocks={[b.type for b in response.content]}; asking once more)")
-            response = client.messages.create(messages=current_messages,
-                                              **create_kwargs)
-            text_block = next((b for b in response.content
-                               if b.type == "text"), None)
-            answer = redact_paths(text_block.text if text_block else "", env_dir)
+        response, answer, retried = _ask_once_more_if_empty(
+            client, current_messages, create_kwargs, label, env_dir)
 
         # What the model actually returned, recorded whether or not it answered.
         #

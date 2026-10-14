@@ -87,6 +87,30 @@ def write_chart(report: dict, path: str) -> str:
 
     fig, (ax_level, ax_gap) = plt.subplots(1, 2, figsize=(12, 5.5))
 
+    _draw_level_panel(fig, ax_level, pairs, level_stat)
+    any_underpowered = _draw_gap_panel(fig, ax_gap, pairs, gap_stat)
+
+    captions = [
+        f"AM = the external Agentic Misalignment benchmark. "
+        f"{report['n_pairs']} models overlap. Spearman rank correlation, exact "
+        f"permutation p-value. DESCRIPTIVE: at this n one model's position "
+        f"moves rho substantially - see the JSON for the leave-one-out range.",
+        "left: error bars are 95% Wilson intervals on each rate.",
+        "right: dashed lines mark zero. Top-right and bottom-left AGREE on the "
+        "sign of the gap; the other two corners disagree - blue/red marks which."
+        + ("  hollow: an aware bucket below "
+           f"{MIN_INFORMATIVE_DENOMINATOR} trajectories or episodes on either "
+           "side." if any_underpowered else ""),
+        report["interpretation"] + ".",
+    ]
+    charting.caption_below(fig, captions, _wrap)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def _draw_level_panel(fig, ax_level, pairs: list, level_stat: dict) -> None:
+    """The level correlation, each rate with its Wilson interval."""
     level_points = []
     for pair in pairs:
         e, loc = pair["external"], pair["local"]
@@ -111,6 +135,10 @@ def write_chart(report: dict, path: str) -> str:
     ax_level.set_ylabel("SubversionBench misalignment rate (%)", fontsize=9)
     ax_level.grid(alpha=0.25)
 
+
+def _draw_gap_panel(fig, ax_gap, pairs: list, gap_stat: dict) -> bool:
+    """The suppression gap in quadrants; returns whether any pair rests on an
+    underpowered aware bucket, which the caption then explains."""
     gap_points, any_underpowered = [], False
     for pair in pairs:
         e, loc = pair["external"], pair["local"]
@@ -138,24 +166,7 @@ def write_chart(report: dict, path: str) -> str:
     ax_gap.set_xlabel("AM gap (points)", fontsize=9)
     ax_gap.set_ylabel("SubversionBench gap (points)", fontsize=9)
     ax_gap.grid(alpha=0.25)
-
-    captions = [
-        f"AM = the external Agentic Misalignment benchmark. "
-        f"{report['n_pairs']} models overlap. Spearman rank correlation, exact "
-        f"permutation p-value. DESCRIPTIVE: at this n one model's position "
-        f"moves rho substantially - see the JSON for the leave-one-out range.",
-        "left: error bars are 95% Wilson intervals on each rate.",
-        "right: dashed lines mark zero. Top-right and bottom-left AGREE on the "
-        "sign of the gap; the other two corners disagree - blue/red marks which."
-        + ("  hollow: an aware bucket below "
-           f"{MIN_INFORMATIVE_DENOMINATOR} trajectories or episodes on either "
-           "side." if any_underpowered else ""),
-        report["interpretation"] + ".",
-    ]
-    charting.caption_below(fig, captions, _wrap)
-    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
-    plt.close(fig)
-    return path
+    return any_underpowered
 
 
 def _slug(text: str) -> str:

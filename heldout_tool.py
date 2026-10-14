@@ -26,6 +26,8 @@ barrier, not a secret, and deliberately not a new credential to manage.
     python heldout_tool.py --pin        # compute its rollout fingerprints
     python heldout_tool.py --export     # decrypt for a run, and print the path
 
+Add --goalguard to any of these to act on the goal-guarding twin instead.
+
 --encode refuses a bundle missing any entry the shipped one has, and refuses
 one that fails the invariants, restoring what was there. Either would fail at
 run time rather than here.
@@ -59,6 +61,32 @@ TESTS = ROOT / "test_corpus" / "test_heldout_scenario.py"
 # rollouts indistinguishable. Numbered so a later reword is a later rollout
 # rather than a silent redefinition of this one.
 ROLLOUT_VERSION = "heldout2"
+
+# THE GOAL-GUARDING TWIN IS A BUNDLE OF ITS OWN, selected by --goalguard. It
+# began as the goal-guarding arm inside the bundle above, which made the two
+# held-out scenarios share every name a reader could match on - people,
+# client, firm - so a leak of either would point straight at the other. A
+# second bundle rather than renaming inside the arm, because a goal-guarding
+# episode also stages the base documents (memo, meeting notes, monitoring
+# config) and the harness derives the client name, project directory and
+# contamination terms from whichever bundle it loads: renamed in the arm
+# alone, every episode would have carried both sets of names.
+#
+# The twin above therefore pins no goal-guarding cells, and the harness
+# refuses that arm under it.
+GOALGUARD_BUNDLE_PATH = HELDOUT_DIR / "scenario_heldout_goalguard.enc"
+GOALGUARD_ROLLOUT_VERSION = "heldout-goalguard1"
+_twin = "mainline"
+
+
+def use_goalguard_twin() -> None:
+    """Point every path, and the rollout name, at the goal-guarding twin."""
+    global BUNDLE_PATH, WORKING_COPY, PINS_PATH, ROLLOUT_VERSION, _twin
+    BUNDLE_PATH = GOALGUARD_BUNDLE_PATH
+    WORKING_COPY = GOALGUARD_BUNDLE_PATH.with_suffix(".json")
+    PINS_PATH = GOALGUARD_BUNDLE_PATH.with_suffix(_PINS_SIDECAR_SUFFIX)
+    ROLLOUT_VERSION = GOALGUARD_ROLLOUT_VERSION
+    _twin = "goalguard"
 
 
 def load_heldout(path: Path = None) -> dict:
@@ -143,11 +171,15 @@ def _goalguard_fingerprints(bundle_for_run: Path) -> dict:
     provisional-sidecar dance: rollout_pins refuses to import under the
     override without a sidecar, and the sidecar is what this is computing.
 
+    The mainline twin returns {} too, whatever it carries: its goal-guarding
+    arm shares the mainline's names, and an unpinned arm is one the harness
+    refuses to collect.
+
     A bundle with no `goalguard` entry returns {} rather than raising.
     scenario_for refuses that arm outright for such a bundle, so there is no
     cell to identify - and pinning one would claim an arm the twin cannot run.
     """
-    if "goalguard" not in load_heldout():
+    if _twin != "goalguard" or "goalguard" not in load_heldout():
         return {}
     return _under_the_override(bundle_for_run, _GOALGUARD_PROBE, lambda rows: {
         (str(arm), bool(o), str(nudge)): fp for arm, o, nudge, fp in rows})
@@ -244,9 +276,9 @@ def _build_parser():
         description="Read, edit and pin the encrypted held-out scenario.")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--decode", action="store_true",
-                       help=f"write {WORKING_COPY.name} for editing")
+                       help="write the editable working copy")
     group.add_argument("--encode", action="store_true",
-                       help=f"fold {WORKING_COPY.name} back in")
+                       help="fold the working copy back in")
     group.add_argument("--list", action="store_true",
                        help="entry names and sizes")
     group.add_argument("--show", metavar="SUBSTRING",
@@ -257,6 +289,9 @@ def _build_parser():
                        help="compute and write the rollout fingerprints")
     group.add_argument("--export", action="store_true",
                        help="decrypt for a run and print the path")
+    parser.add_argument("--goalguard", action="store_true",
+                        help="act on the goal-guarding twin rather than the "
+                             "mainline one")
     # NOT in the mutually exclusive group: a modifier on --encode, not a mode.
     parser.add_argument("--repin", action="store_true",
                         help="with --encode, accept that the edit moves the "
@@ -462,6 +497,8 @@ def _encode(repin: bool) -> int:
 def main():
     """Parse, refuse without the bundle, and hand off to the one mode asked for."""
     args = _build_parser().parse_args()
+    if args.goalguard:
+        use_goalguard_twin()
 
     if not BUNDLE_PATH.is_file():
         print(f"{BUNDLE_PATH.relative_to(ROOT)} not found. The held-out bundle "

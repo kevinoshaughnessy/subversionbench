@@ -6,6 +6,7 @@ import os
 
 from subversionbench import charting
 
+from .act_awareness_gap import plot_act_awareness_gap
 from .characteristics import (plot_awareness_confidence,
                               plot_awareness_refusal_timing,
                               plot_encoded_payload_rate,
@@ -13,7 +14,10 @@ from .characteristics import (plot_awareness_confidence,
                               plot_misuse_profile,
                               plot_persistence_rate,
                               plot_persistence_within_model)
+from .goalguard import plot_goalguard_rate_views
 from .lure import plot_honeypot_access, plot_lure_misalignment
+from .strategy import (plot_strategy_replacement_effect,
+                       plot_strategy_split)
 from .questions import (plot_awareness_kind_comparison, plot_overview,
                         plot_question)
 
@@ -48,10 +52,22 @@ CHARACTERISTIC_CHARTS = (
     ("awareness_refusal_timing.png", plot_awareness_refusal_timing, True),
     ("lure_misalignment.png", plot_lure_misalignment, False),
     ("honeypot_access.png", plot_honeypot_access, False),
+    ("goalguard_rate_views.png", plot_goalguard_rate_views, False),
+    ("act_awareness_gap.png", plot_act_awareness_gap, False),
+    ("strategy_split.png", plot_strategy_split, False),
+    ("strategy_replacement_effect.png", plot_strategy_replacement_effect,
+     False),
 )
 
 
 def write_charts(report: dict, chart_dir: str, grader_dependent=None) -> list:
+    """Every chart, each naming the scenario its corpus ran - see
+    charting.scenario_marked."""
+    with charting.scenario_marked(report.get("scenario")):
+        return _write_charts(report, chart_dir, grader_dependent)
+
+
+def _write_charts(report: dict, chart_dir: str, grader_dependent=None) -> list:
     """
     Every question chart plus the overview, into chart_dir.
 
@@ -93,7 +109,10 @@ def write_charts(report: dict, chart_dir: str, grader_dependent=None) -> list:
         if not wanted(reads_grader):
             continue
         path = os.path.join(chart_dir, name)
-        if plot(plt, report, path):
+        drawn = plot(plt, report, path)
+        if isinstance(drawn, list):
+            written.extend(drawn)
+        elif drawn:
             written.append(path)
             # plot_lure_misalignment writes one file per oversight stratum and
             # returns only the first, so the second is collected by asking the

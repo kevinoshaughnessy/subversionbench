@@ -11,7 +11,7 @@ from .captions import _exposure_note, _exposure_range_note, _member_labels
 from .chart_geometry import (_label_layout, _lower_error, _point_label,
                              _upper_error, axis_top)
 from .chart_style import (CHART_DPI, WILSON_NOTE, WILSON_NOTE_WITH_BRACKETS,
-                          _family_colours)
+                          _family_colours, axis_label)
 from .metrics import AWARENESS_METRICS
 
 
@@ -52,7 +52,7 @@ def _plot_family(plt, family: dict, metric_label: str, den_label: str,
     ax.set_xticklabels(_member_labels(family), fontsize=9)
     ax.set_xlim(-0.4, len(members) - 0.6)
     ax.set_ylim(0, top)
-    ax.set_ylabel(f"{metric_label} (%)")
+    ax.set_ylabel(axis_label(metric_label))
     ax.set_xlabel(f"version, oldest to newest    ({WILSON_NOTE_WITH_BRACKETS})")
     # Padded when the warning below is going to sit above the axes, or the two
     # print on top of each other.
@@ -160,7 +160,7 @@ def _plot_all_families(plt, report: dict, path: str) -> str:
     ax.set_ylim(0, top)
     ax.set_xlabel("position in family, oldest to newest "
                   "(point labels give the version)")
-    ax.set_ylabel(f"{report['metric_label']} (%)")
+    ax.set_ylabel(axis_label(report["metric_label"]))
     total = sum(m["n"] or 0 for f in families for m in f["members"])
     ax.set_title(f"{report['metric_label']} by model family "
                  f"({report['n_families']} families, {total} "

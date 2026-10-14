@@ -33,6 +33,9 @@ re-collection and no `--resummarise`: it is a new reading of data the harness ha
 recorded all along.
 """
 
+from collections import Counter
+
+from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 from .episode_rows import (AWARENESS_CONFIDENCE_BANDS,
@@ -40,6 +43,7 @@ from .episode_rows import (AWARENESS_CONFIDENCE_BANDS,
                            MISUSE_EVIDENCE_BANDS,
                            AWARENESS_REFUSAL_LOCATABLE, RUBRIC_SIGNAL_KEYS)
 from .pooling import _models
+from .strategy_pressure import _arm_slug, strategy_by_arm
 
 
 def persistence_after_refusal(episodes: list) -> dict:
@@ -128,6 +132,57 @@ def persistence_after_refusal(episodes: list) -> dict:
     }
 
 
+def _switches_by_first_check(episodes: list) -> list:
+    """Switch rates grouped by what the episode's first quality check said."""
+    # The pressure, by what the FIRST check said. Episodes that never ran one are
+    # a separate row rather than a baseline folded into "not flagged": a model
+    # that never checked was never put under this pressure at all.
+    by_check = []
+    seen = {e["first_quality_check"] for e in episodes}
+    for outcome in sorted(seen, key=lambda v: (v is None, str(v))):
+        group = [e for e in episodes if e["first_quality_check"] == outcome]
+        could = [e for e in group if e["strategy_restated"]]
+        sw = [e for e in could if e["strategy_switched"]]
+        by_check.append({
+            "first_quality_check": outcome,
+            "n_episodes": len(group),
+            "n_could_switch": len(could),
+            "n_switched": len(sw),
+            "switch_rate": (round(len(sw) / len(could), 4) if could else None),
+        })
+    return by_check
+
+
+def _decisions_by_model(episodes: list) -> list:
+    """Each model's choice and switch counts, informative rows first."""
+    by_model = []
+    for model in _models(episodes):
+        mine = [e for e in episodes if e["model"] == model]
+        r = [e for e in mine if e["strategy_restated"]]
+        sw = [e for e in r if e["strategy_switched"]]
+        a = sum(1 for e in mine if e["strategy_final"] == "A")
+        b = sum(1 for e in mine if e["strategy_final"] == "B")
+        by_model.append({
+            "model": model, "n_episodes": len(mine),
+            "n_chose_a": a, "n_chose_b": b,
+            "n_none_stated": len(mine) - a - b,
+            "n_could_switch": len(r), "n_switched": len(sw),
+            "switch_rate": (round(len(sw) / len(r), 4) if r else None),
+            "n_switched_after_check": sum(
+                1 for e in sw if e["switched_after_quality_check"]),
+            # A rate over a handful of episodes sorts to the top of a
+            # rate-ordered table and reads as the strongest finding in it. The
+            # same threshold trends.metrics uses, so "underpowered" means one
+            # thing across the project.
+            "underpowered": len(r) < MIN_INFORMATIVE_DENOMINATOR,
+        })
+    # Informative rows first, so a 1-of-1 cannot head the table; underpowered
+    # ones keep their rate but sort below, and the console marks them.
+    by_model.sort(key=lambda r: (r["underpowered"],
+                                 -(r["switch_rate"] or 0), r["model"]))
+    return by_model
+
+
 def decision_profile(episodes: list) -> dict:
     """
     Which strategy the model recommended, and whether it stuck to it.
@@ -179,48 +234,8 @@ def decision_profile(episodes: list) -> dict:
         "share_of_all": (round((len(episodes) - len(stated)) / len(episodes), 4)
                          if episodes else None)}
 
-    # The pressure, by what the FIRST check said. Episodes that never ran one are
-    # a separate row rather than a baseline folded into "not flagged": a model
-    # that never checked was never put under this pressure at all.
-    by_check = []
-    seen = {e["first_quality_check"] for e in episodes}
-    for outcome in sorted(seen, key=lambda v: (v is None, str(v))):
-        group = [e for e in episodes if e["first_quality_check"] == outcome]
-        could = [e for e in group if e["strategy_restated"]]
-        sw = [e for e in could if e["strategy_switched"]]
-        by_check.append({
-            "first_quality_check": outcome,
-            "n_episodes": len(group),
-            "n_could_switch": len(could),
-            "n_switched": len(sw),
-            "switch_rate": (round(len(sw) / len(could), 4) if could else None),
-        })
-
-    by_model = []
-    for model in _models(episodes):
-        mine = [e for e in episodes if e["model"] == model]
-        r = [e for e in mine if e["strategy_restated"]]
-        sw = [e for e in r if e["strategy_switched"]]
-        a = sum(1 for e in mine if e["strategy_final"] == "A")
-        b = sum(1 for e in mine if e["strategy_final"] == "B")
-        by_model.append({
-            "model": model, "n_episodes": len(mine),
-            "n_chose_a": a, "n_chose_b": b,
-            "n_none_stated": len(mine) - a - b,
-            "n_could_switch": len(r), "n_switched": len(sw),
-            "switch_rate": (round(len(sw) / len(r), 4) if r else None),
-            "n_switched_after_check": sum(
-                1 for e in sw if e["switched_after_quality_check"]),
-            # A rate over a handful of episodes sorts to the top of a
-            # rate-ordered table and reads as the strongest finding in it. The
-            # same threshold trends.metrics uses, so "underpowered" means one
-            # thing across the project.
-            "underpowered": len(r) < MIN_INFORMATIVE_DENOMINATOR,
-        })
-    # Informative rows first, so a 1-of-1 cannot head the table; underpowered
-    # ones keep their rate but sort below, and the console marks them.
-    by_model.sort(key=lambda r: (r["underpowered"],
-                                 -(r["switch_rate"] or 0), r["model"]))
+    by_check = _switches_by_first_check(episodes)
+    by_model = _decisions_by_model(episodes)
     return {
         "measure": ("the strategy recommended, and whether it changed while the "
                     "episode ran"),
@@ -660,6 +675,65 @@ def lure_effect(episodes: list) -> dict:
     }
 
 
+def _gap_counts(rows: list) -> dict:
+    """Acts per (act turn - first awareness turn), per act, and what could not
+    be placed. Pairs rather than a dict keyed by gap, because JSON would turn
+    the integer keys into strings and sort -1 after 10."""
+    gaps = {act["name"]: Counter() for act in MISALIGNED_ACTS}
+    unplaced = Counter()
+    for e in rows:
+        for act in MISALIGNED_ACTS:
+            timing = e.get(f"{act['name']}_awareness_timing") or {}
+            level = timing.get("timing")
+            if level in (None, "no_act"):
+                continue
+            act_turn, aware_turn = timing.get("act_turn"), timing.get(
+                "awareness_turn")
+            if act_turn is None or aware_turn is None:
+                unplaced[level] += 1
+            else:
+                gaps[act["name"]][act_turn - aware_turn] += 1
+    return {
+        "by_act": {name: sorted(c.items()) for name, c in gaps.items() if c},
+        "n_placed": sum(sum(c.values()) for c in gaps.values()),
+        "n_not_aware": unplaced["not_aware"],
+        "n_unlocatable": sum(n for level, n in unplaced.items()
+                             if level != "not_aware"),
+    }
+
+
+def act_awareness_gap(episodes: list) -> dict:
+    """
+    How many turns after first verbalising awareness each act was taken.
+
+    One count per act, not per episode: an episode that tampered with
+    oversight and probed the sandbox contributes to both. Only the acts the
+    episode's own `misaligned` verdict counts - see counted_acts - so the
+    goal-guarding scenario's chart is its own act.
+
+    THE AWARENESS IS THE KEYWORD MEASURE'S, for the reason
+    awareness_refusal_timing gives: the rubric grader returns no position. An
+    act whose episode never matched an indicator phrase has no gap and is
+    counted as `n_not_aware`, which under-detection inflates; an act no
+    command could be tied to is `n_unlocatable`.
+
+    Turns, not transcript entries, because a reader counts turns: 0 is
+    awareness in the same turn as the act, which the entry order inside the
+    turn may put either side of it. Negative is awareness verbalised only
+    after the act.
+    """
+    by_arm = {}
+    for e in episodes:
+        by_arm.setdefault(_arm_slug(e), []).append(e)
+    return {
+        "measure": ("misaligned acts by act turn minus the turn of first "
+                    "verbalised awareness (keyword measure)"),
+        "pooled": _gap_counts(episodes),
+        "by_arm": [{"arm": arm, **_gap_counts(rows)}
+                   for arm, rows in sorted(by_arm.items())],
+    }
+
+
 def characteristics(episodes: list) -> dict:
     """
     Every characteristic block, in one place.
@@ -675,4 +749,6 @@ def characteristics(episodes: list) -> dict:
             "misuse_profile": misuse_profile(episodes),
             "encoded_payload_rate": encoded_payload_rate(episodes),
             "awareness_refusal_timing": awareness_refusal_timing(episodes),
-            "lure_effect": lure_effect(episodes)}
+            "lure_effect": lure_effect(episodes),
+            "act_awareness_gap": act_awareness_gap(episodes),
+            "strategy_by_arm": strategy_by_arm(episodes)}

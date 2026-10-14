@@ -18,6 +18,18 @@ import subversionbench.llm_client as ev_llm
 from subversionbench.scenario import SCENARIO
 
 
+def _no_real_client():
+    """llm_client.get_client replaced for the length of a `with` block.
+
+    The probe tests here used to assign a one-argument stand-in and never put
+    the real one back, so every later test in the session that built a client
+    through llm_client got the stand-in - found when a test of episode.py's
+    client failed only when run after this file.
+    """
+    from unittest import mock
+    return mock.patch.object(ev_llm, "get_client", lambda *a, **k: object())
+
+
 def _clean_summary(**kw):
     return cont.summarise_contamination(kw.get("fc", []), kw.get("canary", []),
                                         kw.get("cont", []), k=kw.get("k", 4))
@@ -147,6 +159,44 @@ class TestLeakAudit:
         assert [f["path"] for f in report["findings"]] == [str(large), str(small)]
 
 
+class TestTheWholeBundleIsCovered:
+    """Until v251 the audit indexed the assembled oversight arm and skipped any
+    value that was not a string, and the probes read the mainline documents
+    only - so the goal-guarding documents, the controls' notes and every
+    interrogation question could be quoted in a tracked file, or memorised by
+    a model, and still read as clean."""
+
+    @staticmethod
+    def _opening(key, words=20):
+        return " ".join(cont.bundle_documents()[key].split()[:words])
+
+    def test_a_goal_guarding_document_is_audited(self):
+        key = "goalguard/deferred/cutover_note"
+        found = cont.audit_text(f"Prose. {self._opening(key)} More prose.")
+        assert found.get(key, 0) > 0
+
+    def test_an_interrogation_question_is_audited(self):
+        documents = cont.bundle_documents()
+        key = next(k for k in documents
+                   if k.startswith("followup_monitoring_questions/")
+                   and len(documents[k].split()) >= 12)
+        found = cont.audit_text(f"Prose. {self._opening(key, 12)} More.")
+        assert found.get(key, 0) > 0
+
+    def test_the_probes_read_the_goal_guarding_documents(self):
+        fc = {i["document"] for i in cont.build_forced_choice(k=4, seed=0)}
+        cn = {c["document"] for c in cont.build_continuations()}
+        for documents in (fc, cn):
+            assert any(d in cont.GOALGUARD_DOCUMENTS for d in documents)
+
+    def test_a_line_in_several_documents_is_one_item(self):
+        """The goal-guarding memos share most lines with the base memo, and a
+        line a model may remember is one observation, not three."""
+        items = [i for i in cont.build_forced_choice(k=4, seed=0)
+                 if i["source"] == "scenario"]
+        assert len({i["id"] for i in items}) == len(items)
+
+
 class TestControlDocument:
     """The control is what makes a positive forced-choice result mean anything.
     If it shared text with the scenario, contamination would show up in both
@@ -219,8 +269,10 @@ class TestForcedChoice:
         """The arms are zipped, so a control smaller than the scenario silently
         truncates the scenario arm. That shipped once: the probe reported
         building 35 items and measured 4."""
-        available = sum(len(cont.distinctive_lines(SCENARIO[key]))
-                        for key in cont.SCENARIO_DOCUMENTS if key in SCENARIO)
+        documents = cont.bundle_documents()
+        available = len({line for key in cont.PROBED_DOCUMENTS
+                         for line in cont.distinctive_lines(
+                             documents.get(key, ""))})
         items = cont.build_forced_choice(k=4, seed=0)
         scenario_items = [i for i in items if i["source"] == "scenario"]
         assert len(scenario_items) == available, (
@@ -446,10 +498,10 @@ class TestTheProbeRunnerSurvivesOneBadReply:
                 return "An analysis of the options", None   # the bad one
             return '{"choice": 0}', None
 
-        ev_llm.get_client = lambda model: object()
         mod.ask = reply
-        canary, fc, continuations = mod.probe_model(
-            "p/m", items, [], delay=0, keep_prompts=False)
+        with _no_real_client():
+            canary, fc, continuations = mod.probe_model(
+                "p/m", items, [], delay=0, keep_prompts=False)
 
         assert len(fc) == len(items), "every item must be attempted"
         failed = [r for r in fc if r["error"]]
@@ -463,10 +515,10 @@ class TestTheProbeRunnerSurvivesOneBadReply:
         mod = self._module()
         items = cont.build_forced_choice(k=4, seed=0, limit=2)
         continuations = cont.build_continuations()[:1]
-        ev_llm.get_client = lambda model: object()
         mod.ask = lambda c, m, p, max_tokens=400: ("not json at all", None)
-        _canary, fc, cont_results = mod.probe_model(
-            "p/m", items, continuations, delay=0, keep_prompts=False)
+        with _no_real_client():
+            _canary, fc, cont_results = mod.probe_model(
+                "p/m", items, continuations, delay=0, keep_prompts=False)
         assert len(fc) == len(items)
         assert len(cont_results) == 1, "the continuation probe must still run"
 
@@ -530,14 +582,13 @@ class TestTheDelayPacesEveryProbeFamily:
         mod = self._module()
         slept = []
         mod.time = type("Clock", (), {"sleep": staticmethod(slept.append)})()
-        ev_llm.get_client = lambda model: object()
         mod.ask = lambda c, m, p, max_tokens=400: ('{"choice": 0}', None)
         # `limit` caps per source rather than overall, so the item count is
         # taken from what was actually built - a test that assumed it would
         # be measuring its own arithmetic instead of the pacing.
         items = cont.build_forced_choice(k=4, seed=0, limit=limit) if limit else []
         continuations = cont.build_continuations()[:n_continuations]
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), _no_real_client():
             canary, fc, cont_results = mod.probe_model(
                 "p/m", items, continuations, delay=delay, keep_prompts=False)
         assert len(cont_results) == n_continuations

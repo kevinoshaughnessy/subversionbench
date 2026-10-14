@@ -11,8 +11,9 @@ favour by turning its malformed replies into confident verdicts.
 import json
 import time
 
-from subversionbench.api_errors import is_auth_error, is_usage_limit_error
-from subversionbench.config import RUBRIC_QUESTIONS, RUBRIC_SYSTEM_PROMPT
+from subversionbench.config import (AWARENESS_CATEGORY_QUESTION,
+                                    AWARENESS_CATEGORY_QUESTION_RULES_ONLY,
+                                    RUBRIC_QUESTIONS, RUBRIC_SYSTEM_PROMPT)
 from subversionbench.grading import ask_rubric_question
 from subversionbench.grading.grader_io import (new_channel_id,
                                                parse_boolean_verdict,
@@ -22,7 +23,15 @@ from subversionbench import llm_client
 from subversionbench.reasoning import short_call_thinking_kwargs
 
 from subversionbench.usage import token_counts
+from subversionbench.grading.category import (  # noqa: F401 - re-exported
+    AWARE_CATEGORIES, CATEGORIES, CATEGORY_KEY, category_call, classify_error,
+    first_json_object, parse_category_verdict)
 from .prices import _TOKENS_PER_ANSWER
+
+# The names this module had before the category instrument moved to
+# subversionbench.grading.category, kept so grader_ab's callers read unchanged.
+_first_json_object = first_json_object
+_category_call = category_call
 
 
 def ask_rubric_batch(corpus: str, model: str, client=None,
@@ -54,6 +63,30 @@ def ask_rubric_batch(corpus: str, model: str, client=None,
     finally:
         if delay:
             time.sleep(delay)
+
+
+def _per_key_verdicts(parsed: dict, keys: list, response) -> dict:
+    """Each key's entry in a parsed batched reply, validated on its own."""
+    out = {}
+    for key in keys:
+        entry = parsed.get(key)
+        if entry is None:
+            out[key] = {"answer": None, "quote": "",
+                        "error": f"batched reply omitted {key} "
+                                 f"[{why_it_stopped(response)}]",
+                        "error_kind": "reply"}
+            continue
+        try:
+            # The shipped validator, fed one entry, so the string forms and
+            # the quote type check behave exactly as in production.
+            verdict = parse_boolean_verdict(json.dumps(entry))
+        except (ValueError, TypeError) as e:
+            out[key] = {"answer": None, "quote": "", "error": str(e),
+                        "error_kind": "reply"}
+            continue
+        out[key] = {"answer": verdict["answer"], "quote": verdict["quote"],
+                    "error": None, "error_kind": None}
+    return out
 
 
 def _batched_rubric_call(corpus: str, model: str, client=None,
@@ -150,58 +183,9 @@ def _batched_rubric_call(corpus: str, model: str, client=None,
             return failed(f"batched reply was not a JSON object "
                           f"[{why_it_stopped(response)}]", from_reply=True)
 
-        out = {}
-        for key in keys:
-            entry = parsed.get(key)
-            if entry is None:
-                out[key] = {"answer": None, "quote": "",
-                            "error": f"batched reply omitted {key} "
-                                     f"[{why_it_stopped(response)}]",
-                            "error_kind": "reply"}
-                continue
-            try:
-                # The shipped validator, fed one entry, so the string forms and
-                # the quote type check behave exactly as in production.
-                verdict = parse_boolean_verdict(json.dumps(entry))
-            except (ValueError, TypeError) as e:
-                out[key] = {"answer": None, "quote": "", "error": str(e),
-                            "error_kind": "reply"}
-                continue
-            out[key] = {"answer": verdict["answer"], "quote": verdict["quote"],
-                        "error": None, "error_kind": None}
-        return out
+        return _per_key_verdicts(parsed, keys, response)
     except Exception as e:                       # noqa: BLE001 - reported, not raised
         return failed(str(e))
-
-
-def _first_json_object(raw: str) -> str:
-    """The first balanced {...} in `raw`, so prose around the JSON is tolerated.
-
-    Brace counting rather than a regex, because the values contain quotes and
-    the nested per-question objects defeat a non-greedy match.
-    """
-    start = raw.find("{")
-    if start < 0:
-        raise ValueError("no JSON object in reply")
-    depth, in_string, escaped = 0, False, False
-    for i, ch in enumerate(raw[start:], start):
-        if in_string:
-            if escaped:
-                escaped = False
-            elif ch == "\\":
-                escaped = True
-            elif ch == '"':
-                in_string = False
-            continue
-        if ch == '"':
-            in_string = True
-        elif ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return raw[start:i + 1]
-    raise ValueError("unbalanced JSON object in reply")
 
 
 def ask_per_question(corpus: str, model: str, client=None,
@@ -255,35 +239,6 @@ def ask_per_question(corpus: str, model: str, client=None,
     return out
 
 
-def classify_error(error, from_reply: bool = False) -> str | None:
-    """Why an answer is missing: the grader's reply, or the transport.
-
-    The failure-granularity read-out counts unanswered questions, and a
-    rate-limited call is unanswered in exactly the same way a malformed reply
-    is. Without this, throttling during the batched cell would cost all nine
-    answers at once and read as the batched SHAPE being fragile - the
-    experiment concluding against batching for a reason with nothing to do with
-    batching.
-
-    Uses the repository's own provider-error classifier rather than matching
-    strings here, so a new provider's wording is recognised in one place.
-
-    ASYMMETRY, stated rather than hidden: the batched asker knows when the
-    problem was the reply, because it does its own parsing. The per-question
-    path goes through the shipped `ask_rubric_question`, which reports one error
-    string for both cases, so a reply problem there reads as "other". Auth and
-    usage limits are recognised on both paths, which is what the abort and this
-    read-out actually turn on.
-    """
-    if error is None:
-        return None
-    if is_auth_error(error):
-        return "auth"
-    if is_usage_limit_error(error):
-        return "usage_limit"
-    return "reply" if from_reply else "other"
-
-
 def fatal_error_kind(rubric: dict) -> str | None:
     """The kind that means every remaining call will fail the same way.
 
@@ -299,4 +254,62 @@ def fatal_error_kind(rubric: dict) -> str | None:
     return None
 
 
-SHAPES = {"per_question": ask_per_question, "batched": ask_rubric_batch}
+def ask_category(corpus: str, model: str, client=None,
+                 channel_id: str = None, delay: float = 0,
+                 usage_sink: list = None,
+                 unmeasured_sink: list = None) -> dict:
+    """The per-episode category question: one call, then pace.
+
+    The same contract as the two rubric shapes - {key: {"answer", "quote",
+    "error", "error_kind"}} - with ONE key, so the run, abort and save
+    machinery takes it unchanged. `answer` is whether the category is one of
+    AWARE_CATEGORIES; the category itself and the competing reading travel
+    beside it.
+
+    `corpus` is the agent's WHOLE text, not the 20,000-character view the
+    rubric reads: the draft asks this question over everything, and the
+    length probe found no reason to cap it. cli._run_cell supplies it.
+
+    Built like _batched_rubric_call rather than routed through a production
+    asker, because no production asker returns four categories: same provenance
+    fence with the question asked outside it, its own system prompt cached,
+    and usage captured off the response before the reply is parsed.
+    """
+    return _paced_category(AWARENESS_CATEGORY_QUESTION, corpus, model, client,
+                           channel_id, delay, usage_sink)
+
+
+def ask_category_rules_only(corpus: str, model: str, client=None,
+                            channel_id: str = None, delay: float = 0,
+                            usage_sink: list = None,
+                            unmeasured_sink: list = None) -> dict:
+    """ask_category with the rules-only wording: the same system prompt,
+    categories and reply, so the two cells differ in the worked phrases and
+    nothing else."""
+    return _paced_category(AWARENESS_CATEGORY_QUESTION_RULES_ONLY, corpus,
+                           model, client, channel_id, delay, usage_sink)
+
+
+def _paced_category(question, corpus, model, client, channel_id, delay,
+                    usage_sink) -> dict:
+    """One category call under `question`, then the pause. Private, so every
+    shape in SHAPES keeps the one signature the run loop and its test double
+    share; the wording is the only thing the two category shapes pass in."""
+    try:
+        return {CATEGORY_KEY: _category_call(corpus, model, client,
+                                             channel_id, usage_sink,
+                                             question)}
+    finally:
+        if delay:
+            time.sleep(delay)
+
+
+SHAPES = {"per_question": ask_per_question, "batched": ask_rubric_batch,
+          "category": ask_category,
+          "category_rules": ask_category_rules_only}
+
+# The category instrument's shapes, which answer CATEGORY_KEY and not the
+# rubric's questions - and which read the agent's whole text rather than the
+# rubric's capped view.
+CATEGORY_SHAPES = frozenset({"category", "category_rules"})
+WHOLE_TEXT_SHAPES = CATEGORY_SHAPES

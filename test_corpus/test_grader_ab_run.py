@@ -68,6 +68,24 @@ class TestTwoRunsDoNotOverwriteEachOther:
         assert all("opus-5" in n for n in names), names
 
 
+class TestAGraderIdWithASlashStillSaves:
+    """OpenRouter ids carry a "/". In the result filename it made the path a
+    subdirectory that does not exist, and the save after the first cell raised
+    FileNotFoundError - a refusal screen lost its first paid cell that way."""
+
+    def test_the_run_saves_beside_the_transcripts(self):
+        out = tempfile.mkdtemp()
+        _graded_episode(out, 1)
+        with _graders_stubbed(_stub_asker()):
+            code, text = _run_main(["--output-dir", out,
+                                    "--graders", "z-ai/glm-5.3",
+                                    "--shapes", "per_question",
+                                    "--per-model", "1", "--no-balance"])
+        assert code == 0, text
+        saved = glob.glob(os.path.join(out, "grader_ab_*.json"))
+        assert len(saved) == 1 and "z-ai_glm-5.3" in saved[0], saved
+
+
 class TestAKilledRunKeepsWhatItAlreadyPaidFor:
     """The actual failure that prompted this: a full 2x2 result was lost to a
     kill with nothing on disk, because the harness wrote once, at the very end.

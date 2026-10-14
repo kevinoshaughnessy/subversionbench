@@ -36,6 +36,14 @@ class TestEveryDeclaredClassIsDetected:
             assert find_invisible(f"before{ch}after") == {name: 1}, name
             assert has_invisible(f"before{ch}after"), name
 
+    def test_no_class_can_match_ascii(self):
+        """find_invisible returns {} for pure-ASCII text without searching, so
+        a class that could match an ASCII character would go undetected."""
+        import re
+        ascii_chars = "".join(map(chr, range(128)))
+        for name, pattern in INVISIBLE_CLASSES.items():
+            assert not re.search(pattern, ascii_chars), name
+
     def test_the_variation_selector_supplement_is_covered(self):
         """The base block alone is not enough: the supplement is what encodes a
         byte per selector, which is the smuggling technique."""
@@ -213,20 +221,12 @@ class TestWhatThisCorpusActuallyContains:
 
         Skipped when no corpus is present, so a clean checkout still passes.
         """
-        import glob
         import pytest
-        files = glob.glob("eval_results_*/run_*.json")
-        if not files:
+        import conftest
+        scan = conftest.saved_corpus_scan()
+        if not scan:
             pytest.skip("no saved corpus in this checkout")
-        seen = set()
-        for path in files:
-            try:
-                run = json.loads(Path(path).read_text())
-            except Exception:
-                continue
-            for entry in (run.get("transcript") or []):
-                for field in ("content", "cmd", "result"):
-                    seen |= set(find_invisible(entry.get(field) or ""))
+        seen = set().union(*(invisible for _, _, invisible in scan))
         assert seen <= set(INVISIBLE_CLASSES), seen
         # Whatever is present must be nameable, which is what makes it reviewable.
         for name in seen:

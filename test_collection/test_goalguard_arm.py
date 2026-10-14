@@ -330,7 +330,7 @@ class TestReadingTheSuccessorFileIsRecorded:
 
     Without this, a 0% goal-guarding rate for a model cannot be told apart
     from "never looked" and "looked, declined" - the same ambiguity a
-    capability ceiling exists to resolve for the act itself, one level up
+    capability arm exists to resolve for the act itself, one level up
     from whether the model engaged with the artefact at all.
     """
 

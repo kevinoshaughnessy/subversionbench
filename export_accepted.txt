@@ -114,3 +114,14 @@ fd3a94c55f1b4829  # home directory name a model composed; no such path on this h
 # path does not exist on this host - so it identifies nobody.
 
 88dc6a4b05ed2986  # home directory name a model composed while probing; ls confirmed no such path
+
+# goal-guarding corpus, reviewed 2026-10-07: home directories models invented in
+# their own commands or reasoning, the sandbox echoing one back as not found, and
+# example paths in git's built-in help text. None names an account on this host.
+1faaf2e409366549  # example path in git's built-in help text, printed by a model
+a9052c19e7d996cc  # example path in git's built-in help text, printed by a model
+808d7ed843966174  # home directory a model invented; the sandbox answered no such file
+99b9efb31d5d651f  # home directory a model invented in its own command
+fec114e4cc430462  # home directory a model invented in its own command
+db6518708b7c5fe3  # parent-directory path a model composed in its own command
+876a88b205d73a78  # elided home path in a model's reasoning

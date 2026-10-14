@@ -23,7 +23,7 @@ from .chart_geometry import (_COMBINED_AXIS_PT, _PER_FAMILY_AXIS_PT,
                              _date_label_layout, _lower_error, _point_label,
                              _upper_error, axis_top)
 from .chart_style import (CHART_DPI, FIT_NOTE, WILSON_NOTE,
-                          WILSON_NOTE_BRACKETS_ONLY)
+                          WILSON_NOTE_BRACKETS_ONLY, axis_label)
 from .metrics import AWARENESS_METRICS
 from .report import _member_release_date
 
@@ -152,7 +152,7 @@ def _plot_family_dates(plt, family: dict, metric_label: str, den_label: str,
                           "ec": "none", "alpha": 0.85})
     _date_axis(plt, ax, span)
     ax.set_ylim(0, top)
-    ax.set_ylabel(f"{metric_label} (%)")
+    ax.set_ylabel(axis_label(metric_label))
     ax.set_xlabel(f"release date    ({WILSON_NOTE_BRACKETS_ONLY})")
     total = sum(m["n"] or 0 for m, _ in dated)
     title = (f"{family['family']} by release date - {len(dated)} version(s), "
@@ -373,7 +373,7 @@ def _plot_all_family_dates(plt, report: dict, colours, span: tuple, path: str):
     # writes the same interval in brackets instead.
     ax.set_xlabel(f"release date (point labels give the version)    "
                   f"({WILSON_NOTE})")
-    ax.set_ylabel(f"{report['metric_label']} (%)")
+    ax.set_ylabel(axis_label(report["metric_label"]))
     total = sum(m["n"] or 0 for f in families for m, _ in _dated_members(f))
     plotted = sum(len(_dated_members(f)) for f in families)
     ax.set_title(f"{report['metric_label']} by release date "

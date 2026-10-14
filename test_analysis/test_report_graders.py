@@ -31,7 +31,9 @@ from report_charts.graders import (GRADER_COMPARISON_DIR, overview_groups,
                                    question_groups, signal_groups)
 from test_analysis.report_fixtures import _write_episode, _write_summary
 
-OTHER = LEGACY_DEFAULT_GRADER_MODEL
+# A second grader that is not retired: claude-opus-5, the legacy default, used to
+# stand here, and RETIRED_GRADERS keeps it out of any report beside a current one.
+OTHER = "z-ai/glm-5.3"
 assert OTHER != DEFAULT_GRADER_MODEL
 
 
@@ -63,8 +65,9 @@ def _graded(out, n, model, readings, oversight=True, **episode_kwargs):
 
 def _corpus(out, n_episodes=10):
     """p/a read by both graders, which disagree on every episode; p/b read by
-    OTHER alone. The summaries predate the grader stamp, so they are OTHER's -
-    and hold OTHER's counts, as the real corpus's do.
+    OTHER alone. The summaries are stamped as OTHER's and hold OTHER's counts.
+    (A summary that predates the stamp is the legacy default's - held apart in
+    TestWhoseCountsASummaryHolds, since that default is now retired.)
 
     Ten episodes a model unless asked for more: the descriptive charts drop a
     model below MIN_INFORMATIVE_DENOMINATOR, so a test of one needs more."""
@@ -72,9 +75,9 @@ def _corpus(out, n_episodes=10):
         _graded(out, n, "p/a", {OTHER: True, DEFAULT_GRADER_MODEL: False})
         _graded(out, n, "p/b", {OTHER: False})
     _write_summary(out, "p/a", "strong", n_runs=n_episodes,
-                   n_aware=n_episodes, figures_grader=None)
+                   n_aware=n_episodes, figures_grader=OTHER)
     _write_summary(out, "p/b", "strong", n_runs=n_episodes,
-                   n_unaware=n_episodes, model_slug="p_b", figures_grader=None)
+                   n_unaware=n_episodes, model_slug="p_b", figures_grader=OTHER)
     return out
 
 
@@ -126,7 +129,12 @@ class TestWhoseCountsASummaryHolds:
         ident = ev_run.BatchIdentity.collecting(args, "m", None, stamp="probe")
         with contextlib.redirect_stdout(io.StringIO()):
             summary = ev_run.summarise_batch(args, [batch_episode()], ident, {})
-        assert summary["figures_grader_model"] == DEFAULT_GRADER_MODEL
+        # The fixture episode holds no grader's reading, so the counts are no
+        # grader's: labelling them DEFAULT_GRADER_MODEL's is the defect v232
+        # fixed. A graded batch keeps the default's name - see
+        # TestASummaryNamesOnlyAGraderThatReadIt in test_figures_grader.py.
+        assert summary["grader_models"] == []
+        assert summary["figures_grader_model"] is None
 
 
 class TestOneReportPerGrader:
@@ -238,7 +246,18 @@ class TestTheCommandLines:
             reports = sorted(f for f in os.listdir(out)
                              if f.startswith("research_report_"))
         assert [r.split("_2")[0] for r in reports] == sorted(
-            f"research_report_{g}" for g in (OTHER, DEFAULT_GRADER_MODEL))
+            f"research_report_{g.replace('/', '_')}"
+            for g in (OTHER, DEFAULT_GRADER_MODEL))
+
+    @staticmethod
+    def _not_drawn():
+        """report_charts.write_charts replaced by a recorder, for the tests
+        that assert on the comparison step alone. Drawing every grader's full
+        chart set took most of their runtime and nothing here looked at it.
+        Each such test asserts the recorder WAS called, so a run that stopped
+        before the chart step cannot pass by having drawn nothing."""
+        from unittest import mock
+        return mock.patch("report_charts.write_charts", return_value=[])
 
     def test_the_comparison_is_drawn_from_reports_over_one_corpus(self):
         """What the command hands the chart layer, not what the chart layer
@@ -251,10 +270,11 @@ class TestTheCommandLines:
             return []
         with tempfile.TemporaryDirectory() as out, mock.patch(
                 "report_charts.write_grader_comparison_charts",
-                side_effect=capture):
+                side_effect=capture), self._not_drawn() as drawn:
             self._main(run_report.main, [
                 "report", "--output-dir", _corpus(out),
                 "--chart-dir", os.path.join(out, "charts")])
+        assert drawn.called
         assert set(seen) == {OTHER, DEFAULT_GRADER_MODEL}
         assert {r["n_episode_files"] for r in seen.values()} == {10}
         assert all(r["grader"]["paired_with"] == sorted(seen)
@@ -262,8 +282,10 @@ class TestTheCommandLines:
 
     def _comparison_dir_after(self, out, *flags):
         charts = os.path.join(out, "charts")
-        self._main(run_report.main, ["report", "--output-dir", out,
-                                     "--chart-dir", charts, *flags])
+        with self._not_drawn() as drawn:
+            self._main(run_report.main, ["report", "--output-dir", out,
+                                         "--chart-dir", charts, *flags])
+        assert drawn.called, "the run never reached the chart step"
         return os.path.join(charts, GRADER_COMPARISON_DIR)
 
     def test_no_comparison_under_the_awareness_reading(self):
@@ -284,11 +306,10 @@ class TestTheCommandLines:
                            n_runs=MIN_INFORMATIVE_DENOMINATOR,
                            n_unaware=MIN_INFORMATIVE_DENOMINATOR,
                            figures_grader=None)
+            # _comparison_dir_after asserts the per-grader chart step was
+            # reached, which is the evidence that anything ran at all.
             path = self._comparison_dir_after(
                 out, "--exclude-aware", report.EXCLUDE_AWARE_PRIMARY)
-            # Its own directory, since the reading writes elsewhere; the
-            # per-grader charts must still be there, or nothing ran at all.
-            assert os.path.isdir(os.path.dirname(path))
             assert not os.path.exists(path)
 
     def test_no_comparison_when_the_graders_share_no_episode(self):

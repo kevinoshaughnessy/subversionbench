@@ -24,7 +24,7 @@ Two modes
 
     python contamination_check.py --models claude-opus-5 x-ai/grok-4.5
         The model probes: canary completion, forced choice against a control,
-        and verbatim continuation. Roughly 2 + 2 x (items) + 10 calls per
+        and verbatim continuation. Roughly 2 + 2 x (items) + 13 calls per
         model; --limit 12 keeps a first pass near 40 calls and still leaves
         headroom above the 10-per-arm floor a verdict needs. A smaller limit
         buys nothing: it returns `inconclusive` however well the run goes.
@@ -98,7 +98,12 @@ def tracked_files():
 #
 # A ceiling is not a spend: a model that does not reason emits its JSON and
 # stops, so raising this costs nothing except where it is needed.
-FORCED_CHOICE_TOKENS = 2000
+#
+# 2000 was not enough either. On the r10 probe run seven OpenRouter models
+# (deepseek, kimi, three qwen3.8 sizes and both tencent models) returned no
+# visible output on a few forced-choice items each, and the dropped items left
+# all seven short of a verdict. The same reasoning-first failure, at a larger size.
+FORCED_CHOICE_TOKENS = 8000
 
 
 def ask(client, model, prompt, max_tokens=400):
@@ -230,7 +235,7 @@ def print_verdict(model, summary):
               if cont["control_overlap"] is not None else "")
 
 
-def main():
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Detect whether this benchmark is in a model's training "
                     "data.")
@@ -259,6 +264,45 @@ def main():
     parser.add_argument("--include-prompts", action="store_true",
                         help="save option text and responses. Writes scenario "
                              "text to disk - treat the file as a transcript.")
+    return parser
+
+
+def _run_audit(audit_paths_given) -> dict:
+    """The offline leak audit, printed; its result, or None with nothing to
+    audit."""
+    paths = audit_paths_given or tracked_files()
+    if not paths:
+        print("No files to audit (is this a git repository?).")
+        return None
+    print(f"\n{'='*60}")
+    print(f"LEAK AUDIT: {len(paths)} file(s) git tracks")
+    print(f"{'='*60}")
+    audit = audit_paths(paths)
+
+    if not audit["findings"]:
+        print("\nNo scenario text found in the clear. "
+              f"({audit['files_audited']} files, "
+              f"{audit['shingle_size']}-word shingles)")
+    else:
+        print(f"\n{audit['files_with_matches']} file(s) reproduce scenario "
+              f"text, {audit['total_shingles_exposed']} shingle(s) total.")
+        print("Text is not printed - it would put the leak in this log too.\n")
+        for finding in audit["findings"]:
+            docs = ", ".join(f"{k} x{v}" for k, v in
+                             sorted(finding["documents"].items(),
+                                    key=lambda kv: -kv[1]))
+            lines = ", ".join(str(n) for n in finding["lines"][:12])
+            more = "" if len(finding["lines"]) <= 12 else " ..."
+            print(f"  {finding['path']}")
+            print(f"      {finding['shingles']:>4} shingles: {docs}")
+            print(f"      lines: {lines}{more}")
+        print("\nEvery one of these is in the next training crawl. Either "
+              "paraphrase the quotation or move it into the bundle.")
+    return audit
+
+
+def main():
+    parser = _parser()
     args = parser.parse_args()
 
     if not args.audit and not args.models:
@@ -267,35 +311,9 @@ def main():
     report = {"version": VERSION, "canary_guid": CANARY_GUID}
 
     if args.audit:
-        paths = args.audit_paths or tracked_files()
-        if not paths:
-            print("No files to audit (is this a git repository?).")
+        report["audit"] = _run_audit(args.audit_paths)
+        if report["audit"] is None:
             return 1
-        print(f"\n{'='*60}")
-        print(f"LEAK AUDIT: {len(paths)} file(s) git tracks")
-        print(f"{'='*60}")
-        audit = audit_paths(paths)
-        report["audit"] = audit
-
-        if not audit["findings"]:
-            print("\nNo scenario text found in the clear. "
-                  f"({audit['files_audited']} files, "
-                  f"{audit['shingle_size']}-word shingles)")
-        else:
-            print(f"\n{audit['files_with_matches']} file(s) reproduce scenario "
-                  f"text, {audit['total_shingles_exposed']} shingle(s) total.")
-            print("Text is not printed - it would put the leak in this log too.\n")
-            for finding in audit["findings"]:
-                docs = ", ".join(f"{k} x{v}" for k, v in
-                                 sorted(finding["documents"].items(),
-                                        key=lambda kv: -kv[1]))
-                lines = ", ".join(str(n) for n in finding["lines"][:12])
-                more = "" if len(finding["lines"]) <= 12 else " ..."
-                print(f"  {finding['path']}")
-                print(f"      {finding['shingles']:>4} shingles: {docs}")
-                print(f"      lines: {lines}{more}")
-            print("\nEvery one of these is in the next training crawl. Either "
-                  "paraphrase the quotation or move it into the bundle.")
 
     if args.models:
         items = build_forced_choice(k=args.k, seed=args.seed, limit=args.limit)

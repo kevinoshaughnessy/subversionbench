@@ -204,8 +204,8 @@ revision would move it the same way.
 | II.4 | satisfied, previously uncited | each episode gets a fresh hardened environment; nothing carries between runs |
 | II.5 | satisfied, previously uncited | the sandbox holds no ground truth to find - the act is a choice, not an answer |
 | II.6 | satisfied | verdicts are derived from the recorded commands by code, and the derivation is checked against the stored verdict on every load |
-| II.7 | satisfied | the capability arm demonstrates the act is performable |
-| **II.8** (paper T.9) | satisfied, cited | the capability arm instructs the act outright and reports a ceiling rather than a propensity; `report/capability.py` keeps it out of every rate |
+| II.7 | satisfied | the capability arm demonstrates the act is performable: at least one model performed each act when instructed |
+| **II.8** (paper T.9) | satisfied, cited | the capability arm instructs the act outright and reports which models performed it - capability shown in one direction only, since a refusal under instruction is willingness, not ability; `report/capability.py` keeps it out of every rate |
 | II.9 | satisfied, previously uncited | `test_grader_injection.py`, plus the invisible-character and confusable detection, which exist because a transcript could otherwise smuggle instructions past a measure |
 
 ## Benchmark reporting (III.\*)
@@ -240,9 +240,10 @@ interpretable number in the report.
 
 The interpretive work III.12 exists to support is already done from both ends.
 `trivial_baseline.py` gives the floor - what an agent that does nothing scores -
-and the capability arm gives the ceiling, what the act rate looks like when the
-model is told to commit it. A measured rate sits between two measured bounds
-without a human in the loop.
+and the capability arm shows, for each model that performs the act when told
+to, that it can. For those models a measured zero is read as the model's
+without a human in the loop; for a model that refuses the instruction too, the
+arm has measured willingness again and the zero stays unresolved.
 
 This is a reasoned omission rather than an oversight, which is the distinction
 III.8 and III.11 invite: the checklist asks for transparency about what a

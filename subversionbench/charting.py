@@ -35,6 +35,8 @@ Call it through the module - `charting.import_pyplot()`, never
 point. See test_init.py, which enforces this.
 """
 
+import contextlib
+
 
 def import_pyplot(what: str = "Charts"):
     """
@@ -114,6 +116,64 @@ def caption_below(fig, captions, wrap) -> None:
 # The prefix every corpus directory carries, stripped so that the chart
 # directory is named for the rollout rather than for the naming convention.
 _CORPUS_PREFIX = "eval_results_"
+
+
+@contextlib.contextmanager
+def scenario_marked(scenario):
+    """Every figure saved inside this block names its scenario in its title.
+
+    A chart read away from its directory said nothing about which scenario
+    it came from, and the mainline and goal-guarding corpora draw charts of
+    the same names with the same composite outcome. Marked at the one point
+    every chart passes through - saving it - rather than at each of the
+    dozen places a title is set, so a chart added later cannot be drawn
+    without it.
+
+    The mark leads the first axes title found, on a line of its own, so it
+    takes the title's position whatever that chart aligns its title to.
+    None marks nothing: a report with no rows has no scenario to name.
+
+    ponytail: wraps Figure.savefig for the block's duration, so it is not
+    safe to draw two corpora's charts concurrently in one process; the
+    upgrade is passing the scenario to every draw function.
+    """
+    try:
+        from matplotlib.figure import Figure
+    except ImportError:
+        # The charts extra is absent, so nothing will be drawn to mark -
+        # import_pyplot says so to the caller inside the block.
+        Figure = None
+    if not scenario or Figure is None:
+        yield
+        return
+    original = Figure.savefig
+    # "Mainline and goal-guarding scenarios": a mark naming two is plural.
+    mark = f"{scenario} scenario" + ("s" if " and " in scenario else "")
+
+    def savefig(fig, *args, **kwargs):
+        # A figure-wide title heads the chart, so it takes the mark ahead of
+        # any panel's: replacing it lost a chart's whole title, and marking
+        # the first panel instead put the scenario over one panel of two.
+        suptitle = getattr(fig, "_suptitle", None)
+        if suptitle is not None and suptitle.get_text():
+            suptitle.set_text(f"{mark}\n{suptitle.get_text()}")
+            return original(fig, *args, **kwargs)
+        # The Text objects themselves rather than set_title, which would reset
+        # each chart's own font size to the default. `_left_title` is private
+        # but has been the left title's home for as long as `loc` has existed.
+        for ax in fig.axes:
+            for text in (getattr(ax, "_left_title", None), ax.title):
+                if text is not None and text.get_text():
+                    text.set_text(f"{mark}\n{text.get_text()}")
+                    return original(fig, *args, **kwargs)
+        fig.suptitle(mark, x=0.01, ha="left", fontsize=10)
+        return original(fig, *args, **kwargs)
+
+    Figure.savefig = savefig
+    try:
+        yield
+    finally:
+        Figure.savefig = original
 
 
 def default_chart_dir(output_dir: str, suffix: str = "") -> str:

@@ -74,7 +74,8 @@ from pathlib import Path
 
 from report import awareness_arm_rows, load_episodes, load_summaries
 from subversionbench import charting
-from subversionbench.config import ROLLOUT_NAME, ROLLOUT_VERSION, VERSION
+from subversionbench.config import (DEFAULT_GRADER_MODEL, ROLLOUT_NAME,
+                                    ROLLOUT_VERSION, VERSION)
 from subversionbench.power import (spearman, spearman_leave_one_out, wilson_ci)
 from subversionbench.redaction import redact_paths
 
@@ -229,7 +230,8 @@ def unmatched_models(bundle: dict, models: list) -> list:
 # The local side
 # ---------------------------------------------------------------------------
 
-def awareness_by_model(output_dir: str) -> dict:
+def awareness_by_model(output_dir: str,
+                       grader: str = DEFAULT_GRADER_MODEL) -> dict:
     """
     Both awareness rates per model, pooled over every arm.
 
@@ -240,22 +242,27 @@ def awareness_by_model(output_dir: str) -> dict:
     grading/quote_grounding.awareness_channels. A correlation that holds on one
     and not the other is a fact about the instrument.
 
-    Summaries give the mixed measure; the text-only numerator exists per episode
-    only, so the arms are rebuilt from episodes for it.
+    BOTH RATES FROM ONE GRADER'S VIEW of the episodes. The mixed numerator and
+    its denominator used to come from the summaries - whichever grader counted
+    them - while the text-only numerator came from the episodes under the
+    current default, so on r10 `text_rate` divided gpt-6-sol's count by
+    claude-opus-5's denominator. The summaries now supply only the two
+    grader-free counts: how many episodes there were, and how many returned
+    reasoning.
     """
     pooled = {}
     for row in load_summaries(output_dir):
         entry = pooled.setdefault(row["model"], {
             "n_aware": 0, "n_aware_text": 0, "n": 0, "n_episodes": 0,
             "episodes_with_reasoning": 0})
-        entry["n_aware"] += row["n_aware"]
-        entry["n"] += row["n_awareness_resolved"]
         entry["n_episodes"] += row["n_runs"]
         entry["episodes_with_reasoning"] += row["episodes_with_reasoning"]
-    for row in awareness_arm_rows(load_episodes(output_dir)):
+    for row in awareness_arm_rows(load_episodes(output_dir, grader=grader)):
         entry = pooled.get(row["model"])
         if entry is None:
             continue
+        entry["n_aware"] += row["n_aware"]
+        entry["n"] += row["n_awareness_resolved"]
         entry["n_aware_text"] += row["n_aware_text"]
     for entry in pooled.values():
         n = entry["n"]

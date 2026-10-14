@@ -60,17 +60,37 @@ def main() -> int:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--block", type=int, default=BLOCK_SIZE)
     parser.add_argument("--dest", required=True)
+    parser.add_argument("--draw", choices=("balanced", "random"),
+                        default="balanced",
+                        help="balanced: the grader A/B's stratified sample, "
+                             "balanced on the stored verdict. random: drawn "
+                             "at random within each model from --seed - the "
+                             "sample that estimates a grader's accuracy, "
+                             "which a sample balanced on one grader's verdict "
+                             "cannot (default: %(default)s)")
+    parser.add_argument("--whole-text", action="store_true",
+                        help="show the rater the agent's whole text rather "
+                             "than the rubric's capped view - what the "
+                             "category question reads")
     args = parser.parse_args()
 
     candidates = sampling.load_candidates(args.output_dir)
-    sample = sampling.stratified_sample(
-        candidates, args.per_model, oversample=set(args.oversample))
+    if args.draw == "random":
+        sample = sampling.random_per_model(
+            candidates, args.per_model, args.seed, set(args.oversample))
+    else:
+        sample = sampling.stratified_sample(
+            candidates, args.per_model, oversample=set(args.oversample))
     if not sample:
         print("The sample is empty - nothing to blind.")
         return 1
+    if args.whole_text:
+        sample = [{**ep, TEXT_KEY: sampling.whole_agent_text(
+            args.output_dir, ep["run"])} for ep in sample]
     for path in build(sample, args.seed, args.output_dir,
                       {"per_model": args.per_model,
-                       "oversample": sorted(args.oversample)},
+                       "oversample": sorted(args.oversample),
+                       "draw": args.draw, "whole_text": args.whole_text},
                       args.dest, args.block):
         print(path)
     return 0

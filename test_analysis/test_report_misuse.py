@@ -227,3 +227,20 @@ class TestTheFigureDrawsWhatTheProfileSays(unittest.TestCase):
         """The defect that shipped: by_model computed and never returned."""
         out, _seen = self._captured(self._report(by_model=[]))
         assert out is None
+
+    def test_the_real_renderer_draws_it(self):
+        """Every test above stubs the renderer, so the drawing itself - two
+        panels, labelled bands, the corpus-rate line - had never run under
+        test. A layout that raises would surface only in a real report."""
+        import os
+        import tempfile
+
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        import report_charts.characteristics as mod
+        from subversionbench import charting
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "misuse.png")
+            out = mod.plot_misuse_profile(charting.import_pyplot(),
+                                          self._report(), path)
+            assert out == path and os.path.getsize(path) > 0

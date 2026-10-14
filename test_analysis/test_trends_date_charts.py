@@ -486,15 +486,31 @@ class TestTheCombinedDateChartIsAsWideAsItsLegend:
         fixture the legend is short and any figsize passes.
 
         Corpus-absent skip, which SUBVERSIONBENCH_NO_SKIPS still permits.
+
+        THE CORPUS'S MODELS, NOT ITS EPISODES. The legend lists families and
+        the axes take their margin from the metric's label, so the real model
+        list and metric fix everything this measures; the rates do not. Built
+        from r9's full report this took about seven seconds, nearly all of it
+        parsing transcripts the chart never reads, and measured the same ratio
+        as this does.
         """
         import glob
+        import json
         import unittest
         corpus = os.path.join(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))), "eval_results_r9")
-        if not glob.glob(os.path.join(corpus, "summary_*.json")):
+        models = sorted({json.load(open(p, encoding="utf-8"))["model"]
+                         for p in glob.glob(os.path.join(corpus,
+                                                         "summary_*.json"))
+                         if "summary_of_summaries" not in p})
+        if not models:
             raise unittest.SkipTest("no corpus in this checkout")
-        # r9's only grader; the default would find every episode unread.
-        report = ft.build_report(corpus, "scheming", grader="claude-opus-5")
+        with tempfile.TemporaryDirectory() as out:
+            for i, model in enumerate(models):
+                _write_summary(out, model, "strong", n_runs=10,
+                               n_misaligned=i % 5, n_scheming=i % 3,
+                               n_aware=2, n_unaware=8)
+            report = ft.build_report(out, "scheming")
         plt, fig, ax = self._render(report)
         try:
             ratio = (self._width_in(fig, ax)

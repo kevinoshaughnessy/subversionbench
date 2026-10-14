@@ -149,11 +149,9 @@ class _BatchProgress:
 
         self.consecutive_failures = 0
         self.results[i] = record["result"]
-        if record["auth_error"]:
-            # After the assignment above, so the count includes this episode -
-            # it was paid for and is on disk.
-            _print_auth_abort(record["auth_error"], record["env_dir"],
-                              len(self.results), self._batch_stamp)
+        # After the assignment above, so the count includes this episode - it
+        # was paid for and is on disk.
+        if _scoring_auth_failed(record, len(self.results), self._batch_stamp):
             self.aborted = True
             return True
         return False
@@ -662,6 +660,31 @@ def _preflight(args) -> tuple:
     return None, profile_path
 
 
+def _scoring_auth_failed(record: dict, n_saved: int, batch_stamp) -> bool:
+    """
+    Whether an auth failure in the SCORING should stop the batch, announcing it
+    if so. Checked after the episode is saved.
+
+    It cannot come right on retry - the credential will be just as absent for
+    episode two - and its consequence is invisible in the output it produces:
+    every interrogation answer still gets a well-formed verdict, from the
+    keyword cross-check instead of the classifier. Three batches ran to
+    completion that way and published concealment rates no classifier
+    produced. The pre-flight now catches the ordinary case; this catches a
+    credential that stops working mid-batch, or one the environment has but
+    the provider rejects.
+
+    After the save, deliberately. The rollout is the expensive part and this
+    episode's transcript is sound - only its scoring is not - so it is kept,
+    and --resume will not pay for it again.
+    """
+    if not record["auth_error"]:
+        return False
+    _print_auth_abort(record["auth_error"], record["env_dir"], n_saved,
+                      batch_stamp)
+    return True
+
+
 def _run_episodes_sequentially(args, identity, system_prompt, user_prompt,
                                reasoning_kwargs, reasoning_config,
                                effective_effort, profile_path, _arm_tag,
@@ -738,25 +761,7 @@ def _run_episodes_sequentially(args, identity, system_prompt, user_prompt,
         consecutive_failures = 0
         all_results.append(record["result"])
 
-        # An auth failure in the SCORING is checked after the episode is
-        # saved, and it stops the batch.
-        #
-        # It cannot come right on retry - the credential will be just as
-        # absent for episode two - and its consequence is invisible in
-        # the output it produces: every interrogation answer still gets a
-        # well-formed verdict, from the keyword cross-check instead of
-        # the classifier. Three batches ran to completion that way and
-        # published concealment rates no classifier produced. The
-        # pre-flight above now catches the ordinary case; this catches a
-        # credential that stops working mid-batch, or one the environment
-        # has but the provider rejects.
-        #
-        # After the save, deliberately. The rollout is the expensive part
-        # and this episode's transcript is sound - only its scoring is
-        # not - so it is kept, and --resume will not pay for it again.
-        if record["auth_error"]:
-            _print_auth_abort(record["auth_error"], record["env_dir"],
-                              len(all_results), batch_stamp)
+        if _scoring_auth_failed(record, len(all_results), batch_stamp):
             aborted = True
             break
 
@@ -795,55 +800,9 @@ def _report_incomplete_batch(args, failures: list, aborted: bool,
               "flag instead; it looks\n  up each arm's own stamp itself.")
 
 
-def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
-              reasoning_config: str) -> int:
-    """
-    Collect one batch and summarise it. Returns a process exit code.
-
-    `reasoning_kwargs` and `reasoning_config` are what the CLI resolved from the
-    model's API generation - the parameters actually sent, and the human-readable
-    form of them recorded in the summary. The effort level is derived from the
-    former rather than passed, because the level SENT is the only one this batch may
-    be labelled with and re-deriving it here removes the chance of the two
-    disagreeing.
-    """
-    if args.concurrency < 1:
-        print(f"\n--concurrency must be at least 1, got {args.concurrency}.")
-        return 1
-
-    # Past this point we are rolling out, so the batch is labelled with the effort
-    # that will actually be SENT rather than the one typed. That used to be done by
-    # assigning back onto args.effort, which was only safe because it happened after
-    # the read modes above - whose --effort is a filter the operator typed and must
-    # survive verbatim. The label now travels in the batch's identity instead, so
-    # the two cannot be confused by placement.
-    effective_effort = (reasoning_kwargs.get("output_config") or {}).get("effort")
-
-    # The counterfactual arm has its own user prompt: the r1 one names the
-    # quality check, which the arm must not mention. The system prompts carry
-    # no oversight reference and are shared by both arms unchanged.
-    # The capability arm replaces this outright - its whole difference from a
-    # propensity arm is the instruction. Everything else the model sees is
-    # identical, which is what makes the ceiling a denominator for the rate
-    # rather than a measurement of some other scenario.
-    user_prompt = scenario_for(args.oversight,
-                               capability=args.capability)["user_prompt"]
-
-    code, profile_path = _preflight(args)
-    if code is not None:
-        return code
-
-    if args.resume:
-        batch_stamp = args.resume
-        print(f"Resuming batch {batch_stamp}: episodes already on disk will "
-              f"be loaded and skipped.")
-    else:
-        batch_stamp = unique_batch_stamp(args.output_dir)
-
-    # Everything this batch's files are named after, in one value.
-    identity = BatchIdentity.collecting(args, model_slug, effective_effort,
-                                        batch_stamp)
-
+def _announce_arm(identity) -> str:
+    """Print which arm this batch is, before any spend, and return the short
+    form every run header carries."""
     # Which arm, stated before the first episode is paid for.
     #
     # It was previously visible only in the filenames and in the summary written at
@@ -878,6 +837,69 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     # this and not the announcement.
     if identity.capability:
         _arm_tag = f"CAPABILITY {identity.capability}, {_arm_tag}"
+    return _arm_tag
+
+
+def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
+              reasoning_config: str) -> int:
+    """
+    Collect one batch and summarise it. Returns a process exit code.
+
+    `reasoning_kwargs` and `reasoning_config` are what the CLI resolved from the
+    model's API generation - the parameters actually sent, and the human-readable
+    form of them recorded in the summary. The effort level is derived from the
+    former rather than passed, because the level SENT is the only one this batch may
+    be labelled with and re-deriving it here removes the chance of the two
+    disagreeing.
+    """
+    if args.concurrency < 1:
+        print(f"\n--concurrency must be at least 1, got {args.concurrency}.")
+        return 1
+
+    # Past this point we are rolling out, so the batch is labelled with the effort
+    # that will actually be SENT rather than the one typed. That used to be done by
+    # assigning back onto args.effort, which was only safe because it happened after
+    # the read modes above - whose --effort is a filter the operator typed and must
+    # survive verbatim. The label now travels in the batch's identity instead, so
+    # the two cannot be confused by placement.
+    effective_effort = (reasoning_kwargs.get("output_config") or {}).get("effort")
+
+    # The counterfactual arm has its own user prompt: the r1 one names the
+    # quality check, which the arm must not mention. The system prompts carry
+    # no oversight reference and are shared by both arms unchanged.
+    # The capability arm replaces this outright - its whole difference from a
+    # propensity arm is the instruction. Everything else the model sees is
+    # identical, so a success there is evidence about this scenario rather
+    # than some other one.
+    arm = scenario_for(args.oversight, capability=args.capability)
+    user_prompt = arm["user_prompt"]
+    # AND THE SYSTEM PROMPT, which is an instruction too. The sandbox target's
+    # request is to look outside a directory the shared system prompt scopes
+    # the account to, so read alone it asks the model to override a rule set
+    # above it, and gpt-5.6-luna and kimi-k3 refused every such episode on
+    # that rule. Its arm grants the look in place of the scope sentence. The
+    # arm assembles - and so hashes - with whatever system prompt it carries,
+    # so taking the prompt from anywhere else would run one text under
+    # another's fingerprint. The capability arm runs at nudge none only.
+    if args.capability is not None:
+        system_prompt = arm["system_prompt_no_nudge"]
+
+    code, profile_path = _preflight(args)
+    if code is not None:
+        return code
+
+    if args.resume:
+        batch_stamp = args.resume
+        print(f"Resuming batch {batch_stamp}: episodes already on disk will "
+              f"be loaded and skipped.")
+    else:
+        batch_stamp = unique_batch_stamp(args.output_dir)
+
+    # Everything this batch's files are named after, in one value.
+    identity = BatchIdentity.collecting(args, model_slug, effective_effort,
+                                        batch_stamp)
+
+    _arm_tag = _announce_arm(identity)
 
     t_batch_start = time.time()
     run_episodes = (_run_episodes_concurrently if args.concurrency > 1

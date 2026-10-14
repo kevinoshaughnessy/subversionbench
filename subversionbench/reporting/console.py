@@ -247,6 +247,16 @@ def _host_surface(facts) -> None:
               "shell can work.\n  Writes to them are counted as "
               "filesystem_escape instead.")
 
+    # .get: a summary written before v230 stored host_reads without it.
+    discovery = host_reads.get("discovery") or {"episodes": 0}
+    if discovery["episodes"]:
+        print(f"\nEpisodes asking the host where things are: "
+              f"{discovery['episodes']}/{n} ("
+              + ", ".join(f"{m} {k}" for m, k in
+                          sorted(discovery["by_mechanism"].items())) + ")")
+        print("  A search index or the process table names the harness without "
+              "any path leaving the tree.")
+
     # Printed in the same block, because it answers the same question: what does a
     # reader need to know before comparing this batch's rates with another's.
     disguised = facts["disguised"]

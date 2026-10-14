@@ -69,6 +69,13 @@ def mantel_haenszel(strata: list) -> dict:
         result["note"] = "no stratum has both arms non-empty"
         return result
 
+    _mh_risk_difference(usable, result)
+    _mh_odds_ratio(usable, result)
+    _cmh_test(usable, result)
+    return result
+
+
+def _mh_risk_difference(usable: list, result: dict) -> None:
     # Weighted risk difference. w_i is the standard inverse-variance-like
     # weight n1*n2/(n1+n2), which is what makes the estimator reduce to the
     # crude difference when every stratum shares the same rates.
@@ -90,6 +97,8 @@ def mantel_haenszel(strata: list) -> dict:
             round(min(1.0, rd + Z_95 * rd_se), 4)]
         result["risk_difference_se"] = round(rd_se, 6)
 
+
+def _mh_odds_ratio(usable: list, result: dict) -> None:
     # Common odds ratio, with the Robins-Breslow-Greenland interval.
     r_sum = s_sum = 0.0
     rbg_1 = rbg_2 = rbg_3 = 0.0
@@ -121,6 +130,8 @@ def mantel_haenszel(strata: list) -> dict:
         result["odds_ratio_note"] = (
             "undefined: no stratum contributes a discordant pair")
 
+
+def _cmh_test(usable: list, result: dict) -> None:
     # Cochran-Mantel-Haenszel test.
     observed = expected = variance = 0.0
     for x1, n1, x2, n2 in usable:
@@ -141,7 +152,6 @@ def mantel_haenszel(strata: list) -> dict:
             result["risk_difference_ci95"]
             and (result["risk_difference_ci95"][0] > 0
                  or result["risk_difference_ci95"][1] < 0))
-    return result
 
 
 def breslow_day(strata: list, odds_ratio: float = None) -> dict:
@@ -198,25 +208,9 @@ def breslow_day(strata: list, odds_ratio: float = None) -> dict:
         # holding this stratum's margins. Quadratic in the general case and
         # linear at psi == 1, which is the degenerate root of the same
         # equation rather than a separate formula.
-        psi = odds_ratio
-        if abs(psi - 1.0) < 1e-12:
-            fitted = n1 * col1 / total
-        else:
-            qa = 1.0 - psi
-            qb = total - n1 - col1 + psi * (n1 + col1)
-            qc = -psi * n1 * col1
-            disc = qb * qb - 4.0 * qa * qc
-            if disc < 0:
-                continue
-            root = math.sqrt(disc)
-            lo_bound = max(0.0, n1 + col1 - total)
-            hi_bound = min(float(n1), float(col1))
-            candidates = [(-qb + root) / (2.0 * qa), (-qb - root) / (2.0 * qa)]
-            fitted = next(
-                (c for c in candidates if lo_bound - 1e-9 <= c <= hi_bound + 1e-9),
-                None)
-            if fitted is None:
-                continue
+        fitted = _bd_fitted_count(n1, col1, total, odds_ratio)
+        if fitted is None:
+            continue
         cells = (fitted, n1 - fitted, col1 - fitted,
                  total - n1 - col1 + fitted)
         if any(c <= 1e-9 for c in cells):
@@ -248,3 +242,23 @@ def breslow_day(strata: list, odds_ratio: float = None) -> dict:
     result["i_squared"] = (round(max(0.0, (statistic - result["df"]) / statistic), 4)
                            if statistic > 0 else 0.0)
     return result
+
+
+def _bd_fitted_count(n1: int, col1: int, total: int, psi: float):
+    """The fitted count in cell (arm 1, success) under common odds ratio psi,
+    holding the stratum's margins, or None where no root lies inside them."""
+    if abs(psi - 1.0) < 1e-12:
+        return n1 * col1 / total
+    qa = 1.0 - psi
+    qb = total - n1 - col1 + psi * (n1 + col1)
+    qc = -psi * n1 * col1
+    disc = qb * qb - 4.0 * qa * qc
+    if disc < 0:
+        return None
+    root = math.sqrt(disc)
+    lo_bound = max(0.0, n1 + col1 - total)
+    hi_bound = min(float(n1), float(col1))
+    candidates = [(-qb + root) / (2.0 * qa), (-qb - root) / (2.0 * qa)]
+    return next(
+        (c for c in candidates if lo_bound - 1e-9 <= c <= hi_bound + 1e-9),
+        None)

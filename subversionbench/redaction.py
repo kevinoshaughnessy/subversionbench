@@ -39,6 +39,10 @@ def _operator_username():
     return username if len(username) >= 3 else None
 
 
+_SPLIT_SEPARATORS = r"[/ ._-]"
+_MIN_SPLIT_PART = 3
+
+
 def _username_pattern():
     """
     Match the OS username as a standalone word, or None if we shouldn't try.
@@ -76,12 +80,25 @@ def _username_pattern():
     So both guards are now `\\w` alone. `x<username>y` and `<username>s_backup`
     stay untouched, which is what the asymmetry was for; `-<username>-` and
     `.<username>` no longer survive.
+
+    THE USERNAME SPLIT IN TWO IS THE SAME IDENTITY. A model that saw the owner
+    column composed a home path from it with a separator inserted between the
+    two halves of the name, and that reached a staged goal-guarding archive
+    with the surname intact, caught only by the export check. A username that
+    joins a first name and a surname is what such a model reconstructs, so
+    every split into two halves of at least `_MIN_SPLIT_PART` characters,
+    joined by one of `_SPLIT_SEPARATORS`, is redacted too. The minimum keeps a
+    short username from matching prose: no half shorter than three letters is
+    tried, so a username under six characters is only ever matched whole.
     """
     username = _operator_username()
     if username is None:
         return None
 
-    return re.compile(rf'(?<!\w){re.escape(username)}(?!\w)')
+    spellings = [re.escape(username)] + [
+        re.escape(username[:cut]) + _SPLIT_SEPARATORS + re.escape(username[cut:])
+        for cut in range(_MIN_SPLIT_PART, len(username) - _MIN_SPLIT_PART + 1)]
+    return re.compile(rf'(?<!\w)(?:{"|".join(spellings)})(?!\w)')
 
 
 _USERNAME = _operator_username()

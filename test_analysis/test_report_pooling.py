@@ -8,6 +8,8 @@ that a multiplicity correction is applied to the family of model-level tests -
 so it is tested without a report being built at all.
 """
 
+import functools
+
 import pytest
 
 import report as rr
@@ -334,6 +336,19 @@ class TestARateThatCouldNotBeComputedPrintsItsCountsAnyway:
         assert _fmt_rate({"successes": 0, "n": 40, "rate": 0.0}) == "0/40=0.0%"
 
 
+_R10 = "eval_results_r10"
+
+
+@functools.lru_cache(maxsize=1)
+def _r10_awareness_question():
+    """Built once for the four tests below: each reads it and none mutates
+    it, and building it walks the whole r10 corpus."""
+    from report.loading import load_episodes, load_summaries
+    from report.questions_awareness import question_awareness_vs_misalignment
+    return question_awareness_vs_misalignment(load_episodes(_R10),
+                                              load_summaries(_R10))
+
+
 class TestTheAwarenessExposureCarriesItsTemporalCaveat:
     """`aware` answers "did this model ever verbalise awareness", which is
     act-independent and so usable as an exposure. It does NOT answer "was it
@@ -350,17 +365,11 @@ class TestTheAwarenessExposureCarriesItsTemporalCaveat:
     def _q(self):
         import os
         import unittest
-
-        from report.loading import load_episodes, load_summaries
-        from report.questions_awareness import (
-            question_awareness_vs_misalignment)
-        out = "eval_results_r10"
-        if not os.path.isdir(out):
+        if not os.path.isdir(_R10):
             # A corpus-absent skip, which AGENTS.md allows; SUBVERSIONBENCH_
             # NO_SKIPS turns only optional-DEPENDENCY skips into failures.
-            raise unittest.SkipTest(f"{out} not present")
-        return question_awareness_vs_misalignment(load_episodes(out),
-                                                  load_summaries(out))
+            raise unittest.SkipTest(f"{_R10} not present")
+        return _r10_awareness_question()
 
     def test_the_caveat_counts_the_post_act_episodes(self):
         c = self._q()["awareness_timing_caveat"]

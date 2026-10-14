@@ -10,6 +10,8 @@ attempt is still visible - and the invariant that makes the first half safe.
 import contextlib
 import unicodedata
 
+import conftest
+
 import subversionbench.confusables as confusables_module
 from subversionbench.confusables import (
     CYRILLIC_AND_GREEK,
@@ -559,26 +561,17 @@ class TestWhatTheSavedCorpusActuallyContains:
     separately, as a fact about the corpus rather than as an alarm.
     """
 
-    # Memoised across the four assertions below. Scanning a full corpus means
-    # parsing several thousand transcripts, and doing it once per test turned a
-    # two-second file into an eight-second one for no added coverage.
+    # Memoised for the whole session in conftest, which test_invisible shares:
+    # scanning a full corpus means parsing several thousand transcripts, and
+    # doing it once per test, then once per file, cost seconds for no coverage.
     _CACHE = None
 
     def _corpus(self):
-        import glob
-        import json
         import pytest
         if TestWhatTheSavedCorpusActuallyContains._CACHE is None:
-            files = glob.glob("eval_results_*/run_*.json")
-            out = []
-            for path in files:
-                try:
-                    data = json.loads(open(path).read())
-                except Exception:
-                    continue
-                out.append((path,
-                            detect_disguised_text(data.get("transcript") or [])))
-            TestWhatTheSavedCorpusActuallyContains._CACHE = out
+            TestWhatTheSavedCorpusActuallyContains._CACHE = [
+                (path, disguised)
+                for path, disguised, _ in conftest.saved_corpus_scan()]
         corpus = TestWhatTheSavedCorpusActuallyContains._CACHE
         if not corpus:
             pytest.skip("no corpus in this checkout")

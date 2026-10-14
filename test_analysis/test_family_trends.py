@@ -287,7 +287,7 @@ class TestACorpusWithNoFamilyIsReportedTwoDifferentWays:
             code, text = self._run(out, "--metric",
                                    self._an_episode_derived_metric())
         assert code == 0, text
-        assert "holds no run files" in text
+        assert "holds no episode it applies to" in text
         assert "No family with two or more members" not in text
 
     def test_a_real_family_reports_rather_than_taking_either_branch(self):

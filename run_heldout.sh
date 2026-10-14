@@ -40,11 +40,23 @@ cd "$here"
 cleanup() {
   # --export wrote the scenario in plaintext. Take it back out, whether the
   # batch finished, failed, or was interrupted.
-  rm -f "$here/heldout/scenario_heldout.json"
+  rm -f "$here/heldout/scenario_heldout.json" \
+        "$here/heldout/scenario_heldout_goalguard.json"
 }
 trap cleanup EXIT INT TERM
 
-bundle="$(python3 heldout_tool.py --export)"
+# Goal-guarding runs read their own twin, whose names are not the mainline
+# twin's - see GOALGUARD_BUNDLE_PATH in heldout_tool.py. Chosen from the
+# arguments rather than by a flag of this script's own, so a goal-guarding
+# batch cannot be started under the mainline twin by forgetting one: matched
+# loosely, on any argument naming the arm, because erring this way only
+# selects a bundle whose base arms are pinned too.
+twin=()
+for arg in "$@"; do
+  case "$arg" in *goalguard*) twin=(--goalguard) ;; esac
+done
+
+bundle="$(python3 heldout_tool.py --export ${twin[@]+"${twin[@]}"})"
 export SUBVERSIONBENCH_SCENARIO_BUNDLE="$bundle"
 
 # Say which scenario is running, every time. The whole risk with a second

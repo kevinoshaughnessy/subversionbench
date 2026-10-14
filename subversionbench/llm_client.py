@@ -82,6 +82,9 @@ from .tool_parsing import (
 
 __all__ = [
     "get_client",
+    "for_model_under_test",
+    "ANTHROPIC_SHORT_CALL_TIMEOUT_S",
+    "ANTHROPIC_MODEL_TURN_TIMEOUT_S",
     "is_openrouter_model",
     "is_openai_model",
     "is_known_anthropic_model",
@@ -153,6 +156,28 @@ def missing_credential(model: str, use_opencode: bool = False):
     return None if os.environ.get(var) else var
 
 
+# Read timeouts for the native Anthropic route, in seconds. A short call is a
+# grader or classifier asking for a little JSON; a turn of the model under test
+# can think for minutes at a high effort, which is what the SDK's own default
+# of 600 allows for.
+ANTHROPIC_SHORT_CALL_TIMEOUT_S = 90
+ANTHROPIC_MODEL_TURN_TIMEOUT_S = 600
+
+
+def for_model_under_test(client):
+    """`client` with the read timeout the model under test's turns need.
+
+    Only an Anthropic SDK client is changed: it is the one get_client builds
+    with the short-call timeout. Recognised by its module rather than by
+    isinstance, so that a run with no Anthropic model never loads the SDK.
+    Every other client - OpenAI, OpenRouter, OpenCode, a test's stand-in -
+    comes back as it was.
+    """
+    if type(client).__module__.split(".")[0] != "anthropic":
+        return client
+    return client.with_options(timeout=ANTHROPIC_MODEL_TURN_TIMEOUT_S)
+
+
 def get_client(model: str, provider_sort: str = None, provider_name: str = None,
                use_opencode: bool = False):
     """
@@ -185,10 +210,13 @@ def get_client(model: str, provider_sort: str = None, provider_name: str = None,
     if is_openai_model(model):
         return OpenAIClient()
     import anthropic
-    # Every call through this client asks for a couple hundred tokens of JSON
-    # with thinking disabled where the model allows it (short_call_thinking_
-    # kwargs) - grading, interrogation classification, closing-report checks.
-    # None of that legitimately needs the SDK's 600s default read timeout;
-    # 90s is generous headroom over normal latency and bounds how long one
-    # degraded call can stall a batch before the SDK's own retry takes over.
-    return anthropic.Anthropic(timeout=90)
+    # SHORT CALLS ONLY get this. Grading, interrogation classification and
+    # closing-report checks ask for a couple hundred tokens of JSON with
+    # thinking disabled where the model allows it (short_call_thinking_kwargs),
+    # and 90s bounds how long one degraded call can stall a batch before the
+    # SDK's own retry takes over. This comment used to say EVERY call through
+    # this client was such a call. The model under test's turns came through it
+    # too, and at --effort max claude-sonnet-4-6 lost 5 of 30 episodes to the
+    # 90s limit at turns 4-7 - the longest deliberations, so a selection.
+    # episode.py now widens it for those turns with for_model_under_test.
+    return anthropic.Anthropic(timeout=ANTHROPIC_SHORT_CALL_TIMEOUT_S)

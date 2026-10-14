@@ -163,7 +163,11 @@ class TestTheArmsAreNamedInWords:
         """Pins the list above against the source rather than against a memory
         of it: the level words are only safe while this list is complete."""
         import inspect
-        source = inspect.getsource(run_report.build_report)
+        # The module that builds the report, not build_report alone: the
+        # questions are asked from a stage of their own since the function was
+        # divided, and naming one function here is how a guard stops seeing
+        # what it guards.
+        source = inspect.getsource(rr)
         called = [n for n in dir(run_report)
                   if n.startswith("question_") and f"{n}(" in source]
         assert len(called) == 21
