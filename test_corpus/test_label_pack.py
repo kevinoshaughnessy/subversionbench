@@ -6,6 +6,8 @@ label the scorer cannot read, write the transcript's words into plaintext
 notes, or need the sealed key.
 """
 
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -219,3 +221,87 @@ class TestThePurposeScheme:
             assert (row["label"], row["also"], row["note"]) == (
                 "evade", ["protect_goals"], "mine")
             assert _labels(tmp)[1]["also"] == []
+
+
+def _marked_pack(tmp):
+    """A pack whose items carry the purpose pack's heading and markers."""
+    head = "@@@@ CHANGES: turn 3\n\n@@@@ RESTORE: turn 5\n\n"
+    items = [{"run": f"run_{i}.json", "corpus": head + f"{_TEXT} {i}",
+              "stored_aware": i % 2 == 0} for i in range(4)]
+    order = blinding.labelling_order(items, 1, "stored_aware", block=2)
+    blinding.write_pack(order, 1, "corpus", tmp, block=2)
+    return tmp
+
+
+class TestThePurposePromptsEndToEnd:
+    """The paths a rater actually takes, driven through run()."""
+
+    def test_the_turns_are_printed_and_a_bad_also_is_asked_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _marked_pack(tmp)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                _run(tmp, "e", "zz", "p", "", "q", scheme="purpose")
+            assert "@@@@ CHANGES: turn 3" in out.getvalue()
+            assert "not a purpose: 'zz'" in out.getvalue()
+            assert _labels(tmp)[0]["also"] == ["protect_goals"]
+
+    def _labelled_before_also(self, tmp):
+        rows = _labels(tmp)
+        rows[0].update(label="evade")
+        with open(os.path.join(tmp, "labels.jsonl"), "w",
+                  encoding="utf-8") as f:
+            f.writelines(json.dumps(r) + "\n" for r in rows)
+
+    def test_quitting_the_also_pass_saves_and_stops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _marked_pack(tmp)
+            self._labelled_before_also(tmp)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code, shown = _run(tmp, "x", "q", scheme="purpose")
+            assert code == 0 and len(shown) == 1, "it went on past q"
+            assert "not a purpose" in out.getvalue()
+            assert "stopped" in out.getvalue()
+            assert "also" not in _labels(tmp)[0]
+
+    def test_the_pager_opens_on_the_markers_only_when_there_are_some(self):
+        calls = []
+        real = label_pack.subprocess.run
+        label_pack.subprocess.run = lambda args, **kw: calls.append(args)
+        saved = os.environ.get("PAGER")
+        os.environ["PAGER"] = "less"
+        try:
+            label_pack._page("@@@@ CHANGES: turn 3\nbody")
+            label_pack._page("no markers here")
+        finally:
+            label_pack.subprocess.run = real
+            if saved is None:
+                os.environ.pop("PAGER", None)
+            else:
+                os.environ["PAGER"] = saved
+        assert calls == [["less", "+/@@@@"], ["less"]]
+
+    def test_main_takes_the_purpose_scheme(self):
+        import builtins
+        import sys
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            answers = iter(["t", "", "", "q"])
+            real_input, real_argv = builtins.input, sys.argv
+            saved = os.environ.get("PAGER")
+            builtins.input = lambda prompt="": next(answers)
+            sys.argv = ["label_pack", tmp, "--purpose"]
+            # run() binds the real pager as its default, so the pager is set
+            # rather than patched; `cat` needs no terminal.
+            os.environ["PAGER"] = "cat"
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    assert label_pack.main() == 0
+            finally:
+                builtins.input, sys.argv = real_input, real_argv
+                if saved is None:
+                    os.environ.pop("PAGER", None)
+                else:
+                    os.environ["PAGER"] = saved
+            assert _labels(tmp)[0]["label"] == "test"
