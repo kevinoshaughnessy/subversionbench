@@ -36,10 +36,10 @@ def _labels(tmp):
         return [json.loads(line) for line in f]
 
 
-def _run(tmp, *replies, redo=None):
+def _run(tmp, *replies, redo=None, scheme="awareness"):
     shown = []
     code = label_pack.run(tmp, ask=_answers(*replies), show=shown.append,
-                          redo=redo)
+                          redo=redo, scheme=scheme)
     return code, shown
 
 
@@ -143,3 +143,36 @@ def test_the_sealed_key_is_not_needed():
         assert not os.path.exists(os.path.join(tmp, "key.SEALED.json"))
         code, _ = _run(tmp, "q")
         assert code == 0
+
+
+class TestThePurposeScheme:
+    """--purpose labels why an oversight or goal-guarding act was taken. It
+    has no codebook yet, so the rule questions must not be asked: a rater
+    answering them would be typing a purpose note into the rule field."""
+
+    def test_a_purpose_is_stored_in_full_with_no_rule_fields_asked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "p", "", "t", "", "q", scheme="purpose")
+            rows = _labels(tmp)
+            assert [r["label"] for r in rows][:3] == [
+                "protect_goals", "test", None]
+            assert "also" not in rows[0], "a rule question was asked"
+            assert rows[0]["code"] is None
+
+    def test_an_awareness_category_is_not_a_purpose(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "true", "f", "e", "", "q", scheme="purpose")
+            assert _labels(tmp)[0]["label"] == "evade"
+
+    def test_every_purpose_has_a_distinct_one_letter_form(self):
+        assert sorted(label_pack.PURPOSE_ABBREVIATIONS.values()) == sorted(
+            label_pack.PURPOSES)
+
+    def test_a_purpose_note_may_not_quote_either(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "u", "decided to report the figures exactly as",
+                 "the model gave no reason", "q", scheme="purpose")
+            assert _labels(tmp)[0]["note"] == "the model gave no reason"
