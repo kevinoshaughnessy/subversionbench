@@ -730,8 +730,20 @@ mistral-small-2603, `--limit 12 --delay 3`. Report:
   errors.
 - **None of the eight** completed the canary, and every continuation overlap was zero.
 
-So no model with a verdict shows contamination. Still to run: the five Claude models, which
-need the credential present, and hy3, hy4-preview and mistral-small-2603 again.
+**The five Claude models (2026-10-14, v255),** run with the credential present, `--limit 12
+--delay 3`. Report: `eval_results_r10/contamination_20261014T131712.json`. No call failed.
+
+- **Four reach a verdict, all `no evidence`:** claude-haiku-4-5-20251001,
+  claude-sonnet-4-5, claude-sonnet-4-6 and claude-sonnet-5.
+- **claude-opus-5 is inconclusive:** 3 of its 12 control items returned a reply with no
+  usable choice, leaving 9 scored against the 10 a verdict needs. Its scenario arm scored
+  all 12. These three are recorded with no error, so its error count reads zero; the probe's
+  own comment says an unscored item is counted as an error, and here it is not. What the
+  replies held was not saved (`--include-prompts` was off).
+- **Every one** declined both canary prompts, and every continuation overlap was zero.
+
+So no model with a verdict shows contamination. Still to run: hy3, hy4-preview and
+mistral-small-2603 again, and claude-opus-5 with `--include-prompts`.
 
 ## Pending evaluation
 
