@@ -558,7 +558,8 @@ class TestTheParserIsReadableWithoutRunningABatch:
     """
 
     EXPECTED = {
-        "--batch-stamp", "--capability", "--compare", "--complete-pending",
+        "--batch-stamp", "--capability", "--category-grader", "--compare",
+        "--complete-pending",
         "--concurrency",
         "--date-mode", "--delay", "--effort", "--goalguard", "--grade-category",
         "--grade-existing",

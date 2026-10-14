@@ -10,6 +10,21 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v255
+
+**The forced-choice probe allows 8000 tokens.** Reasoning models reached over OpenRouter,
+where thinking cannot be switched off, spent the 2000-token ceiling reasoning and returned
+no visible answer on some items. The dropped items left those models without a verdict.
+A ceiling is not a spend, so models that answer at once are unaffected.
+
+## v254
+
+**`--category-grader` asks another model the category question.** `--grade-category` always
+asked the headline grader. The storage already kept one entry per grader, so a second
+model's category reading is stored as its own entry and leaves the headline one as it was.
+A model that already holds a full rubric reading of an episode cannot also hold an
+awareness-only one there, and the pass skips and counts those episodes before any call.
+
 ## v253
 
 **The model under test gets the SDK's own read timeout on the native Anthropic route, not

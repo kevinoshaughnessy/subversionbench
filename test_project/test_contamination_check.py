@@ -140,6 +140,14 @@ class TestContaminationCheckAsk:
         client = _RecordingClient(_Reply(_Block("thinking", "still going")))
         assert cc.ask(client, "claude-opus-5", "p") == ("", None)
 
+    def test_the_forced_choice_ceiling_leaves_room_after_reasoning(self):
+        """2000 was measured too small: seven reasoning models on OpenRouter
+        spent it thinking and returned no visible answer on some items, which
+        left each of them without a verdict. A ceiling costs nothing for a
+        model that answers at once, so the allowance errs high."""
+        import contamination_check as cc
+        assert cc.FORCED_CHOICE_TOKENS > 2000
+
     def test_a_failed_call_returns_the_error_rather_than_raising(self):
         import contamination_check as cc
         client = _RecordingClient(raises=RuntimeError("overloaded_error"))

@@ -180,10 +180,12 @@ class TestTheReadMode:
             "transcript": _transcript(), "analysis": _analysis()}))
         return out
 
-    def _run(self, out, write_back, **grader):
+    def _run(self, out, write_back, category_grader=HEADLINE_AWARENESS_GRADER,
+             **grader):
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5", nudge="strong",
                         grader_model=DEFAULT_GRADER_MODEL,
-                        write_back=write_back)
+                        write_back=write_back,
+                        category_grader=category_grader)
         with _grader(**grader) as calls, _timing({}), \
                 contextlib.redirect_stdout(io.StringIO()):
             code = grade_category_runs(args, BatchSelection.typed(args))
@@ -212,6 +214,33 @@ class TestTheReadMode:
         _, calls, stored = self._run(out, write_back=True)
         assert len(calls) == 1
         assert HEADLINE_AWARENESS_GRADER in grader_models(stored)
+
+
+class TestASecondCategoryGrader:
+    """--category-grader asks another model the same question, and its reading
+    is an entry of its own: the headline grader's stays exactly as it was."""
+
+    SECOND = "gpt-6-astra"
+
+    def test_its_reading_is_stored_beside_the_headline_one(self):
+        read_mode = TestTheReadMode()
+        out = read_mode._corpus()
+        read_mode._run(out, write_back=True)
+        _, _, first = read_mode._run(out, write_back=False)
+        headline = view(first, HEADLINE_AWARENESS_GRADER)
+        code, calls, stored = read_mode._run(
+            out, write_back=True, category_grader=self.SECOND,
+            category_answer="false")
+        assert code == 0 and len(calls) == 1
+        assert {HEADLINE_AWARENESS_GRADER, self.SECOND} <= set(
+            grader_models(stored))
+        assert view(stored, self.SECOND)[
+            "eval_awareness_grader"]["eval_aware"] is False
+        assert view(stored, HEADLINE_AWARENESS_GRADER) == headline, (
+            "the second grader's pass changed the headline reading")
+        _, again, _ = read_mode._run(out, write_back=True,
+                                     category_grader=self.SECOND)
+        assert again == [], "a stored second reading was paid for twice"
 
 
 class TestTheTextChannelReadsTheCategoryQuote:

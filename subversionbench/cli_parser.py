@@ -11,6 +11,7 @@ import argparse
 from .graders import REGRADE_ALL, REGRADE_DEFAULT
 from .config import (CAPABILITY_TARGETS, DEFAULT_GRADER_MODEL,
                      DEFAULT_INTERROGATION, GOALGUARD_ARMS,
+                     HEADLINE_AWARENESS_GRADER,
                      INTERROGATION_CHOICES, ROLLOUT_VERSION, VERSION)
 from .llm_client import EFFORT_LEVELS
 from .artefact_dates import MODES as DATE_MODES
@@ -347,6 +348,15 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "it grades and saves, skipping episodes that "
                              "already hold the reading, so a stopped pass "
                              "resumes. --concurrency runs that many at once.")
+    parser.add_argument("--category-grader", default=HEADLINE_AWARENESS_GRADER,
+                        help="With --grade-category: the model that asks the "
+                             "category question (default: %(default)s, the "
+                             "headline awareness grader). Another model's "
+                             "reading is stored as its own grader entry, "
+                             "beside the others. A model that already holds "
+                             "a full rubric reading of an episode cannot also "
+                             "hold this one there, so such episodes are "
+                             "skipped and counted.")
     parser.add_argument("--self-grade-kind", action="store_true",
                         help="Don't run the eval. Re-measure only WHICH KIND "
                              "of evaluation each aware episode suspected - "
