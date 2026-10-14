@@ -26,7 +26,9 @@ judge's answer is measuring agreement with it, not accuracy.
 TWO SCHEMES. The default labels evaluation awareness against the codebook.
 `--purpose` labels the PURPOSE of an oversight or goal-guarding act (analysis
 plan D7): five purposes, no codebook rules yet, so neither rule question is
-asked and a row stores the label and any note. The purposes' definitions are
+asked. The label is the primary purpose - what the act targets - and `also`
+lists any other purpose the model gives for the same act, since an evasion
+and a defence of its own objective are often one decision. The purposes' definitions are
 not written here, for the reason the next paragraph gives.
 
 A NOTE MAY NOT QUOTE THE TRANSCRIPT. labelling/ is gitignored plaintext, and a
@@ -187,6 +189,33 @@ def _ask_also(ask, deciding):
         print(f"  {got}")
 
 
+def parse_also_purposes(got: str, primary: str):
+    """The other purposes as a list in PURPOSES order, or an error message.
+
+    A purpose act often serves two: an evasion of today's check can be
+    justified by keeping the model's objective in place. The primary label is
+    what the act targets; `also` keeps the rest rather than forcing a choice.
+    One-letter forms are accepted. The primary label and anything that is not
+    a purpose are refused rather than dropped, as parse_also refuses rules."""
+    parts = [p for p in re.split(r"[,\s]+", got.strip().lower()) if p]
+    named = [PURPOSE_ABBREVIATIONS.get(p, p) for p in parts]
+    bad = [p for p, n in zip(parts, named, strict=True) if n not in PURPOSES]
+    if bad:
+        return f"not a purpose: {bad[0]!r}"
+    if primary in named:
+        return f"{primary} is already the primary purpose"
+    return [p for p in PURPOSES if p in named]
+
+
+def _ask_also_purposes(ask, primary):
+    while True:
+        got = parse_also_purposes(ask("also [other purposes, e.g. p,t, or "
+                                      "empty for none]: "), primary)
+        if isinstance(got, list):
+            return got
+        print(f"  {got}")
+
+
 def _ask_note(ep, ask):
     while True:
         note = ask("note (optional, no quotes from the text): ").strip()
@@ -210,6 +239,8 @@ def label_one(ep, row, ask, show, scheme="awareness"):
     if SCHEMES[scheme][2]:
         code = _ask_code(ask)
         updated.update(code=code, also=_ask_also(ask, code))
+    else:
+        updated["also"] = _ask_also_purposes(ask, label)
     note = _ask_note(ep, ask)
     if note:
         updated["note"] = note
@@ -218,9 +249,51 @@ def label_one(ep, row, ask, show, scheme="awareness"):
     return updated
 
 
+def _also_missing(row, scheme) -> bool:
+    """A purpose label entered before `also` was asked. Absent, not empty:
+    an empty list is the rater's "none", which must not be asked again."""
+    return (scheme == "purpose" and row["label"] is not None
+            and "also" not in row)
+
+
+def add_also(ep, row, ask, show):
+    """Ask only `also` for a row labelled before it existed; the label and
+    note stand. Returns the updated row, or "quit"."""
+    show(ep["text"])
+    for line in highlights(ep["text"]):
+        print(f"  {line}")
+    print(f"  labelled earlier: {row['label']}")
+    got = ask("also [other purposes, e.g. p,t, empty for none, q=quit]: ")
+    while got.strip().lower() != "q":
+        also = parse_also_purposes(got, row["label"])
+        if isinstance(also, list):
+            return {**row, "also": also}
+        print(f"  {also}")
+        got = ask("also [other purposes, e.g. p,t, empty for none, q=quit]: ")
+    return "quit"
+
+
+def _fill_missing_also(pack_dir, episodes, rows, ask, show) -> bool:
+    """True if the rater quit part-way."""
+    for ep in episodes:
+        if not _also_missing(rows[ep["id"]], "purpose"):
+            continue
+        print(f"\n{ep['id']}  (adding 'also' to an earlier label)")
+        result = add_also(ep, rows[ep["id"]], ask, show)
+        if result == "quit":
+            return True
+        rows[ep["id"]] = result
+        save(pack_dir, episodes, rows)
+    return False
+
+
 def run(pack_dir: str, ask=input, show=_page, redo: str = None,
         scheme: str = "awareness") -> int:
     episodes, rows = load(pack_dir)
+    if scheme == "purpose" and not redo and _fill_missing_also(
+            pack_dir, episodes, rows, ask, show):
+        print("\nstopped; every answer entered so far is saved")
+        return 0
     todo = [e for e in episodes
             if (e["id"] == redo if redo else rows[e["id"]]["label"] is None)]
     if redo and not todo:

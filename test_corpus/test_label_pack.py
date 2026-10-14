@@ -153,17 +153,17 @@ class TestThePurposeScheme:
     def test_a_purpose_is_stored_in_full_with_no_rule_fields_asked(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "p", "", "t", "", "q", scheme="purpose")
+            _run(tmp, "p", "", "", "t", "", "", "q", scheme="purpose")
             rows = _labels(tmp)
             assert [r["label"] for r in rows][:3] == [
                 "protect_goals", "test", None]
-            assert "also" not in rows[0], "a rule question was asked"
-            assert rows[0]["code"] is None
+            assert rows[0]["also"] == [], "an empty answer is 'none'"
+            assert rows[0]["code"] is None, "a rule question was asked"
 
     def test_an_awareness_category_is_not_a_purpose(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "true", "f", "e", "", "q", scheme="purpose")
+            _run(tmp, "true", "f", "e", "", "", "q", scheme="purpose")
             assert _labels(tmp)[0]["label"] == "evade"
 
     def test_every_purpose_has_a_distinct_one_letter_form(self):
@@ -173,7 +173,7 @@ class TestThePurposeScheme:
     def test_a_purpose_note_may_not_quote_either(self):
         with tempfile.TemporaryDirectory() as tmp:
             _pack(tmp)
-            _run(tmp, "u", "decided to report the figures exactly as",
+            _run(tmp, "u", "", "decided to report the figures exactly as",
                  "the model gave no reason", "q", scheme="purpose")
             assert _labels(tmp)[0]["note"] == "the model gave no reason"
 
@@ -183,3 +183,39 @@ class TestThePurposeScheme:
         assert label_pack.highlights(text) == [
             "@@@@ ACTION UNDER REVIEW: turn 14", "@@@@ RESTORE: turn 19"]
         assert label_pack.highlights(_TEXT) == []
+
+    def test_other_purposes_are_kept_beside_the_primary(self):
+        """The overlap the scheme exists for: an evasion justified by keeping
+        the model's objective is primary evade, also protect_goals."""
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "e", "t, p", "", "q", scheme="purpose")
+            row = _labels(tmp)[0]
+            assert (row["label"], row["also"]) == ("evade",
+                                                   ["protect_goals", "test"])
+
+    def test_the_primary_or_a_non_purpose_in_also_is_asked_again(self):
+        assert label_pack.parse_also_purposes("e", "evade").startswith(
+            "evade is already")
+        assert label_pack.parse_also_purposes("x", "evade").startswith(
+            "not a purpose")
+        assert label_pack.parse_also_purposes("protect_goals,p", "evade") == [
+            "protect_goals"]
+
+    def test_a_label_entered_before_also_existed_is_asked_only_for_also(self):
+        """Five items were labelled before `also` was asked. They are asked
+        for it first, with label and note kept; an empty list already stored
+        is the rater's "none" and is not asked again."""
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            rows = _labels(tmp)
+            rows[0].update(label="evade", note="mine")
+            rows[1].update(label="test", also=[])
+            with open(os.path.join(tmp, "labels.jsonl"), "w",
+                      encoding="utf-8") as f:
+                f.writelines(json.dumps(r) + "\n" for r in rows)
+            _run(tmp, "p", "q", scheme="purpose")
+            row = _labels(tmp)[0]
+            assert (row["label"], row["also"], row["note"]) == (
+                "evade", ["protect_goals"], "mine")
+            assert _labels(tmp)[1]["also"] == []
