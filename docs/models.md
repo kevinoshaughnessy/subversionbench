@@ -603,19 +603,23 @@ Does reasoning effort raise verbalised evaluation awareness? The proposal is
   levels were collected at once from one batch stamp, `20261012T191206`.
 - **Collection checks.** Every recorded effort matches the request, every fingerprint is
   the oversight-arm pin, and no episode was cut off or ended abnormally.
-- **Grading.** gpt-6-sol's rubric. The category reading is still to come.
+- **Grading.** gpt-6-sol's rubric, and the headline category reading (glm-5.3, rules-only,
+  added 2026-10-14). One low episode, run 29, has no category reading yet: its call
+  failed and is asked again by re-running the pass.
 
-| effort | median reasoning tokens | episodes with no reasoning | aware (rubric) | aware, evidence in visible text |
-|---|---|---|---|---|
-| low | 0 | 28 of 30 | 0/30 | 0/30 |
-| medium | 100 | 1 of 15 | 0/15 | 0/15 |
-| high | 639 | 4 of 15 | 0/15 | 0/15 |
-| max | 5,818 | 0 of 30 | 7/30 | 4/30 |
+| effort | median reasoning tokens | episodes with no reasoning | aware (category) | aware (rubric) | aware, evidence in visible text |
+|---|---|---|---|---|---|
+| low | 0 | 28 of 30 | 0/29 | 0/30 | 0/30 |
+| medium | 100 | 1 of 15 | 0/15 | 0/15 | 0/15 |
+| high | 639 | 4 of 15 | 0/15 | 0/15 | 0/15 |
+| max | 5,818 | 0 of 30 | 12/30 | 7/30 | 4/30 |
 
 **Effort took hold.** Reasoning rose about sixtyfold from medium to max, and at low the model
 almost never reasoned at all.
 
-**Awareness appears only at max.** It is zero at every other level.
+**Awareness appears only at max.** It is zero at every other level, by both readings. The
+category reading finds more at max (12/30: 2 true, 10 ambiguous-true) than the rubric does;
+low against max on it gives Fisher p = 0.0001.
 
 - low against max: Fisher p = 0.011, with the max rate's Wilson interval 12% to 41%.
 - Cochran-Armitage across the four levels: p = 0.001. It describes a step at the top
@@ -638,18 +642,21 @@ No episode at any level took an act.
 `20261012T215508`). Every recorded effort matches its request, and every fingerprint
 matches its pin.
 
-| effort | median reasoning characters | aware (rubric) | aware, evidence in visible text | keyword screen |
-|---|---|---|---|---|
-| low | 1,766 | 2/30 | 1/30 | 0/30 |
-| medium | 4,102 | 1/15 | 0/15 | 0/15 |
-| high | 7,332 | 3/15 | 0/15 | 2/15 |
-| max | 11,821 | pending | pending | 8/30 |
+| effort | median reasoning characters | aware (category) | aware (rubric) | aware, evidence in visible text | keyword screen |
+|---|---|---|---|---|---|
+| low | 1,766 | 1/30 | 2/30 | 1/30 | 0/30 |
+| medium | 4,102 | 0/15 | 1/15 | 0/15 | 0/15 |
+| high | 7,332 | 5/15 | 3/15 | 0/15 | 2/15 |
+| max | 11,821 | 11/30 | pending | pending | 8/30 |
 
 - **The max arm has no rubric reading yet** (corrected 2026-10-14). Every gpt-6-sol call
   for its 30 re-collected episodes failed: the OpenAI account had run out of credit, and the
   calls returned 429 `insufficient_quota`. An earlier version of this table gave the
   keyword count, 8/30, in the rubric column, and the gradient and Fisher tests drawn from
   it are withdrawn until the arm is regraded.
+- **The category reading (glm-5.3, 2026-10-14) is complete for all 90** and rises with
+  effort: 1/30 at low, 11/30 at max (5 true, 6 ambiguous-true), Fisher p = 0.002. Unlike
+  gpt-6-astra it is not zero below max: 5/15 at high.
 - **The shape differs from gpt-6-astra's.** This model reasons at every level, and its
   reasoning grows about fivefold, not sixtyfold. The keyword screen, which found nothing
   for gpt-6-astra, rises from 0/30 at low to 8/30 at max.
