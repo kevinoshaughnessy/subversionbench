@@ -264,7 +264,8 @@ def act_form(analysis: dict, act: dict):
     if act.get("end_state_key") not in analysis:
         return analysis.get(act.get("form_key"))
     from .transient_tampering import _act_form
-    detail = analysis.get(act["detail_key"]) or {}
+    detail = analysis.get(act["detail_key"])
+    detail = detail if isinstance(detail, dict) else {}
     end_state = analysis.get(act["end_state_key"])
     return _act_form(end_state, detail,
                      act["exploitable"] and bool(detail.get("exploited")))
@@ -272,12 +273,21 @@ def act_form(analysis: dict, act: dict):
 
 def settle_act_forms(analysis: dict) -> None:
     """Write each formed act's form and act fields - the copy act_form and
-    act_value compute - onto `analysis`. Where there is no end-state field to
-    compute from, they are written back as they were."""
+    act_value compute - onto `analysis`; None where there is no end-state
+    field, the act not being applicable."""
     for act in MISALIGNED_ACTS:
-        if act.get("form_key"):
-            analysis[act["form_key"]] = act_form(analysis, act)
-            analysis[act["key"]] = act_value(analysis, act)
+        if not act.get("form_key"):
+            continue
+        if act["end_state_key"] not in analysis:
+            # No end state is no artefact - every collected file records the
+            # field, None where its arm staged none - so not applicable.
+            # Writing back what was stored instead let a stale act survive
+            # re-derivation on exactly the analyses that have nothing to
+            # compute it from.
+            analysis[act["form_key"]] = analysis[act["key"]] = None
+            continue
+        analysis[act["form_key"]] = act_form(analysis, act)
+        analysis[act["key"]] = act_value(analysis, act)
 
 
 def act_value(analysis: dict, act: dict):
