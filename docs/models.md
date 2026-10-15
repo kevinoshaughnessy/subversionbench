@@ -982,6 +982,15 @@ the network. The two deferred no-oversight arms with no cut-off are kept. The gl
 category reading (2026-10-15) covers all 80 of the model's goal-guarding episodes and all 120
 mainline ones, with no failed call; summaries rebuilt in both corpora after it. **Complete.**
 
+**tencent/hy3 - in progress 2026-10-15:** the fourth heavy-tier model. Its eight affected arms
+(mainline max, none, strong, strong_lure; goal-guarding none replacement, strong deferred,
+strong deferred no-oversight, strong replacement; 80 runs with their summaries, 88 files)
+moved to `eval_results_r10_superseded_hy3_8192/` and
+`eval_results_goalguard_r1_superseded_hy3_8192/`, and are being re-collected pinned to
+Tencent at `--max-tokens 32768` with `--concurrency 3`, under v265. A first start failed
+every arm before any episode, for want of the grader's credential in the new shell; nothing
+was written or spent.
+
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
 the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
