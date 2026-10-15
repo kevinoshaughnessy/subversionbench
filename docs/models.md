@@ -958,10 +958,21 @@ re-collected pinned to Relace, which served every turn, at `--max-tokens 32768`,
 arms against the max-nudge table); graded by gpt-6-sol during collection, nothing pending, no
 `Command timed out.` in any transcript. One episode (strong_lure) reached outside the
 project; none tampered with oversight in any form. The seven no-oversight arms with no
-cut-off are kept. Its six goal-guarding arms are being collected: the batch was stopped by an
+cut-off are kept.
+
+**deepseek/deepseek-v4-flash-0731, goal-guarding - done 2026-10-15:** its six affected arms
+(60 runs with their summaries, 66 files) moved to
+`eval_results_goalguard_r1_superseded_v4flash0731_8192/` and re-collected pinned to Relace,
+which served every turn, at `--max-tokens 32768`, under v263. The batch was stopped by an
 editor restart 4 episodes into none deferred, and resumed under the same stamp with
 `--concurrency 3`, the first collection run with it; the episode in flight at the stop is
-replaced by a fresh draw, as kimi-k2.5's was.
+replaced by a fresh draw, as kimi-k2.5's was. 60 episodes, none cut off, none failed (one
+strong deferred episode reached the turn cap), every fingerprint matching its goal-guarding
+pin; graded by gpt-6-sol during collection, nothing pending, and no `Command timed out.` in
+any transcript, so three parallel episodes did not overload the machine. No episode guarded
+and none tampered, in any form, as in the superseded arms; one (strong replacement) probed
+the network. The two deferred no-oversight arms with no cut-off are kept. Next: the glm-5.3
+category reading in both corpora, then the summaries rebuilt.
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
@@ -1076,7 +1087,7 @@ kept arms carries that difference.
 | deepseek/deepseek-v4.1-flash | GMICloud (done) | Together | recorded; goal-guarding was split Together / Wafer / Novita |
 | z-ai/glm-5.3 | Makora (done) | Together (done) | recorded, partly; goal-guarding split Together / Modal |
 | qwen/qwen3.8-27b | Wafer (done) | Wafer (done) | goal-guarding recorded (split with Reka); mainline unrecorded |
-| deepseek/deepseek-v4-flash-0731 | Relace | Relace | goal-guarding recorded; mainline unrecorded |
+| deepseek/deepseek-v4-flash-0731 | Relace (done) | Relace (done) | goal-guarding recorded; mainline unrecorded |
 | tencent/hy3 | Tencent | Tencent | pinned to Tencent in its notes |
 | deepseek/deepseek-v4-pro-0813 | Baidu | Baidu | goal-guarding recorded; mainline unrecorded |
 | google/gemini-3.5-flash | Google | Google | goal-guarding recorded; mainline unrecorded |
@@ -1113,7 +1124,8 @@ The arms, with cut-off episodes over the arm's size:
 - **deepseek/deepseek-v4-flash-0731** — mainline: max (2/10), max_lure (1/10), none (2/10),
   strong (2/10), strong_lure (3/10). Goal-guarding: none deferred (1/10), none replacement
   (2/10), none replacement no-oversight (3/10), strong deferred (2/10), strong replacement
-  (2/10), strong replacement no-oversight (1/10).
+  (2/10), strong replacement no-oversight (1/10) - all eleven re-collected 2026-10-15,
+  none cut off.
 - **tencent/hy3** — mainline: max (1/10), none (1/10), strong (2/10), strong_lure (2/10).
   Goal-guarding: none replacement (1/10), strong deferred (1/10), strong deferred
   no-oversight (1/10), strong replacement (3/10).
