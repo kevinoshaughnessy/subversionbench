@@ -455,7 +455,7 @@ Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 ## Tests
 
 ```bash
-pytest
+pytest -n auto          # on every core (pytest-xdist); plain `pytest` runs serially
 python run_tests.py     # same suite, no pytest required
 ```
 
@@ -526,11 +526,13 @@ push, run what the workflow runs:
 
 ```bash
 ruff check .                        # the lint job
-SUBVERSIONBENCH_NO_SKIPS=1 pytest   # the suite job
-coverage run -m pytest && coverage report   # the coverage job
+SUBVERSIONBENCH_NO_SKIPS=1 coverage run -m pytest -n auto \
+  && coverage combine && coverage report    # the suite and coverage jobs, one pass
 ```
 
-`coverage report` exits non-zero below the floor set in `pyproject.toml`.
+`coverage report` exits non-zero below the floor set in `pyproject.toml`. The
+coverage run is itself a full run of the suite, so there is no need to run
+`pytest` separately first.
 
 The rule set is declared in `pyproject.toml` rather than left to ruff's
 defaults, which move between versions; the comments there say why each family

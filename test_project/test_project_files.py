@@ -66,13 +66,28 @@ class TestTheDerivedFileSetMatchesTheRepository:
     def test_untracked_files_are_still_examined(self):
         """A guard that only looked at tracked files would not see a module until
         it was committed, which is exactly when a mistake in it is cheapest to
-        find."""
-        new = PROJECT_ROOT / "_untracked_probe_.py"
-        new.write_text("x = 1\n", encoding="utf-8")
-        try:
-            assert Path("_untracked_probe_.py") in project_python_files()
-        finally:
-            new.unlink()
+        find.
+
+        In a scratch repository rather than this one. The probe used to be
+        written into the project root, where every other walker of the tree
+        saw it while it existed: under pytest-xdist a guard on another worker
+        read it after it was deleted and failed on a file that was never
+        part of the project."""
+        from unittest import mock
+
+        import conftest
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d).resolve()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "tracked.py").write_text("x = 1\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "tracked.py"],
+                           check=True)
+            (root / "_untracked_probe_.py").write_text("x = 1\n",
+                                                       encoding="utf-8")
+            with mock.patch.object(conftest, "PROJECT_ROOT", root):
+                found = conftest.project_python_files()
+        assert Path("tracked.py") in found, found
+        assert Path("_untracked_probe_.py") in found, found
 
 
 class TestTheExclusionsAreByRuleNotByAccident:
@@ -85,16 +100,23 @@ class TestTheExclusionsAreByRuleNotByAccident:
             assert not any(x.endswith(".egg-info") for x in p.parts), p
 
     def test_a_file_in_an_excluded_directory_is_not_discovered(self):
-        probe_dir = PROJECT_ROOT / "eval_results_probe_"
-        probe_dir.mkdir(exist_ok=True)
-        probe = probe_dir / "sneaky.py"
-        probe.write_text("y = 2\n", encoding="utf-8")
-        try:
-            found = project_python_files()
-            assert Path("eval_results_probe_/sneaky.py") not in found
-        finally:
-            probe.unlink()
-            probe_dir.rmdir()
+        """In a scratch root, for the reason the untracked-file probe gives:
+        a directory created in this project is seen by every other test that
+        globs it while it exists. The visible file is the positive control - a
+        walk that found nothing would pass the exclusion vacuously."""
+        from unittest import mock
+
+        import conftest
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d).resolve()
+            (root / "eval_results_probe_").mkdir()
+            (root / "eval_results_probe_" / "sneaky.py").write_text(
+                "y = 2\n", encoding="utf-8")
+            (root / "visible.py").write_text("y = 2\n", encoding="utf-8")
+            with mock.patch.object(conftest, "PROJECT_ROOT", root):
+                found = conftest.project_python_files()
+        assert Path("visible.py") in found, found
+        assert Path("eval_results_probe_/sneaky.py") not in found
 
 
 class TestSourceAndTestsPartitionTheProject:
