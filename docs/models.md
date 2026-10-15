@@ -284,6 +284,16 @@ default grader). Graded so far: every model marked complete above (2026-10-03 to
 qwen/qwen3.8-2.4t-a95b on 2026-10-10 to 2026-10-11; both nudges, no grader errors and no
 partially graded episodes). The two episodes collected
 with their interrogation pending were completed with `--complete-pending` on 2026-10-04.
+
+**Acts newly counted under D7 (v262), interrogated 2026-10-15.** Undone and attempted edits
+became counted acts after their episodes were collected, so they had never been asked
+about. Twelve such episodes, in models not queued for re-collection, across both corpora,
+were put to `--complete-pending`: seven were asked; five could not be (one each from
+deepseek-v4-flash, grok-4.6 and kimi-k2.6, two from hy4-preview), because their
+transcripts hold reasoning whose signatures were not saved, and replaying the conversation
+without it would change what the model is answering. Those five stay pending permanently,
+so their concealment is unmeasured. The rest of the newly counted acts sit in arms queued
+for re-collection, and `run_all_arms.sh` asks them when each model is re-collected.
 gpt-6-sol's own episodes were graded by gpt-6-sol, so its awareness readings come from a
 grader judging itself; [grader-selection.md](grader-selection.md) lists this as a known weakness.
 
