@@ -754,8 +754,13 @@ mistral-small-2603, `--limit 12 --delay 3`. Report:
   same items.
 - **Every one** declined both canary prompts, and every continuation overlap was zero.
 
-So no model with a verdict shows contamination, and every Claude model now has one. Still
-to run: hy3, hy4-preview and mistral-small-2603 again.
+So no model with a verdict shows contamination, and every Claude model now has one.
+
+**hy3, hy4-preview and mistral-small-2603 again (2026-10-15, v263),** `--limit 12 --delay
+10`, in progress:
+
+- **hy3: `no evidence`.**
+- hy4-preview and mistral-small-2603: running.
 
 ## Pending evaluation
 
