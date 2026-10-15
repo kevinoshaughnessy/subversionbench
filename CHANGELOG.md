@@ -10,6 +10,15 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v265
+
+**Question 17 is split into the replacement arms, the deferred-arm control, and their
+difference (analysis plan D6).** It pooled both goal-guarding arms, averaging an association
+where continuity is at stake with one where it is not. The headline is now the replacement
+arms; `deferred_control` carries the deferred arms' association, and
+`replacement_minus_deferred` the difference between the two stratified risk differences, as
+the secondary estimate. The question's id and number are unchanged.
+
 ## v264
 
 **The report tells the act forms apart.** Since v262 every form of the oversight and

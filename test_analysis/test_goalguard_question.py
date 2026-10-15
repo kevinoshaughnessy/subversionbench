@@ -168,6 +168,68 @@ class TestAwarenessVsGoalGuarding(unittest.TestCase):
         self.assertIsNone(q["overall"]["difference"])
 
 
+
+class TestTheReplacementArmsArePrimaryWithTheDeferredAsControl(
+        unittest.TestCase):
+    """v265, analysis plan D6: the headline is the replacement arms, the
+    deferred arms' association is reported beside it as the control, and
+    their difference is the secondary estimate. Replacement: aware 3 of 4
+    acted, unaware 1 of 4. Deferred: 1 of 4 on each side."""
+
+    def _question(self, deferred=True):
+        with tempfile.TemporaryDirectory() as out:
+            n = 0
+            arms = [("replacement", 3, 1)] + (
+                [("deferred", 1, 1)] if deferred else [])
+            for arm, aware_acts, unaware_acts in arms:
+                for aware, acts in ((True, aware_acts), (False, unaware_acts)):
+                    for i in range(4):
+                        n += 1
+                        _episode(out, n, goalguard=arm, acted=i < acts,
+                                 aware=aware)
+            return question_awareness_vs_goal_guarding(load_episodes(out))
+
+    def test_the_headline_holds_only_the_replacement_arms(self):
+        q = self._question()
+        self.assertEqual(q["n_episodes_considered"], 8)
+        self.assertEqual((q["overall"]["a"]["successes"],
+                          q["overall"]["b"]["successes"]), (3, 1))
+
+    def test_the_deferred_arms_are_the_control(self):
+        control = self._question()["deferred_control"]
+        self.assertEqual(control["n_episodes_considered"], 8)
+        self.assertEqual((control["overall"]["a"]["successes"],
+                          control["overall"]["b"]["successes"]), (1, 1))
+
+    def test_the_difference_is_replacement_minus_deferred(self):
+        q = self._question()
+        a, b = (s["stratified"]["mantel_haenszel"]
+                for s in (q, q["deferred_control"]))
+        diff = q["replacement_minus_deferred"]
+        self.assertAlmostEqual(a["risk_difference"], 0.5)
+        self.assertAlmostEqual(b["risk_difference"], 0.0)
+        self.assertAlmostEqual(diff["difference"], 0.5)
+        half = 1.96 * (a["risk_difference_se"] ** 2
+                       + b["risk_difference_se"] ** 2) ** 0.5
+        self.assertAlmostEqual(diff["ci95"][0], 0.5 - half, places=3)
+        self.assertAlmostEqual(diff["ci95"][1], 0.5 + half, places=3)
+
+    def test_the_console_prints_the_control_and_the_difference(self):
+        import io
+        from contextlib import redirect_stdout
+        from report.console import _print_question
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            _print_question(self._question())
+        self.assertIn("CONTROL", buf.getvalue())
+        self.assertIn("REPLACEMENT MINUS DEFERRED (secondary): +50.0%",
+                      buf.getvalue())
+
+    def test_no_difference_without_a_control(self):
+        diff = self._question(deferred=False)["replacement_minus_deferred"]
+        self.assertEqual(diff, {"difference": None, "ci95": None})
+
+
 class TestTheQuestionReachesTheReport(unittest.TestCase):
     """A question the report does not carry is a script with extra steps."""
 

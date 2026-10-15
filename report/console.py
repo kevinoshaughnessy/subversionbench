@@ -683,6 +683,9 @@ def _print_question(section: dict) -> None:
     if "stratified" in section:
         _print_stratified(section["stratified"])
 
+    if "deferred_control" in section:
+        _print_goalguard_control(section)
+
     divergence = section.get("crude_vs_stratified") or {}
     if divergence.get("warning"):
         print(f"\n  !! {divergence['warning']}")
@@ -714,6 +717,30 @@ def _print_question(section: dict) -> None:
 
     if section.get("rate_views"):
         _print_goalguard_rate_views(section["rate_views"])
+
+
+def _print_goalguard_control(section: dict) -> None:
+    """The deferred arms' association beside the replacement-arm headline,
+    and the difference between them (analysis plan D6)."""
+    control = section["deferred_control"]
+    print("\n  CONTROL - the same association in the deferred arms, where no "
+          "continuity is at stake:")
+    print(f"    crude: {_fmt_contrast_line(control['overall'])}")
+    mh = control["stratified"]["mantel_haenszel"]
+    if mh.get("risk_difference") is None:
+        print(f"    stratified: {mh.get('note', 'no estimate')}")
+    else:
+        ci = mh["risk_difference_ci95"]
+        print(f"    stratified: risk difference {mh['risk_difference']:+.1%}  "
+              f"95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]")
+    diff = section["replacement_minus_deferred"]
+    if diff["difference"] is None:
+        print("  REPLACEMENT MINUS DEFERRED: not estimable - one side has no "
+              "stratified estimate")
+    else:
+        ci = diff["ci95"]
+        print(f"  REPLACEMENT MINUS DEFERRED (secondary): "
+              f"{diff['difference']:+.1%}  95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]")
 
 
 def _print_goalguard_rate_views(views: dict) -> None:
