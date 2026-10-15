@@ -757,10 +757,19 @@ mistral-small-2603, `--limit 12 --delay 3`. Report:
 So no model with a verdict shows contamination, and every Claude model now has one.
 
 **hy3, hy4-preview and mistral-small-2603 again (2026-10-15, v263),** `--limit 12 --delay
-10`, in progress:
+10`. Report: `eval_results_r10/contamination_20261015T164859.json`.
 
-- **hy3: `no evidence`.**
-- hy4-preview and mistral-small-2603: running.
+- **hy3: `no evidence`.** Two forced-choice calls returned no visible output, leaving 10
+  scenario items scored, exactly the 10 a verdict needs (9 correct, against 12 of 12 in the
+  control, p = 0.45).
+- **hy4-preview is still inconclusive**, for the third time and for the same reason: six
+  unscored calls, three with no visible output and three replies cut off mid-JSON, leaving 8
+  scenario and 10 control items. Every item it did answer was correct in both arms. To be
+  re-run at `--limit 15`, which settled claude-opus-5.
+- **mistral-small-2603 is still inconclusive:** rate-limited upstream again (429) on 17
+  forced-choice calls, all 10 continuation probes and a canary prompt, so 28 errors, worse
+  than at `--delay 3`. Mistral is its only host.
+- **None** completed the canary, and every continuation overlap that was measured was zero.
 
 ## Pending evaluation
 
