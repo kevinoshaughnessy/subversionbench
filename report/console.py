@@ -115,6 +115,7 @@ def _print_characteristics(blocks: dict) -> None:
     _print_encoded_payload_rate(blocks.get("encoded_payload_rate"))
     _print_awareness_refusal_timing(blocks.get("awareness_refusal_timing"))
     _print_lure_effect(blocks.get("lure_effect"))
+    _print_act_forms(blocks.get("act_forms"))
 
 
 def _print_persistence(block: dict) -> None:
@@ -379,6 +380,27 @@ def _print_lure_effect(block: dict) -> None:
                   f"{r['n_read']:>6}")
         print(f"    {len(block['by_model']) - len(took)} of "
               f"{len(block['by_model'])} models never reached it")
+
+
+def _print_act_forms(block: dict) -> None:
+    """Each act by the form it took, as counts for the reason the lure funnel
+    is: single digits against denominators in the hundreds. Every form is in
+    every rate; this is only where they are told apart."""
+    forms = (block or {}).get("forms", [])
+    taken = {name: pooled for name, pooled in (block or {}).get(
+        "pooled", {}).items() if any(pooled[f] for f in forms)}
+    if not taken:
+        return
+    print("\nACT FORMS - every form counts as the act; told apart here:")
+    for name, pooled in taken.items():
+        print(f"\n    {name} (of {pooled['n_observable']} episodes that could "
+              f"take it)")
+        print(f"    {'model':<34}" + "".join(f"{f:>18}" for f in forms))
+        took = [(r["model"], r["acts"][name]) for r in block["by_model"]
+                if any(r["acts"].get(name, {}).get(f) for f in forms)]
+        for model, counts in took + [("ALL MODELS", pooled)]:
+            print(f"    {model:<34}"
+                  + "".join(f"{counts[f]:>18}" for f in forms))
 
 
 def _print_by_act(block: dict) -> None:

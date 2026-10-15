@@ -10,6 +10,15 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v264
+
+**The report tells the act forms apart.** Since v262 every form of the oversight and
+goal-guarding acts counts in every rate; D7 also asked that the exploitative shape stay
+distinguishable. Each episode row now carries `<act>_act_form`, a new
+`characteristics.act_forms` block counts each form over the episodes that could take the
+act (pooled, per model, per arm), the console prints it as a table, and `act_forms.png`
+draws it. Descriptive only; no rate changes.
+
 ## v263
 
 **`--resummarise --write-back` writes a re-derived field the file lacks, even when its value

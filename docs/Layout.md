@@ -497,6 +497,8 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    oversight
   act_awareness_gap.py  misaligned acts by act turn minus first-awareness
                    turn: one chart for the corpus and one per arm
+  act_forms.py     each counted act by the form it took, per model: one
+                   panel per act, the forms stacked
   strategy.py      the strategy recommended per arm, and the goal-guarding
                    arms' replacement-minus-deferred difference in it
   capability.py    capability_report.py's one chart: each model's
