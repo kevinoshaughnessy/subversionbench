@@ -896,6 +896,15 @@ shell, so `run_eval` refused each arm before any call. The glm-5.3 category read
 had none either. Summaries rebuilt and the arm report written at v260, no batch aborted and
 no episode failed. **Complete.**
 
+**qwen/qwen3.8-27b, mainline - done 2026-10-15:** its six affected arms (max, max_lure,
+none, none_lure, strong, strong_lure; 60 runs with their summaries and failed-episode
+records, 66 files) moved to `eval_results_r10_superseded_qwen3827b_8192/` and re-collected
+pinned to Wafer, which served every turn, at `--max-tokens 32768`. 60 episodes, none cut off,
+none failed, every fingerprint matching its pin (the max arms against the max-nudge table);
+graded by gpt-6-sol during collection, nothing pending, no `Command timed out.` in any
+transcript. The six no-oversight arms with no cut-off are kept. Its five goal-guarding arms
+are next; the glm-5.3 category reading of both follows.
+
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
 the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
