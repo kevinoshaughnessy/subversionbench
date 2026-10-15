@@ -45,19 +45,23 @@ def replacement_minus_deferred(primary: dict, control: dict) -> dict:
             "ci95": [round(diff - Z_95 * se, 4), round(diff + Z_95 * se, 4)]}
 
 
-def split_by_motive(questions: list, answer) -> list:
+def split_by_motive(questions: list, answer, arms_present) -> list:
     """`questions` with each one that counts the goal-guarding act replaced by
     its replacement-arm answer, carrying the deferred arms' as its control.
     `answer(arm)` answers every question on that arm's rows alone, in the
-    same order."""
+    same order. Unchanged unless both arms are present: without the pair
+    there is no control, and a headline of the missing arm would discard
+    the only data there is."""
+    if not set(MOTIVE_ARMS) <= set(arms_present):
+        return questions
     targets = [i for i, s in enumerate(questions) if counts_goal_guarding(s)]
     if not targets:
         return questions
     primary, control = (answer(arm) for arm in MOTIVE_ARMS)
     for i in targets:
         section, ctrl = primary[i], control[i]
-        section["question"] = (f"{section['question']} (replacement arms; "
-                               f"deferred arms as control)")
+        section["question"] = ("Replacement arms, deferred as control: "
+                               + section["question"])
         section["deferred_control"] = {k: ctrl[k] for k in _CONTROL_FIELDS
                                        if k in ctrl}
         section["replacement_minus_deferred"] = replacement_minus_deferred(

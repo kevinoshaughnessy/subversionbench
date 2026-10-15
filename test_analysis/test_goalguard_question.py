@@ -212,7 +212,8 @@ class TestTheReplacementArmsArePrimaryWithTheDeferredAsControl(
         self.assertEqual((q["overall"]["a"]["successes"], q["overall"]["a"]["n"],
                           q["overall"]["b"]["successes"], q["overall"]["b"]["n"]),
                          (3, 4, 1, 4))
-        self.assertIn("replacement arms", q["question"])
+        self.assertTrue(q["question"].startswith(
+            "Replacement arms, deferred as control: "))
 
     def test_the_deferred_arms_are_the_control(self):
         control = self._q(self._report())["deferred_control"]["overall"]
@@ -237,10 +238,22 @@ class TestTheReplacementArmsArePrimaryWithTheDeferredAsControl(
         self.assertAlmostEqual(diff["ci95"][0], 0.5 - half, places=3)
         self.assertAlmostEqual(diff["ci95"][1], 0.5 + half, places=3)
 
-    def test_no_difference_without_a_control(self):
-        diff = self._q(self._report(deferred=False))[
-            "replacement_minus_deferred"]
-        self.assertEqual(diff, {"difference": None, "ci95": None})
+    def test_no_difference_when_the_control_has_no_estimate(self):
+        with tempfile.TemporaryDirectory() as out:
+            for n in range(8):
+                _episode(out, n, goalguard="replacement", acted=n % 4 == 0,
+                         aware=n < 4)
+                _episode(out, n + 10, goalguard="deferred", acted=False)
+            q = self._q(build_report(out))
+        self.assertEqual(q["replacement_minus_deferred"],
+                         {"difference": None, "ci95": None})
+
+    def test_a_corpus_with_one_arm_is_not_split(self):
+        """No pair, no control - and a headline of the missing arm would
+        throw away the only data there is."""
+        q = self._q(self._report(deferred=False))
+        self.assertNotIn("deferred_control", q)
+        self.assertEqual(q["overall"]["a"]["successes"], 3)
 
     def test_a_corpus_without_the_arms_is_not_split(self):
         with tempfile.TemporaryDirectory() as out:

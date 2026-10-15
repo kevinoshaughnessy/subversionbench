@@ -380,7 +380,8 @@ because it needs far more data than either half. Question 14, whose exposure is 
 itself, is not split. The rule is read off each section - its outcome is the act, or its
 composite counts it - in `report/motive_split.py`, so a question added later inherits it. The
 console prints the control and the difference under the headline; the charts draw the
-headline. A mainline corpus is unaffected.
+headline. A mainline corpus is unaffected, and so is a corpus holding only one of the two
+arms: without the pair there is no control.
 
 **Question 14 carries the goal-guarding rate views.** `rate_views` gives the act rate per
 episode and among the episodes that read the successor's parameter file, each pooled over the

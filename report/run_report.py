@@ -527,11 +527,11 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     aware_source, grader_block = pool["aware_source"], pool["grader_block"]
     questions = _answer_questions(episodes, summaries, act_rows, arm_rows,
                                   pool)
-    if any(e.get("goalguard") for e in episodes):
-        questions = split_by_motive(questions, lambda arm: _answer_questions(
-            *_in_arm(arm, episodes, summaries, act_rows, arm_rows),
-            {**pool, "act_source": _in_arm(arm, pool["act_source"])[0],
-             "aware_source": _in_arm(arm, pool["aware_source"])[0]}))
+    questions = split_by_motive(questions, lambda arm: _answer_questions(
+        *_in_arm(arm, episodes, summaries, act_rows, arm_rows),
+        {**pool, "act_source": _in_arm(arm, pool["act_source"])[0],
+         "aware_source": _in_arm(arm, pool["aware_source"])[0]}),
+        {e.get("goalguard") for e in episodes})
     _mark_unanswerable(questions, episodes, arm_exclusion,
                        pool["on_awareness_reading"])
 
