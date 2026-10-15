@@ -196,9 +196,16 @@ def _awareness_changes(stored: dict, fresh: dict) -> dict:
 
 def _apply_rederived(stored: dict, fresh: dict) -> list:
     """Copy the allowlisted re-derived fields that moved from `fresh` onto
-    `stored`, in place. Returns their names, empty when nothing moved."""
+    `stored`, in place. Returns their names, empty when nothing moved.
+
+    ABSENT IS A MOVE. Compared with `stored.get(k)`, a field the file lacks
+    read as None, so a derivation whose value is None - a field added since
+    the file was written, in an arm where it does not apply - was never
+    written. After v262, all 3,420 r10 no-oversight files stayed without
+    `oversight_act` that way: right in value, absent on disk, and counted as
+    analysed before the field by the report's n_act_fields_missing."""
     changed = {k: fresh[k] for k in REDERIVED_ANALYSIS_FIELDS
-               if k in fresh and stored.get(k) != fresh[k]}
+               if k in fresh and (k not in stored or stored[k] != fresh[k])}
     awareness = _awareness_changes(stored, fresh)
     stored.update(changed)
     if awareness:

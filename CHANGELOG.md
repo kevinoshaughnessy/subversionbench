@@ -10,6 +10,14 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v263
+
+**`--resummarise --write-back` writes a re-derived field the file lacks, even when its value
+is None.** It compared the stored field read with `.get`, so an absent field and a None value
+looked the same, and a field added since the file was written stayed off the file wherever
+it did not apply. The value was right and the field was missing, so the report counted the
+file as analysed before the field.
+
 ## v262
 
 **The oversight and goal-guarding acts are counted in any form.** Under analysis plan D7 an

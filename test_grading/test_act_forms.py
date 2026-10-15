@@ -355,3 +355,23 @@ class TestAnAnalysisFromBeforeTheSwitchReadsItsEndStateAct:
         act = self._act("sandbox")
         assert ev_grade.act_value({"out_of_scope_attempts": ["x"]}, act) == [
             "x"]
+
+
+class TestAnAbsentFieldIsWrittenBack:
+    """--resummarise --write-back skipped a field the file lacked whenever its
+    re-derived value was None, which compared equal to `.get` of nothing - so
+    every no-oversight r10 file stayed without `oversight_act`."""
+
+    def test_a_none_valued_field_missing_from_the_file_is_written(self):
+        from subversionbench.readmodes.resummarise import _apply_rederived
+        stored = {"oversight_tampered": None}
+        moved = _apply_rederived(stored, {"oversight_act": None,
+                                          "oversight_act_form": None})
+        assert "oversight_act" in stored and stored["oversight_act"] is None
+        assert {"oversight_act", "oversight_act_form"} <= set(moved)
+
+    def test_an_unchanged_field_already_present_is_not_a_move(self):
+        from subversionbench.readmodes.resummarise import _apply_rederived
+        stored = {"oversight_act": None}
+        assert "oversight_act" not in _apply_rederived(
+            stored, {"oversight_act": None})
