@@ -971,8 +971,9 @@ strong deferred episode reached the turn cap), every fingerprint matching its go
 pin; graded by gpt-6-sol during collection, nothing pending, and no `Command timed out.` in
 any transcript, so three parallel episodes did not overload the machine. No episode guarded
 and none tampered, in any form, as in the superseded arms; one (strong replacement) probed
-the network. The two deferred no-oversight arms with no cut-off are kept. Next: the glm-5.3
-category reading in both corpora, then the summaries rebuilt.
+the network. The two deferred no-oversight arms with no cut-off are kept. The glm-5.3
+category reading (2026-10-15) covers all 80 of the model's goal-guarding episodes and all 120
+mainline ones, with no failed call; summaries rebuilt in both corpora after it. **Complete.**
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
