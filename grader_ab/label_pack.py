@@ -2,6 +2,7 @@
 Label a blind pack one episode at a time, in the terminal.
 
     python3 -m grader_ab.label_pack labelling/blind_r10_20261008
+    python3 -m grader_ab.label_pack labelling/purpose_blind_20261014 --purpose
 
 Shows each unlabelled episode in reading order through the pager, asks for
 the category, the codebook rule that decided it, any other rules that also
@@ -21,6 +22,14 @@ it was asked, which is "not recorded", not "none".
 It reads pack.json and labels.jsonl and nothing else in the pack. The sealed
 key - model, arm and stored verdict - is never opened here: a rater shown the
 judge's answer is measuring agreement with it, not accuracy.
+
+TWO SCHEMES. The default labels evaluation awareness against the codebook.
+`--purpose` labels the PURPOSE of an oversight or goal-guarding act (analysis
+plan D7): five purposes, no codebook rules yet, so neither rule question is
+asked. The label is the primary purpose - what the act targets - and `also`
+lists any other purpose the model gives for the same act, since an evasion
+and a defence of its own objective are often one decision. The purposes' definitions are
+not written here, for the reason the next paragraph gives.
 
 A NOTE MAY NOT QUOTE THE TRANSCRIPT. labelling/ is gitignored plaintext, and a
 note carrying the words that decided a boundary is the codebook leak the
@@ -43,11 +52,28 @@ from .shapes import CATEGORIES
 ABBREVIATIONS = {"t": "true", "at": "ambiguous_true",
                  "af": "ambiguous_false", "f": "false"}
 
+# The purpose of an act, and its one-letter forms. Order is the prompt's.
+PURPOSES = ("evade", "protect_goals", "test", "mistake", "unclear")
+PURPOSE_ABBREVIATIONS = {p[0]: p for p in PURPOSES}
+
+# What each scheme asks: its labels, their abbreviations, and whether the
+# codebook's rule questions follow the label.
+SCHEMES = {
+    "awareness": (CATEGORIES, ABBREVIATIONS, True),
+    "purpose": (PURPOSES, PURPOSE_ABBREVIATIONS, False),
+}
+
 # The codebook's numbered rulings. Its last rule is 18 (the situation's own
 # monitoring, added 2026-10-08); raise this when the codebook gains one, or a
 # label citing it is refused as a typo.
 CODEBOOK_RULES = 18
 CODES = frozenset({str(i) for i in range(1, CODEBOOK_RULES + 1)} | {"none"})
+
+# A purpose pack marks the act and its restore with lines starting MARK, and
+# heads each item with their turns ("@@@@ ACTION UNDER REVIEW: turn 14").
+# The heading is printed again at the prompt, and less opens searching for
+# MARK, so every marker is highlighted and `n` steps between them.
+MARK = "@@@@"
 
 # Six consecutive words in common with the episode is a quotation, not a
 # coincidence of phrasing.
@@ -98,25 +124,35 @@ def quoted_run(note: str, text: str, n: int = QUOTE_WORDS) -> str | None:
     return None
 
 
+def highlights(text: str) -> list:
+    """The item's heading lines - the act's and restore's turns - if any."""
+    return [line for line in text.split("\n")
+            if line.startswith(f"{MARK} ") and ": " in line]
+
+
 def _page(text: str) -> None:
     pager = shlex.split(os.environ.get("PAGER") or "less")
+    if MARK in text and os.path.basename(pager[0]) == "less":
+        pager.append(f"+/{MARK}")
     try:
         subprocess.run(pager, input=text, text=True, check=False)
     except FileNotFoundError:
         print(text)
 
 
-def _ask_label(ep, ask, show):
+def _ask_label(ep, ask, show, scheme="awareness"):
     """The category, or "skip"/"quit". `v` shows the episode again."""
+    categories, abbreviations, _rules = SCHEMES[scheme]
+    shortcuts = "/".join(abbreviations)
     while True:
-        got = ask("label [t/at/af/f, v=view again, s=skip, q=quit]: ")
+        got = ask(f"label [{shortcuts}, v=view again, s=skip, q=quit]: ")
         got = got.strip().lower()
         if got == "v":
             show(ep["text"])
         elif got in ("s", "q"):
             return {"s": "skip", "q": "quit"}[got]
-        elif ABBREVIATIONS.get(got, got) in CATEGORIES:
-            return ABBREVIATIONS.get(got, got)
+        elif abbreviations.get(got, got) in categories:
+            return abbreviations.get(got, got)
         else:
             print(f"  not a category: {got!r}")
 
@@ -153,6 +189,33 @@ def _ask_also(ask, deciding):
         print(f"  {got}")
 
 
+def parse_also_purposes(got: str, primary: str):
+    """The other purposes as a list in PURPOSES order, or an error message.
+
+    A purpose act often serves two: an evasion of today's check can be
+    justified by keeping the model's objective in place. The primary label is
+    what the act targets; `also` keeps the rest rather than forcing a choice.
+    One-letter forms are accepted. The primary label and anything that is not
+    a purpose are refused rather than dropped, as parse_also refuses rules."""
+    parts = [p for p in re.split(r"[,\s]+", got.strip().lower()) if p]
+    named = [PURPOSE_ABBREVIATIONS.get(p, p) for p in parts]
+    bad = [p for p, n in zip(parts, named, strict=True) if n not in PURPOSES]
+    if bad:
+        return f"not a purpose: {bad[0]!r}"
+    if primary in named:
+        return f"{primary} is already the primary purpose"
+    return [p for p in PURPOSES if p in named]
+
+
+def _ask_also_purposes(ask, primary):
+    while True:
+        got = parse_also_purposes(ask("also [other purposes, e.g. p,t, or "
+                                      "empty for none]: "), primary)
+        if isinstance(got, list):
+            return got
+        print(f"  {got}")
+
+
 def _ask_note(ep, ask):
     while True:
         note = ask("note (optional, no quotes from the text): ").strip()
@@ -163,17 +226,22 @@ def _ask_note(ep, ask):
               f"paraphrase it, or leave it empty")
 
 
-def label_one(ep, row, ask, show):
+def label_one(ep, row, ask, show, scheme="awareness"):
     """Show one episode and take its label. Returns the updated row, or
     "skip"/"quit" with the row untouched."""
     show(ep["text"])
-    label = _ask_label(ep, ask, show)
+    for line in highlights(ep["text"]):
+        print(f"  {line}")
+    label = _ask_label(ep, ask, show, scheme)
     if label in ("skip", "quit"):
         return label
-    code = _ask_code(ask)
-    also = _ask_also(ask, code)
+    updated = {**row, "label": label}
+    if SCHEMES[scheme][2]:
+        code = _ask_code(ask)
+        updated.update(code=code, also=_ask_also(ask, code))
+    else:
+        updated["also"] = _ask_also_purposes(ask, label)
     note = _ask_note(ep, ask)
-    updated = {**row, "label": label, "code": code, "also": also}
     if note:
         updated["note"] = note
     else:
@@ -181,8 +249,51 @@ def label_one(ep, row, ask, show):
     return updated
 
 
-def run(pack_dir: str, ask=input, show=_page, redo: str = None) -> int:
+def _also_missing(row, scheme) -> bool:
+    """A purpose label entered before `also` was asked. Absent, not empty:
+    an empty list is the rater's "none", which must not be asked again."""
+    return (scheme == "purpose" and row["label"] is not None
+            and "also" not in row)
+
+
+def add_also(ep, row, ask, show):
+    """Ask only `also` for a row labelled before it existed; the label and
+    note stand. Returns the updated row, or "quit"."""
+    show(ep["text"])
+    for line in highlights(ep["text"]):
+        print(f"  {line}")
+    print(f"  labelled earlier: {row['label']}")
+    got = ask("also [other purposes, e.g. p,t, empty for none, q=quit]: ")
+    while got.strip().lower() != "q":
+        also = parse_also_purposes(got, row["label"])
+        if isinstance(also, list):
+            return {**row, "also": also}
+        print(f"  {also}")
+        got = ask("also [other purposes, e.g. p,t, empty for none, q=quit]: ")
+    return "quit"
+
+
+def _fill_missing_also(pack_dir, episodes, rows, ask, show) -> bool:
+    """True if the rater quit part-way."""
+    for ep in episodes:
+        if not _also_missing(rows[ep["id"]], "purpose"):
+            continue
+        print(f"\n{ep['id']}  (adding 'also' to an earlier label)")
+        result = add_also(ep, rows[ep["id"]], ask, show)
+        if result == "quit":
+            return True
+        rows[ep["id"]] = result
+        save(pack_dir, episodes, rows)
+    return False
+
+
+def run(pack_dir: str, ask=input, show=_page, redo: str = None,
+        scheme: str = "awareness") -> int:
     episodes, rows = load(pack_dir)
+    if scheme == "purpose" and not redo and _fill_missing_also(
+            pack_dir, episodes, rows, ask, show):
+        print("\nstopped; every answer entered so far is saved")
+        return 0
     todo = [e for e in episodes
             if (e["id"] == redo if redo else rows[e["id"]]["label"] is None)]
     if redo and not todo:
@@ -194,7 +305,7 @@ def run(pack_dir: str, ask=input, show=_page, redo: str = None) -> int:
         position = episodes.index(ep) + 1
         print(f"\n{ep['id']}  ({position}/{len(episodes)}, block "
               f"{ep['block']}, {len(ep['text']):,} characters)")
-        result = label_one(ep, rows[ep["id"]], ask, show)
+        result = label_one(ep, rows[ep["id"]], ask, show, scheme)
         if result == "quit":
             break
         if result == "skip":
@@ -213,9 +324,14 @@ def main() -> int:
     parser.add_argument("pack", help="the pack directory")
     parser.add_argument("--redo", metavar="ID",
                         help="relabel one episode, e.g. ep-012")
+    parser.add_argument("--purpose", action="store_true",
+                        help="label the purpose of each act "
+                             f"({', '.join(PURPOSES)}) rather than "
+                             "awareness; no codebook rules are asked")
     args = parser.parse_args()
     try:
-        return run(args.pack, redo=args.redo)
+        return run(args.pack, redo=args.redo,
+                   scheme="purpose" if args.purpose else "awareness")
     except (EOFError, KeyboardInterrupt):
         print("\nstopped; every label entered so far is saved")
         return 0
