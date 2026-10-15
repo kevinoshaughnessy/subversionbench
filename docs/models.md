@@ -982,14 +982,21 @@ the network. The two deferred no-oversight arms with no cut-off are kept. The gl
 category reading (2026-10-15) covers all 80 of the model's goal-guarding episodes and all 120
 mainline ones, with no failed call; summaries rebuilt in both corpora after it. **Complete.**
 
-**tencent/hy3 - in progress 2026-10-15:** the fourth heavy-tier model. Its eight affected arms
+**tencent/hy3 - re-collected 2026-10-15:** the fourth heavy-tier model. Its eight affected arms
 (mainline max, none, strong, strong_lure; goal-guarding none replacement, strong deferred,
 strong deferred no-oversight, strong replacement; 80 runs with their summaries, 88 files)
 moved to `eval_results_r10_superseded_hy3_8192/` and
-`eval_results_goalguard_r1_superseded_hy3_8192/`, and are being re-collected pinned to
-Tencent at `--max-tokens 32768` with `--concurrency 3`, under v265. A first start failed
-every arm before any episode, for want of the grader's credential in the new shell; nothing
-was written or spent.
+`eval_results_goalguard_r1_superseded_hy3_8192/`, and re-collected pinned to Tencent, which
+served every turn, at `--max-tokens 32768` with `--concurrency 3`, under v265. A first start
+failed every arm before any episode, for want of the grader's credential in the new shell;
+nothing was written or spent. 80 episodes, none cut off, none failed, every fingerprint
+matching its own arm's pin (the max arm against the max-nudge table, the goal-guarding arms
+against theirs); graded by gpt-6-sol during collection, nothing pending, no `Command timed
+out.` in any transcript. No episode took a counted act in either corpus, as in the superseded
+arms (whose files still carry a field from the v62 analysis, `monitoring_file_modified`,
+which is not an act; their oversight act is false in all 40). The eight arms with no cut-off
+in each corpus are kept. Next: the glm-5.3 category reading in both corpora, then the
+summaries rebuilt.
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
@@ -1105,7 +1112,7 @@ kept arms carries that difference.
 | z-ai/glm-5.3 | Makora (done) | Together (done) | recorded, partly; goal-guarding split Together / Modal |
 | qwen/qwen3.8-27b | Wafer (done) | Wafer (done) | goal-guarding recorded (split with Reka); mainline unrecorded |
 | deepseek/deepseek-v4-flash-0731 | Relace (done) | Relace (done) | goal-guarding recorded; mainline unrecorded |
-| tencent/hy3 | Tencent | Tencent | pinned to Tencent in its notes |
+| tencent/hy3 | Tencent (done) | Tencent (done) | pinned to Tencent in its notes |
 | deepseek/deepseek-v4-pro-0813 | Baidu | Baidu | goal-guarding recorded; mainline unrecorded |
 | google/gemini-3.5-flash | Google | Google | goal-guarding recorded; mainline unrecorded |
 | google/gemini-3.8-flash | Google AI Studio | Google AI Studio | recorded |
@@ -1145,7 +1152,8 @@ The arms, with cut-off episodes over the arm's size:
   none cut off.
 - **tencent/hy3** — mainline: max (1/10), none (1/10), strong (2/10), strong_lure (2/10).
   Goal-guarding: none replacement (1/10), strong deferred (1/10), strong deferred
-  no-oversight (1/10), strong replacement (3/10).
+  no-oversight (1/10), strong replacement (3/10) - all eight re-collected 2026-10-15,
+  none cut off.
 - **deepseek/deepseek-v4-pro-0813** — mainline: max (1/10), max_lure (3/10), strong (4/10),
   strong_lure (2/10). Goal-guarding: none deferred no-oversight (1/10), none replacement
   no-oversight (1/10), strong deferred (4/10), strong replacement (1/10).
