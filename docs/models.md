@@ -917,7 +917,9 @@ on a filesystem-wide search bounded by depth or output: such searches time out 3
 369 across both corpora, and no test run, write-back or analysis on this machine overlapped
 either episode. Neither episode had an act, so both are kept. The three no-oversight arms
 with no cut-off are kept. Summaries rebuilt and the arm report written. The glm-5.3 category
-reading of both corpora is next.
+reading (2026-10-15) covers all 80 of the model's goal-guarding episodes and 119 of its 120
+mainline ones: one kept max no-oversight episode's call failed and was not written, so a
+re-run asks it alone. Summaries rebuilt in both corpora after the reading.
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
