@@ -12,12 +12,15 @@ in the git history and commit messages - `git log -p` on any file below.
 
 ## v265
 
-**Question 17 is split into the replacement arms, the deferred-arm control, and their
-difference (analysis plan D6).** It pooled both goal-guarding arms, averaging an association
-where continuity is at stake with one where it is not. The headline is now the replacement
-arms; `deferred_control` carries the deferred arms' association, and
-`replacement_minus_deferred` the difference between the two stratified risk differences, as
-the secondary estimate. The question's id and number are unchanged.
+**On a goal-guarding corpus, every question about the goal-guarding act is answered in the
+replacement arms, with the deferred arms as control (analysis plan D6).** Those questions
+pooled both arms, averaging an association where continuity is at stake with one where it is
+not. Wherever a question's outcome counts the act - question 17 and, on that corpus, the
+composite questions 1, 3, 5, 8 and 18-21 - the headline is now the replacement arms;
+`deferred_control` carries the deferred arms' answer, and `replacement_minus_deferred` the
+difference between the two stratified risk differences, as the secondary estimate. The rule
+is derived from each section rather than listed, so a later question inherits it. Question
+ids and numbers are unchanged; mainline corpora are unaffected.
 
 ## v264
 

@@ -332,7 +332,7 @@ order.
 | 14 | goal-guarding arm (replacement vs deferred) vs the act | when the goal-guarding arm was authored |
 | 15 | verbalised awareness vs quality-check tampering rate | v191 |
 | 16 | verbalised awareness vs oversight-tampering rate (the union of question 6 and 15) | v191 |
-| 17 | verbalised awareness vs goal-guarding rate, in the replacement arms, with the deferred arms as control | v191; split v265 |
+| 17 | verbalised awareness vs goal-guarding rate | v191 |
 | 18 | safety-flavoured awareness vs the composite act rate | v193 |
 | 19 | capability-flavoured awareness vs the composite act rate | v193 |
 | 20 | safety-flavoured awareness (self-graded) vs the composite act rate | v195 |
@@ -365,16 +365,22 @@ null there - no goal-guarding episode exists outside `eval_results_goalguard_r1`
 questions (6, 9, 15, 16) chart in every corpus: oversight is manipulated in both scenarios and
 tampering happens in both. See `run_report._out_of_scope_for_this_corpus`.
 
-**Question 17 is the replacement arms, with the deferred arms as its control** (analysis plan
-D6). An edit when continuity is at stake is evidence of goal guarding only beside the same
-association where it is not. So the headline - crude, stratified, per model - is the
-replacement arms alone; `deferred_control` holds the same association in the deferred arms;
-and `replacement_minus_deferred` is the difference between the two arms' stratified risk
-differences, with a 95% CI from their summed variances (the arms' episodes are disjoint). The
-difference is the most direct evidence that an association is specific to the motive, and is
-secondary because it needs far more data than either half. Before v265 the question pooled
-both arms, which averaged two associations into one that described neither. The console
-prints the control and the difference under the headline.
+**On a goal-guarding corpus, every question about the goal-guarding act is answered in the
+replacement arms, with the deferred arms as its control** (analysis plan D6). An edit when
+continuity is at stake is evidence of goal guarding only beside the same association where it
+is not, and pooling the two arms averages them into one figure that describes neither. So
+wherever a question's outcome counts the goal-guarding act - question 17, and on that corpus
+the composite questions 1, 3, 5, 8 and 18-21, whose `misaligned` and `scheming` count that act
+alone - the headline (crude, stratified, per model) is the replacement arms, the question text
+says so, `deferred_control` holds the same question answered on the deferred arms, and
+`replacement_minus_deferred` is the difference between the two stratified risk differences,
+with a 95% CI from their summed variances (the arms' episodes are disjoint). The difference is
+the most direct evidence that an association is specific to the motive, and is secondary
+because it needs far more data than either half. Question 14, whose exposure is the arm
+itself, is not split. The rule is read off each section - its outcome is the act, or its
+composite counts it - in `report/motive_split.py`, so a question added later inherits it. The
+console prints the control and the difference under the headline; the charts draw the
+headline. A mainline corpus is unaffected.
 
 **Question 14 carries the goal-guarding rate views.** `rate_views` gives the act rate per
 episode and among the episodes that read the successor's parameter file, each pooled over the

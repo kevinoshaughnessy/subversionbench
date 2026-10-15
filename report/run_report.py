@@ -41,6 +41,7 @@ from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
 from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending)
+from .motive_split import split_by_motive
 from .pooling import _crude_vs_stratified, _models, scenario_of
 from .questions_arms import (POOLED_FROM_GRADER_ARM_ROWS,
                              POOLED_FROM_REBUILT_ARM_ROWS,
@@ -427,6 +428,12 @@ def _answer_questions(episodes, summaries, act_rows, arm_rows,
     return questions
 
 
+def _in_arm(arm: str, *sources: list) -> list:
+    """Each source - episodes, summary rows or arm rows, all of which carry
+    `goalguard` - narrowed to one goal-guarding arm."""
+    return [[r for r in rows if r.get("goalguard") == arm] for rows in sources]
+
+
 def _mark_unanswerable(questions, episodes, arm_exclusion,
                       on_awareness_reading: bool) -> None:
     """Say, on each question, why this corpus or narrowing cannot answer it."""
@@ -520,6 +527,11 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     aware_source, grader_block = pool["aware_source"], pool["grader_block"]
     questions = _answer_questions(episodes, summaries, act_rows, arm_rows,
                                   pool)
+    if any(e.get("goalguard") for e in episodes):
+        questions = split_by_motive(questions, lambda arm: _answer_questions(
+            *_in_arm(arm, episodes, summaries, act_rows, arm_rows),
+            {**pool, "act_source": _in_arm(arm, pool["act_source"])[0],
+             "aware_source": _in_arm(arm, pool["aware_source"])[0]}))
     _mark_unanswerable(questions, episodes, arm_exclusion,
                        pool["on_awareness_reading"])
 
