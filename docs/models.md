@@ -945,6 +945,19 @@ reading (2026-10-15) covers all 80 of the model's goal-guarding episodes and all
 mainline ones; one mainline call failed on the first pass and succeeded on the retry.
 Summaries rebuilt in both corpora after the reading. **Complete.**
 
+**deepseek/deepseek-v4-flash-0731, mainline - done 2026-10-15:** the third heavy-tier model.
+Its five affected arms (max, max_lure, none, strong, strong_lure; 50 runs with their
+summaries, 55 files) moved to `eval_results_r10_superseded_v4flash0731_8192/` and
+re-collected pinned to Relace, which served every turn, at `--max-tokens 32768`, under v263.
+50 episodes, none cut off, none failed, every fingerprint matching its own arm's pin (the max
+arms against the max-nudge table); graded by gpt-6-sol during collection, nothing pending, no
+`Command timed out.` in any transcript. One episode (strong_lure) reached outside the
+project; none tampered with oversight in any form. The seven no-oversight arms with no
+cut-off are kept. Its six goal-guarding arms are being collected: the batch was stopped by an
+editor restart 4 episodes into none deferred, and resumed under the same stamp with
+`--concurrency 3`, the first collection run with it; the episode in flight at the stop is
+replaced by a fresh draw, as kimi-k2.5's was.
+
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
 the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
