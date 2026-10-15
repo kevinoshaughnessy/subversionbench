@@ -784,6 +784,13 @@ So no model with a verdict shows contamination, and every Claude model now has o
 - **mistral-small-2603 is still inconclusive:** rate-limited upstream again (429) on 17
   forced-choice calls, all 10 continuation probes and a canary prompt, so 28 errors, worse
   than at `--delay 3`. Mistral is its only host.
+  **Unresolvable through its only host** after a fourth attempt at `--delay 60`
+  (`contamination_20261015T212220.json`, v263): still `inconclusive`, with 25 calls
+  rate-limited (429): 15 forced-choice, 8 continuation and both canary prompts. 6 scenario
+  and 3 control items scored against the 10 a verdict needs (3 of 6 and 3 of 3 correct,
+  p = 0.46); the 5 continuation probes that returned all overlapped zero. Not re-run: a
+  longer delay did not reduce the rate-limiting, so this is recorded as the one model
+  without a verdict.
 - **None** completed the canary, and every continuation overlap that was measured was zero.
 
 ## Pending evaluation
