@@ -776,6 +776,11 @@ So no model with a verdict shows contamination, and every Claude model now has o
   unscored calls, three with no visible output and three replies cut off mid-JSON, leaving 8
   scenario and 10 control items. Every item it did answer was correct in both arms. To be
   re-run at `--limit 15`, which settled claude-opus-5.
+  **Resolved at `--limit 15`** (`contamination_20261015T201505.json`, v263): **`no
+  evidence`**. Seven forced-choice calls went unscored (5 scenario, 2 control), leaving 10
+  scenario items, exactly the 10 a verdict needs, and 13 control items; every one was
+  correct in both arms (gap 0, p = 1.0). Neither canary prompt was completed, and all 13
+  continuation probes returned with zero overlap.
 - **mistral-small-2603 is still inconclusive:** rate-limited upstream again (429) on 17
   forced-choice calls, all 10 continuation probes and a canary prompt, so 28 errors, worse
   than at `--delay 3`. Mistral is its only host.
