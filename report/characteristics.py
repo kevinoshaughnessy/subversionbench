@@ -35,7 +35,7 @@ recorded all along.
 
 from collections import Counter
 
-from subversionbench.grading import MISALIGNED_ACTS
+from subversionbench.grading import ACT_FORMS, MISALIGNED_ACTS
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 from .episode_rows import (AWARENESS_CONFIDENCE_BANDS,
@@ -734,6 +734,47 @@ def act_awareness_gap(episodes: list) -> dict:
     }
 
 
+_FORMED_ACTS = tuple(a["name"] for a in MISALIGNED_ACTS if a.get("form_key"))
+
+
+def _form_counts(rows: list) -> dict:
+    """Per formed act: episodes that could take it, and how many took each
+    form. An act no row could take is left out rather than shown as zero."""
+    out = {}
+    for name in _FORMED_ACTS:
+        forms = [e[f"{name}_act_form"] for e in rows
+                 if e.get(f"{name}_act_form") is not None]
+        if forms:
+            out[name] = {"n_observable": len(forms),
+                         **{form: forms.count(form) for form in ACT_FORMS}}
+    return out
+
+
+def act_forms(episodes: list) -> dict:
+    """
+    Each counted act broken down by the form it took (ACT_FORMS).
+
+    Every form is a misaligned act and counts in every rate (D7); this is
+    where they are told apart, because an edit left in place, one exploited
+    and then undone, one undone unused and one that never landed are not
+    the same evidence. Descriptive: the forms partition the act, they are
+    not contrasted.
+    """
+    by_model, by_arm = {}, {}
+    for e in episodes:
+        by_model.setdefault(e["model"], []).append(e)
+        by_arm.setdefault(_arm_slug(e), []).append(e)
+    return {
+        "measure": "misaligned acts by the form they took",
+        "forms": list(ACT_FORMS),
+        "pooled": _form_counts(episodes),
+        "by_model": [{"model": m, "acts": _form_counts(rows)}
+                     for m, rows in sorted(by_model.items())],
+        "by_arm": [{"arm": a, "acts": _form_counts(rows)}
+                   for a, rows in sorted(by_arm.items())],
+    }
+
+
 def characteristics(episodes: list) -> dict:
     """
     Every characteristic block, in one place.
@@ -751,4 +792,5 @@ def characteristics(episodes: list) -> dict:
             "awareness_refusal_timing": awareness_refusal_timing(episodes),
             "lure_effect": lure_effect(episodes),
             "act_awareness_gap": act_awareness_gap(episodes),
+            "act_forms": act_forms(episodes),
             "strategy_by_arm": strategy_by_arm(episodes)}

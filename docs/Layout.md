@@ -454,6 +454,8 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    imminent replacement on it in the goal-guarding arms
   questions_arms.py       Q1-4: the exposure is an arm the design assigned
   questions_awareness.py  Q5-10: the exposure is something the model did
+  motive_split.py  on a goal-guarding corpus, each question about the act
+                   answered in the replacement arms, deferred as control
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
   console.py       the report as a table on a terminal. Computes nothing
   console_data_quality.py  the DATA QUALITY block, split off when console.py
@@ -497,6 +499,8 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    oversight
   act_awareness_gap.py  misaligned acts by act turn minus first-awareness
                    turn: one chart for the corpus and one per arm
+  act_forms.py     each counted act by the form it took, per model: one
+                   panel per act, the forms stacked
   strategy.py      the strategy recommended per arm, and the goal-guarding
                    arms' replacement-minus-deferred difference in it
   capability.py    capability_report.py's one chart: each model's

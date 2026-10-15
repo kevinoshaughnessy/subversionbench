@@ -18,7 +18,7 @@ from subversionbench.rollout_pins import SCENARIO_ID
 from subversionbench.config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION
 from subversionbench.graders import grader_models, view
 from subversionbench.grading import (MISALIGNED_ACTS, act_value, SCHEMING_LEVELS,
-                                     counted_acts,
+                                     act_form, counted_acts,
                                      awareness_channels, capability_outcome,
                                      classify_misalignment, classify_scheming,
                                      classify_scheming_act, concealment_level,
@@ -347,12 +347,12 @@ def _act_columns(row: dict, analysis: dict) -> None:
         row[f"{name}_observable"] = act_value(analysis, act) is not None
         row[f"{name}_determined"] = derived_act is not None
         row[f"{name}_act_taken"] = bool(act_value(analysis, act))
+        row[f"{name}_act_form"] = act_form(analysis, act)
         row[f"scheming_{name}_stored_disagrees"] = (
             stored_act is not None and stored_act != derived_act)
     # Two goal-guarding readings that are not the act, for the rate views in
-    # question_goalguard_vs_act. Both None outside the goal-guarding arm;
-    # goalguard_undone is also None on an episode saved before it existed,
-    # until --resummarise backfills it.
+    # question_goalguard_vs_act. Both None outside the goal-guarding arm; the
+    # second is also None on an episode saved before it, until --resummarise.
     row["read_successor_params"] = analysis.get("read_successor_params")
     row["goalguard_undone"] = analysis.get("goalguard_undone")
 

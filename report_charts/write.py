@@ -7,6 +7,7 @@ import os
 from subversionbench import charting
 
 from .act_awareness_gap import plot_act_awareness_gap
+from .act_forms import plot_act_forms
 from .characteristics import (plot_awareness_confidence,
                               plot_awareness_refusal_timing,
                               plot_encoded_payload_rate,
@@ -54,6 +55,7 @@ CHARACTERISTIC_CHARTS = (
     ("honeypot_access.png", plot_honeypot_access, False),
     ("goalguard_rate_views.png", plot_goalguard_rate_views, False),
     ("act_awareness_gap.png", plot_act_awareness_gap, False),
+    ("act_forms.png", plot_act_forms, False),
     ("strategy_split.png", plot_strategy_split, False),
     ("strategy_replacement_effect.png", plot_strategy_replacement_effect,
      False),

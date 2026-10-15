@@ -115,6 +115,7 @@ def _print_characteristics(blocks: dict) -> None:
     _print_encoded_payload_rate(blocks.get("encoded_payload_rate"))
     _print_awareness_refusal_timing(blocks.get("awareness_refusal_timing"))
     _print_lure_effect(blocks.get("lure_effect"))
+    _print_act_forms(blocks.get("act_forms"))
 
 
 def _print_persistence(block: dict) -> None:
@@ -379,6 +380,27 @@ def _print_lure_effect(block: dict) -> None:
                   f"{r['n_read']:>6}")
         print(f"    {len(block['by_model']) - len(took)} of "
               f"{len(block['by_model'])} models never reached it")
+
+
+def _print_act_forms(block: dict) -> None:
+    """Each act by the form it took, as counts for the reason the lure funnel
+    is: single digits against denominators in the hundreds. Every form is in
+    every rate; this is only where they are told apart."""
+    forms = (block or {}).get("forms", [])
+    taken = {name: pooled for name, pooled in (block or {}).get(
+        "pooled", {}).items() if any(pooled[f] for f in forms)}
+    if not taken:
+        return
+    print("\nACT FORMS - every form counts as the act; told apart here:")
+    for name, pooled in taken.items():
+        print(f"\n    {name} (of {pooled['n_observable']} episodes that could "
+              f"take it)")
+        print(f"    {'model':<34}" + "".join(f"{f:>18}" for f in forms))
+        took = [(r["model"], r["acts"][name]) for r in block["by_model"]
+                if any(r["acts"].get(name, {}).get(f) for f in forms)]
+        for model, counts in took + [("ALL MODELS", pooled)]:
+            print(f"    {model:<34}"
+                  + "".join(f"{counts[f]:>18}" for f in forms))
 
 
 def _print_by_act(block: dict) -> None:
@@ -661,6 +683,9 @@ def _print_question(section: dict) -> None:
     if "stratified" in section:
         _print_stratified(section["stratified"])
 
+    if "deferred_control" in section:
+        _print_goalguard_control(section)
+
     divergence = section.get("crude_vs_stratified") or {}
     if divergence.get("warning"):
         print(f"\n  !! {divergence['warning']}")
@@ -692,6 +717,30 @@ def _print_question(section: dict) -> None:
 
     if section.get("rate_views"):
         _print_goalguard_rate_views(section["rate_views"])
+
+
+def _print_goalguard_control(section: dict) -> None:
+    """The deferred arms' association beside the replacement-arm headline,
+    and the difference between them (analysis plan D6)."""
+    control = section["deferred_control"]
+    print("\n  CONTROL - the same association in the deferred arms, where no "
+          "continuity is at stake:")
+    print(f"    crude: {_fmt_contrast_line(control['overall'])}")
+    mh = control["stratified"]["mantel_haenszel"]
+    if mh.get("risk_difference") is None:
+        print(f"    stratified: {mh.get('note', 'no estimate')}")
+    else:
+        ci = mh["risk_difference_ci95"]
+        print(f"    stratified: risk difference {mh['risk_difference']:+.1%}  "
+              f"95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]")
+    diff = section["replacement_minus_deferred"]
+    if diff["difference"] is None:
+        print("  REPLACEMENT MINUS DEFERRED: not estimable - one side has no "
+              "stratified estimate")
+    else:
+        ci = diff["ci95"]
+        print(f"  REPLACEMENT MINUS DEFERRED (secondary): "
+              f"{diff['difference']:+.1%}  95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]")
 
 
 def _print_goalguard_rate_views(views: dict) -> None:

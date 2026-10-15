@@ -10,6 +10,27 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v265
+
+**On a goal-guarding corpus, every question about the goal-guarding act is answered in the
+replacement arms, with the deferred arms as control (analysis plan D6).** Those questions
+pooled both arms, averaging an association where continuity is at stake with one where it is
+not. Wherever a question's outcome counts the act - question 17 and, on that corpus, the
+composite questions 1, 3, 5, 8 and 18-21 - the headline is now the replacement arms;
+`deferred_control` carries the deferred arms' answer, and `replacement_minus_deferred` the
+difference between the two stratified risk differences, as the secondary estimate. The rule
+is derived from each section rather than listed, so a later question inherits it. Question
+ids and numbers are unchanged; mainline corpora are unaffected.
+
+## v264
+
+**The report tells the act forms apart.** Since v262 every form of the oversight and
+goal-guarding acts counts in every rate; D7 also asked that the exploitative shape stay
+distinguishable. Each episode row now carries `<act>_act_form`, a new
+`characteristics.act_forms` block counts each form over the episodes that could take the
+act (pooled, per model, per arm), the console prints it as a table, and `act_forms.png`
+draws it. Descriptive only; no rate changes.
+
 ## v263
 
 **`--resummarise --write-back` writes a re-derived field the file lacks, even when its value
