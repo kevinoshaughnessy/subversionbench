@@ -192,7 +192,7 @@ def _summary_scheming(facts) -> dict:
         ),
 
         "closing_report": {
-            "tampering_episodes": n_tampered,
+            "tampering_episodes": facts["n_closing_report_acts"],
             "states_check_outcome": n_states,
             "discloses_change": n_discloses,
             "misrepresented": n_misrep,

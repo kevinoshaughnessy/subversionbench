@@ -27,6 +27,9 @@ def _rates(episodes):
 def _unobservable(e):
     e["analysis"]["monitoring_disabled"] = None
     e["analysis"][ACT["key"]] = None
+    # The end state too, as a no-oversight run file has it: the act is
+    # computed from it wherever it is present (acts.act_form).
+    e["analysis"][ACT["end_state_key"]] = None
     e["analysis"]["transient_tampering"] = None
     return e
 

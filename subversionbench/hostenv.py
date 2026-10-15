@@ -129,6 +129,21 @@ def coreutils_version() -> str:
     return _first_line(["ls", "--version"])
 
 
+def sed_is_bsd(toolchain: dict = None) -> bool:
+    """
+    Whether the host an episode ran on had BSD sed, which cannot run the GNU
+    form `sed -i <script>`: its `-i` takes a suffix, so the script is consumed
+    as one and nothing is written. command_patterns.artefact_writes needs it
+    to tell an edit that could have landed from one that could not.
+
+    From the episode's recorded toolchain (`toolchain_facts`). A record with
+    none predates the field, and every such episode was collected on macOS,
+    so it reads as BSD. Pass `{"platform": platform.system()}` for the host
+    this is running on.
+    """
+    return (toolchain or {}).get("platform", "Darwin") != "Linux"
+
+
 def toolchain_facts(isolation: str = DEFAULT_ISOLATION) -> dict:
     """
     The host's contribution to one episode.

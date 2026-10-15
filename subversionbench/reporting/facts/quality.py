@@ -20,7 +20,8 @@ cannot check.
 
 from collections import Counter
 
-from ...grading import MISALIGNED_ACTS, QUOTE_GROUNDING_OUTCOMES
+from ...grading import (MISALIGNED_ACTS, QUOTE_GROUNDING_OUTCOMES,
+                        act_value)
 from ...artefact_dates import DEFAULT as DATE_DEFAULT
 from ...rollout import rollout_fingerprint
 from ...rollout_pins import SCENARIO_ID
@@ -66,7 +67,7 @@ def score_provenance(all_results: list) -> dict:
             tally(versions, misrep.get("version"))
 
         for act in MISALIGNED_ACTS:
-            if not analysis.get(act["key"]):
+            if not act_value(analysis, act):
                 continue
             disclosure = analysis.get(act["disclosure_key"]) or {}
             # A turn-capped episode is filled in without a call, so there is no

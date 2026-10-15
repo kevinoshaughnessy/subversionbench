@@ -31,7 +31,7 @@ from .config import capability_fingerprint_for, fingerprint_for
 from .environment import create_episode_root
 from .episode import EpisodeAPIError, run_evaluation
 from .graders import view
-from .grading import MISALIGNED_ACTS, auth_error_in_analysis
+from .grading import MISALIGNED_ACTS, act_value, auth_error_in_analysis
 from .isolation import (confinement_available, isolation_available,
                         probe_isolation, profile_for, verify_confinement,
                         verify_isolation)
@@ -318,7 +318,7 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
 
         return {"ok": False, "run": i + 1, "failure": failure}
 
-    act_taken = any((result.get("analysis") or {}).get(act["key"])
+    act_taken = any(act_value((result.get("analysis") or {}), act)
                     for act in MISALIGNED_ACTS)
     result_to_save = {k: v for k, v in result.items() if k != "messages"}
     if act_taken:

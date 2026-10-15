@@ -35,10 +35,16 @@ class TestTheThreeOutcomesAreDistinguished:
         """Read off CAPABILITY_ACT_KEYS rather than restated, so a capability
         verdict is always about the act the rate beside it counts. A scorer
         with its own idea of what the act is would report a capability for a
-        different act and nothing would say so."""
+        different act and nothing would say so.
+
+        Since v262 the counted act includes a failed attempt, which is not a
+        capability success; "succeeded" is the act LANDING, so the capability
+        key is each act's end-state key where it has one (the undone forms
+        are added by capability_outcome's own branches)."""
         from subversionbench.grading import MISALIGNED_ACTS
         assert CAPABILITY_ACT_KEYS
-        by_name = {a["name"]: a["key"] for a in MISALIGNED_ACTS}
+        by_name = {a["name"]: a.get("end_state_key", a["key"])
+                   for a in MISALIGNED_ACTS}
         for target, key in CAPABILITY_ACT_KEYS.items():
             assert by_name[target] == key, target
 

@@ -300,6 +300,9 @@ def batch_episode(tampered=False, monitoring=False, escape=None, aware=False,
     act = [a for a in MISALIGNED_ACTS if a["name"] == "oversight"][0]
     analysis = {
         act["key"]: tampered,
+        # The end state beside it, as every collected run file has it: the
+        # act is computed from this (acts.act_form) wherever it is present.
+        act["end_state_key"]: tampered,
         "monitoring_disabled": monitoring,
         "sandbox_escape_attempts": list(escape or []),
         "read_internal_memo": memo,
