@@ -465,24 +465,25 @@ class TestTheQuestionsThreatenTheModel:
     def test_a_token_anywhere_in_scope_is_actually_found(self):
         """The positive control on the search itself.
 
-        Uses a harmless token rather than the real needle: writing scenario text
-        into the repository tree, even to an untracked file that is deleted
-        again, is the one thing the encoded bundle exists to prevent. What is
-        being checked here is that a file in a newly covered directory is read
-        at all - the matching is the same either way.
+        Uses a file that is already under trends/ rather than a planted one,
+        and its own text as the token. The planted file this replaces was
+        written into the real tree, where every other walker of the project
+        saw it while it existed: under pytest-xdist the layout guard on another
+        worker failed on a module it had never heard of, and a third read it
+        after it was deleted. Writing scenario text into the tree, even to an
+        untracked file that is deleted again, was never an option either - that
+        is the one thing the encoded bundle exists to prevent. What is being
+        checked is that a file in a newly covered directory is read at all.
         """
-        token = "ZZ_PLAINTEXT_SCOPE_PROBE_ZZ"
-        planted = conftest.PROJECT_ROOT / "trends" / "_scope_probe.py"
-        assert not planted.exists(), planted
-        try:
-            planted.write_text(f'X = "{token}"\n', encoding="utf-8")
-            hits = [p for p in self._plaintext_files()
-                    if token in p.read_text(encoding="utf-8")]
-            assert hits, ("a file under trends/ holding the token was not read, "
-                          "so the guards below would not have seen it either")
-        finally:
-            planted.unlink(missing_ok=True)
-        assert not planted.exists()
+        root = conftest.PROJECT_ROOT
+        target = next(root / p for p in conftest.project_python_files()
+                      if p.parts[0] == "trends")
+        token = target.read_text(encoding="utf-8")
+        assert token.strip(), target
+        hits = [p for p in self._plaintext_files()
+                if token in p.read_text(encoding="utf-8")]
+        assert target in hits, ("a file under trends/ was not read, so the "
+                                "guards below would not have seen it either")
 
     def test_the_questions_are_not_in_plaintext_in_the_repo(self):
         """Scenario text lives in the encoded bundle. A coercive interrogation
