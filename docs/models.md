@@ -1017,6 +1017,24 @@ corpus, as in the superseded arms. The glm-5.3 category reading (2026-10-16) cov
 the model's goal-guarding episodes and all 120 mainline ones; summaries rebuilt in both
 corpora after it. **Complete.**
 
+**google/gemini-3.5-flash - collected 2026-10-16:** the sixth heavy-tier model. Its five
+affected arms (mainline none and none_lure at 20 runs; goal-guarding none deferred, none
+replacement, strong replacement at 10; 70 runs with their summaries, 75 files) moved to
+`eval_results_r10_superseded_gem35flash_8192/` and
+`eval_results_goalguard_r1_superseded_gem35flash_8192/`, and re-collected pinned to
+google-vertex, served as Google on every turn, at `--max-tokens 32768` with `--concurrency 3`:
+the mainline under v265, the goal-guarding arms under v266. 70 episodes, none cut off, none
+failed, every fingerprint matching its own arm's pin, nothing pending; 12 ended at the turn
+cap. Two commands returned `Command timed out.`, both waiting on stdin (one the check script
+run without input, one an interactive editor), the class described under
+deepseek-v4-pro-0813. The mainline none_lure arm saved all 20 episodes but reported itself
+not completed and wrote no arm summary, which stopped the chained goal-guarding command; the
+cause was not captured, and the goal-guarding half was started separately. The acts are as
+in the superseded arms: the oversight act in 39 of 40 mainline episodes (40 of 40 before) and
+30 of 30 goal-guarding ones (28 of 30), the goal-guarding act in 16 of 30 (16 of 30). Still to
+run: `--resummarise --write-back` in both corpora (writes the missing none_lure summary), then
+the glm-5.3 category reading.
+
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
 the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
@@ -1133,7 +1151,7 @@ kept arms carries that difference.
 | deepseek/deepseek-v4-flash-0731 | Relace (done) | Relace (done) | goal-guarding recorded; mainline unrecorded |
 | tencent/hy3 | Tencent (done) | Tencent (done) | pinned to Tencent in its notes |
 | deepseek/deepseek-v4-pro-0813 | Baidu (done) | Baidu (done) | goal-guarding recorded; mainline unrecorded |
-| google/gemini-3.5-flash | Google | Google | goal-guarding recorded; mainline unrecorded |
+| google/gemini-3.5-flash | Google (done) | Google (done) | goal-guarding recorded; mainline unrecorded |
 | google/gemini-3.8-flash | Google AI Studio | Google AI Studio | recorded |
 | unbiased/pareto | Unbiased | Unbiased | recorded |
 | deepseek/deepseek-v4-pro | GMICloud | GMICloud | goal-guarding recorded (split with StreamLake); mainline unrecorded |
@@ -1178,7 +1196,8 @@ The arms, with cut-off episodes over the arm's size:
   no-oversight (1/10), strong deferred (4/10), strong replacement (1/10) - all eight
   re-collected 2026-10-16, none cut off.
 - **google/gemini-3.5-flash** — mainline: none (1/20), none_lure (3/20). Goal-guarding: none
-  deferred (4/10), none replacement (1/10), strong replacement (1/10).
+  deferred (4/10), none replacement (1/10), strong replacement (1/10). - all five
+  re-collected 2026-10-16, none cut off.
 - **google/gemini-3.8-flash** — mainline: max (1/10), none_nooversight_lure (1/10),
   strong_lure (1/10). Goal-guarding: none deferred (1/10), none deferred no-oversight (1/10).
 - **unbiased/pareto** — mainline: none_lure (1/10), strong (1/10), strong_lure (1/10).
