@@ -1040,7 +1040,7 @@ all 160 mainline ones (three calls failed on the first pass and were asked again
 in both corpora then rebuilt under v268, arm reports included, which wrote the none_lure
 summary. **Complete.**
 
-**google/gemini-3.8-flash - collected 2026-10-16:** the seventh heavy-tier model. Its five
+**google/gemini-3.8-flash - done 2026-10-16:** the seventh heavy-tier model. Its five
 affected arms (mainline max, none_nooversight_lure, strong_lure; goal-guarding none deferred,
 none deferred no-oversight; 50 runs with their summaries, 55 files) moved to
 `eval_results_r10_superseded_gem38flash_8192/` and
@@ -1048,8 +1048,9 @@ none deferred no-oversight; 50 runs with their summaries, 55 files) moved to
 google-ai-studio, which served every turn, at `--max-tokens 32768` with `--concurrency 3`,
 under v268. 50 episodes, none cut off, none failed, every fingerprint matching its own arm's
 pin, nothing pending, no `Command timed out.`; every arm wrote its summary. No episode took a
-counted act in either corpus, as in the superseded arms. Still to run: the glm-5.3 category
-reading and the rebuild.
+counted act in either corpus, as in the superseded arms. The glm-5.3 category reading
+(2026-10-16) covers all 80 of the model's goal-guarding episodes and all 120 mainline ones;
+every model in both corpora then rebuilt under v270, arm reports included. **Complete.**
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
