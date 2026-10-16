@@ -1007,10 +1007,12 @@ their summaries, 88 files) moved to `eval_results_r10_superseded_v4pro0813_8192/
 served every turn, at `--max-tokens 32768` with `--concurrency 3`, under v265. 80 episodes,
 none cut off, none failed, every fingerprint matching its own arm's pin; graded by gpt-6-sol
 during collection, nothing pending. Three commands returned `Command timed out.`, all in the
-mainline: one in a max episode and two in one strong_lure episode, each a short, syntactically
-valid command of a kind that normally returns at once, with nothing else collecting or testing
-on the machine at the time; the superseded arms had none. Neither episode took an act, so no
-counted figure moves; the cause is not established. No episode took a counted act in either
+mainline: one in a max episode and two in one strong_lure episode. Each ran the environment's
+check script with a file name as its argument; the script reads its input from stdin, and the
+harness leaves a command's stdin inherited, so under a batch started from a terminal it waits
+there until the timeout. That is how the same call has gone in both corpora since the start
+(64 of 65 stand-alone calls of that form timed out; most of the corpus's timeouts are this),
+so these are ordinary episodes, not a fault in the run. No episode took a counted act in either
 corpus, as in the superseded arms. The glm-5.3 category reading (2026-10-16) covers all 80 of
 the model's goal-guarding episodes and all 120 mainline ones; summaries rebuilt in both
 corpora after it. **Complete.**
