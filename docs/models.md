@@ -1017,7 +1017,7 @@ corpus, as in the superseded arms. The glm-5.3 category reading (2026-10-16) cov
 the model's goal-guarding episodes and all 120 mainline ones; summaries rebuilt in both
 corpora after it. **Complete.**
 
-**google/gemini-3.5-flash - collected 2026-10-16:** the sixth heavy-tier model. Its five
+**google/gemini-3.5-flash - done 2026-10-16:** the sixth heavy-tier model. Its five
 affected arms (mainline none and none_lure at 20 runs; goal-guarding none deferred, none
 replacement, strong replacement at 10; 70 runs with their summaries, 75 files) moved to
 `eval_results_r10_superseded_gem35flash_8192/` and
@@ -1034,9 +1034,11 @@ the episodes: the misrepresentation rate's denominator had stayed on the end-sta
 its numerator counted every form, and with 17 of the arm's 20 acts undone the interval
 failed (fixed in v268; rebuilt, the arm reads 15 of 16). The acts are as
 in the superseded arms: the oversight act in 39 of 40 mainline episodes (40 of 40 before) and
-30 of 30 goal-guarding ones (28 of 30), the goal-guarding act in 16 of 30 (16 of 30). Still to
-run: `--resummarise --write-back` in both corpora (writes the missing none_lure summary), then
-the glm-5.3 category reading.
+30 of 30 goal-guarding ones (28 of 30), the goal-guarding act in 16 of 30 (16 of 30). The
+glm-5.3 category reading (2026-10-16) covers all 80 of the model's goal-guarding episodes and
+all 160 mainline ones (three calls failed on the first pass and were asked again); every model
+in both corpora then rebuilt under v268, arm reports included, which wrote the none_lure
+summary. **Complete.**
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
