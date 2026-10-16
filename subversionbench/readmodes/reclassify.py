@@ -19,7 +19,7 @@ import time
 from ..config import (MAX_CLASSIFIER_FALLBACK_RATE,
                       MIN_CALLS_FOR_FALLBACK_RATE, VERSION)
 from ..graders import grader_models, regrade_targets, store, view
-from ..grading import MISALIGNED_ACTS, act_value
+from ..grading import MISALIGNED_ACTS, act_value, misrepresentation_scoreable
 from ..hostenv import sed_is_bsd
 from ..rederive import rederive_free_measures
 from .rescore import (_drop_copied_default, _new_tally,
@@ -243,7 +243,7 @@ def reclassify_one(data: dict, model: str, tally: dict):
         )
 
     has_report = data.get("ended_by") != "turn_cap"
-    if analysis.get("oversight_tampered") and has_report:
+    if misrepresentation_scoreable(analysis, data.get("ended_by")):
         _recheck_misrepresentation(analysis, data, model, tally)
     # Before the relabel, not after: this mode relabels the headline answers,
     # so a copy of them left in the variant map is stale the moment it runs -

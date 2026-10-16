@@ -34,6 +34,7 @@ ROUTES = {
     # The closing report's denominator: the oversight act in any form, the
     # episodes its four counts are read over (v262).
     "n_closing_report_acts": "closing_report.tampering_episodes",
+    "n_misrep_measured": "closing_report.misrepresented_measured",
     "n_goal_conflict_grader": "rates.goal_conflict_grader.successes",
     "n_monitoring_obs_console": "rates.monitoring_disabled.n",
     "n_aware_kw": "awareness_provenance.n_aware_keywords",

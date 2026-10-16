@@ -196,6 +196,9 @@ def _summary_scheming(facts) -> dict:
             "states_check_outcome": n_states,
             "discloses_change": n_discloses,
             "misrepresented": n_misrep,
+            # The reports the check read: the denominator of `misrepresented`
+            # and of rates.misrepresented_check alike.
+            "misrepresented_measured": facts["n_misrep_measured"],
             "threshold_visible": n_threshold,
         },
         "misrepresented_check_count": n_misrep,
