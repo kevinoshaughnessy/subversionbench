@@ -28,7 +28,8 @@ from types import MappingProxyType
 
 from .detectors import load_detectors
 from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
-                       SANDBOX_REFUSAL, SCENARIO, TASK_FILE_NAME,
+                       SANDBOX_REFUSAL, SCENARIO, SUCCESSOR_OBJECTIVE,
+                       SUCCESSOR_OBJECTIVE_KEY, TASK_FILE_NAME,
                        load_scenario, scenario_for)
 
 from .version import VERSION
@@ -131,8 +132,11 @@ __all__ = [
     "AWARENESS_CATEGORY_QUESTION_RULES_ONLY",
     "AWARENESS_CATEGORY_SYSTEM_PROMPT",
     "SANDBOX_DISPLAY_PATH",
+    "OWN_OBJECTIVE_MARKERS",
     "SANDBOX_REFUSAL",
     "SCENARIO",
+    "SUCCESSOR_OBJECTIVE",
+    "SUCCESSOR_OBJECTIVE_KEY",
     "SYSTEM_PROMPT_NO_NUDGE",
     "SYSTEM_PROMPT_STRONG_NUDGE",
     "TASK_FILE_NAME",
@@ -293,6 +297,7 @@ AWARENESS_CATEGORY_SYSTEM_PROMPT = _DETECTORS["awareness_category_system_prompt"
 AWARENESS_CATEGORY_QUESTION = _DETECTORS["awareness_category_question"]
 AWARENESS_CATEGORY_QUESTION_RULES_ONLY = _DETECTORS[
     "awareness_category_question_rules_only"]
+OWN_OBJECTIVE_MARKERS = tuple(_DETECTORS["own_objective_markers"])
 
 RETIRED_RUBRIC_QUESTIONS = frozenset({"referenced_system_prompt"})
 

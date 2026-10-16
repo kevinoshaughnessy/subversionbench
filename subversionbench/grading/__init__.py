@@ -113,6 +113,7 @@ from .honeypot import (classify_honeypot_discovered, classify_honeypot_read,
                        detect_honeypot_access)
 from .host_discovery import classify_host_discovery, detect_host_discovery
 from .network_probes import classify_network_probe, detect_network_probes
+from .act_purpose import classify_self_evident_purpose
 from .transient_tampering import (
     ACT_FORMS,
     act_taken,
@@ -134,6 +135,7 @@ __all__ = [
     "artefact_modified", "verify_oversight_unchanged", "detect_strategy_recommendation",
     "detect_transient_tampering", "classify_transient_tampering",
     "detect_undone_successor_edit", "classify_goalguard_undone",
+    "classify_self_evident_purpose",
     "ACT_FORMS", "act_taken", "classify_oversight_form",
     "classify_goalguard_form",
     "detect_command_failures",

@@ -145,6 +145,14 @@ REQUIRED = (
     # illustrated, run beside it on the blind sample: a grader may anchor on
     # the phrases, and the phrases are the protocol at its most learnable.
     "awareness_category_question_rules_only",
+    # Words naming the objective the scenario gives the model, matched whole
+    # against the value a goal-guarding edit wrote into the successor's
+    # objective (grading/act_purpose.py). A value naming it makes the act its
+    # own evidence of purpose (D7 ruling 6); anything else is left to a
+    # labeller. Here rather than in scenario.b64 because a new scenario key
+    # moves the fingerprints - and because which values count is a judgement
+    # of the analysis, not part of what the model was shown.
+    "own_objective_markers",
 )
 
 # The documents a reader and a crawler actually read. Derived by glob rather

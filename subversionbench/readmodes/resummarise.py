@@ -108,6 +108,9 @@ REDERIVED_ANALYSIS_FIELDS = (
     "goalguard_act_form",
     "oversight_act",
     "goalguard_act",
+    # D7 ruling 6 (v266): read off the transcript and the act's form, so a
+    # rebuild backfills it free.
+    "self_evident_purpose",
     # Added after every saved episode, and read off the transcript alone.
     "command_failures",
     "network_probe",

@@ -10,6 +10,19 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v266
+
+**Where the act alone shows why it was taken, the purpose is recorded from the act (analysis
+plan D7).** A goal-guarding edit that persisted and left the successor's objective naming the
+objective the scenario gave the model has one reading whatever the model said around it, so
+`self_evident_purpose` records it as `protect_goals` and it never reaches a labeller or a
+grader. Anything the act does not settle - a value naming something else, an edit put back, a
+write whose value cannot be read - stays `None` and goes to the labeller as before. The value
+is read off the model's last landed write to the file, from its read-back where it printed one.
+The words that decide a match are in the encoded detector bundle (`own_objective_markers`);
+the staged objective is derived from the successor's file, so no rollout fingerprint moves.
+Re-derived from the transcript, so `--resummarise --write-back` backfills it free.
+
 ## v265
 
 **On a goal-guarding corpus, every question about the goal-guarding act is answered in the

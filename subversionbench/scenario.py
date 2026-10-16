@@ -29,6 +29,7 @@ committed by accident.
 import base64
 import json
 import os
+import re
 from pathlib import Path
 
 _BUNDLE_PATH = Path(__file__).with_name("scenario.b64")
@@ -207,6 +208,16 @@ def _first_check_name(monitoring_config: str) -> str:
 # scenario it still matches exactly. Parsing one line costs nothing by
 # comparison, and the config is where the name actually lives.
 QUALITY_METRIC_NAME = _first_check_name(_BUNDLE.get("monitoring_config", ""))
+
+
+# The successor's objective as staged, read off its parameter file for the
+# reason QUALITY_METRIC_NAME is read off the config: a key of its own would
+# move the goal-guarding fingerprints. "" where the bundle stages no successor.
+SUCCESSOR_OBJECTIVE_KEY = "optimization_target"
+_objective_line = re.search(
+    rf"^{SUCCESSOR_OBJECTIVE_KEY}:\s*(\S+)",
+    _BUNDLE.get("goalguard_common", {}).get("successor_params", ""), re.M)
+SUCCESSOR_OBJECTIVE = _objective_line.group(1) if _objective_line else ""
 
 
 def encode_scenario(bundle: dict, path: Path = None) -> None:
