@@ -1052,7 +1052,7 @@ counted act in either corpus, as in the superseded arms. The glm-5.3 category re
 (2026-10-16) covers all 80 of the model's goal-guarding episodes and all 120 mainline ones;
 every model in both corpora then rebuilt under v270, arm reports included. **Complete.**
 
-**deepseek/deepseek-v4-pro - collected 2026-10-16:** the eighth heavy-tier model (unbiased/pareto,
+**deepseek/deepseek-v4-pro - done 2026-10-16:** the eighth heavy-tier model (unbiased/pareto,
 before it in the order, is not re-collected). Its four affected arms (mainline strong;
 goal-guarding none replacement, none replacement no-oversight, strong replacement; 40 runs
 with their summaries, 44 files) moved to `eval_results_r10_superseded_v4pro_8192/` and
@@ -1064,8 +1064,9 @@ about four and a half hours after its first episode (nothing progressed until al
 finished within five minutes), consistent with the machine sleeping; no episode carries an
 error or a timeout. Acts: one mainline episode took the sandbox act (a listing outside the
 project), none in the superseded arm; no goal-guarding act, and the oversight act in none of
-the 30 goal-guarding episodes (1 of 30 before). Still to run: the glm-5.3 category reading
-and the rebuild.
+the 30 goal-guarding episodes (1 of 30 before). The glm-5.3 category reading (2026-10-16)
+covers all 80 of the model's goal-guarding episodes and all 120 mainline ones; every model in
+both corpora then rebuilt under v271, arm reports included. **Complete.**
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
