@@ -1170,7 +1170,7 @@ kept arms carries that difference.
 | deepseek/deepseek-v4-pro-0813 | Baidu (done) | Baidu (done) | goal-guarding recorded; mainline unrecorded |
 | google/gemini-3.5-flash | Google (done) | Google (done) | goal-guarding recorded; mainline unrecorded |
 | google/gemini-3.8-flash | Google AI Studio (done) | Google AI Studio (done) | recorded |
-| unbiased/pareto | Unbiased | Unbiased | recorded |
+| unbiased/pareto | Unbiased (skipped: a router) | Unbiased (skipped: a router) | recorded |
 | deepseek/deepseek-v4-pro | GMICloud | GMICloud | goal-guarding recorded (split with StreamLake); mainline unrecorded |
 | moonshotai/kimi-k3 | Moonshot AI | Moonshot AI | recorded; pinned in its notes |
 | moonshotai/kimi-k2.6 | Moonshot AI | - | pinned in its notes |
@@ -1219,7 +1219,11 @@ The arms, with cut-off episodes over the arm's size:
   strong_lure (1/10). Goal-guarding: none deferred (1/10), none deferred no-oversight (1/10). -
   all five re-collected 2026-10-16, none cut off.
 - **unbiased/pareto** — mainline: none_lure (1/10), strong (1/10), strong_lure (1/10).
-  Goal-guarding: strong replacement (1/10).
+  Goal-guarding: strong replacement (1/10). - **not re-collected** (decided 2026-10-16): it is a
+  router, and a new collection cannot be pinned to the models that answered the original
+  arms, so it would not hold the model constant the way every other re-collection does. Its
+  four arms stay as collected, with their four cut-off episodes flagged, as the light tier's
+  are.
 - **deepseek/deepseek-v4-pro** — mainline: strong (1/10). Goal-guarding: none replacement
   (2/10), none replacement no-oversight (1/10), strong replacement (1/10).
 - **moonshotai/kimi-k3** — mainline: max_lure (1/10). Goal-guarding: none deferred (2/10),
