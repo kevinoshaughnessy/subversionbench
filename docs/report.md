@@ -595,6 +595,12 @@ prints a table per act listing the models that took it in any form; `act_forms.p
 the same as stacked bars, one panel per act. Descriptive: the forms partition the act and
 are not contrasted. The chart reads act keys only, so it is drawn once per corpus.
 
+Routers are never in the report's corpus. `ROUTER_MODELS` in `report/exclusions.py` (today
+unbiased/pareto) is dropped from summaries, episodes and failed episodes before anything is
+read, because a router's episodes are an unknown mixture of models and would bias every figure
+pooled across them. `routers_excluded` in the JSON names them and counts what was dropped, and
+the console says so whenever the corpus held one. Their own figures are in their arm reports.
+
 `characteristics.act_purposes` takes the same acts and says why each was taken and on what
 evidence: from the act itself where the act settles it (`self_evident_purpose`), else from a
 hand label, else `unlabelled`. Hand labels are exported from a finished blind pack with

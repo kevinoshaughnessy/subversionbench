@@ -838,6 +838,16 @@ def _print_variant_question(section: dict) -> None:
             print("      no model moved at all under this rephrasing")
 
 
+def _print_router_exclusion(stamp: dict) -> None:
+    """The routers kept out of the corpus, printed only when the corpus held
+    one - and then always, so a reader of any pooled figure is told who is
+    not in it (see exclusions.exclude_routers)."""
+    if not stamp or not stamp["n_episodes_dropped"]:
+        return
+    print(f"\nROUTERS EXCLUDED from every figure: {', '.join(stamp['models'])} "
+          f"({stamp['n_episodes_dropped']} episodes) - {stamp['why']}")
+
+
 def _print_arm_exclusion(stamp: dict) -> None:
     """
     Which arms this report is about, when it is not about all of them.

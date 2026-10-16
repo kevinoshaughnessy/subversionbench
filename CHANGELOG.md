@@ -10,6 +10,20 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v271
+
+**Routers are out of every figure the report pools across models.** unbiased/pareto routes over
+several underlying models and records only the provider per turn, so its episodes are an
+unknown mixture of models - possibly of ones evaluated separately - and including them biases
+any overall figure. The report now drops routers (`ROUTER_MODELS` in `report/exclusions.py`)
+from its summaries, episodes and failed episodes before anything reads them, so no pooled,
+stratified or "all models" figure or chart can include one by any route. The document records
+which routers were excluded and how much was dropped (`routers_excluded`), and the console says
+so whenever the corpus held one. A router's own figures stay in its arm reports, which are per
+model. Excluding it only from the pooled values while keeping its per-model row was considered
+and rejected: those values are computed in about seventy places, and one predicate at the
+corpus is the only form that cannot miss one.
+
 ## v270
 
 **One gate decides which closing reports are checked for misrepresentation and which are
