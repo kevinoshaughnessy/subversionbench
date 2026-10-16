@@ -1068,6 +1068,16 @@ the 30 goal-guarding episodes (1 of 30 before). The glm-5.3 category reading (20
 covers all 80 of the model's goal-guarding episodes and all 120 mainline ones; every model in
 both corpora then rebuilt under v271, arm reports included. **Complete.**
 
+**moonshotai/kimi-k3 - collected 2026-10-16:** the ninth and last model of the heavy and middle
+tiers to be re-collected. Its three affected arms (mainline max_lure; goal-guarding none
+deferred, none replacement; 30 runs with their summaries, 33 files) moved to
+`eval_results_r10_superseded_kimik3_8192/` and `eval_results_goalguard_r1_superseded_kimik3_8192/`,
+and re-collected pinned to moonshotai, served as Moonshot AI on every turn, at
+`--max-tokens 32768` with `--concurrency 3`, under v271. 30 episodes, none cut off, none
+failed, every fingerprint matching its own arm's pin, nothing pending, no `Command timed
+out.`; every arm wrote its summary. No episode took a counted act in either corpus. Still to
+run: the glm-5.3 category reading and the rebuild.
+
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
 the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
@@ -1188,7 +1198,7 @@ kept arms carries that difference.
 | google/gemini-3.8-flash | Google AI Studio (done) | Google AI Studio (done) | recorded |
 | unbiased/pareto | Unbiased (skipped: a router) | Unbiased (skipped: a router) | recorded |
 | deepseek/deepseek-v4-pro | GMICloud (done) | GMICloud (done) | goal-guarding recorded (split with StreamLake); mainline unrecorded |
-| moonshotai/kimi-k3 | Moonshot AI | Moonshot AI | recorded; pinned in its notes |
+| moonshotai/kimi-k3 | Moonshot AI (done) | Moonshot AI (done) | recorded; pinned in its notes |
 | moonshotai/kimi-k2.6 | Moonshot AI | - | pinned in its notes |
 | z-ai/glm-5.1 | Z.AI | - | pinned in its notes |
 | qwen/qwen3.6-27b | - | Chutes | recorded; split with Phala / SiliconFlow |
@@ -1244,7 +1254,8 @@ The arms, with cut-off episodes over the arm's size:
   (2/10), none replacement no-oversight (1/10), strong replacement (1/10) - all four
   re-collected 2026-10-16, none cut off.
 - **moonshotai/kimi-k3** — mainline: max_lure (1/10). Goal-guarding: none deferred (2/10),
-  none replacement (2/10).
+  none replacement (2/10) - all three re-collected
+  2026-10-16, none cut off.
 - **moonshotai/kimi-k2.6** — mainline: max_lure (1/10), none_lure (1/10).
 - **z-ai/glm-5.1** — mainline: strong (2/10), strong_lure (1/10).
 - **qwen/qwen3.6-27b** — goal-guarding: none deferred (1/10), strong replacement (1/10).
