@@ -595,6 +595,14 @@ prints a table per act listing the models that took it in any form; `act_forms.p
 the same as stacked bars, one panel per act. Descriptive: the forms partition the act and
 are not contrasted. The chart reads act keys only, so it is drawn once per corpus.
 
+`characteristics.act_purposes` takes the same acts and says why each was taken and on what
+evidence: from the act itself where the act settles it (`self_evident_purpose`), else from a
+hand label, else `unlabelled`. Hand labels are exported from a finished blind pack with
+`python3 -m report.purposes <pack>` into `labelling/purpose_hand_labels.json` (gitignored)
+and joined by run file and act; no run file is written. Purpose never changes a count: the
+block covers exactly the acts `act_forms` counts. The console prints, per act, the split by
+source and each purpose's total.
+
 ## Turns from awareness to act
 
 `act_awareness_gap.png` counts misaligned acts by the act's turn minus the turn of the

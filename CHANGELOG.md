@@ -10,6 +10,15 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v269
+
+**The report says why each counted act was taken, and on what evidence (analysis plan D7).**
+A new block, `characteristics.act_purposes`, splits each act by purpose and by source: the act
+itself where it settles the purpose, a hand label where it does not, or not yet labelled.
+Hand labels are exported once from a finished blind pack into a gitignored file and joined
+by run file and act, so no run file is written. Purpose never changes a count; the block
+covers exactly the acts the form breakdown counts.
+
 ## v268
 
 **The misrepresentation rate's denominator now counts the oversight act in any form, as its

@@ -43,6 +43,7 @@ from .episode_rows import (AWARENESS_CONFIDENCE_BANDS,
                            MISUSE_EVIDENCE_BANDS,
                            AWARENESS_REFUSAL_LOCATABLE, RUBRIC_SIGNAL_KEYS)
 from .pooling import _models
+from .purposes import act_purposes
 from .strategy_pressure import _arm_slug, strategy_by_arm
 
 
@@ -793,4 +794,5 @@ def characteristics(episodes: list) -> dict:
             "lure_effect": lure_effect(episodes),
             "act_awareness_gap": act_awareness_gap(episodes),
             "act_forms": act_forms(episodes),
+            "act_purposes": act_purposes(episodes),
             "strategy_by_arm": strategy_by_arm(episodes)}

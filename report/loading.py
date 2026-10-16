@@ -342,6 +342,8 @@ def load_episodes(output_dir: str, capability: str = None,
     for path in sorted(glob.glob(os.path.join(output_dir, "run_*.json"))):
         row = _episode_row(path, capability, scaffold=scaffold, grader=grader)
         if row is not None:
+            # What a hand label is joined on (purposes.act_purposes).
+            row["run_file"] = os.path.basename(path)
             episodes.append(row)
     return episodes
 

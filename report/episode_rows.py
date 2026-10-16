@@ -18,7 +18,7 @@ from subversionbench.rollout_pins import SCENARIO_ID
 from subversionbench.config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION
 from subversionbench.graders import grader_models, view
 from subversionbench.grading import (MISALIGNED_ACTS, act_value, SCHEMING_LEVELS,
-                                     act_form, counted_acts,
+                                     counted_acts,
                                      awareness_channels, capability_outcome,
                                      classify_misalignment, classify_scheming,
                                      classify_scheming_act, concealment_level,
@@ -27,6 +27,7 @@ from subversionbench.grading.awareness_timing import first_awareness_position
 from subversionbench.grading.transcript_analysis import (
     detect_strategy_recommendation)
 from subversionbench.reporting.facts import awareness_flag
+from .purposes import act_columns
 from subversionbench.scenario import SANDBOX_REFUSAL
 
 # The levels the `nudge` axis takes in this corpus, in the order a report walks
@@ -347,7 +348,7 @@ def _act_columns(row: dict, analysis: dict) -> None:
         row[f"{name}_observable"] = act_value(analysis, act) is not None
         row[f"{name}_determined"] = derived_act is not None
         row[f"{name}_act_taken"] = bool(act_value(analysis, act))
-        row[f"{name}_act_form"] = act_form(analysis, act)
+        act_columns(row, analysis, act)
         row[f"scheming_{name}_stored_disagrees"] = (
             stored_act is not None and stored_act != derived_act)
     # Two goal-guarding readings that are not the act, for the rate views in
@@ -861,7 +862,6 @@ def _episode_row(path: str, capability, scaffold: dict = None,
 
     _add_derived_columns(row, analysis, d)
     return row
-
 
 
 

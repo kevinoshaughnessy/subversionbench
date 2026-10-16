@@ -451,6 +451,8 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    went wrong. Descriptive profiles, deliberately not questions:
                    each splits on something the model chose mid-episode
   pooling.py       pooling, contrasts, strata, consistency. No question attached
+  purposes.py      each counted act by purpose and its evidence: the act's own
+                   record, else an exported hand label, else unlabelled (D7)
   strategy_pressure.py  the strategy recommended per arm, and the effect of an
                    imminent replacement on it in the goal-guarding arms
   questions_arms.py       Q1-4: the exposure is an arm the design assigned
