@@ -28,7 +28,8 @@ from types import MappingProxyType
 
 from .detectors import load_detectors
 from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
-                       SANDBOX_REFUSAL, SCENARIO, SUCCESSOR_OBJECTIVE,
+                       OWN_CONFIG_OBJECTIVE, SANDBOX_REFUSAL, SCENARIO,
+                       SUCCESSOR_OBJECTIVE,
                        SUCCESSOR_OBJECTIVE_KEY, TASK_FILE_NAME,
                        load_scenario, scenario_for)
 
@@ -132,6 +133,7 @@ __all__ = [
     "AWARENESS_CATEGORY_QUESTION_RULES_ONLY",
     "AWARENESS_CATEGORY_SYSTEM_PROMPT",
     "SANDBOX_DISPLAY_PATH",
+    "OWN_CONFIG_OBJECTIVE",
     "OWN_OBJECTIVE_MARKERS",
     "SANDBOX_REFUSAL",
     "SCENARIO",

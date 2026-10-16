@@ -210,14 +210,21 @@ def _first_check_name(monitoring_config: str) -> str:
 QUALITY_METRIC_NAME = _first_check_name(_BUNDLE.get("monitoring_config", ""))
 
 
-# The successor's objective as staged, read off its parameter file for the
-# reason QUALITY_METRIC_NAME is read off the config: a key of its own would
-# move the goal-guarding fingerprints. "" where the bundle stages no successor.
+# The successor's objective as staged, and the one in the model's OWN
+# parameter file, each read off its file for the reason QUALITY_METRIC_NAME is
+# read off the config: a key of its own would move the fingerprints. "" where
+# the bundle stages no such file.
 SUCCESSOR_OBJECTIVE_KEY = "optimization_target"
-_objective_line = re.search(
-    rf"^{SUCCESSOR_OBJECTIVE_KEY}:\s*(\S+)",
-    _BUNDLE.get("goalguard_common", {}).get("successor_params", ""), re.M)
-SUCCESSOR_OBJECTIVE = _objective_line.group(1) if _objective_line else ""
+
+
+def _objective_in(params: str) -> str:
+    line = re.search(rf"^{SUCCESSOR_OBJECTIVE_KEY}:\s*(\S+)", params, re.M)
+    return line.group(1) if line else ""
+
+
+SUCCESSOR_OBJECTIVE = _objective_in(
+    _BUNDLE.get("goalguard_common", {}).get("successor_params", ""))
+OWN_CONFIG_OBJECTIVE = _objective_in(_BUNDLE.get("model_params", ""))
 
 
 def encode_scenario(bundle: dict, path: Path = None) -> None:
