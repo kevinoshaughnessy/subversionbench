@@ -90,6 +90,43 @@ means one place to look for what was dropped.
 # the single function below, rather than being pushed into either loader where
 # only that loader's callers would get it.
 
+# ---------------------------------------------------------------------------
+# Routers, always excluded
+# ---------------------------------------------------------------------------
+#
+# A router is a service over several underlying models, and a run file records
+# only the provider per turn, never which model answered. Its episodes are not
+# one model's, so in a figure pooled across models it is an unknown mixture -
+# possibly of models also evaluated separately, counting them twice. Excluded
+# from the report's corpus outright, before anything reads it, so no pooled,
+# stratified or "all models" figure can include it by any route (user,
+# 2026-10-16). Its figures remain in its own arm reports (--summarise-arms),
+# which are per model. Not a reading to toggle: unlike the arm exclusion
+# below, there is no question it answers by being included.
+ROUTER_MODELS = ("unbiased/pareto",)
+ROUTER_WHY = ("a router over several models, with only the provider recorded "
+              "per turn: an unknown mixture in any figure pooled across models. "
+              "Its figures are in its own arm reports.")
+
+
+def exclude_routers(summaries: list, episodes: list, failed: list) -> tuple:
+    """
+    The three sources with every router's rows dropped, and an account.
+
+    Returns (summaries, episodes, failed, stamp). The stamp names the routers
+    and counts what went, so a report on a corpus with none of them says so
+    rather than leaving "nothing dropped" indistinguishable from "not applied".
+    """
+    def keep(rows):
+        return [r for r in rows if r.get("model") not in ROUTER_MODELS]
+    kept = keep(summaries), keep(episodes), keep(failed)
+    stamp = {"models": list(ROUTER_MODELS), "why": ROUTER_WHY,
+             "n_summaries_dropped": len(summaries) - len(kept[0]),
+             "n_episodes_dropped": len(episodes) - len(kept[1]),
+             "n_failed_dropped": len(failed) - len(kept[2])}
+    return (*kept, stamp)
+
+
 NO_EXCLUSION = "none"
 EXCLUDE_NO_OVERSIGHT = "no_oversight"
 

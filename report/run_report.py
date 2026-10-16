@@ -28,6 +28,7 @@ from subversionbench.config import (DEFAULT_GRADER_MODEL, ROLLOUT_NAME,
 from subversionbench.redaction import redact_paths
 
 from .console import (_print_arm_exclusion, _print_awareness_exclusion,
+                      _print_router_exclusion,
                       _print_characteristics,
                       _print_question,
                       _print_variant_question)
@@ -37,7 +38,8 @@ from .data_quality import data_quality_facts
 from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                          EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
                          EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
-                         NO_EXCLUSION, exclude_arm, exclude_aware_episodes)
+                         NO_EXCLUSION, exclude_arm, exclude_aware_episodes,
+                         exclude_routers)
 from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending)
@@ -277,9 +279,14 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
             (paired if set(paired_with) <= set(e["graders"])
              else unpaired).append(e)
         episodes = paired
+    # Routers first, from all three sources in one call: see exclude_routers.
+    summaries, episodes, failed, routers = exclude_routers(
+        load_summaries(output_dir), episodes, load_failed_episodes(output_dir))
+    pending = [e for e in pending if e.get("model") not in routers["models"]]
+    unpaired = [e for e in unpaired if e.get("model") not in routers["models"]]
     summaries, episodes, arm_exclusion = exclude_arm(
-        load_summaries(output_dir), episodes, exclusion)
-    _, failed, _ = exclude_arm([], load_failed_episodes(output_dir), exclusion)
+        summaries, episodes, exclusion)
+    _, failed, _ = exclude_arm([], failed, exclusion)
     # And then the awareness reading, which narrows the EPISODES ONLY - see
     # exclude_aware_episodes for why there is no summary-side counterpart. The
     # failed episodes have no awareness verdict to read, so they are outside
@@ -287,7 +294,7 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     episodes, awareness_stamp = exclude_aware_episodes(
         episodes, awareness_exclusion)
     return (summaries, episodes, failed, arm_exclusion, awareness_stamp,
-            pending, unpaired)
+            pending, unpaired, routers)
 
 
 def _pooling_choice(summaries, act_rows, arm_rows, awareness_exclusion_stamp,
@@ -508,7 +515,7 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
                  grader: str = DEFAULT_GRADER_MODEL,
                  paired_with: tuple = ()) -> dict:
     (summaries, episodes, failed, arm_exclusion,
-     awareness_exclusion_stamp, pending, unpaired) = _narrowed_corpus(
+     awareness_exclusion_stamp, pending, unpaired, routers) = _narrowed_corpus(
          output_dir, exclusion, awareness_exclusion, grader, paired_with)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
     # summary field holds. Questions 2 and 4 take the headline measure from the
@@ -548,6 +555,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # exclusion" from "an older report that predates exclusions" - the two
         # would otherwise both read as a missing key.
         "arm_exclusion": arm_exclusion,
+        # Routers are never in this corpus; this names which, and counts them.
+        "routers_excluded": routers,
         # The second, independent narrowing, on the same terms and present for
         # the same reason. `questions_pooled_from` records which source
         # questions 1-4 took their headline counts from, because that is the
@@ -785,6 +794,7 @@ def _report_one_grader(args, grader: str, exclusion: str,
     # Before the questions, not after: every rate below is on the narrowed
     # corpus, and a reader who meets that fact at the bottom has already read
     # the numbers as though it were the whole one.
+    _print_router_exclusion(report["routers_excluded"])
     _print_arm_exclusion(report["arm_exclusion"])
     _print_awareness_exclusion(report["awareness_exclusion"])
     _print_data_quality(report["data_quality"])

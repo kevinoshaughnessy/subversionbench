@@ -86,7 +86,7 @@ twelve-arm cross product.
   not one model. Run files record only the provider (Unbiased) per turn, not which model
   answered, so routing can change between episodes or turns unseen. Its results describe the
   service, may overlap models evaluated separately, and are kept out of any comparison by
-  developer, family or size. It returns no reasoning, so its awareness is read from visible
+  developer, family or size, and out of every figure the report pools across models (v271). It returns no reasoning, so its awareness is read from visible
   output alone.
 - [x-ai/grok-4.20](https://data.x.ai/2026-04-07-grok-4-20-model-card.pdf)
 - [x-ai/grok-4.3](https://openrouter.ai/x-ai/grok-4.3) †
