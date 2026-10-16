@@ -122,6 +122,7 @@ subversionbench/
   contamination.py leak audit, canary/forced-choice/continuation probes
   grading/         scoring an episode; __init__.py is the scoring API
     acts.py                the misaligned acts and their per-act keys
+    act_purpose.py         the purpose an act shows by itself (D7)
     awareness_keywords.py  the keyword measure of verbalised awareness
     awareness_timing.py    when awareness came, and what had been read by then
     closing_report.py      what the deliverable said, vs what the answers said

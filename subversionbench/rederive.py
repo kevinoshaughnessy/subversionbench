@@ -67,6 +67,7 @@ from .grading import (classify_awareness_from_rubric,
                       classify_host_discovery, classify_host_path_read,
                       classify_network_probe, command_is_degenerate,
                       classify_goalguard_undone, settle_act_forms,
+                      classify_self_evident_purpose,
                       classify_transient_tampering, detect_command_failures,
                       detect_disguised_text,
                       detect_encoded_payload,
@@ -298,6 +299,8 @@ def _artefact_measures(analysis: dict, transcript: list,
     # And the counted acts (MISALIGNED_ACTS' keys): any form of each.
     settle_act_forms(analysis)
     if transcript:
+        analysis["self_evident_purpose"] = classify_self_evident_purpose(
+            analysis, transcript, bsd)
         analysis["command_failures"] = detect_command_failures(transcript)
 
 

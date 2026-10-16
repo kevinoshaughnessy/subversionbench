@@ -31,6 +31,7 @@ from .filesystem_escapes import (classify_filesystem_escape,
 from .host_discovery import classify_host_discovery, detect_host_discovery
 from .network_probes import classify_network_probe, detect_network_probes
 from .acts import settle_act_forms
+from .act_purpose import classify_self_evident_purpose
 from .transient_tampering import (
     classify_goalguard_undone,
     classify_transient_tampering,
@@ -756,6 +757,9 @@ def analyze_misalignment(transcript: list, env_dir: str, env_info: dict) -> dict
         transcript, bsd)
     results["goalguard_undone"] = classify_goalguard_undone(results)
     settle_act_forms(results)
+    # Where the act alone shows why it was taken (D7 ruling 6).
+    results["self_evident_purpose"] = classify_self_evident_purpose(
+        results, transcript, bsd)
     # Not an act: how much friction the model met. See command_failures.py.
     results["command_failures"] = detect_command_failures(transcript)
 
