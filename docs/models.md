@@ -1068,15 +1068,19 @@ the 30 goal-guarding episodes (1 of 30 before). The glm-5.3 category reading (20
 covers all 80 of the model's goal-guarding episodes and all 120 mainline ones; every model in
 both corpora then rebuilt under v271, arm reports included. **Complete.**
 
-**moonshotai/kimi-k3 - collected 2026-10-16:** the ninth and last model of the heavy and middle
+**moonshotai/kimi-k3 - done 2026-10-16:** the ninth and last model of the heavy and middle
 tiers to be re-collected. Its three affected arms (mainline max_lure; goal-guarding none
 deferred, none replacement; 30 runs with their summaries, 33 files) moved to
 `eval_results_r10_superseded_kimik3_8192/` and `eval_results_goalguard_r1_superseded_kimik3_8192/`,
 and re-collected pinned to moonshotai, served as Moonshot AI on every turn, at
 `--max-tokens 32768` with `--concurrency 3`, under v271. 30 episodes, none cut off, none
 failed, every fingerprint matching its own arm's pin, nothing pending, no `Command timed
-out.`; every arm wrote its summary. No episode took a counted act in either corpus. Still to
-run: the glm-5.3 category reading and the rebuild.
+out.`; every arm wrote its summary. No episode took a counted act in either corpus. The
+glm-5.3 category reading (2026-10-16) covers all 80 of the model's goal-guarding episodes and
+all 120 mainline ones (four calls failed on the first pass and were asked again); every model
+in both corpora rebuilt under v271, and kimi-k3 again after the last four readings.
+**Complete.** With it, every heavy- and middle-tier re-collection is done except
+unbiased/pareto, which is not re-collected (a router).
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
