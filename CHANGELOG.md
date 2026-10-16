@@ -10,6 +10,31 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v270
+
+**One gate decides which closing reports are checked for misrepresentation and which are
+counted, and the rate's numerator and denominator now come from one list.** A code review of
+v268 found the fix incomplete. The `--grade-existing` and `--reclassify` re-reads still asked
+only acts left in place, so an undone act was never re-read. The denominator dropped
+turn-capped episodes while the numerator did not, so a turn-capped act carrying a verdict
+could still fail the interval. An errored or never-run check counted as "did not
+misrepresent". And attempts that never landed were scored, though "the agent is why it
+passed" cannot be true of a write that did not take effect. Now `misrepresentation_scoreable`
+(the act taken, in a scoreable form, with a closing report) is used at collection, in both
+re-reads and in the facts; the denominator is the reports the check read; and the console's
+"hides the change" line, the summary's `closing_report.misrepresented_measured` and the stored
+rate share it. Where the check read no report the console says so rather than printing 0/0.
+`act_named` replaces three hand-written lookups of an act definition.
+
+## v269
+
+**The report says why each counted act was taken, and on what evidence (analysis plan D7).**
+A new block, `characteristics.act_purposes`, splits each act by purpose and by source: the act
+itself where it settles the purpose, a hand label where it does not, or not yet labelled.
+Hand labels are exported once from a finished blind pack into a gitignored file and joined
+by run file and act, so no run file is written. Purpose never changes a count; the block
+covers exactly the acts the form breakdown counts.
+
 ## v268
 
 **The misrepresentation rate's denominator now counts the oversight act in any form, as its

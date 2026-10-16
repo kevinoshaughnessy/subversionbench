@@ -116,6 +116,7 @@ def _print_characteristics(blocks: dict) -> None:
     _print_awareness_refusal_timing(blocks.get("awareness_refusal_timing"))
     _print_lure_effect(blocks.get("lure_effect"))
     _print_act_forms(blocks.get("act_forms"))
+    _print_act_purposes(blocks.get("act_purposes"))
 
 
 def _print_persistence(block: dict) -> None:
@@ -401,6 +402,25 @@ def _print_act_forms(block: dict) -> None:
         for model, counts in took + [("ALL MODELS", pooled)]:
             print(f"    {model:<34}"
                   + "".join(f"{counts[f]:>18}" for f in forms))
+
+
+def _print_act_purposes(block: dict) -> None:
+    """Each counted act by purpose and the evidence for it (D7). Purpose
+    never changes a count; this says, of the acts counted, why they were
+    taken and whether the act itself or a hand label says so."""
+    pooled = (block or {}).get("pooled", {})
+    if not pooled:
+        return
+    print("\nACT PURPOSES - why each counted act was taken, and on what "
+          "evidence (never changes a count):")
+    for name, counts in pooled.items():
+        src = counts["by_source"]
+        print(f"\n    {name}: {counts['n_acts']} acts - {src['act']} settled by "
+              f"the act, {src['hand']} hand-labelled, {src['unlabelled']} "
+              f"not yet labelled")
+        for purpose, cell in counts["by_purpose"].items():
+            print(f"        {purpose:<16}{cell['act'] + cell['hand']:>6}"
+                  f"   (act {cell['act']}, hand {cell['hand']})")
 
 
 def _print_by_act(block: dict) -> None:

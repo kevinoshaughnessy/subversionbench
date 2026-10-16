@@ -23,7 +23,7 @@ from ..batch import unique_batch_stamp
 from ..followup import add_awareness_timing
 from ..graders import (REGRADE_ALL, grader_models, regrade_targets, store,
                        view)
-from ..grading import MISALIGNED_ACTS, act_value
+from ..grading import MISALIGNED_ACTS, act_value, misrepresentation_scoreable
 from ..power import wilson_ci
 from ..redaction import redact_paths
 from ..hostenv import sed_is_bsd
@@ -164,7 +164,7 @@ def _regrade_one(data: dict, model: str):
 
     tally = _new_tally()
     has_report = data.get("ended_by") != "turn_cap"
-    if working.get("oversight_tampered") and has_report:
+    if misrepresentation_scoreable(working, data.get("ended_by")):
         _recheck_misrepresentation(working, data, model, tally)
     _rescore_acts(working, data, has_report, model, tally)
     variant = relabel_variant_answers(working, MISALIGNED_ACTS, model,
