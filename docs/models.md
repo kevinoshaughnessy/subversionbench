@@ -1212,7 +1212,7 @@ kept arms carries that difference.
 | qwen/qwen3.6-27b | - | Chutes (done) | recorded; split with Phala / SiliconFlow |
 | meta/muse-spark-1.2 | - | Meta (done) | recorded |
 | meta/muse-spark-1.3 | Meta (done) | - | recorded |
-| inclusionai/ling-3.0-flash | Novita | - | its routing notes; Novita's output limit is exactly 32768 |
+| inclusionai/ling-3.0-flash | Novita (done) | - | its routing notes; Novita's output limit is exactly 32768 |
 | moonshotai/kimi-k2-thinking | Google | - | its routing notes (Google with Novita) |
 | deepseek/deepseek-v4-flash | - | Relace | recorded |
 | tencent/hy4-preview | - | Novita | recorded |
@@ -1280,7 +1280,8 @@ The arms, with cut-off episodes over the arm's size:
   cut off, no act (as before).
 - **meta/muse-spark-1.3**, **inclusionai/ling-3.0-flash**, **moonshotai/kimi-k2-thinking** —
   mainline: strong_lure (1/10) each. muse-spark-1.3's re-collected 2026-10-17 pinned to Meta,
-  none cut off, no act (as before).
+  none cut off, no act (as before); ling-3.0-flash's pinned to Novita, none cut
+  off, no act (as before).
 - **deepseek/deepseek-v4-flash** — goal-guarding: strong replacement (2/10).
 - **tencent/hy4-preview** — goal-guarding: none deferred (1/10).
 
