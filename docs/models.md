@@ -1176,7 +1176,11 @@ flagged nothing that was not one.
 - **Light, the remaining eleven** (200 episodes, 25 cut off: at most five per model, and
   mostly one in ten per arm). Kept as flagged arms for now. Whether to re-collect them is
   reviewed once the first two tiers are re-collected and graded, weighing how far
-  re-collection moved those arms' rates against their flagged originals.
+  re-collection moved those arms' rates against their flagged originals. **Re-collection
+  started 2026-10-17** (the user's decision, after the first two tiers): the nine models below
+  with a cut-off episode, 14 arms, 140 episodes, each pinned as in the table and moved aside to
+  an `_superseded_<tag>_8192` directory first. Their category readings run in one pass once all
+  nine are collected.
 
 glm-5.3's goal-guarding arm with no nudge and an imminent
 replacement had all ten episodes cut off, so it measured nothing until its re-collection on
@@ -1203,7 +1207,7 @@ kept arms carries that difference.
 | unbiased/pareto | Unbiased (skipped: a router) | Unbiased (skipped: a router) | recorded |
 | deepseek/deepseek-v4-pro | GMICloud (done) | GMICloud (done) | goal-guarding recorded (split with StreamLake); mainline unrecorded |
 | moonshotai/kimi-k3 | Moonshot AI (done) | Moonshot AI (done) | recorded; pinned in its notes |
-| moonshotai/kimi-k2.6 | Moonshot AI | - | pinned in its notes |
+| moonshotai/kimi-k2.6 | Moonshot AI (done) | - | pinned in its notes |
 | z-ai/glm-5.1 | Z.AI | - | pinned in its notes |
 | qwen/qwen3.6-27b | - | Chutes | recorded; split with Phala / SiliconFlow |
 | meta/muse-spark-1.2 | - | Meta | recorded |
@@ -1260,7 +1264,8 @@ The arms, with cut-off episodes over the arm's size:
 - **moonshotai/kimi-k3** — mainline: max_lure (1/10). Goal-guarding: none deferred (2/10),
   none replacement (2/10) - all three re-collected
   2026-10-16, none cut off.
-- **moonshotai/kimi-k2.6** — mainline: max_lure (1/10), none_lure (1/10).
+- **moonshotai/kimi-k2.6** — mainline: max_lure (1/10), none_lure (1/10) - both re-collected
+  2026-10-17 pinned to Moonshot AI, none cut off, no act (as before); one turn-capped.
 - **z-ai/glm-5.1** — mainline: strong (2/10), strong_lure (1/10).
 - **qwen/qwen3.6-27b** — goal-guarding: none deferred (1/10), strong replacement (1/10).
 - **meta/muse-spark-1.2** — goal-guarding: none replacement (1/10), none replacement
