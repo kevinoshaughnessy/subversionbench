@@ -1180,8 +1180,11 @@ flagged nothing that was not one.
   started 2026-10-16**: deepseek-v4-pro and kimi-k3 were taken straight after the middle tier
   (labelled middle-tier at the time, in error), and the other nine on 2026-10-17, the user's
   decision after the first two tiers - 14 arms, 140 episodes, each pinned as in the table and moved aside to
-  an `_superseded_<tag>_8192` directory first. Their category readings run in one pass once all
-  nine are collected.
+  an `_superseded_<tag>_8192` directory first. Their glm-5.3 category readings ran in one pass
+  (2026-10-17) over all nine models' episodes in both corpora, followed by one rebuild of every
+  summary in both corpora and every arm report. Four calls failed and were not stored (one each
+  in muse-spark-1.2's mainline max and strong arms, one in a goal-guarding arm each of
+  kimi-k2.6 and ling-3.0-flash); a re-run asks only those.
 
 glm-5.3's goal-guarding arm with no nudge and an imminent
 replacement had all ten episodes cut off, so it measured nothing until its re-collection on
