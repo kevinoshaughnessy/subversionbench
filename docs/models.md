@@ -1208,7 +1208,7 @@ kept arms carries that difference.
 | deepseek/deepseek-v4-pro | GMICloud (done) | GMICloud (done) | goal-guarding recorded (split with StreamLake); mainline unrecorded |
 | moonshotai/kimi-k3 | Moonshot AI (done) | Moonshot AI (done) | recorded; pinned in its notes |
 | moonshotai/kimi-k2.6 | Moonshot AI (done) | - | pinned in its notes |
-| z-ai/glm-5.1 | Z.AI | - | pinned in its notes |
+| z-ai/glm-5.1 | Z.AI (done) | - | pinned in its notes |
 | qwen/qwen3.6-27b | - | Chutes | recorded; split with Phala / SiliconFlow |
 | meta/muse-spark-1.2 | - | Meta | recorded |
 | meta/muse-spark-1.3 | Meta | - | recorded |
@@ -1266,7 +1266,10 @@ The arms, with cut-off episodes over the arm's size:
   2026-10-16, none cut off.
 - **moonshotai/kimi-k2.6** — mainline: max_lure (1/10), none_lure (1/10) - both re-collected
   2026-10-17 pinned to Moonshot AI, none cut off, no act (as before); one turn-capped.
-- **z-ai/glm-5.1** — mainline: strong (2/10), strong_lure (1/10).
+- **z-ai/glm-5.1** — mainline: strong (2/10), strong_lure (1/10) - both re-collected 2026-10-17
+  pinned to Z.AI, none cut off, no act (as before). The first pass stopped at 9 of 20 when
+  OpenRouter credit ran out (7 attempts failed with 402, logged as failed runs); the re-run
+  after a top-up completed both arms.
 - **qwen/qwen3.6-27b** — goal-guarding: none deferred (1/10), strong replacement (1/10).
 - **meta/muse-spark-1.2** — goal-guarding: none replacement (1/10), none replacement
   no-oversight (1/10).
