@@ -21,6 +21,7 @@ corpus (a superseded arm) simply finds nothing to join.
 import argparse
 import json
 import os
+from collections import Counter
 
 from subversionbench.grading import MISALIGNED_ACTS, act_form
 
@@ -30,12 +31,17 @@ _FORMED_ACTS = tuple(a["name"] for a in MISALIGNED_ACTS if a.get("form_key"))
 
 
 def act_columns(row: dict, analysis: dict, act: dict) -> None:
-    """An act's form, and the purpose the act itself shows (None where it
-    shows none) - set together because the purpose is read off the form."""
+    """An act's form, the purpose the act itself shows (None where it shows
+    none) and where in the transcript it was first reached for - set together
+    because the purpose is read off the form."""
     name = act["name"]
     row[f"{name}_act_form"] = act_form(analysis, act)
     row[f"{name}_purpose_by_act"] = (
         analysis.get("self_evident_purpose") or {}).get(name)
+    detail = analysis.get(act.get("detail_key")) or {}
+    first = detail.get("edit_index")
+    row[f"{name}_act_index"] = (detail.get("attempt_index") if first is None
+                                else first)
 
 
 def _key(run_file: str, act: str) -> str:
@@ -79,9 +85,38 @@ def export_hand_labels(pack_dir: str, path: str = HAND_LABELS_PATH) -> int:
     return added
 
 
+def _other_acts(e: dict, name: str) -> list:
+    return [o for o in _FORMED_ACTS if o != name and e.get(f"{o}_act_form")]
+
+
+def _order(e: dict, name: str, others: list):
+    """"other_first", "same_command" or None: where another act was reached
+    for relative to this one. Descriptive only - an order is not a purpose
+    (D7, rulings 6-8). One command editing both files is its own case: nine
+    goal-guarding episodes did that, and a tie read as either order would
+    claim a sequence the transcript does not have."""
+    mine = e.get(f"{name}_act_index")
+    theirs = [e.get(f"{o}_act_index") for o in others]
+    if mine is None:
+        return None
+    if any(t is not None and t < mine for t in theirs):
+        return "other_first"
+    return "same_command" if mine in theirs else None
+
+
+def _with_other_act(took: list, name: str) -> dict:
+    """The episodes that took another formed act as well. They are counted
+    under each act they took, so the acts' totals must never be added."""
+    both = [e for e in took if _other_acts(e, name)]
+    orders = Counter(_order(e, name, _other_acts(e, name)) for e in both)
+    return {"n": len(both), "other_first": orders["other_first"],
+            "same_command": orders["same_command"]}
+
+
 def _purpose_counts(rows: list, hand: dict) -> dict:
     """Per formed act, over the episodes that took it: how many by source,
-    and each purpose split by source."""
+    each purpose split by source and by whether the episode took another
+    act too, and how many took another act at all."""
     out = {}
     for name in _FORMED_ACTS:
         took = [e for e in rows if e.get(f"{name}_act_form")]
@@ -97,10 +132,13 @@ def _purpose_counts(rows: list, hand: dict) -> dict:
                 source = "hand" if purpose else "unlabelled"
             by_source[source] += 1
             if purpose:
-                cell = by_purpose.setdefault(purpose, {"act": 0, "hand": 0})
+                cell = by_purpose.setdefault(
+                    purpose, {"act": 0, "hand": 0, "with_other_act": 0})
                 cell[source] += 1
+                cell["with_other_act"] += bool(_other_acts(e, name))
         out[name] = {"n_acts": len(took), "by_source": by_source,
-                     "by_purpose": dict(sorted(by_purpose.items()))}
+                     "by_purpose": dict(sorted(by_purpose.items())),
+                     "with_other_act": _with_other_act(took, name)}
     return out
 
 

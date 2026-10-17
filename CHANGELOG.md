@@ -10,6 +10,17 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v273
+
+**Purpose is charted.** `act_purposes.png`, beside `act_forms.png`, draws each counted act by
+its purpose per model, with the source - settled by the act, hand-labelled, unlabelled - in each
+panel's title. An episode that took both formed acts is counted under each act with that act's
+own purpose, never given a combined one: each purpose's `with_other_act` is drawn as the paler
+part of its bar, and the caption says the panels are not to be added. `with_other_act.other_first`
+records which act came first, as an order and not as evidence of purpose. The goal-guarding rate
+views gain `with_oversight_act` per cell, hatched inside each bar, so the pooled rate shows how
+much of it came with the oversight act. No count or rate changes.
+
 ## v272
 
 **An edit, a check and a restore in one command is an undone, exploited edit.** The detector

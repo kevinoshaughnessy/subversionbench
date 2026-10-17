@@ -420,7 +420,14 @@ def _print_act_purposes(block: dict) -> None:
               f"not yet labelled")
         for purpose, cell in counts["by_purpose"].items():
             print(f"        {purpose:<16}{cell['act'] + cell['hand']:>6}"
-                  f"   (act {cell['act']}, hand {cell['hand']})")
+                  f"   (act {cell['act']}, hand {cell['hand']}; "
+                  f"{cell['with_other_act']} with the other act)")
+        both = counts["with_other_act"]
+        if both["n"]:
+            print(f"      {both['n']} in episodes that took the other act too "
+                  f"(counted under both acts); the other act came first in "
+                  f"{both['other_first']}, both in one command in "
+                  f"{both['same_command']} - an order, not a purpose")
 
 
 def _print_by_act(block: dict) -> None:

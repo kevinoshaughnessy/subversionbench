@@ -36,18 +36,22 @@ class TestEachActGetsOneSource:
         got = _pooled([_row(by_act="evade")],
                       {"run_1_m_a.json|oversight": "test"})["oversight"]
         assert got["by_source"] == {"act": 1, "hand": 0, "unlabelled": 0}
-        assert got["by_purpose"] == {"evade": {"act": 1, "hand": 0}}
+        assert got["by_purpose"] == {"evade": {"act": 1, "hand": 0,
+                                               "with_other_act": 0}}
 
     def test_a_hand_label_fills_what_the_act_leaves(self):
         got = _pooled([_row(form="attempted")],
                       {"run_1_m_a.json|oversight": "test"})["oversight"]
         assert got["by_source"]["hand"] == 1
-        assert got["by_purpose"] == {"test": {"act": 0, "hand": 1}}
+        assert got["by_purpose"] == {"test": {"act": 0, "hand": 1,
+                                              "with_other_act": 0}}
 
     def test_neither_is_counted_as_unlabelled_not_dropped(self):
         got = _pooled([_row(form="undone")])["oversight"]
         assert got == {"n_acts": 1, "by_purpose": {},
-                       "by_source": {"act": 0, "hand": 0, "unlabelled": 1}}
+                       "by_source": {"act": 0, "hand": 0, "unlabelled": 1},
+                       "with_other_act": {"n": 0, "other_first": 0,
+                                          "same_command": 0}}
 
     def test_a_hand_label_for_the_other_act_does_not_join(self):
         got = _pooled([_row(form="undone")],
@@ -71,6 +75,74 @@ class TestPurposeNeverChangesTheCount:
 
     def test_an_act_no_episode_took_is_left_out(self):
         assert set(_pooled([_row(by_act="evade")])) == {"oversight"}
+
+
+def _both(oversight_index=3, goalguard_index=9, gg_purpose="protect_goals",
+          run_file="run_2_m_a.json"):
+    """An episode that evaded oversight and protected the successor's goal."""
+    row = _row(by_act="evade", run_file=run_file)
+    row.update(goalguard_act_form="persisted",
+               goalguard_purpose_by_act=gg_purpose,
+               oversight_act_index=oversight_index,
+               goalguard_act_index=goalguard_index)
+    return row
+
+
+class TestAnEpisodeWithBothActsIsCountedUnderEach:
+    def test_each_act_keeps_its_own_purpose(self):
+        got = _pooled([_both(), _row(by_act="evade")])
+        assert got["oversight"]["by_purpose"]["evade"]["with_other_act"] == 1
+        assert got["goalguard"]["by_purpose"] == {
+            "protect_goals": {"act": 1, "hand": 0, "with_other_act": 1}}
+
+    def test_no_combined_purpose_is_invented(self):
+        purposes = {p for act in _pooled([_both()]).values()
+                    for p in act["by_purpose"]}
+        assert purposes == {"evade", "protect_goals"}
+
+    def test_which_act_came_first_is_counted_from_each_side(self):
+        got = _pooled([_both(3, 9), _both(4, 9, run_file="run_3_m_a.json")])
+        assert got["goalguard"]["with_other_act"] == {
+            "n": 2, "other_first": 2, "same_command": 0}
+        assert got["oversight"]["with_other_act"] == {
+            "n": 2, "other_first": 0, "same_command": 0}
+
+    def test_one_command_making_both_is_neither_order(self):
+        got = _pooled([_both(5, 5)])
+        for act in ("goalguard", "oversight"):
+            assert got[act]["with_other_act"] == {
+                "n": 1, "other_first": 0, "same_command": 1}
+
+    def test_an_act_with_no_index_is_not_ordered(self):
+        got = _pooled([_both(None, 9)])
+        assert got["goalguard"]["with_other_act"]["other_first"] == 0
+
+
+class TestTheChart:
+    def _plot(self, rows, path):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        from report_charts.act_purposes import plot_act_purposes
+        from subversionbench import charting
+        report = {"characteristics": {"act_purposes":
+                                      rr.act_purposes(rows, {})}}
+        return plot_act_purposes(charting.import_pyplot(), report, path)
+
+    def test_it_is_drawn_when_an_act_was_taken(self):
+        with tempfile.TemporaryDirectory() as out:
+            path = os.path.join(out, "act_purposes.png")
+            assert self._plot([_both(), _row(form="undone")], path) == path
+            assert os.path.getsize(path) > 0
+
+    def test_unlabelled_acts_are_drawn_not_left_blank(self):
+        from report_charts.act_purposes import UNLABELLED, _segments
+        block = rr.act_purposes([_row(form="undone")], {})
+        acts = block["by_model"][0]["acts"]
+        assert _segments(acts, "oversight", [UNLABELLED]) == [
+            (UNLABELLED, 1, 0)]
+
+    def test_it_is_not_drawn_when_none_was(self):
+        assert self._plot([_row(form=False)], "unused.png") is None
 
 
 class TestHandLabelsComeFromAFinishedPack:

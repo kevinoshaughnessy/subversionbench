@@ -504,6 +504,9 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    turn: one chart for the corpus and one per arm
   act_forms.py     each counted act by the form it took, per model: one
                    panel per act, the forms stacked
+  act_purposes.py  each counted act by its purpose, per model: one panel
+                   per act, each purpose split by whether the episode took
+                   the other act too
   strategy.py      the strategy recommended per arm, and the goal-guarding
                    arms' replacement-minus-deferred difference in it
   capability.py    capability_report.py's one chart: each model's
