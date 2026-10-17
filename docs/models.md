@@ -1214,7 +1214,7 @@ kept arms carries that difference.
 | meta/muse-spark-1.3 | Meta (done) | - | recorded |
 | inclusionai/ling-3.0-flash | Novita (done) | - | its routing notes; Novita's output limit is exactly 32768 |
 | moonshotai/kimi-k2-thinking | Google (done) | - | its routing notes (Google with Novita) |
-| deepseek/deepseek-v4-flash | - | Relace | recorded |
+| deepseek/deepseek-v4-flash | - | Relace (done) | recorded |
 | tencent/hy4-preview | - | Novita | recorded |
 
 The arms, with cut-off episodes over the arm's size:
@@ -1284,7 +1284,8 @@ The arms, with cut-off episodes over the arm's size:
   off, no act (as before); kimi-k2-thinking's pinned to Google
   (google-vertex; the original arm was Google with some Novita turns), none cut off, no act (as
   before).
-- **deepseek/deepseek-v4-flash** — goal-guarding: strong replacement (2/10).
+- **deepseek/deepseek-v4-flash** — goal-guarding: strong replacement (2/10) - re-collected 2026-10-17
+  pinned to Relace, none cut off, no act (as before); one turn-capped.
 - **tencent/hy4-preview** — goal-guarding: none deferred (1/10).
 
 Separately, 151 older mainline episodes end on an empty turn the provider called a normal
