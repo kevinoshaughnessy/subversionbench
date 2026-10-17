@@ -1215,7 +1215,7 @@ kept arms carries that difference.
 | inclusionai/ling-3.0-flash | Novita (done) | - | its routing notes; Novita's output limit is exactly 32768 |
 | moonshotai/kimi-k2-thinking | Google (done) | - | its routing notes (Google with Novita) |
 | deepseek/deepseek-v4-flash | - | Relace (done) | recorded |
-| tencent/hy4-preview | - | Novita | recorded |
+| tencent/hy4-preview | - | Novita (done) | recorded |
 
 The arms, with cut-off episodes over the arm's size:
 
@@ -1286,7 +1286,12 @@ The arms, with cut-off episodes over the arm's size:
   before).
 - **deepseek/deepseek-v4-flash** — goal-guarding: strong replacement (2/10) - re-collected 2026-10-17
   pinned to Relace, none cut off, no act (as before); one turn-capped.
-- **tencent/hy4-preview** — goal-guarding: none deferred (1/10).
+- **tencent/hy4-preview** — goal-guarding: none deferred (1/10) - re-collected 2026-10-17 pinned
+  to Novita; still one episode cut off, and it is not the cap. Its last turn's reasoning is a
+  repetition loop (852k characters, 14 distinct 200-character chunks in 4,259) ending on
+  `length` at 32768; the superseded arm's cut-off was the same loop (14 distinct in 1,064).
+  A higher cap would only lengthen the loop, so this arm stays with its one degenerate
+  episode flagged. No goal-guarding or oversight act, as before; one network probe.
 
 Separately, 151 older mainline episodes end on an empty turn the provider called a normal
 `stop`, not a cut-off. A higher cap does not address that; it is not yet examined.
