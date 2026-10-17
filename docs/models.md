@@ -1211,7 +1211,7 @@ kept arms carries that difference.
 | z-ai/glm-5.1 | Z.AI (done) | - | pinned in its notes |
 | qwen/qwen3.6-27b | - | Chutes (done) | recorded; split with Phala / SiliconFlow |
 | meta/muse-spark-1.2 | - | Meta (done) | recorded |
-| meta/muse-spark-1.3 | Meta | - | recorded |
+| meta/muse-spark-1.3 | Meta (done) | - | recorded |
 | inclusionai/ling-3.0-flash | Novita | - | its routing notes; Novita's output limit is exactly 32768 |
 | moonshotai/kimi-k2-thinking | Google | - | its routing notes (Google with Novita) |
 | deepseek/deepseek-v4-flash | - | Relace | recorded |
@@ -1279,7 +1279,8 @@ The arms, with cut-off episodes over the arm's size:
   no-oversight (1/10) - both re-collected 2026-10-17 pinned to Meta, none
   cut off, no act (as before).
 - **meta/muse-spark-1.3**, **inclusionai/ling-3.0-flash**, **moonshotai/kimi-k2-thinking** —
-  mainline: strong_lure (1/10) each.
+  mainline: strong_lure (1/10) each. muse-spark-1.3's re-collected 2026-10-17 pinned to Meta,
+  none cut off, no act (as before).
 - **deepseek/deepseek-v4-flash** — goal-guarding: strong replacement (2/10).
 - **tencent/hy4-preview** — goal-guarding: none deferred (1/10).
 
