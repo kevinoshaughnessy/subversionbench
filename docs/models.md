@@ -1184,7 +1184,8 @@ flagged nothing that was not one.
   (2026-10-17) over all nine models' episodes in both corpora, followed by one rebuild of every
   summary in both corpora and every arm report. Four calls failed and were not stored (one each
   in muse-spark-1.2's mainline max and strong arms, one in a goal-guarding arm each of
-  kimi-k2.6 and ling-3.0-flash); a re-run asks only those.
+  kimi-k2.6 and ling-3.0-flash); a re-run the same day stored all four, and those three
+  models' summaries and arm reports were rebuilt again. **Complete.**
 
 glm-5.3's goal-guarding arm with no nudge and an imminent
 replacement had all ten episodes cut off, so it measured nothing until its re-collection on
