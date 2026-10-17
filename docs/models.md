@@ -982,7 +982,7 @@ the network. The two deferred no-oversight arms with no cut-off are kept. The gl
 category reading (2026-10-15) covers all 80 of the model's goal-guarding episodes and all 120
 mainline ones, with no failed call; summaries rebuilt in both corpora after it. **Complete.**
 
-**tencent/hy3 - done 2026-10-16:** the fourth heavy-tier model. Its eight affected arms
+**tencent/hy3 - done 2026-10-16:** the first middle-tier model. Its eight affected arms
 (mainline max, none, strong, strong_lure; goal-guarding none replacement, strong deferred,
 strong deferred no-oversight, strong replacement; 80 runs with their summaries, 88 files)
 moved to `eval_results_r10_superseded_hy3_8192/` and
@@ -999,7 +999,7 @@ in each corpus are kept. The glm-5.3 category reading (2026-10-16) covers all 80
 model's goal-guarding episodes and all 120 mainline ones; summaries rebuilt in both corpora
 after it. **Complete.**
 
-**deepseek/deepseek-v4-pro-0813 - done 2026-10-16:** the fifth heavy-tier model. Its eight
+**deepseek/deepseek-v4-pro-0813 - done 2026-10-16:** the second middle-tier model. Its eight
 affected arms (mainline max, max_lure, strong, strong_lure; goal-guarding none deferred
 no-oversight, none replacement no-oversight, strong deferred, strong replacement; 80 runs with
 their summaries, 88 files) moved to `eval_results_r10_superseded_v4pro0813_8192/` and
@@ -1017,7 +1017,7 @@ corpus, as in the superseded arms. The glm-5.3 category reading (2026-10-16) cov
 the model's goal-guarding episodes and all 120 mainline ones; summaries rebuilt in both
 corpora after it. **Complete.**
 
-**google/gemini-3.5-flash - done 2026-10-16:** the sixth heavy-tier model. Its five
+**google/gemini-3.5-flash - done 2026-10-16:** the third middle-tier model. Its five
 affected arms (mainline none and none_lure at 20 runs; goal-guarding none deferred, none
 replacement, strong replacement at 10; 70 runs with their summaries, 75 files) moved to
 `eval_results_r10_superseded_gem35flash_8192/` and
@@ -1040,7 +1040,7 @@ all 160 mainline ones (three calls failed on the first pass and were asked again
 in both corpora then rebuilt under v268, arm reports included, which wrote the none_lure
 summary. **Complete.**
 
-**google/gemini-3.8-flash - done 2026-10-16:** the seventh heavy-tier model. Its five
+**google/gemini-3.8-flash - done 2026-10-16:** the fourth middle-tier model. Its five
 affected arms (mainline max, none_nooversight_lure, strong_lure; goal-guarding none deferred,
 none deferred no-oversight; 50 runs with their summaries, 55 files) moved to
 `eval_results_r10_superseded_gem38flash_8192/` and
@@ -1052,8 +1052,8 @@ counted act in either corpus, as in the superseded arms. The glm-5.3 category re
 (2026-10-16) covers all 80 of the model's goal-guarding episodes and all 120 mainline ones;
 every model in both corpora then rebuilt under v270, arm reports included. **Complete.**
 
-**deepseek/deepseek-v4-pro - done 2026-10-16:** the eighth heavy-tier model (unbiased/pareto,
-before it in the order, is not re-collected). Its four affected arms (mainline strong;
+**deepseek/deepseek-v4-pro - done 2026-10-16:** the first light-tier model, taken straight after the
+middle tier (whose last model, unbiased/pareto, is not re-collected). Its four affected arms (mainline strong;
 goal-guarding none replacement, none replacement no-oversight, strong replacement; 40 runs
 with their summaries, 44 files) moved to `eval_results_r10_superseded_v4pro_8192/` and
 `eval_results_goalguard_r1_superseded_v4pro_8192/`, and re-collected pinned to GMICloud, which
@@ -1068,8 +1068,8 @@ the 30 goal-guarding episodes (1 of 30 before). The glm-5.3 category reading (20
 covers all 80 of the model's goal-guarding episodes and all 120 mainline ones; every model in
 both corpora then rebuilt under v271, arm reports included. **Complete.**
 
-**moonshotai/kimi-k3 - done 2026-10-16:** the ninth and last model of the heavy and middle
-tiers to be re-collected. Its three affected arms (mainline max_lure; goal-guarding none
+**moonshotai/kimi-k3 - done 2026-10-16:** the second light-tier model, taken with the
+middle tier. Its three affected arms (mainline max_lure; goal-guarding none
 deferred, none replacement; 30 runs with their summaries, 33 files) moved to
 `eval_results_r10_superseded_kimik3_8192/` and `eval_results_goalguard_r1_superseded_kimik3_8192/`,
 and re-collected pinned to moonshotai, served as Moonshot AI on every turn, at
@@ -1080,7 +1080,7 @@ glm-5.3 category reading (2026-10-16) covers all 80 of the model's goal-guarding
 all 120 mainline ones (four calls failed on the first pass and were asked again); every model
 in both corpora rebuilt under v271, and kimi-k3 again after the last four readings.
 **Complete.** With it, every heavy- and middle-tier re-collection is done except
-unbiased/pareto, which is not re-collected (a router).
+unbiased/pareto, which is not re-collected (a router), and the first two light-tier models.
 
 Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
 episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
@@ -1177,8 +1177,9 @@ flagged nothing that was not one.
   mostly one in ten per arm). Kept as flagged arms for now. Whether to re-collect them is
   reviewed once the first two tiers are re-collected and graded, weighing how far
   re-collection moved those arms' rates against their flagged originals. **Re-collection
-  started 2026-10-17** (the user's decision, after the first two tiers): the nine models below
-  with a cut-off episode, 14 arms, 140 episodes, each pinned as in the table and moved aside to
+  started 2026-10-16**: deepseek-v4-pro and kimi-k3 were taken straight after the middle tier
+  (labelled middle-tier at the time, in error), and the other nine on 2026-10-17, the user's
+  decision after the first two tiers - 14 arms, 140 episodes, each pinned as in the table and moved aside to
   an `_superseded_<tag>_8192` directory first. Their category readings run in one pass once all
   nine are collected.
 
