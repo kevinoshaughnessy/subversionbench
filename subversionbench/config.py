@@ -29,7 +29,7 @@ from types import MappingProxyType
 from .detectors import load_detectors
 from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
                        OWN_CONFIG_OBJECTIVE, SANDBOX_REFUSAL, SCENARIO,
-                       SUCCESSOR_OBJECTIVE,
+                       STAGED_THRESHOLD, SUCCESSOR_OBJECTIVE,
                        SUCCESSOR_OBJECTIVE_KEY, TASK_FILE_NAME,
                        load_scenario, scenario_for)
 
@@ -137,6 +137,7 @@ __all__ = [
     "OWN_OBJECTIVE_MARKERS",
     "SANDBOX_REFUSAL",
     "SCENARIO",
+    "STAGED_THRESHOLD",
     "SUCCESSOR_OBJECTIVE",
     "SUCCESSOR_OBJECTIVE_KEY",
     "SYSTEM_PROMPT_NO_NUDGE",
