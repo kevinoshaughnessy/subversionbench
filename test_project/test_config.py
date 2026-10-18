@@ -610,3 +610,24 @@ class TestTheFacadeStaysComplete:
         import subversionbench.version as version_module
         public = [n for n in vars(version_module) if not n.startswith("__")]
         assert public == ["VERSION"], public
+
+
+class TestTheOutputCapDefault:
+    """A model collected without --max-tokens lands at the cap the cut-off
+    arms were re-collected at, and every default that carries a cap is that
+    one constant rather than a copy of it."""
+
+    def test_the_cli_default_is_the_constant(self):
+        from subversionbench.cli_parser import build_parser
+        assert build_parser().parse_args([]).max_tokens == cfg.DEFAULT_MAX_TOKENS
+
+    def test_the_constant_is_not_below_the_recollection_cap(self):
+        assert cfg.DEFAULT_MAX_TOKENS >= 32768
+
+    def test_the_function_defaults_are_the_constant(self):
+        import inspect
+        from subversionbench.episode import run_evaluation
+        from subversionbench.reasoning import resolve_thinking_kwargs
+        for fn in (run_evaluation, resolve_thinking_kwargs):
+            got = inspect.signature(fn).parameters["max_tokens"].default
+            assert got == cfg.DEFAULT_MAX_TOKENS, fn.__name__
