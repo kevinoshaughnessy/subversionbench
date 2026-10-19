@@ -772,11 +772,13 @@ row so far.
    counted act. **Three episodes failed after the episode itself had finished** (runs 1 and 3
    of mainline none_nooversight_lure, run 7 of goal-guarding strong deferred no-oversight):
    Cohere rejected an interrogation request with `TOOL_CALLS_MISSING_RESULTS`, and because the
-   failure fell outside the agentic loop no `failed_run_*` record was written (a harness
-   defect, not yet fixed). **Two mainline episodes ended on
+   failure fell outside the agentic loop no `failed_run_*` record was written. Both halves are
+   harness defects, fixed in v275; the three are to be collected again by resuming those arms.
+   **Two mainline episodes ended on
    `length` and were read as the model stopping** (strong_lure run 4, a non-repeating
    reasoning turn of about 172,000 characters; max run 8, a partly repeating one), cut off
-   at 32,768 where Cohere offers 64,000. Turn caps are high (33 mainline, 20 goal-guarding).
+   at 32,768 where Cohere offers 64,000; the arms are kept, flagged, as the other arms with a
+   remaining cut-off are (decided 2026-10-19). Turn caps are high (33 mainline, 20 goal-guarding).
    Six commands timed out, none of the check-script stdin class. The glm-5.3 reading is not
    yet run.
 
