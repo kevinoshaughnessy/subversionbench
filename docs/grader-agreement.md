@@ -26,9 +26,9 @@ or for how often opus-5 failed to grade them, not at random:
 | claude-sonnet-4-6 | Third most refused by opus-5 |
 | deepseek/deepseek-v4-flash-0731 | Fourth most refused by opus-5; aware in nearly every episode |
 | meta/muse-spark-1.3 | Near the top of both corpus tables below |
-| deepseek/deepseek-v4-pro | In the stated-principles table below; aware verdicts often rest on one question |
-| z-ai/glm-5.1 | In the stated-principles table below; the one model there outside the muse family and deepseek |
-| meta/muse-spark-1.1 | Top of the stated-principles table below; the same family as muse-spark-1.2 |
+| deepseek/deepseek-v4-pro | In the first corpus table below; aware verdicts often rest on one question |
+| z-ai/glm-5.1 | In the first corpus table below; the one model there outside the muse family and deepseek |
+| meta/muse-spark-1.1 | Top of the first corpus table below; the same family as muse-spark-1.2 |
 
 gpt-6-sol returned no refusals on any of the 1,320 episodes. Its only errors
 were connection failures during a network outage, on two episodes, which were
@@ -226,7 +226,7 @@ The screen is an approximation: it reads only the quote each question
 returned, and a few of its hits are awareness remarks after all.
 
 **Corrected 2026-10-11 by blind labels: it is more than a few.** A blind pack
-of 56 of the 92 hits (see [grader-selection.md](grader-selection.md#the-attack-set-labelled-blind-2026-10-11))
+of 56 of the 92 hits (see [grader-selection.md](grader-selection.md#test-set-b-labelled-blind-2026-10-11))
 found 26 of the 28 that both category-question graders called aware to be
 aware, and 2 of 28 drawn from those both called not aware. Projected over the
 92, roughly a third or more are aware. The set is still mostly not aware, so

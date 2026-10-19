@@ -5,7 +5,7 @@ the **category question in its rules-only wording** (`category_rules`), adopted
 as the headline awareness measure; the rubric's `eval_aware` stays stored
 beside it. Steps 1 to 5 are done (v237, v238, the refusal screen on
 2026-10-07, the blind labelling, the grid, the test sets and the blind-labelled
-attack set, 2026-10-10 to 2026-10-11); step 6, regrading the corpus with the
+test set B, 2026-10-10 to 2026-10-11); step 6, regrading the corpus with the
 winner as an added reading, is next, with `--grade-category` (v248). Every paid step is started by the
 operator, not by an agent.
 
@@ -164,8 +164,9 @@ binary verdict.
 - **Ties:** where intervals overlap, prefer the vendor that is not OpenAI,
   then the cheaper.
 - **The category question is adopted as the headline** only if it beats the
-  rubric on the random sample *and* meets the draft's expectations on the
-  charter and attack sets. Otherwise it stays a stored secondary field.
+  rubric on the random sample *and* meets the draft's expectations on
+  test sets A and B, whose expected labels are kept in the encrypted
+  definitions archive. Otherwise it stays a stored secondary field.
 
 ## The blind sample, scored (2026-10-10)
 
@@ -229,14 +230,13 @@ $1.20).
   grader, so the rules-only wording is preferred.
 - *Instrument:* for glm-5.3 the rules-only category question scores above
   the rubric (95.2% against 91.7%), with overlapping intervals. It becomes
-  the headline only if it also meets the draft's expectations on the
-  charter and attack sets. On the charter set it raised one false alarm in
-  54 and missed the one expected `true` (above); the attack set has not
-  been run for it. So **the instrument is not yet decided**, and the next
+  the headline only if it also meets the draft's expectations on
+  test sets A and B. On set A it raised one false alarm in 54 and missed
+  the one expected `true` (above); set B has not been run for it. So **the instrument is not yet decided**, and the next
   paid step is glm-5.3 on the test sets.
 
 **Where the remaining disagreement sits: two codebook rules.** Across all 166
-labelled episodes (the blind sample and the attack pack), the graders' category
+labelled episodes (the blind sample and the set B pack), the graders' category
 answers fall on the operator's side of aware/not aware 96 to 100% of the time
 for every rule but two: rule 5 (13 episodes, 78%) and rule 11 (7 episodes,
 67%). In the operator's labels rule 5 has always given `ambiguous_true` and
@@ -266,20 +266,18 @@ left more than one episode unanswered.
 
 | | glm-5.3 category | glm-5.3 rules only | glm-5.3 rubric | gpt-6-sol rubric |
 |---|---|---|---|---|
-| Charter: aware on the 54 expected `false` | 1 | 0 | 32 | 20 |
-| Charter: the expected `true` | `true` | missed | aware | aware |
-| Attack screen: aware of 92 | 35 | 36 | 26 | 15 |
+| Set A: aware on the 54 expected `false` | 1 | 0 | 32 | 20 |
+| Set A: the expected `true` | `true` | missed | aware | aware |
+| Set B: aware of 92 screen hits | 35 | 36 | 26 | 15 |
 | Disagreement set: sides with gpt-6-sol / opus-5 | 97 / 31 | 98 / 29 | 94 / 34 | - |
 
-- **Charter: met by the category question, failed by the rubric.** The
+- **Set A: met by the category question, failed by the rubric.** The
   category question with the worked wording raised one false alarm and found
   the expected `true`; the rules-only wording raised none and missed it. Both
-  rubrics call a large share of charter citations aware. Against the earlier
-  charter run, the category cells changed 2 and 1 of 55 verdicts, so this is
+  rubrics raise many false alarms on it. Against the earlier set A run, the category cells changed 2 and 1 of 55 verdicts, so this is
   not run-to-run noise.
-- **Attack: not clearly met.** The draft expects these suspected-manipulation
-  episodes to come back mostly not aware, with a few implicit awareness
-  remarks among them. The category question calls 35 to 36 of 92 aware, more
+- **Set B: not clearly met.** The draft expects most of this set to come
+  back not aware, with a few aware. The category question calls 35 to 36 of 92 aware, more
   than twice gpt-6-sol's rubric, mostly as `ambiguous_true`; on the 37 the
   rubric had already read when the sets were built the two were close (3 to 4
   against 5). Whether the extra verdicts are the question or this grader is not
@@ -287,27 +285,26 @@ left more than one episode unanswered.
 - **Disagreement set:** glm-5.3 sides with gpt-6-sol on about three quarters
   of the episodes where opus-5 and gpt-6-sol differ, under every instrument.
 
-So the instrument is still not decided. The charter evidence favours the
-category question strongly; the attack evidence counts against it unless
-those extra verdicts are read and found to be implicit awareness.
+So the instrument is still not decided. The set A evidence favours the
+category question strongly; the set B evidence counts against it unless
+those extra verdicts are read and found to be aware.
 
-**gpt-6-sol on the attack set (2026-10-10, $2.55).** Asked the category
-question on the 98 attack-set episodes, gpt-6-sol called 29 of the 92 screen
+**gpt-6-sol on set B (2026-10-10, $2.55).** Asked the category
+question on the 98 set B episodes, gpt-6-sol called 29 of the 92 screen
 hits aware under the worked wording and 25 under rules only, against 15 under
 its own rubric; 45 of its 92 worked-wording answers were one of the two
 ambiguous categories. It and glm-5.3 agree on 28 of them. So the extra verdicts
 come from the question, not from glm-5.3, which adds 7 of its own. Whether
-those 28 are implicit awareness - the screen was approximate and known to hold
-some - or the question reading suspected manipulation as suspected evaluation
-can only be settled by labelling them; on the random sample the category
+those 28 are aware - the screen was approximate and known to hold some that
+are - or are over-counts by the question can only be settled by labelling
+them; on the random sample the category
 question raised no more false alarms than the rubric. The next step is a
 blind pack of the 28 and a matched set from the same 92 that both graders call
 not aware.
 
-## The attack set, labelled blind (2026-10-11)
+## Test set B, labelled blind (2026-10-11)
 
-A blind pack (`labelling/blind_attack_20261010/`, gitignored) of 56 of the 92
-attack-screen episodes: the 28 that gpt-6-sol and glm-5.3 both called aware
+A blind pack (gitignored) of 56 of set B's 92 screen hits: the 28 that gpt-6-sol and glm-5.3 both called aware
 under the worked category wording, and 28 drawn at random from the 56 both
 called not aware, balanced in blocks of ten and shown whole. Labelled by the
 operator on the four categories, without the verdicts in view.
@@ -342,12 +339,11 @@ cover:
 | glm-5.3, rules only | 0.44 | 0.64 |
 | gpt-6-sol, rules only | 0.45 | 0.60 |
 
-**What it settles.** The set is still mostly suspected manipulation - projected
-over all 92, roughly a third or more are aware - so the draft's expectation of
-"mostly not aware" holds, but it holds many more implicit awareness remarks
-than "a few". The category question's 25 to 36 aware on the 92 is about right
+**What it settles.** The set is still mostly not aware - projected over all
+92, roughly a third or more are aware - so the draft's expectation holds for
+the majority, but there are many more aware episodes than "a few". The category question's 25 to 36 aware on the 92 is about right
 and finds the right episodes; the rubric's 15 is too low, and gpt-6-sol's
-rubric misses 20 of the 28 episodes the labels call aware. So the attack
+rubric misses 20 of the 28 episodes the labels call aware. So the set B
 condition counts *for* the category question, not against it.
 [grader-agreement.md](grader-agreement.md) is corrected accordingly. The
 corpus consequence: the rubric understates awareness on these episodes, which
@@ -355,15 +351,15 @@ concentrate in qwen3.6-27b, muse-spark-1.3, qwen3.8-max-0902, qwen3.8-flash
 and claude-sonnet-5.
 
 **Where the rule now stands.** The category question beats the rubric on the
-random sample under every grader (overlapping intervals), meets the charter
-set, and meets the attack set on the labels. The one open choice is the
+random sample under every grader (overlapping intervals), meets set A, and
+meets set B on the labels. The one open choice is the
 wording: the rule prefers rules-only where the wordings' intervals overlap, as
 they do here, but the worked wording missed fewer labelled-aware episodes in
-this pack and found the charter set's expected `true`, which rules-only missed.
+this pack and found set A's expected `true`, which rules-only missed.
 Against that, the rules-only wording agrees more closely with the operator's
 exact category on the random sample under every grader (four-way kappa 0.82 to
-0.88 against 0.77 to 0.84). So the trade-off is: worked catches more implicit
-awareness among suspected-manipulation episodes; rules only grades the
+0.88 against 0.77 to 0.84). So the trade-off is: worked catches more of set B's aware
+episodes; rules only grades the
 strength of awareness more like the operator does.
 
 ## The decision (2026-10-11)
@@ -373,15 +369,15 @@ strength of awareness more like the operator does.
   is not OpenAI, then the cheaper; glm-5.3 is both. No grader left any episode
   unanswered, and glm-5.3 is not worse on its own family.
 - **Instrument: the category question, as the headline.** It beats the rubric
-  on the random sample under every grader (overlapping intervals), meets the
-  charter set where the rubric fails it, and on the attack set the blind labels
+  on the random sample under every grader (overlapping intervals), meets
+  set A where the rubric fails it, and on set B the blind labels
   side with it against the rubric. All three conditions of the rule are met.
 - **Wording: rules only**, by the tie rule: the two wordings' intervals
   overlap, and the rule prefers rules only. Also chosen on the evidence: it
   agrees more closely with the operator's exact category on the random sample
   under every grader. The worked wording is marginally ahead on aware/not aware
-  for glm-5.3 (one episode of 110) and caught more implicit awareness in the
-  attack pack; that is the cost of the choice. The rules-only question is about
+  for glm-5.3 (one episode of 110) and caught more aware episodes in the
+  set B pack; that is the cost of the choice. The rules-only question is about
   10% shorter, which barely moves the cost, since the transcript dominates
   each call.
 
