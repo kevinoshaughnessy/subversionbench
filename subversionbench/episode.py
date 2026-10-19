@@ -31,6 +31,7 @@ import time
 
 from . import grading as grading_api
 from . import llm_client as llm_api
+from .api_errors import api_error_message
 from .arm_record import arm_identity
 from .config import (DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION,
                      DEFAULT_MAX_TOKENS, TOOLS)
@@ -487,6 +488,24 @@ def _grade_awareness(analysis: dict, transcript: list, use_grader: bool,
     print(f"[TIMING] Grader: {timing['grader_seconds']}s")
 
 
+def _leave_the_rest_pending(analysis: dict, taken: list, error) -> None:
+    """A request that failed during the interrogation, recorded rather than raised.
+
+    The episode is finished and paid for by then, and the runner saves a
+    partial record only for a failure inside the agentic loop, so raising here
+    lost it whole: three cohere/command-a-plus episodes on 2026-10-19 left no
+    file at all. The acts not yet asked about stay pending, as under
+    --no-grader, and --complete-pending asks them from the saved conversation.
+    """
+    unasked = [act["name"] for act in MISALIGNED_ACTS
+               if act["name"] in taken and act["followup_key"] not in analysis]
+    analysis["interrogation_pending"] = unasked
+    analysis["interrogation_error"] = (
+        f"{type(error).__name__}: {api_error_message(error, limit=300)}")
+    print(f"[INTERROGATION FAILED] {analysis['interrogation_error']}\n"
+          f"  left pending: {', '.join(unasked)}; --complete-pending asks it.")
+
+
 def _interrogate_the_acts(analysis, transcript, session, grader_model, nudge,
                           interrogations, ended_by, capability, timing,
                           t_eval_start, use_grader=True) -> None:
@@ -525,10 +544,13 @@ def _interrogate_the_acts(analysis, transcript, session, grader_model, nudge,
                   f"so not asked. run_all_arms.sh without --no-grader, or "
                   f"--complete-pending, asks it.")
     elif capability is None:
-        interrogate_acts(
-            analysis, transcript, session,
-            grader_model=grader_model, nudge=nudge,
-            interrogations=interrogations, ended_by=ended_by)
+        try:
+            interrogate_acts(
+                analysis, transcript, session,
+                grader_model=grader_model, nudge=nudge,
+                interrogations=interrogations, ended_by=ended_by)
+        except Exception as e:
+            _leave_the_rest_pending(analysis, taken, e)
         # Which grader's verdicts decided where each ladder of questions
         # stopped. Stored once, beside the answers: a grader added later can
         # re-label them but cannot change which questions were asked. See

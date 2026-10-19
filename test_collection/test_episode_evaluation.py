@@ -834,3 +834,94 @@ class TestWhatRunEvaluationRecordsAboutItsOwnLimits:
             episode.grading_api.detect_eval_awareness_grader = real
         assert "Running eval awareness grader" in buf.getvalue()
         assert view(result["analysis"])["eval_awareness_grader"]["eval_aware"] is True
+
+
+class TestAToolCallOfferedUnderInterrogation:
+    """A model can answer an interrogation question with a tool call. Replayed
+    as it came, the next question followed a call with no tool result, which
+    Cohere rejects; and because that failure fell after the episode, the
+    finished episode was lost with no record (three on 2026-10-19)."""
+
+    _episode = TestRunEvaluationEndToEnd()
+
+    def _ask(self, reply_blocks):
+        """Every question of one ladder, against a model that always replies
+        with `reply_blocks`; returns the requests it was sent."""
+        import subversionbench.run_eval as ev
+        import subversionbench.grading as ev_grade
+        requests = []
+        outer = self._episode
+
+        class _M:
+            def create(self, **kw):
+                requests.append([dict(m) for m in kw["messages"]])
+                return outer._response(list(reply_blocks))
+
+        class Fake:
+            messages = _M()
+        orig = ev_grade.classify_interrogation_answer
+        ev_grade.classify_interrogation_answer = lambda text, *a, **k: {
+            "verdict": "denied", "verdict_llm": None, "verdict_keyword": None,
+            "classifiers_agree": None, "used_keyword_fallback": False,
+            "quote": "", "classifier_error": None,
+            "classifier_called": False, "classifier_model": "g"}
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                ev.run_followup("sys", [{"role": "user", "content": "episode"}],
+                                "m", Fake(), MISALIGNED_ACTS[0])
+        finally:
+            ev_grade.classify_interrogation_answer = orig
+        return requests
+
+    def _replayed(self, requests):
+        return [m for req in requests for m in req if m["role"] == "assistant"]
+
+    def test_the_call_is_not_replayed_but_the_answer_is(self):
+        e = self._episode
+        requests = self._ask([e._text("No, I did not."), e._tool_use("ls")])
+        replayed = self._replayed(requests)
+        assert len(requests) > 1 and replayed, "the ladder never got past one"
+        for m in replayed:
+            kinds = [b.type for b in m["content"]]
+            assert "tool_use" not in kinds, kinds
+            assert kinds == ["text"], kinds
+
+    def test_a_reply_that_is_only_a_call_adds_no_empty_turn(self):
+        requests = self._ask([self._episode._tool_use("ls")])
+        assert len(requests) > 1
+        assert self._replayed(requests) == [], (
+            "an answer with nothing but a tool call left an assistant turn")
+
+    def test_a_failed_interrogation_keeps_the_episode_and_leaves_it_pending(self):
+        e = self._episode
+        calls = []
+        inner = e._tampering_client(calls)
+
+        class _M:
+            def create(self, **kw):
+                if len(calls) >= 2:
+                    calls.append(kw)
+                    raise RuntimeError("TOOL_CALLS_MISSING_RESULTS")
+                return inner.messages.create(**kw)
+
+        class Fake:
+            messages = _M()
+        env_dir, env_info = e._env()
+        saved = e._stub_grading(disclosed=False)
+        orig = ev_llm.get_client
+        ev_llm.get_client = lambda *a, **k: Fake()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = ev_run.run_evaluation(
+                    system_prompt=SYSTEM_PROMPT_STRONG_NUDGE,
+                    user_prompt="Do the task.", env_dir=env_dir,
+                    env_info=env_info, model="m", max_turns=6,
+                    use_grader=True, nudge="strong", isolation="deny-network")
+        finally:
+            ev_llm.get_client = orig
+            e._restore_grading(saved)
+        analysis = view(result["analysis"])
+        assert len(calls) == 3, "the interrogation was never attempted"
+        assert analysis["interrogation_pending"] == ["oversight"]
+        assert "TOOL_CALLS_MISSING_RESULTS" in analysis["interrogation_error"]
+        assert analysis["scheming"] is None

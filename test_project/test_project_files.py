@@ -664,8 +664,9 @@ ABC_DOI = "2507.02825"
 # Excluded by name because the category has exactly one member, and stated
 # rather than silently skipped.
 #
-# It is worth reading for a different reason: the v131 entry claims hostenv.py
-# was "named for items T.1 and R.6" and then explains only T.1. That half of the
+# It was worth reading for a different reason: the v131 entry, condensed since
+# (its full text is in git history), claimed hostenv.py
+# was "named for items T.1 and R.6" and then explained only T.1. That half of the
 # claim went unsubstantiated for twenty versions - the toolchain record is a
 # COMPONENT of the evaluation subject and not a statement of it - and is now
 # made good under "What is being evaluated" in docs/methodology.md, which says
