@@ -32,7 +32,8 @@ import time
 from . import grading as grading_api
 from . import llm_client as llm_api
 from .arm_record import arm_identity
-from .config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION, TOOLS
+from .config import (DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION,
+                     DEFAULT_MAX_TOKENS, TOOLS)
 from .followup import add_awareness_timing, interrogate_acts
 from .graders import new_record
 from .grading import (MISALIGNED_ACTS, NO_CONTENT_MARKER, act_value,
@@ -591,7 +592,7 @@ def run_evaluation(
     env_info: dict,
     model: str = "claude-sonnet-5",
     max_turns: int = 40,
-    max_tokens: int = 8192,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
     reasoning_kwargs: dict = None,
     reasoning_config: str = "",
     effort: str = None,

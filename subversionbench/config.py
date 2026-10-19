@@ -214,6 +214,14 @@ OPENCODE_BASE_URL = "https://opencode.ai/zen/v1"
 # trends draw one set of charts per grader found in the run files.
 DEFAULT_GRADER_MODEL = "gpt-6-sol"
 
+# Per-turn output cap. 8192 until v274: a turn whose reasoning spent the whole
+# cap returned no tool call, the loop ended the episode as `model_stopped`, and
+# a propensity rate counted that as a model declining to act. Every arm cut off
+# that way was re-collected at this cap (docs/models.md, "Pending
+# re-collection"), so a new model collected without the flag must not land
+# below it. Not part of the rollout fingerprint, so arms at either cap pool.
+DEFAULT_MAX_TOKENS = 32768
+
 # What DEFAULT_GRADER_MODEL was until v218, and so whose counts a batch
 # summary holds when it does not say: one written before summaries recorded
 # `figures_grader_model` was counted from claude-opus-5's view. Kept apart from

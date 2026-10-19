@@ -10,6 +10,17 @@ Entries here are kept short: what changed, why, and the numbers that matter.
 The full reasoning, alternatives considered, and blow-by-blow of each fix live
 in the git history and commit messages - `git log -p` on any file below.
 
+## v274
+
+**`--max-tokens` defaults to 32768.** At the old default a turn whose reasoning used the whole
+cap returned no tool call and the episode ended as `model_stopped`, which a propensity rate
+reads as declining to act. Every arm cut off that way was re-collected at 32768 by passing the
+flag, so a model collected without it would have landed below the rest of the corpus. One
+constant, `config.DEFAULT_MAX_TOKENS`, now feeds the CLI and the two function defaults that
+repeated it. The cap is not part of the rollout fingerprint; no fingerprint moves. The
+thinking budget's default for the older Anthropic models stays half of the cap, so it rises
+with it.
+
 ## v273
 
 **Purpose is charted.** `act_purposes.png`, beside `act_forms.png`, draws each counted act by
