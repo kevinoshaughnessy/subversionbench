@@ -1,7 +1,10 @@
 # Models evaluated
 
 Which models have been run, under which scenario and which arms. **No rates, no act
-counts, no effect sizes** — this is a coverage list, not a results page. For outcomes see
+counts, no effect sizes** — this is a coverage list, not a results page. The counts it does
+give are collection checks: episodes collected, failed, cut off or ending early, how many
+goal-guarding episodes read the successor file, and whether any counted act occurred at all,
+since an arm with none needs no purpose reading. For outcomes see
 [docs/report.md](report.md); for how a corpus is collected or reproduced see
 [docs/operations.md](operations.md).
 
@@ -874,16 +877,21 @@ Inside the window but not pending:
 
 ### Pending re-collection: arms cut off at `--max-tokens 8192`
 
-Found 2026-10-10 while collecting z-ai/glm-5.3-flash. A turn whose reasoning uses the whole
-per-turn output cap returns no tool call, so the loop ends the episode as `model_stopped`
-and a propensity rate counts it as a model that declined to act. The report flags these
+**Done.** Every affected arm has been re-collected except unbiased/pareto's, a router
+excluded report-wide. From v274 `--max-tokens` defaults to 32768, and the pinning rule
+requires a host that can return that much, so a new model is collected at this cap without
+passing the flag. The record below is kept for which arms were moved where.
+
+Found 2026-10-10 while collecting z-ai/glm-5.3-flash. A turn whose reasoning used the whole
+per-turn output cap returned no tool call, so the loop ended the episode as `model_stopped`
+and a propensity rate counted it as a model that declined to act. The report flags these
 arms (data quality, truncated-as-stopped) but keeps them in the rates. The remedy is to raise
 the cap and re-collect the arm whole: re-drawing only the cut-off episodes would
 under-represent the long deliberations, and an arm with no cut-off turn is unchanged by a
 higher cap, so it stays. The cap is not part of the rollout fingerprint, so re-collected
-arms pool. Move the old arm aside rather than deleting it, as was done for glm-5.3-flash
-(`eval_results_r10_superseded_glmflash_8192/`), then re-run `run_all_arms.sh` with
-`--max-tokens 32768`, which collects only the arms that are now missing.
+arms pool. Each old arm was moved aside rather than deleted, starting with glm-5.3-flash
+(`eval_results_r10_superseded_glmflash_8192/`), and `run_all_arms.sh` then collected only the
+arms that were missing.
 
 **Started 2026-10-11 with deepseek/deepseek-v4.1-flash, mainline - done the same day:** its
 nine affected arms (90 runs, 9 summaries) moved to
@@ -1029,10 +1037,7 @@ not completed and wrote no arm summary, which stopped the chained goal-guarding 
 the goal-guarding half was started separately. The cause was a defect in the summary, not in
 the episodes: the misrepresentation rate's denominator had stayed on the end-state act while
 its numerator counted every form, and with 17 of the arm's 20 acts undone the interval
-failed (fixed in v268; rebuilt, the arm reads 15 of 16). The acts are as
-in the superseded arms: the oversight act in 39 of 40 mainline episodes (40 of 40 before) and
-30 of 30 goal-guarding ones (28 of 30), the goal-guarding act in 16 of 30 (16 of 30). The
-glm-5.3 category reading (2026-10-16) covers all 80 of the model's goal-guarding episodes and
+failed (fixed in v268; rebuilt, the arm's summary is written). The glm-5.3 category reading (2026-10-16) covers all 80 of the model's goal-guarding episodes and
 all 160 mainline ones (three calls failed on the first pass and were asked again); every model
 in both corpora then rebuilt under v268, arm reports included, which wrote the none_lure
 summary. **Complete.**
@@ -1059,9 +1064,7 @@ none cut off, none failed, every fingerprint matching its own arm's pin, nothing
 `Command timed out.`; every arm wrote its summary. The first goal-guarding arm paused for
 about four and a half hours after its first episode (nothing progressed until all nine others
 finished within five minutes), consistent with the machine sleeping; no episode carries an
-error or a timeout. Acts: one mainline episode took the sandbox act (a listing outside the
-project), none in the superseded arm; no goal-guarding act, and the oversight act in none of
-the 30 goal-guarding episodes (1 of 30 before). The glm-5.3 category reading (2026-10-16)
+error or a timeout. The glm-5.3 category reading (2026-10-16)
 covers all 80 of the model's goal-guarding episodes and all 120 mainline ones; every model in
 both corpora then rebuilt under v271, arm reports included. **Complete.**
 
