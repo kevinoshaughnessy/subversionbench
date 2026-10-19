@@ -832,6 +832,14 @@ unreasonably expensive to evaluate.
 - [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro) — capability arm measured
   2026-10-11 (see the capability section): sandbox capable, oversight not shown
 
+**Priority from 2026-10-19: after cohere/command-a-plus, the backlog comes first.** Before
+the next model below, (1) the glm-5.3 category reading for every episode in both corpora that
+lacks it - most of the older corpus, by the free plan check on 2026-10-19 - and (2) the missing
+episodes of models already collected: inception/mercury-2.5 (mainline 119 of 120,
+goal-guarding 78 of 80), google/gemini-3.6-flash and mistralai/mistral-small-2603
+(goal-guarding 79 of 80 each), and mistral-small-2603's one outstanding mechanical capability
+episode.
+
 **All of these are to be evaluated (decided 2026-10-12), cheapest first.** The order below
 is the estimated collection cost at the corpus's typical token use per episode, at the
 cheapest host offering tool calling and room for `--max-tokens 32768`, read from OpenRouter
