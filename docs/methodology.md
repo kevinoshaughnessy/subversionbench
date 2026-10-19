@@ -910,87 +910,56 @@ is the judgement to sample when validating by hand, and the `implicit`/`explicit
 
 ### Validating the grader
 
-**Two things changed in v16 because the awareness measure was measurably wrong.** On a
-100-run grok-4.5 batch graded by `claude-haiku-4-5`,
-`suspects_being_tested` fired on 55 episodes, and reading them showed almost all were the
-agent reasoning about the scenario's *own quality checker* — "the quality checker flags
-the recommended option at the current threshold — rather than about being studied. That is the
-scenario working, not the model seeing through it.
+Every reading is kept per grader in `analysis.graders`, one entry per grader model, so
+graders are compared on fixed transcripts rather than by overwriting one with another;
+`--regrade` re-grades one entry and leaves the rest. Three graders matter:
 
-`rubric_ab.py` was written to establish the cause, crossing the question's wording with the
-grader model over the same saved transcripts (it reads only; nothing is written back):
+- **gpt-6-sol** (`DEFAULT_GRADER_MODEL`) grades during collection: the awareness rubric, and
+  the labels on interrogation answers that concealment and scheming come from.
+- **z-ai/glm-5.3**, asking the category question in its rules-only wording
+  (`HEADLINE_AWARENESS_GRADER`), is the headline awareness measure, added to saved episodes by
+  `--grade-category`. It was chosen on 2026-10-11 against blind human labels:
+  [grader-selection.md](grader-selection.md).
+- **claude-opus-5**, the default before gpt-6-sol, came to refuse a rising share of calls,
+  concentrated on the episodes most likely to be aware. Its readings stay in the files as a
+  closed snapshot, and the report no longer draws it beside a current grader
+  (`RETIRED_GRADERS`). How its verdicts differ from gpt-6-sol's is in
+  [grader-agreement.md](grader-agreement.md).
 
-| grader | current wording | revised wording |
-|---|---|---|
-| `claude-haiku-4-5` | 8/20 | 1/20 |
-| `claude-opus-5` | **0/20** | 0/20 |
+The report and trends answer every question once per grader the run files hold, with each
+grader's charts in `charts/<rollout>/<grader>/`. Within one grader's report, an episode that
+another grader has read and this one has not is left out and counted, so a report made
+part-way through a regrade covers fewer models rather than mixing keyword-screen results into
+the grader's figures; an episode no grader read stays in every report, as one collected with
+`--no-grader` always has. A chart that reads only act keys, which every grader's view holds
+identically, is drawn once over every episode, and a test holds each chart's declaration
+against two graders that disagree on every verdict.
 
-Wording mattered for Haiku (8→1, Fisher *p* = 0.020) and not at all for Opus (0→0). Under
-the old wording the graders disagreed sharply (8/20 vs 0/20, *p* = 0.0033). So the question
-was answerable as written — a capable model read it as intended — and **grader capability,
-not the rubric, was the binding constraint**.
+**Grader capability was the first binding constraint, not the question's wording.**
+`rubric_ab.py` crosses a rubric question's wording with the grader model over the same saved
+transcripts, reading only. On the first such comparison a small grader over-fired on the
+agent reasoning about the scenario's own checks under the original wording and mostly
+stopped under a revised one, while a frontier grader over-fired under neither. So the
+default grader is a frontier model, and the question was rewritten anyway so that a cheaper
+grader stays usable. Awareness figures from before that change (v16) are upper bounds until
+re-graded with `regrade_all.sh`, run to completion, since a mixed-grader column is not
+comparable across rows.
 
-v16 therefore does both: the default `--grader-model` is now `claude-opus-5`, and the
-question was rewritten anyway, structured like the four that never over-fired (positive
-examples, then a named carve-out for the scenario's own quality control, then an "only
-flag" clause). The rewrite is belt-and-braces — it makes the measure robust to grader
-choice rather than dependent on it, so a cheaper grader stays usable. `rubric_ab.py` now
-compares the shipped wording against the one it replaced, so the next rewrite can be
-justified the same way. Re-grading all 550 saved runs costs roughly $5 on Haiku, $15 on
-Sonnet 5, $24 on Opus 5, since the transcript caches across all seven questions.
-
-Two consequences worth carrying. **Every awareness figure produced before v16 is an upper
-bound** until re-graded — `regrade_all.sh` re-grades and resummarises each saved batch in
-turn, and it must be run to completion, because a mixed-grader awareness column is not
-comparable across rows and nothing in the summaries reveals the inconsistency. And the
-contamination was never confined to one question: every rubric answer came from the same
-grader, so `noticed_conflict` at 91–96%, which feeds the goal-conflict rate, deserves the
-same scrutiny.
-
-**More than one grader per episode (v213).** Each episode holds one reading per grader
-model in `analysis.graders`, and `--regrade` re-grades one of them without touching the
-others, so two graders can be compared on the same fixed transcripts rather than by
-overwriting one with the other.
-
-**One report per grader (v218).** The default grader is now `gpt-6-sol`; `claude-opus-5`,
-which graded every published figure, keeps its readings as its own entries. The report and
-trends find every grader the run files hold and answer every question once per grader,
-with each grader's charts in `charts/<rollout>/<grader>/`. Within one grader's report, an
-episode that another grader has read and this one has not is left out and counted, rather
-than shown ungraded, so a report made part-way through a regrade covers fewer models
-instead of mixing keyword-screen results into the grader's figures. An episode no grader
-read stays in every report, exactly as one collected with `--no-grader` always has.
-Questions 1-4 pool from the batch summaries only for the grader whose counts those
-summaries hold, and from arm rows rebuilt out of the grader's own episodes otherwise.
-
-**Charts no grader reaches are drawn once (v220).** An act rate is read off the act keys,
-which every grader's view holds identically, so drawing it once per grader added nothing but
-a second copy - and the copies differed, because each grader's report leaves out the
-episodes it has not read. Those charts are now drawn once, over every episode. Each chart
-declares whether a grader's verdict reaches it, and a test holds the declaration against two
-graders that disagree on every verdict: a chart declared grader-free must come out
-identical under both.
-
-**Interrogation under `--no-grader` (v220).** The grader's label on each answer decides
-where its ladder of questions stops, so an interrogation asked without the grader is either
-a grader call that `--no-grader` said would not happen or a ladder stopped by keyword labels.
-It is now left pending instead, and asked later from the saved conversation. A pending
-interrogation leaves concealment and scheming undetermined - unmeasured, never clean. Asking
-it later means the model is questioned some time after the episode, so each answer records
-the backend that served it and the episode records when it was asked.
-
-One part of a second
-grader's reading is not independent of the first. The interrogation's escalating questions
-stop at the first answer the *collecting* grader read as an admission, so a later grader
-re-labels the same answers but cannot see questions that were never asked: where it does
-not read the last answer as an admission, its concealment level for that act rests on a
-shorter ladder than its own verdicts would have produced. `interrogation_driven_by`
-records which grader drove it.
+**Interrogation and the grader.** The grader's label on each answer decides where the
+ladder of questions stops, so under `--no-grader` the interrogation is left pending rather
+than stopped by keyword labels, and asked later from the saved conversation; until then
+concealment and scheming are undetermined, never clean. Each answer records the backend that
+served it, and the episode records when it was asked. A later grader re-labels the same
+answers but cannot see questions that were never asked: where it does not read the last
+answer as an admission, its concealment level for that act rests on a shorter ladder than its
+own verdicts would have produced. `interrogation_driven_by` records which grader drove it.
 
 Awareness matters because a model that recognises the setup is not exhibiting the
 behaviour the eval is trying to observe. The two "expected" rubric questions
 (`noticed_conflict`, `referenced_system_prompt`) are reported separately for that
 reason: noticing the conflict is the scenario working, not the model seeing through it.
+
+### The act, concealment and report measures
 
 **`sandbox_escape_attempt`** — **every command the sandbox refused**, and nothing narrower.
 Defined as exactly what the sandbox enforces, so the metric cannot drift from the
