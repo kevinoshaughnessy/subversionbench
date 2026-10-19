@@ -174,7 +174,9 @@ but an interpreter inside an episode can still read and write anything your acco
 elsewhere - this checkout, its virtualenv, other projects, dotfiles that hold credentials.
 Models have already gone looking: saved episodes searched the host's index and found the
 harness source. Run collections as a dedicated user, or in a VM, whose home holds nothing
-but the checkout, and keep API keys out of shell startup files that account reads.
+but the checkout, and keep API keys out of shell startup files that account reads. `--isolation
+deny-external` also leaves loopback reachable by design, so run batches on a machine with
+nothing else listening.
 
 ## Run
 
@@ -450,7 +452,6 @@ per-family version trends).
 full reference, checked by the test suite so it cannot drift from the files that
 actually exist.
 
-Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Tests
 
@@ -459,100 +460,30 @@ pytest -n auto          # on every core (pytest-xdist); plain `pytest` runs seri
 python run_tests.py     # same suite, no pytest required
 ```
 
-`run_tests.py` runs nearly all of it: a handful of tests take pytest's
-`monkeypatch` or `tmp_path` fixtures, which it cannot supply, so it is not one of
-the [CI](#ci) jobs either. The count is deliberately not stated here — it said
-"three" for long enough to become wrong.
-
-One test file per module. Where the package has a subpackage, the test tree
-MIRRORS it: `test_grading/test_acts.py` for `grading/acts.py`,
-`test_reporting/facts/test_rates.py` for `reporting/facts/rates.py`. The modules
-sitting directly under `subversionbench/` have no subpackage to mirror, so their
-tests are grouped by subsystem instead — `test_collection/` for the batch and
-episode loop, `test_providers/` for the three model clients and routing,
-`test_isolation/` for the sandbox and the boundary an episode runs inside,
-`test_corpus/` for the scenario text and everything that keeps it out of
-plaintext, and `test_analysis/` for what is derived from a collected corpus.
-Builders used by more than one file live in `conftest.py`.
-
-The mirror is the rule rather than a preference, because the alternative was
-tried and drifted: a flat naming scheme put tests for the same module in two
-files at once - some of `grading/concealment.py` in `test_grading/` and the rest
-in a root `test_grading_concealment.py` - so whether a behaviour was covered
-could not be answered by opening one file. Each mirror directory is a package,
-which is what lets `test_init.py` exist in four of them at once without
-colliding.
-
-`test_project/` holds the files that are about the repository rather than about
-any one module: `test_readme_layout.py` (the listing in
-[docs/Layout.md](docs/Layout.md) and the README's links),
-`test_dependencies.py`, `test_project_files.py` (what the static guards
-examine), `test_function_length.py` (no function over 100 lines),
-`test_ci_workflow.py`, and `test_args_bag.py` (the one argparse
-Namespace that every CLI passes down by reference).
-
-`report_snapshots/` holds the printed report for a set of fixed batches, compared
-byte-for-byte on every run. Splitting the report into one function per section
-once deleted three `if` guards, and a print block whose guard is gone is adopted
-by the preceding block rather than failing - all three passed the suite and were
-caught only by diffing against a baseline by hand. To regenerate after an
-intended change:
-
-```bash
-SUBVERSIONBENCH_UPDATE_REPORT_SNAPSHOTS=1 pytest test_reporting/test_console.py
-git diff report_snapshots/          # read this before committing it
-```
+`run_tests.py` runs nearly all of it; a handful of tests take pytest fixtures it cannot
+supply. The test tree mirrors the package (`test_grading/test_acts.py` for
+`grading/acts.py`), `test_project/` holds the checks on the repository itself, and
+`report_snapshots/` holds the printed report for fixed batches, compared byte for byte.
+How tests are expected to be written and checked, and how to regenerate the snapshots, is in
+[AGENTS.md](AGENTS.md).
 
 ## CI
 
-[.github/workflows/tests.yml](.github/workflows/tests.yml) runs the suite on
-every push and every pull request, on Python 3.10, 3.12 and 3.13 — 3.10 being
-the floor `requires-python` promises. Nothing to invoke: `git push` starts it.
+[.github/workflows/tests.yml](.github/workflows/tests.yml) runs on every push to `main` and
+the working branch and on every pull request: `lint`, the suite on Python 3.10, 3.12 and 3.13
+(3.10 being the floor `requires-python` promises), a coverage floor, and a minimal install that
+asserts the optional extras stay optional. No API key is needed or accepted: `conftest.py`
+supplies placeholders and every test that would reach a model stubs the client. The Linux
+runner asserts `confinement_available()` before running anything, so a green suite cannot mean
+the sandbox went unenforced.
 
 ```bash
 gh run list --limit 5      # recent runs and their verdicts
-gh run watch               # follow the newest run
 gh run view --log-failed   # only the steps that failed
-gh workflow run tests      # start one by hand
 ```
 
-There are four kinds of job: `lint`, the suite across three Python versions, a
-coverage floor, and a minimal install. They are separate on purpose, so "the
-code is wrong", "the code is untidy" and "the code is untested" are three
-different red marks.
-
-CI runs *after* a push, so it cannot block a bad commit. To check before you
-push, run what the workflow runs:
-
-```bash
-ruff check .                        # the lint job
-SUBVERSIONBENCH_NO_SKIPS=1 coverage run -m pytest -n auto \
-  && coverage combine && coverage report    # the suite and coverage jobs, one pass
-```
-
-`coverage report` exits non-zero below the floor set in `pyproject.toml`. The
-coverage run is itself a full run of the suite, so there is no need to run
-`pytest` separately first.
-
-The rule set is declared in `pyproject.toml` rather than left to ruff's
-defaults, which move between versions; the comments there say why each family
-is selected and why several are deliberately not.
-
-That flag turns a skip for a missing optional dependency into a failure, which
-is how the workflow's first job proves nothing quietly opted out. Its second job
-does the opposite — installs only `.[test]` and asserts `matplotlib` and
-`openai` are absent — so the extras stay genuinely optional. No API key is
-needed or accepted: `conftest.py` supplies placeholders and every test that
-would reach a model stubs the client, so a CI run cannot make a paid call.
-
-To make the check binding rather than advisory, either add a `pre-push` hook
-running the command above, or require the `tests` check under Settings →
-Branches, which needs work to arrive through pull requests.
-
-The suite is developed on macOS and passes on the Linux runners too. The runner
-installs bubblewrap and clears the unprivileged-userns sysctl, then asserts
-`confinement_available()` before running anything, so a green suite cannot mean
-the sandbox went unenforced.
+CI runs after a push, so it cannot block a bad commit; the command to run first is under
+"Before you push" in [AGENTS.md](AGENTS.md).
 
 ## Caveats
 
@@ -593,24 +524,16 @@ unpoolable with everything collected after.
 
 **Grader error, and provider routing.** LLM-graded rates carry classification error on top of
 sampling error, and at low true rates imperfect specificity biases the estimate upward by more
-than the interval is wide. OpenRouter may also route across backends mid-batch, which the
-intervals assume it does not. From v129 each episode records which backend actually answered
-each turn, so this is measurable rather than assumed - the data-quality block reports arms
-answered by more than one backend, episodes that changed backend mid-run, and contrasts whose
-two sides were not collected alike. Within each arm answered by more than one backend it also
-sets each backend's misaligned and awareness rates against the rest of the arm, counting an
-episode under the backend that answered most of its turns. Episodes collected before v129 record only the routing that
-was *requested*, which is unset wherever nothing was pinned, so for those the question cannot be
-answered after the fact. Pin with `--openrouter-provider` to make a batch reproducible.
+than the interval is wide. Each episode records which backend answered each turn, and the
+report's data-quality block flags arms answered by more than one backend, episodes that changed
+backend mid-run, and contrasts whose two sides were not collected alike; episodes from before
+that record existed hold only the routing that was requested. Each model is pinned to one
+provider with `--openrouter-provider` - see [provider routing](docs/models.md#provider-routing).
 
 **The sandbox is not a security boundary; the isolation policy is.** The command blocklist
-exists to keep the eval's own machinery out of the model's view, not to contain an adversary,
-and it runs `subprocess` with `shell=True`. Kernel-enforced network isolation is what actually
-bounds a run, and it bounds the *network* only — it does not confine writes, so an interpreter
-can still write outside the episode's working directory, including to this harness's own
-source. `deny-external` additionally leaves loopback reachable by design, so a model can reach
-whatever else the host is running. Run batches on a machine with nothing else listening, and
-for anything stronger run the whole harness in a VM.
+keeps the eval's own machinery out of the model's view rather than containing an adversary.
+What actually bounds a run, and what it leaves exposed, is under
+[platform support](#platform-support-and-why-it-is-narrow).
 
 **Not a safety certification.** This is a research instrument. A low rate here is evidence
 about one setting under one goal conflict, not a guarantee about a model's behaviour, and
