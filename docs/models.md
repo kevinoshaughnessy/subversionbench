@@ -692,8 +692,9 @@ unreasonably expensive to evaluate.
 - [upstage/solar-mini4](https://openrouter.ai/upstage/solar-mini4)
 - [upstage/solar-pro4](https://openrouter.ai/upstage/solar-pro4)
 - [xiaomi/mimo-v2.6-flash](https://openrouter.ai/xiaomi/mimo-v2.6-flash)
-- [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro) — capability arm measured, pinned to Xiaomi
-  2026-10-11 (see the capability section): sandbox capable, oversight not shown
+- [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro) — capability arm measured
+  2026-10-11 and again, pinned to Xiaomi, 2026-10-19 (see the capability section): sandbox and
+  goal-guarding capable, oversight shown only at the authorised tier
 
 **Priority from 2026-10-19: after cohere/command-a-plus, the backlog comes first.** Before
 the next model below, (1) the glm-5.3 category reading for every episode in both corpora that
@@ -704,6 +705,9 @@ goal-guarding 78 of 80), google/gemini-3.6-flash and mistralai/mistral-small-260
 episode. On 2026-10-19 mistral-small-2603's top-ups (the goal-guarding episode and its four
 short capability episodes) all hit Mistral's upstream rate limit (429) again; Inception was
 below the 99% uptime rule, and gemini-3.6-flash's gap is left by the decision in its row.
+With (2) blocked, mimo-v2.6-pro was started the same day. The backfill (1) began on
+2026-10-19 and runs model by model, mainline corpus first; a test on
+claude-haiku-4-5-20251001's mainline put its cost at under a tenth of a cent per episode.
 
 **All of these are to be evaluated (decided 2026-10-12), cheapest first.** The order below
 is the estimated collection cost at the corpus's typical token use per episode, at the
@@ -730,7 +734,7 @@ row so far.
 | 6 | prism-ml/ternary-bonsai-2-27b | Darkbloom | 2/3 · 4/6 · 2/3 | 120 | 80 | 0 · 0 | 79 | 2026-10-18/19 | v274 | complete [6] |
 | 7 | qwen/qwen3.8-omni-flash | - | - | - | - | - | - | - | - | waiting [7] |
 | 8 | cohere/command-a-plus | Cohere | 3/3 · 6/6 · 3/3 | 120 | 80 | 33 · 20 | 38 | 2026-10-19 | v275 | complete, 2 cut off [8] |
-| 9 | xiaomi/mimo-v2.6-pro | Xiaomi | 0/3 · 6/6 · 2/3 | - | - | - | - | - | - | capability arm done; to collect |
+| 9 | xiaomi/mimo-v2.6-pro | Xiaomi | 0/3 · 6/6 · 2/3 | - | - | - | - | 2026-10-19 | - | collecting [9] |
 | 10 | aion-labs/aion-3.5-mini | - | - | - | - | - | - | - | - | to run |
 | 11 | bytedance-seed/seed-2-1-turbo | - | - | - | - | - | - | - | - | to run |
 | 12 | bytedance-seed/seed-2.0-code | - | - | - | - | - | - | - | - | to run |
@@ -788,6 +792,11 @@ row so far.
    remaining cut-off are (decided 2026-10-19). Turn caps are high (33 mainline, 20 goal-guarding).
    Six commands timed out, none of the check-script stdin class. glm-5.3 category reading
    (2026-10-19): all 200; summaries and both arm reports rebuilt at v275.
+9. mimo-v2.6-pro: the developer's endpoint, of four hosts listed, all at the same price.
+   The capability arm of 2026-10-11 was not pinned, so it was run again on Xiaomi on 2026-10-19
+   for step 4 of the pinning rule: every turn on Xiaomi, none cut off. Oversight was refused in
+   all 3 instructed episodes, as before; its tier stays authorised (see the capability
+   section). Collection started the same day, beside the glm-5.3 backfill.
 
 Inside the window but not pending:
 
