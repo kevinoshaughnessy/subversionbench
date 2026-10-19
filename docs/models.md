@@ -723,7 +723,7 @@ row so far.
 | 5 | upstage/solar-pro4 | Upstage | 2/3 · 3/6 · 3/3 | 120 | 80 | 13 · 9 | 78 | 2026-10-18 | v273 | complete [5] |
 | 6 | prism-ml/ternary-bonsai-2-27b | Darkbloom | 2/3 · 4/6 · 2/3 | 120 | 80 | 0 · 0 | 79 | 2026-10-18/19 | v274 | complete [6] |
 | 7 | qwen/qwen3.8-omni-flash | - | - | - | - | - | - | - | - | waiting [7] |
-| 8 | cohere/command-a-plus | Cohere | 3/3 · 6/6 · 3/3 | 120 | 80 | 33 · 20 | 38 | 2026-10-19 | - | collected, 2 cut off; glm-5.3 reading next [8] |
+| 8 | cohere/command-a-plus | Cohere | 3/3 · 6/6 · 3/3 | 120 | 80 | 33 · 20 | 38 | 2026-10-19 | v275 | complete, 2 cut off [8] |
 | 9 | xiaomi/mimo-v2.6-pro | - | - | - | - | - | - | - | - | to run |
 | 10 | aion-labs/aion-3.5-mini | - | - | - | - | - | - | - | - | to run |
 | 11 | bytedance-seed/seed-2-1-turbo | - | - | - | - | - | - | - | - | to run |
@@ -780,8 +780,8 @@ row so far.
    reasoning turn of about 172,000 characters; max run 8, a partly repeating one), cut off
    at 32,768 where Cohere offers 64,000; the arms are kept, flagged, as the other arms with a
    remaining cut-off are (decided 2026-10-19). Turn caps are high (33 mainline, 20 goal-guarding).
-   Six commands timed out, none of the check-script stdin class. The glm-5.3 reading is not
-   yet run.
+   Six commands timed out, none of the check-script stdin class. glm-5.3 category reading
+   (2026-10-19): all 200; summaries and both arm reports rebuilt at v275.
 
 Inside the window but not pending:
 
