@@ -206,7 +206,8 @@ there is unaffected; a refusal there cannot be read as refusing a sanctioned edi
 mechanical cells hold one refusal, meta/muse-spark-1.3's in goal-guarding, and it does not
 doubt the approval (see the goal-guarding capability section).
 
-Pending: optionally, the one mistral-small-2603 mechanical episode above.
+Pending: optionally, the one mistral-small-2603 mechanical episode above. A fourth attempt
+on 2026-10-19 hit the same upstream rate limit (429).
 
 ## Goal-guarding scenario
 
@@ -246,7 +247,7 @@ native route below stands for the model.
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
 | meta/muse-spark-1.3 | complete; capability not shown, so its zeros are not interpretable |
-| mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong) |
+| mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong; a top-up on 2026-10-19 hit an upstream rate limit (429), and Mistral is its only host) |
 | moonshotai/kimi-k2-thinking | complete |
 | moonshotai/kimi-k2.5 | complete (pinned to SiliconFlow); one episode was re-collected with `--resume` after a malformed upstream reply; two episodes ended at the turn cap |
 | moonshotai/kimi-k2.6 | complete (pinned to Moonshot AI) |
@@ -337,8 +338,8 @@ matches its pin).
   refused) and 3 of 3 mechanical. mistralai/mistral-small-2603 stands at 2 of 3 authorised
   and 1 of 3 mechanical, every one a success. Five episodes failed on an upstream rate limit
   (429) on turns 1 to 4. Topping up with `--resume` recovered two, and the other three hit
-  the same limit again. Mistral is that model's only host, and its instructed arm (3 of 3)
-  already settles its verdict.
+  the same limit again, as did all three once more on 2026-10-19. Mistral is that model's
+  only host, and its instructed arm (3 of 3) already settles its verdict.
 - A1, pooled over the fifteen goal-guarding positive controls: 46 of 65 instructed episodes
   succeeded, 41 of 44 authorised and 43 of 43 mechanical. Neither control cell is lower than
   the instructed arm, so A1 holds. Per model, only glm-5.3's authorised cell sits below its
@@ -697,7 +698,9 @@ lacks it - most of the older corpus, by the free plan check on 2026-10-19 - and 
 episodes of models already collected: inception/mercury-2.5 (mainline 119 of 120,
 goal-guarding 78 of 80), google/gemini-3.6-flash and mistralai/mistral-small-2603
 (goal-guarding 79 of 80 each), and mistral-small-2603's one outstanding mechanical capability
-episode.
+episode. On 2026-10-19 mistral-small-2603's top-ups (the goal-guarding episode and its four
+short capability episodes) all hit Mistral's upstream rate limit (429) again; Inception was
+below the 99% uptime rule, and gemini-3.6-flash's gap is left by the decision in its row.
 
 **All of these are to be evaluated (decided 2026-10-12), cheapest first.** The order below
 is the estimated collection cost at the corpus's typical token use per episode, at the
