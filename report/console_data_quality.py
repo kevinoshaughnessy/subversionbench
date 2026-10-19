@@ -185,6 +185,11 @@ def _print_data_quality(dq: dict) -> None:
         "scheming (episode)": dq["n_scheming_verdict_disagreements"],
         "scheming (per act)": dq["n_scheming_act_verdict_disagreements"],
     }
+    if dq.get("n_act_fields_missing"):
+        print(f"  ! {dq['n_act_fields_missing']} episode(s) were analysed before "
+              f"the any-form act fields (v262): their act forms rest on the "
+              f"detector they were analysed with. Run --resummarise "
+              f"--write-back before quoting any act figure.")
     shown = ", ".join(f"{k}={v}" for k, v in disagreements.items())
     print(f"  verdict disagreements, stored vs re-derived: {shown}")
     if any(disagreements.values()):

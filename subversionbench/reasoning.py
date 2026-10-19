@@ -19,6 +19,7 @@ claim the harness cannot support from its own behaviour.
 
 from collections import namedtuple
 
+from .config import DEFAULT_MAX_TOKENS
 from .routing import is_openai_model, is_openrouter_model
 
 # =========================================================================
@@ -320,7 +321,7 @@ def _unsurfaced_kwargs(model: str, requested_budget, effort):
 
 
 def resolve_thinking_kwargs(model: str, requested_budget=None,
-                            max_tokens: int = 8192, effort=None):
+                            max_tokens: int = DEFAULT_MAX_TOKENS, effort=None):
     """
     Build the reasoning parameters for one model, whichever generation it is.
 

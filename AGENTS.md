@@ -261,9 +261,31 @@ way, and assert on the difference rather than the ratio, so per-run overhead can
 
 ```bash
 ruff check .                                 # the lint job; config in pyproject
-SUBVERSIONBENCH_NO_SKIPS=1 pytest            # the suite job
-coverage run -m pytest && coverage report    # the coverage job, floor in pyproject
+SUBVERSIONBENCH_NO_SKIPS=1 coverage run -m pytest -n auto \
+  && coverage combine && coverage report     # the suite AND coverage jobs, in one pass
 ```
+
+**Run the full suite once, not twice.** `coverage run -m pytest` IS a full run
+of the suite, so running `pytest` first and then the coverage command pays for
+the suite twice to learn nothing the second run does not also say. The command
+above is both CI jobs at once: a failing test fails it, and so does a total
+under the floor. Plain `SUBVERSIONBENCH_NO_SKIPS=1 pytest -n auto` is for when
+the coverage figure is not wanted.
+
+**`-n auto` runs it on every core** (pytest-xdist, in the `test` extra). It is
+deliberately not in `addopts`: a single file run during an evaluation must stay
+one process. Two consequences for anyone writing a test:
+
+- **A test must not write into the project tree.** Under xdist, every other
+  test is running at the same moment, and the static guards walk the tree. A
+  probe module written into `trends/` and deleted again was seen by the layout
+  guard on another worker as an unlisted module, and read by a third after it
+  was gone. Build a scratch root in a temporary directory and patch
+  `conftest.PROJECT_ROOT` to it, as `test_untracked_files_are_still_examined`
+  does.
+- **`coverage combine` comes before `coverage report`.** Each worker writes its
+  own data file (`parallel = true`); reporting without combining reads none of
+  them.
 
 `SUBVERSIONBENCH_NO_SKIPS=1` turns a skip for a missing optional dependency into a
 failure, which is how the fully-installed CI job proves nothing quietly opted out.
@@ -282,7 +304,8 @@ git diff report_snapshots/
 Check first — `ps ax | grep run_eval` — because a batch takes hours and the
 consequences are silent.
 
-- **Do not run the test suite.** The harness enforces a 10 second per-command
+- **Do not run the test suite**, and above all not with `-n auto`, which puts a
+  worker on every core. The harness enforces a 10 second per-command
   timeout with a 2 second SIGTERM grace. A full run spawns hundreds of sandboxed
   subprocesses, and the CPU contention can push a legitimate model command past
   that timeout, recording `Command timed out.` into a live transcript. That is

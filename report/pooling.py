@@ -19,6 +19,11 @@ from subversionbench.power import (benjamini_hochberg, breslow_day,
                                    compare_rates, holm_bonferroni,
                                    mantel_haenszel)
 
+# What a stratified estimate holds constant, and the phrase each reads as.
+BY_MODEL = "model"
+BY_CELL = "model x arm cell"
+_HELD_CONSTANT = {BY_MODEL: "model", BY_CELL: "model and arm"}
+
 
 def _pool(rows: list, num_key: str, den_key: str) -> tuple:
     n = sum(r[den_key] for r in rows)
@@ -70,21 +75,50 @@ def _by_model(rows: list, group_key: str, level_a, level_b,
     return out
 
 
+def _by_cell(rows: list, group_key: str, level_a, level_b,
+             num_key: str, den_key: str, cell_of) -> list:
+    """
+    One contrast per model x arm cell, `cell_of(row)` naming the cell -
+    loading.arm_key, so nudge, oversight, lure and goal-guarding arm as well
+    as model, with the model first. Passed in rather than imported: pooling
+    knows nothing of where its rows came from (TestTheLayersDoNotPointBackwards).
+
+    THE STRATA FOR AN AWARENESS-TO-ACT ASSOCIATION (analysis plan D5, settled
+    2026-10-14). The arm moves both awareness and whether the act can be
+    taken at all - the no-oversight arm has no oversight artefact to edit - so
+    within a model the arm is a confounder, and holding model alone constant
+    leaves it in. A finer partition of the same rows: the cells' counts sum
+    to the models'. Not for a contrast BETWEEN arms, where the arm is the
+    exposure and every cell would hold one side of it.
+    """
+    cells = {}
+    for r in rows:
+        cells.setdefault(cell_of(r), []).append(r)
+    out = []
+    for key in sorted(cells, key=repr):
+        c = _contrast(cells[key], group_key, level_a, level_b,
+                      num_key, den_key)
+        c["model"], c["cell"] = key[0], key
+        out.append(c)
+    return out
+
+
 def _strata_from(by_model: list) -> list:
     """
-    (x1, n1, x2, n2) per model, in by_model order, for the stratified tests.
+    (x1, n1, x2, n2) per stratum, in order, for the stratified tests.
 
-    Built from the same per-model contrasts the table prints, so the
-    stratified estimate and the per-model rows can never be computed over
-    different data.
+    Built from the same contrasts the per-model table or the per-cell
+    partition holds, so the stratified estimate can never be computed over
+    data those contrasts were not.
     """
     return [(r["a"]["successes"], r["a"]["n"],
              r["b"]["successes"], r["b"]["n"]) for r in by_model]
 
 
-def _stratified(by_model: list) -> dict:
+def _stratified(strata_rows: list, unit: str = BY_MODEL) -> dict:
     """
-    The model-stratified counterpart of the crude pooled contrast.
+    The stratified counterpart of the crude pooled contrast, holding `unit`
+    constant: BY_MODEL from _by_model, BY_CELL from _by_cell.
 
     A crude difference over a corpus whose models differ more than the effect
     does is a statement about the sample's composition as much as about the
@@ -93,20 +127,30 @@ def _stratified(by_model: list) -> dict:
     a stratified summary of heterogeneous strata is as misleading as the crude
     figure it replaces - just less obviously.
     """
-    strata = _strata_from(by_model)
+    strata = _strata_from(strata_rows)
     mh = mantel_haenszel(strata)
     bd = breslow_day(strata, mh.get("odds_ratio"))
     return {
+        "unit": unit,
+        "holds_constant": _HELD_CONSTANT[unit],
         "mantel_haenszel": mh,
         "breslow_day": bd,
-        "interpretation": _stratified_interpretation(mh, bd),
+        "interpretation": _stratified_interpretation(mh, bd, unit),
+        # Numerator events in strata the estimate had to drop for having an
+        # empty side - the events that cannot inform any within-stratum
+        # comparison. Counted here, from the strata themselves, so that
+        # _crude_vs_stratified cannot be handed a different partition.
+        "n_outcome_events_total": sum(
+            r["a"]["successes"] + r["b"]["successes"] for r in strata_rows),
+        "n_outcome_events_outside_strata": sum(
+            r["a"]["successes"] + r["b"]["successes"]
+            for r in strata_rows if r["difference"] is None),
     }
 
 
-def _crude_vs_stratified(overall: dict, stratified: dict,
-                         by_model: list) -> dict:
+def _crude_vs_stratified(overall: dict, stratified: dict) -> dict:
     """
-    Whether the crude pooled contrast survives holding model constant.
+    Whether the crude pooled contrast survives stratification.
 
     THE CASE THIS EXISTS FOR
     ------------------------
@@ -124,13 +168,9 @@ def _crude_vs_stratified(overall: dict, stratified: dict,
     crude = overall.get("difference")
     mh = stratified["mantel_haenszel"]
     strat = mh.get("risk_difference")
-    # Numerator events sitting in models the stratified estimate had to drop
-    # for having an empty arm - the events that cannot inform any within-model
-    # comparison.
-    events_outside = sum(r["a"]["successes"] + r["b"]["successes"]
-                         for r in by_model if r["difference"] is None)
-    events_total = sum(r["a"]["successes"] + r["b"]["successes"]
-                       for r in by_model)
+    unit = stratified["unit"]
+    events_outside = stratified["n_outcome_events_outside_strata"]
+    events_total = stratified["n_outcome_events_total"]
 
     result = {
         "crude_difference": crude,
@@ -150,28 +190,30 @@ def _crude_vs_stratified(overall: dict, stratified: dict,
         result["diverges"] = True
         detail = ""
         if events_total and events_outside == events_total:
-            detail = (f" All {events_total} outcome event(s) lie in model(s) "
-                      f"with an empty arm, which the stratified estimate must "
-                      f"drop, so there is NO within-model evidence for this "
-                      f"contrast at all - it is entirely between-model.")
+            detail = (f" All {events_total} outcome event(s) lie in "
+                      f"{unit}(s) with an empty side, which the stratified "
+                      f"estimate must drop, so there is NO within-{unit} "
+                      f"evidence for this contrast at all - it is entirely "
+                      f"between-{unit}.")
         elif events_outside:
             detail = (f" {events_outside} of {events_total} outcome event(s) "
-                      f"lie in model(s) the stratified estimate had to drop.")
+                      f"lie in {unit}(s) the stratified estimate had to "
+                      f"drop.")
         result["warning"] = (
             "CONFOUNDED: the crude difference is separated but the "
-            "model-stratified one is not." + detail
+            f"{unit}-stratified one is not." + detail
             + " Report the stratified result, or report the crude one only as "
               "a statement about this corpus's composition.")
     elif (crude > 0) != (strat > 0) and crude != 0 and strat != 0:
         result["diverges"] = True
         result["warning"] = (
-            "SIGN REVERSAL: the crude difference and the model-stratified one "
+            f"SIGN REVERSAL: the crude difference and the {unit}-stratified one "
             "point in opposite directions - Simpson's paradox. The stratified "
             "estimate is the one that answers the research question.")
     return result
 
 
-def _stratified_interpretation(mh: dict, bd: dict) -> str:
+def _stratified_interpretation(mh: dict, bd: dict, unit: str) -> str:
     if mh.get("risk_difference") is None:
         return "No stratum had both arms populated; no stratified estimate."
     rd = mh["risk_difference"]
@@ -184,9 +226,9 @@ def _stratified_interpretation(mh: dict, bd: dict) -> str:
             else "; CMH test undefined - no stratum's outcome varies")
     effect = (f"an increase of {rd:.1%}" if rd > 0
               else (f"a decrease of {abs(rd):.1%}" if rd < 0 else "no change"))
-    text = (f"Holding model constant, the effect is {effect} "
+    text = (f"Holding {_HELD_CONSTANT[unit]} constant, the effect is {effect} "
             f"(95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}], which {sep}"
-            f"{test}) over {mh['n_strata_used']} model(s).")
+            f"{test}) over {mh['n_strata_used']} {unit}(s).")
     if bd.get("p") is None:
         # bd's own note already says homogeneity is not testable, so this
         # states only the consequence rather than repeating it.
@@ -195,7 +237,7 @@ def _stratified_interpretation(mh: dict, bd: dict) -> str:
     elif bd.get("heterogeneous"):
         text += (f" Breslow-Day rejects homogeneity (p={bd['p']:.4g}, "
                  f"I^2={bd['i_squared']:.0%}) across {bd['n_strata_used']} "
-                 f"informative model(s): the models do NOT share one effect, "
+                 f"informative {unit}(s): they do NOT share one effect, "
                  f"so read this as an average over genuinely different "
                  f"effects, not as the effect.")
     else:
@@ -206,7 +248,7 @@ def _stratified_interpretation(mh: dict, bd: dict) -> str:
         # "small effect" from a statistic that may only mean "underpowered".
         text += (f" Breslow-Day does not reject homogeneity (p={bd['p']:.4g}, "
                  f"I^2={bd['i_squared']:.0%}) across {bd['n_strata_used']} "
-                 f"informative model(s), so pooling into one effect is "
+                 f"informative {unit}(s), so pooling into one effect is "
                  f"defensible.")
     return text
 

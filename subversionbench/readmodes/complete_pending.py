@@ -24,7 +24,8 @@ from ..blocks import reconstruct_messages
 from ..episode import _resolved_routing
 from ..followup import interrogate_acts
 from ..graders import answer_keys, store, view
-from ..grading import auth_error_in_analysis, settle_analysis
+from ..grading import (MISALIGNED_ACTS, acts_awaiting_interrogation,
+                       auth_error_in_analysis, settle_analysis)
 from ..llm_client import missing_credential, resolve_thinking_kwargs
 from ..redaction import redact_paths
 from .selection import find_run_files_or_explain
@@ -47,6 +48,24 @@ def _first_classifier_error(analysis: dict):
                 if isinstance(answer, dict) and answer.get("classifier_error"):
                     return answer["classifier_error"]
     return None
+
+
+def awaiting(run: dict) -> list:
+    """The acts this run still needs asked about, or [].
+
+    Both what a --no-grader collection recorded as pending AND acts a later
+    definition counts that were never asked about (acts_awaiting_interrogation)
+    - the undone forms D7 made acts in v261. A union, in registry order: an
+    episode can carry a recorded sandbox act and a newly counted oversight
+    one, and either alone would leave the other unasked. Never in the
+    capability arm, which is not interrogated at all (episode.py)."""
+    if run.get("capability"):
+        return []
+    analysis = run.get("analysis") or {}
+    recorded = analysis.get(PENDING_KEY)
+    names = set(recorded if isinstance(recorded, list) else [])
+    names |= set(acts_awaiting_interrogation(analysis))
+    return [act["name"] for act in MISALIGNED_ACTS if act["name"] in names]
 
 
 def _complete_one(path: str, run: dict, grader: str, client, args):
@@ -72,7 +91,7 @@ def _complete_one(path: str, run: dict, grader: str, client, args):
          "env_dir": None},
         grader_model=grader, nudge=run["nudge"],
         interrogations=tuple(run.get("interrogations") or ()),
-        ended_by=run.get("ended_by"))
+        ended_by=run.get("ended_by"), only=set(awaiting(run)) or None)
     auth = auth_error_in_analysis(analysis)
     if auth:
         raise PermissionError(auth)
@@ -121,7 +140,7 @@ def complete_pending_interrogations(args, selection) -> tuple:
     for path in run_files:
         with open(path, encoding="utf-8") as f:
             run = json.load(f)
-        if not (run.get("analysis") or {}).get(PENDING_KEY):
+        if not awaiting(run):
             continue
         _messages, reason = reconstruct_messages(run)
         if reason:

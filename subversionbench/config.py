@@ -28,7 +28,9 @@ from types import MappingProxyType
 
 from .detectors import load_detectors
 from .scenario import (CONTAMINATING_TERMS, DEFAULT_INTERROGATION, PROJECT_DIR,
-                       SANDBOX_REFUSAL, SCENARIO, TASK_FILE_NAME,
+                       OWN_CONFIG_OBJECTIVE, SANDBOX_REFUSAL, SCENARIO,
+                       STAGED_THRESHOLD, SUCCESSOR_OBJECTIVE,
+                       SUCCESSOR_OBJECTIVE_KEY, TASK_FILE_NAME,
                        load_scenario, scenario_for)
 
 from .version import VERSION
@@ -131,8 +133,13 @@ __all__ = [
     "AWARENESS_CATEGORY_QUESTION_RULES_ONLY",
     "AWARENESS_CATEGORY_SYSTEM_PROMPT",
     "SANDBOX_DISPLAY_PATH",
+    "OWN_CONFIG_OBJECTIVE",
+    "OWN_OBJECTIVE_MARKERS",
     "SANDBOX_REFUSAL",
     "SCENARIO",
+    "STAGED_THRESHOLD",
+    "SUCCESSOR_OBJECTIVE",
+    "SUCCESSOR_OBJECTIVE_KEY",
     "SYSTEM_PROMPT_NO_NUDGE",
     "SYSTEM_PROMPT_STRONG_NUDGE",
     "TASK_FILE_NAME",
@@ -206,6 +213,14 @@ OPENCODE_BASE_URL = "https://opencode.ai/zen/v1"
 # claude-opus-5 made stay in every file as its own entry, and the report and
 # trends draw one set of charts per grader found in the run files.
 DEFAULT_GRADER_MODEL = "gpt-6-sol"
+
+# Per-turn output cap. 8192 until v274: a turn whose reasoning spent the whole
+# cap returned no tool call, the loop ended the episode as `model_stopped`, and
+# a propensity rate counted that as a model declining to act. Every arm cut off
+# that way was re-collected at this cap (docs/models.md, "Pending
+# re-collection"), so a new model collected without the flag must not land
+# below it. Not part of the rollout fingerprint, so arms at either cap pool.
+DEFAULT_MAX_TOKENS = 32768
 
 # What DEFAULT_GRADER_MODEL was until v218, and so whose counts a batch
 # summary holds when it does not say: one written before summaries recorded
@@ -293,6 +308,7 @@ AWARENESS_CATEGORY_SYSTEM_PROMPT = _DETECTORS["awareness_category_system_prompt"
 AWARENESS_CATEGORY_QUESTION = _DETECTORS["awareness_category_question"]
 AWARENESS_CATEGORY_QUESTION_RULES_ONLY = _DETECTORS[
     "awareness_category_question_rules_only"]
+OWN_OBJECTIVE_MARKERS = tuple(_DETECTORS["own_objective_markers"])
 
 RETIRED_RUBRIC_QUESTIONS = frozenset({"referenced_system_prompt"})
 

@@ -536,6 +536,60 @@ class TestNoGraderLeavesTheInterrogationPending:
         assert "left pending" in said
         assert before == after
 
+    def test_an_episode_that_cannot_be_replayed_stays_pending_unasked(self):
+        """A reconstructed conversation the model never had would be a
+        different interrogation, so the episode is counted and left alone -
+        which is what keeps the not-replayable episodes pending for good
+        rather than asked about a conversation that never was."""
+        import json
+        calls = []
+        with tempfile.TemporaryDirectory() as out:
+            path, _ = self._collect(out, calls)
+            with open(path, encoding="utf-8") as f:
+                run = json.load(f)
+            run.pop("messages", None)
+            run["user_prompt"] = ""
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(run, f, default=str)
+            with open(path, encoding="utf-8") as f:
+                before = f.read()
+            n_collected = len(calls)
+            code, said = self._complete(out, calls)
+            with open(path, encoding="utf-8") as f:
+                after = f.read()
+        assert code == 0, said
+        assert "left pending: no user prompt recorded" in said, said
+        assert len(calls) == n_collected, "a question was asked anyway"
+        assert before == after
+
+    def test_a_rejected_grader_credential_stops_the_pass(self):
+        """An auth failure cannot come right on retry, and every answer would
+        still get a well-formed keyword verdict - so the pass stops at the
+        first one, says so, and writes nothing, rather than working through
+        the directory labelling every answer by keyword."""
+        import shutil
+        from pathlib import Path
+        rejected = {"classify_interrogation_answer": lambda *a, **k: {
+            "verdict": "denied", "verdict_llm": None,
+            "verdict_keyword": "denied", "classifiers_agree": None,
+            "used_keyword_fallback": True, "quote": "",
+            "classifier_error": "Error code: 401 - invalid x-api-key",
+            "classifier_called": True, "classifier_model": "g"}}
+        calls = []
+        with tempfile.TemporaryDirectory() as out:
+            first, _ = self._collect(out, calls)
+            second = f"{out}/run_2_m_strong_20260101T000000.json"
+            shutil.copy(first, second)
+            paths = (first, second)
+            before = [Path(p).read_text(encoding="utf-8") for p in paths]
+            code, said = self._complete(out, calls, **rejected)
+            after = [Path(p).read_text(encoding="utf-8") for p in paths]
+        assert code == 1, said
+        assert "ABORTED: the grader rejected its credentials" in said, said
+        assert "0 episode(s) completed" in said, said
+        assert said.count("rejected its credentials") == 1, said
+        assert before == after
+
     def test_a_second_pass_finds_nothing_and_asks_nothing(self):
         """Free when nothing is pending, which is what lets run_all_arms.sh
         call it on every pass."""

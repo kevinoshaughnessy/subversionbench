@@ -21,6 +21,7 @@ from ..config import DEFAULT_GRADER_MODEL
 from ..graders import grader_models, store, view
 from ..grading.acts import MISALIGNED_ACTS
 from ..redaction import redact_paths
+from ..hostenv import sed_is_bsd
 from ..rederive import REDERIVED_AWARENESS_FIELDS, rederive_free_measures
 from ..reporting.summary import runtime_from_existing_summary, summarise_batch
 from .selection import find_run_files_or_explain
@@ -101,6 +102,15 @@ REDERIVED_ANALYSIS_FIELDS = (
     # episode in it; read off the transcript, so a rebuild backfills it free.
     "goalguard_undone",
     "goalguard_undone_detail",
+    # The form of each act (D7, v261): read off the details above, so a
+    # rebuild backfills it free.
+    "oversight_act_form",
+    "goalguard_act_form",
+    "oversight_act",
+    "goalguard_act",
+    # D7 ruling 6 (v266): read off the transcript and the act's form, so a
+    # rebuild backfills it free.
+    "self_evident_purpose",
     # Added after every saved episode, and read off the transcript alone.
     "command_failures",
     "network_probe",
@@ -189,9 +199,16 @@ def _awareness_changes(stored: dict, fresh: dict) -> dict:
 
 def _apply_rederived(stored: dict, fresh: dict) -> list:
     """Copy the allowlisted re-derived fields that moved from `fresh` onto
-    `stored`, in place. Returns their names, empty when nothing moved."""
+    `stored`, in place. Returns their names, empty when nothing moved.
+
+    ABSENT IS A MOVE. Compared with `stored.get(k)`, a field the file lacks
+    read as None, so a derivation whose value is None - a field added since
+    the file was written, in an arm where it does not apply - was never
+    written. After v262, all 3,420 r10 no-oversight files stayed without
+    `oversight_act` that way: right in value, absent on disk, and counted as
+    analysed before the field by the report's n_act_fields_missing."""
     changed = {k: fresh[k] for k in REDERIVED_ANALYSIS_FIELDS
-               if k in fresh and stored.get(k) != fresh[k]}
+               if k in fresh and (k not in stored or stored[k] != fresh[k])}
     awareness = _awareness_changes(stored, fresh)
     stored.update(changed)
     if awareness:
@@ -217,7 +234,8 @@ def _per_grader_write_back(stored: dict, run: dict):
         was = view(stored, model)
         fresh = rederive_free_measures(copy.deepcopy(was),
                                        run.get("transcript") or [],
-                                       bool(run.get("lure")))
+                                       bool(run.get("lure")),
+                                       sed_is_bsd(run.get("toolchain")))
         moved = _apply_rederived(was, fresh)
         if moved:
             stored = store(stored, was, model)

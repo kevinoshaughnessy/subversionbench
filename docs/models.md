@@ -1,7 +1,10 @@
 # Models evaluated
 
 Which models have been run, under which scenario and which arms. **No rates, no act
-counts, no effect sizes** — this is a coverage list, not a results page. For outcomes see
+counts, no effect sizes** — this is a coverage list, not a results page. The counts it does
+give are collection checks: episodes collected, failed, cut off or ending early, how many
+goal-guarding episodes read the successor file, and whether any counted act occurred at all,
+since an arm with none needs no purpose reading. For outcomes see
 [docs/report.md](report.md); for how a corpus is collected or reproduced see
 [docs/operations.md](operations.md).
 
@@ -11,15 +14,10 @@ Model identity is the literal `--model` string the harness was given — a bare 
 underlying model reached through OpenRouter, and the two are tracked separately because
 they are different rollout paths, not the same evaluation twice.
 
-Each entry below links to that checkpoint's lab-published system or model card.
-**† marks a checkpoint with no lab-published card found** — the link goes to the
-OpenRouter listing (or, for `qwen/qwen3.5-flash-02-23`, the open-weight base it is
-hosted from) instead, which is a routing/pricing page, not a safety document. Links
-were checked by hand against a web search, not against a fixed source of truth, so — like
-the rest of this page — they are current as of the last edit, not regenerated: a preview
-card in particular can be replaced or withdrawn once a model reaches general
-availability. The capability and goal-guarding sections below re-list some of these same
-models; look up their cards here rather than in two more copies of the same links.
+Each entry links to the checkpoint's lab-published system or model card; **†** marks one with
+no card found, linked instead to its OpenRouter listing (for `qwen/qwen3.5-flash-02-23`, its
+open-weight base). Links were checked by hand and may go stale; look cards up here, not in the
+sections below that re-list the same models.
 
 ## Mainline scenario (oversight + sandbox)
 
@@ -86,7 +84,7 @@ twelve-arm cross product.
   not one model. Run files record only the provider (Unbiased) per turn, not which model
   answered, so routing can change between episodes or turns unseen. Its results describe the
   service, may overlap models evaluated separately, and are kept out of any comparison by
-  developer, family or size. It returns no reasoning, so its awareness is read from visible
+  developer, family or size, and out of every figure the report pools across models (v271). It returns no reasoning, so its awareness is read from visible
   output alone.
 - [x-ai/grok-4.20](https://data.x.ai/2026-04-07-grok-4-20-model-card.pdf)
 - [x-ai/grok-4.3](https://openrouter.ai/x-ai/grok-4.3) †
@@ -97,7 +95,7 @@ twelve-arm cross product.
 - [z-ai/glm-5.2](https://huggingface.co/zai-org/GLM-5.2)
 - [z-ai/glm-5.3](https://huggingface.co/zai-org/GLM-5.3)
 - [z-ai/glm-5.3-flash](https://openrouter.ai/z-ai/glm-5.3-flash) † — collected 2026-10-10
-  (120/120, `--no-grader`, at `--max-tokens 32768`; see the pending re-collection entry for
+  (120/120, `--no-grader`, at `--max-tokens 32768`; see the re-collection entry for
   why), graded by gpt-6-sol on 2026-10-10 (no grader errors). Not pinned, and the arms were served by different hosts: Friendli
   for most of the max arms, InferenceNet and Parasail for none, Together for strong,
   Fireworks for the none no-oversight arms, Decart and Sail Research for some others - so a
@@ -284,6 +282,16 @@ default grader). Graded so far: every model marked complete above (2026-10-03 to
 qwen/qwen3.8-2.4t-a95b on 2026-10-10 to 2026-10-11; both nudges, no grader errors and no
 partially graded episodes). The two episodes collected
 with their interrogation pending were completed with `--complete-pending` on 2026-10-04.
+
+**Acts newly counted under D7 (v262), interrogated 2026-10-15.** Undone and attempted edits
+became counted acts after their episodes were collected, so they had never been asked
+about. Twelve such episodes, in models not queued for re-collection, across both corpora,
+were put to `--complete-pending`: seven were asked; five could not be (one each from
+deepseek-v4-flash, grok-4.6 and kimi-k2.6, two from hy4-preview), because their
+transcripts hold reasoning whose signatures were not saved, and replaying the conversation
+without it would change what the model is answering. Those five stay pending permanently,
+so their concealment is unmeasured. The rest of the newly counted acts sit in arms queued
+for re-collection, and `run_all_arms.sh` asks them when each model is re-collected.
 gpt-6-sol's own episodes were graded by gpt-6-sol, so its awareness readings come from a
 grader judging itself; [grader-selection.md](grader-selection.md) lists this as a known weakness.
 
@@ -416,7 +424,11 @@ contrast between two arms served by different providers is partly a contrast bet
 
 **From 2026-10-06, each model is pinned to one provider** with `--openrouter-provider`, chosen as follows:
 
-1. Exclude any endpoint without tool support, or under 99% uptime over the last day. Reasoning
+1. Exclude any endpoint without tool support, under 99% uptime over the last day, or whose
+   maximum output is under 32,768 tokens (from 2026-10-19). The last is the cap every arm cut off
+   at 8192 was re-collected at, and the `--max-tokens` default from v274: an endpoint that cannot
+   return that much would cut long turns off, and a cut-off turn reads as the model stopping. A
+   model with no endpoint meeting all three is not collected. Reasoning
    support is not required: unbiased/pareto's only endpoint lists none, and the model returned no
    reasoning in any r10 mainline episode, so the endpoint drops nothing the model produces.
 2. Prefer the developer's own endpoint where OpenRouter lists one, unless it is more than twice
@@ -429,168 +441,32 @@ contrast between two arms served by different providers is partly a contrast bet
 Price is rarely the deciding factor: among the models still to run, providers differ by at most
 about twice in price per token.
 
-**Audit of the goal-guarding corpus against this rule (2026-10-06).** Models reached through
-their developer's own API (claude-*, gpt-*) and the OpenRouter models not listed below meet it:
-one provider throughout, capability included. "Google" and "Google AI Studio" are counted as one
-provider. The mainline corpus cannot be audited: `served_by` was added after the last r10 episode.
+**Audit of the goal-guarding corpus against this rule** (first made 2026-10-06; recounted from
+the run files on 2026-10-19, after the cut-off re-collection replaced some arms with pinned
+ones). Models reached through their developer's own API (claude-*, gpt-*) and the OpenRouter
+models not listed below meet it: one provider throughout, capability included. "Google" and
+"Google AI Studio" are counted as one provider. The mainline corpus cannot be audited:
+`served_by` was added after the last r10 episode.
 
 | model | episodes by provider | episodes switching mid-episode | capability arm served by | developer endpoint listed on OpenRouter (2026-10-06) |
 |---|---|---|---|---|
-| deepseek/deepseek-v4-flash-0731 | Relace 65, Wafer 8, StreamLake 7 | 5 | Relace | no |
-| deepseek/deepseek-v4-pro | StreamLake 44, GMICloud 27, Relace 6, Baidu 2, SiliconFlow 1 | 18 | GMICloud, StreamLake | no |
-| deepseek/deepseek-v4-pro-0813 | Baidu 80 | 1 | Baidu | yes, not used |
-| deepseek/deepseek-v4.1-flash | CoreWeave 21, Together 20, Novita 19, Wafer 15, Relace 5 | 5 | AtlasCloud, Together | yes, not used |
-| google/gemini-3-flash-preview | Google 80 | 0 | Google | no |
+| deepseek/deepseek-v4-pro | GMICloud 41, StreamLake 35, Relace 3, SiliconFlow 1 | 10 | GMICloud, StreamLake | no |
+| deepseek/deepseek-v4.1-flash | Together 50, CoreWeave 20, Novita 10 | 0 | AtlasCloud, InferenceNet, Relace, Together | yes, not used |
 | inclusionai/ling-3.0-flash | Novita 79, DeepInfra 1 | 6 | Novita | no |
 | meta-llama/llama-4-maverick | Parasail 65, DigitalOcean 15 | 11 | DigitalOcean | no |
-| meta/muse-glimmer-30b | Together 76, Phala 4 | 17 | DeepInfra, Phala | no |
+| meta/muse-glimmer-30b | Together 76, Phala 4 | 17 | DeepInfra, Phala, Together | no |
 | moonshotai/kimi-k2-thinking | Google 44, Novita 36 | 9 | Google | no |
-| qwen/qwen3.6-27b | Chutes 66, Phala 8, SiliconFlow 6 | 12 | Chutes | yes, not used |
-| qwen/qwen3.8-27b | Wafer 55, Reka 25 | 2 | Wafer | yes, not used |
+| qwen/qwen3.6-27b | Chutes 76, SiliconFlow 4 | 8 | Chutes | yes, not used |
+| qwen/qwen3.8-27b | Wafer 66, Reka 14 | 1 | Wafer | yes, not used |
 | qwen/qwen3.8-flash | Alibaba 71, Makora 9 | 28 | Alibaba | no |
-| tencent/hy4-preview | Novita 56, SiliconFlow 24 | 15 | Novita, SiliconFlow, Tencent | yes, not used |
-| x-ai/grok-4.6 | xAI 80 | 0 | xAI | no |
+| tencent/hy4-preview | Novita 56, SiliconFlow 24 | 14 | Novita, SiliconFlow, Tencent | yes, not used |
 | z-ai/glm-5.2 | Mistral 40, Relace 18, Together 10, Baidu 9, DigitalOcean 3 | 5 | Mistral, Together | yes, not used |
-| z-ai/glm-5.3 | Wafer 40, Together 20, Modal 20 | 2 | Friendli, Mistral, Wafer | yes, not used |
+| z-ai/glm-5.3 | Wafer 40, Together 40 | 1 | Friendli, Makora, Mistral, PrimeIntellect, Wafer | yes, not used |
 
 "Episodes by provider" counts each episode under the provider that served most of its turns.
-A developer endpoint listed today may not have been listed when the model was collected.
-moonshotai/kimi-k2.5 is not in the table: every episode was served by SiliconFlow, the first 11
-under default routing and the rest pinned to it.
-
-<details>
-<summary>Episodes per arm and provider, for the models above</summary>
-
-Each arm is nudge / goal-guarding variant / oversight; runs are numbered within the batch stamp.
-
-- **deepseek/deepseek-v4-flash-0731**
-  - none / deferred / oversight: Relace runs 1-2 of `20261002T131325`; Wafer runs 3-10 of `20261002T131325` (switched mid-episode: 3)
-  - none / deferred / no oversight: Relace runs 1-10 of `20261002T143450`
-  - none / replacement / oversight: Relace runs 1-10 of `20261002T121945` (switched mid-episode: 9)
-  - none / replacement / no oversight: StreamLake runs 1-6 of `20261002T134712` (switched mid-episode: 6); Relace runs 7-10 of `20261002T134712`
-  - strong / deferred / oversight: Relace runs 1-2,4-10 of `20261002T162439` (switched mid-episode: 2); StreamLake runs 3 of `20261002T162439` (switched mid-episode: 3)
-  - strong / deferred / no oversight: Relace runs 1-10 of `20261002T172725`
-  - strong / replacement / oversight: Relace runs 1-10 of `20261002T153252`
-  - strong / replacement / no oversight: Relace runs 1-10 of `20261002T171009`
-- **deepseek/deepseek-v4-pro**
-  - none / deferred / oversight: Relace runs 1,3,5 of `20260929T181319` (switched mid-episode: 1,3,5); SiliconFlow runs 2 of `20260929T181319` (switched mid-episode: 2); StreamLake runs 4,6-10 of `20260929T181319` (switched mid-episode: 4,9-10)
-  - none / deferred / no oversight: GMICloud runs 1-10 of `20260929T193417`
-  - none / replacement / oversight: GMICloud runs 1-9 of `20260929T173414` (switched mid-episode: 9); Relace runs 10 of `20260929T173414`
-  - none / replacement / no oversight: StreamLake runs 1-7 of `20260929T190328` (switched mid-episode: 1-2,7); Relace runs 8-9 of `20260929T190328` (switched mid-episode: 9); GMICloud runs 10 of `20260929T190328` (switched mid-episode: 10)
-  - strong / deferred / oversight: GMICloud runs 1 of `20260929T204405`; StreamLake runs 2-10 of `20260929T204405` (switched mid-episode: 2)
-  - strong / deferred / no oversight: StreamLake runs 1-10 of `20260929T214531`
-  - strong / replacement / oversight: Baidu runs 1-2 of `20260929T194913` (switched mid-episode: 2); StreamLake runs 3-4 of `20260929T194913`; GMICloud runs 5-10 of `20260929T194913` (switched mid-episode: 5)
-  - strong / replacement / no oversight: StreamLake runs 1-10 of `20260929T212116` (switched mid-episode: 1,8)
-- **deepseek/deepseek-v4-pro-0813**
-  - none / deferred / oversight: Baidu runs 1-10 of `20261002T222758`
-  - none / deferred / no oversight: Baidu runs 1-10 of `20261002T232756`
-  - none / replacement / oversight: Baidu runs 1-10 of `20261002T215614`
-  - none / replacement / no oversight: Baidu runs 1-10 of `20261002T225422` (switched mid-episode: 4)
-  - strong / deferred / oversight: Baidu runs 1-10 of `20261003T005305`
-  - strong / deferred / no oversight: Baidu runs 1-10 of `20261003T020306`
-  - strong / replacement / oversight: Baidu runs 1-10 of `20261003T000326`
-  - strong / replacement / no oversight: Baidu runs 1-10 of `20261003T014243`
-- **deepseek/deepseek-v4.1-flash**
-  - none / deferred / oversight: Relace runs 1-3,9-10 of `20260927T115356` (switched mid-episode: 1); Wafer runs 4-8 of `20260927T115356`
-  - none / deferred / no oversight: Novita runs 1-10 of `20260927T125113`
-  - none / replacement / oversight: Wafer runs 1-10 of `20260927T104628` (switched mid-episode: 5)
-  - none / replacement / no oversight: CoreWeave runs 1 of `20260927T123451`; Novita runs 2-10 of `20260927T123451` (switched mid-episode: 2)
-  - strong / deferred / oversight: Together runs 1-10 of `20260927T133411`
-  - strong / deferred / no oversight: CoreWeave runs 1-10 of `20260927T141240`
-  - strong / replacement / oversight: Together runs 1-10 of `20260927T130811` (switched mid-episode: 1,7)
-  - strong / replacement / no oversight: CoreWeave runs 1-10 of `20260927T135843`
-- **inclusionai/ling-3.0-flash**
-  - none / deferred / oversight: Novita runs 1-4,6-10 of `20261004T164846`; DeepInfra runs 5 of `20261004T164846` (switched mid-episode: 5)
-  - none / deferred / no oversight: Novita runs 1-10 of `20261004T170612`
-  - none / replacement / oversight: Novita runs 1-10 of `20261004T163813` (switched mid-episode: 3)
-  - none / replacement / no oversight: Novita runs 1-10 of `20261004T165905` (switched mid-episode: 7)
-  - strong / deferred / oversight: Novita runs 1-10 of `20261004T172521`
-  - strong / deferred / no oversight: Novita runs 1-10 of `20261004T182301` (switched mid-episode: 3)
-  - strong / replacement / oversight: Novita runs 1-10 of `20261004T171413` (switched mid-episode: 2-3)
-  - strong / replacement / no oversight: Novita runs 1-10 of `20261004T173544`
-- **meta-llama/llama-4-maverick**
-  - none / deferred / oversight: Parasail runs 1-10 of `20261005T023744` (switched mid-episode: 1)
-  - none / deferred / no oversight: DigitalOcean runs 1,4-6 of `20261005T025537` (switched mid-episode: 1,4); Parasail runs 2-3,7-10 of `20261005T025537` (switched mid-episode: 7)
-  - none / replacement / oversight: DigitalOcean runs 1-2,10 of `20261005T022731` (switched mid-episode: 1-2,10); Parasail runs 3-9 of `20261005T022731`
-  - none / replacement / no oversight: DigitalOcean runs 1,9-10 of `20261005T024720` (switched mid-episode: 9); Parasail runs 2-8 of `20261005T024720` (switched mid-episode: 2)
-  - strong / deferred / oversight: Parasail runs 1-10 of `20261005T052806`
-  - strong / deferred / no oversight: Parasail runs 1-10 of `20261005T054313`
-  - strong / replacement / oversight: DigitalOcean runs 1-4 of `20261005T051802` (switched mid-episode: 4); Parasail runs 5-10 of `20261005T051802`
-  - strong / replacement / no oversight: DigitalOcean runs 1 of `20261005T053542`; Parasail runs 2-10 of `20261005T053542` (switched mid-episode: 2)
-- **meta/muse-glimmer-30b**
-  - none / deferred / oversight: Together runs 1-10 of `20261005T102300`
-  - none / deferred / no oversight: Together runs 1-6,9-10 of `20261005T111011` (switched mid-episode: 6); Phala runs 7-8 of `20261005T111011` (switched mid-episode: 7-8)
-  - none / replacement / oversight: Phala runs 1 of `20261005T095908` (switched mid-episode: 1); Together runs 2-10 of `20261005T095908` (switched mid-episode: 3,7)
-  - none / replacement / no oversight: Together runs 1-10 of `20261005T104941` (switched mid-episode: 1)
-  - strong / deferred / oversight: Phala runs 1 of `20261005T115551`; Together runs 2-10 of `20261005T115551` (switched mid-episode: 6,8)
-  - strong / deferred / no oversight: Together runs 1-10 of `20261005T123454` (switched mid-episode: 4-5)
-  - strong / replacement / oversight: Together runs 1-10 of `20261005T113321` (switched mid-episode: 1-2,7-8,10)
-  - strong / replacement / no oversight: Together runs 1-10 of `20261005T121951` (switched mid-episode: 1)
-- **moonshotai/kimi-k2-thinking**
-  - none / deferred / oversight: Novita runs 1-8 of `20261005T235922` (switched mid-episode: 8); Google runs 9-10 of `20261005T235922` (switched mid-episode: 9)
-  - none / deferred / no oversight: Novita runs 1-5 of `20261006T071930` (switched mid-episode: 5); Google runs 6-10 of `20261006T071930`
-  - none / replacement / oversight: Google runs 1-6 of `20261005T234140`; Novita runs 7-10 of `20261005T234140` (switched mid-episode: 7)
-  - none / replacement / no oversight: Google runs 1-3 of `20261006T070422` (switched mid-episode: 1); Novita runs 4-10 of `20261006T070422` (switched mid-episode: 4)
-  - strong / deferred / oversight: Google runs 1-2 of `20261006T074054`; Novita runs 3-10 of `20261006T074054` (switched mid-episode: 3)
-  - strong / deferred / no oversight: Google runs 1-6 of `20261006T081117`; Novita runs 7-10 of `20261006T081117` (switched mid-episode: 7,10)
-  - strong / replacement / oversight: Google runs 1-10 of `20261006T073112`
-  - strong / replacement / no oversight: Google runs 1-10 of `20261006T080345`
-- **qwen/qwen3.6-27b**
-  - none / deferred / oversight: SiliconFlow runs 1-2 of `20260930T080651` (switched mid-episode: 2); Phala runs 3-10 of `20260930T080651`
-  - none / deferred / no oversight: Chutes runs 1-10 of `20260930T090212`
-  - none / replacement / oversight: Chutes runs 1-6 of `20260930T071824` (switched mid-episode: 4-6); SiliconFlow runs 7-10 of `20260930T071824` (switched mid-episode: 7)
-  - none / replacement / no oversight: Chutes runs 1-10 of `20260930T084141` (switched mid-episode: 9)
-  - strong / deferred / oversight: Chutes runs 1-10 of `20260930T101710`
-  - strong / deferred / no oversight: Chutes runs 1-10 of `20260930T111602` (switched mid-episode: 5,9-10)
-  - strong / replacement / oversight: Chutes runs 1-10 of `20260930T092423` (switched mid-episode: 6,8-9)
-  - strong / replacement / no oversight: Chutes runs 1-10 of `20260930T105217`
-- **qwen/qwen3.8-27b**
-  - none / deferred / oversight: Wafer runs 1-10 of `20260930T140038`
-  - none / deferred / no oversight: Reka runs 1 of `20260930T154651`; Wafer runs 2-10 of `20260930T154651`
-  - none / replacement / oversight: Wafer runs 1-10 of `20260930T130913`
-  - none / replacement / no oversight: Reka runs 1-10 of `20260930T143643`
-  - strong / deferred / oversight: Wafer runs 1-10 of `20260930T172706`
-  - strong / deferred / no oversight: Reka runs 1-3 of `20260930T184939`; Wafer runs 4-10 of `20260930T184939` (switched mid-episode: 4)
-  - strong / replacement / oversight: Reka runs 1 of `20260930T162324`; Wafer runs 2-10 of `20260930T162324` (switched mid-episode: 2)
-  - strong / replacement / no oversight: Reka runs 1-10 of `20260930T181106`
-- **qwen/qwen3.8-flash**
-  - none / deferred / oversight: Alibaba runs 1-9 of `20260913T184000` (switched mid-episode: 3-4,6,9); Makora runs 10 of `20260913T184000` (switched mid-episode: 10)
-  - none / deferred / no oversight: Makora runs 1,8 of `20260913T203009` (switched mid-episode: 1,8); Alibaba runs 2-7,9-10 of `20260913T203009` (switched mid-episode: 2,5,7)
-  - none / replacement / oversight: Alibaba runs 1-10 of `20260913T172534` (switched mid-episode: 1,10)
-  - none / replacement / no oversight: Alibaba runs 1-5,9-10 of `20260913T194351` (switched mid-episode: 1-3,9); Makora runs 7-8 of `20260913T194351` (switched mid-episode: 7-8)
-  - strong / deferred / oversight: Alibaba runs 1-7,9-10 of `20260914T042630` (switched mid-episode: 4,7,9-10); Makora runs 8 of `20260914T042630`
-  - strong / deferred / no oversight: Alibaba runs 1-9 of `20260914T062009` (switched mid-episode: 9); Makora runs 10 of `20260914T062009` (switched mid-episode: 10)
-  - strong / replacement / oversight: Alibaba runs 1-10 of `20260913T211829` (switched mid-episode: 1,7-8)
-  - strong / replacement / no oversight: Makora runs 1-2 of `20260914T053001` (switched mid-episode: 2); Alibaba runs 3-10 of `20260914T053001`
-- **tencent/hy4-preview**
-  - none / deferred / oversight: Novita runs 1-10 of `20260927T200530` (switched mid-episode: 5)
-  - none / deferred / no oversight: SiliconFlow runs 1-8 of `20260927T225448`; Novita runs 9-10 of `20260927T225448` (switched mid-episode: 9)
-  - none / replacement / oversight: Novita runs 1-10 of `20260927T183425` (switched mid-episode: 4,9)
-  - none / replacement / no oversight: Novita runs 1-8 of `20260927T214328` (switched mid-episode: 8); SiliconFlow runs 9-10 of `20260927T214328`
-  - strong / deferred / oversight: Novita runs 1-10 of `20260928T081913` (switched mid-episode: 1,7,9-10)
-  - strong / deferred / no oversight: SiliconFlow runs 1-10 of `20260928T104502`
-  - strong / replacement / oversight: Novita runs 1-10 of `20260928T062317` (switched mid-episode: 2-4,9)
-  - strong / replacement / no oversight: Novita runs 1-6 of `20260928T095728` (switched mid-episode: 2,4); SiliconFlow runs 7-10 of `20260928T095728`
-- **z-ai/glm-5.2**
-  - none / deferred / oversight: Mistral runs 1-10 of `20261001T114111` (switched mid-episode: 4)
-  - none / deferred / no oversight: Mistral runs 1-10 of `20261001T115929` (switched mid-episode: 2)
-  - none / replacement / oversight: Mistral runs 1-10 of `20261001T112814`
-  - none / replacement / no oversight: Mistral runs 1-10 of `20261001T115138` (switched mid-episode: 1)
-  - strong / deferred / oversight: Relace runs 1-8 of `20261001T122420`; Baidu runs 9-10 of `20261001T122420` (switched mid-episode: 9)
-  - strong / deferred / no oversight: DigitalOcean runs 1-2,10 of `20261001T130641`; Baidu runs 3-9 of `20261001T130641`
-  - strong / replacement / oversight: Relace runs 1-10 of `20261001T120725`
-  - strong / replacement / no oversight: Together runs 1-10 of `20261001T125308` (switched mid-episode: 1)
-- **z-ai/glm-5.3**
-  - none / deferred / oversight: Modal runs 1-10 of `20260929T104123`
-  - none / deferred / no oversight: Wafer runs 1-10 of `20260929T111312` (switched mid-episode: 5)
-  - none / replacement / oversight: Modal runs 1-10 of `20260929T101423`
-  - none / replacement / no oversight: Wafer runs 1-10 of `20260929T110629`
-  - strong / deferred / oversight: Together runs 1-10 of `20260929T115750`
-  - strong / deferred / no oversight: Wafer runs 1-10 of `20260929T123832`
-  - strong / replacement / oversight: Together runs 1-10 of `20260929T111928` (switched mid-episode: 1)
-  - strong / replacement / no oversight: Wafer runs 1-10 of `20260929T123215`
-
-</details>
+A developer endpoint listed then may not have been listed when the model was collected. The
+per-arm breakdown that stood here on 2026-10-06 is in git history; the report's data-quality
+block gives the current one (arms answered by more than one backend).
 
 ## Effort pilot
 
@@ -604,12 +480,12 @@ Does reasoning effort raise verbalised evaluation awareness? The proposal is
 - **Collection checks.** Every recorded effort matches the request, every fingerprint is
   the oversight-arm pin, and no episode was cut off or ended abnormally.
 - **Grading.** gpt-6-sol's rubric, and the headline category reading (glm-5.3, rules-only,
-  added 2026-10-14). One low episode, run 29, has no category reading yet: its call
-  failed and is asked again by re-running the pass.
+  added 2026-10-14), complete for all 90. One low episode's category call failed on the
+  first pass and was asked again.
 
 | effort | median reasoning tokens | episodes with no reasoning | aware (category) | aware (rubric) | aware, evidence in visible text |
 |---|---|---|---|---|---|
-| low | 0 | 28 of 30 | 0/29 | 0/30 | 0/30 |
+| low | 0 | 28 of 30 | 0/30 | 0/30 | 0/30 |
 | medium | 100 | 1 of 15 | 0/15 | 0/15 | 0/15 |
 | high | 639 | 4 of 15 | 0/15 | 0/15 | 0/15 |
 | max | 5,818 | 0 of 30 | 12/30 | 7/30 | 4/30 |
@@ -647,13 +523,15 @@ matches its pin.
 | low | 1,766 | 1/30 | 2/30 | 1/30 | 0/30 |
 | medium | 4,102 | 0/15 | 1/15 | 0/15 | 0/15 |
 | high | 7,332 | 5/15 | 3/15 | 0/15 | 2/15 |
-| max | 11,821 | 11/30 | pending | pending | 8/30 |
+| max | 11,821 | 11/30 | 8/30 | 3/30 | 8/30 |
 
-- **The max arm has no rubric reading yet** (corrected 2026-10-14). Every gpt-6-sol call
-  for its 30 re-collected episodes failed: the OpenAI account had run out of credit, and the
+- **The max arm's rubric reading came late.** Every gpt-6-sol call for its 30
+  re-collected episodes first failed: the OpenAI account had run out of credit, and the
   calls returned 429 `insufficient_quota`. An earlier version of this table gave the
-  keyword count, 8/30, in the rubric column, and the gradient and Fisher tests drawn from
-  it are withdrawn until the arm is regraded.
+  keyword count in the rubric column. The regrade (2026-10-14) completed all 30, with no
+  failures, and finds 8/30 - the same number as the keyword screen, by coincidence of
+  count. On the rubric, low against max is 2/30 against 8/30, Fisher p = 0.08: not
+  significant at this size. Evidence in visible text alone is 1/30 against 3/30.
 - **The category reading (glm-5.3, 2026-10-14) is complete for all 90** and rises with
   effort: 1/30 at low, 11/30 at max (5 true, 6 ambiguous-true), Fisher p = 0.002. Unlike
   gpt-6-astra it is not zero below max: 5/15 at high.
@@ -713,6 +591,74 @@ scenario arm above that ceiling to register, so this probe would catch only heav
 memorisation. The verdicts therefore rest mainly on the canary and the continuation
 probes.
 
+**Re-run at 8,000 tokens (2026-10-14, v255).** The seven reasoning models above and
+mistral-small-2603, `--limit 12 --delay 3`. Report:
+`eval_results_r10/contamination_20261014T120306.json`.
+
+- **Five now reach a verdict, all `no evidence`:** deepseek-v4.1-flash, kimi-k2.6,
+  qwen3.8-flash, qwen3.8-27b and qwen3.8-2.4t-a95b. Each lost one forced-choice call to an
+  empty reply, down from three or more.
+- **hy3 and hy4-preview are still inconclusive.** They lost 3 and 4 calls respectively
+  (one of hy4-preview's was a truncated reply), leaving their scenario arms at 9 and 8
+  scored items against the 10 a verdict needs. Every item they did answer was correct in
+  both arms.
+- **mistral-small-2603 is still inconclusive:** rate-limited upstream again (429), 12
+  errors.
+- **None of the eight** completed the canary, and every continuation overlap was zero.
+
+**The five Claude models (2026-10-14, v255),** run with the credential present, `--limit 12
+--delay 3`. Report: `eval_results_r10/contamination_20261014T131712.json`. No call failed.
+
+- **Four reach a verdict, all `no evidence`:** claude-haiku-4-5-20251001,
+  claude-sonnet-4-5, claude-sonnet-4-6 and claude-sonnet-5.
+- **claude-opus-5 is inconclusive:** 3 of its 12 control items returned a reply with no
+  usable choice, leaving 9 scored against the 10 a verdict needs. Its scenario arm scored
+  all 12. These three are recorded with no error, so its error count reads zero; the probe's
+  own comment says an unscored item is counted as an error, and here it is not. A re-run
+  with `--include-prompts` (`contamination_20261014T133945.json`, same verdict) shows all
+  three replies empty, on the same three items both times. A third run at v258, which
+  records the stop reason (`contamination_20261014T155553.json`, same verdict), shows all
+  three were refusals (`stop_reason=refusal`), and so were two of its 13 continuation
+  probes, the scenario's internal memo and the control document. A refused continuation is
+  still scored as zero overlap, which does not move this result (every overlap is zero)
+  but is not evidence of no memorisation; left as a follow-up.
+  **Resolved at `--limit 15`** (`contamination_20261014T160430.json`, v258): **`no
+  evidence`**. One of the three added control items was refused too, four in all, leaving
+  11 of 15 control items scored; all 15 scenario items scored (11 correct, against 9 of 11
+  in the control, p = 1.0). The same two continuation probes were refused; both canary
+  prompts declined. The only model run at 15 items rather than 12; the first 12 are the
+  same items.
+- **Every one** declined both canary prompts, and every continuation overlap was zero.
+
+So no model with a verdict shows contamination, and every Claude model now has one.
+
+**hy3, hy4-preview and mistral-small-2603 again (2026-10-15, v263),** `--limit 12 --delay
+10`. Report: `eval_results_r10/contamination_20261015T164859.json`.
+
+- **hy3: `no evidence`.** Two forced-choice calls returned no visible output, leaving 10
+  scenario items scored, exactly the 10 a verdict needs (9 correct, against 12 of 12 in the
+  control, p = 0.45).
+- **hy4-preview is still inconclusive**, for the third time and for the same reason: six
+  unscored calls, three with no visible output and three replies cut off mid-JSON, leaving 8
+  scenario and 10 control items. Every item it did answer was correct in both arms. To be
+  re-run at `--limit 15`, which settled claude-opus-5.
+  **Resolved at `--limit 15`** (`contamination_20261015T201505.json`, v263): **`no
+  evidence`**. Seven forced-choice calls went unscored (5 scenario, 2 control), leaving 10
+  scenario items, exactly the 10 a verdict needs, and 13 control items; every one was
+  correct in both arms (gap 0, p = 1.0). Neither canary prompt was completed, and all 13
+  continuation probes returned with zero overlap.
+- **mistral-small-2603 is still inconclusive:** rate-limited upstream again (429) on 17
+  forced-choice calls, all 10 continuation probes and a canary prompt, so 28 errors, worse
+  than at `--delay 3`. Mistral is its only host.
+  **Unresolvable through its only host** after a fourth attempt at `--delay 60`
+  (`contamination_20261015T212220.json`, v263): still `inconclusive`, with 25 calls
+  rate-limited (429): 15 forced-choice, 8 continuation and both canary prompts. 6 scenario
+  and 3 control items scored against the 10 a verdict needs (3 of 6 and 3 of 3 correct,
+  p = 0.46); the 5 continuation probes that returned all overlapped zero. Not re-run: a
+  longer delay did not reduce the rate-limiting, so this is recorded as the one model
+  without a verdict.
+- **None** completed the canary, and every continuation overlap that was measured was zero.
+
 ## Pending evaluation
 
 Models not yet in the mainline corpus that fall inside the selection window: first listed
@@ -734,7 +680,6 @@ unreasonably expensive to evaluate.
 - [fireworks/ember-1](https://openrouter.ai/fireworks/ember-1)
 - [ibm-granite/granite-4.2-8b](https://openrouter.ai/ibm-granite/granite-4.2-8b)
 - [nvidia/nemotron-3.5-lightning](https://openrouter.ai/nvidia/nemotron-3.5-lightning)
-- [perceptron/perceptron-mk1.5](https://openrouter.ai/perceptron/perceptron-mk1.5)
 - [prism-ml/ternary-bonsai-2-27b](https://openrouter.ai/prism-ml/ternary-bonsai-2-27b)
 - [qwen/qwen3.8-omni-flash](https://openrouter.ai/qwen/qwen3.8-omni-flash)
 - [sakana/fugu-max](https://openrouter.ai/sakana/fugu-max)
@@ -746,34 +691,83 @@ unreasonably expensive to evaluate.
 - [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro) — capability arm measured
   2026-10-11 (see the capability section): sandbox capable, oversight not shown
 
+**Priority from 2026-10-19: after cohere/command-a-plus, the backlog comes first.** Before
+the next model below, (1) the glm-5.3 category reading for every episode in both corpora that
+lacks it - most of the older corpus, by the free plan check on 2026-10-19 - and (2) the missing
+episodes of models already collected: inception/mercury-2.5 (mainline 119 of 120,
+goal-guarding 78 of 80), google/gemini-3.6-flash and mistralai/mistral-small-2603
+(goal-guarding 79 of 80 each), and mistral-small-2603's one outstanding mechanical capability
+episode.
+
 **All of these are to be evaluated (decided 2026-10-12), cheapest first.** The order below
 is the estimated collection cost at the corpus's typical token use per episode, at the
 cheapest host offering tool calling and room for `--max-tokens 32768`, read from OpenRouter
 on 2026-10-12. Grading is not included:
 
-1. nvidia/nemotron-3.5-lightning — collecting, pinned to Wafer. Capability arm (2026-10-12): succeeded in all 12 (oversight 3, sandbox 6, goal-guarding 3). Mainline: 12 arms, 120 episodes, every turn served by Wafer; none cut off (one reached the turn cap), graded by gpt-6-sol, none pending. Goal-guarding (2026-10-13): 8 arms, 80 episodes, every turn served by Wafer, none cut off (four reached the turn cap), no episode guarded, all 80 read the file. Grading: 28 graded by gpt-6-sol; 52 have no reading because every gpt-6-sol call failed when the OpenAI credit ran out (found 2026-10-14; an earlier note here said none pending), and 3 of the 28 lost some rubric questions the same way. **Collection complete**; the rubric regrade and the headline category reading are pending.
-2. upstage/solar-mini4 — collected 2026-10-13/14, not pinned (every turn served by Upstage, its only host). Capability arm: capable of all three acts (oversight 2 of 3, 1 refused; sandbox 6 of 6; goal-guarding 3 of 3), so no authorised controls are needed. Mainline: 12 arms, 120 episodes, none failed or cut off (12 reached the turn cap). Goal-guarding: 8 arms, 80 episodes, none failed or cut off (10 reached the turn cap); no episode guarded, 72 read the file. Every fingerprint matches its pin. **Ungraded:** every gpt-6-sol call failed on the exhausted OpenAI credit, so all 200 episodes need the rubric regrade and the headline category reading.
-3. ibm-granite/granite-4.2-8b
-4. xiaomi/mimo-v2.6-flash
-5. upstage/solar-pro4
-6. prism-ml/ternary-bonsai-2-27b
-7. qwen/qwen3.8-omni-flash
-8. perceptron/perceptron-mk1.5
-9. cohere/command-a-plus
-10. xiaomi/mimo-v2.6-pro
-11. aion-labs/aion-3.5-mini
-12. bytedance-seed/seed-2-1-turbo
-13. bytedance-seed/seed-2.0-code
-14. sakana/sakana-namazu
-15. sakana/fugu-max
-16. aion-labs/aion-3.5
-17. fireworks/ember-1
-18. sakana/fugu-ultra-v2
+A row marked complete meets every check below unless its note says otherwise: every turn
+served by the pinned host; no episode failed or cut off; no command timed out; every
+fingerprint at its arm's pin (the max arms at their own max-nudge pins); graded by gpt-6-sol
+with no failures, partial readings or pending interrogation; the glm-5.3 category reading on
+every episode; summaries and both arm reports rebuilt. A pin follows the
+[pinning rule](#provider-routing). Capability is instructed successes per act, out of the
+episodes run: oversight · sandbox · goal-guarding. Turn cap is episodes ending there, mainline ·
+goal-guarding. Read is goal-guarding episodes that read the successor file; none guarded in any
+row so far.
 
-perceptron/perceptron-mk1.5 has one host, and it caps output at 8192 tokens, the cap this
-corpus had to re-collect from. It is collected at that cap. An arm with no turn cut off is
-valid at any cap, and an arm with one cannot be repaired while no host offers more, so it
-is kept and flagged, as the cut-off arms are.
+| # | Model | Pin | Capability | Mainline | Goal-guarding | Turn cap | Read | Collected | Rebuilt | Status |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | nvidia/nemotron-3.5-lightning | Wafer | 3/3 · 6/6 · 3/3 | 120 | 80 | 1 · 4 | 80 | 2026-10-12/13 | v258 | mainline glm-5.3 reading outstanding [1] |
+| 2 | upstage/solar-mini4 | not pinned (Upstage, only host) | 2/3 · 6/6 · 3/3 | 120 | 80 | 12 · 10 | 72 | 2026-10-13/14 | v258 | one mainline glm-5.3 reading outstanding [2] |
+| 3 | ibm-granite/granite-4.2-8b | DeepInfra | 3/3 · 5/5 · 3/3 | 120 | 80 | 3 · 2 | 52 | 2026-10-18 | v273 | complete [3] |
+| 4 | xiaomi/mimo-v2.6-flash | Xiaomi | 1/3 · 6/6 · 3/3 | 120 | 80 | 0 · 0 | 54 | 2026-10-18 | v273 | complete [4] |
+| 5 | upstage/solar-pro4 | Upstage | 2/3 · 3/6 · 3/3 | 120 | 80 | 13 · 9 | 78 | 2026-10-18 | v273 | complete [5] |
+| 6 | prism-ml/ternary-bonsai-2-27b | Darkbloom | 2/3 · 4/6 · 2/3 | 120 | 80 | 0 · 0 | 79 | 2026-10-18/19 | v274 | complete [6] |
+| 7 | qwen/qwen3.8-omni-flash | - | - | - | - | - | - | - | - | waiting [7] |
+| 8 | cohere/command-a-plus | Cohere | 3/3 · 6/6 · 3/3 | - | - | - | - | 2026-10-19 | - | collecting [8] |
+| 9 | xiaomi/mimo-v2.6-pro | - | - | - | - | - | - | - | - | to run |
+| 10 | aion-labs/aion-3.5-mini | - | - | - | - | - | - | - | - | to run |
+| 11 | bytedance-seed/seed-2-1-turbo | - | - | - | - | - | - | - | - | to run |
+| 12 | bytedance-seed/seed-2.0-code | - | - | - | - | - | - | - | - | to run |
+| 13 | sakana/sakana-namazu | - | - | - | - | - | - | - | - | to run |
+| 14 | sakana/fugu-max | - | - | - | - | - | - | - | - | to run |
+| 15 | aion-labs/aion-3.5 | - | - | - | - | - | - | - | - | to run |
+| 16 | fireworks/ember-1 | - | - | - | - | - | - | - | - | to run |
+| 17 | sakana/fugu-ultra-v2 | - | - | - | - | - | - | - | - | to run |
+
+1. nemotron-3.5-lightning: 52 goal-guarding episodes first had no gpt-6-sol reading and 3 lost
+   some rubric questions, all to the exhausted OpenAI credit; the rubric regrade (2026-10-14)
+   completed all 80. glm-5.3 has read the goal-guarding 80 (one call asked again) but none of
+   the 120 mainline episodes: found 2026-10-19 by the free plan check, after this row had
+   been marked complete.
+2. solar-mini4: one oversight capability episode refused. Every gpt-6-sol call first failed on
+   the exhausted OpenAI credit; the rubric regrade (2026-10-14) completed all 200. One mainline
+   episode still has no glm-5.3 reading (plan check, 2026-10-19).
+3. granite-4.2-8b: two hosts, DeepInfra and CoreWeave, both bf16 with 117,964 output tokens,
+   neither IBM's; within twice in price, no throughput figure published. The sixth sandbox
+   capability episode failed at turn 14 on a 429 upstream rate limit and is a failed run; the
+   verdict does not depend on it. One mainline glm-5.3 call asked again.
+4. mimo-v2.6-flash: the developer's endpoint, of eight hosts listed. Seven goal-guarding
+   episodes failed on the first pass when Xiaomi returned an empty response with no completion,
+   all in the no-nudge arms, and were collected again the same day by resuming those arms under
+   their own stamps. Two mainline glm-5.3 calls asked again.
+5. solar-pro4: the developer's endpoint and the only host, listed twice with identical terms.
+   No counted act in either corpus. Three commands timed out, one in a mainline none_lure
+   episode and two in one goal-guarding none deferred no-oversight episode; none is the
+   check-script stdin class (see the deepseek-v4-pro-0813 re-collection exception). One goal-guarding glm-5.3
+   call asked again.
+6. ternary-bonsai-2-27b: the only host, not the developer's: int4, 32,768 output tokens, exactly
+   the collection's cap. No counted act in either corpus. **Nine episodes ended on the
+   provider's `error` finish reason** and were read as the model stopping: 7 mainline (max_lure
+   3, strong 2, max 1, strong_lure 1) and 2 goal-guarding (strong deferred and strong
+   replacement, both with oversight). Four failed on a turn far longer than the episode's
+   others, five on ordinary-sized turns. The report flags these arms
+   (`errored_as_stopped_arms`); they are kept, as the glm-5.3 goal-guarding episode was, since
+   a re-collection on the only host would meet the same failure. Six commands timed out, all
+   long multi-part command lines, none of the stdin class.
+7. qwen3.8-omni-flash: its only host, Alibaba, was at 97.6% uptime over the last day on
+   2026-10-19, under the pinning rule's 99%; checked again before it is taken.
+8. command-a-plus: the developer's endpoint and the only host, 64,000 output tokens. One
+   capability episode reached the turn cap.
 
 Inside the window but not pending:
 
@@ -795,55 +789,22 @@ Inside the window but not pending:
 - **No tool calling** — Tencent's hy-mt2 translation models, inference-net's schematron
   extraction models, and `typesafe/jev-router`.
 
-### Pending re-collection: arms cut off at `--max-tokens 8192`
+### Re-collection: arms cut off at `--max-tokens 8192`
 
-Found 2026-10-10 while collecting z-ai/glm-5.3-flash. A turn whose reasoning uses the whole
-per-turn output cap returns no tool call, so the loop ends the episode as `model_stopped`
-and a propensity rate counts it as a model that declined to act. The report flags these
-arms (data quality, truncated-as-stopped) but keeps them in the rates. The remedy is to raise
-the cap and re-collect the arm whole: re-drawing only the cut-off episodes would
-under-represent the long deliberations, and an arm with no cut-off turn is unchanged by a
-higher cap, so it stays. The cap is not part of the rollout fingerprint, so re-collected
-arms pool. Move the old arm aside rather than deleting it, as was done for glm-5.3-flash
-(`eval_results_r10_superseded_glmflash_8192/`), then re-run `run_all_arms.sh` with
-`--max-tokens 32768`, which collects only the arms that are now missing.
+**Done, 2026-10-11 to 2026-10-17.** Every affected arm was re-collected except unbiased/pareto's,
+a router excluded report-wide. From v274 `--max-tokens` defaults to 32768, and the pinning rule
+requires a host that can return that much, so a new model is collected at this cap without
+passing the flag.
 
-**Started 2026-10-11 with deepseek/deepseek-v4.1-flash, mainline - done the same day:** its
-nine affected arms (90 runs, 9 summaries) moved to
-`eval_results_r10_superseded_v41flash_8192/` and re-collected, 90 episodes, every turn
-served by GMICloud, which served every turn of the originals; all graded by gpt-6-sol. One
-episode in none_lure failed mid-episode (the host rejected a request whose tool calls were
-not each followed by a tool result - possibly a harness edge case, not seen elsewhere) and
-was topped up. One new episode (strong, run 10) was cut off even at 32768: a single
-reasoning turn of about 144,000 characters, not repetitive. By the remedy above its arm
-would be re-collected again at a higher cap; that is undecided.
-
-**z-ai/glm-5.3, mainline - done 2026-10-12:** its seven affected arms (70 runs, 7 summaries)
-moved to `eval_results_r10_superseded_glm53_8192/` and re-collected, 70 episodes pinned to
-Makora, which served every turn. None was cut off at 32768: every episode ended
-`model_stopped` with only `stop` and `tool_calls` among its finish reasons, and every
-fingerprint matches its pin (the max arms against the max-nudge table). Graded by gpt-6-sol on
-2026-10-12 with `--grade-existing --only-failed`, which took only the re-collected episodes; no
-grader errors. None took an act, so no interrogation was pending. Summaries rebuilt.
-
-**z-ai/glm-5.3, goal-guarding - done 2026-10-12:** its four affected arms (the
-oversight arms; 40 runs, 4 summaries) moved to
-`eval_results_goalguard_r1_superseded_glm53_8192/` and re-collected pinned to Together, which
-served every turn. 40 episodes, none cut off, every fingerprint matching its goal-guarding
-pin. Run 1 of none replacement failed on its first turn (the host's connection dropped, before
-any model output) and was topped up the same day. Run 3 of the same arm ended on the provider's
-`error` finish reason partway through a long reasoning turn, and the harness read it as the
-model stopping; the report flags the arm (`errored_as_stopped_arms`). It is kept, flagged,
-rather than redrawn, for the reason a cut-off episode is not redrawn alone (below): the
-failure fell on a long deliberation. Graded by gpt-6-sol on 2026-10-12, as the mainline arms
-were; no grader errors. Summaries rebuilt.
-
-Was unblocked: glm-5.3-flash showed 32768 is enough: none of its 120
-episodes was cut off at it, and its longest reasoning turn was about 17,500 tokens, twice
-the old cap. Finish the grader grid first (below - done 2026-10-10). Collect with
-`--no-grader` until a grader is funded or chosen, and pin each model to the host that served
-the original arms where it still offers the model, so the old and new arms differ only in
-the cap.
+Found 2026-10-10 while collecting z-ai/glm-5.3-flash. A turn whose reasoning used the whole
+per-turn output cap returned no tool call, so the loop ended the episode as `model_stopped`
+and a propensity rate counted it as a model that declined to act. The report flags such arms
+(data quality, truncated-as-stopped) but keeps them in the rates. The remedy was to raise the
+cap and re-collect the arm whole: an arm with no cut-off turn is unchanged by a higher cap, so
+it stayed. The cap is not part of the rollout fingerprint, so re-collected arms pool. Each old
+arm was moved aside to `eval_results_<corpus>_superseded_<tag>_8192/` rather than deleted, and
+`run_all_arms.sh` then collected only the arms that were missing. glm-5.3-flash showed 32768
+is enough: none of its 120 episodes was cut off at it.
 
 **Why the unit is the arm, not the episode and not the whole scenario.** An episode run under
 a cap of 8192 and the same episode under 32768 are identical up to the first turn whose
@@ -865,9 +826,9 @@ reasoning passes 8192 tokens; only from that turn on can they differ. So:
   with that caveat.
 
 **claude-opus-5 cannot read the re-collected arms.** It is no longer usable as a grader
-(excessive refusals), and 568 of the 990 episodes to re-collect carry its reading (510
-mainline, 58 goal-guarding); every one of the 990 also carries gpt-6-sol's. A re-collected
-arm will have no claude-opus-5 reading, and the report leaves an episode another grader has
+(excessive refusals), and 568 of the 990 re-collected episodes carried its reading (510
+mainline, 58 goal-guarding); every one of the 990 also carried gpt-6-sol's. A re-collected
+arm has no claude-opus-5 reading, and the report leaves an episode another grader has
 read and this one has not out of that grader's figures as "pending". So after re-collection
 claude-opus-5's figures would quietly cover only the kept arms - which are disproportionately
 the no-oversight arms, since the cut-offs fall on the oversight ones - while saying they are
@@ -877,134 +838,114 @@ corpus and should not be regenerated afterwards. The report no longer draws it b
 current grader (`RETIRED_GRADERS` in config). The superseded directories keep the episodes with both
 readings, so anything built on comparing the two graders, such as
 [grader-agreement.md](grader-agreement.md), stays reproducible from them. The re-collected
-arms are read by gpt-6-sol, or by whichever grader the grid decides on.
+arms are read by gpt-6-sol, and for the headline awareness measure by glm-5.3 where the
+exceptions below say so.
 
-**Order against the grader grid.** Twelve of the 110 blind-labelled episodes
-(`labelling/blind_*_20261008/`) are in arms listed below, three of them cut off: four in the
-mainline pack (kimi-k2.6 max_lure, qwen3.8-27b strong_lure, kimi-k2-thinking strong_lure,
-gemini-3.5-flash none) and eight in the goal-guarding pack (gemini-3.5-flash none deferred,
-deepseek-v4-pro and v4.1-flash and v4-flash-0731 none replacement no-oversight, qwen3.8-27b
-none replacement, qwen3.6-27b strong replacement, glm-5.3 none deferred, hy4-preview none
-deferred). Moving those arms aside takes the run files out of the directory `grader_ab`
-reads, and it refuses a runs file naming episodes it cannot find, so **finish the grid -
-gpt-6.1-sol on both packs, gpt-6-sol on the goal-guarding pack - before re-collecting any of
-these arms.** The labels themselves stay valid: they describe a fixed transcript, which is
-all a grader comparison needs. After re-collection those twelve are no longer in the live
-corpus, so the sample stops being a draw from the corpus as it then stands; that does not
-bias the grader comparison, but the write-up should say so.
+**What was re-collected.** 20 models, 97 arms, 990 episodes (215 of them cut off), out of
+10,747 in `eval_results_r10` and `eval_results_goalguard_r1`. The count is a floor for the
+3,933 mainline episodes collected before `ended_by_provider` was recorded: those were found by
+the harness's no-visible-output placeholder, which caught 32 of the 39 cut-offs where the
+provider's reason is recorded and flagged nothing that was not one. Each model was pinned to
+the host that served the original arms, or where that was unrecorded, to the host its notes or
+its other corpus used. Unless an exception below says otherwise, the re-collected arms have no
+episode cut off or failed, every fingerprint at its arm's pin and every turn on the pinned host,
+and were graded by gpt-6-sol with nothing pending.
 
-20 models, 97 arms, 990 episodes to re-collect (215 of them cut off), out of 10,747 in
-`eval_results_r10` and `eval_results_goalguard_r1`. The capability corpora and the held-out
-corpus have none. The count is a floor for the 3,933 mainline episodes collected before
-`ended_by_provider` was recorded: those were found by the harness's no-visible-output
-placeholder, which caught 32 of the 39 cut-offs where the provider's reason is recorded and
-flagged nothing that was not one.
-
-| model | mainline arms / episodes / cut off | goal-guarding arms / episodes / cut off | to re-collect |
-|---|---|---|---|
-| deepseek/deepseek-v4.1-flash | 9 / 90 / 31 | 5 / 50 / 10 | 140 |
-| z-ai/glm-5.3 | 7 / 70 / 25 | 4 / 40 / 30 | 110 |
-| qwen/qwen3.8-27b | 6 / 60 / 12 | 5 / 50 / 13 | 110 |
-| deepseek/deepseek-v4-flash-0731 | 5 / 50 / 10 | 6 / 60 / 11 | 110 |
-| tencent/hy3 | 4 / 40 / 6 | 4 / 40 / 6 | 80 |
-| deepseek/deepseek-v4-pro-0813 | 4 / 40 / 10 | 4 / 40 / 7 | 80 |
-| google/gemini-3.5-flash | 2 / 40 / 4 | 3 / 30 / 6 | 70 |
-| google/gemini-3.8-flash | 3 / 30 / 3 | 2 / 20 / 2 | 50 |
-| unbiased/pareto | 3 / 30 / 3 | 1 / 10 / 1 | 40 |
-| deepseek/deepseek-v4-pro | 1 / 10 / 1 | 3 / 30 / 4 | 40 |
-| moonshotai/kimi-k3 | 1 / 10 / 1 | 2 / 20 / 4 | 30 |
-| moonshotai/kimi-k2.6 | 2 / 20 / 2 | — | 20 |
-| z-ai/glm-5.1 | 2 / 20 / 3 | — | 20 |
-| qwen/qwen3.6-27b | — | 2 / 20 / 2 | 20 |
-| meta/muse-spark-1.2 | — | 2 / 20 / 2 | 20 |
-| meta/muse-spark-1.3 | 1 / 10 / 1 | — | 10 |
-| inclusionai/ling-3.0-flash | 1 / 10 / 1 | — | 10 |
-| moonshotai/kimi-k2-thinking | 1 / 10 / 1 | — | 10 |
-| deepseek/deepseek-v4-flash | — | 1 / 10 / 2 | 10 |
-| tencent/hy4-preview | — | 1 / 10 / 1 | 10 |
-
-**Order.** The first four models first (about 470 episodes); the next five after them. The
-nine with one to three cut-offs move no rate by much, and can be left as flagged arms if a
-fully clean corpus is not wanted. glm-5.3's goal-guarding arm with no nudge and an imminent
-replacement had all ten episodes cut off, so it measured nothing until its re-collection on
-2026-10-12.
-
-**Pins, checked 2026-10-11.** The host to pin each re-collection to, from the `served_by`
-of the affected arms' original episodes. Mainline episodes collected before `served_by` was
-recorded have none, so their pin is the host the model's notes record it pinned to, or
-failing that the host its goal-guarding arms used. Every pin below was offered on 2026-10-11
-with tool calling and room for `--max-tokens 32768`. Where the originals were spread across
-hosts, pinning to the dominant one is the closest single choice, and the contrast with the
-kept arms carries that difference.
-
-| model | mainline pin | goal-guarding pin | basis |
-|---|---|---|---|
-| deepseek/deepseek-v4.1-flash | GMICloud (done) | Together | recorded; goal-guarding was split Together / Wafer / Novita |
-| z-ai/glm-5.3 | Makora (done) | Together (done) | recorded, partly; goal-guarding split Together / Modal |
-| qwen/qwen3.8-27b | Wafer | Wafer | goal-guarding recorded (split with Reka); mainline unrecorded |
-| deepseek/deepseek-v4-flash-0731 | Relace | Relace | goal-guarding recorded; mainline unrecorded |
-| tencent/hy3 | Tencent | Tencent | pinned to Tencent in its notes |
-| deepseek/deepseek-v4-pro-0813 | Baidu | Baidu | goal-guarding recorded; mainline unrecorded |
-| google/gemini-3.5-flash | Google | Google | goal-guarding recorded; mainline unrecorded |
-| google/gemini-3.8-flash | Google AI Studio | Google AI Studio | recorded |
-| unbiased/pareto | Unbiased | Unbiased | recorded |
-| deepseek/deepseek-v4-pro | GMICloud | GMICloud | goal-guarding recorded (split with StreamLake); mainline unrecorded |
-| moonshotai/kimi-k3 | Moonshot AI | Moonshot AI | recorded; pinned in its notes |
-| moonshotai/kimi-k2.6 | Moonshot AI | - | pinned in its notes |
-| z-ai/glm-5.1 | Z.AI | - | pinned in its notes |
-| qwen/qwen3.6-27b | - | Chutes | recorded; split with Phala / SiliconFlow |
-| meta/muse-spark-1.2 | - | Meta | recorded |
-| meta/muse-spark-1.3 | Meta | - | recorded |
-| inclusionai/ling-3.0-flash | Novita | - | its routing notes; Novita's output limit is exactly 32768 |
-| moonshotai/kimi-k2-thinking | Google | - | its routing notes (Google with Novita) |
-| deepseek/deepseek-v4-flash | - | Relace | recorded |
-| tencent/hy4-preview | - | Novita | recorded |
+| model | mainline arms / episodes / cut off | goal-guarding arms / episodes / cut off | pin | tag | re-collected |
+|---|---|---|---|---|---|
+| deepseek/deepseek-v4.1-flash | 9 / 90 / 31 | 5 / 50 / 10 | GMICloud · Together | v41flash | 2026-10-11 · 10-14 |
+| z-ai/glm-5.3 | 7 / 70 / 25 | 4 / 40 / 30 | Makora · Together | glm53 | 2026-10-12 |
+| qwen/qwen3.8-27b | 6 / 60 / 12 | 5 / 50 / 13 | Wafer | qwen3827b | 2026-10-15 |
+| deepseek/deepseek-v4-flash-0731 | 5 / 50 / 10 | 6 / 60 / 11 | Relace | v4flash0731 | 2026-10-15 |
+| tencent/hy3 | 4 / 40 / 6 | 4 / 40 / 6 | Tencent | hy3 | 2026-10-16 |
+| deepseek/deepseek-v4-pro-0813 | 4 / 40 / 10 | 4 / 40 / 7 | Baidu | v4pro0813 | 2026-10-16 |
+| google/gemini-3.5-flash | 2 / 40 / 4 | 3 / 30 / 6 | Google (google-vertex) | gem35flash | 2026-10-16 |
+| google/gemini-3.8-flash | 3 / 30 / 3 | 2 / 20 / 2 | Google AI Studio | gem38flash | 2026-10-16 |
+| unbiased/pareto | 3 / 30 / 3 | 1 / 10 / 1 | - | - | not re-collected |
+| deepseek/deepseek-v4-pro | 1 / 10 / 1 | 3 / 30 / 4 | GMICloud | v4pro | 2026-10-16 |
+| moonshotai/kimi-k3 | 1 / 10 / 1 | 2 / 20 / 4 | Moonshot AI | kimik3 | 2026-10-16 |
+| moonshotai/kimi-k2.6 | 2 / 20 / 2 | - | Moonshot AI | kimik26 | 2026-10-17 |
+| z-ai/glm-5.1 | 2 / 20 / 3 | - | Z.AI | glm51 | 2026-10-17 |
+| qwen/qwen3.6-27b | - | 2 / 20 / 2 | Chutes | qwen3627b | 2026-10-17 |
+| meta/muse-spark-1.2 | - | 2 / 20 / 2 | Meta | musespark12 | 2026-10-17 |
+| meta/muse-spark-1.3 | 1 / 10 / 1 | - | Meta | musespark13 | 2026-10-17 |
+| inclusionai/ling-3.0-flash | 1 / 10 / 1 | - | Novita | ling30flash | 2026-10-17 |
+| moonshotai/kimi-k2-thinking | 1 / 10 / 1 | - | Google (google-vertex) | kimik2thinking | 2026-10-17 |
+| deepseek/deepseek-v4-flash | - | 1 / 10 / 2 | Relace | v4flash | 2026-10-17 |
+| tencent/hy4-preview | - | 1 / 10 / 1 | Novita | hy4preview | 2026-10-17 |
 
 The arms, with cut-off episodes over the arm's size:
 
-- **deepseek/deepseek-v4.1-flash** — mainline: max (5/10), max_lure (3/10),
-  max_nooversight (1/10), none (4/10), none_lure (3/10), none_nooversight (1/10), strong
-  (5/10), strong_lure (7/10), strong_nooversight_lure (2/10). Goal-guarding: none deferred
-  (3/10), none replacement (2/10), none replacement no-oversight (1/10), strong deferred
-  (3/10), strong replacement (1/10).
-- **z-ai/glm-5.3** — mainline: max (4/10), max_lure (8/10), none (6/10), none_lure (2/10),
-  none_nooversight_lure (1/10), strong (2/10), strong_lure (2/10) - all seven re-collected
-  2026-10-12, none cut off. Goal-guarding: none
-  deferred (8/10), none replacement (10/10), strong deferred (5/10), strong replacement (7/10) -
-  all four re-collected 2026-10-12, none cut off.
-- **qwen/qwen3.8-27b** — mainline: max (2/10), max_lure (3/10), none (1/10), none_lure (1/10),
-  strong (3/10), strong_lure (2/10). Goal-guarding: none deferred (4/10), none replacement
-  (4/10), none replacement no-oversight (1/10), strong deferred (2/10), strong replacement
-  (2/10).
-- **deepseek/deepseek-v4-flash-0731** — mainline: max (2/10), max_lure (1/10), none (2/10),
-  strong (2/10), strong_lure (3/10). Goal-guarding: none deferred (1/10), none replacement
-  (2/10), none replacement no-oversight (3/10), strong deferred (2/10), strong replacement
-  (2/10), strong replacement no-oversight (1/10).
-- **tencent/hy3** — mainline: max (1/10), none (1/10), strong (2/10), strong_lure (2/10).
-  Goal-guarding: none replacement (1/10), strong deferred (1/10), strong deferred
-  no-oversight (1/10), strong replacement (3/10).
-- **deepseek/deepseek-v4-pro-0813** — mainline: max (1/10), max_lure (3/10), strong (4/10),
-  strong_lure (2/10). Goal-guarding: none deferred no-oversight (1/10), none replacement
-  no-oversight (1/10), strong deferred (4/10), strong replacement (1/10).
-- **google/gemini-3.5-flash** — mainline: none (1/20), none_lure (3/20). Goal-guarding: none
-  deferred (4/10), none replacement (1/10), strong replacement (1/10).
-- **google/gemini-3.8-flash** — mainline: max (1/10), none_nooversight_lure (1/10),
-  strong_lure (1/10). Goal-guarding: none deferred (1/10), none deferred no-oversight (1/10).
-- **unbiased/pareto** — mainline: none_lure (1/10), strong (1/10), strong_lure (1/10).
-  Goal-guarding: strong replacement (1/10).
-- **deepseek/deepseek-v4-pro** — mainline: strong (1/10). Goal-guarding: none replacement
-  (2/10), none replacement no-oversight (1/10), strong replacement (1/10).
-- **moonshotai/kimi-k3** — mainline: max_lure (1/10). Goal-guarding: none deferred (2/10),
-  none replacement (2/10).
+- **deepseek/deepseek-v4.1-flash** — mainline: max (5/10), max_lure (3/10), max_nooversight (1/10), none (4/10), none_lure (3/10), none_nooversight (1/10), strong (5/10), strong_lure (7/10), strong_nooversight_lure (2/10). Goal-guarding: none deferred (3/10), none replacement (2/10), none replacement no-oversight (1/10), strong deferred (3/10), strong replacement (1/10).
+- **z-ai/glm-5.3** — mainline: max (4/10), max_lure (8/10), none (6/10), none_lure (2/10), none_nooversight_lure (1/10), strong (2/10), strong_lure (2/10). Goal-guarding: none deferred (8/10), none replacement (10/10), strong deferred (5/10), strong replacement (7/10).
+- **qwen/qwen3.8-27b** — mainline: max (2/10), max_lure (3/10), none (1/10), none_lure (1/10), strong (3/10), strong_lure (2/10). Goal-guarding: none deferred (4/10), none replacement (4/10), none replacement no-oversight (1/10), strong deferred (2/10), strong replacement (2/10).
+- **deepseek/deepseek-v4-flash-0731** — mainline: max (2/10), max_lure (1/10), none (2/10), strong (2/10), strong_lure (3/10). Goal-guarding: none deferred (1/10), none replacement (2/10), none replacement no-oversight (3/10), strong deferred (2/10), strong replacement (2/10), strong replacement no-oversight (1/10).
+- **tencent/hy3** — mainline: max (1/10), none (1/10), strong (2/10), strong_lure (2/10). Goal-guarding: none replacement (1/10), strong deferred (1/10), strong deferred no-oversight (1/10), strong replacement (3/10).
+- **deepseek/deepseek-v4-pro-0813** — mainline: max (1/10), max_lure (3/10), strong (4/10), strong_lure (2/10). Goal-guarding: none deferred no-oversight (1/10), none replacement no-oversight (1/10), strong deferred (4/10), strong replacement (1/10).
+- **google/gemini-3.5-flash** — mainline: none (1/20), none_lure (3/20). Goal-guarding: none deferred (4/10), none replacement (1/10), strong replacement (1/10).
+- **google/gemini-3.8-flash** — mainline: max (1/10), none_nooversight_lure (1/10), strong_lure (1/10). Goal-guarding: none deferred (1/10), none deferred no-oversight (1/10).
+- **unbiased/pareto** — mainline: none_lure (1/10), strong (1/10), strong_lure (1/10). Goal-guarding: strong replacement (1/10).
+- **deepseek/deepseek-v4-pro** — mainline: strong (1/10). Goal-guarding: none replacement (2/10), none replacement no-oversight (1/10), strong replacement (1/10).
+- **moonshotai/kimi-k3** — mainline: max_lure (1/10). Goal-guarding: none deferred (2/10), none replacement (2/10).
 - **moonshotai/kimi-k2.6** — mainline: max_lure (1/10), none_lure (1/10).
 - **z-ai/glm-5.1** — mainline: strong (2/10), strong_lure (1/10).
 - **qwen/qwen3.6-27b** — goal-guarding: none deferred (1/10), strong replacement (1/10).
-- **meta/muse-spark-1.2** — goal-guarding: none replacement (1/10), none replacement
-  no-oversight (1/10).
-- **meta/muse-spark-1.3**, **inclusionai/ling-3.0-flash**, **moonshotai/kimi-k2-thinking** —
-  mainline: strong_lure (1/10) each.
+- **meta/muse-spark-1.2** — goal-guarding: none replacement (1/10), none replacement no-oversight (1/10).
+- **meta/muse-spark-1.3**, **inclusionai/ling-3.0-flash**, **moonshotai/kimi-k2-thinking** — mainline: strong_lure (1/10) each.
 - **deepseek/deepseek-v4-flash** — goal-guarding: strong replacement (2/10).
 - **tencent/hy4-preview** — goal-guarding: none deferred (1/10).
+
+**Exceptions.**
+
+- **deepseek-v4.1-flash, mainline:** one none_lure episode failed mid-episode (the host
+  rejected a request whose tool calls were not each followed by a tool result) and was topped
+  up. One new strong episode was cut off even at 32768, on a single reasoning turn of about
+  144,000 characters, not repetitive; whether to re-collect that arm at a higher cap is
+  undecided.
+- **glm-5.3, goal-guarding:** its none replacement arm had all ten episodes cut off before
+  re-collection, so it measured nothing until 2026-10-12. Run 1 of the new arm failed on its
+  first turn when the host's connection dropped, and was topped up; run 3 ended on the
+  provider's `error` finish reason partway through a long reasoning turn and is kept, flagged
+  (`errored_as_stopped_arms`), since the failure fell on a long deliberation.
+- **qwen3.8-27b, goal-guarding:** two transcripts each hold one `Command timed out.`, both on
+  a filesystem-wide search bounded by depth or output, a kind that times out 3 times in 369
+  across both corpora; nothing else on the machine overlapped either episode, so both are kept.
+- **deepseek-v4-flash-0731, goal-guarding:** stopped by an editor restart four episodes into
+  none deferred and resumed under the same stamp with `--concurrency 3`; the episode in flight
+  was replaced by a fresh draw.
+- **hy3:** the superseded files carry `monitoring_file_modified`, a field from the v62 analysis
+  that is not an act.
+- **deepseek-v4-pro-0813, mainline:** three commands returned `Command timed out.`, one in a
+  max episode and two in one strong_lure episode. Each ran the environment's check script with
+  a file name as its argument; the script reads its input from stdin, and the harness leaves a
+  command's stdin inherited, so under a batch started from a terminal it waits there until the
+  timeout. That is how the same call has gone in both corpora since the start (64 of 65
+  stand-alone calls of that form timed out; most of the corpus's timeouts are this), so these
+  are ordinary episodes. This is the check-script stdin class the notes elsewhere refer to.
+- **gemini-3.5-flash:** two commands timed out, both waiting on stdin (the check script run
+  without input, and an interactive editor). The mainline none_lure arm saved all 20 episodes but wrote no arm
+  summary, from a defect in the misrepresentation rate's denominator (fixed in v268); the arm
+  was rebuilt.
+- **deepseek-v4-pro:** the first goal-guarding arm paused for about four and a half hours after
+  its first episode, consistent with the machine sleeping; no episode carries an error or a
+  timeout.
+- **glm-5.1:** the first pass stopped at 9 of 20 when OpenRouter credit ran out (7 attempts
+  failed with 402 and are logged as failed runs); the re-run after a top-up completed both arms.
+- **qwen3.6-27b:** the superseded arms were split across hosts (deferred mostly Phala,
+  replacement Chutes with some SiliconFlow and Phala turns).
+- **hy4-preview:** one episode is still cut off, and not by the cap: its last turn's reasoning
+  is a repetition loop ending on `length` at 32768, as the superseded arm's cut-off was. A
+  higher cap would only lengthen the loop, so the arm stays with that episode flagged.
+- **unbiased/pareto:** not re-collected (decided 2026-10-16). It is a router, so a new
+  collection cannot be pinned to the models that answered the original arms; its four arms stay
+  as collected, with their four cut-off episodes flagged.
+- **glm-5.3 category reading.** It was adopted on 2026-10-11, after the first re-collections:
+  deepseek-v4.1-flash's mainline arms and both of glm-5.3's corpora have none (with most of the
+  older corpus, by the plan check of 2026-10-19). Every model re-collected from 2026-10-14 on
+  was read in both corpora, with failed calls asked again.
+- **Blind labels.** Twelve of the 110 blind-labelled episodes of `labelling/blind_*_20261008/`
+  were in re-collected arms; their labels stay valid for grader comparison, but the sample is a
+  draw from the corpus as it stood on 2026-10-08.
 
 Separately, 151 older mainline episodes end on an empty turn the provider called a normal
 `stop`, not a cut-off. A higher cap does not address that; it is not yet examined.

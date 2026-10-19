@@ -23,9 +23,10 @@ from ..batch import unique_batch_stamp
 from ..followup import add_awareness_timing
 from ..graders import (REGRADE_ALL, grader_models, regrade_targets, store,
                        view)
-from ..grading import MISALIGNED_ACTS
+from ..grading import MISALIGNED_ACTS, act_value, misrepresentation_scoreable
 from ..power import wilson_ci
 from ..redaction import redact_paths
+from ..hostenv import sed_is_bsd
 from ..rederive import rederive_free_measures
 from .rescore import (_new_tally, _recheck_misrepresentation, _rescore_acts,
                       relabel_variant_answers)
@@ -102,7 +103,7 @@ def _concealment_reading(analysis: dict) -> dict:
     return {"scheming": analysis.get("scheming"),
             "concealment": {act["name"]: analysis.get(act["level_key"])
                             for act in MISALIGNED_ACTS
-                            if analysis.get(act["key"])}}
+                            if act_value(analysis, act)}}
 
 
 def _stored_concealment(stored: dict, model: str, prefix: str) -> dict:
@@ -163,13 +164,14 @@ def _regrade_one(data: dict, model: str):
 
     tally = _new_tally()
     has_report = data.get("ended_by") != "turn_cap"
-    if working.get("oversight_tampered") and has_report:
+    if misrepresentation_scoreable(working, data.get("ended_by")):
         _recheck_misrepresentation(working, data, model, tally)
     _rescore_acts(working, data, has_report, model, tally)
     variant = relabel_variant_answers(working, MISALIGNED_ACTS, model,
                                       only_failed=False)
     tally["auth_error"] = tally["auth_error"] or variant["auth_error"]
-    rederive_free_measures(working, transcript, bool(data.get("lure")))
+    rederive_free_measures(working, transcript, bool(data.get("lure")),
+                           sed_is_bsd(data.get("toolchain")))
     concealment = _concealment_reading(working)
     if concealment["concealment"]:
         print(f"  concealment={concealment['concealment']} "

@@ -650,6 +650,12 @@ def data_quality_facts(episodes: list, summaries: list = None,
         "awareness_verdict_sources": sources,
         "awareness_all_from_grader": (
             bool(episodes) and set(sources) == {"grader"}),
+        # Analyses saved before v262's any-form act fields. Their acts are
+        # computed from the end state and the stored detail (acts.act_form),
+        # and that detail is the detector they were analysed with - v261's
+        # write filter is not in it until --resummarise re-derives it.
+        "n_act_fields_missing": sum(
+            1 for ep in episodes if ep.get("act_fields_missing")),
         "n_misalignment_verdict_disagreements": sum(
             1 for ep in episodes if ep["misaligned_stored_disagrees"]),
         "n_scheming_verdict_disagreements": sum(

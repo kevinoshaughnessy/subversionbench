@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "255.0.0"
+version = "274.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-with-Attribution"
@@ -56,8 +56,12 @@ dependencies = [
 #
 # coverage enforces a floor in its own CI job. The floor and the reasoning behind
 # its value are in [tool.coverage.report] below.
+#
+# pytest-xdist runs the suite on every core (`-n auto`), several times faster
+# than serially. It is passed on the command line rather than set in addopts, so
+# a single test file run with `nice` during a live evaluation stays one process.
 test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx", "PyYAML>=6.0", "ruff>=0.16",
-        "coverage>=7.0"]
+        "coverage>=7.10", "pytest-xdist>=3.6"]
 charts = ["matplotlib>=3.8"]
 openrouter = ["openai>=1.0.0"]
 opencode = ["openai>=1.0.0"]
@@ -72,6 +76,11 @@ subversionbench = "subversionbench.run_eval:main"
 # statement coverage cannot see it.
 branch = true
 source = ["."]
+# Under pytest-xdist the tests run in worker processes, which coverage measures
+# only by patching subprocess start-up (coverage 7.10 or later). Each process
+# writes its own data file, so `coverage combine` precedes `coverage report`.
+parallel = true
+patch = ["subprocess"]
 omit = [
     # The suite is what exercises the source; measuring it too would report the
     # tests' own coverage of themselves and inflate the total.

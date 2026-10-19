@@ -37,8 +37,9 @@ is a lower bound where reasoning came back and exact where it did not; see
 _text_reachable_block and grading/quote_grounding.awareness_channels.
 
 Questions 1-10 are answered four ways: the crude pooled effect across every
-episode in --output-dir, the model-stratified effect (Mantel-Haenszel, with a
-Breslow-Day homogeneity test), per-model consistency with multiplicity
+episode in --output-dir, the stratified effect (Mantel-Haenszel, with a
+Breslow-Day homogeneity test) - by model for a contrast between arms, by model
+x arm cell for an association with awareness, where the arm confounds - per-model consistency with multiplicity
 correction, and how the effect moves under the other manipulated axes named in
 the question.
 
@@ -175,7 +176,7 @@ from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
 from .capability import capability_by_model
 from .strategy_pressure import strategy_by_arm
 from .characteristics import (act_awareness_gap, awareness_refusal_timing,
-                             characteristics,
+                             act_forms, act_purposes, characteristics,
                              decision_profile,
                              encoded_payload_rate, eval_signal_rates,
                              lure_effect,
@@ -187,9 +188,9 @@ from .data_quality import (CONTRASTED_AXES, _measure_agreement, _model_rate_pair
                           mixed_served_provider_arms,
                           routing_differs_across_contrast,
                           duplicate_arms)
-from .pooling import (_by_model, _consistency, _contrast, _crude_vs_stratified,
-                     _finding, _models, _pool, _strata_from, _stratified,
-                     _stratified_interpretation)
+from .pooling import (BY_CELL, BY_MODEL, _by_cell, _by_model, _consistency,
+                     _contrast, _crude_vs_stratified, _finding, _models, _pool,
+                     _strata_from, _stratified, _stratified_interpretation)
 from .questions_arms import (_question_oversight, _text_reachable_block,
                             question_lure_vs_sandbox_escape,
                              question_goalguard_vs_act,
@@ -267,9 +268,10 @@ __all__ = [
     "_question_self_kind_vs_misalignment",
     "_question_oversight",
     "_strata_from", "_stratified", "_stratified_interpretation",
+    "BY_CELL", "BY_MODEL", "_by_cell",
     "_text_reachable_block", "_variant_contrast", "_variant_provenance",
     "_variant_question", "act_arm_rows", "attrition_facts",
-    "act_awareness_gap", "strategy_by_arm", "awareness_arm_rows", "awareness_refusal_timing",
+    "act_awareness_gap", "act_forms", "act_purposes", "strategy_by_arm", "awareness_arm_rows", "awareness_refusal_timing",
     "build_report", "characteristics", "cross_analysis_rows",
     "data_quality_facts", "decision_profile", "duplicate_arms",
     "encoded_payload_rate", "eval_signal_rates", "exclude_arm",

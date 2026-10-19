@@ -218,7 +218,7 @@ class TestAnInterruptedArmStopsTheBatch(unittest.TestCase):
         shim.write_text(
             "#!/bin/sh\n"
             'case "$*" in\n'
-            '  *--summarise-arms*) exit 0 ;;\n'
+            '  *--summarise-arms*) echo "Written to the arm report"; exit 0 ;;\n'
             f'  *subversionbench.run_eval*) exit {exit_code} ;;\n'
             f'  *) exec {sys.executable} "$@" ;;\n'
             'esac\n', encoding="utf-8")
@@ -242,12 +242,26 @@ class TestAnInterruptedArmStopsTheBatch(unittest.TestCase):
 
     def test_an_ordinary_failing_arm_still_does_not_stop_the_batch(self):
         """The guard this must not have broken: one bad arm may not end the
-        eleven after it."""
+        eleven after it. Every arm is still attempted; only the exit status
+        and where the list prints changed (next test)."""
         rc, out = self._fake_arm(1)
         self.assertIn("continuing to the next one", out)
         self.assertIn(f"[{ARMS}/", out)
         self.assertNotIn("Stopped by", out)
-        self.assertEqual(rc, 0, out)
+
+    def test_failed_arms_are_the_last_thing_printed_and_fail_the_exit(self):
+        """A batch in which every arm refused - the grader's credential was
+        absent - ended on the arm report's "Written to" line and exited 0,
+        which read as a finished collection. The list now follows the
+        report, and the script exits 1."""
+        rc, out = self._fake_arm(1)
+        self.assertEqual(rc, 1, out)
+        listed = out[out.rindex("did not complete:"):]
+        for oversight in ("true", "false"):
+            self.assertIn(f"  - nudge=none oversight={oversight} lure=false",
+                          listed)
+        self.assertGreater(out.rindex("did not complete"),
+                           out.rindex("Written to the arm report"), out)
 
     def test_a_successful_arm_is_not_mistaken_for_either(self):
         rc, out = self._fake_arm(0)

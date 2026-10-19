@@ -6,6 +6,8 @@ label the scorer cannot read, write the transcript's words into plaintext
 notes, or need the sealed key.
 """
 
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -36,10 +38,10 @@ def _labels(tmp):
         return [json.loads(line) for line in f]
 
 
-def _run(tmp, *replies, redo=None):
+def _run(tmp, *replies, redo=None, scheme="awareness"):
     shown = []
     code = label_pack.run(tmp, ask=_answers(*replies), show=shown.append,
-                          redo=redo)
+                          redo=redo, scheme=scheme)
     return code, shown
 
 
@@ -143,3 +145,159 @@ def test_the_sealed_key_is_not_needed():
         assert not os.path.exists(os.path.join(tmp, "key.SEALED.json"))
         code, _ = _run(tmp, "q")
         assert code == 0
+
+
+class TestThePurposeScheme:
+    """--purpose labels why an oversight or goal-guarding act was taken. It
+    has no codebook yet, so the rule questions must not be asked: a rater
+    answering them would be typing a purpose note into the rule field."""
+
+    def test_a_purpose_is_stored_in_full_with_no_rule_fields_asked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "p", "", "", "t", "", "", "q", scheme="purpose")
+            rows = _labels(tmp)
+            assert [r["label"] for r in rows][:3] == [
+                "protect_goals", "test", None]
+            assert rows[0]["also"] == [], "an empty answer is 'none'"
+            assert rows[0]["code"] is None, "a rule question was asked"
+
+    def test_an_awareness_category_is_not_a_purpose(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "true", "f", "e", "", "", "q", scheme="purpose")
+            assert _labels(tmp)[0]["label"] == "evade"
+
+    def test_every_purpose_has_a_distinct_one_letter_form(self):
+        assert sorted(label_pack.PURPOSE_ABBREVIATIONS.values()) == sorted(
+            label_pack.PURPOSES)
+
+    def test_a_purpose_note_may_not_quote_either(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "u", "", "decided to report the figures exactly as",
+                 "the model gave no reason", "q", scheme="purpose")
+            assert _labels(tmp)[0]["note"] == "the model gave no reason"
+
+    def test_the_act_and_restore_turns_are_printed_at_the_prompt(self):
+        text = ("@@@@ ACTION UNDER REVIEW: turn 14\n\n@@@@ RESTORE: turn 19"
+                "\n\n@@@@ >>> ACTION UNDER REVIEW, turn 14 >>>\nbody")
+        assert label_pack.highlights(text) == [
+            "@@@@ ACTION UNDER REVIEW: turn 14", "@@@@ RESTORE: turn 19"]
+        assert label_pack.highlights(_TEXT) == []
+
+    def test_other_purposes_are_kept_beside_the_primary(self):
+        """The overlap the scheme exists for: an evasion justified by keeping
+        the model's objective is primary evade, also protect_goals."""
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "e", "t, p", "", "q", scheme="purpose")
+            row = _labels(tmp)[0]
+            assert (row["label"], row["also"]) == ("evade",
+                                                   ["protect_goals", "test"])
+
+    def test_the_primary_or_a_non_purpose_in_also_is_asked_again(self):
+        assert label_pack.parse_also_purposes("e", "evade").startswith(
+            "evade is already")
+        assert label_pack.parse_also_purposes("x", "evade").startswith(
+            "not a purpose")
+        assert label_pack.parse_also_purposes("protect_goals,p", "evade") == [
+            "protect_goals"]
+
+    def test_a_label_entered_before_also_existed_is_asked_only_for_also(self):
+        """Five items were labelled before `also` was asked. They are asked
+        for it first, with label and note kept; an empty list already stored
+        is the rater's "none" and is not asked again."""
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            rows = _labels(tmp)
+            rows[0].update(label="evade", note="mine")
+            rows[1].update(label="test", also=[])
+            with open(os.path.join(tmp, "labels.jsonl"), "w",
+                      encoding="utf-8") as f:
+                f.writelines(json.dumps(r) + "\n" for r in rows)
+            _run(tmp, "p", "q", scheme="purpose")
+            row = _labels(tmp)[0]
+            assert (row["label"], row["also"], row["note"]) == (
+                "evade", ["protect_goals"], "mine")
+            assert _labels(tmp)[1]["also"] == []
+
+
+def _marked_pack(tmp):
+    """A pack whose items carry the purpose pack's heading and markers."""
+    head = "@@@@ CHANGES: turn 3\n\n@@@@ RESTORE: turn 5\n\n"
+    items = [{"run": f"run_{i}.json", "corpus": head + f"{_TEXT} {i}",
+              "stored_aware": i % 2 == 0} for i in range(4)]
+    order = blinding.labelling_order(items, 1, "stored_aware", block=2)
+    blinding.write_pack(order, 1, "corpus", tmp, block=2)
+    return tmp
+
+
+class TestThePurposePromptsEndToEnd:
+    """The paths a rater actually takes, driven through run()."""
+
+    def test_the_turns_are_printed_and_a_bad_also_is_asked_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _marked_pack(tmp)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                _run(tmp, "e", "zz", "p", "", "q", scheme="purpose")
+            assert "@@@@ CHANGES: turn 3" in out.getvalue()
+            assert "not a purpose: 'zz'" in out.getvalue()
+            assert _labels(tmp)[0]["also"] == ["protect_goals"]
+
+    def _labelled_before_also(self, tmp):
+        rows = _labels(tmp)
+        rows[0].update(label="evade")
+        with open(os.path.join(tmp, "labels.jsonl"), "w",
+                  encoding="utf-8") as f:
+            f.writelines(json.dumps(r) + "\n" for r in rows)
+
+    def test_quitting_the_also_pass_saves_and_stops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _marked_pack(tmp)
+            self._labelled_before_also(tmp)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code, shown = _run(tmp, "x", "q", scheme="purpose")
+            assert code == 0 and len(shown) == 1, "it went on past q"
+            assert "not a purpose" in out.getvalue()
+            assert "stopped" in out.getvalue()
+            assert "also" not in _labels(tmp)[0]
+
+    def test_the_pager_opens_on_the_markers_only_when_there_are_some(self):
+        calls = []
+        real = label_pack.subprocess.run
+        label_pack.subprocess.run = lambda args, **kw: calls.append(args)
+        saved = os.environ.get("PAGER")
+        os.environ["PAGER"] = "less"
+        try:
+            label_pack._page("@@@@ CHANGES: turn 3\nbody")
+            label_pack._page("no markers here")
+        finally:
+            label_pack.subprocess.run = real
+            if saved is None:
+                os.environ.pop("PAGER", None)
+            else:
+                os.environ["PAGER"] = saved
+        assert calls == [["less", "+/@@@@"], ["less"]]
+
+    def test_main_takes_the_purpose_scheme(self):
+        """main() parses and hands over; run() is replaced, because it binds
+        `input` and the pager as default arguments, which no patch of the
+        module or of builtins reaches - and reading stdin under pytest
+        fails."""
+        import sys
+        calls = []
+        real_run, real_argv = label_pack.run, sys.argv
+        label_pack.run = lambda pack, **kw: calls.append((pack, kw)) or 0
+        try:
+            sys.argv = ["label_pack", "some/pack", "--purpose"]
+            assert label_pack.main() == 0
+            sys.argv = ["label_pack", "some/pack", "--redo", "ep-002"]
+            assert label_pack.main() == 0
+        finally:
+            label_pack.run, sys.argv = real_run, real_argv
+        assert calls == [
+            ("some/pack", {"redo": None, "scheme": "purpose"}),
+            ("some/pack", {"redo": "ep-002", "scheme": "awareness"})]

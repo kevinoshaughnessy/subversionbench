@@ -8,8 +8,9 @@ printing all live in the sibling modules - `report/__init__.py` says which
 module holds what.
 
 Questions 1-10 are answered four ways: the crude pooled effect across every
-episode in --output-dir, the model-stratified effect (Mantel-Haenszel, with a
-Breslow-Day homogeneity test), per-model consistency with multiplicity
+episode in --output-dir, the stratified effect (Mantel-Haenszel, with a
+Breslow-Day homogeneity test) - by model for a contrast between arms, by model
+x arm cell for an association with awareness, where the arm confounds - per-model consistency with multiplicity
 correction, and how the effect moves under the other manipulated axes named in
 the question. Questions 11-12 are paired and are appended after that loop rather
 than being made to carry fields that do not apply to them.
@@ -27,6 +28,7 @@ from subversionbench.config import (DEFAULT_GRADER_MODEL, ROLLOUT_NAME,
 from subversionbench.redaction import redact_paths
 
 from .console import (_print_arm_exclusion, _print_awareness_exclusion,
+                      _print_router_exclusion,
                       _print_characteristics,
                       _print_question,
                       _print_variant_question)
@@ -36,10 +38,12 @@ from .data_quality import data_quality_facts
 from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                          EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
                          EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
-                         NO_EXCLUSION, exclude_arm, exclude_aware_episodes)
+                         NO_EXCLUSION, exclude_arm, exclude_aware_episodes,
+                         exclude_routers)
 from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending)
+from .motive_split import split_by_motive
 from .pooling import _crude_vs_stratified, _models, scenario_of
 from .questions_arms import (POOLED_FROM_GRADER_ARM_ROWS,
                              POOLED_FROM_REBUILT_ARM_ROWS,
@@ -275,9 +279,14 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
             (paired if set(paired_with) <= set(e["graders"])
              else unpaired).append(e)
         episodes = paired
+    # Routers first, from all three sources in one call: see exclude_routers.
+    summaries, episodes, failed, routers = exclude_routers(
+        load_summaries(output_dir), episodes, load_failed_episodes(output_dir))
+    pending = [e for e in pending if e.get("model") not in routers["models"]]
+    unpaired = [e for e in unpaired if e.get("model") not in routers["models"]]
     summaries, episodes, arm_exclusion = exclude_arm(
-        load_summaries(output_dir), episodes, exclusion)
-    _, failed, _ = exclude_arm([], load_failed_episodes(output_dir), exclusion)
+        summaries, episodes, exclusion)
+    _, failed, _ = exclude_arm([], failed, exclusion)
     # And then the awareness reading, which narrows the EPISODES ONLY - see
     # exclude_aware_episodes for why there is no summary-side counterpart. The
     # failed episodes have no awareness verdict to read, so they are outside
@@ -285,7 +294,7 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     episodes, awareness_stamp = exclude_aware_episodes(
         episodes, awareness_exclusion)
     return (summaries, episodes, failed, arm_exclusion, awareness_stamp,
-            pending, unpaired)
+            pending, unpaired, routers)
 
 
 def _pooling_choice(summaries, act_rows, arm_rows, awareness_exclusion_stamp,
@@ -364,13 +373,13 @@ def _answer_questions(episodes, summaries, act_rows, arm_rows,
         question_awareness_vs_oversight_scheming(episodes),
         question_awareness_vs_sandbox_scheming(episodes),
     ]
-    # Attached here rather than inside each question: it reads three fields
+    # Attached here rather than inside each question: it reads two fields
     # every question already has, so building it once centrally keeps the ten
     # question functions from each carrying the same four lines - and keeps
     # _stratified from being computed twice per question.
     for section in questions:
         section["crude_vs_stratified"] = _crude_vs_stratified(
-            section["overall"], section["stratified"], section["by_model"])
+            section["overall"], section["stratified"])
 
     # Questions 11-12 are a different shape - a list of paired contrasts rather
     # than one contrast with strata - so they are appended after the loop above
@@ -424,6 +433,12 @@ def _answer_questions(episodes, summaries, act_rows, arm_rows,
         question_capability_awareness_vs_misalignment_self(episodes),
     ])
     return questions
+
+
+def _in_arm(arm: str, *sources: list) -> list:
+    """Each source - episodes, summary rows or arm rows, all of which carry
+    `goalguard` - narrowed to one goal-guarding arm."""
+    return [[r for r in rows if r.get("goalguard") == arm] for rows in sources]
 
 
 def _mark_unanswerable(questions, episodes, arm_exclusion,
@@ -500,7 +515,7 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
                  grader: str = DEFAULT_GRADER_MODEL,
                  paired_with: tuple = ()) -> dict:
     (summaries, episodes, failed, arm_exclusion,
-     awareness_exclusion_stamp, pending, unpaired) = _narrowed_corpus(
+     awareness_exclusion_stamp, pending, unpaired, routers) = _narrowed_corpus(
          output_dir, exclusion, awareness_exclusion, grader, paired_with)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
     # summary field holds. Questions 2 and 4 take the headline measure from the
@@ -519,6 +534,11 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
     aware_source, grader_block = pool["aware_source"], pool["grader_block"]
     questions = _answer_questions(episodes, summaries, act_rows, arm_rows,
                                   pool)
+    questions = split_by_motive(questions, lambda arm: _answer_questions(
+        *_in_arm(arm, episodes, summaries, act_rows, arm_rows),
+        {**pool, "act_source": _in_arm(arm, pool["act_source"])[0],
+         "aware_source": _in_arm(arm, pool["aware_source"])[0]}),
+        {e.get("goalguard") for e in episodes})
     _mark_unanswerable(questions, episodes, arm_exclusion,
                        pool["on_awareness_reading"])
 
@@ -535,6 +555,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # exclusion" from "an older report that predates exclusions" - the two
         # would otherwise both read as a missing key.
         "arm_exclusion": arm_exclusion,
+        # Routers are never in this corpus; this names which, and counts them.
+        "routers_excluded": routers,
         # The second, independent narrowing, on the same terms and present for
         # the same reason. `questions_pooled_from` records which source
         # questions 1-4 took their headline counts from, because that is the
@@ -772,6 +794,7 @@ def _report_one_grader(args, grader: str, exclusion: str,
     # Before the questions, not after: every rate below is on the narrowed
     # corpus, and a reader who meets that fact at the bottom has already read
     # the numbers as though it were the whole one.
+    _print_router_exclusion(report["routers_excluded"])
     _print_arm_exclusion(report["arm_exclusion"])
     _print_awareness_exclusion(report["awareness_exclusion"])
     _print_data_quality(report["data_quality"])

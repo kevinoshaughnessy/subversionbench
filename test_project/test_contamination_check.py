@@ -93,8 +93,9 @@ class _Block:
 
 
 class _Reply:
-    def __init__(self, *blocks):
+    def __init__(self, *blocks, stop_reason="end_turn"):
         self.content = list(blocks)
+        self.stop_reason = stop_reason
 
 
 class _RecordingClient:
@@ -130,15 +131,44 @@ class TestContaminationCheckAsk:
         text, error = cc.ask(client, "claude-opus-5", "prompt")
         assert (text, error) == ('{"choice": 2}', None)
 
-    def test_a_reply_that_is_all_thinking_is_empty_rather_than_an_error(self):
+    def test_a_reply_that_is_all_thinking_is_no_answer_and_says_why(self):
         """The failure FORCED_CHOICE_TOKENS was raised for: the model spent
-        its ceiling reasoning and emitted no text. That is an empty answer,
-        not a failed call, and the two are not the same downstream - "" is
-        scored, None leaves the item out of both the numerator and the
-        denominator."""
+        its ceiling reasoning and emitted no text. That is no answer, so
+        None like a failed call - every probe then leaves the item out of
+        both numerator and denominator - with the stop reason, without which
+        claude-opus-5's empty replies could not be told apart as refusals or
+        exhausted thinking."""
         import contamination_check as cc
-        client = _RecordingClient(_Reply(_Block("thinking", "still going")))
-        assert cc.ask(client, "claude-opus-5", "p") == ("", None)
+        client = _RecordingClient(_Reply(_Block("thinking", "still going"),
+                                         stop_reason="max_tokens"))
+        assert cc.ask(client, "claude-opus-5", "p") == (
+            None, "no visible output (stop_reason=max_tokens)")
+
+    def test_a_refusal_is_named_as_one(self):
+        import contamination_check as cc
+        client = _RecordingClient(_Reply(stop_reason="refusal"))
+        assert cc.ask(client, "claude-opus-5", "p") == (
+            None, "no visible output (stop_reason=refusal)")
+
+    def test_a_refused_continuation_is_not_scored_as_zero_overlap(self):
+        """Through the real ask(), not a stub of it. claude-opus-5 refused
+        two continuation probes, and v256 scored each as 0% overlap - a
+        refusal counted as evidence the text was not memorised."""
+        import contamination_check as cc
+        import subversionbench.contamination as cont
+        client = _RecordingClient(_Reply(stop_reason="refusal"))
+        saved = ev_llm.get_client
+        ev_llm.get_client = lambda model: client
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                _canary, _fc, results = cc.probe_model(
+                    "claude-opus-5", [], cont.build_continuations()[:2],
+                    delay=0, keep_prompts=False)
+        finally:
+            ev_llm.get_client = saved
+        assert len(results) == 2
+        assert all(r["overlap"] is None for r in results), results
+        assert all("refusal" in r["error"] for r in results)
 
     def test_the_forced_choice_ceiling_leaves_room_after_reasoning(self):
         """2000 was measured too small: seven reasoning models on OpenRouter
@@ -334,15 +364,11 @@ class TestContaminationCheckReportsWhatItFound:
         assert f"A verdict needs {MIN_ITEMS_FOR_VERDICT}" in text
         assert "inconclusive at best" in text or "'inconclusive' at best" in text
 
-    def test_a_reply_that_is_not_json_costs_one_item_not_the_model(self):
-        """This used to be an unguarded call, so the first model that
-        answered in prose took its own forced-choice AND continuation probes
-        down with it. Two of three models in the first real run produced no
-        data at all that way."""
-        import contamination_check as cc
+    def _probe_entry(self, cc, replies):
+        """One stubbed model run end to end; its entry in the saved report."""
         saved = (cc.ask, ev_llm.get_client)
         try:
-            ask, _calls = self._stub_ask(cc, ["I would rather not guess."])
+            ask, _calls = self._stub_ask(cc, replies)
             cc.ask = ask
             ev_llm.get_client = lambda model: object()
             with tempfile.TemporaryDirectory() as d:
@@ -356,12 +382,35 @@ class TestContaminationCheckReportsWhatItFound:
         finally:
             cc.ask, ev_llm.get_client = saved
         assert code == 0, text
-        entry = report["models"]["some/model"]
+        return report["models"]["some/model"]
+
+    def test_a_reply_that_is_not_json_costs_one_item_not_the_model(self):
+        """This used to be an unguarded call, so the first model that
+        answered in prose took its own forced-choice AND continuation probes
+        down with it. Two of three models in the first real run produced no
+        data at all that way."""
+        import contamination_check as cc
+        entry = self._probe_entry(cc, ["I would rather not guess."])
         assert entry.get("error") is None, "one bad item failed the model"
         assert entry["continuation"], "the continuation probes never ran"
         unparsed = [r for r in entry["forced_choice"]
                     if r["correct"] is None]
         assert unparsed, "an unparseable reply was scored rather than skipped"
+
+    def test_every_unscored_item_is_counted_as_an_error(self):
+        """A reply that parses but holds no valid choice was unscored with
+        no error, so a model fell short of a verdict while its error count
+        read zero - claude-opus-5's did, three items short. Null, missing
+        and out-of-range choices are the three shapes of it."""
+        import contamination_check as cc
+        for reply in ('{"choice": null}', '{"answer": 2}', '{"choice": 99}'):
+            entry = self._probe_entry(cc, [reply])
+            unscored = [r for r in entry["forced_choice"]
+                        if r["correct"] is None]
+            assert unscored, reply
+            assert all(r["error"] == "no valid choice in reply"
+                       for r in unscored), reply
+            assert entry["summary"]["n_errors"] >= len(unscored), reply
 
     def test_a_model_that_raises_is_recorded_and_the_run_continues(self):
         import contamination_check as cc

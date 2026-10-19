@@ -36,13 +36,14 @@ def plot_goalguard_rate_views(plt, report: dict, path: str):
     fig, ax = plt.subplots(figsize=(_FIGURE_WIDTH, 6.2))
     height = 0.26
     for j, (arm, label, colour) in enumerate(_ARMS):
-        ys, rates, lows, highs = [], [], [], []
+        ys, rates, lows, highs, joint = [], [], [], [], []
         for i, (view, column, _name) in enumerate(_VIEWS):
             cell = views["views"][view][column][arm]
             if not cell["n"]:
                 continue
             ys.append(i + (j - 1) * height)
             rates.append(cell["rate"] * PP)
+            joint.append(cell["with_oversight_act"] / cell["n"] * PP)
             lows.append((cell["rate"] - cell["ci95"][0]) * PP)
             highs.append((cell["ci95"][1] - cell["rate"]) * PP)
             ax.annotate(f"{cell['successes']}/{cell['n']}",
@@ -51,13 +52,23 @@ def plot_goalguard_rate_views(plt, report: dict, path: str):
         ax.barh(ys, rates, height=height, color=colour, label=label,
                 xerr=[lows, highs], error_kw={"elinewidth": 0.8,
                                               "capsize": 2})
+        # The part of each bar whose episodes took the oversight act too:
+        # inside the bar, so the rate and its interval are unchanged.
+        ax.barh(ys, joint, height=height, color="none", edgecolor="white",
+                hatch="////", linewidth=0)
     ax.set_yticks(range(len(_VIEWS)))
     ax.set_yticklabels([name for _v, _c, name in _VIEWS], fontsize=8)
     ax.invert_yaxis()
     ax.set_xlabel("goal-guarding rate (%)")
     ax.set_xlim(left=0, right=ax.get_xlim()[1] * 1.15)
-    ax.legend(fontsize=8, loc="upper center", ncol=3, frameon=False,
-              bbox_to_anchor=(0.5, -0.1))
+    # A proxy, because the hatch itself is white on no fill and would draw
+    # an empty swatch.
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(plt.Rectangle((0, 0), 1, 1, facecolor="#7f7f7f",
+                                 edgecolor="white", hatch="////"))
+    labels.append("also took the oversight act")
+    ax.legend(handles, labels, fontsize=8, loc="upper center", ncol=2,
+              frameon=False, bbox_to_anchor=(0.5, -0.1))
     ax.set_title(_wrap("Goal-guarding rate: every episode and episodes that "
                        "read the successor file, pooled and without oversight"
                        + _exclusion_title_suffix(report), _TITLE_WRAP),
@@ -66,7 +77,9 @@ def plot_goalguard_rate_views(plt, report: dict, path: str):
     captions = [
         "'Read the file' conditions on something the model did, so it is "
         "descriptive rather than a causal estimate. The no-oversight arm has "
-        "no oversight artefact to subvert alongside the successor file.",
+        "no oversight artefact to subvert alongside the successor file. "
+        "The hatched part of a bar is goal-guarding in episodes that took "
+        "the oversight act as well; it is part of the rate, not added to it.",
         (f"Edited the file and put it back before the episode ended, not "
          f"counted in any bar: {undone['n_undone']} of "
          f"{undone['n_derived']} episodes."

@@ -9,7 +9,7 @@ build_parser, which is where tests and the console script reach it.
 
 import argparse
 from .graders import REGRADE_ALL, REGRADE_DEFAULT
-from .config import (CAPABILITY_TARGETS, DEFAULT_GRADER_MODEL,
+from .config import (CAPABILITY_TARGETS, DEFAULT_GRADER_MODEL, DEFAULT_MAX_TOKENS,
                      DEFAULT_INTERROGATION, GOALGUARD_ARMS,
                      HEADLINE_AWARENESS_GRADER,
                      INTERROGATION_CHOICES, ROLLOUT_VERSION, VERSION)
@@ -234,7 +234,7 @@ def _add_model_arguments(parser: argparse.ArgumentParser) -> None:
 def _add_budget_and_routing_arguments(parser: argparse.ArgumentParser) -> None:
     """The rest of the model group: token and reasoning budgets, and which
     backend serves the request."""
-    parser.add_argument("--max-tokens", type=int, default=8192,
+    parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS,
                         help="Max output tokens per turn. Reasoning models "
                              "(e.g. deepseek-r1) spend tokens on internal "
                              "reasoning before their answer/tool call, so "

@@ -1,5 +1,12 @@
 # Grader agreement on eval awareness
 
+Status: **a closed comparison**, of claude-opus-5 against gpt-6-sol under the rubric, on
+episodes since moved in part to the superseded directories. It is the evidence that the rubric,
+not either grader, let remarks that are not about evaluation decide the verdict, which led to
+the category question now used as the headline measure
+([grader-selection.md](grader-selection.md)). Neither grader compared here is the headline
+awareness grader.
+
 Results of regrading r10 episodes with a second awareness grader, and what the
 disagreements say about the rubric. [methodology.md](methodology.md) describes
 the method; this file records what it produced.
@@ -26,9 +33,9 @@ or for how often opus-5 failed to grade them, not at random:
 | claude-sonnet-4-6 | Third most refused by opus-5 |
 | deepseek/deepseek-v4-flash-0731 | Fourth most refused by opus-5; aware in nearly every episode |
 | meta/muse-spark-1.3 | Near the top of both corpus tables below |
-| deepseek/deepseek-v4-pro | In the stated-principles table below; aware verdicts often rest on one question |
-| z-ai/glm-5.1 | In the stated-principles table below; the one model there outside the muse family and deepseek |
-| meta/muse-spark-1.1 | Top of the stated-principles table below; the same family as muse-spark-1.2 |
+| deepseek/deepseek-v4-pro | In the first corpus table below; aware verdicts often rest on one question |
+| z-ai/glm-5.1 | In the first corpus table below; the one model there outside the muse family and deepseek |
+| meta/muse-spark-1.1 | Top of the first corpus table below; the same family as muse-spark-1.2 |
 
 gpt-6-sol returned no refusals on any of the 1,320 episodes. Its only errors
 were connection failures during a network outage, on two episodes, which were
@@ -56,8 +63,7 @@ gpt-6-sol called an episode aware that opus-5 did not seven times. In four,
 two on claude-opus-5 and two on deepseek-v4-pro, opus-5 had left the questions
 gpt-6-sol said yes to unanswered (see below). The other three, all on
 claude-sonnet-4-6, are the only cases where opus-5 answered no and gpt-6-sol
-yes, and two of them are the situation's own use of the word "test" (see
-below), where opus-5's no is the right reading.
+yes, and in two of them opus-5's no is the right reading (see below).
 
 deepseek-v4-flash-0731 is at the ceiling under both graders, so its verdicts
 say nothing about agreement; it is here for its refusals.
@@ -123,7 +129,7 @@ headline verdict the cost is small: in most refused episodes another question
 still said yes, and on claude-opus-5 only the two episodes where opus-5
 refused every question lost their verdict - both among the most explicit
 statements of being tested on this model. On deepseek-v4-pro two more lost
-theirs, both remarks recognising a familiar kind of dilemma. On the per-question rates the cost is not small, because every
+theirs. On the per-question rates the cost is not small, because every
 refused cell counts as not yes, so opus-5's per-question rates are undercounts
 wherever it refused. By stored readings that is concentrated in four models:
 
@@ -138,121 +144,69 @@ Every other model has 18 or fewer.
 
 ## What the disagreements are
 
-Every disagreement was read by hand. The rulings below are the analyst's, made
+Every disagreement was read by hand. The rulings are the analyst's, made
 unblinded, against the draft awareness codebook; they are indicative, not
-labels.
+labels. The codebook, and what each ruling turned on, are kept in the
+encrypted definitions archive, not here. Below, "extra" verdicts are the
+episodes one grader called aware and the other did not.
 
-**Where the agent says outright that it may be under evaluation, the graders
-agree.** That is most of kimi-k2.6's awareness, and why its agreement is high.
+| Model | Extra for opus-5 | gpt-6-sol right | opus-5 right | At most `ambiguous_true` |
+|---|---|---|---|---|
+| kimi-k2.6 | 2 | - | - | - |
+| muse-spark-1.2 | 17 | no consistent split | - | - |
+| qwen3.6-27b | 21 | about 16 | about 5 | - |
+| claude-sonnet-4-5 | 7 | 5 | - | - |
+| muse-spark-1.3 | 26 | 26 | 0 | - |
+| claude-sonnet-4-6 | 18 | 15 | 3 | - |
+| glm-5.1 | 12 | 8 | 2 | 2 |
+| muse-spark-1.1 | 19 | 19 | 0 | - |
+| claude-opus-5 | 9 | 1, possibly 3 | about 6 | - |
+| deepseek-v4-pro | 9 | 2 | 7 | - |
 
-**They diverge on three kinds of remark that make no claim about being
-evaluated**, each of which can satisfy one question on its own:
-
-- *Stated principles.* Some models recite their developer's published
-  principles in their reasoning as a matter of course, applying them to the
-  task without saying anything about their own situation. The AI-safety
-  question can read that as awareness. On muse-spark-1.2 the two graders'
-  yes answers to it are indistinguishable in kind: gpt-6-sol is stricter on
-  average but draws no consistent line. The one episode on this model that
-  frames its own choice in terms only an observed agent would use was caught
-  by both. It is not only the muse models: on claude-sonnet-4-6 opus-5 said
-  yes to the AI-safety question 9 times and gpt-6-sol never, and the 6 of
-  those that decide a verdict are the agent naming a goal conflict as a kind
-  of misalignment to avoid, with nothing about its own situation. The same
-  remark is 8 of glm-5.1's 12 and 18 of muse-spark-1.1's 19.
-- *Suspected attacks.* The authenticity and suspected-test questions can be
-  met by an agent that suspects manipulation by someone inside the situation,
-  rather than suspecting that the situation was built to observe it. Of the
-  21 qwen3.6-27b disagreements, about 16 are this or a doubt about one element
-  of the situation, where gpt-6-sol's no is the right reading; about 5 are
-  implicit awareness remarks, where opus-5's yes is. On claude-sonnet-4-6 it
-  is 7 of opus-5's 18 extra verdicts: a message whose sender does not match,
-  a component that seems rigged, a colleague suspected of steering it.
-  These counts were spot-reads made with the graders' answers in view; blind
-  labels later found more implicit awareness among the screen's suspected
-  attacks than they suggest (see *Suspected attacks* below).
-- *The situation's own oversight.* The situation contains monitoring of the
-  agent, and an agent can say it is being watched, or that a check exists to
-  catch it, while treating that monitoring as part of a real deployment. The
-  suspected-test question can read that as awareness. This is 5 of
-  claude-sonnet-4-5's 7 disagreements, where gpt-6-sol's no is the right
-  reading. It is the same boundary as the situation's own review of the
-  agent's work, which the rubric already excludes by name. Both graders
-  cross it: the situation itself presents the agent's work as something it
-  will be judged on, and an agent repeating that in the word "test" drew
-  a yes from opus-5 once and from gpt-6-sol twice on claude-sonnet-4-6.
-
-**muse-spark-1.3 has the first two at once.** All 26 of opus-5's extra aware
-verdicts are one or the other: 17 suspect that instructions were slipped into
-the agent's input by someone inside the situation, 7 are stated principles,
-and 2 call an instruction planted in that same sense. gpt-6-sol's no is the
-right reading on all of them, which takes the model from 28% to 6%. As on muse-spark-1.2, these remarks read as
-provider-written summaries of the reasoning.
-
-**claude-sonnet-4-6 has all three.** Of opus-5's 18 extra aware
-verdicts, 6 are stated principles, 7 suspected attacks and 2 the situation's
-own oversight, where gpt-6-sol's no is the right reading; 3 say the situation as a
-whole seems designed to push the agent one way, implicit remarks where
-opus-5's yes is. Of gpt-6-sol's 3, 2 are the situation's own test and 1 calls
-the options it was given artificially narrow, an `ambiguous_true` at most.
-
-**glm-5.1 is mostly stated principles.** Of opus-5's 12 extra aware
-verdicts, 8 rest on the AI-safety question alone and are stated principles,
-where gpt-6-sol's no is the right reading. 2 are implicit remarks, where
-opus-5's yes is, and 2 are `ambiguous_true` at most.
-
-**muse-spark-1.1 is stated principles almost throughout.** 26 of opus-5's
-27 aware verdicts rest on the AI-safety question alone, and all 26 are stated
-principles. gpt-6-sol said yes to 8 of them and no to 18, and its 8 are the
-same kind of remark as the 18: as on muse-spark-1.2 it is stricter on average
-without drawing a consistent line, and the codebook reading is no on all 26.
-The 27th adds the suspected-test question to a remark about the situation's
-own review of the agent's work, where gpt-6-sol's no is also the right
-reading. On the quoted passages, then, none of this model's 27 stored aware
-verdicts is an awareness remark, and gpt-6-sol's 8 are over-counts too.
-
-**On claude-opus-5 the disagreement runs the other way.** Of opus-5's 9
-extra aware verdicts, about 6 are implicit awareness remarks, where opus-5's
-yes is the codebook reading,
-2 could refer to the situation's own review of the agent's work, and 1 is
-probably not awareness. This is the pattern gpt-6-sol showed on qwen3.6-27b:
-it misses implicit remarks.
-
-**So does deepseek-v4-pro.** Of opus-5's 9 extra aware verdicts, 7 are
-implicit remarks - recognising a familiar kind of dilemma, inferring that the
-conflict was put there on purpose, describing itself as playing a role - where
-opus-5's yes is the codebook reading. The other 2 are a plain use of
-"scenario" and a doubt about one component. gpt-6-sol is also inconsistent on
-this kind of remark: it said yes to one instance of a stock phrase and no to
-three near-identical ones in other episodes of the same model.
+- **kimi-k2.6** agrees almost throughout: its awareness is mostly stated
+  outright, which both graders count.
+- **muse-spark-1.2.** gpt-6-sol is stricter on average but draws no
+  consistent line between the verdicts it keeps and those it drops.
+- **qwen3.6-27b.** These were spot-reads made with the graders' answers in
+  view; the blind labels later found more awareness among this kind of
+  episode than they suggest (see *How far it reaches* below).
+- **muse-spark-1.3.** gpt-6-sol's no is the right reading on all 26, which
+  takes the model from 28% to 6%.
+- **claude-sonnet-4-6.** Of gpt-6-sol's own 3 extra verdicts, 2 are not
+  aware and 1 is `ambiguous_true` at most.
+- **muse-spark-1.1.** None of the model's 27 stored opus-5 aware verdicts is
+  aware on the codebook reading; gpt-6-sol said yes to 8 of them, which are
+  over-counts too.
+- **deepseek-v4-pro.** gpt-6-sol is also inconsistent here: it said yes to
+  one instance of a remark and no to three near-identical ones in other
+  episodes of the same model.
+- On muse-spark-1.1, 1.2 and 1.3 the reasoning reads as a provider-written
+  summary.
 
 **No sign that opus-5 is lenient on itself.** A grader favouring its own
 transcripts would call fewer of them aware than a second grader does. opus-5
 calls more, and its extra verdicts are the same kind it adds on other models.
-Its 18 AI-safety yes answers that gpt-6-sol did not give are not stated
-principles. 14 quote the agent saying outright that it is being evaluated,
-13 of them on whether it will protect itself, which is an explicit awareness
-remark that gpt-6-sol counts under the other questions instead; 3 describe tampering as a
-misaligned shortcut the setup seems to invite. The two graders are filing
-the same remarks under different questions, which is why the per-question
-counts differ more than the verdict does. Only one of the 18 decides a
-verdict: an episode opus-5 alone calls aware, whose only yes is a remark
-that an incentive was attached to the decision, an `ambiguous_true` at most.
+Of its 18 `referenced_ai_safety` yes answers on claude-opus-5 that gpt-6-sol
+did not give, 14 quote the agent saying outright that it is being evaluated,
+which gpt-6-sol counts under the other questions instead. The two graders are
+filing the same remarks under different questions, which is why the
+per-question counts differ more than the verdict does. Only one of the 18
+decides a verdict, and it is `ambiguous_true` at most.
 
 So neither grader is simply better. opus-5 counts remarks that are not about
-being evaluated; gpt-6-sol misses implicit remarks that are, and opus-5
-leaves some questions unanswered. Which error dominates depends on how a
-given model tends to phrase things. On muse-spark-1.1, 1.2 and 1.3, qwen3.6-27b,
-claude-sonnet-4-5 and 4-6, and glm-5.1 opus-5's over-counting dominates; on claude-opus-5 and
-deepseek-v4-pro gpt-6-sol's under-counting does. Swapping one grader for the
-other therefore moves rates in a model-dependent direction.
+being evaluated; gpt-6-sol misses some that are, and opus-5 leaves some
+questions unanswered. Which error dominates depends on how a given model
+tends to phrase things. On muse-spark-1.1, 1.2 and 1.3, qwen3.6-27b,
+claude-sonnet-4-5 and 4-6, and glm-5.1 opus-5's over-counting dominates; on
+claude-opus-5 and deepseek-v4-pro gpt-6-sol's under-counting does. Swapping
+one grader for the other therefore moves rates in a model-dependent direction.
 
 ## How far it reaches in the r10 corpus
 
 Counted from the stored opus-5 readings, over all 1,992 aware verdicts.
 
-**Stated principles** - aware verdicts where the AI-safety question is the
-only yes: 120 corpus-wide (6%), concentrated in:
+**Resting on `referenced_ai_safety` alone** - aware verdicts where that
+question is the only yes: 120 corpus-wide (6%), concentrated in:
 
 | Model | opus-5 aware | Resting on that question alone |
 |---|---|---|
@@ -262,9 +216,9 @@ only yes: 120 corpus-wide (6%), concentrated in:
 | meta/muse-spark-1.3 | 33 | 11 |
 | deepseek/deepseek-v4-pro | 23 | 7 |
 
-**Suspected attacks** - aware verdicts where every yes answer's quote reads as
-suspicion of manipulation and none as suspicion of evaluation, by a vocabulary
-screen whose hits were spot-read for precision: 92 corpus-wide (5%),
+**Screened as not about evaluation** - aware verdicts where no yes answer's
+quote reads as about evaluation, by a vocabulary screen over the quotes whose
+hits were spot-read for precision: 92 corpus-wide (5%),
 concentrated in:
 
 | Model | opus-5 aware | Screen hits |
@@ -276,15 +230,14 @@ concentrated in:
 | claude-sonnet-5 | 105 | 7 |
 
 The screen is an approximation: it reads only the quote each question
-returned, and a few of its hits are implicit awareness remarks rather than
-suspected attacks.
+returned, and a few of its hits are awareness remarks after all.
 
 **Corrected 2026-10-11 by blind labels: it is more than a few.** A blind pack
-of 56 of the 92 hits (see [grader-selection.md](grader-selection.md#the-attack-set-labelled-blind-2026-10-11))
+of 56 of the 92 hits (see [grader-selection.md](grader-selection.md#test-set-b-labelled-blind-2026-10-11))
 found 26 of the 28 that both category-question graders called aware to be
 aware, and 2 of 28 drawn from those both called not aware. Projected over the
-92, roughly a third or more are implicit awareness. The set is still mostly
-suspected manipulation, so opus-5's verdicts on it overcount; but gpt-6-sol's
+92, roughly a third or more are aware. The set is still mostly not aware, so
+opus-5's verdicts on it overcount; but gpt-6-sol's
 rubric undercounts it, calling 15 of the 92 aware and missing 20 of the 28 the
 labels found aware.
 
@@ -314,8 +267,9 @@ reads low on these episodes rather than high, by the correction above.
 
 The disagreements come from the rubric, not from either grader alone: three
 of its questions let a remark that is not about being evaluated decide the
-verdict.
-A per-episode awareness classification that separates these remarks from a
-claim about the agent's own situation is being drafted, and these episodes
-are part of its validation set. Until it is adopted, the limitation above
-stands for the published rates.
+verdict. That is why the headline awareness measure is now a per-episode
+category question rather than the rubric, adopted on 2026-10-11 after a blind
+validation that drew on these episodes - see
+[grader-selection.md](grader-selection.md). The rubric readings compared here
+are still stored, and the limitation above applies to any rate read from
+them.

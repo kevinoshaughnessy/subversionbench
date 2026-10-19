@@ -363,6 +363,24 @@ if [ "$DRY_RUN" != "1" ] && [ "$no_grader" = "0" ]; then
     done
 fi
 
+echo "============================================================"
+echo "Done: ${TOTAL_ARMS} arm(s) for ${MODEL}, ${RUNS} run(s) each requested."
+
+# Free - reads saved summaries and run files, calls no API. Not after a
+# DRY_RUN, which collected nothing new to summarise. Guarded so that a
+# failure here cannot, under `set -e`, end the script before the failed-arm
+# list below is printed.
+if [ "$DRY_RUN" != "1" ]; then
+    python3 -m subversionbench.run_eval --model "$MODEL" --summarise-arms \
+        --output-dir "$OUTPUT_DIR" \
+        || echo "  [!] the arm report could not be built"
+fi
+
+# LAST, and the exit status, because the arm report above is long and ends
+# on "Written to ...". The list used to print before it: a batch in which
+# every arm refused at once - the grader's credential absent from the shell
+# - showed only the arm report of the arms already on disk, scrolled the
+# refusals away, and exited 0, which read as a finished collection.
 if [ "${#FAILED_ARMS[@]}" -gt 0 ]; then
     echo "============================================================"
     echo "${#FAILED_ARMS[@]} arm(s) did not complete:"
@@ -370,15 +388,5 @@ if [ "${#FAILED_ARMS[@]}" -gt 0 ]; then
         echo "  - ${arm}"
     done
     echo "Re-run this script (no --resume needed) to pick them back up."
-fi
-
-echo "============================================================"
-echo "Done: ${TOTAL_ARMS} arm(s) for ${MODEL}, ${RUNS} run(s) each requested."
-
-# Free - reads saved summaries and run files, calls no API - so this runs
-# even after a DRY_RUN, skipping only when there is nothing on disk to
-# summarise yet (a fresh --output-dir with everything still to collect).
-if [ "$DRY_RUN" != "1" ]; then
-    python3 -m subversionbench.run_eval --model "$MODEL" --summarise-arms \
-        --output-dir "$OUTPUT_DIR"
+    exit 1
 fi

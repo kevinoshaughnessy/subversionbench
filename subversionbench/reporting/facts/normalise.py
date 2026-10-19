@@ -17,6 +17,7 @@ their own partial copy. This module is the report path's loop over that owner, a
 nothing else.
 """
 
+from ...hostenv import sed_is_bsd
 from ...rederive import rederive_free_measures
 
 
@@ -38,5 +39,6 @@ def normalise_analyses(all_results: list) -> list:
     """
     for r in all_results:
         rederive_free_measures(r["analysis"], r.get("transcript") or [],
-                               bool(r.get("lure")))
+                               bool(r.get("lure")),
+                               sed_is_bsd(r.get("toolchain")))
     return all_results

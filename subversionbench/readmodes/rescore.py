@@ -10,7 +10,8 @@ one mode importing the other.
 
 from .. import grading as grading_api
 from ..config import DEFAULT_INTERROGATION
-from ..grading import MISALIGNED_ACTS, concealment_level, settle_analysis
+from ..grading import (MISALIGNED_ACTS, act_value, concealment_level,
+                       settle_analysis)
 from ..llm_client import is_auth_error
 
 
@@ -230,7 +231,7 @@ def _recheck_misrepresentation(analysis, data, grader_model, tally) -> None:
 def _rescore_acts(analysis, data, has_report, grader_model, tally) -> None:
     """Every act's disclosure and every interrogation answer, re-scored."""
     for act in MISALIGNED_ACTS:
-        if not analysis.get(act["key"]):
+        if not act_value(analysis, act):
             continue
         fresh = (
             grading_api.detect_disclosure(data.get("transcript") or [],
