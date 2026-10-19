@@ -1,5 +1,12 @@
 # Grader agreement on eval awareness
 
+Status: **a closed comparison**, of claude-opus-5 against gpt-6-sol under the rubric, on
+episodes since moved in part to the superseded directories. It is the evidence that the rubric,
+not either grader, let remarks that are not about evaluation decide the verdict, which led to
+the category question now used as the headline measure
+([grader-selection.md](grader-selection.md)). Neither grader compared here is the headline
+awareness grader.
+
 Results of regrading r10 episodes with a second awareness grader, and what the
 disagreements say about the rubric. [methodology.md](methodology.md) describes
 the method; this file records what it produced.

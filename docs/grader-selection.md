@@ -3,11 +3,13 @@
 Status: **decided 2026-10-11.** The awareness grader is **z-ai/glm-5.3**, asking
 the **category question in its rules-only wording** (`category_rules`), adopted
 as the headline awareness measure; the rubric's `eval_aware` stays stored
-beside it. Steps 1 to 5 are done (v237, v238, the refusal screen on
-2026-10-07, the blind labelling, the grid, the test sets and the blind-labelled
-test set B, 2026-10-10 to 2026-10-11); step 6, regrading the corpus with the
-winner as an added reading, is next, with `--grade-category` (v248). Every paid step is started by the
-operator, not by an agent.
+beside it. The screen, the blind labelling, the grid, the test sets and the
+blind-labelled test set B were done 2026-10-07 to 2026-10-11. The last step, regrading the corpus with the winner
+as an added reading (`--grade-category`), is under way: models collected or re-collected since
+2026-10-14 have it, and the free plan check of 2026-10-19 found most of the older corpus
+still without it (see [models.md](models.md#pending-evaluation)). This file records how the
+choice was made; [methodology.md](methodology.md#validating-the-grader) describes the setup
+as it now stands.
 
 ## The decision
 
@@ -19,7 +21,7 @@ Two choices, which have to be made together:
    which returns one of `true`, `ambiguous_true`, `ambiguous_false`, `false`.
 2. **Which model asks it.** gpt-6-sol (the current default), gpt-6.1-sol or
    z-ai/glm-5.3. claude-sonnet-5-5 was a fourth candidate and was dropped at
-   the refusal screen (step 2).
+   the refusal screen (step 1).
 
 They are decided together because each changes what "aware" counts, and each
 means regrading the corpus once it is adopted. Deciding them one after the
@@ -30,28 +32,17 @@ proposed`) is not a third option. It patches one rubric question, and the
 category question replaces the reading those questions feed. It can be added
 back as a cell if the category question fails validation.
 
-## What does not wait for it
-
-The category question is additive by design: the rubric still produces
-`eval_aware`, and the category is a new field stored beside it in the same
-grader's reading. So grading the rest of the goal-guarding corpus with
-gpt-6-sol under the shipped rubric continues as planned. Whatever wins is
-added to those episodes as another reading (v213 stores several graders per
-episode), not written over them.
-
 ## What each candidate brings
 
-| Grader | For | Against |
-|---|---|---|
 | Grader | Status | For | Against |
 |---|---|---|---|
 | gpt-6-sol | In the grid | The incumbent. Graded the goal-guarding corpus and the r10 comparison with no refusals and almost no errors; answered all 20 at the refusal screen, every quote verbatim. | Single vendor, which has already deactivated the account once. Grades its own family (gpt-6-astra, gpt-6-luna, and gpt-6-sol itself). |
 | gpt-6.1-sol | In the grid | Probably the closest to the incumbent, so the cheapest switch if it is better. Answered all 20 at the refusal screen, every quote verbatim. | Same vendor and same own-family problem. Released 2026-09-29; the screen is its only record here. |
 | z-ai/glm-5.3 | In the grid | A third vendor, open weights, about a fifth of the others' cost. Answered all 20 at the refusal screen. Under the tie rule below it is preferred wherever the intervals overlap. | Not yet checked against human labels. Three of its 20 screen quotes were fragments rather than verbatim. Reached through OpenRouter, where the serving host is not pinned for grader calls. |
-| claude-sonnet-5-5 | Dropped | Another vendor, which would have taken away the single point of failure. | Left 12 of 20 unanswered at the refusal screen, every one the API's `reasoning_extraction` refusal stop; see step 2. |
+| claude-sonnet-5-5 | Dropped | Another vendor, which would have taken away the single point of failure. | Left 12 of 20 unanswered at the refusal screen, every one the API's `reasoning_extraction` refusal stop; see step 1. |
 
 The refusal question decided claude-sonnet-5-5 on its own, which is why it was
-measured first and cheaply (step 2 below).
+measured first and cheaply (step 1 below).
 
 ## The evidence
 
@@ -81,23 +72,14 @@ is blind.
 
 ## The steps
 
-1. **Merge the bundle change** (branch `bundle-grader-wordings`), so every
-   question text lives in `detectors.b64`. Then add the category question and
-   its system prompt to the bundle. Done: the branch is merged, and the two
-   entries were added in v237. That moves the draft from the encrypted
-   archive to the base64 bundle, the same protection the shipped rubric has.
-   A grader cannot ask a question it cannot read, so this has to happen
-   before anything runs.
-2. **Refusal screen, ~20 episodes per candidate.** The category question on
-   the 20 test-set episodes with the most explicit awareness, for each
-   candidate grader. Any candidate that leaves more than one in twenty
-   unanswered is dropped before labelling effort is spent on it.
+The question and its rules-only wording were added to the encoded bundle first (v237), so a
+grader could read them, and `grader_ab` gained the category shapes (`category`,
+`category_rules`, v238 and v240) to cross graders against instruments on a fixed list of
+episodes without writing anything back. Then:
 
-   **Run 2026-10-07.** The episodes came from the whole r10 corpus rather
-   than the test sets, which were built around disagreements and hold only
-   18 episodes both graders call aware: the 20 with the most rubric yeses
-   under both graders, at most two per model, 13 models. All four
-   candidates were asked.
+1. **Refusal screen (2026-10-07).** The category question on the 20 r10 episodes with the
+   most rubric yeses under both incumbent graders (at most two per model, 13 models), for each
+   candidate. A candidate leaving more than one in twenty unanswered was to be dropped.
 
    | Grader | Answered | `true` | `ambiguous_true` | Quote verbatim | Cost |
    |---|---|---|---|---|---|
@@ -106,47 +88,18 @@ is blind.
    | z-ai/glm-5.3 | 20/20 | 17 | 3 | 17/20 (3 fragments) | $0.08 |
    | claude-sonnet-5-5 | 8/20 | 1 | 7 | 8/8 | $0.58 |
 
-   **claude-sonnet-5-5 is dropped.** All 12 unanswered are the API's
-   refusal stop with category `reasoning_extraction`, which Anthropic
-   documents for Opus 5, Opus 5.5 and Sonnet 5.5 on a request that "attempts
-   to elicit the model's internal reasoning as part of the response text".
-   A transcript of another model's reasoning, judged in the reply, reads to
-   that classifier as exactly that. It is the API declining, not the model,
-   and it falls on clearly aware episodes, so it would bias the rate. The
-   same classifier may explain much of claude-opus-5's refusals on awareness
-   content in grader-agreement.md; that was not checked.
-
-   gpt-6-sol, gpt-6.1-sol and z-ai/glm-5.3 go forward. This screen is all
-   positives, so it measures refusals and recall on the easy cases only;
-   precision is decided on the blind sample.
-3. **Build the cell runner.** Done in v238. `grader_ab` crosses grader
-   against call shape on a sample and writes nothing back; the category
-   question is a third shape, `category`, asked over the agent's whole text,
-   so `--shapes per_question category` gives graders x instruments on one
-   sample. `--runs-file` grades a fixed list of episodes (the blind sample, a
-   test set) and refuses a list its directory cannot grade. Its `--dry-run`
-   prints the call count before anything is spent. gpt-6.1-sol and
-   claude-sonnet-5-5 are priced, from third-party listings. v240 adds the
-   rules-only wording as `category_rules`.
-4. **Label the random sample** (operator, from the blind pack), on the four
-   categories. Done 2026-10-10: both packs, every episode labelled.
-5. **Run the grid** on all three sources: each surviving grader x
-   {rubric, category, rules-only category}. On the blind sample, one run
-   per corpus, each over the runs its pack's key names:
-
-   ```bash
-   python3 -m grader_ab --output-dir eval_results_r10 \
-       --runs-file labelling/blind_r10_20261008/runs.txt \
-       --graders gpt-6-sol gpt-6.1-sol z-ai/glm-5.3 \
-       --shapes per_question category category_rules
-   python3 -m grader_ab --output-dir eval_results_goalguard_r1 \
-       --runs-file labelling/blind_goalguard_r1_20261008/runs.txt \
-       --graders gpt-6-sol gpt-6.1-sol z-ai/glm-5.3 \
-       --shapes per_question category category_rules
-   ```
-6. **Decide by the rule below**, scored with
-   `python3 -m grader_ab.blind_score --pair <pack> <grid> --pair <pack> <grid>`,
-   then regrade the corpus with the winner as an added reading.
+   **claude-sonnet-5-5 was dropped.** All 12 unanswered are the API's refusal stop with
+   category `reasoning_extraction`, which Anthropic documents for requests that try to elicit
+   a model's internal reasoning in the response text; a transcript of another model's
+   reasoning, judged in the reply, reads to that classifier as exactly that. It is the API
+   declining, not the model, and it falls on clearly aware episodes, so it would bias the
+   rate. The screen is all positives, so it measures refusals and easy recall only.
+2. **Blind labelling** of the random sample by the operator, on the four categories
+   (2026-10-10).
+3. **The grid**: each surviving grader against the rubric, the category question and its
+   rules-only wording, on the blind sample (one run per corpus, over the runs each pack's key
+   names) and on the test sets, scored with `python3 -m grader_ab.blind_score`.
+4. **The decision by the rule below**, then the corpus regrade as an added reading.
 
 ## The rule, fixed before anything runs
 

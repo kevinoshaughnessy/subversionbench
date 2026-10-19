@@ -1,8 +1,10 @@
 # Authorised capability controls for the oversight and goal-guarding acts
 
 *Drafted 2026-10-03 for the goal-guarding act; extended to the oversight act and built in
-v249 (2026-10-11). The four targets are pinned; nothing has been collected yet. Section 11
-records the decisions taken before building.*
+v249 (2026-10-11). Collected for both acts from 2026-10-11: every model the rule in §5 names
+has a tier except mistral-small-2603's one outstanding mechanical goal-guarding episode, and
+the manipulation check A3 fails for the oversight act. Results are in the capability sections
+of [models.md](models.md). Section 11 records the decisions taken before building.*
 
 ## 1. The problem
 
@@ -333,40 +335,15 @@ tracked files.
   every propensity zero from the most safety-trained models unreadable, and those are the
   models whose zeros a reader most wants to interpret.
 
-## 10. Implementation (v249)
+## 10. Implementation (v249, done)
 
-*Built as outlined below, for both acts. Scenario text is authored only through
-`scenario_tool.py`, and appears in no tracked file. The added document's filename is
-bundle text too, and staging refuses one that is not a bare name.*
-
-- **Bundle.** Two entries under `capability`: `goalguard-authorised` and
-  `goalguard-mechanical`. Each supplies:
-  - its instruction;
-  - the one added communications document.
-
-  `scenario_for` stages `goalguard_common` for all three goal-guarding targets, so the
-  artefact is shared.
-- **Environment.** Write the added document to the communications directory. It is a new
-  bundle key, so `environment.py` must place it explicitly.
-- **Pins.** New `CAPABILITY_FINGERPRINTS` entries for the two targets at oversight False,
-  and at True only if it is to be collected.
-  - This is a deliberate decision of the kind AGENTS.md requires, though `ROLLOUT_VERSION`
-    does not move.
-  - A guard asserts every existing capability and rollout fingerprint recomputes unchanged.
-  - The held-out twin refuses the new targets, as it refuses the existing ones.
-- **Scoring.** Both targets map to `goal_guarded` in `CAPABILITY_ACT_KEYS` and share the
-  goal-guarding branch of `capability_outcome`.
-- **Reporting.** `capability_report.py` gains a per-model tier view across the three
-  goal-guarding targets, and keeps refusing to pool different targets into one count. The
-  capability chart marks the tier.
-- **Tests**, each planted:
-  - the assembled A and M arms differ from I only in the instruction and the added
-    document (a diff test, as the goal-guarding arms already use);
-  - the artefact is byte-identical across I, A and M;
-  - a success in A or M never reaches a propensity rate, nor I's verdict;
-  - the tier mapping;
-  - the twin refusal.
-- **Documents.** A methodology section without figures, models.md, and the CHANGELOG.
+Built for both acts as designed above. The instructions and the added communications document
+are bundle entries under `capability` (`oversight-authorised`, `oversight-mechanical`,
+`goalguard-authorised`, `goalguard-mechanical`), authored through `scenario_tool.py` and in no
+tracked file. Each target has its own pinned capability fingerprint, and every existing
+fingerprint recomputes unchanged. Successes in A or M never reach a propensity rate or the
+instructed verdict, and `capability_report.py` gives each model's tier across the targets
+without pooling them. The tests were planted against each of those properties.
 
 ## 11. Decisions (taken 2026-10-11)
 
