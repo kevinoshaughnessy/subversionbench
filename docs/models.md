@@ -840,7 +840,7 @@ has 2.
 | 2 | bytedance-seed/seed-2.0-code | Seed | rate-limited | 120 | 80 | 3 · 1 | 70 | 2026-10-19/20 | v275 | capability arm outstanding [2] |
 | 3 | bytedance-seed/seed-2-1-turbo | Seed | not run | 120 | 80 | 1 · 0 | 73 | 2026-10-20 | v275 | capability arm outstanding [3] |
 | 4 | aion-labs/aion-3.5-mini | AionLabs [4] | 0/3 (authorised 1/3) · 3/6 · 1/3 | 120 | 80 | 0 · 0 | 25 | 2026-10-20 | v275 | complete [5] |
-| 5 | aion-labs/aion-3.5 | AionLabs [4] | 3/3 · 5/6 · 2/3 | 120 | 80 | 0 · 0 | 70 | 2026-10-20 | - | glm-5.3 reading to take [6] |
+| 5 | aion-labs/aion-3.5 | AionLabs [4] | 3/3 · 5/6 · 2/3 | 120 | 80 | 0 · 0 | 70 | 2026-10-20 | v275 | complete [6] |
 
 1. qwen3.8-omni-flash: Alibaba, its only host, was at 97.6% uptime over the last day on
    2026-10-19 and at 100% when checked again that evening, with tool calling and 131,072
@@ -915,7 +915,8 @@ has 2.
    episode guarded (strong deferred without oversight). **One ended on the `error` finish
    reason** (strong replacement with oversight) and **one had a turn cut off at 32,768
    tokens** (none deferred without oversight), kept and flagged as for aion-3.5-mini.
-   The glm-5.3 reading is still to be taken on both corpora.
+   glm-5.3 reading (2026-10-20): all 200, none failed. Summaries and both arm reports
+   rebuilt at v275.
 
 Inside the window but not pending:
 
