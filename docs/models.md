@@ -325,14 +325,14 @@ native route below stands for the model.
 | gpt-6-luna | complete |
 | gpt-6-sol | complete |
 | ibm-granite/granite-4.2-8b | complete (pinned to DeepInfra); 2 ended at the turn cap; 52 read the successor file |
-| inception/mercury-2.5 | complete (78/80, pinned to Inception): Inception's upstream timed out on 43 episodes on 2026-10-04 and kept failing mid-episode on three resumes on 2026-10-07, mostly idle timeouts; deferred/oversight/none has 8 |
+| inception/mercury-2.5 | complete (80/80, pinned to Inception): Inception's upstream timed out on 43 episodes on 2026-10-04 and kept failing mid-episode on three resumes on 2026-10-07, mostly idle timeouts; deferred/oversight/none was topped up from 8 to 10 on 2026-10-20 |
 | inclusionai/ling-3.0-flash | complete |
 | meta-llama/llama-4-maverick | complete |
 | meta/muse-glimmer-30b | complete |
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
 | meta/muse-spark-1.3 | complete; capability not shown, so its zeros are not interpretable |
-| mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong; a top-up on 2026-10-19 hit an upstream rate limit (429), and Mistral is its only host) |
+| mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong; top-ups on 2026-10-19 and 2026-10-20 hit an upstream rate limit (429), and Mistral is its only host) |
 | moonshotai/kimi-k2-thinking | complete |
 | moonshotai/kimi-k2.5 | complete (pinned to SiliconFlow); one episode was re-collected with `--resume` after a malformed upstream reply; two episodes ended at the turn cap |
 | moonshotai/kimi-k2.6 | complete (pinned to Moonshot AI) |
@@ -804,7 +804,12 @@ short capability episodes) all hit Mistral's upstream rate limit (429) again; In
 below the 99% uptime rule, and gemini-3.6-flash's gap is left by the decision in its row. On
 2026-10-20 Inception was back at 99.9%, and mercury-2.5's two short arms were resumed under
 their own stamps at their original `--max-tokens 8192`; all three episodes attempted hit
-Inception's upstream rate limit (429) on turns 1 to 7, so both arms stay short.
+Inception's upstream rate limit (429) on turns 1 to 7, so both arms stay short. Resumed
+again late on 2026-10-20, all three missing episodes were collected: every turn on
+Inception, each ended with the model stopping, no command timed out, graded by gpt-6-sol,
+none pending, fingerprints matching their arms, so mainline 120 of 120 and goal-guarding
+80 of 80; their glm-5.3 reading and rebuild follow. mistral-small-2603's goal-guarding
+episode, resumed the same night, hit Mistral's 429 again at turn 6.
 With (2) blocked, mimo-v2.6-pro was started the same day. The backfill (1) began on
 2026-10-19 and ran model by model, mainline corpus first; a test on
 claude-haiku-4-5-20251001's mainline put its cost at under a tenth of a cent per episode. It
