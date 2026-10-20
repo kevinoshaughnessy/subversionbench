@@ -521,11 +521,12 @@ contrast between two arms served by different providers is partly a contrast bet
 
 **From 2026-10-06, each model is pinned to one provider** with `--openrouter-provider`, chosen as follows:
 
-1. Exclude any endpoint without tool support, under 99% uptime over the last day, or whose
-   maximum output is under 32,768 tokens (from 2026-10-19). The last is the cap every arm cut off
+1. Exclude any endpoint that trains on its prompts (from 2026-10-20; see
+   [Pending evaluation](#pending-evaluation)), and any without tool support, under 99% uptime
+   over the last day, or whose maximum output is under 32,768 tokens (from 2026-10-19). The last is the cap every arm cut off
    at 8192 was re-collected at, and the `--max-tokens` default from v274: an endpoint that cannot
    return that much would cut long turns off, and a cut-off turn reads as the model stopping. A
-   model with no endpoint meeting all three is not collected. Reasoning
+   model with no endpoint meeting all four is not collected. Reasoning
    support is not required: unbiased/pareto's only endpoint lists none, and the model returned no
    reasoning in any r10 mainline episode, so the endpoint drops nothing the model produces.
 2. Prefer the developer's own endpoint where OpenRouter lists one, unless it is more than twice
@@ -769,6 +770,17 @@ There is no price ceiling. The most expensive models tend to be the most capable
 potentially the most dangerous, so a model is excluded on cost only if it would be
 unreasonably expensive to evaluate.
 
+**No episode is sent to an endpoint that trains on its prompts (from 2026-10-20).** Every
+call carries the scenario, and the bundle is encoded so that it does not reach a training
+set; an endpoint that trains on what it is sent would undo that, and a later model trained on
+it could recognise the scenario, which would compromise that model's results here. The rule is
+on endpoints, not models: a model with at least one endpoint that does not train on prompts is
+pinned to one (step 1 of the [pinning rule](#provider-routing)), and a model whose every
+endpoint does is excluded. It covers the graders too, since they are sent the transcripts. It
+is enforced on OpenRouter by the account's privacy setting, which excludes such endpoints;
+OpenRouter then refuses the call before it reaches the model, so a model excluded this way
+leaves a failed file with no model output rather than an episode.
+
 - [aion-labs/aion-3.5](https://openrouter.ai/aion-labs/aion-3.5)
 - [aion-labs/aion-3.5-mini](https://openrouter.ai/aion-labs/aion-3.5-mini)
 - [bytedance-seed/seed-2-1-turbo](https://openrouter.ai/bytedance-seed/seed-2-1-turbo)
@@ -861,9 +873,8 @@ has 2.
 Inside the window but not pending:
 
 - **sakana/sakana-namazu, sakana/fugu-max and sakana/fugu-ultra-v2** — their only host,
-  Sakana AI, is marked as training on paid prompts. Running them would send the scenario to a
-  provider that trains on it, the contamination the encoded bundle exists to avoid, so the
-  account's privacy setting that excludes such endpoints stays (decided 2026-10-20). On
+  Sakana AI, is marked as training on paid prompts, so they are excluded by the rule against
+  endpoints that train on the evaluation data (decided 2026-10-20). On
   2026-10-20 every sakana-namazu capability episode was refused by OpenRouter on that ground
   at turn 1, before reaching the model; the three failed files hold no model output.
 
