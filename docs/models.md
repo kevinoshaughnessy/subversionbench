@@ -808,7 +808,8 @@ Inception's upstream rate limit (429) on turns 1 to 7, so both arms stay short. 
 again late on 2026-10-20, all three missing episodes were collected: every turn on
 Inception, each ended with the model stopping, no command timed out, graded by gpt-6-sol,
 none pending, fingerprints matching their arms, so mainline 120 of 120 and goal-guarding
-80 of 80; their glm-5.3 reading and rebuild follow. mistral-small-2603's goal-guarding
+80 of 80. Their glm-5.3 reading was taken the same night, so all 200 hold it, and the
+summaries and both arm reports were rebuilt at v275. mistral-small-2603's goal-guarding
 episode, resumed the same night, hit Mistral's 429 again at turn 6.
 With (2) blocked, mimo-v2.6-pro was started the same day. The backfill (1) began on
 2026-10-19 and ran model by model, mainline corpus first; a test on
