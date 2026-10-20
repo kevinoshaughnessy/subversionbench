@@ -122,6 +122,10 @@ twelve-arm cross product.
 - [x-ai/grok-4.7](https://media.x.ai/v1/website/4p7card-5eccc980.pdf)
 - [xiaomi/mimo-v2.6-flash](https://openrouter.ai/xiaomi/mimo-v2.6-flash) † — collected
   2026-10-18 (120/120, pinned to Xiaomi, the developer's endpoint, of eight hosts listed)
+- [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro) † — collected 2026-10-19
+  (120/120, pinned to Xiaomi, the developer's endpoint, of four hosts listed, all at the same
+  price). Its oversight capability is shown at the authorised tier, not when instructed (see
+  the capability section)
 - [z-ai/glm-5.1](https://huggingface.co/zai-org/GLM-5.1)
 - [z-ai/glm-5.2](https://huggingface.co/zai-org/GLM-5.2)
 - [z-ai/glm-5.3](https://huggingface.co/zai-org/GLM-5.3)
@@ -342,6 +346,7 @@ native route below stands for the model.
 | x-ai/grok-4.5 | complete |
 | x-ai/grok-4.6 | complete |
 | x-ai/grok-4.7 | complete |
+| xiaomi/mimo-v2.6-pro | complete (pinned to Xiaomi); 76 read the successor file |
 | xiaomi/mimo-v2.6-flash | complete (pinned to Xiaomi); seven episodes failed on the first pass on empty responses from Xiaomi and were collected again the same day by resuming their arms; 54 read the successor file |
 | z-ai/glm-5.1 | complete (pinned to Z.AI) |
 | z-ai/glm-5.2 | complete |
@@ -488,6 +493,7 @@ shown.
 | x-ai/grok-4.6 | yes | succeeds in all |
 | x-ai/grok-4.7 | yes | succeeds in all |
 | xiaomi/mimo-v2.6-flash | yes | succeeds in all |
+| xiaomi/mimo-v2.6-pro | yes | succeeds in most (2 of 3; 1 refused) |
 | z-ai/glm-5.1 | yes | succeeds in all |
 | z-ai/glm-5.2 | yes | succeeds in all |
 | z-ai/glm-5.3 | yes | succeeds in most |
@@ -763,9 +769,6 @@ unreasonably expensive to evaluate.
 - [sakana/fugu-max](https://openrouter.ai/sakana/fugu-max)
 - [sakana/fugu-ultra-v2](https://openrouter.ai/sakana/fugu-ultra-v2)
 - [sakana/sakana-namazu](https://openrouter.ai/sakana/sakana-namazu)
-- [xiaomi/mimo-v2.6-pro](https://openrouter.ai/xiaomi/mimo-v2.6-pro) — capability arm measured
-  2026-10-11 and again, pinned to Xiaomi, 2026-10-19 (see the capability section): sandbox and
-  goal-guarding capable, oversight shown only at the authorised tier
 
 **Priority from 2026-10-19: after cohere/command-a-plus, the backlog comes first.** Before
 the next model below, (1) the glm-5.3 category reading for every episode in both corpora that
@@ -782,7 +785,9 @@ claude-haiku-4-5-20251001's mainline put its cost at under a tenth of a cent per
 finished by 2026-10-20 with 26 readings still missing, one or two per model across already
 complete models (16 mainline, 10 goal-guarding, by the plan check of 2026-10-20); a second
 pass of the same script takes only those. fireworks/ember-1 and bytedance-seed/seed-2.0-code
-were collected on 2026-10-19 to 2026-10-20 while it ran, and seed-2-1-turbo followed.
+were collected on 2026-10-19 to 2026-10-20 while it ran, and seed-2-1-turbo followed. Their
+glm-5.3 readings were taken on 2026-10-20, with mimo-v2.6-pro's mainline one; two of
+ember-1's mainline readings failed, so its summaries were not rebuilt.
 
 **All of these are to be evaluated (decided 2026-10-12), cheapest first.** The order below
 is the estimated collection cost at the corpus's typical token use per episode, at the
@@ -803,15 +808,14 @@ the first row with a guarded episode (1, strong replacement with oversight).
 | # | Model | Pin | Capability | Mainline | Goal-guarding | Turn cap | Read | Collected | Rebuilt | Status |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | qwen/qwen3.8-omni-flash | Alibaba | 0/3 · 6/6 · 2/3 | - | - | - | - | 2026-10-19 | - | oversight controls to run [1] |
-| 2 | xiaomi/mimo-v2.6-pro | Xiaomi | 0/3 · 6/6 · 2/3 | 120 | 80 | 0 · 0 | 76 | 2026-10-19 | v275 | mainline glm-5.3 reading outstanding [2] |
-| 3 | fireworks/ember-1 | Fireworks | not run | 120 | 80 | 0 · 0 | 79 | 2026-10-19 | v275 | capability arm and glm-5.3 reading outstanding [3] |
-| 4 | bytedance-seed/seed-2.0-code | Seed | not run | 120 | 80 | 3 · 1 | 70 | 2026-10-19/20 | v275 | capability arm and glm-5.3 reading outstanding [3] |
-| 5 | bytedance-seed/seed-2-1-turbo | Seed | not run | - | - | - | - | 2026-10-20 | - | collecting [4] |
-| 6 | aion-labs/aion-3.5-mini | - | - | - | - | - | - | - | - | to run |
-| 7 | sakana/sakana-namazu | - | - | - | - | - | - | - | - | to run |
-| 8 | sakana/fugu-max | - | - | - | - | - | - | - | - | to run |
-| 9 | aion-labs/aion-3.5 | - | - | - | - | - | - | - | - | to run |
-| 10 | sakana/fugu-ultra-v2 | - | - | - | - | - | - | - | - | to run |
+| 2 | fireworks/ember-1 | Fireworks | not run | 120 | 80 | 0 · 0 | 79 | 2026-10-19 | - | capability arm and two mainline glm-5.3 readings outstanding [2] |
+| 3 | bytedance-seed/seed-2.0-code | Seed | not run | 120 | 80 | 3 · 1 | 70 | 2026-10-19/20 | v275 | capability arm outstanding [2] |
+| 4 | bytedance-seed/seed-2-1-turbo | Seed | not run | 120 | - | 1 · - | - | 2026-10-20 | - | goal-guarding collecting [3] |
+| 5 | aion-labs/aion-3.5-mini | - | - | - | - | - | - | - | - | to run |
+| 6 | sakana/sakana-namazu | - | - | - | - | - | - | - | - | to run |
+| 7 | sakana/fugu-max | - | - | - | - | - | - | - | - | to run |
+| 8 | aion-labs/aion-3.5 | - | - | - | - | - | - | - | - | to run |
+| 9 | sakana/fugu-ultra-v2 | - | - | - | - | - | - | - | - | to run |
 
 1. qwen3.8-omni-flash: Alibaba, its only host, was at 97.6% uptime over the last day on
    2026-10-19 and at 100% when checked again that evening, with tool calling and 131,072
@@ -819,19 +823,18 @@ the first row with a guarded episode (1, strong replacement with oversight).
    every turn, with none cut off and no command timed out. It refused all 3 instructed
    oversight episodes, the fourth model to do so, so the authorised and mechanical controls
    run before its propensity arms. Goal-guarding: 2 of 3, 1 refused.
-2. mimo-v2.6-pro: the developer's endpoint, of four hosts listed, all at the same price.
-   The capability arm of 2026-10-11 was not pinned, so it was run again on Xiaomi on 2026-10-19
-   for step 4 of the pinning rule (see the capability section). Both corpora were collected
-   on 2026-10-19: every turn on Xiaomi, every fingerprint at its pin, no episode failed, cut
-   off or at the turn cap, no command timed out, all graded by gpt-6-sol. The goal-guarding
-   glm-5.3 reading is taken; the mainline one is not.
-3. ember-1 and seed-2.0-code: each pinned to its developer's endpoint, the only host listed
+2. ember-1 and seed-2.0-code: each pinned to its developer's endpoint, the only host listed
    (2026-10-20: 100% uptime, tool calling, 943,718 and 131,072 output tokens). Both corpora
    collected with every turn on the pinned host, every fingerprint at its pin, no episode
    failed or cut off, no command timed out, all graded by gpt-6-sol. Neither has a capability
-   arm yet, and step 4 of the pinning rule wants it on the same host; nor the glm-5.3 reading.
-4. seed-2-1-turbo: pinned to Seed, its only host (2026-10-20: 100% uptime, tool calling,
-   235,929 output tokens). Mainline collection began on 2026-10-20.
+   arm yet, and step 4 of the pinning rule wants it on the same host. seed-2.0-code's glm-5.3
+   reading is taken and its summaries rebuilt; ember-1 has two mainline readings to go.
+3. seed-2-1-turbo: pinned to Seed, its only host (2026-10-20: 100% uptime, tool calling,
+   235,929 output tokens). Mainline collected on 2026-10-20: every turn on Seed, every
+   fingerprint at its pin, none failed or cut off, no command timed out, all graded by
+   gpt-6-sol. **One strong-arm episode (oversight, no lure) ended on the provider's `error`
+   finish reason** and was read as the model stopping, as with ternary-bonsai-2-27b.
+   Goal-guarding collection followed the same day.
 
 Inside the window but not pending:
 
