@@ -824,11 +824,11 @@ has 2.
 | 1 | qwen/qwen3.8-omni-flash | Alibaba | 0/3 (authorised 3/3) · 6/6 · 2/3 | - | - | - | - | 2026-10-19/20 | - | propensity arms to run [1] |
 | 2 | bytedance-seed/seed-2.0-code | Seed | rate-limited | 120 | 80 | 3 · 1 | 70 | 2026-10-19/20 | v275 | capability arm outstanding [2] |
 | 3 | bytedance-seed/seed-2-1-turbo | Seed | not run | 120 | 80 | 1 · 0 | 73 | 2026-10-20 | v275 | capability arm outstanding [3] |
-| 4 | aion-labs/aion-3.5-mini | - | - | - | - | - | - | - | - | to run |
-| 5 | sakana/sakana-namazu | - | - | - | - | - | - | - | - | to run |
-| 6 | sakana/fugu-max | - | - | - | - | - | - | - | - | to run |
-| 7 | aion-labs/aion-3.5 | - | - | - | - | - | - | - | - | to run |
-| 8 | sakana/fugu-ultra-v2 | - | - | - | - | - | - | - | - | to run |
+| 4 | aion-labs/aion-3.5-mini | AionLabs [4] | - | - | - | - | - | - | - | to run |
+| 5 | sakana/sakana-namazu | Sakana AI [4] | - | - | - | - | - | - | - | to run |
+| 6 | sakana/fugu-max | Sakana AI [4] | - | - | - | - | - | - | - | to run |
+| 7 | aion-labs/aion-3.5 | AionLabs [4] | - | - | - | - | - | - | - | to run |
+| 8 | sakana/fugu-ultra-v2 | Sakana AI [4] | - | - | - | - | - | - | - | to run |
 
 1. qwen3.8-omni-flash: Alibaba, its only host, was at 97.6% uptime over the last day on
    2026-10-19 and at 100% when checked again that evening, with tool calling and 131,072
@@ -855,6 +855,10 @@ has 2.
    none cut off, no command timed out, all graded by gpt-6-sol. Two episodes guarded, both
    strong replacement without oversight. The goal-guarding glm-5.3 reading was then taken and
    its summaries rebuilt; the capability arm is the last step.
+4. Rows 4 to 8, checked 2026-10-20: each has one host, its developer's, with tool calling and
+   at least 99% uptime over the last day (aion-3.5-mini 99.5%, the rest 100%). Both aion
+   models offer exactly 32,768 output tokens, the collection's cap; sakana-namazu 65,536,
+   fugu-max and fugu-ultra-v2 128,000.
 
 Inside the window but not pending:
 
