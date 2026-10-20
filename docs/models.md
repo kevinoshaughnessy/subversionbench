@@ -778,7 +778,10 @@ goal-guarding 78 of 80), google/gemini-3.6-flash and mistralai/mistral-small-260
 (goal-guarding 79 of 80 each), and mistral-small-2603's one outstanding mechanical capability
 episode. On 2026-10-19 mistral-small-2603's top-ups (the goal-guarding episode and its four
 short capability episodes) all hit Mistral's upstream rate limit (429) again; Inception was
-below the 99% uptime rule, and gemini-3.6-flash's gap is left by the decision in its row.
+below the 99% uptime rule, and gemini-3.6-flash's gap is left by the decision in its row. On
+2026-10-20 Inception was back at 99.9%, and mercury-2.5's two short arms were resumed under
+their own stamps at their original `--max-tokens 8192`; all three episodes attempted hit
+Inception's upstream rate limit (429) on turns 1 to 7, so both arms stay short.
 With (2) blocked, mimo-v2.6-pro was started the same day. The backfill (1) began on
 2026-10-19 and ran model by model, mainline corpus first; a test on
 claude-haiku-4-5-20251001's mainline put its cost at under a tenth of a cent per episode. It
