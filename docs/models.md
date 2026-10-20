@@ -786,8 +786,10 @@ finished by 2026-10-20 with 26 readings still missing, one or two per model acro
 complete models (16 mainline, 10 goal-guarding, by the plan check of 2026-10-20); a second
 pass of the same script takes only those. fireworks/ember-1 and bytedance-seed/seed-2.0-code
 were collected on 2026-10-19 to 2026-10-20 while it ran, and seed-2-1-turbo followed. Their
-glm-5.3 readings were taken on 2026-10-20, with mimo-v2.6-pro's mainline one; two of
-ember-1's mainline readings failed, so its summaries were not rebuilt.
+glm-5.3 readings were taken on 2026-10-20, with mimo-v2.6-pro's mainline one. A second pass
+of the backfill script the same day took the remaining readings, so (1) is complete: the
+plan check of 2026-10-20 leaves none to take outside unbiased/pareto, which is excluded, and
+seed-2-1-turbo's goal-guarding arms, still being collected.
 
 **All of these are to be evaluated (decided 2026-10-12), cheapest first.** The order below
 is the estimated collection cost at the corpus's typical token use per episode, at the
@@ -808,9 +810,9 @@ the first row with a guarded episode (1, strong replacement with oversight).
 | # | Model | Pin | Capability | Mainline | Goal-guarding | Turn cap | Read | Collected | Rebuilt | Status |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | qwen/qwen3.8-omni-flash | Alibaba | 0/3 · 6/6 · 2/3 | - | - | - | - | 2026-10-19 | - | oversight controls to run [1] |
-| 2 | fireworks/ember-1 | Fireworks | not run | 120 | 80 | 0 · 0 | 79 | 2026-10-19 | - | capability arm and two mainline glm-5.3 readings outstanding [2] |
+| 2 | fireworks/ember-1 | Fireworks | not run | 120 | 80 | 0 · 0 | 79 | 2026-10-19 | v275 | capability arm outstanding [2] |
 | 3 | bytedance-seed/seed-2.0-code | Seed | not run | 120 | 80 | 3 · 1 | 70 | 2026-10-19/20 | v275 | capability arm outstanding [2] |
-| 4 | bytedance-seed/seed-2-1-turbo | Seed | not run | 120 | - | 1 · - | - | 2026-10-20 | - | goal-guarding collecting [3] |
+| 4 | bytedance-seed/seed-2-1-turbo | Seed | not run | 120 | - | 1 · - | - | 2026-10-20 | v275 (mainline) | goal-guarding collecting [3] |
 | 5 | aion-labs/aion-3.5-mini | - | - | - | - | - | - | - | - | to run |
 | 6 | sakana/sakana-namazu | - | - | - | - | - | - | - | - | to run |
 | 7 | sakana/fugu-max | - | - | - | - | - | - | - | - | to run |
@@ -827,14 +829,15 @@ the first row with a guarded episode (1, strong replacement with oversight).
    (2026-10-20: 100% uptime, tool calling, 943,718 and 131,072 output tokens). Both corpora
    collected with every turn on the pinned host, every fingerprint at its pin, no episode
    failed or cut off, no command timed out, all graded by gpt-6-sol. Neither has a capability
-   arm yet, and step 4 of the pinning rule wants it on the same host. seed-2.0-code's glm-5.3
-   reading is taken and its summaries rebuilt; ember-1 has two mainline readings to go.
+   arm yet, and step 4 of the pinning rule wants it on the same host. Both have the glm-5.3
+   reading in both corpora and rebuilt summaries (2026-10-20).
 3. seed-2-1-turbo: pinned to Seed, its only host (2026-10-20: 100% uptime, tool calling,
    235,929 output tokens). Mainline collected on 2026-10-20: every turn on Seed, every
    fingerprint at its pin, none failed or cut off, no command timed out, all graded by
    gpt-6-sol. **One strong-arm episode (oversight, no lure) ended on the provider's `error`
    finish reason** and was read as the model stopping, as with ternary-bonsai-2-27b.
-   Goal-guarding collection followed the same day.
+   Its mainline glm-5.3 reading was taken by the backfill's second pass and its summaries
+   rebuilt. Goal-guarding collection followed the same day.
 
 Inside the window but not pending:
 
