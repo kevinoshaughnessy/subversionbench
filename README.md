@@ -340,6 +340,19 @@ eval_results_r10/
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power
 ```
 
+The published corpora are encrypted archives. `eval_results_goalguard_r1.zip`, the two
+capability corpora and `charts.zip` are in the repository. The mainline corpus is too large
+for a tracked file and is a release asset; download it into the repository root and decrypt
+it there:
+
+```bash
+curl -L -o eval_results_r10.zip \
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-21/eval_results_r10.zip
+./unzip.sh --dirs eval_results_r10.zip
+```
+
+See [docs/operations.md](docs/operations.md) for how the archives are built and why.
+
 An episode killed part-way by an API error is written as
 `failed_run_N_...json` instead, carrying the transcript up to the failure. It is **not** an
 observation: it stays out of every rate, and the globs behind `--resume`,
