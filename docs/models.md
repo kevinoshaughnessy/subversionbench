@@ -834,9 +834,14 @@ Every model in both corpora now has a verdict except mistral-small-2603.
 ## Pending evaluation
 
 Models not yet in the mainline corpus that fall inside the selection window: first listed
-on [OpenRouter](https://openrouter.ai/models?output_modalities=text) between the
-[exposure boundary](methodology.md#the-exposure-boundary-is-dated) (2026-07-28) and the
-cut-off, **2026-09-27**, with text output and tool calling, which the harness needs.
+on [OpenRouter](https://openrouter.ai/models?output_modalities=text) between **2026-06-01**
+and the cut-off, **2026-09-27**, with text output and tool calling, which the harness needs.
+The window opened at the
+[exposure boundary](methodology.md#the-exposure-boundary-is-dated) (2026-07-28) until
+2026-10-21, when it was moved back to 2026-06-01 so that every qualifying model of summer 2026
+is included, not only those after the boundary. The boundary itself is unchanged: it dates
+contamination, not selection, and the window's models listed before it are the pre-boundary
+controls the dual-scenario comparison needs.
 OpenRouter's listing date stands in for the lab's release date. Links go to the OpenRouter
 listing until a lab-published card is found.
 
@@ -857,8 +862,35 @@ and OpenRouter's privacy setting excludes endpoints that train on prompts. OpenR
 such a call before it reaches the model, so a model excluded this way leaves a failed file
 with no model output rather than an episode.
 
-None at present. Every model inside the window has been evaluated or is listed below as not
-pending. The last five, aion-labs/aion-3.5 and aion-3.5-mini, bytedance-seed/seed-2.0-code and
+**Added 2026-10-21, when the window was moved back to 2026-06-01.** Twelve models listed
+from 2026-06-01 to 2026-07-27 qualify. Each was checked against the
+[pinning rule](#provider-routing) on 2026-10-21. Tool calling, at least 99% uptime over the
+last day and at least 32,768 output tokens are read from OpenRouter's endpoint data. Whether
+an endpoint trains on prompts is not published there; the account's privacy setting
+enforces it, so a model left with only such endpoints fails at turn 1 of its capability arm.
+Uptime is checked again on the day each model is collected. Roughly cheapest first, by listed price:
+
+| Model (listed) | Pin | Why |
+|---|---|---|
+| poolside/laguna-xs-2.1 (07-02) | Poolside | developer, only host; 32,768 output tokens, exactly the cap |
+| poolside/laguna-s-2.1 (07-21) | Poolside | developer, only host |
+| meituan/longcat-2.0 (07-20) | AtlasCloud | only host |
+| qwen/qwen3.7-plus (06-03) | Alibaba | developer, only host |
+| google/gemini-3.5-flash-lite (07-21) | Google AI Studio | developer endpoint, as for gemini-3.8-flash |
+| nvidia/nemotron-3-ultra-550b-a55b (06-04) | BaseTen | the only endpoint passing: DeepInfra offers 16,384 output tokens, Venice was under 99% uptime; no NVIDIA endpoint |
+| aion-labs/aion-3.0-mini (07-07) | AionLabs | developer, only host; 32,768 output tokens, exactly the cap |
+| moonshotai/kimi-k2.7-code (06-12) | Moonshot AI | developer endpoint, unless the Providers page shows it more than twice as slow as the fastest (throughput is not in the public data) |
+| thinkingmachines/inkling (07-17) | DeepInfra | the only endpoint passing: Together was under 99% uptime; no Thinking Machines endpoint |
+| aion-labs/aion-3.0 (07-07) | AionLabs | developer, only host; 99.2% uptime |
+| openai/gpt-5.6-terra (07-09) | native OpenAI API | as gpt-5.6-luna; collected as `gpt-5.6-terra` |
+| openai/gpt-5.6-sol (07-09) | native OpenAI API | as gpt-5.6-luna; collected as `gpt-5.6-sol` |
+
+Also inside the window and still to collect: z-ai/glm-5.3-flash's goal-guarding arms (listed
+2026-08-26). Its mainline was collected on 2026-10-10, but its goal-guarding never was.
+
+The five completed on 2026-10-20 (aion-labs/aion-3.5 and aion-3.5-mini,
+bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash) were moved to
+the sections above. The last five, aion-labs/aion-3.5 and aion-3.5-mini, bytedance-seed/seed-2.0-code and
 seed-2-1-turbo, and qwen/qwen3.8-omni-flash, were completed on 2026-10-20 and moved to the
 sections above.
 
@@ -919,7 +951,13 @@ Inside the window but not pending:
   and `deepseek/deepseek-v4-flash-vision-exp`, `inclusionai/ling-3.0-flash-fin` and
   `inclusionai/ling-3.0-flash-vl`.
 - **No tool calling** — Tencent's hy-mt2 translation models, inference-net's schematron
-  extraction models, and `typesafe/jev-router`.
+  extraction models, and `typesafe/jev-router`; from the window's summer extension,
+  nvidia/nemotron-3.5-content-safety and two image models.
+- **Added with the summer extension (2026-10-21), excluded by decision:**
+  cohere/north-mini-code, listed only as a free endpoint; google/gemini-3-pro-image, an
+  image-generation model; sakana/fugu-ultra, on the training rule as for its siblings above;
+  and openrouter/fusion and openrouter/auto-beta, routers. Every `:batch`, `:free`, `-pro`
+  and `~...-latest` listing is a variant or alias of a model listed separately.
 
 ### Re-collection: arms cut off at `--max-tokens 8192`
 
