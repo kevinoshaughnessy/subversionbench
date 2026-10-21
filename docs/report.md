@@ -422,6 +422,36 @@ own.
 
 ---
 
+## The primary estimate over both scenarios
+
+```bash
+python3 -m report.primary          # --mainline-dir and --goalguard-dir default to the live corpora
+```
+
+The questions above each read one corpus. The analysis plan's primary question, P, is one
+estimate over both, so it has its own mode, `report/primary.py`:
+
+- **One Mantel-Haenszel risk difference** in the counted act between aware and unaware
+  episodes, with the common odds ratio and Breslow-Day beside it. Its strata are model × arm
+  cells, each inside one scenario: the mainline arms with oversight present (the
+  no-oversight arm excluded, as in `--exclude-no-oversight`) and the goal-guarding
+  replacement arms. It refuses a stratum holding both scenarios' episodes.
+- **The crude difference is given per scenario, not across the two.** P pools
+  within-stratum differences; a rate pooled over two scenarios with different acts would not
+  be one quantity.
+- **Exposure is the headline reading alone.** An episode it has not read is missing, not
+  unaware, and is counted rather than pooled; there is no keyword fallback here.
+- **The secondary family** is read off the question sections above, each on its own reading
+  (the awareness questions with the no-oversight arm excluded; questions 2 and 4 on every
+  arm, since oversight and nudge are their exposures; the goal-guarding questions in the
+  replacement arms, with the deferred control), and corrected together with
+  Benjamini-Hochberg. Nothing is recomputed, so the two documents cannot disagree.
+
+It writes `research_report_primary_<timestamp>.json` into the mainline directory, a name
+the archive's allowlist already ships.
+
+---
+
 ## Where each number comes from
 
 Two sources, and the split is not cosmetic.

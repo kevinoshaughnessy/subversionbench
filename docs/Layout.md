@@ -459,6 +459,8 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
   questions_awareness.py  Q5-10: the exposure is something the model did
   motive_split.py  on a goal-guarding corpus, each question about the act
                    answered in the replacement arms, deferred as control
+  primary.py       the analysis plan's primary estimate P over both corpora,
+                   and its secondary family under Benjamini-Hochberg
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
   console.py       the report as a table on a terminal. Computes nothing
   console_data_quality.py  the DATA QUALITY block, split off when console.py

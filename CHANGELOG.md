@@ -16,6 +16,17 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v276
+
+**The primary estimate has a mode of its own: `python3 -m report.primary`.** The analysis
+plan's primary question is one Mantel-Haenszel estimate over both scenarios, and every
+existing question reads one corpus, so nothing produced it. `report/primary.py` pools the
+model x arm cell strata of the mainline's oversight arms and the goal-guarding replacement
+arms, refuses a stratum that holds both scenarios, gives the crude difference per scenario
+rather than across them, and reads exposure from the headline grader alone, counting an
+unread episode as missing rather than unaware. The secondary family is read off the existing
+question sections, each on its own reading, and corrected together with Benjamini-Hochberg.
+
 ## v275
 
 **A tool call offered under interrogation is no longer replayed.** The interrogation
