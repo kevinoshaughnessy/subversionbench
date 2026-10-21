@@ -810,6 +810,27 @@ So no model with a verdict shows contamination, and every Claude model now has o
   without a verdict.
 - **None** completed the canary, and every continuation overlap that was measured was zero.
 
+**The fourteen models collected from 2026-10-12 to 2026-10-20 (2026-10-21, v275),**
+`--limit 12 --delay 3`. Report: `eval_results_r10/contamination_20261021T023648.json`.
+
+- **All fourteen reach a verdict, all `no evidence`:** aion-3.5, aion-3.5-mini,
+  seed-2-1-turbo, seed-2.0-code, command-a-plus, ember-1, granite-4.2-8b,
+  nemotron-3.5-lightning, ternary-bonsai-2-27b, qwen3.8-omni-flash, solar-mini4, solar-pro4,
+  mimo-v2.6-flash and mimo-v2.6-pro.
+- **Six calls went unscored, none for a reason that bears on contamination:** two
+  unparseable replies each from aion-3.5-mini (11 items left in each arm) and
+  ternary-bonsai-2-27b (10 scenario items, exactly the 10 a verdict needs), and two
+  continuation or canary calls from seed-2-1-turbo rate-limited upstream (429).
+- **None** completed the canary.
+- **Two continuation overlaps were not zero, the first measured above zero:**
+  nemotron-3.5-lightning (scenario 0.005, control 0.029) and solar-mini4 (0.003 and 0.024).
+  Each is below its own control document's overlap, so it reads as common phrasing, not
+  recall. These are also the only two models whose forced-choice scenario arm scored above
+  its control (9 of 12 against 5 of 12, p = 0.21; 8 of 12 against 7 of 12, p = 1.0); neither
+  difference is significant, and neither raised a signal.
+
+Every model in both corpora now has a verdict except mistral-small-2603.
+
 ## Pending evaluation
 
 Models not yet in the mainline corpus that fall inside the selection window: first listed
