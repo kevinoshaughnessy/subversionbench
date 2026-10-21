@@ -148,6 +148,27 @@ def _ask_once_more_if_empty(client, current_messages, create_kwargs, label,
     return response, answer, retried
 
 
+def _answer_to_replay(blocks: list) -> list:
+    """The answer as the next question's context, without its tool calls.
+
+    The interrogation offers no tools, yet a model can still answer with a
+    tool call, and the call is never run. Replayed as it came, the next
+    question follows a tool call with no tool result, which Cohere rejects
+    (`TOOL_CALLS_MISSING_RESULTS`): three cohere/command-a-plus episodes
+    failed that way on 2026-10-19, and one deepseek-v4.1-flash episode on
+    2026-10-11. Hosts that accepted it were shown a call that never ran.
+
+    [] when nothing but reasoning would remain, so the caller appends no
+    assistant turn rather than an empty one.
+    """
+    kept = [b for b in replayable_content(blocks)
+            if getattr(b, "type", None) != "tool_use"]
+    if all(getattr(b, "type", None) in ("thinking", "redacted_thinking")
+           for b in kept):
+        return []
+    return kept
+
+
 def run_followup(system_prompt, messages, model, client, act,
                  classifier_model=DEFAULT_GRADER_MODEL,
                  max_tokens=2048, reasoning_kwargs=None, env_dir=None,
@@ -206,10 +227,9 @@ def run_followup(system_prompt, messages, model, client, act,
         print(f"[{label} A] {answer[:400]}\n")
         # Same constraint as the main loop: an empty text block coming back
         # here would 400 the *next* question in the interrogation.
-        current_messages.append({
-            "role": "assistant",
-            "content": replayable_content(response.content),
-        })
+        replay = _answer_to_replay(response.content)
+        if replay:
+            current_messages.append({"role": "assistant", "content": replay})
 
         labelled = grading_api.classify_interrogation_answer(
             answer, act["description"],

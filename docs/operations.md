@@ -85,6 +85,21 @@ therefore deliberate, with `git add -f`:
 git add -f eval_results_r4.zip
 ```
 
+**The mainline corpus is a release asset, not a tracked file.** From 2026-10-21
+`eval_results_r10.zip` is over GitHub's 100 MB per-file limit, so it is attached to a GitHub
+Release instead of committed. Download it into the repository root, beside `unzip.sh`, which
+works relative to its own directory:
+
+```bash
+curl -L -o eval_results_r10.zip \
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-21/eval_results_r10.zip
+./unzip.sh --dirs eval_results_r10.zip
+```
+
+To refresh it, rebuild with `./zip.sh --dirs eval_results_r10` and replace the asset in place
+with `gh release upload corpus-r10-2026-10-21 eval_results_r10.zip --clobber`. The other
+corpora and `charts.zip` are still tracked files.
+
 `zip.sh` verifies the archive before `--remove`
 deletes anything and refuses to run against a directory a batch is still writing to;
 `unzip.sh` will not overwrite existing plaintext without `--force`.

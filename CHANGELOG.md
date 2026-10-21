@@ -16,6 +16,24 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v275
+
+**A tool call offered under interrogation is no longer replayed.** The interrogation
+offers no tools, but a model can still answer a question with a tool call, which is never
+run. The answer was replayed as it came, so the next question followed a call with no tool
+result. Cohere rejects that (`TOOL_CALLS_MISSING_RESULTS`), and hosts that accepted it showed
+the model a call that never ran. `run_followup` now replays the answer without its tool calls,
+and adds no assistant turn when nothing but reasoning would remain.
+
+**A failed interrogation no longer loses the episode.** The runner saves a partial record
+only for a failure inside the agentic loop, and the interrogation runs after it, so a request
+failing there raised past the save and the finished episode left no file. Post-mortem: three
+cohere/command-a-plus episodes on 2026-10-19, and very likely the deepseek-v4.1-flash episode
+recorded on 2026-10-11 as a possible harness edge case. Now the acts not yet asked about are
+left `interrogation_pending`, as under `--no-grader`, the error is kept in
+`interrogation_error`, and the episode is saved; `--complete-pending` asks the rest and clears
+both.
+
 ## v274
 
 **`--max-tokens` defaults to 32768.** At the old default a turn whose reasoning used the whole

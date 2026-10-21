@@ -99,6 +99,7 @@ def _complete_one(path: str, run: dict, grader: str, client, args):
     if failed:
         return f"left pending: the grader failed an answer ({failed[:80]})"
     analysis.pop(PENDING_KEY, None)
+    analysis.pop("interrogation_error", None)
     analysis["interrogation_driven_by"] = grader
     analysis["interrogation_asked_at"] = datetime.datetime.now().isoformat()
     settle_analysis(analysis)
