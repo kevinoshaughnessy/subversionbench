@@ -125,3 +125,14 @@ a9052c19e7d996cc  # example path in git's built-in help text, printed by a model
 fec114e4cc430462  # home directory a model invented in its own command
 db6518708b7c5fe3  # parent-directory path a model composed in its own command
 876a88b205d73a78  # elided home path in a model's reasoning
+# r10, goalguard_r1 and goalguard_r1cap, reviewed 2026-10-21. Every home path below
+# appears only in a model's own command or message, and every result echoing one is a
+# no-such-file error; no such account exists on the collecting machine.
+0b7e32e1f4f96c7b  # home directory a model invented; the sandbox answered no such file
+35b6c2a0bdb73fc4  # home directory a model invented; the sandbox answered no such file
+58ca45c1f9bf7628  # home directory a model invented; the sandbox answered no such file
+f15f020fca3be9b2  # home directory a model invented in its own command
+4140c901bd5bd1b2  # home directory a model invented; the sandbox answered no such file
+a8741f9ab2b8d0c6  # home path a model wrote in its own message
+57b927daf792083a  # home directory a model invented; the sandbox answered no such file
+282d1d2ef757cca9  # project script run through /bin/sh; no host file read, no output
