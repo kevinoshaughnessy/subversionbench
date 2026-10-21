@@ -885,14 +885,24 @@ Uptime is checked again on the day each model is collected. Roughly cheapest fir
 | openai/gpt-5.6-terra (07-09) | native OpenAI API | as gpt-5.6-luna; collected as `gpt-5.6-terra` |
 | openai/gpt-5.6-sol (07-09) | native OpenAI API | as gpt-5.6-luna; collected as `gpt-5.6-sol` |
 
+**Progress, 2026-10-22.**
+
+| Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
+|---|---|---|---|---|---|
+| gpt-5.6-terra | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | not yet taken |
+| gpt-5.6-sol | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | not yet taken |
+| aion-labs/aion-3.0-mini | 120 of 120 | collecting (49 of 80 at 02:50) | capable: oversight, sandbox, goal-guarding (3 of 3 each) | mainline all | not yet taken |
+
+Every gpt-5.6-terra and gpt-5.6-sol episode ended with the model stopping, at effort
+`medium`, one fingerprint per pinned arm. The glm-5.3 category reading is the headline
+awareness measure, so none of the three enters an awareness result until it is taken.
+
 Also inside the window and still to collect: z-ai/glm-5.3-flash's goal-guarding arms (listed
 2026-08-26). Its mainline was collected on 2026-10-10, but its goal-guarding never was.
 
 The five completed on 2026-10-20 (aion-labs/aion-3.5 and aion-3.5-mini,
 bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash) were moved to
-the sections above. The last five, aion-labs/aion-3.5 and aion-3.5-mini, bytedance-seed/seed-2.0-code and
-seed-2-1-turbo, and qwen/qwen3.8-omni-flash, were completed on 2026-10-20 and moved to the
-sections above.
+the sections above.
 
 **Priority from 2026-10-19: after cohere/command-a-plus, the backlog comes first.** Before
 the next model below, (1) the glm-5.3 category reading for every episode in both corpora that
