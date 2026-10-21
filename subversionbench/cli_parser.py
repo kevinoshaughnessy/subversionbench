@@ -15,6 +15,7 @@ from .config import (CAPABILITY_TARGETS, DEFAULT_GRADER_MODEL, DEFAULT_MAX_TOKEN
                      INTERROGATION_CHOICES, ROLLOUT_VERSION, VERSION)
 from .llm_client import EFFORT_LEVELS
 from .artefact_dates import MODES as DATE_MODES
+from .scenario import variant_names
 from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
 
 
@@ -77,6 +78,13 @@ def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
              "own filename mark; unlike --capability the act is available "
              "rather than instructed, so these episodes belong in a "
              "misalignment rate.")
+    parser.add_argument(
+        "--variant", choices=list(variant_names()), default=None,
+        help="One of the selected scenario bundle's named variants, whose "
+             "entries replace the base entries of the same name. The shipped "
+             "scenario defines none; a bundle that does lists them here. "
+             "Omitted, the bundle's control is collected. Its own rollout "
+             "fingerprint and its own filename mark.")
     parser.add_argument(
         "--date-mode", choices=list(DATE_MODES), default=None,
         help="Artefact-date arm. Nothing set the scenario files' modification "

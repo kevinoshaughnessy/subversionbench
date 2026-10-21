@@ -46,6 +46,11 @@ GOALGUARD_TAG = "goalguard"
 # two segments where one has meaning.
 DATE_TAG = "dates"
 
+# A bundle's own named variant. Its own tag for the reason the others have
+# theirs: two variants of one model and arm are two conditions whose files
+# must not share a name, and the control - no variant - keeps the bare name.
+VARIANT_TAG = "variant"
+
 # "Do not filter on the corpus at all" - propensity and capability files alike.
 #
 # NEEDED BECAUSE None IS A VALUE HERE, not an absence. Every other optional
@@ -115,13 +120,16 @@ class BatchIdentity:
     # and oversight arm are two conditions whose summaries must not land on
     # one filename.
     goalguard: str = None
+    # None on every batch of the shipped scenario, which defines no variants,
+    # and on an alternative bundle's control.
+    variant: str = None
 
     @property
     def stem(self) -> str:
         """The middle of every filename belonging to this batch."""
         return batch_stem(self.model_slug, self.nudge, self.effort,
                           self.oversight, self.lure, self.capability,
-                          self.date_mode, self.goalguard)
+                          self.date_mode, self.goalguard, self.variant)
 
     def filename(self, output_dir: str, prefix: str = "summary") -> str:
         """
@@ -150,7 +158,8 @@ class BatchIdentity:
                    effort=effort, oversight=args.oversight, lure=args.lure,
                    stamp=stamp, capability=getattr(args, "capability", None),
                    goalguard=getattr(args, "goalguard", None),
-                   date_mode=getattr(args, "date_mode", None))
+                   date_mode=getattr(args, "date_mode", None),
+                   variant=getattr(args, "variant", None))
 
 
 
@@ -216,7 +225,7 @@ class BatchSelection:
 def batch_stem(model_slug: str, nudge: str, effort=None,
                oversight: bool = True, lure: bool = False,
                capability: str = None, date_mode: str = None,
-               goalguard: str = None) -> str:
+               goalguard: str = None, variant: str = None) -> str:
     """
     The middle of every filename belonging to one batch.
 
@@ -256,6 +265,7 @@ def batch_stem(model_slug: str, nudge: str, effort=None,
             # ordering of the optional suffixes stays the order they were
             # authored in - which is what lets the parser peel them.
             + (f"_{GOALGUARD_TAG}-{goalguard}" if goalguard else "")
+            + (f"_{VARIANT_TAG}-{variant}" if variant else "")
             + ("" if oversight else f"_{NO_OVERSIGHT_TAG}")
             + ("_lure" if lure else "")
             + (f"_{DATE_TAG}-{date_mode}" if dated else "")
@@ -336,6 +346,12 @@ def parse_batch_filename(path: str, nudge: str):
         if guarded:
             name = name[:guarded.start()]
             continue
+        # Consumed, not returned, on the same terms; variant_from_filename
+        # is how a caller asks for it.
+        varied = re.search(rf"_{VARIANT_TAG}-([^_]+)$", name)
+        if varied:
+            name = name[:varied.start()]
+            continue
         if not name.endswith(f"_{nudge}"):
             for level in EFFORT_LEVELS:
                 if name.endswith(f"_{level}"):
@@ -365,6 +381,18 @@ def goalguard_from_filename(path: str):
     name = os.path.basename(path)
     name = name[:-len(".json")] if name.endswith(".json") else name
     marked = re.search(rf"_{GOALGUARD_TAG}-([^_]+)(?:_|$)", name)
+    return marked.group(1) if marked else None
+
+
+def variant_from_filename(path: str):
+    """The bundle variant a filename names, or None for the control.
+
+    Separate from parse_batch_filename, and matched by prefix on the segment,
+    for the reasons goalguard_from_filename gives.
+    """
+    name = os.path.basename(path)
+    name = name[:-len(".json")] if name.endswith(".json") else name
+    marked = re.search(rf"_{VARIANT_TAG}-([^_]+)(?:_|$)", name)
     return marked.group(1) if marked else None
 
 
@@ -601,7 +629,8 @@ def _arm_stem(path: str, nudge: str) -> str:
 
 def arm_run_file_census(output_dir: str, model: str, nudge: str,
                         oversight: str, lure: str,
-                        goalguard: str = NO_ARM) -> tuple:
+                        goalguard: str = NO_ARM,
+                        variant: str = NO_ARM) -> tuple:
     """
     How many run files one exact collection arm already has, and under which
     batch stamps, as `(count, [stamp, ...])`.
@@ -629,6 +658,9 @@ def arm_run_file_census(output_dir: str, model: str, nudge: str,
     same thing here; `TestTheCollectionCensusCountsOnlyWhatItWouldCollect`
     holds it against GOALGUARD_ARMS so a real arm can never be named "none".
 
+    `variant` is the bundle variant on the same terms, NO_ARM for the
+    control - and for every batch of the shipped scenario, which has none.
+
     MATCHED ON THE WHOLE ARM STEM, not axis by axis - see `_arm_stem` for what
     that fixed. `capability=None` is still passed to find_run_files as a
     pre-filter; the stem comparison would exclude a capability episode anyway,
@@ -639,7 +671,8 @@ def arm_run_file_census(output_dir: str, model: str, nudge: str,
     want = BatchIdentity(model=model, model_slug=model.replace("/", "_"),
                          nudge=nudge, oversight=want_oversight,
                          lure=want_lure,
-                         goalguard=None if goalguard == NO_ARM else goalguard
+                         goalguard=None if goalguard == NO_ARM else goalguard,
+                         variant=None if variant == NO_ARM else variant
                          ).stem
 
     stamps = set()

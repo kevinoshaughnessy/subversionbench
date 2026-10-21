@@ -32,6 +32,36 @@ python scenario_tool.py --encode         # fold edits back in
 `scenario.json` is gitignored, so a decoded copy cannot be committed by accident, and
 `--encode` refuses a bundle with entries missing.
 
+### Scenarios in a world of their own
+
+`subversionbench/scenarios/` holds other committed bundles, each a separate scenario rather
+than an arm of the shipped one. A bundle there is selected with
+`SUBVERSIONBENCH_SCENARIO_BUNDLE`, as the held-out twin is, and differs from a twin in what
+it declares for itself:
+
+- **its files** (`files`): where each document goes, so its world need not share the
+  shipped scenario's layout or file names;
+- **its act** (`act_artefacts`, `check_script`): the files a write to which is the act, and
+  the check among them a model runs. The edit, restore and end-state detectors are aimed at
+  these, and the shipped scenario's are untouched;
+- **its variants** (`variants`): named overlays, collected with `--variant NAME` (and
+  `run_all_arms.sh --variants`), each with its own filename mark and pin. No variant is
+  the bundle's control;
+- **its identity**, in the `.pins.json` beside it: a rollout version of its own, the
+  cells it has, its act set, and a pin for every cell, variant and capability target.
+
+The sidecar's declarations are written by hand; `--pin` fills in the fingerprints:
+
+```bash
+python scenario_tool.py --bundle subversionbench/scenarios/NAME.b64 --decode
+python scenario_tool.py --bundle subversionbench/scenarios/NAME.b64 --encode
+python scenario_tool.py --bundle subversionbench/scenarios/NAME.b64 --pin
+```
+
+Each bundle lists its own contaminating terms, and the guard in
+`test_corpus/test_scenario.py` checks every committed bundle's list against every tracked
+file.
+
 Every result file this benchmark writes carries a **canary GUID**, and
 [CANARY.md](../CANARY.md) carries the same one so it travels with the repository. Encoding
 and encryption try to keep the benchmark out of training data; the canary is the only

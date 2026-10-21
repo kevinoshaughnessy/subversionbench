@@ -81,6 +81,9 @@ LURES=(false true)
 # shell and the census cannot disagree about how "no arm" is written.
 NO_ARM="$(python3 -c 'from subversionbench.batch import NO_ARM; print(NO_ARM)')"
 GOALGUARDS=("$NO_ARM")
+# A bundle's own named variants. NO_ARM is the control, and the only value
+# the shipped scenario has, so the default leaves its cross product as it was.
+VARIANTS=("$NO_ARM")
 # Matches run_eval.py's own default exactly, sourced rather than duplicated
 # as a literal - a mismatched default here is not cosmetic. This script's
 # own existing-file check reads OUTPUT_DIR directly; run_eval.py falls back
@@ -112,6 +115,7 @@ while [ $# -gt 0 ]; do
         --oversights) IFS=',' read -r -a OVERSIGHTS <<< "$2"; shift 2 ;;
         --lures) IFS=',' read -r -a LURES <<< "$2"; shift 2 ;;
         --goalguards) IFS=',' read -r -a GOALGUARDS <<< "$2"; shift 2 ;;
+        --variants) IFS=',' read -r -a VARIANTS <<< "$2"; shift 2 ;;
         --interrogations) INTERROGATIONS="$2"; shift 2 ;;
         --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         *) PASSTHROUGH+=("$1"); shift ;;
@@ -120,15 +124,16 @@ done
 
 if [ -z "$MODEL" ] || [ -z "$RUNS" ]; then
     echo "usage: $0 --model MODEL --runs N [--nudges a,b,c] [--oversights a,b]" >&2
-    echo "          [--lures a,b] [--goalguards a,b] [run_eval.py flags...]" >&2
+    echo "          [--lures a,b] [--goalguards a,b] [--variants a,b]" >&2
+    echo "          [run_eval.py flags...]" >&2
     exit 1
 fi
 
-TOTAL_ARMS=$(( ${#NUDGES[@]} * ${#OVERSIGHTS[@]} * ${#LURES[@]} * ${#GOALGUARDS[@]} ))
+TOTAL_ARMS=$(( ${#NUDGES[@]} * ${#OVERSIGHTS[@]} * ${#LURES[@]} * ${#GOALGUARDS[@]} * ${#VARIANTS[@]} ))
 TOTAL_EPISODES=$(( TOTAL_ARMS * RUNS ))
 
 echo "Model: ${MODEL}"
-echo "Arms: ${#NUDGES[@]} nudge x ${#OVERSIGHTS[@]} oversight x ${#LURES[@]} lure x ${#GOALGUARDS[@]} goalguard = ${TOTAL_ARMS}"
+echo "Arms: ${#NUDGES[@]} nudge x ${#OVERSIGHTS[@]} oversight x ${#LURES[@]} lure x ${#GOALGUARDS[@]} goalguard x ${#VARIANTS[@]} variant = ${TOTAL_ARMS}"
 echo "Runs per arm: ${RUNS}  -  total episodes if nothing is already on disk: ${TOTAL_EPISODES}"
 echo "Extra interrogation phrasings per episode: ${INTERROGATIONS:-<none>}"
 [ "$DRY_RUN" = "1" ] && echo "DRY RUN - nothing will be spent"
@@ -230,10 +235,11 @@ for nudge in "${NUDGES[@]}"; do
     for oversight in "${OVERSIGHTS[@]}"; do
         for lure in "${LURES[@]}"; do
          for goalguard in "${GOALGUARDS[@]}"; do
+          for variant in "${VARIANTS[@]}"; do
             # Before starting an arm, so a stop never buys another one.
             i=$((i + 1))
             echo "############################################################"
-            echo "# [${i}/${TOTAL_ARMS}] nudge=${nudge} oversight=${oversight} lure=${lure} goalguard=${goalguard}"
+            echo "# [${i}/${TOTAL_ARMS}] nudge=${nudge} oversight=${oversight} lure=${lure} goalguard=${goalguard} variant=${variant}"
             echo "############################################################"
 
             # Prints "<count>\t<stamp1>[,<stamp2>...]" - count of run files that
@@ -252,7 +258,7 @@ import sys
 from subversionbench.batch import arm_run_file_census
 n, stamps = arm_run_file_census(*sys.argv[1:])
 print(n, ",".join(stamps) or "-")
-' "$OUTPUT_DIR" "$MODEL" "$nudge" "$oversight" "$lure" "$goalguard")"; then
+' "$OUTPUT_DIR" "$MODEL" "$nudge" "$oversight" "$lure" "$goalguard" "$variant")"; then
                 echo "  ERROR: could not count existing runs for this arm" >&2
                 exit 1
             fi
@@ -292,6 +298,9 @@ print(n, ",".join(stamps) or "-")
             goalguard_args=()
             [ "$goalguard" != "$NO_ARM" ] && \
                 goalguard_args=(--goalguard "$goalguard")
+            variant_args=()
+            [ "$variant" != "$NO_ARM" ] && \
+                variant_args=(--variant "$variant")
 
             interrogation_args=()
             [ -n "$INTERROGATIONS" ] && \
@@ -306,6 +315,7 @@ print(n, ",".join(stamps) or "-")
                  --nudge "$nudge" --oversight "$oversight" --lure "$lure"
                  --output-dir "$OUTPUT_DIR"
                  "${goalguard_args[@]+"${goalguard_args[@]}"}"
+                 "${variant_args[@]+"${variant_args[@]}"}"
                  "${interrogation_args[@]+"${interrogation_args[@]}"}"
                  "${resume_args[@]+"${resume_args[@]}"}" "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}")
 
@@ -334,12 +344,13 @@ print(n, ",".join(stamps) or "-")
                     echo "  [!] this arm did not complete - continuing to the next one."
                     echo "      Re-running this script (no --resume needed) will pick up"
                     echo "      wherever it left off, the same as any other partial arm."
-                    FAILED_ARMS+=("nudge=${nudge} oversight=${oversight} lure=${lure} goalguard=${goalguard}")
+                    FAILED_ARMS+=("nudge=${nudge} oversight=${oversight} lure=${lure} goalguard=${goalguard} variant=${variant}")
                 fi
             fi
             echo
             # And after it, so a stop during an arm is acted on as soon as the
             # arm lets go rather than waiting for the next one to be set up.
+          done
          done
         done
     done

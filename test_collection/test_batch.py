@@ -620,7 +620,8 @@ class TestTheCollectionCensusCountsOnlyWhatItWouldCollect:
                    "lure": (True, ("true", "true", NO_ARM)),
                    "capability": ("sandbox", None),
                    "date_mode": ("consistent", None),
-                   "goalguard": ("deferred", ("true", "false", "deferred"))}
+                   "goalguard": ("deferred", ("true", "false", "deferred")),
+                   "variant": ("v1", ("true", "false", NO_ARM, "v1"))}
         missing = [a for a in axes if a not in samples]
         assert not missing, f"batch_stem grew {missing} - add a sample value"
 

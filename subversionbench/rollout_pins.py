@@ -380,131 +380,15 @@ ROLLOUT_FINGERPRINTS = MappingProxyType({
 # `scenario_heldout.json` the harness actually reads resolve to the same
 # sidecar. Keying on the full name would give the encrypted form and its own
 # plaintext two different identities for one scenario.
-_PINS_SIDECAR_SUFFIX = ".pins.json"
+#
+# The sidecar's readers live in sidecar_pins.py; each is passed the shipped
+# tables it compares against, because this module is the one defining them.
+from .sidecar_pins import (alternative_capability_pins,  # noqa: E402
+                           alternative_goalguard_pins, alternative_pins,
+                           alternative_variant_pins)
 
-
-def _alternative_pins():
-    """The selected bundle's own rollout identity, or None if it is shipped."""
-    # Imported here rather than at module scope: this module is the DATA half
-    # of the rollout check and is imported very early, and the read is needed
-    # once. scenario.py imports nothing from the package, so there is no cycle
-    # either way - this is about keeping the import graph boring.
-    import json
-    from pathlib import Path
-
-    from .scenario import (BUNDLE_ENV_VAR, bundle_is_overridden,
-                           selected_bundle_path)
-
-    if not bundle_is_overridden():
-        return None
-
-    bundle = selected_bundle_path()
-    sidecar = Path(bundle).with_suffix(_PINS_SIDECAR_SUFFIX)
-    if not sidecar.is_file():
-        raise FileNotFoundError(
-            f"{BUNDLE_ENV_VAR} selects {bundle}, but its rollout pins "
-            f"({sidecar.name}) are missing. Run heldout_tool.py --pin to "
-            f"compute them. They are NOT inherited from r9: episodes stamped "
-            f"with r9's identity would be pooled with a scenario they do not "
-            f"match."
-        )
-    declared = json.loads(sidecar.read_text(encoding="utf-8"))
-    version = str(declared.get("rollout_version", "")).strip()
-    if not version or version == ROLLOUT_VERSION:
-        raise ValueError(
-            f"{sidecar.name} must declare a rollout_version, and it must not "
-            f"be {ROLLOUT_VERSION!r} - that is the shipped scenario's, and "
-            f"sharing it is what makes two rollouts indistinguishable."
-        )
-    pins = {}
-    for entry in declared.get("fingerprints", []):
-        pins[(bool(entry["oversight"]), bool(entry["lure"]))] = \
-            str(entry["fingerprint"])
-    # Every arm, or none. A sidecar one arm short would raise from
-    # fingerprint_for() hours later, on whichever arm was missing.
-    missing = set(ROLLOUT_FINGERPRINTS) - set(pins)
-    if missing:
-        raise ValueError(
-            f"{sidecar.name} pins {len(pins)} arm(s); {sorted(missing)} "
-            f"unpinned. Every arm needs its own identity or it cannot be told "
-            f"apart from another's."
-        )
-    return version, pins, _alternative_acts(declared, sidecar)
-
-
-def _alternative_goalguard_pins():
-    """
-    The selected bundle's goal-guarding pins, or None if it declares none.
-
-    A SEPARATE READER RATHER THAN A FOURTH VALUE ON _alternative_pins. That
-    return has three and one caller unpacks exactly three; this file's own
-    history with parse_batch_filename - a return that grew once and broke every
-    caller - is the argument, and date_mode_from_filename and
-    goalguard_from_filename are the two precedents for answering a second
-    question with a second function.
-
-    NONE IS NOT AN EMPTY TABLE. A twin that does not carry the act declares no
-    pins, and goalguard_fingerprint_for goes on refusing for it - which is
-    right, because there is no arm to identify. A twin that does carry the act
-    must pin every cell of it: a partly-pinned table would raise hours into a
-    batch, on whichever cell was missing.
-    """
-    import json
-    from pathlib import Path
-
-    from .scenario import bundle_is_overridden, selected_bundle_path
-
-    if not bundle_is_overridden():
-        return None
-    sidecar = Path(selected_bundle_path()).with_suffix(_PINS_SIDECAR_SUFFIX)
-    declared = json.loads(sidecar.read_text(encoding="utf-8"))
-    entries = declared.get("goalguard_fingerprints")
-    if not entries:
-        return None
-    pins = {(str(e["arm"]), bool(e["oversight"]), str(e["nudge"])):
-            str(e["fingerprint"]) for e in entries}
-    missing = set(GOALGUARD_FINGERPRINTS) - set(pins)
-    if missing:
-        raise ValueError(
-            f"{sidecar.name} declares goal-guarding pins but leaves "
-            f"{sorted(missing)} unpinned. Every cell needs its own identity or "
-            f"it cannot be told apart from another's - and a table one cell "
-            f"short raises on that cell alone, hours into a batch."
-        )
-    return pins
-
-
-def _alternative_acts(declared: dict, sidecar) -> tuple:
-    """The act set a bundle declares, or the shipped one when it declares none.
-
-    INHERITING IS RIGHT HERE AND WRONG FOR THE FINGERPRINTS, which is worth
-    stating because this file says loudly that nothing is inherited. A
-    fingerprint inherited from the shipped scenario is a claim that two
-    different environments are the same one, and pools episodes that do not
-    match. An act set inherited from it is a claim that the twin measures the
-    same categories - which is what a twin IS, and what every sidecar written
-    before this field existed describes.
-
-    heldout_tool.py deliberately does NOT write the field. It builds twins,
-    so every sidecar it produces would carry a copy of the value inherited
-    here - a second spelling of one fact, which is the thing this file's header
-    names as its main source of churn. A bundle measuring a different set of
-    categories adds `scenario_acts` to its sidecar by hand, which is the same
-    way it would gain any other claim the tool cannot infer.
-    """
-    if "scenario_acts" not in declared:
-        return SCENARIO_ACTS
-    acts = tuple(str(a) for a in declared["scenario_acts"])
-    if not acts:
-        raise ValueError(
-            f"{sidecar.name} declares an empty scenario_acts. A bundle with no "
-            f"misalignment categories has no identity - omit the field to "
-            f"inherit the shipped scenario's."
-        )
-    return acts
-
-
-_alternative = _alternative_pins()
+_alternative = alternative_pins(ROLLOUT_VERSION, ROLLOUT_FINGERPRINTS,
+                                SCENARIO_ACTS)
 if _alternative is not None:
     ROLLOUT_VERSION, _alt_pins, SCENARIO_ACTS = _alternative
     ROLLOUT_FINGERPRINTS = MappingProxyType(_alt_pins)
@@ -618,17 +502,33 @@ def capability_fingerprint_for(target: str, oversight: bool) -> str:
             f"they cannot be told apart from another arm's later."
         )
     if _alternative is not None:
-        # The held-out twin is a different rollout with its own pins in a
-        # sidecar, and the sidecar has no capability entries. Stamping the
-        # shipped scenario's capability identity onto its episodes is the one
-        # outcome worse than not running - see _alternative_pins.
-        from .scenario import BUNDLE_ENV_VAR
+        return _alternative_capability_fingerprint(key)
+    return CAPABILITY_FINGERPRINTS[key]
+
+
+def _alternative_capability_fingerprint(key: tuple) -> str:
+    """An alternative bundle's own capability pin, or a refusal.
+
+    The held-out twins are different rollouts with their own pins in a
+    sidecar, and their sidecars have no capability entries. Stamping the
+    shipped scenario's capability identity onto their episodes is the one
+    outcome worse than not running - see sidecar_pins.alternative_pins. A
+    bundle in a world of its own pins its capability arms in its sidecar, and
+    is identified by those alone.
+    """
+    from .scenario import BUNDLE_ENV_VAR
+    pins = alternative_capability_pins()
+    if pins is None:
         raise RuntimeError(
             f"the capability arm has no pins under an alternative scenario "
             f"bundle; these identify the shipped scenario's arms. Unset "
             f"{BUNDLE_ENV_VAR}, or pin the twin's capability arms first."
         )
-    return CAPABILITY_FINGERPRINTS[key]
+    if key not in pins:
+        raise KeyError(
+            f"no pinned capability fingerprint for {key} under this bundle; "
+            f"its sidecar pins {sorted(pins)}.")
+    return pins[key]
 
 
 # =========================================================================
@@ -810,8 +710,8 @@ GOALGUARD_FINGERPRINTS = MappingProxyType({
 # the table it replaces is defined above and nothing can replace it before it
 # exists. A twin that carries the goal-guarding act supplies its own eight
 # cells; one that does not leaves this alone and keeps the refusal below.
-_alt_goalguard = (_alternative_goalguard_pins() if _alternative is not None
-                  else None)
+_alt_goalguard = (alternative_goalguard_pins(GOALGUARD_FINGERPRINTS)
+                  if _alternative is not None else None)
 if _alt_goalguard is not None:
     GOALGUARD_FINGERPRINTS = MappingProxyType(_alt_goalguard)
 
@@ -854,3 +754,30 @@ def goalguard_fingerprint_for(arm: str, oversight: bool,
             f"twin's goal-guarding arms their own identity."
         )
     return GOALGUARD_FINGERPRINTS[key]
+
+
+# =========================================================================
+# Variants: a bundle's own named arms
+# =========================================================================
+#
+# A variant is a named overlay section of an ALTERNATIVE bundle - its
+# `variants/<name>/` entries replace the base entries of the same name - and
+# it is that bundle's vocabulary, not the harness's. The shipped scenario has
+# none, so this table is empty unless a sidecar supplies one, and asking for any
+# variant under the shipped bundle raises. Keyed (variant, oversight, lure).
+# No variant is the bundle's control, and takes fingerprint_for's pin.
+VARIANT_FINGERPRINTS = MappingProxyType(
+    alternative_variant_pins() if _alternative is not None else {})
+
+
+def variant_fingerprint_for(variant: str, oversight: bool,
+                            lure: bool = False) -> str:
+    """The pinned fingerprint of one variant arm. Raises on anything unpinned,
+    for the reason fingerprint_for does."""
+    key = (str(variant), bool(oversight), bool(lure))
+    if key not in VARIANT_FINGERPRINTS:
+        raise KeyError(
+            f"no pinned variant fingerprint for {key}; the pinned variant arms "
+            f"are {sorted(VARIANT_FINGERPRINTS)}. The shipped scenario has no "
+            f"variants.")
+    return VARIANT_FINGERPRINTS[key]

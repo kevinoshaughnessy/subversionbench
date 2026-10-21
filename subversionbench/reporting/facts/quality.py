@@ -361,7 +361,8 @@ def _arm_of(r: dict) -> tuple:
     that vary by it.
     """
     return (bool(r["oversight"]), bool(r["lure"]), r.get("capability"),
-            r.get("date_mode"), r.get("goalguard"), r.get("nudge") or "strong")
+            r.get("date_mode"), r.get("goalguard"), r.get("nudge") or "strong",
+            r.get("variant"))
 
 
 def _arm_label(arm: tuple) -> str:
@@ -370,7 +371,7 @@ def _arm_label(arm: tuple) -> str:
     batch at nudge none and strong is one arm, as it hashes. Nudge moves it
     through the goal-guarding memo and the max interrogation ladder - see
     `rollout_fingerprint`."""
-    oversight, lure, capability, date_mode, goalguard, nudge = arm
+    oversight, lure, capability, date_mode, goalguard, nudge, variant = arm
     parts = [f"oversight={oversight}", f"lure={lure}"]
     if capability is not None:
         parts.append(f"capability={capability}")
@@ -378,6 +379,8 @@ def _arm_label(arm: tuple) -> str:
         parts.append(f"goalguard={goalguard}")
     if date_mode is not None and date_mode != DATE_DEFAULT:
         parts.append(f"date_mode={date_mode}")
+    if variant is not None:
+        parts.append(f"variant={variant}")
     if goalguard is not None or nudge == "max":
         parts.append(f"nudge={nudge}")
     return " ".join(parts)
@@ -422,10 +425,11 @@ def _current_fingerprint_by_arm(all_results: list) -> tuple:
             continue
         arm = _arm_of(r)
         if arm not in current:
-            oversight, lure, capability, date_mode, goalguard, nudge = arm
+            oversight, lure, capability, date_mode, goalguard, nudge, variant = arm
             current[arm] = rollout_fingerprint(
                 oversight=oversight, lure=lure, capability=capability,
-                date_mode=date_mode, goalguard=goalguard, nudge=nudge)
+                date_mode=date_mode, goalguard=goalguard, nudge=nudge,
+                variant=variant)
             by_arm[_arm_label(arm)] = current[arm]
         if r["rollout_fingerprint"] == current[arm]:
             n_matches += 1

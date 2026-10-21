@@ -572,7 +572,7 @@ class TestTheParserIsReadableWithoutRunningABatch:
         "--oversight", "--reclassify", "--regrade", "--reinterrogate", "--resume",
         "--resummarise", "--resummarize", "--runs", "--self-grade-kind",
         "--summarise-arms",
-        "--summarize-arms", "--thinking-budget", "--use-opencode",
+        "--summarize-arms", "--thinking-budget", "--use-opencode", "--variant",
         "--write-back", "--yes",
         "-h", "--help",
     }

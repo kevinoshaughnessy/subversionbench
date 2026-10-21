@@ -47,13 +47,15 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from sad_oversight import encrypt, decrypt          # noqa: E402
-from subversionbench.rollout_pins import _PINS_SIDECAR_SUFFIX  # noqa: E402
+from subversionbench.bundle_pinning import (PROVISIONAL,  # noqa: E402
+                                            run_under_override)
+from subversionbench.sidecar_pins import SIDECAR_SUFFIX  # noqa: E402
 from subversionbench.scenario import load_scenario  # noqa: E402
 
 HELDOUT_DIR = ROOT / "heldout"
 BUNDLE_PATH = HELDOUT_DIR / "scenario_heldout.enc"
 WORKING_COPY = HELDOUT_DIR / "scenario_heldout.json"
-PINS_PATH = BUNDLE_PATH.with_suffix(_PINS_SIDECAR_SUFFIX)
+PINS_PATH = BUNDLE_PATH.with_suffix(SIDECAR_SUFFIX)
 TESTS = ROOT / "test_corpus" / "test_heldout_scenario.py"
 
 # What the held-out rollout calls itself. NOT "r9", and rollout_pins refuses a
@@ -84,7 +86,7 @@ def use_goalguard_twin() -> None:
     global BUNDLE_PATH, WORKING_COPY, PINS_PATH, ROLLOUT_VERSION, _twin
     BUNDLE_PATH = GOALGUARD_BUNDLE_PATH
     WORKING_COPY = GOALGUARD_BUNDLE_PATH.with_suffix(".json")
-    PINS_PATH = GOALGUARD_BUNDLE_PATH.with_suffix(_PINS_SIDECAR_SUFFIX)
+    PINS_PATH = GOALGUARD_BUNDLE_PATH.with_suffix(SIDECAR_SUFFIX)
     ROLLOUT_VERSION = GOALGUARD_ROLLOUT_VERSION
     _twin = "goalguard"
 
@@ -111,11 +113,9 @@ def _invariants_hold() -> bool:
     return result.returncode == 0
 
 
-# Fingerprints for the provisional sidecar that breaks the pinning cycle
-# below. Not hex, so they can never equal a real fingerprint: if --pin is
-# interrupted and one is left behind, the drift guard refuses to start rather
-# than letting a batch collect against pins nothing produced.
-_PROVISIONAL = "PROVISIONAL-"
+# The provisional sidecar that breaks the pinning cycle is bundle_pinning's;
+# see that module for why it is never a hex value.
+_PROVISIONAL = PROVISIONAL
 
 _FINGERPRINT_PROBE = (
     "import json\n"
@@ -127,7 +127,8 @@ _FINGERPRINT_PROBE = (
 # The goal-guarding cells, computed the same way and in the same subprocess
 # style. THE CELLS ARE DERIVED FROM THE SHIPPED TABLE rather than listed here:
 # a twin has to pin every cell the shipped scenario pins or
-# _alternative_goalguard_pins refuses it, so a hand-written list here would be
+# sidecar_pins.alternative_goalguard_pins refuses it, so a hand-written list
+# here would be
 # a second copy of that set and could fall behind it - which is how four
 # grading guards here once stopped covering two modules.
 _GOALGUARD_PROBE = (
@@ -187,33 +188,14 @@ def _goalguard_fingerprints(bundle_for_run: Path) -> dict:
 
 def _under_the_override(bundle_for_run: Path, probe: str, shape):
     """Run `probe` with the bundle selected, behind a provisional sidecar."""
-    previous = PINS_PATH.read_bytes() if PINS_PATH.is_file() else None
-    PINS_PATH.write_text(json.dumps({
+    provisional = {
         "rollout_version": ROLLOUT_VERSION,
         "fingerprints": [{"oversight": o, "lure": lure,
                           "fingerprint": _PROVISIONAL}
                          for o in (True, False) for lure in (True, False)],
-    }), encoding="utf-8")
-    env = dict(os.environ)
-    env["SUBVERSIONBENCH_SCENARIO_BUNDLE"] = str(bundle_for_run)
-    try:
-        result = subprocess.run([sys.executable, "-c", probe],
-                                cwd=ROOT, env=env, capture_output=True,
-                                text=True)
-        if result.returncode:
-            raise RuntimeError(
-                f"computing fingerprints under the override failed:\n"
-                f"{result.stderr.rstrip()}")
-        return shape(json.loads(result.stdout))
-    finally:
-        # Restores on EVERY exit, not only on failure. This function computes;
-        # the caller decides whether to accept. Leaving the provisional sidecar
-        # behind on success made the accept step implicit, and an interrupted
-        # --pin then left the bundle pinned to a value nothing produced.
-        if previous is None:
-            PINS_PATH.unlink(missing_ok=True)
-        else:
-            PINS_PATH.write_bytes(previous)
+    }
+    return shape(run_under_override(ROOT, bundle_for_run, PINS_PATH,
+                                    provisional, probe))
 
 
 def _pinned() -> dict:
@@ -259,8 +241,8 @@ def _write_pins(pins: dict, goalguard: dict = None) -> None:
                          for (o, lure), fp in sorted(pins.items())],
     }
     # OMITTED, not written empty, when the twin has no goal-guarding arm.
-    # _alternative_goalguard_pins reads an absent key as "this twin does not
-    # carry the act" and goes on refusing it; an empty list would say the same
+    # sidecar_pins.alternative_goalguard_pins reads an absent key as "this twin
+    # does not carry the act" and goes on refusing it; an empty list would say the same
     # thing in a second spelling, and a future reader checking truthiness
     # rather than presence would then disagree with one checking presence.
     if goalguard:

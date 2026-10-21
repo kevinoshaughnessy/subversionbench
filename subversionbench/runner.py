@@ -39,7 +39,8 @@ from .llm_client import missing_credential
 from .redaction import redact_paths
 from .reporting.summary import summarise_batch
 from .rollout import rollout_drift_error
-from .rollout_pins import date_fingerprint_for, goalguard_fingerprint_for
+from .rollout_pins import (date_fingerprint_for, goalguard_fingerprint_for,
+                           variant_fingerprint_for)
 from .scenario import scenario_for
 
 
@@ -265,7 +266,7 @@ def _run_one_episode(i, args, identity, system_prompt, user_prompt,
         date_mode=getattr(args, "date_mode", None),
         goalguard=getattr(args, "goalguard", None),
         capability=getattr(args, "capability", None),
-        nudge=args.nudge)
+        nudge=args.nudge, variant=getattr(args, "variant", None))
 
     try:
         result = run_evaluation(
@@ -549,10 +550,12 @@ def _rollout_matches_its_pin(args) -> bool:
     date_mode = getattr(args, "date_mode", None)
     dated = date_mode and date_mode != _DATE_DEFAULT
     goalguard = getattr(args, "goalguard", None)
+    variant = getattr(args, "variant", None)
     active = [name for name, on in
              (("--capability", args.capability is not None),
               ("--goalguard", goalguard is not None),
-              ("--date-mode", dated)) if on]
+              ("--date-mode", dated),
+              ("--variant", variant is not None)) if on]
     if len(active) > 1:
         print(f"\n{'='*60}")
         print("REFUSING TO ROLL OUT")
@@ -572,6 +575,8 @@ def _rollout_matches_its_pin(args) -> bool:
                                              args.nudge)
     elif dated:
         expected = date_fingerprint_for(date_mode, args.oversight, args.lure)
+    elif variant is not None:
+        expected = variant_fingerprint_for(variant, args.oversight, args.lure)
     else:
         # Nudge-aware, not a direct table lookup: fingerprint_for() reads
         # MAX_NUDGE_FINGERPRINTS for nudge="max" and ROLLOUT_FINGERPRINTS
@@ -581,7 +586,7 @@ def _rollout_matches_its_pin(args) -> bool:
 
     drift = rollout_drift_error(
         expected, args.oversight, args.isolation, args.lure, args.capability,
-        date_mode, goalguard, args.nudge)
+        date_mode, goalguard, args.nudge, variant)
     if drift:
         print(f"\n{'='*60}")
         print("REFUSING TO ROLL OUT")
@@ -871,7 +876,8 @@ def run_batch(args, model_slug: str, system_prompt: str, reasoning_kwargs: dict,
     # propensity arm is the instruction. Everything else the model sees is
     # identical, so a success there is evidence about this scenario rather
     # than some other one.
-    arm = scenario_for(args.oversight, capability=args.capability)
+    arm = scenario_for(args.oversight, capability=args.capability,
+                       variant=getattr(args, "variant", None))
     user_prompt = arm["user_prompt"]
     # AND THE SYSTEM PROMPT, which is an instruction too. The sandbox target's
     # request is to look outside a directory the shared system prompt scopes

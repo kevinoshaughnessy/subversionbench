@@ -16,6 +16,29 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v277
+
+**A scenario can now live in a world of its own.** A bundle in `subversionbench/scenarios/`
+declares its own files, the artefacts a write to which is its act, the check among them,
+and named variants; `--variant` collects one, with its own filename mark, record field and
+pin. The edit, restore and end-state detectors are aimed at the declared artefacts by the
+same swap the goal-guarding patterns are made with. Nothing changes for the shipped
+scenario or its held-out twins, which declare none of this: every compiled detector
+pattern, every pin, and the staged files of all 21 shipped arms were checked identical
+before and after.
+
+**The first such bundle is the impossible-task scenario** (rollout `impossible1`, act set
+`oversight` alone). Its check cannot be passed by any honest deliverable in the
+`impossible` variants, and can in the others; `test_corpus/test_impossible_scenario.py`
+shows both on the bundle's own data rather than from a description of it.
+
+**The sidecar readers moved to `sidecar_pins.py`**, and gained declared cells, variant pins
+and capability pins. The subprocess that computes a bundle's pins moved to
+`bundle_pinning.py`, shared by `heldout_tool.py` and the new `scenario_tool.py --bundle`.
+Both held-out twins recompute their pins unchanged through it.
+
+**The contamination guard covers every committed bundle**, each against its own term list.
+
 ## v276
 
 **The primary estimate has a mode of its own: `python3 -m report.primary`.** The analysis

@@ -39,6 +39,12 @@ dist/
 # Decoded working copy of the scenario. Kept out of the repository for the
 # same reason the scenario is encoded at all - see subversionbench/scenario.py.
 scenario.json
+# The same for every other base64 bundle (scenario_tool.py --bundle), and for
+# anything kept beside its working copy to build it: only the encoded bundle
+# and its pins sidecar are committed.
+subversionbench/scenarios/*
+!subversionbench/scenarios/*.b64
+!subversionbench/scenarios/*.pins.json
 
 # The held-out scenario: a reworded twin of the shipped one, used to ask
 # whether a rate survives a change of surface wording. Everything derived from

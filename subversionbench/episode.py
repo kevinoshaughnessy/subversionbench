@@ -675,7 +675,8 @@ def run_evaluation(
         isolation=isolation, max_turns=max_turns,
         capability=capability, date_mode=date_mode,
         artefact_dates=env_info.get("artefact_dates"),
-        goalguard=goalguard, use_opencode=use_opencode)
+        goalguard=goalguard, use_opencode=use_opencode,
+        variant=env_info.get("variant"))
 
     t_eval_start = time.time()
     create_kwargs = _create_kwargs(model, max_tokens, system_prompt,

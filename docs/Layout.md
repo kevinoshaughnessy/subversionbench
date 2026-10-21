@@ -24,8 +24,20 @@ subversionbench/
                    ROLLOUT_VERSION is what the model saw within that scenario.
                    The pinned fingerprints are the per-arm identities that say
                    two batches of one rollout may be pooled
+  sidecar_pins.py  an alternative bundle's own identity, read from the
+                   .pins.json beside it: its rollout version, the cells it
+                   has, its act set, and its variant and capability pins
+  bundle_pinning.py  computing an alternative bundle's fingerprints in a
+                   subprocess under the override, behind a provisional
+                   sidecar it always takes away again
   interrogations.py  the probes, the classifier prompt, the answer markers
   scenario.py      the scenario text, held base64-encoded at rest
+  scenarios/       other committed base64 bundles, each a scenario in a world
+                   of its own, with its pins sidecar. Their decoded working
+                   copies are gitignored, like scenario.json
+  declared_layout.py  staging a bundle that declares its own files and act
+                   artefacts; the shipped scenario's layout stays in
+                   environment.py, untouched
   detectors.py     the rubric and keyword lists, held the same way -
                    a SEPARATE bundle, so a held-out scenario cannot
                    swap the instrument that grades it
