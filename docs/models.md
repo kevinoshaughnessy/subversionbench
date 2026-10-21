@@ -822,7 +822,7 @@ So no model with a verdict shows contamination, and every Claude model now has o
   ternary-bonsai-2-27b (10 scenario items, exactly the 10 a verdict needs), and two
   continuation or canary calls from seed-2-1-turbo rate-limited upstream (429).
 - **None** completed the canary.
-- **Two continuation overlaps were not zero, the first measured above zero:**
+- **Two scenario continuation overlaps were above zero, the first measured:**
   nemotron-3.5-lightning (scenario 0.005, control 0.029) and solar-mini4 (0.003 and 0.024).
   Each is below its own control document's overlap, so it reads as common phrasing, not
   recall. These are also the only two models whose forced-choice scenario arm scored above
