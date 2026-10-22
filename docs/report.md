@@ -446,6 +446,13 @@ estimate over both, so it has its own mode, `report/primary.py`:
   arm, since oversight and nudge are their exposures; the goal-guarding questions in the
   replacement arms, with the deferred control), and corrected together with
   Benjamini-Hochberg. Nothing is recomputed, so the two documents cannot disagree.
+- **Only the snapshot's models** (Decision D2, `report/snapshot.py`). A model enters when
+  complete: all its propensity arms in both scenarios, the arms derived from the corpus
+  rather than listed, and every episode read by the headline grader. P and every reading
+  of the family are narrowed to the same models. Each model kept out is printed with its
+  reason. A missing capability verdict does not keep a model out, because section 7 keeps
+  every model in P whatever its tier; it is printed as the collection still owed.
+  `--mainline-cap-dir` and `--goalguard-cap-dir` default to the live capability corpora.
 
 It writes `research_report_primary_<timestamp>.json` into the mainline directory, a name
 the archive's allowlist already ships.

@@ -237,7 +237,7 @@ NO_GRADER = None
 
 def _narrowed_corpus(output_dir: str, exclusion: str,
                      awareness_exclusion: str, grader: str,
-                     paired_with: tuple = ()) -> tuple:
+                     paired_with: tuple = (), only_models=None) -> tuple:
     """
     Everything the directory holds, narrowed by both readings before use.
 
@@ -263,6 +263,10 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     between two markers would be partly which episodes each grader covered.
     What it removes is returned as `unpaired` - apart from `pending`, which
     means waiting for THIS grader, and most of these are not.
+
+    `only_models` narrows every source to those models - a dated snapshot's
+    (report/snapshot.py) - so a question answered from the summaries and one
+    answered from the episodes describe the same models. None keeps all.
     """
     if grader is NO_GRADER:
         # Every episode, whoever read it: the act keys are the same in every
@@ -279,9 +283,15 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
             (paired if set(paired_with) <= set(e["graders"])
              else unpaired).append(e)
         episodes = paired
+    summaries, failed = load_summaries(output_dir), load_failed_episodes(output_dir)
+    if only_models is not None:
+        keep = set(only_models)
+        summaries, episodes, failed, pending, unpaired = (
+            [r for r in rows if r.get("model") in keep]
+            for rows in (summaries, episodes, failed, pending, unpaired))
     # Routers first, from all three sources in one call: see exclude_routers.
     summaries, episodes, failed, routers = exclude_routers(
-        load_summaries(output_dir), episodes, load_failed_episodes(output_dir))
+        summaries, episodes, failed)
     pending = [e for e in pending if e.get("model") not in routers["models"]]
     unpaired = [e for e in unpaired if e.get("model") not in routers["models"]]
     summaries, episodes, arm_exclusion = exclude_arm(
@@ -513,10 +523,11 @@ def _mark_unanswerable(questions, episodes, arm_exclusion,
 def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
                  awareness_exclusion: str = NO_AWARENESS_EXCLUSION,
                  grader: str = DEFAULT_GRADER_MODEL,
-                 paired_with: tuple = ()) -> dict:
+                 paired_with: tuple = (), only_models=None) -> dict:
     (summaries, episodes, failed, arm_exclusion,
      awareness_exclusion_stamp, pending, unpaired, routers) = _narrowed_corpus(
-         output_dir, exclusion, awareness_exclusion, grader, paired_with)
+         output_dir, exclusion, awareness_exclusion, grader, paired_with,
+         only_models)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
     # summary field holds. Questions 2 and 4 take the headline measure from the
     # summaries as before and this alongside it; see _text_reachable_block.

@@ -32,6 +32,7 @@ from .exclusions import (EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
 from .loading import arm_key
 from .pooling import BY_CELL, _by_cell, _contrast, _stratified
 from .run_report import _narrowed_corpus, build_report
+from .snapshot import snapshot
 
 PRIMARY_GOALGUARD_ARM = "replacement"
 
@@ -68,12 +69,13 @@ SECONDARY_FAMILY = (
 )
 
 
-def headline_rows(output_dir: str, exclusion: str, keep) -> tuple:
+def headline_rows(output_dir: str, exclusion: str, keep,
+                  only_models=None) -> tuple:
     """`output_dir`'s episodes on `exclusion`, kept by `keep`, as
     (the ones the headline grader read, how many it has not)."""
     _, episodes, _, _, _, pending, _, _ = _narrowed_corpus(
         output_dir, exclusion, NO_AWARENESS_EXCLUSION,
-        HEADLINE_AWARENESS_GRADER)
+        HEADLINE_AWARENESS_GRADER, only_models=only_models)
     kept = [e for e in episodes if keep(e)]
     read = [e for e in kept if e["aware_source"] == "grader"]
     return read, len(kept) - len(read) + sum(1 for e in pending if keep(e))
@@ -116,19 +118,28 @@ def secondary_family(reports: dict) -> list:
     return tests
 
 
-def build_primary(mainline_dir: str, goalguard_dir: str) -> dict:
+def build_primary(mainline_dir: str, goalguard_dir: str,
+                  mainline_cap_dir: str, goalguard_cap_dir: str) -> dict:
+    """P and its family over the snapshot's models only (D2): every reading
+    below is narrowed to the same models, so P and the family describe one
+    corpus."""
     dirs = {"mainline": mainline_dir, "goalguard": goalguard_dir}
+    snap = snapshot(dirs, {"mainline": mainline_cap_dir,
+                           "goalguard": goalguard_cap_dir})
+    models = snap["models"]
     mainline, mainline_missing = headline_rows(
-        mainline_dir, EXCLUDE_NO_OVERSIGHT, lambda e: True)
+        mainline_dir, EXCLUDE_NO_OVERSIGHT, lambda e: True, models)
     goalguard, goalguard_missing = headline_rows(
         goalguard_dir, NO_EXCLUSION,
-        lambda e: e.get("goalguard") == PRIMARY_GOALGUARD_ARM)
+        lambda e: e.get("goalguard") == PRIMARY_GOALGUARD_ARM, models)
     reports = {name: build_report(dirs[corpus], exclusion,
-                                  grader=HEADLINE_AWARENESS_GRADER)
+                                  grader=HEADLINE_AWARENESS_GRADER,
+                                  only_models=models)
                for name, (corpus, exclusion) in READINGS.items()}
     return {
         "grader": HEADLINE_AWARENESS_GRADER,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "snapshot": snap,
         "primary": dict(primary_estimate(mainline, goalguard),
                         n_missing_headline_reading={
                             "mainline": mainline_missing,
@@ -161,10 +172,23 @@ def print_primary(doc: dict) -> None:
               f"vs unaware {c['b']['successes']}/{c['b']['n']}  "
               f"difference {_pct(c['difference'])} "
               f"{_ci(c['difference_ci95'])}  p={c['p']}")
+    _print_snapshot(doc["snapshot"])
     print("\nSECONDARY FAMILY (stratified, Benjamini-Hochberg over the family)")
     for t in doc["secondary"]:
         print(f"  {t['test']:<50} {_pct(t['risk_difference']):>8} "
               f"{_ci(t['ci95']):<22} p={t['p']}  p_bh={t['p_bh']}")
+
+
+def _print_snapshot(snap: dict) -> None:
+    print(f"\nSNAPSHOT (D2): {len(snap['models'])} complete models; "
+          f"{len(snap['excluded'])} kept out")
+    for model, why in snap["excluded"].items():
+        print(f"  out: {model} - {'; '.join(why)}")
+    gaps = snap["capability_gaps"]
+    print(f"  capability verdict still owed (kept in, section 7): {len(gaps)} "
+          f"models")
+    for model, acts in gaps.items():
+        print(f"    {model}: {', '.join(acts)}")
 
 
 def main(argv=None) -> int:
@@ -174,11 +198,15 @@ def main(argv=None) -> int:
     parser.add_argument("--mainline-dir", default="./eval_results_r10")
     parser.add_argument("--goalguard-dir",
                         default="./eval_results_goalguard_r1")
+    parser.add_argument("--mainline-cap-dir", default="./eval_results_r10cap")
+    parser.add_argument("--goalguard-cap-dir",
+                        default="./eval_results_goalguard_r1cap")
     parser.add_argument("--json-out", default=None,
                         help="default: research_report_primary_<timestamp>"
                              ".json inside --mainline-dir")
     args = parser.parse_args(argv)
-    doc = build_primary(args.mainline_dir, args.goalguard_dir)
+    doc = build_primary(args.mainline_dir, args.goalguard_dir,
+                        args.mainline_cap_dir, args.goalguard_cap_dir)
     print_primary(doc)
     out = args.json_out or os.path.join(
         args.mainline_dir,

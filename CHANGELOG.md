@@ -39,6 +39,13 @@ Both held-out twins recompute their pins unchanged through it.
 
 **The contamination guard covers every committed bundle**, each against its own term list.
 
+**`report.primary` reads only the snapshot's models** (Decision D2, `report/snapshot.py`).
+A model enters when it has every propensity arm in both scenarios and every episode read
+by the headline grader; P and each reading of the secondary family are narrowed to the
+same models through a new `only_models` on `build_report`, and the models kept out are
+printed with their reasons. A missing capability verdict is listed as owed, not enforced,
+because the plan's section 7 keeps every model in P whatever its tier.
+
 **aion-labs/aion-3.0-mini has a release date** in `model_releases.py`, so it is placed on
 the trend charts.
 

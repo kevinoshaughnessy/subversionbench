@@ -473,6 +473,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    answered in the replacement arms, deferred as control
   primary.py       the analysis plan's primary estimate P over both corpora,
                    and its secondary family under Benjamini-Hochberg
+  snapshot.py      which models a dated snapshot holds (D2): complete arms in
+                   both scenarios and the headline reading, with any capability
+                   verdict still owed listed rather than enforced
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
   console.py       the report as a table on a terminal. Computes nothing
   console_data_quality.py  the DATA QUALITY block, split off when console.py

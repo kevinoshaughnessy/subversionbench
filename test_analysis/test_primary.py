@@ -145,17 +145,25 @@ class TestTheCommandWritesTheDocument(unittest.TestCase):
                      for qid in {q for _, _, q, _ in SECONDARY_FAMILY}]
         calls = []
 
-        def fake_report(output_dir, exclusion, grader):
+        narrowed = []
+        snap = {"models": ["m/a"], "excluded": {"m/b": ["goalguard: 8 of 8 "
+                                                       "arms not collected"]},
+                "capability_gaps": {"m/a": ["oversight"]}}
+
+        def fake_report(output_dir, exclusion, grader, only_models):
             calls.append((output_dir, exclusion, grader))
+            narrowed.append(only_models)
             return {"questions": questions}
 
-        def fake_rows(output_dir, exclusion, keep):
+        def fake_rows(output_dir, exclusion, keep, only_models):
+            narrowed.append(only_models)
             arm = {} if output_dir == "M" else {"goalguard": "replacement"}
             return [r for r in _rows(4, 1, 4, 2, **arm) if keep(r)], 0
 
         with tempfile.TemporaryDirectory() as tmp, \
                 mock.patch.object(primary, "build_report", fake_report), \
                 mock.patch.object(primary, "headline_rows", fake_rows), \
+                mock.patch.object(primary, "snapshot", lambda d, c: snap), \
                 contextlib.redirect_stdout(io.StringIO()):
             out = os.path.join(tmp, "p.json")
             self.assertEqual(primary.main(["--mainline-dir", "M",
@@ -170,6 +178,10 @@ class TestTheCommandWritesTheDocument(unittest.TestCase):
             [("M", "no_oversight", primary.HEADLINE_AWARENESS_GRADER),
              ("M", "none", primary.HEADLINE_AWARENESS_GRADER),
              ("G", "none", primary.HEADLINE_AWARENESS_GRADER)]))
+        # D2: P and every reading of the family see the snapshot's models
+        # and nothing else, and the document says which those were.
+        self.assertEqual(narrowed, [["m/a"]] * 5)
+        self.assertEqual(doc["snapshot"], snap)
 
 
 if __name__ == "__main__":
