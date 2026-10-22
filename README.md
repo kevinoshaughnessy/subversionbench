@@ -50,7 +50,7 @@ Scheming*](https://arxiv.org/abs/2412.04984) (Apollo Research), now a distinct w
 
 ## Documentation
 
-This file covers installing and running. The depth lives in ten companions:
+This file covers installing and running. The depth lives in eleven companions:
 
 | | for |
 |---|---|
