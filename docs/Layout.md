@@ -328,7 +328,9 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    checked and saved after every episode, so a stopped session
                    resumes. Never opens the sealed key, and refuses a note
                    that repeats six words of the transcript, since labelling/
-                   is plaintext. Run as `python3 -m grader_ab.label_pack DIR`
+                   is plaintext. Run as `python3 -m grader_ab.label_pack DIR`,
+                   with `--purpose` for a purpose pack or `--misuse` for a
+                   misuse_pack, which ask no codebook rule
   blind_score.py   the step after labelling: joins each pack's labels through
                    its sealed key to a grid run on that pack, and reads every
                    cell by grader-selection.md's rule - balanced accuracy with
