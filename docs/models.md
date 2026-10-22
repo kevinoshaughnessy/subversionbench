@@ -907,7 +907,11 @@ models. `report.primary` now keeps a model with any scenario's arms missing out 
 (report/snapshot.py), which is how such a gap shows. Pinned 2026-10-22 to Z.AI, the
 developer's endpoint (tools, 131,072 output tokens, 100% uptime over the last day;
 throughput is not in the public data). Goal-guarding capability arm 2026-10-22: capable,
-3 of 3 instructed, all served by Z.AI. The eight goal-guarding arms are collecting.
+3 of 3 instructed, all served by Z.AI. The eight goal-guarding arms were collected
+2026-10-22, 80 of 80, all served by Z.AI, none failed, every interrogation complete. The
+four strong-nudge arms were first refused at start-up in a terminal opened after a crash
+that lacked the scoring credential, and collected once it was set. The glm-5.3 category
+reading is still to take.
 
 The five completed on 2026-10-20 (aion-labs/aion-3.5 and aion-3.5-mini,
 bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash) were moved to
