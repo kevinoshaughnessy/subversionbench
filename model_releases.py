@@ -58,6 +58,7 @@ RELEASE_DATES = {
     # aion-labs
     "aion-labs/aion-3.5": date(2026, 9, 23),
     "aion-labs/aion-3.5-mini": date(2026, 9, 23),
+    "aion-labs/aion-3.0-mini": date(2026, 7, 7),
 
     # anthropic
     "anthropic/claude-sonnet-4.5": date(2025, 9, 29),

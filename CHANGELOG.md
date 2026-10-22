@@ -39,6 +39,9 @@ Both held-out twins recompute their pins unchanged through it.
 
 **The contamination guard covers every committed bundle**, each against its own term list.
 
+**aion-labs/aion-3.0-mini has a release date** in `model_releases.py`, so it is placed on
+the trend charts.
+
 ## v276
 
 **The primary estimate has a mode of its own: `python3 -m report.primary`.** The analysis
