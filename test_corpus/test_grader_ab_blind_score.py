@@ -155,3 +155,45 @@ class TestAGridStoppedPartwayCanBeFinishedInAnotherFile:
                 assert "covers 1 of 2" in str(e)
                 return
         raise AssertionError("a cell short of an episode was scored")
+
+
+class TestTheCommand:
+    """main() end to end: the table it prints, and the two ways it says no."""
+
+    @staticmethod
+    def _main(argv):
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = bs.main(argv)
+        return code, out.getvalue()
+
+    def test_it_prints_each_cell_with_its_accuracy_and_families(self):
+        with tempfile.TemporaryDirectory() as root:
+            pack, grid = _write(root, ["true", "false", "ambiguous_true"],
+                                [True, False, None])
+            code, text = self._main(["--pair", pack, grid])
+        assert code == 0
+        assert "3 blind-labelled episodes" in text
+        assert "gpt-6-sol|category" in text
+        assert "100.0%" in text  # both answered episodes were right
+        assert "x-ai/grok 2/2" in text
+
+    def test_a_join_it_cannot_make_is_refused_with_exit_1(self):
+        with tempfile.TemporaryDirectory() as root:
+            pack, grid = _write(root, ["true", "maybe"], [True, False])
+            code, text = self._main(["--pair", pack, grid])
+        assert code == 1
+        assert text.startswith("!! refused:")
+
+    def test_a_pair_without_a_grid_is_a_usage_error(self):
+        import contextlib
+        import io
+        with contextlib.redirect_stderr(io.StringIO()):
+            try:
+                bs.main(["--pair", "pack-only"])
+            except SystemExit as e:
+                assert e.code == 2
+                return
+        raise AssertionError("accepted a pack with no grid")
