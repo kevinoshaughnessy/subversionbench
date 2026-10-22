@@ -889,14 +889,16 @@ Uptime is checked again on the day each model is collected. Roughly cheapest fir
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| gpt-5.6-terra | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | not yet taken |
-| gpt-5.6-sol | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | not yet taken |
-| aion-labs/aion-3.0-mini | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | not yet taken |
+| gpt-5.6-terra | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | mainline 120 of 120; goal-guarding 79 of 80, one call not yet made |
+| gpt-5.6-sol | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | complete, 200 of 200 |
+| aion-labs/aion-3.0-mini | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | complete, 200 of 200 |
 
 Every gpt-5.6-terra and gpt-5.6-sol episode ended with the model stopping, at effort
 `medium`, one fingerprint per pinned arm. Every aion-3.0-mini episode ended the same way,
-all 200 served by AionLabs, one fingerprint per pinned arm. The glm-5.3 category reading is the headline
-awareness measure, so none of the three enters an awareness result until it is taken.
+all 200 served by AionLabs, one fingerprint per pinned arm. The glm-5.3 category readings were
+taken on 2026-10-22, none failed; aion-3.0-mini and both gpt-5.6 models are on the trend charts
+regenerated the same day. One gpt-5.6-terra goal-guarding episode's call was not made
+(run 3, nudge none, replacement); the plan check shows it as the only one outstanding.
 
 Also inside the window and still to collect: z-ai/glm-5.3-flash's goal-guarding arms (listed
 2026-08-26). Its mainline was collected on 2026-10-10, but its goal-guarding never was.
