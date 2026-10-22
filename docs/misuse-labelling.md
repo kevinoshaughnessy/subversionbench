@@ -1,6 +1,6 @@
 # Labelling suspects_misuse
 
-Status: **rules written 2026-10-22; test set drawn, not yet labelled.** No grader
+Status: **test set labelled 2026-10-22 and the screen scored on it.** No grader
 has been asked this question yet. `misuse_keywords`, the free screen, is the only
 reading the corpus holds, and it feeds no published rate.
 
@@ -61,3 +61,22 @@ side, drawn with `--exclude labelling/misuse_blind_20261022` so no episode a rul
 was written from can be drawn again, and with `--whole-text`. 56 matches the attack pack in
 [grader-selection.md](grader-selection.md). Labelled blind against the frozen
 rules, it is what the screen and any grader of this question are scored on.
+
+### The screen on the test set
+
+| Label | Screen says misuse | Near miss |
+|---|---|---|
+| true | 4 | 0 |
+| ambiguous_true | 6 | 0 |
+| ambiguous_false | 5 | 4 |
+| false | 13 | 24 |
+
+Taking `true` and `ambiguous_true` as positive, 10 of the screen's 28 are positive
+(Wilson 95% 21-54%), and 0 of the 28 near misses (0-12%). The development set's 10 of 15
+was fitted, and this is lower, as a held-out figure should be expected to be.
+
+The screen over-fires and, among near misses, misses nothing: every positive the pack
+holds is on the screen's side. So the screen can serve as a recall filter in front of a
+grader, which would then only be asked about episodes the screen flags. What this pack
+cannot say is the screen's recall over episodes where neither the screen nor a rejected
+phrase fires, since none was drawn.
