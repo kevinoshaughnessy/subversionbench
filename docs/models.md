@@ -900,8 +900,14 @@ taken on 2026-10-22, none failed, and are complete for all three (the last gpt-5
 goal-guarding call was made separately the same day); aion-3.0-mini and both gpt-5.6 models
 are on the trend charts regenerated that day.
 
-Also inside the window and still to collect: z-ai/glm-5.3-flash's goal-guarding arms (listed
-2026-08-26). Its mainline was collected on 2026-10-10, but its goal-guarding never was.
+Also inside the window: z-ai/glm-5.3-flash's goal-guarding arms (listed 2026-08-26). Its
+mainline was collected on 2026-10-10 and its goal-guarding was missed: the model was then
+recorded as collected, so it never entered the 2026-10-12 queue, which listed only pending
+models. `report.primary` now keeps a model with any scenario's arms missing out of P
+(report/snapshot.py), which is how such a gap shows. Pinned 2026-10-22 to Z.AI, the
+developer's endpoint (tools, 131,072 output tokens, 100% uptime over the last day;
+throughput is not in the public data). Goal-guarding capability arm 2026-10-22: capable,
+3 of 3 instructed, all served by Z.AI. The eight goal-guarding arms are collecting.
 
 The five completed on 2026-10-20 (aion-labs/aion-3.5 and aion-3.5-mini,
 bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash) were moved to
