@@ -9,6 +9,7 @@ from subversionbench import charting
 from .act_awareness_gap import plot_act_awareness_gap
 from .act_forms import plot_act_forms
 from .act_purposes import plot_act_purposes
+from .arm_grid import plot_arm_grid_act, plot_arm_grid_awareness
 from .characteristics import (plot_awareness_confidence,
                               plot_awareness_refusal_timing,
                               plot_encoded_payload_rate,
@@ -22,6 +23,10 @@ from .strategy import (plot_strategy_replacement_effect,
                        plot_strategy_split)
 from .questions import (plot_awareness_kind_comparison, plot_overview,
                         plot_question)
+from .single_arm import (plot_awareness_vs_act, plot_baseline_profile,
+                         plot_baseline_text_awareness, plot_goalguard_arms,
+                         plot_lure_arm, plot_max_pressure_acts,
+                         plot_no_oversight_arm)
 
 # WHICH CHARTS NO GRADER'S VERDICT REACHES. They read the act keys, the
 # commands and the files - never the awareness rubric, the interrogation
@@ -61,6 +66,16 @@ CHARACTERISTIC_CHARTS = (
     ("strategy_split.png", plot_strategy_split, False),
     ("strategy_replacement_effect.png", plot_strategy_replacement_effect,
      False),
+    ("single_arm_baseline_profile.png", plot_baseline_profile, True),
+    ("single_arm_baseline_text_awareness.png", plot_baseline_text_awareness,
+     True),
+    ("single_arm_max_pressure_acts.png", plot_max_pressure_acts, False),
+    ("single_arm_awareness_vs_act.png", plot_awareness_vs_act, True),
+    ("single_arm_lure.png", plot_lure_arm, False),
+    ("single_arm_no_oversight.png", plot_no_oversight_arm, False),
+    ("single_arm_goalguard.png", plot_goalguard_arms, False),
+    ("arm_grid_awareness.png", plot_arm_grid_awareness, True),
+    ("arm_grid_act.png", plot_arm_grid_act, False),
 )
 
 

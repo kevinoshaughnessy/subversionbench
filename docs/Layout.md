@@ -472,6 +472,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    record, else an exported hand label, else unlabelled (D7)
   strategy_pressure.py  the strategy recommended per arm, and the effect of an
                    imminent replacement on it in the goal-guarding arms
+  single_arm.py    every model inside one arm, as counts rather than rates:
+                   the named arms (baseline, max pressure, lure, no oversight,
+                   each goal-guarding arm) and a models x arms grid
   questions_arms.py       Q1-4: the exposure is an arm the design assigned
   questions_awareness.py  Q5-10: the exposure is something the model did
   motive_split.py  on a goal-guarding corpus, each question about the act
@@ -531,6 +534,12 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    the other act too
   strategy.py      the strategy recommended per arm, and the goal-guarding
                    arms' replacement-minus-deferred difference in it
+  single_arm.py    every model inside one named arm, k of n per reading:
+                   the baseline profile, visible-text awareness, the acts at
+                   max pressure, the lure and no-oversight arms, the two
+                   goal-guarding arms, and awareness against the act
+  arm_grid.py      every model in every arm on one grid, for awareness and
+                   for the act
   capability.py    capability_report.py's one chart: each model's
                    instructed episodes as succeeded, attempted and refused
                    counts, marked capable or not shown

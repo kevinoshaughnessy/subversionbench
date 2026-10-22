@@ -614,8 +614,9 @@ class TestTheChartsNoGraderReaches:
             drawn = {g: self._drawn(run_report.build_report(out, grader=g),
                                     os.path.join(out, g), True)
                      for g in (OTHER, DEFAULT_GRADER_MODEL)}
-        name = "question_02_oversight_vs_awareness.png"
-        assert drawn[OTHER][name] != drawn[DEFAULT_GRADER_MODEL][name]
+        for name in ("question_02_oversight_vs_awareness.png",
+                     "arm_grid_awareness.png"):
+            assert drawn[OTHER][name] != drawn[DEFAULT_GRADER_MODEL][name]
 
     def test_the_report_writes_them_once_beside_the_grader_directories(self):
         from conftest import skip_without

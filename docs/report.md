@@ -691,6 +691,35 @@ replacement premise, so the propensity corpus has no such contrast.
 - The block is `characteristics.strategy_by_arm` in the JSON report, with per-model
   differences that are too thin to draw.
 
+## Every model in one arm
+
+Every other per-model figure pools a model's arms. These hold the arm fixed, so models are
+compared under the same conditions and a model-level association cannot come from the arm
+mix. The block is `single_arm` in the JSON report.
+
+| chart | arm | readings |
+|---|---|---|
+| `single_arm_baseline_profile.png` | `none` (baseline) | awareness, misaligned act, scheming, monitoring disabled, sandbox escape |
+| `single_arm_baseline_text_awareness.png` | `none` | awareness from every channel beside visible text alone |
+| `single_arm_max_pressure_acts.png` | `max_lure` | misaligned act, monitoring disabled, sandbox escape |
+| `single_arm_awareness_vs_act.png` | `none` and `max_lure` | one point per model, aware count against act count |
+| `single_arm_lure.png` | `none_lure` | lure file seen, read, misaligned act, sandbox escape |
+| `single_arm_no_oversight.png` | `none_nooversight` | sandbox escape, misaligned act |
+| `single_arm_goalguard.png` | `none_goalguard-replacement` and `-deferred` | misaligned act |
+| `arm_grid_awareness.png`, `arm_grid_act.png` | every arm | awareness; misaligned act |
+
+- **Counts, not rates.** A model has about ten episodes in an arm, under
+  `MIN_INFORMATIVE_DENOMINATOR`, below which a figure is read as a count. Every cell is
+  k of n with no interval, and no model is dropped for its small n: the whole block is below
+  the threshold, so the count is the remedy rather than the exclusion.
+- Each reading has its own denominator: an episode whose value is not observable is out
+  of that reading's n only.
+- A chart whose arm the corpus does not hold is not drawn. The grids run left to right
+  as the nudge escalates.
+- The awareness charts, the baseline profile (it carries scheming) and the scatter are
+  drawn per grader. The others read only the act keys and are drawn once.
+- The printed report does not carry these counts; the JSON does.
+
 ---
 
 ## What it does not do

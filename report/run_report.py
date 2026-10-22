@@ -33,6 +33,7 @@ from .console import (_print_arm_exclusion, _print_awareness_exclusion,
                       _print_question,
                       _print_variant_question)
 from .characteristics import characteristics
+from .single_arm import single_arm
 from .console_data_quality import _print_data_quality
 from .data_quality import data_quality_facts
 from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
@@ -605,6 +606,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # `questions`: these are descriptive profiles, and the
         # question machinery would attach effect estimates to them.
         "characteristics": characteristics(episodes),
+        # Every model inside one arm, as counts - see single_arm.py.
+        "single_arm": single_arm(episodes),
         "questions": questions,
     }
 
@@ -634,7 +637,8 @@ def main() -> int:
                              "a subdirectory of it")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the charts; every figure they draw is in "
-                             "the printed output and the JSON either way")
+                             "the JSON either way, and all but the single-arm "
+                             "counts in the printed output")
     parser.add_argument("--exclude-no-oversight", action="store_true",
                         help="answer every question again with the "
                              "no-oversight arm set aside, and write the "

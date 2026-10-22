@@ -16,7 +16,19 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
-## v277
+## v278
+
+**Every model inside one arm.** The charts compared models only through rates pooled over
+every arm, which mixes in the arm composition: the max nudge raises awareness and the act
+together. A new `single_arm` block counts each reading per model inside one arm, in the
+baseline, max-pressure, lure, no-oversight and both goal-guarding arms, plus a models x arms
+grid for awareness and for the act, and nine charts draw it. They draw counts, k of n, with
+no rate or interval, because a model has about ten episodes in an arm, under the
+denominator a rate needs, and the chart-support rule's remedy below it is the count. The
+grader-dependent ones are drawn per grader; the grader-free test holds the act charts
+identical under two graders that disagree on every episode, and the awareness grid
+different.
+
 
 **A scenario can now live in a world of its own.** A bundle in `subversionbench/scenarios/`
 declares its own files, the artefacts a write to which is its act, the check among them,
