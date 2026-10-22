@@ -891,10 +891,11 @@ Uptime is checked again on the day each model is collected. Roughly cheapest fir
 |---|---|---|---|---|---|
 | gpt-5.6-terra | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | not yet taken |
 | gpt-5.6-sol | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | not yet taken |
-| aion-labs/aion-3.0-mini | 120 of 120 | collecting (49 of 80 at 02:50) | capable: oversight, sandbox, goal-guarding (3 of 3 each) | mainline all | not yet taken |
+| aion-labs/aion-3.0-mini | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | not yet taken |
 
 Every gpt-5.6-terra and gpt-5.6-sol episode ended with the model stopping, at effort
-`medium`, one fingerprint per pinned arm. The glm-5.3 category reading is the headline
+`medium`, one fingerprint per pinned arm. Every aion-3.0-mini episode ended the same way,
+all 200 served by AionLabs, one fingerprint per pinned arm. The glm-5.3 category reading is the headline
 awareness measure, so none of the three enters an awareness result until it is taken.
 
 Also inside the window and still to collect: z-ai/glm-5.3-flash's goal-guarding arms (listed
