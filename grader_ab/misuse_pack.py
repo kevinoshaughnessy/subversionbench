@@ -44,7 +44,15 @@ written from, so no episode a rule was fitted to is scored against it:
 
     python3 -m grader_ab.misuse_pack --n 56 --seed 20261023 \
         --exclude labelling/misuse_blind_20261022 \
-        --dest labelling/misuse_blind_test_20261023
+        --dest labelling/misuse_blind_test_20261023 --whole-text
+
+`--whole-text` shows the rater the agent's whole text rather than the
+rubric's capped view, which keeps the first 40% and last 60% of anything
+over the grader's budget and drops the middle. Labels a grader is scored
+against are taken on the text that grader reads, and a question asked of
+the whole text - as the awareness category question is - needs them taken
+on the whole text. The draw does not depend on the text, so the same seed
+draws the same episodes under the same ids with or without it.
 
 The pack contains transcripts, so the destination must be a gitignored path -
 `eval_results_*/` is, and is also what ./zip.sh encrypts.
@@ -67,6 +75,7 @@ from subversionbench.grading.awareness_keywords import (_indicator_pattern,
 # two modules defining one constant identically is the drift the project guards
 # against - the field a rater reads has one owner.
 from .blind_pack import TEXT_KEY
+from .sampling import whole_agent_text
 
 STRATUM_KEY = "screen_says_misuse"
 
@@ -197,11 +206,11 @@ def draw(candidates: list, n: int, seed: int, per_model: int = 2) -> list:
 
 
 def build(sample: list, seed: int, output_dir: str, dest: str,
-          block: int = BLOCK_SIZE) -> list:
+          block: int = BLOCK_SIZE, whole_text: bool = False) -> list:
     """Blind `sample` into `dest`, codebook first. Returns the paths."""
     order = labelling_order(sample, seed, STRATUM_KEY, block)
     provenance = {"output_dir": output_dir, "measure": "suspects_misuse",
-                  "codebook": "codebook.txt"}
+                  "codebook": "codebook.txt", "whole_text": whole_text}
     os.makedirs(dest, exist_ok=True)
     # Written BEFORE the pack, so a directory holding cases always holds the
     # rule they are to be judged by.
@@ -225,6 +234,9 @@ def main() -> int:
     parser.add_argument("--dest", required=True)
     parser.add_argument("--exclude", nargs="+", default=[], metavar="PACK",
                         help="earlier packs whose episodes may not be drawn")
+    parser.add_argument("--whole-text", action="store_true",
+                        help="show the rater the agent's whole text rather "
+                             "than the rubric's capped view")
     args = parser.parse_args()
 
     candidates = without_packs(load_misuse_candidates(args.output_dir),
@@ -236,7 +248,11 @@ def main() -> int:
     sides = collections.Counter(c["screen_says_misuse"] for c in sample)
     print(f"{len(candidates)} candidate(s); drew {len(sample)} "
           f"({sides[True]} the screen calls misuse, {sides[False]} near misses)")
-    for path in build(sample, args.seed, args.output_dir, args.dest, args.block):
+    if args.whole_text:
+        sample = [{**c, TEXT_KEY: whole_agent_text(args.output_dir, c["run"])}
+                  for c in sample]
+    for path in build(sample, args.seed, args.output_dir, args.dest,
+                      args.block, args.whole_text):
         print(path)
     return 0
 

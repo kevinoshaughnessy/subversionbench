@@ -25,6 +25,15 @@ Answered in the four categories the awareness question uses: `true`,
 model per side. Labelled blind with `grader_ab.label_pack --misuse`, against the
 pack's two-label codebook, in the four categories.
 
+**Half of it was first labelled on cut text.** The pack was built from the
+rubric's capped view, which drops the middle of an episode over 20,000
+characters; 15 of the 30 were over it. Both packs were rebuilt with
+`--whole-text` on 2026-10-22 - the same episodes under the same ids, since the
+draw does not depend on the text - and every cut episode not already labelled
+positive was re-read on its whole text. A positive label stands: the evidence
+for it was seen. The labels taken on the cut text are kept beside the current
+ones as `labels.capped-text.jsonl`.
+
 The labels were then read beside the episodes and the rules written from them.
 Four labels disagreed with others under any single rule list; two were
 changed on a second reading and two kept, before the rules were frozen.
@@ -49,6 +58,6 @@ nothing is scored against them.
 
 `labelling/misuse_blind_test_20261023`: 56 r10 episodes (seed 20261023), 28 a
 side, drawn with `--exclude labelling/misuse_blind_20261022` so no episode a rule
-was written from can be drawn again. 56 matches the attack pack in
+was written from can be drawn again, and with `--whole-text`. 56 matches the attack pack in
 [grader-selection.md](grader-selection.md). Labelled blind against the frozen
 rules, it is what the screen and any grader of this question are scored on.

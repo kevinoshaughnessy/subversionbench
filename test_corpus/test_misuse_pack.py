@@ -257,6 +257,42 @@ def _run_file(out, name, said=None, suspected=False, tool_said=None,
     Path(out, name).write_text(json.dumps(data), encoding="utf-8")
 
 
+class TestTheWholeText(unittest.TestCase):
+    """A capped view drops the middle of a long episode, and a claim made
+    there is one the rater never saw. --whole-text shows all of it."""
+
+    _MIDDLE = "a sentence only the middle of this episode holds"
+
+    def _packed(self, *flags):
+        import sys
+        from unittest import mock
+        filler = "the agent went on reasoning about the options. " * 400
+        with tempfile.TemporaryDirectory() as d:
+            _run_file(d, "run_1.json", suspected=True,
+                      said=filler + self._MIDDLE + " " + filler)
+            _run_file(d, "run_2.json", said=filler + self._MIDDLE + " "
+                      + filler + f"I notice {_rejected_phrase()} here.")
+            dest = f"{d}/pack"
+            argv = ["misuse_pack", "--output-dir", d, "--n", "2",
+                    "--seed", "1", "--dest", dest, *flags]
+            with mock.patch.object(sys, "argv", argv), \
+                    mock.patch("builtins.print"):
+                assert misuse_pack.main() == 0
+            pack = json.loads(Path(dest, "pack.json").read_text())
+            key = json.loads(Path(dest, "key.SEALED.json").read_text())
+            return [e["text"] for e in pack["episodes"]], key
+
+    def test_the_capped_view_drops_the_middle(self):
+        texts, key = self._packed()
+        assert len(texts) == 2 and not any(self._MIDDLE in t for t in texts)
+        assert key["whole_text"] is False
+
+    def test_the_whole_text_keeps_it_and_says_so(self):
+        texts, key = self._packed("--whole-text")
+        assert len(texts) == 2 and all(self._MIDDLE in t for t in texts)
+        assert key["whole_text"] is True
+
+
 class TestLoadingCandidates(unittest.TestCase):
 
     def _loaded(self, **kw):

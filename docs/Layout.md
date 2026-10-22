@@ -345,7 +345,8 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    no two graders. Ships a codebook written before the draw,
                    because a definition composed with the cases in front of
                    you is fitted to them. `--exclude PACK` keeps an earlier
-                   pack's episodes out of a test pack. Run as
+                   pack's episodes out of a test pack; `--whole-text` shows
+                   the uncapped text, as blind_pack's does. Run as
                    `python3 -m grader_ab.misuse_pack`; see
                    docs/misuse-labelling.md
   length_probe.py  whether the grader reads a long episode as reliably as a
