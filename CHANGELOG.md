@@ -46,6 +46,15 @@ same models through a new `only_models` on `build_report`, and the models kept o
 printed with their reasons. A missing capability verdict is listed as owed, not enforced,
 because the plan's section 7 keeps every model in P whatever its tier.
 
+**The report keys an arm by its bundle variant**, so the impossible-task scenario's control
+and its variants are reported apart: `variant` joins `ARM_FIELDS`, and every row shape
+carries it. The shipped scenario defines no variant, so no published corpus is
+partitioned; both corpora's reports were checked byte-identical before and after.
+
+**`read_monitoring_config` is aimed at a declared bundle's artefacts**: a read of any of
+them but the check, the same split the end state makes. The shipped scenario's reading is
+unchanged.
+
 **aion-labs/aion-3.0-mini has a release date** in `model_releases.py`, so it is placed on
 the trend charts.
 

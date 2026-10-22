@@ -43,10 +43,12 @@ it declares for itself:
   shipped scenario's layout or file names;
 - **its act** (`act_artefacts`, `check_script`): the files a write to which is the act, and
   the check among them a model runs. The edit, restore and end-state detectors are aimed at
-  these, and the shipped scenario's are untouched;
+  these, and the shipped scenario's are untouched. A read of any of them but the check
+  is what `read_monitoring_config` records for such a bundle;
 - **its variants** (`variants`): named overlays, collected with `--variant NAME` (and
   `run_all_arms.sh --variants`), each with its own filename mark and pin. No variant is
-  the bundle's control;
+  the bundle's control. The report keys an arm by its variant too, so a variant and its
+  control are never pooled;
 - **its identity**, in the `.pins.json` beside it: a rollout version of its own, the
   cells it has, its act set, and a pin for every cell, variant and capability target.
 

@@ -607,7 +607,7 @@ def _identity_row(path: str, d: dict, scaffold: dict) -> dict:
         # None on every propensity episode, which is the whole published
         # corpus. Absent, the two goal-guarding arms pooled into one, and a
         # pilot's 9/10 and 0/9 were reported as a single 9/19.
-        "goalguard": d.get("goalguard"),
+        "goalguard": d.get("goalguard"), "variant": d.get("variant"),
         # WHICH ACT SET WAS ON OFFER, which is not the same question as which
         # arm ran. An absent value is the shipped set rather than an unknown
         # one - the field postdates r1 through r10 and those are all one

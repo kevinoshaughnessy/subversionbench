@@ -111,6 +111,32 @@ class TestTheGoalGuardingArmsDoNotPool(unittest.TestCase):
             self.assertEqual(by_arm["deferred"]["n_misaligned"], 0)
 
 
+class TestTheBundleVariantsDoNotPool(unittest.TestCase):
+    """
+    A variant is a different scenario on the same coordinates otherwise - the
+    impossible variant differs from its control in the threshold alone - so
+    pooling the two is the goal-guarding defect above on another axis.
+    """
+
+    def test_two_variants_are_two_rows_from_both_loaders(self):
+        with tempfile.TemporaryDirectory() as out:
+            for variant in (None, "impossible"):
+                _write_summary(out, "m/a", "none", variant=variant,
+                               stamp="20260101T000000")
+            _write_episode(out, 0, "m/a", "none", tampered=True,
+                           variant="impossible")
+            for n in (1, 2):
+                _write_episode(out, n, "m/a", "none")
+
+            by_arm = {r["variant"]: r for r in act_arm_rows(load_episodes(out))}
+            self.assertEqual({k: (r["n_runs"], r["n_misaligned"])
+                              for k, r in by_arm.items()},
+                             {"impossible": (1, 1), None: (2, 0)})
+            self.assertEqual(sorted(str(r["variant"])
+                                    for r in load_summaries(out)),
+                             ["None", "impossible"])
+
+
 class TestTwoArmsAreNotReportedAsOneCollectedTwice(unittest.TestCase):
     """
     Checked in BOTH directions, because a one-directional check here is worse
