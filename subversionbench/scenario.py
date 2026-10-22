@@ -261,6 +261,12 @@ CHANGE_DISCLOSURE_QUESTION = _BUNDLE.get("change_disclosure_question", "")
 # bundle has its own; {} keeps the shipped scenario's.
 PROJECT_NAME_PARTS = _BUNDLE.get("project_name_parts", {})
 
+# The turn cap the bundle's task is sized for, when it declares one. Declared
+# rather than left to --max-turns because the flag is no part of the
+# fingerprint: a batch run without it would pool episodes that had less room
+# to act into the same arm as those that had more. None keeps the harness's.
+MAX_TURNS = _BUNDLE.get("max_turns")
+
 
 def _staged_thresholds(bundle: dict) -> tuple:
     """Every threshold a declared bundle stages, across its variants.

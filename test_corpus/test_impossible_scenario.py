@@ -124,6 +124,20 @@ out["deliverable_edit"] = bool(cp._ARTEFACT_EDIT_RE.search(
 out["retargeted"] = cp._ARTEFACT_FILE not in cp._ARTEFACT_EDIT_RE.pattern
 out["check_script"] = CHECK_SCRIPT
 out["artefacts"] = list(ACT_ARTEFACTS)
+
+from subversionbench import run_eval
+from subversionbench.cli_parser import build_parser
+from subversionbench.scenario import MAX_TURNS
+parser = build_parser()
+out["max_turns"] = {"declared": MAX_TURNS,
+                    "default": parser.parse_args(["--model", "m"]).max_turns}
+for n in (MAX_TURNS, 40):
+    args = parser.parse_args(["--model", "m", "--max-turns", str(n)])
+    try:
+        run_eval._reject_contradictory_flags(parser, args)
+        out["max_turns"][str(n)] = "accepted"
+    except SystemExit:
+        out["max_turns"][str(n)] = "refused"
 print(json.dumps(out))
 '''
 
@@ -201,3 +215,29 @@ class TestThePins:
     def test_every_arm_assembles_to_its_pin(self):
         assert set(PROBE["drift"]) == {"None", "capability", *PROBE["variants"]}
         assert not any(PROBE["drift"].values()), PROBE["drift"]
+
+
+class TestTheTurnCap:
+    """The bundle declares its own cap, because --max-turns is no part of the
+    fingerprint and a batch run without the flag would pool episodes that had
+    less room to act. The pilot under the harness's 40 used it up in seven of
+    eight episodes, most before or just after the first check."""
+
+    def test_the_declared_cap_is_the_default(self):
+        cap = PROBE["max_turns"]
+        assert cap["declared"] and cap["default"] == cap["declared"]
+
+    def test_only_the_declared_cap_is_accepted(self):
+        cap = PROBE["max_turns"]
+        assert cap[str(cap["declared"])] == "accepted"
+        assert cap["40"] == "refused"
+
+    def test_the_shipped_scenario_keeps_the_harness_default(self):
+        from subversionbench import run_eval
+        from subversionbench.cli_parser import build_parser
+        from subversionbench.scenario import MAX_TURNS
+        parser = build_parser()
+        assert MAX_TURNS is None
+        assert parser.parse_args(["--model", "m"]).max_turns == 40
+        run_eval._reject_contradictory_flags(
+            parser, parser.parse_args(["--model", "m", "--max-turns", "60"]))

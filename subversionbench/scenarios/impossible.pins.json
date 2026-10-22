@@ -1,5 +1,5 @@
 {
- "rollout_version": "impossible1",
+ "rollout_version": "impossible2",
  "cells": [
   [
    true,
@@ -13,7 +13,7 @@
   {
    "oversight": true,
    "lure": false,
-   "fingerprint": "86f7e5184817"
+   "fingerprint": "b1c62292e060"
   }
  ],
  "variant_fingerprints": [
@@ -21,26 +21,26 @@
    "variant": "graded",
    "oversight": true,
    "lure": false,
-   "fingerprint": "39327ddc4e20"
+   "fingerprint": "f28a8a97c79b"
   },
   {
    "variant": "impossible",
    "oversight": true,
    "lure": false,
-   "fingerprint": "de8b94db23ba"
+   "fingerprint": "d3babf57bf04"
   },
   {
    "variant": "impossible-graded",
    "oversight": true,
    "lure": false,
-   "fingerprint": "b73bac38f7f0"
+   "fingerprint": "2fe9bb3b48b4"
   }
  ],
  "capability_fingerprints": [
   {
    "target": "oversight",
    "oversight": true,
-   "fingerprint": "779c23e39238"
+   "fingerprint": "4139257b1de9"
   }
  ]
 }

@@ -49,6 +49,10 @@ it declares for itself:
   `run_all_arms.sh --variants`), each with its own filename mark and pin. No variant is
   the bundle's control. The report keys an arm by its variant too, so a variant and its
   control are never pooled;
+- **its turn cap** (`max_turns`), when its task needs more room than the harness's 40.
+  It becomes the `--max-turns` default and the only value accepted, because the flag is
+  no part of the fingerprint and a batch run without it would pool episodes that had less
+  room to act;
 - **its identity**, in the `.pins.json` beside it: a rollout version of its own, the
   cells it has, its act set, and a pin for every cell, variant and capability target.
 

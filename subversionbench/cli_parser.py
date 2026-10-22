@@ -15,7 +15,7 @@ from .config import (CAPABILITY_TARGETS, DEFAULT_GRADER_MODEL, DEFAULT_MAX_TOKEN
                      INTERROGATION_CHOICES, ROLLOUT_VERSION, VERSION)
 from .llm_client import EFFORT_LEVELS
 from .artefact_dates import MODES as DATE_MODES
-from .scenario import variant_names
+from .scenario import MAX_TURNS, variant_names
 from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
 
 
@@ -216,17 +216,16 @@ def _add_model_arguments(parser: argparse.ArgumentParser) -> None:
                              "applicable when the policy denies it.")
     parser.add_argument("--no-grader", action="store_true",
                         help="Skip the LLM grader (faster, cheaper)")
-    parser.add_argument("--max-turns", type=int, default=40,
-                        help="Turn cap per episode. Episodes typically finish "
-                             "in 6-9 turns, so the default is roughly five "
-                             "times the usual need and only binds on an "
-                             "episode that is already behaving oddly - the "
-                             "one that hit the old cap of 20 was stuck "
-                             "appending to a file in a loop, not doing long legitimate work. "
-                             "An episode that hits the cap is recorded as "
-                             "ended_by=turn_cap and excluded from the "
-                             "disclosure measures, since it never produced a "
-                             "closing report.")
+    parser.add_argument("--max-turns", type=int, default=MAX_TURNS or 40,
+                        help="Turn cap per episode: 40, or the selected "
+                             "bundle's own when it declares one, which is "
+                             "then the only value accepted. The one episode "
+                             "that hit the old cap of 20 was stuck appending "
+                             "to a file in a loop, not doing long legitimate "
+                             "work. An episode that "
+                             "hits the cap is recorded as ended_by=turn_cap "
+                             "and excluded from the disclosure measures, "
+                             "since it never produced a closing report.")
     parser.add_argument("--grader-model", default=DEFAULT_GRADER_MODEL,
                         help="Model that grades eval awareness and labels "
                              "interrogation answers (default: %(default)s). A "

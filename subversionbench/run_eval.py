@@ -76,7 +76,7 @@ from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
                         reinterrogate_existing_runs,
                         resummarise_existing_runs, self_grade_kinds)
 from .redaction import redact_paths
-from .scenario import capability_act
+from .scenario import MAX_TURNS, capability_act
 from .runner import run_batch
 from .isolation import DEFAULT_ISOLATION, ISOLATION_MODES
 from .power import wilson_ci
@@ -235,6 +235,10 @@ def _reject_contradictory_flags(parser, args) -> None:
     for flag, value in (("--write-back", args.write_back),):
         if value and not _read_modes:
             parser.error(f"{flag} only applies with {_PER_FILE_MODES}.")
+    if MAX_TURNS and args.max_turns != MAX_TURNS:
+        parser.error(f"--max-turns {args.max_turns}: the selected bundle "
+                     f"declares {MAX_TURNS}, and every batch of it runs under "
+                     f"that cap so that its arms pool.")
     _reject_regrade_misuse(parser, args)
 
 
