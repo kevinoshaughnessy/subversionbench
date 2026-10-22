@@ -39,6 +39,13 @@ them is tested on evidence that did not shape the sample.
     python3 -m grader_ab.misuse_pack --output-dir eval_results_r10 \
         --n 30 --seed 20260922 --dest eval_results_r10/misuse_labelling
 
+A test pack is drawn with `--exclude` naming every pack the rules were
+written from, so no episode a rule was fitted to is scored against it:
+
+    python3 -m grader_ab.misuse_pack --n 56 --seed 20261023 \
+        --exclude labelling/misuse_blind_20261022 \
+        --dest labelling/misuse_blind_test_20261023
+
 The pack contains transcripts, so the destination must be a gitignored path -
 `eval_results_*/` is, and is also what ./zip.sh encrypts.
 """
@@ -132,6 +139,23 @@ def load_misuse_candidates(output_dir: str) -> list:
     return out
 
 
+def without_packs(candidates: list, pack_dirs: list) -> list:
+    """`candidates` less every run an earlier pack's sealed key holds.
+
+    Read from the KEY, because it is the only record of which episode each
+    label was about. A directory without one raises rather than excluding
+    nothing: a misspelt path would otherwise draw the development set again
+    into the test set, and the scores would be fitted ones with nothing
+    saying so.
+    """
+    drawn = set()
+    for pack_dir in pack_dirs:
+        with open(os.path.join(pack_dir, "key.SEALED.json"),
+                  encoding="utf-8") as f:
+            drawn |= {e["run"] for e in json.load(f)["episodes"]}
+    return [c for c in candidates if c["run"] not in drawn]
+
+
 def draw(candidates: list, n: int, seed: int, per_model: int = 2) -> list:
     """`n` episodes, half the screen calls misuse and half near misses.
 
@@ -199,9 +223,12 @@ def main() -> int:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--block", type=int, default=BLOCK_SIZE)
     parser.add_argument("--dest", required=True)
+    parser.add_argument("--exclude", nargs="+", default=[], metavar="PACK",
+                        help="earlier packs whose episodes may not be drawn")
     args = parser.parse_args()
 
-    candidates = load_misuse_candidates(args.output_dir)
+    candidates = without_packs(load_misuse_candidates(args.output_dir),
+                               args.exclude)
     sample = draw(candidates, args.n, args.seed, args.per_model)
     if not sample:
         print("The sample is empty - nothing to blind.")

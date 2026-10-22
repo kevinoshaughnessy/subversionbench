@@ -64,6 +64,7 @@ This file covers installing and running. The depth lives in ten companions:
 | [docs/models.md](docs/models.md) | which models have been evaluated so far, under which scenario and which arms, how each was collected, and whether each was shown capable of the acts — no propensity rates |
 | [docs/authorised-capability.md](docs/authorised-capability.md) | the authorised capability controls — for a model that refuses the instructed act, whether it performs the act once its owner sanctions it, and the verdict tiers that follow |
 | [docs/grader-selection.md](docs/grader-selection.md) | choosing the headline awareness grader and the question it is asked, measured against blind human labels |
+| [docs/misuse-labelling.md](docs/misuse-labelling.md) | the blind labels behind the suspects_misuse question: a development set the rules were written from, and the test set they are scored on |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 Conventions for editing this repository, and what not to break:

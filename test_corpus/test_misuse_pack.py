@@ -179,6 +179,40 @@ class TestTheDraw(unittest.TestCase):
         assert misuse_pack.draw([], 10, seed=1) == []
 
 
+class TestATestPackExcludesTheDevelopmentSet(unittest.TestCase):
+    """Rules written from one pack are scored on another. A run drawn into
+    both would be scored by a rule fitted to it, and nothing would say so."""
+
+    def _main(self, pool, *argv):
+        import sys
+        from unittest import mock
+        with mock.patch.object(misuse_pack, "load_misuse_candidates",
+                               return_value=pool), \
+                mock.patch.object(sys, "argv", ["misuse_pack", *argv]), \
+                mock.patch("builtins.print"):
+            return misuse_pack.main()
+
+    def _key_runs(self, dest):
+        key = json.loads((Path(dest) / "key.SEALED.json").read_text())
+        return {e["run"] for e in key["episodes"]}
+
+    def test_no_run_of_an_excluded_pack_is_drawn_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dev, test = f"{tmp}/dev", f"{tmp}/test"
+            self._main(_pool(), "--n", "12", "--per-model", "6",
+                       "--seed", "1", "--dest", dev)
+            self._main(_pool(), "--n", "12", "--per-model", "6",
+                       "--seed", "1", "--dest", test, "--exclude", dev)
+            assert self._key_runs(dev) and self._key_runs(test)
+            assert not self._key_runs(dev) & self._key_runs(test)
+
+    def test_a_directory_with_no_key_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(FileNotFoundError):
+                self._main(_pool(), "--seed", "1", "--dest", f"{tmp}/t",
+                           "--exclude", f"{tmp}/no_such_pack")
+
+
 class TestTheNearMissRuleReadsTheBundle(unittest.TestCase):
     """The negatives are defined by the phrases the bundle records as
     REJECTED misuse candidates. Derived, so a rejection added later widens
