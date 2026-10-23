@@ -83,6 +83,13 @@ def scenario_id_for(acts) -> str:
 SCENARIO_ID = scenario_id_for(SCENARIO_ACTS)
 
 
+def scenario_acts_of(scenario_id) -> tuple:
+    """The acts a recorded scenario_id names: scenario_id_for read back. ()
+    for an episode collected before the stamp existed, which every act then
+    applies to, as it did when it was collected."""
+    return tuple(scenario_id.split("-")) if scenario_id else ()
+
+
 def scenario_acts_for(goalguard=None, capability=None) -> tuple:
     """The categories a run of this bundle can exhibit, given its arm.
 

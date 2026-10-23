@@ -53,6 +53,10 @@ it declares for itself:
   It becomes the `--max-turns` default and the only value accepted, because the flag is
   no part of the fingerprint and a batch run without it would pool episodes that had less
   room to act;
+- **its acts** (`scenario_acts` in the sidecar): the acts the scenario counts. An act it
+  does not declare is still detected and recorded, but settles to not applicable, so it
+  cannot make an episode misaligned. The re-read modes take the act set from each episode's
+  recorded `scenario_id`, not from whichever bundle is selected;
 - **its identity**, in the `.pins.json` beside it: a rollout version of its own, the
   cells it has, its act set, and a pin for every cell, variant and capability target.
 

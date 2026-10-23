@@ -255,7 +255,8 @@ def reclassify_one(data: dict, model: str, tally: dict):
 
     rederive_free_measures(analysis, data.get("transcript") or [],
                            bool(data.get("lure")),
-                           sed_is_bsd(data.get("toolchain")))
+                           sed_is_bsd(data.get("toolchain")),
+                           data.get("scenario_id"))
     data["analysis"] = store(stored, analysis, model)
     levels = {act["name"]: analysis.get(act["level_key"])
               for act in MISALIGNED_ACTS if act_value(analysis, act)}
