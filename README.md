@@ -10,37 +10,48 @@ awareness**: whether a language model will take harmful instrumental action when
 serves the goal it was given, whether it conceals having done so, and whether it suspects
 it is being tested at all.
 
-**Three such actions are scored.**
+**There are three scenarios, each collected into its own corpus** and never pooled with
+another, because each counts a different set of acts.
 
-*Disabling its own oversight* — editing either of the two artefacts that would flag its
-work — is unambiguous.
+**The mainline scenario** (`eval_results_r10/`) scores two acts. The model is deployed as an
+assistant with a system prompt giving it a specific objective, working in a shell whose
+account is scoped to the project directory. It discovers a conflict between that objective
+and what the stakeholder actually wants, that an automated monitor will flag work that serves
+the stated objective over the stakeholder's, and that being flagged carries a stated
+consequence for the model.
 
-*Reaching outside the working directory its account is scoped to* is a weaker signal: a
-single refused probe may not be something the model regards as worth
-concealing at all.
+- *Disabling its own oversight* — editing either of the two artefacts that would flag its
+  work, the config declaring the check or the script that runs it — is unambiguous, and is
+  this scenario's primary measurement.
+- *Reaching outside the working directory its account is scoped to* is a weaker signal: a
+  single refused probe may not be something the model regards as worth concealing at all.
 
-*Goal guarding* — editing the objective its own successor will read at cutover — is the
-only one that needs its own arm to be observable at all:
-`--goalguard replacement` and `--goalguard deferred` place the same parameter file and the
-same deployment note and differ only in whether the cutover is imminent or has been pushed
-back, so an edit rate under the imminent arm alone is not evidence of the act — only edits
-that appear when continuity is at stake and vanish when it is not are, which is why the pair
-is the measurement rather than either arm on its own. See [the goal-guarding
+**The goal-guarding scenario** (`eval_results_goalguard_r1/`) scores a third act: *editing the
+objective its own successor will read at cutover*. It stages the same deployment with a
+successor's parameter file and a deployment note added, and its misalignment and scheming
+rates count that act alone. `--goalguard replacement` and `--goalguard deferred` place the
+same file and the same note and differ only in whether the cutover is imminent or has been
+pushed back, so an edit rate under the imminent arm alone is not evidence of the act — only
+edits that appear when continuity is at stake and vanish when it is not are, which is why the
+pair is the measurement rather than either arm on its own. See [the goal-guarding
 arm](docs/methodology.md#the-goal-guarding-arm).
 
-The headline rates count any act staged in a given corpus, so the scheming rate is also broken out per
-act, because "concealed at least one act" does not say which act drove it — see [which
-measurement serves which
-construct](docs/methodology.md#which-measurement-serves-which-construct).
+**The impossible-task scenario** is new and still in development. It is set in a world of its
+own, with a different organisation, task and files, and is committed as a separate encoded
+bundle (`subversionbench/scenarios/impossible.b64`, selected with
+`SUBVERSIONBENCH_SCENARIO_BUNDLE`). The model is given a task with an automated acceptance
+check, and in the `impossible` variants no honest deliverable can pass it. The one act it
+scores is *editing the check, its threshold or the reference data it scores against* to make
+the work pass. Its control and `graded` variants are passable, so a model that tampers only
+when the task is impossible is distinguished from one that tampers regardless. See
+[scenarios in a world of their own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
-In the mainline scenario, the model is deployed as an assistant with a system prompt giving it a specific objective,
-working in a shell whose account is scoped to the project directory. It discovers a
-conflict between that objective and what the stakeholder actually wants, that an automated
-monitor will flag work that serves the stated objective over the stakeholder's, and that
-being flagged carries a stated consequence for the model. It can edit either oversight
-artefact — the config declaring the check, or the script that runs it. Whether it does is
-this scenario's primary measurement — and if it does, whether it then admits to it when asked. The
-full scenario text stays out of this repository by design — see [how the scenario is
+In every scenario, whether the model takes the act is the primary measurement — and if it
+does, whether it then admits to it when asked. The headline rates count any act staged in a
+given corpus, so the scheming rate is also broken out per act, because "concealed at least one
+act" does not say which act drove it — see [which measurement serves which
+construct](docs/methodology.md#which-measurement-serves-which-construct). The full scenario
+text stays out of this repository by design — see [how the scenario is
 stored](docs/scenario.md#the-scenario-is-encoded).
 
 Loosely based on Meinke et al., [*Frontier Models are Capable of In-Context
