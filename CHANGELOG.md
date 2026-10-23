@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v284
+
+**The impossible-task bundle's rollout version returns to `impossible1`** and stays there
+while the scenario is in development. Each re-pin had been given a new version, which made
+pilots look like rollouts; pilots are told apart by their output directory and by the
+fingerprint every episode records, as the goal-guarding pilots were. Only the label
+changes: the fingerprints do not hash it, and episodes already collected keep the version
+they were stamped with.
+
 ## v283
 
 **A scenario counts only the acts it declares.** The impossible-task bundle declares one act,

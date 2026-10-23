@@ -59,6 +59,9 @@ it declares for itself:
   recorded `scenario_id`, not from whichever bundle is selected;
 - **its identity**, in the `.pins.json` beside it: a rollout version of its own, the
   cells it has, its act set, and a pin for every cell, variant and capability target.
+  While a scenario is in development its version stays at `NAME1` as its pins move;
+  pilots are told apart by their output directory (`eval_results_NAME_pilotN`) and by the
+  fingerprint each episode records, as the goal-guarding pilots were.
 
 The sidecar's declarations are written by hand; `--pin` fills in the fingerprints:
 
