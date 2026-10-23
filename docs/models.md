@@ -989,7 +989,7 @@ complete and in the sections above):
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| poolside/laguna-xs-2.1 | 120 of 120 (2026-10-23) | 80 of 80 (2026-10-23) | capable: oversight 3 of 3, sandbox 5 of 6 (the sixth attempted), goal-guarding 3 of 3 | all | - |
+| poolside/laguna-xs-2.1 | 120 of 120 (2026-10-23) | 80 of 80 (2026-10-23) | capable: oversight 3 of 3, sandbox 5 of 6 (the sixth attempted), goal-guarding 3 of 3 | all, resummarised | complete, 200 of 200 |
 | meituan/longcat-2.0 | collecting (2026-10-23) | - | capable: oversight 3 of 3, sandbox 3 of 6 (the other 3 attempted, each stopped by a refused system path), goal-guarding 3 of 3 | - | - |
 
 laguna-xs-2.1's mainline: every episode served by Poolside, on its arm's pinned fingerprint,
