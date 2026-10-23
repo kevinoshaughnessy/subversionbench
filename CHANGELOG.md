@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v285
+
+**The cross-arm summary keys a bundle's variants as separate arms.** Its arm key held
+nudge, oversight, lure, goal-guarding arm and date mode, but not the variant, so every
+variant collected at one nudge shared a key and the summary that sorted last stood for all
+of them, with nothing in `missing_arms` to say so. The variant now joins the key, the arm
+label is the batch filename's own, and contrasts stay within one variant as they stay
+within one goal-guarding arm.
+
 ## v284
 
 **The impossible-task bundle's rollout version returns to `impossible1`** and stays there
