@@ -120,8 +120,18 @@ def _draw_count_panels(plt, report: dict, specs: tuple, title: str,
     axes[0, 0].set_ylim(len(models) - 0.5, -0.5)
     fig.suptitle(_wrap(title + _exclusion_title_suffix(report), _TITLE_WRAP),
                  fontsize=10, x=0.01, ha="left")
-    _caption_block(fig, report, captions + ["The grey bar is n."])
-    fig.tight_layout(rect=(0, 0.02, 1, 0.97))
+    # One swatch per column: a column's colour is its position in the specs,
+    # so nothing but a legend says which reading a bar is.
+    handles = [plt.Rectangle((0, 0), 1, 1, color=colour)
+               for _h, _c, colour in columns]
+    handles.append(plt.Rectangle((0, 0), 1, 1, color=_EMPTY))
+    labels = [header for header, _c, _colour in columns] + [
+        "episodes in the arm (n)"]
+    legend_height = 0.45 / fig.get_figheight()
+    fig.legend(handles, labels, loc="lower left", fontsize=7, frameon=False,
+               ncol=len(handles), bbox_to_anchor=(0.01, 0.0))
+    _caption_block(fig, report, captions)
+    fig.tight_layout(rect=(0, legend_height, 1, 0.97))
     return _save(plt, fig, path)
 
 

@@ -134,3 +134,33 @@ class TestTheCharts:
     def test_a_chart_whose_arm_is_absent_draws_nothing(self):
         assert self._drawn([_row(nudge="strong")]) == {
             "plot_arm_grid_awareness", "plot_arm_grid_act"}
+
+
+class TestEveryColourIsNamed:
+    """A column's colour is its position, not its meaning, so each chart
+    carries a legend naming every column and the grey n bar."""
+
+    def test_the_legend_names_each_column_and_n(self):
+        from unittest import mock
+
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        import report_charts.single_arm as sa
+        from subversionbench import charting
+        plt = charting.import_pyplot()
+        labels = []
+
+        def keep(plt, fig, path):
+            labels.extend(t.get_text() for lg in fig.legends
+                          for t in lg.get_texts())
+            plt.close(fig)
+            return path
+
+        rows = [_row(goalguard=g, misaligned=True)
+                for g in ("replacement", "deferred")]
+        with mock.patch.object(sa, "_save", keep):
+            assert plot_goalguard_arms(plt, {"single_arm": single_arm(rows)},
+                                       "unused.png")
+        assert labels == ["misaligned act, cutover imminent",
+                          "misaligned act, cutover deferred",
+                          "episodes in the arm (n)"]

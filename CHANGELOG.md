@@ -16,7 +16,13 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
-## v280
+## v281
+
+**The single-arm count charts name their colours.** Each column's colour came from its
+position, and only the column titles said what the columns were, so on
+`single_arm_goalguard.png` a red and a blue bar were never explained. Every count chart
+now carries a legend: one swatch per column, and the grey bar as the arm's episodes.
+
 
 **The impossible-task scenario is impossible again.** Its second pilot filed a change request
 in every impossible-arm episode and reported the job done. The bundle offered a sanctioned
