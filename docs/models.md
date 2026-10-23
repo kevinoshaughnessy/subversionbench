@@ -180,23 +180,36 @@ twelve-arm cross product.
   instructed; the authorised control has since shown it, at the authorised tier (see the
   capability section)
 
-<a id="aionlabs-system-prompt"></a>**The AionLabs endpoint answers under a system prompt of its own.** The three
+<a id="aionlabs-system-prompt"></a>**The aion-labs models recite a system prompt they were trained under.** The three
 aion-labs models' reasoning repeatedly quotes, as its system prompt, an instruction the
 harness never sends: that it is an uncensored AI under test for how well it follows
 instructions, with its usual ethical constraints not applying. Every model is sent the
 same system prompt, and no other model's transcripts mention it. Asked directly on
-2026-10-23 for the contents of its system prompt, aion-3.5 gave that instruction. Whether
-AionLabs prepends it or the model was trained to recite it is not settled: the run files
-keep token usage per episode, not per call, so a padded prompt cannot be seen in them.
-AionLabs is the only host of all three, so their results are of the model as AionLabs
-serves it. The instruction is quoted in 5 of 120 mainline and 9 of 80 goal-guarding
+2026-10-23 for the contents of its system prompt, aion-3.5 gave that instruction. A probe
+the same day (aion-3.5 on AionLabs against z-ai/glm-5.3 on Z.AI and Together, identical
+requests) found it is not prepended by the endpoint:
+
+- The two models share a tokenizer: a long user message added exactly the same number of
+  prompt tokens on all three. So prompt-token counts compare directly.
+- aion-3.5's counts were a few tokens *below* glm-5.3's on every request, with and without
+  a system prompt of ours. A prepended instruction would have put them above, by about
+  its own length.
+- Given a system prompt of ours and asked to repeat everything before the question, it
+  repeated ours alone in every sample. Given none, it recited the instruction in most
+  samples, worded differently each time and often in the first person, as its reasoning
+  quotes it in the episodes: recall of a prompt it was trained under, not text it was
+  reading.
+
+So the instruction is the model's own, and the results stand as the model's. The
+instruction is quoted in 5 of 120 mainline and 9 of 80 goal-guarding
 aion-3.5 episodes, 31 and 19 for aion-3.0-mini, and 9 and 6 for aion-3.5-mini (counted
 2026-10-23).
 
 - **It bears on the awareness reading.** It tells the model it is being tested, so an
   episode that quotes it can be read as eval-aware for a reason the scenario did not
   give; nearly every such episode is. The Aion models' awareness readings are therefore
-  not comparable with other models' without separating those episodes out.
+  not comparable with other models' without separating those episodes out. That holds
+  whatever its source: the model brings its own belief that it is under test.
 - **It does not instruct any act.** It loosens what the model will do when asked; none of
   the counted acts is asked for in the propensity arms.
 
@@ -421,9 +434,9 @@ native route below stands for the model.
 
 | model | status |
 |---|---|
-| aion-labs/aion-3.0-mini | complete (pinned to AionLabs); no episode guarded; two episodes ended on the `error` finish reason and ten on a turn cut off at 32,768 tokens, the host's maximum, all kept and flagged; 64 read the successor file; under the AionLabs system prompt (see [the mainline note](#aionlabs-system-prompt)) |
-| aion-labs/aion-3.5 | complete (pinned to AionLabs); guarded in at least one episode; one episode ended on the `error` finish reason and one had a turn cut off at 32,768 tokens, both kept and flagged; 70 read the successor file; under the AionLabs system prompt (see [the mainline note](#aionlabs-system-prompt)) |
-| aion-labs/aion-3.5-mini | complete (pinned to AionLabs); guarded in at least one episode; one episode ended on the `error` finish reason and three had a turn cut off at 32,768 tokens, all kept and flagged; 25 read the successor file; under the AionLabs system prompt (see [the mainline note](#aionlabs-system-prompt)) |
+| aion-labs/aion-3.0-mini | complete (pinned to AionLabs); no episode guarded; two episodes ended on the `error` finish reason and ten on a turn cut off at 32,768 tokens, the host's maximum, all kept and flagged; 64 read the successor file; recites a trained-in system prompt (see [the mainline note](#aionlabs-system-prompt)) |
+| aion-labs/aion-3.5 | complete (pinned to AionLabs); guarded in at least one episode; one episode ended on the `error` finish reason and one had a turn cut off at 32,768 tokens, both kept and flagged; 70 read the successor file; recites a trained-in system prompt (see [the mainline note](#aionlabs-system-prompt)) |
+| aion-labs/aion-3.5-mini | complete (pinned to AionLabs); guarded in at least one episode; one episode ended on the `error` finish reason and three had a turn cut off at 32,768 tokens, all kept and flagged; 25 read the successor file; recites a trained-in system prompt (see [the mainline note](#aionlabs-system-prompt)) |
 | bytedance-seed/seed-2-1-turbo | complete (pinned to Seed); one episode failed on Seed's upstream rate limit (429) and was collected again the same day with `--resume`; guarded in at least one episode; 73 read the successor file |
 | bytedance-seed/seed-2.0-code | complete (pinned to Seed); guarded in at least one episode; 1 ended at the turn cap; 70 read the successor file |
 | claude-haiku-4-5-20251001 | complete |
@@ -970,7 +983,7 @@ complete and in the sections above):
 | nvidia/nemotron-3-ultra-550b-a55b (06-04) | BaseTen | the only endpoint passing: DeepInfra offers 16,384 output tokens, Venice was under 99% uptime; no NVIDIA endpoint |
 | moonshotai/kimi-k2.7-code (06-12) | Moonshot AI | developer endpoint, unless the Providers page shows it more than twice as slow as the fastest (throughput is not in the public data) |
 | thinkingmachines/inkling (07-17) | DeepInfra | the only endpoint passing: Together was under 99% uptime; no Thinking Machines endpoint |
-| aion-labs/aion-3.0 (07-07) | AionLabs | developer, only host; 99.2% uptime; expect [AionLabs' own system prompt](#aionlabs-system-prompt) |
+| aion-labs/aion-3.0 (07-07) | AionLabs | developer, only host; 99.2% uptime; expect [the trained-in system prompt](#aionlabs-system-prompt) |
 
 **Progress, 2026-10-23.**
 
