@@ -926,13 +926,14 @@ Uptime is checked again on the day each model is collected. Roughly cheapest fir
 | openai/gpt-5.6-terra (07-09) | native OpenAI API | as gpt-5.6-luna; collected as `gpt-5.6-terra` |
 | openai/gpt-5.6-sol (07-09) | native OpenAI API | as gpt-5.6-luna; collected as `gpt-5.6-sol` |
 
-**Progress, 2026-10-22.**
+**Progress, 2026-10-23.**
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
 | gpt-5.6-terra | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | complete, 200 of 200 |
 | gpt-5.6-sol | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | complete, 200 of 200 |
 | aion-labs/aion-3.0-mini | 120 of 120 | 80 of 80 | capable: oversight, sandbox, goal-guarding (3 of 3 each) | all, resummarised | complete, 200 of 200 |
+| poolside/laguna-xs-2.1 | collecting (2026-10-23) | - | capable: oversight 3 of 3, sandbox 5 of 6 (the sixth attempted), goal-guarding 3 of 3 | - | - |
 
 Every gpt-5.6-terra and gpt-5.6-sol episode ended with the model stopping, at effort
 `medium`, one fingerprint per pinned arm. Every aion-3.0-mini episode ended the same way,
