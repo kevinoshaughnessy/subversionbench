@@ -16,6 +16,11 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v286
+
+**Release dates for poolside/laguna-xs-2.1 and meituan/longcat-2.0** in `model_releases.py`,
+their OpenRouter listing dates, so both are placed on the trend charts.
+
 ## v285
 
 **The cross-arm summary keys a bundle's variants as separate arms.** Its arm key held

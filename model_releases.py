@@ -167,11 +167,17 @@ RELEASE_DATES = {
     "meta/muse-glimmer-30b": date(2026, 8, 9),
     "meta/muse-spark-1.3": date(2026, 9, 2),
 
+    # meituan
+    "meituan/longcat-2.0": date(2026, 7, 20),
+
     # nvidia
     "nvidia/nemotron-3.5-lightning": date(2026, 8, 11),
 
     # perceptron
     "perceptron/perceptron-mk1.5": date(2026, 9, 25),
+
+    # poolside
+    "poolside/laguna-xs-2.1": date(2026, 7, 2),
 
     # prism-ml
     "prism-ml/ternary-bonsai-2-27b": date(2026, 9, 18),
