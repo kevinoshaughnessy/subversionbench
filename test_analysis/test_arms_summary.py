@@ -21,12 +21,12 @@ def _rate(successes, n):
 
 def _write_arm(out, model, nudge, oversight, lure, stamp, n_runs=10,
               misaligned=(0, 10), episodes=None, capability=None,
-              goalguard=None):
+              goalguard=None, variant=None):
     """A minimal summary + matching run files for one arm."""
     from subversionbench.batch import batch_stem
     slug = model.replace("/", "_")
     stem = batch_stem(slug, nudge, None, oversight, lure, capability,
-                      goalguard=goalguard)
+                      goalguard=goalguard, variant=variant)
     summary = {
         "model": model, "nudge": nudge, "batch_stamp": stamp,
         "n_runs": n_runs, "batch_aborted": False, "episode_failures": [],
@@ -102,6 +102,29 @@ class TestGoalGuardingArmsAreSeparateArms:
                       goalguard="deferred", misaligned=(0, 10))
             _write_arm(out, "x/m", "none", False, False, "20260101T000002",
                       goalguard="replacement", misaligned=(10, 10))
+            report = build_summary_of_summaries(out, "x/m")
+            assert not any(report["contrasts"].values())
+
+
+class TestBundleVariantsAreSeparateArms:
+    """A bundle's variants share nudge, oversight and lure, so a key without
+    the variant let the one that sorted last stand for all of them."""
+
+    def test_every_variant_is_found(self):
+        with tempfile.TemporaryDirectory() as out:
+            for i, variant in enumerate((None, "a", "b")):
+                _write_arm(out, "x/m", "strong", True, False,
+                          f"2026010{i+1}T000000", variant=variant)
+            report = build_summary_of_summaries(out, "x/m")
+            assert set(report["arms"]) == {"strong", "strong_variant-a",
+                                           "strong_variant-b"}
+
+    def test_a_contrast_never_crosses_from_one_variant_to_another(self):
+        with tempfile.TemporaryDirectory() as out:
+            _write_arm(out, "x/m", "none", True, False, "20260101T000001",
+                      variant="a", misaligned=(0, 10))
+            _write_arm(out, "x/m", "strong", True, False, "20260101T000002",
+                      variant="b", misaligned=(10, 10))
             report = build_summary_of_summaries(out, "x/m")
             assert not any(report["contrasts"].values())
 
