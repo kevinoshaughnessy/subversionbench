@@ -64,6 +64,11 @@ python scenario_tool.py --bundle subversionbench/scenarios/NAME.b64 --encode
 python scenario_tool.py --bundle subversionbench/scenarios/NAME.b64 --pin
 ```
 
+`--encode` refuses a working copy missing any entry the bundle had. To remove one on
+purpose from a `--bundle`, name it: `--encode --drop ENTRY`. Every other missing entry is
+still refused, and the shipped scenario, whose entries the harness reads by name, cannot
+drop any.
+
 Each bundle lists its own contaminating terms, and the guard in
 `test_corpus/test_scenario.py` checks every committed bundle's list against every tracked
 file.

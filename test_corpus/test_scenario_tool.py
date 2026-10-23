@@ -199,6 +199,34 @@ class TestEncode:
             assert "questions" in tool.out
             assert not tool.encoded, "a truncated bundle was written anyway"
 
+    def test_a_dropped_entry_is_encoded_and_only_that_one(self):
+        """--drop names the entry removed on purpose; every other missing entry
+        is still refused, so the guarantee above survives the escape hatch."""
+        bundle = Path(tempfile.mkdtemp()) / "other.b64"
+        bundle.write_text("", encoding="utf-8")
+        working = bundle.with_suffix(".json")
+        with _Tool() as tool:
+            tool.run("--bundle", str(bundle), "--decode")
+            edited = json.loads(working.read_text(encoding="utf-8"))
+            del edited["questions"]
+            working.write_text(json.dumps(edited), encoding="utf-8")
+            assert tool.run("--bundle", str(bundle), "--encode",
+                            "--drop", "questions") == 0
+            del edited["system_prompt"]
+            working.write_text(json.dumps(edited), encoding="utf-8")
+            assert tool.run("--bundle", str(bundle), "--encode",
+                            "--drop", "questions") == 1
+            assert "system_prompt" in tool.out
+
+    def test_the_shipped_scenario_cannot_drop_an_entry(self):
+        with _Tool() as tool:
+            edited = self._decoded(tool)
+            del edited["questions"]
+            tool.working.write_text(json.dumps(edited), encoding="utf-8")
+            assert tool.run("--encode", "--drop", "questions") == 1
+            assert "--drop is for" in tool.out
+            assert not tool.encoded
+
     def test_a_renamed_entry_is_caught_as_a_missing_one(self):
         """Renaming rather than deleting is the likelier slip, and it presents
         as the original name being absent."""

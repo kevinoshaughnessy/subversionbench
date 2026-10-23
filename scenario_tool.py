@@ -59,6 +59,10 @@ def _build_parser():
                        help="print entries whose name contains SUBSTRING")
     group.add_argument("--pin", action="store_true",
                        help="compute a --bundle's fingerprints into its sidecar")
+    parser.add_argument("--drop", metavar="ENTRY", action="append", default=[],
+                        help="with --encode and --bundle: an entry removed from "
+                             "the working copy on purpose. Any other missing "
+                             "entry is still refused")
     return parser
 
 
@@ -100,14 +104,14 @@ def _show(bundle: Path, substring: str) -> int:
     return 0
 
 
-def _encode(bundle: Path, working: Path, shipped: bool) -> int:
+def _encode(bundle: Path, working: Path, shipped: bool, dropped=()) -> int:
     if not working.exists():
         print(f"{working.name} not found - run --decode first.")
         return 1
     edited = json.loads(working.read_text(encoding="utf-8"))
     # A bundle being written for the first time has nothing to be missing.
-    missing = set(load_scenario(bundle)) - set(edited) if bundle.exists() \
-        else set()
+    missing = set(load_scenario(bundle)) - set(edited) - set(dropped) \
+        if bundle.exists() else set()
     if missing:
         print(f"Refusing to encode: {working.name} is missing "
               f"{sorted(missing)}.")
@@ -213,7 +217,13 @@ def main():
         return _list(bundle)
     if args.show:
         return _show(bundle, args.show)
-    return _encode(bundle, working, shipped)
+    if args.drop and (shipped or not args.encode):
+        # The shipped scenario's entries are read by name throughout the
+        # harness, so one dropped there fails at rollout time - the case the
+        # refusal in _encode exists for.
+        print("--drop is for --encode with a --bundle.")
+        return 1
+    return _encode(bundle, working, shipped, args.drop)
 
 
 if __name__ == "__main__":
