@@ -85,7 +85,7 @@ from subversionbench.redaction import redact_paths
 # From the siblings directly rather than through the package, which would be a
 # cycle: `trends/__init__.py` imports this module in order to re-export main().
 from .charts import write_charts
-from .console import _print_overall, _print_report
+from .console import _print_alignment, _print_overall, _print_report
 from .metrics import METRIC_ALL, METRICS
 from .model_ids import VERSION_STYLES
 from .overall import build_overall_report
@@ -213,6 +213,7 @@ def _report_overall(args) -> int:
         return 1
     _print_report(report)
     _print_overall(report)
+    _print_alignment(report)
     if not args.no_charts:
         # Beside both corpora's own chart directories, named for neither.
         chart_dir = args.chart_dir or os.path.join(

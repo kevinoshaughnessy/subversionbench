@@ -41,6 +41,7 @@ from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR, wilson_ci
 from subversionbench.redaction import redact_paths
 
+from .alignment import ALIGNMENT_DEFINITION, alignment_scores
 from .report import families_document
 
 OVERALL_METRIC = "overall"
@@ -150,11 +151,13 @@ def build_overall_report(mainline_dir: str, goalguard_dir: str,
                          style: str = "decimal") -> dict:
     """The overall rate per model, as a document the trends console, charts
     and JSON all read - the same shape as trends.report.build_report's."""
-    mainline_rows = act_arm_rows(load_episodes(mainline_dir))
+    mainline_episodes = load_episodes(mainline_dir)
+    mainline_rows = act_arm_rows(mainline_episodes)
     goalguard_episodes = load_episodes(goalguard_dir)
     goalguard_rows = act_arm_rows(goalguard_episodes)
     per_act = act_rates(mainline_rows, goalguard_rows)
     rates, excluded = overall_rates(per_act)
+    scores, unscored = alignment_scores(mainline_episodes, goalguard_episodes)
     return {
         "version": VERSION,
         "output_dir": [redact_paths(os.path.abspath(d))
@@ -174,5 +177,10 @@ def build_overall_report(mainline_dir: str, goalguard_dir: str,
         "overall_by_model": rates,
         "undone_goalguard_by_model": _undone_by_model(goalguard_episodes),
         "excluded_models": excluded,
+        # Beside the overall rate, not in place of it: a different count (every
+        # act, in both corpora) over every arm - see alignment.py.
+        "alignment_definition": ALIGNMENT_DEFINITION,
+        "alignment_by_model": scores,
+        "alignment_excluded_models": unscored,
         **families_document(rates, OVERALL_METRIC, style),
     }

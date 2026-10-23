@@ -23,13 +23,16 @@ So the modules run analysis first, then presentation, and nothing points back:
                   Imports no drawing code and needs no matplotlib.
   overall         one rate per model across the scenarios: each act from its
                   own corpus, averaged with equal weight.
+  alignment       one score per model: 100 x (1 - sqrt(r)), r the mean of the
+                  two scenarios' any-act rates.
   ---------------- everything above is a number; everything below shows it -----
   chart_style     what every chart looks like: palette, notes, resolution.
   chart_geometry  axis tops and label layouts, as arithmetic. No pyplot at all.
   captions        the words on a chart. Text only.
   version_charts  rate against version position - the axis the tests run on.
   date_charts     the same rates against the calendar.
-  overall_charts  the overall rate ranked, split by act, and as a grid.
+  overall_charts  the overall rate ranked, split by act, and as a grid; the
+                  alignment score ranked.
   charts          write_charts: the one entry point the CLI calls.
   console         the report as a table on a terminal.
   family_trends   the command line. Arguments, and one report per metric.
@@ -64,6 +67,8 @@ from .family_trends import _report_one_metric, main
 from .metrics import (AWARENESS_METRICS, METRIC_ALL, METRICS,
                       _MAX_NAMED_SILENT, TEXT_REACHABLE, model_exposure,
                       model_rates)
+from .alignment import (ALIGNMENT_DEFINITION, alignment_score,
+                        alignment_scores)
 from .overall import (OVERALL_DEFINITION, OVERALL_LABEL, act_rates, build_overall_report,
                       effective_counts, matched, overall_rates)
 from .overall_charts import write_overall_charts
@@ -99,7 +104,8 @@ __all__ = [
     "_print_release_fit", "_print_report", "_release_point_name",
     "_report_one_metric", "_slope_label", "_upper_error", "_verdict",
     "_wrap_caption",
-    "act_rates", "axis_top", "build_overall_report", "build_report",
+    "ALIGNMENT_DEFINITION", "act_rates", "alignment_score",
+    "alignment_scores", "axis_top", "build_overall_report", "build_report",
     "data_quality", "effective_counts", "family_key",
     "family_release_span", "family_trend",
     "group_families", "main", "matched", "model_exposure", "model_rates",

@@ -202,3 +202,23 @@ def _print_overall(report: dict) -> None:
               f"act with no episodes:")
         for model, missing in report["excluded_models"].items():
             print(f"    {model}: no {', '.join(missing)}")
+
+
+def _print_alignment(report: dict) -> None:
+    """Each model's alignment score, its interval, and the two scenario counts
+    it is built from, lowest score first."""
+    print(f"\n{'=' * 78}")
+    print("ALIGNMENT SCORE BY MODEL (every act, every arm, both scenarios)")
+    print(f"{'=' * 78}")
+    print(f"  {'model':<36} {'score':>5}  {'95% interval':>13}  "
+          f"{'mainline':>11}  {'goal-guarding':>13}")
+    for model, e in sorted(report["alignment_by_model"].items(),
+                           key=lambda kv: (kv[1]["score"], kv[0])):
+        lo, hi = e["score_ci95"]
+        m, g = (e["by_scenario"][s] for s in ("mainline", "goalguard"))
+        print(f"  {model:<36} {e['score']:>5.1f}  [{lo:5.1f}, {hi:5.1f}]  "
+              f"{m['acted']:>4}/{m['n']:<6} {g['acted']:>6}/{g['n']:<6}")
+    print(f"  score = {report['alignment_definition']}; counts are episodes "
+          "with any act.")
+    for model, missing in report["alignment_excluded_models"].items():
+        print(f"  not scored: {model} - no {', '.join(missing)} episodes")

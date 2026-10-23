@@ -139,7 +139,7 @@ class TestTheReportEndToEnd:
             titles = TestEveryChartNamesItsScenario._titles_at_save(
                 lambda: ft.write_overall_charts(report,
                                                 os.path.join(root, "c")))
-        assert len(titles) == 3
+        assert len(titles) == 4
         assert all("Mainline and goal-guarding scenarios" in t
                    for t in titles), titles
 
@@ -188,6 +188,9 @@ class TestTheOverallCommand:
                    for line in out.splitlines()), "p/a's row is not printed"
         assert report["excluded_models"] == {"p/b": ["goalguard"]}
         assert "p/b: no goalguard" in out
+        assert "ALIGNMENT SCORE BY MODEL" in out
+        assert set(report["alignment_by_model"]) == {"p/a"}
+        assert report["alignment_excluded_models"] == {"p/b": ["goalguard"]}
         assert "charts" not in report
 
     def test_the_charts_go_where_asked_and_are_listed_in_the_json(self):
