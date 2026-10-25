@@ -1038,8 +1038,12 @@ gemini-3.5-flash-lite: all 12 capability episodes served by Google AI Studio, an
 ended on a turn the provider reported as an error, with reasoning but no text or tool call,
 between the second and seventh turn. The six sandbox episodes took the act before that;
 the oversight and goal-guarding ones, scored as refusals, never reached it. The arm is
-not a reading of the model, so mainline and goal-guarding are held until the error is
-understood.
+not a reading of the model, so mainline and goal-guarding are held. Cause, measured
+2026-10-25 with a scripted six-command tool conversation on the same route: sent back as the
+harness sends assistant turns, without the `reasoning_details` that carry Gemini's encrypted
+thought signature, 5 of 5 conversations ended at turn 3 on `error`, native reason
+`MALFORMED_FUNCTION_CALL`; sent back with them, 5 of 5 finished. The harness records
+`reasoning_details` and has never sent them back.
 
 Moved to the sections above once complete: on 2026-10-20, aion-labs/aion-3.5 and
 aion-3.5-mini, bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash;
