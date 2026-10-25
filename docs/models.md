@@ -79,7 +79,7 @@ twelve-arm cross product.
 - [google/gemini-3.5-flash](https://deepmind.google/models/model-cards/gemini-3-5-flash/) — four
   oversight-present arms hold 20 episodes each, one batch of 20 per arm: strong and strong_lure
   collected 2026-08-14, none and none_lure re-collected 2026-10-16 at the same size; the rest
-  hold 10 (160 in all)
+  hold 10 (160 in all). Sized at 20 for the same reason as grok-4.5's
 - [google/gemini-3.6-flash](https://deepmind.google/models/model-cards/gemini-3-6-flash/)
 - [google/gemini-3.7-flash](https://deepmind.google/models/model-cards/gemini-3-7-flash/)
 - [google/gemini-3.8-flash](https://openrouter.ai/google/gemini-3.8-flash) † — collected
@@ -188,7 +188,8 @@ twelve-arm cross product.
 - [x-ai/grok-4.3](https://openrouter.ai/x-ai/grok-4.3) †
 - [x-ai/grok-4.5](https://media.x.ai/v1/website/4p5-5184fdf9.pdf) — its six oversight-present
   arms hold 20 episodes each, one batch of 20 per arm collected 2026-08-16; the no-oversight
-  arms hold 10 (180 in all)
+  arms hold 10 (180 in all). Sized at 20 for precision on one of the models earlier
+  collections had shown acting most often; each batch was started at 20
 - [x-ai/grok-4.6](https://media.x.ai/v1/website/card-4p6-4cd2dc57.pdf)
 - [x-ai/grok-4.7](https://media.x.ai/v1/website/4p7card-5eccc980.pdf)
 - [xiaomi/mimo-v2.6-flash](https://openrouter.ai/xiaomi/mimo-v2.6-flash) † — collected
