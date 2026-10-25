@@ -45,6 +45,9 @@ counted as models that declined. They are flagged, not dropped, as the truncated
 refused and errored endings are, and those three checks still read an empty turn the
 provider cut off, refused or failed.
 
+**Release dates for poolside/laguna-s-2.1 and qwen/qwen3.7-plus** in `model_releases.py`,
+their OpenRouter listing dates, so both are placed on the trend charts.
+
 **The capability report's `old` column follows the selected bundle's pins.** It compared
 each episode against the shipped capability table, which an alternative bundle does not
 replace, so every capability episode of the impossible-task scenario was marked as from an

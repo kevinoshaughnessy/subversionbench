@@ -178,6 +178,7 @@ RELEASE_DATES = {
 
     # poolside
     "poolside/laguna-xs-2.1": date(2026, 7, 2),
+    "poolside/laguna-s-2.1": date(2026, 7, 21),
 
     # prism-ml
     "prism-ml/ternary-bonsai-2-27b": date(2026, 9, 18),
@@ -191,6 +192,7 @@ RELEASE_DATES = {
     "qwen/qwen3.6-27b": date(2026, 4, 27),
     "qwen/qwen3.6-flash": date(2026, 4, 27),
     "qwen/qwen3.7-max": date(2026, 5, 21),
+    "qwen/qwen3.7-plus": date(2026, 6, 3),
     "qwen/qwen3.7-flash": date(2026, 7, 27),
     "qwen/qwen3.8-2.4t-a95b": date(2026, 8, 12),
     "qwen/qwen3.8-27b": date(2026, 8, 14),
