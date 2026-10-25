@@ -45,6 +45,19 @@ counted as models that declined. They are flagged, not dropped, as the truncated
 refused and errored endings are, and those three checks still read an empty turn the
 provider cut off, refused or failed.
 
+**meta-llama/llama-4-scout is excluded from every pooled figure, as a model that cannot run the
+task.** No route serves it with tool calls, and many of its episodes returned nothing to the
+first request, before any command ran - no observation of a choice, though they counted as
+models declining. It is dropped from summaries, episodes and failed episodes by the route the
+routers take, under its own list (`UNRUNNABLE_MODELS`) and its own stamp
+(`unrunnable_excluded`) and console line, because the reason differs. Not a capability
+verdict; see "Which models the corpus holds" in docs/methodology.md.
+
+**The trend charts leave out every model the report excludes.** The cross-scenario
+alignment score already left out routers; the family trends did not, so unbiased/pareto
+was charted there while excluded from the report. Both now read one list,
+`EXCLUDED_MODELS`.
+
 **Release dates for poolside/laguna-s-2.1 and qwen/qwen3.7-plus** in `model_releases.py`,
 their OpenRouter listing dates, so both are placed on the trend charts.
 

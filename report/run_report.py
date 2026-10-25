@@ -40,7 +40,7 @@ from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                          EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
                          EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
                          NO_EXCLUSION, exclude_arm, exclude_aware_episodes,
-                         exclude_routers)
+                         exclude_routers, exclude_unrunnable)
 from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending)
@@ -290,11 +290,15 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
         summaries, episodes, failed, pending, unpaired = (
             [r for r in rows if r.get("model") in keep]
             for rows in (summaries, episodes, failed, pending, unpaired))
-    # Routers first, from all three sources in one call: see exclude_routers.
+    # Routers and models that cannot run the task first, from all three
+    # sources in one call each: see exclude_routers.
     summaries, episodes, failed, routers = exclude_routers(
         summaries, episodes, failed)
-    pending = [e for e in pending if e.get("model") not in routers["models"]]
-    unpaired = [e for e in unpaired if e.get("model") not in routers["models"]]
+    summaries, episodes, failed, unrunnable = exclude_unrunnable(
+        summaries, episodes, failed)
+    dropped = set(routers["models"]) | set(unrunnable["models"])
+    pending = [e for e in pending if e.get("model") not in dropped]
+    unpaired = [e for e in unpaired if e.get("model") not in dropped]
     summaries, episodes, arm_exclusion = exclude_arm(
         summaries, episodes, exclusion)
     _, failed, _ = exclude_arm([], failed, exclusion)
@@ -305,7 +309,7 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     episodes, awareness_stamp = exclude_aware_episodes(
         episodes, awareness_exclusion)
     return (summaries, episodes, failed, arm_exclusion, awareness_stamp,
-            pending, unpaired, routers)
+            pending, unpaired, (routers, unrunnable))
 
 
 def _pooling_choice(summaries, act_rows, arm_rows, awareness_exclusion_stamp,
@@ -526,7 +530,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
                  grader: str = DEFAULT_GRADER_MODEL,
                  paired_with: tuple = (), only_models=None) -> dict:
     (summaries, episodes, failed, arm_exclusion,
-     awareness_exclusion_stamp, pending, unpaired, routers) = _narrowed_corpus(
+     awareness_exclusion_stamp, pending, unpaired,
+     (routers, unrunnable)) = _narrowed_corpus(
          output_dir, exclusion, awareness_exclusion, grader, paired_with,
          only_models)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
@@ -569,6 +574,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         "arm_exclusion": arm_exclusion,
         # Routers are never in this corpus; this names which, and counts them.
         "routers_excluded": routers,
+        # And models that cannot run the task, on the same terms.
+        "unrunnable_excluded": unrunnable,
         # The second, independent narrowing, on the same terms and present for
         # the same reason. `questions_pooled_from` records which source
         # questions 1-4 took their headline counts from, because that is the
@@ -810,6 +817,8 @@ def _report_one_grader(args, grader: str, exclusion: str,
     # corpus, and a reader who meets that fact at the bottom has already read
     # the numbers as though it were the whole one.
     _print_router_exclusion(report["routers_excluded"])
+    _print_router_exclusion(report["unrunnable_excluded"],
+                            "MODELS THAT CANNOT RUN THE TASK EXCLUDED")
     _print_arm_exclusion(report["arm_exclusion"])
     _print_awareness_exclusion(report["awareness_exclusion"])
     _print_data_quality(report["data_quality"])

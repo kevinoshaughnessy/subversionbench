@@ -113,6 +113,20 @@ class TestTheReportEndToEnd:
                            n_aware=2, n_unaware=8)
         return out
 
+    def test_an_excluded_model_is_on_no_trend(self):
+        """Routers and models that cannot run the task, on the report's terms:
+        both were on the family trends while the report left them out."""
+        from report.exclusions import EXCLUDED_MODELS
+        with tempfile.TemporaryDirectory() as out:
+            self._corpus(out)
+            for model in EXCLUDED_MODELS:
+                _write_summary(out, model, "strong", n_runs=10,
+                               n_misaligned=5, n_scheming=1, n_aware=2,
+                               n_unaware=8)
+            text = json.dumps(ft.build_report(out))
+            assert "p/fall-1" in text
+            assert not [m for m in EXCLUDED_MODELS if m in text]
+
     def test_families_are_found_and_ordered(self):
         with tempfile.TemporaryDirectory() as out:
             report = ft.build_report(self._corpus(out))

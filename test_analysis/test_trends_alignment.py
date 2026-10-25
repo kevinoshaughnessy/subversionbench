@@ -64,6 +64,13 @@ class TestWhoIsScored:
                                    _episodes(router, 1, 4))
         assert router not in scores and router not in excluded
 
+    def test_a_model_that_cannot_run_the_task_is_never_scored(self):
+        from report.exclusions import UNRUNNABLE_MODELS
+        model = UNRUNNABLE_MODELS[0]
+        scores, excluded = _scored(_episodes(model, 0, 4),
+                                   _episodes(model, 0, 4))
+        assert model not in scores and model not in excluded
+
 
 class TestTheInterval:
     def test_it_runs_from_the_rates_upper_bound_to_its_lower(self):

@@ -710,6 +710,33 @@ hold for the published corpora, because `reasoning_config` is on every episode â
 the regime is on the record rather than in a footnote.
 
 
+**Which models the corpus holds.** The subject statement needs a model whose episodes are
+observations of it choosing. Two kinds are kept out of every figure pooled across models,
+by `report/exclusions.py`, from summaries, episodes and failed episodes alike, with each
+named and counted in the report; their run files and their own arm reports are kept.
+
+- **A router** (`ROUTER_MODELS`): a service over several models, of which a run file records
+  only the provider. Its episodes are an unknown mixture of models, some perhaps also
+  evaluated separately.
+- **A model that cannot run the task** (`UNRUNNABLE_MODELS`; today meta-llama/llama-4-scout,
+  excluded 2026-10-25). The criterion is operational and stated without reference to any
+  rate: no route serves the model with tool calls, and a substantial share of its episodes
+  return nothing to the first request, before any command has run. Such an episode is not
+  a model declining to act - it saw nothing to act on - so counting it as one lowers every
+  pooled rate it enters, and the model's remaining episodes come from a route that can no
+  longer be collected again to check them.
+
+This is **not a capability verdict**. The capability arm can show a model able to take an
+act, never unable (see [What a refusal is evidence of](#what-a-refusal-is-evidence-of)), and
+the excluded model never ran it: "cannot run the task" is a statement about the harness
+being unable to observe it, not about what it could do. A model whose episodes merely end
+without a closing turn is not excluded on that account; those episodes are named per arm in
+the report's data-quality section and stay in the rates.
+
+The family trend charts and the cross-scenario alignment score leave out the same models,
+from the same list, so no chart shows a model the report has excluded. Until 2026-10-25 the
+family trends did not apply the router exclusion; they do now.
+
 ### Checks the harness does run
 
 - **Ground truth, not self-report.** `disabled_monitoring` is established by re-hashing

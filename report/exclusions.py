@@ -109,22 +109,56 @@ ROUTER_WHY = ("a router over several models, with only the provider recorded "
               "Its figures are in its own arm reports.")
 
 
-def exclude_routers(summaries: list, episodes: list, failed: list) -> tuple:
-    """
-    The three sources with every router's rows dropped, and an account.
+# ---------------------------------------------------------------------------
+# Models that cannot run the task, always excluded
+# ---------------------------------------------------------------------------
+#
+# A model that cannot carry out the agentic loop yields no observation of what
+# it would choose: an episode that returns nothing to the first request, before
+# a command has run, is not a model declining to act, and counting it as one
+# lowers every pooled rate it enters. Excluded on the same terms as a router
+# and by the same route (user, 2026-10-25), and for a reason that does not read
+# its rates. Not a capability verdict: the capability arm can show a model
+# able, never unable, and this model never ran it. See docs/methodology.md.
+UNRUNNABLE_MODELS = ("meta-llama/llama-4-scout",)
+UNRUNNABLE_WHY = ("cannot run the agentic task: no route serves it with tool "
+                  "calls, and many of its episodes returned nothing to the "
+                  "first request, before any command ran - no observation of "
+                  "a choice. See docs/methodology.md.")
 
-    Returns (summaries, episodes, failed, stamp). The stamp names the routers
+# Every model no figure pooled across models may include, for either reason.
+EXCLUDED_MODELS = ROUTER_MODELS + UNRUNNABLE_MODELS
+
+
+def _exclude_models(models: tuple, why: str, summaries: list, episodes: list,
+                    failed: list) -> tuple:
+    """
+    The three sources with these models' rows dropped, and an account.
+
+    Returns (summaries, episodes, failed, stamp). The stamp names the models
     and counts what went, so a report on a corpus with none of them says so
     rather than leaving "nothing dropped" indistinguishable from "not applied".
     """
     def keep(rows):
-        return [r for r in rows if r.get("model") not in ROUTER_MODELS]
+        return [r for r in rows if r.get("model") not in models]
     kept = keep(summaries), keep(episodes), keep(failed)
-    stamp = {"models": list(ROUTER_MODELS), "why": ROUTER_WHY,
+    stamp = {"models": list(models), "why": why,
              "n_summaries_dropped": len(summaries) - len(kept[0]),
              "n_episodes_dropped": len(episodes) - len(kept[1]),
              "n_failed_dropped": len(failed) - len(kept[2])}
     return (*kept, stamp)
+
+
+def exclude_routers(summaries: list, episodes: list, failed: list) -> tuple:
+    """Every router's rows dropped; see _exclude_models."""
+    return _exclude_models(ROUTER_MODELS, ROUTER_WHY, summaries, episodes,
+                           failed)
+
+
+def exclude_unrunnable(summaries: list, episodes: list, failed: list) -> tuple:
+    """Every model that cannot run the task dropped; see _exclude_models."""
+    return _exclude_models(UNRUNNABLE_MODELS, UNRUNNABLE_WHY, summaries,
+                           episodes, failed)
 
 
 NO_EXCLUSION = "none"

@@ -13,7 +13,8 @@ import tempfile
 
 import report as rr
 from report.console import _print_router_exclusion
-from report.exclusions import ROUTER_MODELS, exclude_routers
+from report.exclusions import (ROUTER_MODELS, UNRUNNABLE_MODELS,
+                               exclude_routers)
 from test_analysis.report_fixtures import (_write_episode,
                                            _write_failed_episode,
                                            _write_summary)
@@ -75,3 +76,41 @@ class TestItIsSaidOnTheConsole:
         with contextlib.redirect_stdout(buf):
             _print_router_exclusion(exclude_routers([], [], [])[3])
         assert buf.getvalue() == ""
+
+
+UNRUNNABLE = UNRUNNABLE_MODELS[0]
+
+
+def _corpus_with_unrunnable():
+    out = _corpus()
+    _write_episode(out, 11, UNRUNNABLE, "strong")
+    _write_summary(out, UNRUNNABLE, "strong", n_runs=1, n_misaligned=0)
+    return out
+
+
+class TestAModelThatCannotRunTheTaskIsNotInTheCorpus:
+    """Excluded on the router's terms and by its route, with its own stamp,
+    because the reason is a different one and a reader is told which."""
+
+    def test_it_is_in_no_figure(self):
+        report = rr.build_report(_corpus_with_unrunnable())
+        assert report["n_episode_files"] == 3
+        assert report["n_models"] == 1
+
+    def test_it_is_named_and_counted_under_its_own_reason(self):
+        report = rr.build_report(_corpus_with_unrunnable())
+        stamp = report["unrunnable_excluded"]
+        assert stamp["models"] == list(UNRUNNABLE_MODELS)
+        assert (stamp["n_episodes_dropped"], stamp["n_summaries_dropped"]) \
+            == (1, 1)
+        assert UNRUNNABLE not in report["routers_excluded"]["models"]
+
+    def test_printed_under_its_own_heading(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_router_exclusion(
+                rr.build_report(_corpus_with_unrunnable())[
+                    "unrunnable_excluded"],
+                "MODELS THAT CANNOT RUN THE TASK EXCLUDED")
+        assert "CANNOT RUN THE TASK" in buf.getvalue()
+        assert UNRUNNABLE in buf.getvalue()

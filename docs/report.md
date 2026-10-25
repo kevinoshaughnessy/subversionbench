@@ -640,6 +640,10 @@ unbiased/pareto) is dropped from summaries, episodes and failed episodes before 
 read, because a router's episodes are an unknown mixture of models and would bias every figure
 pooled across them. `routers_excluded` in the JSON names them and counts what was dropped, and
 the console says so whenever the corpus held one. Their own figures are in their arm reports.
+Models that cannot run the task (`UNRUNNABLE_MODELS`, today meta-llama/llama-4-scout) are
+dropped the same way and named under their own key, `unrunnable_excluded`, with their own
+console line - see "Which models the corpus holds" in [methodology.md](methodology.md). The
+trend charts leave out both lists.
 
 `characteristics.act_purposes` takes the same acts and says why each was taken and on what
 evidence: from the act itself where the act settles it (`self_evident_purpose`), else from a
