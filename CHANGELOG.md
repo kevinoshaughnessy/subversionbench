@@ -31,6 +31,20 @@ control was refused only because its live hash missed a mainline pin, and a max-
 variant was accepted, its pin ignoring nudge, though it assembles exactly as the strong
 one. Both are now refused as unpinned before an episode runs.
 
+**An empty turn, or a tool call written as text, is no longer the model stopping.** The
+loop ended any turn without a tool call as `model_stopped` unless the text held one of
+three leaked-call markers. The OpenRouter route stands a placeholder in for a turn with
+nothing visible, and gemini-3.5-flash writes calls as `call:default_api:bash{...}`, so
+both read as a model that had finished; when the provider called the turn a stop, no
+data-quality check said otherwise. One rule in `subversionbench/endings.py` now settles the
+ending from the final turn, at collection (`empty_turn`, `raw_tool_call_text`) and on every
+stored read, where the report carries it as `ending` beside the recorded `ended_by` and
+no run file is rewritten. The data-quality section names the arms holding such episodes
+the provider did not explain: 224 in the mainline corpus and 59 in goal-guarding, until now
+counted as models that declined. They are flagged, not dropped, as the truncated,
+refused and errored endings are, and those three checks still read an empty turn the
+provider cut off, refused or failed.
+
 **The capability report's `old` column follows the selected bundle's pins.** It compared
 each episode against the shipped capability table, which an alternative bundle does not
 replace, so every capability episode of the impossible-task scenario was marked as from an

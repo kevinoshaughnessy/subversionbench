@@ -22,6 +22,7 @@ import uuid
 from .blocks import (_Block, _Response, _block_attr, _block_type,
                      _reasoning_detail_summary, _reasoning_usage)
 from .config import OPENROUTER_BASE_URL
+from .endings import EMPTY_TURN_MARKER
 from .tool_parsing import (
     _INVOKE_START,
     _RAW_TOOL_CALL_START,
@@ -358,7 +359,7 @@ def _response_blocks(choice, tools, reasoning, finish_reason) -> list:
         blocks.append(_Block(
             "text",
             text=(
-                f"[No visible output from the model this turn ({detail}). "
+                f"{EMPTY_TURN_MARKER} ({detail}). "
                 "If finish_reason is 'length', the model likely exhausted "
                 "max_tokens on internal reasoning before producing an "
                 "answer or tool call - try raising --max-tokens.]"

@@ -18,6 +18,7 @@ loud.
 
 from collections import Counter
 
+from subversionbench.endings import UNFINISHED_ENDINGS
 from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.power.exact import fisher_exact_p
 
@@ -481,7 +482,11 @@ def _arms_the_provider_contradicts(episodes: list, matches, count_key: str
         key = arm_key(ep)
         entry = arms.setdefault(key, {"n": 0, "hit": 0, "reasons": {}})
         entry["n"] += 1
-        if ep.get("ended_by") == "model_stopped" and matches(provider_reason):
+        # An empty turn is the model stopping as far as the loop is concerned;
+        # collected since v287 it is recorded as one, and the provider's word
+        # still says why it was empty.
+        if (ep.get("ended_by") in ("model_stopped", "empty_turn")
+                and matches(provider_reason)):
             entry["hit"] += 1
             entry["reasons"][provider_reason] = (
                 entry["reasons"].get(provider_reason, 0) + 1)
@@ -559,6 +564,37 @@ def errored_as_stopped_arms(episodes: list) -> list:
     """
     return _arms_the_provider_contradicts(
         episodes, _is_provider_error, "n_read_as_stopped_but_errored")
+
+
+def unfinished_as_stopped_arms(episodes: list) -> list:
+    """Arms holding episodes that ended without a closing turn, for no reason
+    the provider gave: an empty turn it called a stop, or a tool call written
+    as text.
+
+    THE FOURTH ROUTE to a propensity rate counting a model as having declined,
+    and the only one the provider's word cannot surface, because the provider
+    saw nothing wrong. Read from the settled ending (subversionbench.endings),
+    so it covers episodes recorded as "model_stopped" before v287 as well.
+    Those the provider truncated, blocked or failed are left to the three
+    checks above, so no episode is reported twice.
+    """
+    arms = {}
+    for ep in episodes:
+        if not ep.get("ending"):
+            continue
+        entry = arms.setdefault(arm_key(ep), {"n": 0, "endings": Counter()})
+        entry["n"] += 1
+        reason = ep.get("ended_by_provider")
+        if ep["ending"] in UNFINISHED_ENDINGS and not (reason and (
+                _is_truncation(reason) or _is_refusal(reason)
+                or _is_provider_error(reason))):
+            entry["endings"][ep["ending"]] += 1
+    return [{**_arm_of(key), "n_episodes": entry["n"],
+             "n_unfinished": sum(entry["endings"].values()),
+             "endings": [{"ending": e, "n_episodes": n}
+                         for e, n in sorted(entry["endings"].items())]}
+            for key, entry in sorted(arms.items(), key=str)
+            if entry["endings"]]
 
 
 def attrition_facts(episodes: list, failed: list) -> dict:
@@ -683,6 +719,7 @@ def data_quality_facts(episodes: list, summaries: list = None,
         "truncated_as_stopped_arms": truncated_as_stopped_arms(episodes),
         "refused_as_stopped_arms": refused_as_stopped_arms(episodes),
         "errored_as_stopped_arms": errored_as_stopped_arms(episodes),
+        "unfinished_as_stopped_arms": unfinished_as_stopped_arms(episodes),
         # Keyed by axis rather than flattened, so a reader can tell a contrast
         # confounded on oversight from one confounded on nudge without parsing
         # the entries back apart.

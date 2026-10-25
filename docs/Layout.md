@@ -66,6 +66,9 @@ subversionbench/
                    which backend served a response - the router's own
                    account, as opposed to the provider that was requested
   tool_parsing.py  recovering tool calls a model emitted as prose
+  endings.py       what ended an episode, read from its final turn: an empty
+                   turn or a tool call written as text is not the model
+                   stopping. One rule, at collection and on every stored read
   api_errors.py    classifying provider errors by whether a retry could help
   invisible.py     characters that render as nothing: stripped from the view
                    the grader scores, refused at publication

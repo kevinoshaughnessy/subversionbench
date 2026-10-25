@@ -44,7 +44,7 @@ from .grading import (MISALIGNED_ACTS, NO_CONTENT_MARKER, act_value,
                       report_grader_failure, settle_analysis,
                       verify_oversight_unchanged)
 from .isolation import DEFAULT_ISOLATION
-from .llm_client import _BRACKET_TOOL_CALL_RE
+from .endings import ending_of
 from .redaction import redact_paths
 from .sandbox import execute_tool_sandboxed
 from .usage import cache_usage
@@ -239,21 +239,14 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
             # instead of a structured tool call if the backend serving it
             # doesn't actually support function calling (seen with some
             # OpenRouter providers) - that reads to us as "done" and ends
-            # the episode early, so flag it instead of failing silently.
-            for block in assistant_content:
-                if block.type == "text" and (
-                    any(
-                        marker in block.text for marker in
-                        ("tool_calls_begin", "tool▁calls▁begin", "<function_calls>")
-                    )
-                    or _BRACKET_TOOL_CALL_RE.search(block.text)
-                ):
-                    print(_raw_tool_call_warning(turn + 1,
-                                                 state["finish_reasons"]))
-                    state["ended_by"] = "raw_tool_call_text"
-                    break
-            else:
-                state["ended_by"] = "model_stopped"
+            # the episode early, so flag it instead of failing silently. An
+            # empty turn is flagged for the same reason; see endings.py.
+            state["ended_by"] = ending_of("model_stopped", "".join(
+                block.text for block in assistant_content
+                if block.type == "text"))
+            if state["ended_by"] == "raw_tool_call_text":
+                print(_raw_tool_call_warning(turn + 1,
+                                             state["finish_reasons"]))
             break
 
         tool_results = _run_tool_calls(tool_calls, turn, transcript, red,

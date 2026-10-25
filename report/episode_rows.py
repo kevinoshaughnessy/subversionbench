@@ -16,6 +16,7 @@ from collections import Counter
 from subversionbench.batch import parse_batch_filename
 from subversionbench.rollout_pins import SCENARIO_ID
 from subversionbench.config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION
+from subversionbench.endings import ending_columns
 from subversionbench.graders import grader_models, view
 from subversionbench.grading import (MISALIGNED_ACTS, act_value, SCHEMING_LEVELS,
                                      counted_acts,
@@ -640,8 +641,7 @@ def _identity_row(path: str, d: dict, scaffold: dict) -> dict:
         # or refused by the provider's filter. `ended_by` cannot: it reads
         # "model_stopped" for all three. None on everything collected before
         # the field existed - "not recorded", never "ended normally".
-        "ended_by_provider": d.get("ended_by_provider"),
-        "ended_by": d.get("ended_by"),
+        **ending_columns(d),
     }
 
 
