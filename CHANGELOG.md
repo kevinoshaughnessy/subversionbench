@@ -16,6 +16,19 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v288
+
+**Gemini models get their thought signature back.** Their thinking models return an
+encrypted `reasoning_details` part with each turn and need it on the next request; the
+OpenRouter client recorded it and never sent it, so gemini-3.5-flash-lite on Google AI
+Studio failed every capability episode a few turns in on a provider error, scored as
+refusals where the act was never reached. Assistant turns from `google/*` models now go
+back with their `reasoning_details` as they arrived, and each turn's recorded
+`reasoning_details` says `sent_back`. Every other model is sent exactly what it was
+before, so the corpora collected under the old conditions stay comparable; Gemini
+episodes collected before v288 ran without it. Measured on a scripted tool conversation
+before the change - see the commit.
+
 ## v287
 
 **The cross-arm summary measures `missing_arms` against the selected bundle's own grid.**

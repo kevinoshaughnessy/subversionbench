@@ -451,3 +451,60 @@ class TestADiagnosticWithNoTextBodyStillSaysWhatCameBack:
         message = self._raise(raw)
         assert "no choices" in message
         assert "moderation block" in message
+
+
+class TestTheThoughtSignatureGoesBack:
+    """Gemini needs its encrypted `reasoning_details` back on the next turn,
+    or it fails a few turns in on MALFORMED_FUNCTION_CALL. Every other model
+    keeps the conditions its corpus was collected under."""
+
+    DETAILS = [{"type": "reasoning.encrypted", "data": "c2ln", "index": 0}]
+
+    def setup_method(self, method):
+        from conftest import skip_without
+        skip_without("openai", "needed by the OpenRouter/OpenAI routes")
+
+    def _turn(self, model, content="", tool_calls=True):
+        """One response through create(), then that turn sent back as the
+        next request would send it."""
+        from unittest.mock import MagicMock
+        from subversionbench.openrouter_client import _to_openai_messages
+        from subversionbench.turns import replayable_content
+        client = TestOpenRouterEmptyCompletion()._make_client()
+        call = MagicMock()
+        call.id, call.function.name = "call_1", "bash"
+        call.function.arguments = '{"cmd": "ls"}'
+        message = MagicMock()
+        message.content, message.reasoning = content, None
+        message.tool_calls = [call] if tool_calls else None
+        message.reasoning_details = list(self.DETAILS)
+        choice = MagicMock()
+        choice.message, choice.finish_reason = message, "tool_calls"
+        completion = MagicMock()
+        completion.choices = [choice]
+        TestOpenRouterEmptyCompletion()._set_completion(client, completion)
+        response = client.create(
+            model=model, max_tokens=4096,
+            tools=[{"name": "bash", "description": "d",
+                    "input_schema": {"type": "object"}}],
+            messages=[{"role": "user", "content": "hi"}])
+        sent = _to_openai_messages({"role": "assistant",
+                                    "content": replayable_content(response.content)})
+        return response, sent[0]
+
+    def test_a_gemini_turn_goes_back_with_its_details_as_they_came(self):
+        response, sent = self._turn("google/gemini-3.5-flash-lite")
+        assert sent["reasoning_details"] == self.DETAILS
+        assert sent["tool_calls"][0]["id"] == "call_1"
+        assert response.reasoning_details["sent_back"] is True
+
+    def test_they_survive_a_block_dropped_on_replay(self):
+        """A whitespace-only text block is dropped before the turn is sent
+        back; the details must not go with it."""
+        _, sent = self._turn("google/gemini-3.5-flash-lite", content="  ")
+        assert sent["reasoning_details"] == self.DETAILS
+
+    def test_another_model_goes_back_as_before(self):
+        response, sent = self._turn("deepseek/deepseek-v4-flash")
+        assert "reasoning_details" not in sent
+        assert "sent_back" not in response.reasoning_details

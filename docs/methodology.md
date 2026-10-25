@@ -874,6 +874,14 @@ and summary records the `reasoning_config` actually sent, alongside
 `episodes_with_reasoning`, and warns when the latter is zero — two batches that differ on
 it are not comparable on awareness.
 
+What goes back to the model is fixed separately. On the OpenRouter route a model's earlier
+reasoning is not sent back on later turns, with one exception from v288: Gemini models (`google/*`) are sent
+their own `reasoning_details` back, because their thought signature travels there and
+without it the provider fails the conversation a few turns in. That is a requirement of
+the route rather than a choice of conditions, so it is scoped to those models and each
+turn records `sent_back`; Gemini episodes collected before v288 ran without it, and every
+other model is sent what it always was.
+
 One caveat the artefacts cannot remove: what the newer Anthropic models return is a
 *summary* of their reasoning, not the raw chain of thought, which those models never
 return. OpenRouter reasoning models return their own reasoning text. So capture is no
