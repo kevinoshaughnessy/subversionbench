@@ -33,6 +33,8 @@ from .graders import view
 from .grading import SCHEMING_LEVELS
 from .power import compare_rates
 from .redaction import redact_paths
+from .rollout_pins import MAX_NUDGE_FINGERPRINTS, ROLLOUT_FINGERPRINTS
+from .scenario import variant_names
 
 NUDGES = ("none", "strong", "max")
 
@@ -69,6 +71,24 @@ def _arm_key(nudge: str, oversight: bool, lure: bool,
     goalguard, date_mode, variant = scenario
     return batch_stem("", nudge, None, oversight, lure, None,
                       date_mode, goalguard, variant).lstrip("_")
+
+
+def _expected_arm_keys(scenarios) -> set:
+    """Every arm the selected bundle can assemble, for each scenario collected.
+
+    THE BUNDLE'S OWN GRID, not the shipped twelve. A bundle in a world of its
+    own pins fewer cells, no max-nudge arm and a set of variants, and against
+    the shipped grid the fourth impossible-task pilot, every cell collected,
+    named forty arms missing - all of them arms the bundle cannot build - and
+    would have said nothing of a variant never collected. A variant is expected
+    whether or not any was found, beside the control it overlays; the shipped
+    bundle defines none, so its grid is unchanged.
+    """
+    nudges = [n for n in NUDGES if n != "max" or MAX_NUDGE_FINGERPRINTS]
+    variants = ({(None, None, v) for v in (None, *variant_names())}
+                if variant_names() else set())
+    return {_arm_key(n, o, lure, sc) for sc in set(scenarios) | variants
+            for n in nudges for o, lure in ROLLOUT_FINGERPRINTS}
 
 
 def _find_arm_summaries(output_dir: str, model: str) -> dict:
@@ -221,10 +241,7 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
     # and contrasts never cross from one to another: that would compare two
     # scenarios rather than one axis.
     scenarios = sorted({key[3] for key in found}, key=str) or [(None, None, None)]
-    all_arm_keys = {_arm_key(n, o, lure, sc) for sc in scenarios
-                    for n in NUDGES
-                    for o in (True, False) for lure in (False, True)}
-    missing_arms = sorted(all_arm_keys - set(arms))
+    missing_arms = sorted(_expected_arm_keys(scenarios) - set(arms))
 
     contrasts = {"nudge": [], "oversight": [], "lure": []}
 

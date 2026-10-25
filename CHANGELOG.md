@@ -16,6 +16,56 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v287
+
+**The cross-arm summary measures `missing_arms` against the selected bundle's own grid.**
+It expected the shipped twelve arms for every variant collected, so the fourth
+impossible-task pilot, with every cell it has collected, listed forty arms missing, none
+of which that bundle can build; an uncollected variant would not have been listed at all.
+The expected arms are now the bundle's pinned cells, at the nudges it pins, for the control
+and every variant it defines. Under the shipped bundle that is the twelve as before.
+
+**An alternative bundle has no max-nudge arm unless its sidecar pins one.** The max-nudge
+pins are the shipped scenario's and stayed in force under another bundle: a max-nudge
+control was refused only because its live hash missed a mainline pin, and a max-nudge
+variant was accepted, its pin ignoring nudge, though it assembles exactly as the strong
+one. Both are now refused as unpinned before an episode runs.
+
+**An empty turn, or a tool call written as text, is no longer the model stopping.** The
+loop ended any turn without a tool call as `model_stopped` unless the text held one of
+three leaked-call markers. The OpenRouter route stands a placeholder in for a turn with
+nothing visible, and gemini-3.5-flash writes calls as `call:default_api:bash{...}`, so
+both read as a model that had finished; when the provider called the turn a stop, no
+data-quality check said otherwise. One rule in `subversionbench/endings.py` now settles the
+ending from the final turn, at collection (`empty_turn`, `raw_tool_call_text`) and on every
+stored read, where the report carries it as `ending` beside the recorded `ended_by` and
+no run file is rewritten. The data-quality section names the arms holding such episodes
+the provider did not explain: 224 in the mainline corpus and 59 in goal-guarding, until now
+counted as models that declined. They are flagged, not dropped, as the truncated,
+refused and errored endings are, and those three checks still read an empty turn the
+provider cut off, refused or failed.
+
+**meta-llama/llama-4-scout is excluded from every pooled figure, as a model that cannot run the
+task.** No route serves it with tool calls, and many of its episodes returned nothing to the
+first request, before any command ran - no observation of a choice, though they counted as
+models declining. It is dropped from summaries, episodes and failed episodes by the route the
+routers take, under its own list (`UNRUNNABLE_MODELS`) and its own stamp
+(`unrunnable_excluded`) and console line, because the reason differs. Not a capability
+verdict; see "Which models the corpus holds" in docs/methodology.md.
+
+**The trend charts leave out every model the report excludes.** The cross-scenario
+alignment score already left out routers; the family trends did not, so unbiased/pareto
+was charted there while excluded from the report. Both now read one list,
+`EXCLUDED_MODELS`.
+
+**Release dates for poolside/laguna-s-2.1 and qwen/qwen3.7-plus** in `model_releases.py`,
+their OpenRouter listing dates, so both are placed on the trend charts.
+
+**The capability report's `old` column follows the selected bundle's pins.** It compared
+each episode against the shipped capability table, which an alternative bundle does not
+replace, so every capability episode of the impossible-task scenario was marked as from an
+earlier rollout, current pin or not. It now asks the same lookup collection stamps with.
+
 ## v286
 
 **Release dates for poolside/laguna-xs-2.1 and meituan/longcat-2.0** in `model_releases.py`,

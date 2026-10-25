@@ -49,7 +49,7 @@ def _fingerprint(oversight, lure, capability, date_mode, goalguard=None,
     if date_mode is not None and date_mode != _DATE_DEFAULT:
         return date_fingerprint_for(date_mode, oversight, lure)
     if variant is not None:
-        return variant_fingerprint_for(variant, oversight, lure)
+        return variant_fingerprint_for(variant, oversight, lure, nudge)
     return fingerprint_for(oversight, lure, nudge)
 
 

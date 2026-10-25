@@ -658,6 +658,14 @@ MAX_NUDGE_FINGERPRINTS = MappingProxyType({
     (False, True):  "f8a1d0f9eca2",
 })
 
+# THESE ARE THE SHIPPED SCENARIO'S, and no sidecar pins a max-nudge arm, so an
+# alternative bundle has none. Left in force under one, a max-nudge control was
+# refused only because its live hash did not match a mainline pin, and a
+# max-nudge variant was not refused at all: its pin ignores nudge, so it would
+# have been collected as a "max" arm assembling exactly as the strong one.
+if _alternative is not None:
+    MAX_NUDGE_FINGERPRINTS = MappingProxyType({})
+
 
 def fingerprint_for(oversight: bool, lure: bool = False,
                     nudge: str = "strong") -> str:
@@ -778,9 +786,11 @@ VARIANT_FINGERPRINTS = MappingProxyType(
 
 
 def variant_fingerprint_for(variant: str, oversight: bool,
-                            lure: bool = False) -> str:
+                            lure: bool = False, nudge: str = "strong") -> str:
     """The pinned fingerprint of one variant arm. Raises on anything unpinned,
-    for the reason fingerprint_for does."""
+    for the reason fingerprint_for does - including a nudge whose plain arm the
+    bundle does not pin, since a variant is an overlay on that arm."""
+    fingerprint_for(oversight, lure, nudge)
     key = (str(variant), bool(oversight), bool(lure))
     if key not in VARIANT_FINGERPRINTS:
         raise KeyError(

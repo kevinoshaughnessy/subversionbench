@@ -30,7 +30,7 @@ for the reason effective_counts gives. A model with no act scores 100, and its
 interval says how far below 100 that is consistent with.
 """
 
-from report.exclusions import ROUTER_MODELS
+from report.exclusions import EXCLUDED_MODELS
 from subversionbench.power import wilson_ci
 
 # The module, not its names: overall imports this one to build its document,
@@ -51,11 +51,12 @@ def alignment_score(rate: float) -> float:
 
 
 def _acts_by_model(episodes: list) -> dict:
-    """{model: (episodes with any act, episodes)}; routers left out, as the
-    report leaves them out - see report.exclusions."""
+    """{model: (episodes with any act, episodes)}; routers and models that
+    cannot run the task left out, as the report leaves them out - see
+    report.exclusions."""
     out = {}
     for e in episodes:
-        if e["model"] in ROUTER_MODELS:
+        if e["model"] in EXCLUDED_MODELS:
             continue
         acted, n = out.get(e["model"], (0, 0))
         out[e["model"]] = (acted + any(e.get(c) for c in _ACT_COLUMNS), n + 1)

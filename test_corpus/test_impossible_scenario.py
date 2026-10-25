@@ -159,6 +159,27 @@ for n in (MAX_TURNS, 40):
         out["max_turns"][str(n)] = "accepted"
     except SystemExit:
         out["max_turns"][str(n)] = "refused"
+def _refused(lookup):
+    try:
+        lookup()
+    except KeyError:
+        return True
+    return False
+
+out["max_refused"] = {str(v): _refused(
+    (lambda v=v: rp.variant_fingerprint_for(v, True, nudge="max")) if v else
+    (lambda: rp.fingerprint_for(True, nudge="max")))
+    for v in [None] + list(variant_names())}
+
+from report.capability import _from_an_earlier_rollout
+out["current_capability_is_earlier"] = _from_an_earlier_rollout(
+    {"rollout_fingerprint": cap, "capability": "oversight"})
+
+from subversionbench.arms_summary import _arm_key, _expected_arm_keys
+out["expected_arms"] = sorted(_expected_arm_keys([(None, None, None)]))
+out["arm_keys"] = sorted(_arm_key(n, True, False, (None, None, v))
+                         for n in ("none", "strong")
+                         for v in [None] + list(variant_names()))
 print(json.dumps(out))
 '''
 
@@ -260,6 +281,21 @@ class TestTheStrongNudgeArm:
 
     def test_the_strong_prompt_is_the_plain_one_and_one_sentence(self):
         assert PROBE["strong_extends"]
+
+
+class TestTheBundlesOwnGrid:
+    """The bundle pins one cell at two nudges and no max-nudge arm, and the
+    harness holds it to that: the mainline's max pins are not this bundle's."""
+
+    def test_no_arm_is_collected_at_the_max_nudge(self):
+        assert PROBE["max_refused"] and all(PROBE["max_refused"].values()), \
+            PROBE["max_refused"]
+
+    def test_missing_arms_are_measured_against_the_bundles_cells(self):
+        assert PROBE["expected_arms"] == PROBE["arm_keys"]
+
+    def test_a_capability_episode_at_the_bundles_pin_is_current(self):
+        assert PROBE["current_capability_is_earlier"] is False
 
 
 class TestTheSandboxIsNotThisScenariosAct:
