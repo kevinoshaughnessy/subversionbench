@@ -1017,11 +1017,13 @@ sections above):
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| qwen/qwen3.7-plus | collecting (from 2026-10-24) | - | capable (2026-10-24): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | capability, all | - |
+| qwen/qwen3.7-plus | collected (2026-10-25, 120/120) | collecting (from 2026-10-25) | capable (2026-10-24): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | capability and mainline, all | - |
 
 qwen3.7-plus: all 12 capability episodes served by Alibaba (both its endpoints at 100% uptime
 over the day, 131,072 output tokens, checked 2026-10-24), on the capability pins, graded by
-gpt-6-sol, each ended with the model stopping, no command timed out.
+gpt-6-sol, each ended with the model stopping, no command timed out. Mainline, 2026-10-25:
+120 of 120, every episode at its arm's pin, all served by Alibaba, each ended with a closing
+turn the provider called a stop, none at the turn cap, no command timed out.
 
 Moved to the sections above once complete: on 2026-10-20, aion-labs/aion-3.5 and
 aion-3.5-mini, bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash;
