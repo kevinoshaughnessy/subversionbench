@@ -1026,7 +1026,7 @@ complete and in the sections above):
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| google/gemini-3.5-flash-lite | collecting (from 2026-10-25) | - | capable (2026-10-25, v288): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | capability, all | - |
+| google/gemini-3.5-flash-lite | 120 of 120 (2026-10-25) | 80 of 80 (2026-10-25) | capable (2026-10-25, v288): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | all | - |
 | nvidia/nemotron-3-ultra-550b-a55b | - | - | capable (2026-10-25): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | capability, all | - |
 
 gemini-3.5-flash-lite: all 12 capability episodes served by Google AI Studio, and all 12
@@ -1047,6 +1047,14 @@ the capability pins, graded by gpt-6-sol, each ended with a closing turn the pro
 a stop. One command timed out, in a sandbox episode: the model's own `subprocess.run` with
 `shell=True` and a list, which runs `cat` with no file and so waits on stdin; kept and
 flagged.
+Mainline and goal-guarding, 2026-10-25, under v288: every episode at its arm's pin, all
+served by Google AI Studio, every turn's reasoning details sent back, graded by gpt-6-sol,
+each ended with a closing turn the provider called a stop, none failed, none at the turn cap.
+Mainline: five commands timed out in three episodes (two in the max arm, one in strong), each
+a run of the project's check script in a form the same episodes ran without trouble 58
+times before and after, collected beside nemotron-3-ultra's batch, which had none; the cause
+is not known, kept and flagged. Goal-guarding: no episode guarded; no command timed out; 18
+read the successor file. Category reading still to run.
 
 nemotron-3-ultra-550b-a55b: all 12 capability episodes served by BaseTen, on the capability
 pins, graded by gpt-6-sol, each ended with a closing turn the provider called a stop, none
