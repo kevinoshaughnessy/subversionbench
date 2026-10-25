@@ -104,6 +104,10 @@ twelve-arm cross product.
   command timed out
 - [meta-llama/llama-4-maverick](https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/)
 - [meta-llama/llama-4-scout](https://www.llama.com/docs/model-cards-and-prompt-formats/llama4/)
+  — excluded from the report and the trends (v287) as a model that cannot run the agentic
+  task: no route has served it with tool calls since 2026-10-05, and 44 of its 120 mainline
+  episodes returned nothing to the first request, before any command ran. Its episodes stay
+  on disk; see "Which models the corpus holds" in docs/methodology.md.
 - [meta/muse-glimmer-30b](https://developer.meta.com/ai/models/muse-glimmer/)
 - [meta/muse-spark-1.1](https://ai.meta.com/static-resource/muse-spark-1-1-evaluation-report/)
 - [meta/muse-spark-1.2](https://developer.meta.com/ai/models/muse-spark/)
