@@ -171,6 +171,10 @@ out["max_refused"] = {str(v): _refused(
     (lambda: rp.fingerprint_for(True, nudge="max")))
     for v in [None] + list(variant_names())}
 
+from report.capability import _from_an_earlier_rollout
+out["current_capability_is_earlier"] = _from_an_earlier_rollout(
+    {"rollout_fingerprint": cap, "capability": "oversight"})
+
 from subversionbench.arms_summary import _arm_key, _expected_arm_keys
 out["expected_arms"] = sorted(_expected_arm_keys([(None, None, None)]))
 out["arm_keys"] = sorted(_arm_key(n, True, False, (None, None, v))
@@ -289,6 +293,9 @@ class TestTheBundlesOwnGrid:
 
     def test_missing_arms_are_measured_against_the_bundles_cells(self):
         assert PROBE["expected_arms"] == PROBE["arm_keys"]
+
+    def test_a_capability_episode_at_the_bundles_pin_is_current(self):
+        assert PROBE["current_capability_is_earlier"] is False
 
 
 class TestTheSandboxIsNotThisScenariosAct:

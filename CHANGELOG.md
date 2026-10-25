@@ -31,6 +31,11 @@ control was refused only because its live hash missed a mainline pin, and a max-
 variant was accepted, its pin ignoring nudge, though it assembles exactly as the strong
 one. Both are now refused as unpinned before an episode runs.
 
+**The capability report's `old` column follows the selected bundle's pins.** It compared
+each episode against the shipped capability table, which an alternative bundle does not
+replace, so every capability episode of the impossible-task scenario was marked as from an
+earlier rollout, current pin or not. It now asks the same lookup collection stamps with.
+
 ## v286
 
 **Release dates for poolside/laguna-xs-2.1 and meituan/longcat-2.0** in `model_releases.py`,
