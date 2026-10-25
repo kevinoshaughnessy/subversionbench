@@ -54,9 +54,9 @@ routers take, under its own list (`UNRUNNABLE_MODELS`) and its own stamp
 verdict; see "Which models the corpus holds" in docs/methodology.md.
 
 **The trend charts leave out every model the report excludes.** The cross-scenario
-alignment score already left out routers; the family trends did not, so unbiased/pareto
-was charted there while excluded from the report. Both now read one list,
-`EXCLUDED_MODELS`.
+alignment score already left out routers; the family trends and the overall rate did not,
+so unbiased/pareto was charted on both while excluded from the report. All three now read
+one list, `EXCLUDED_MODELS`.
 
 **Release dates for poolside/laguna-s-2.1 and qwen/qwen3.7-plus** in `model_releases.py`,
 their OpenRouter listing dates, so both are placed on the trend charts.
