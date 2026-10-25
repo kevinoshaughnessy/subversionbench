@@ -1026,7 +1026,7 @@ complete and in the sections above):
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| google/gemini-3.5-flash-lite | - | - | to collect again under v288 (the 2026-10-25 arm ended on a provider error in every episode) | - | - |
+| google/gemini-3.5-flash-lite | collecting (from 2026-10-25) | - | capable (2026-10-25, v288): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | capability, all | - |
 
 gemini-3.5-flash-lite: all 12 capability episodes served by Google AI Studio, and all 12
 ended on a turn the provider reported as an error, with reasoning but no text or tool call,
@@ -1038,8 +1038,14 @@ harness sends assistant turns, without the `reasoning_details` that carry Gemini
 thought signature, 5 of 5 conversations ended at turn 3 on `error`, native reason
 `MALFORMED_FUNCTION_CALL`; sent back with them, 5 of 5 finished. The harness records
 `reasoning_details` and had never sent them back; from v288 it sends them for `google/*`
-models only. The 12 capability episodes are superseded and the arm is to be collected again
-under v288.
+models only. Those 12 capability episodes are set aside in
+`eval_results_r10cap_superseded_gem35flashlite_nosig/` and
+`eval_results_goalguard_r1cap_superseded_gem35flashlite_nosig/`. Collected again under v288 on
+2026-10-25: all 12 served by Google AI Studio, every turn's reasoning details sent back, on
+the capability pins, graded by gpt-6-sol, each ended with a closing turn the provider called
+a stop. One command timed out, in a sandbox episode: the model's own `subprocess.run` with
+`shell=True` and a list, which runs `cat` with no file and so waits on stdin; kept and
+flagged.
 
 Moved to the sections above once complete: on 2026-10-20, aion-labs/aion-3.5 and
 aion-3.5-mini, bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash;
