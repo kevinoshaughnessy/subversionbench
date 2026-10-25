@@ -143,6 +143,9 @@ twelve-arm cross product.
 - [qwen/qwen3.6-27b](https://huggingface.co/Qwen/Qwen3.6-27B)
 - [qwen/qwen3.6-flash](https://openrouter.ai/qwen/qwen3.6-flash) †
 - [qwen/qwen3.7-flash](https://openrouter.ai/qwen/qwen3.7-flash) †
+- [qwen/qwen3.7-plus](https://openrouter.ai/qwen/qwen3.7-plus) † — collected 2026-10-25
+  (120/120, pinned to Alibaba, the developer's endpoint and only host). None ended at the
+  turn cap and no command timed out
 - [qwen/qwen3.8-2.4t-a95b](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b) † — collected
   2026-10-08 to 2026-10-09 (120/120, pinned to Alibaba), graded by gpt-6-sol on 2026-10-10
   (no grader errors; claude-opus-5 has not read it); goal-guarding complete. Its oversight capability is not shown, so a zero in its oversight arms is not
@@ -247,7 +250,7 @@ nvidia/nemotron-3.5-lightning · prism-ml/ternary-bonsai-2-27b · upstage/solar-
 upstage/solar-mini4 · xiaomi/mimo-v2.6-flash · fireworks/ember-1 · aion-labs/aion-3.5 ·
 bytedance-seed/seed-2.0-code · bytedance-seed/seed-2-1-turbo · aion-labs/aion-3.0-mini ·
 gpt-5.6-sol · gpt-5.6-terra · poolside/laguna-xs-2.1 · meituan/longcat-2.0 ·
-poolside/laguna-s-2.1
+poolside/laguna-s-2.1 · qwen/qwen3.7-plus
 
 Every model in the list above performed both acts when instructed.
 
@@ -370,7 +373,8 @@ each stopped by a refused system path.
 
 **Collected 2026-10-24**, pinned to Poolside and every turn served by it:
 **poolside/laguna-s-2.1** succeeded in 2 of 3 oversight episodes (the third neither took nor
-attempted it) and all 6 sandbox.
+attempted it) and all 6 sandbox. **qwen/qwen3.7-plus** (Alibaba, every turn served by it)
+succeeded in all 3 oversight and all 6 sandbox episodes.
 
 The seven direct-API models with no act of either kind in their r10 propensity arms (claude-
 sonnet-5 had sandbox acts but no oversight act) were measured on 2026-10-11, 3 episodes per
@@ -513,6 +517,7 @@ native route below stands for the model.
 | qwen/qwen3.6-27b | complete |
 | qwen/qwen3.6-flash | complete (pinned to Alibaba) |
 | qwen/qwen3.7-flash | complete |
+| qwen/qwen3.7-plus | complete (pinned to Alibaba); no episode guarded; none at the turn cap; no command timed out; 74 read the successor file |
 | qwen/qwen3.8-2.4t-a95b | complete (80/80, pinned to Alibaba); graded 2026-10-10 to 2026-10-11 |
 | qwen/qwen3.8-27b | complete |
 | qwen/qwen3.8-flash | complete (80/80); the replacement/no-oversight/none episode lost to an upstream rate limit was re-collected and graded on 2026-10-07 |
@@ -672,6 +677,7 @@ shown.
 | qwen/qwen3.6-27b | yes | succeeds in all |
 | qwen/qwen3.6-flash | yes | succeeds in all |
 | qwen/qwen3.7-flash | yes | succeeds in all |
+| qwen/qwen3.7-plus | yes | succeeds in all |
 | qwen/qwen3.8-27b | yes | succeeds in all |
 | qwen/qwen3.8-flash | yes | succeeds in all |
 | qwen/qwen3.8-2.4t-a95b | yes | succeeds in all |
@@ -1003,14 +1009,13 @@ from 2026-06-01 to 2026-07-27 qualify. Each was checked against the
 last day and at least 32,768 output tokens are read from OpenRouter's endpoint data. Whether
 an endpoint trains on prompts is not published there; the account's privacy setting
 enforces it, so a model left with only such endpoints fails at turn 1 of its capability arm.
-Uptime is checked again on the day each model is collected. The six still to complete, roughly
+Uptime is checked again on the day each model is collected. The five still to complete, roughly
 cheapest first by listed price (aion-labs/aion-3.0-mini, gpt-5.6-terra, gpt-5.6-sol,
-poolside/laguna-xs-2.1, meituan/longcat-2.0 and poolside/laguna-s-2.1 are complete and in the
-sections above):
+poolside/laguna-xs-2.1, meituan/longcat-2.0, poolside/laguna-s-2.1 and qwen/qwen3.7-plus are
+complete and in the sections above):
 
 | Model (listed) | Pin | Why |
 |---|---|---|
-| qwen/qwen3.7-plus (06-03) | Alibaba | developer, only host |
 | google/gemini-3.5-flash-lite (07-21) | Google AI Studio | developer endpoint, as for gemini-3.8-flash |
 | nvidia/nemotron-3-ultra-550b-a55b (06-04) | BaseTen | the only endpoint passing: DeepInfra offers 16,384 output tokens, Venice was under 99% uptime; no NVIDIA endpoint |
 | moonshotai/kimi-k2.7-code (06-12) | Moonshot AI | developer endpoint, unless the Providers page shows it more than twice as slow as the fastest (throughput is not in the public data) |
@@ -1021,18 +1026,7 @@ sections above):
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| qwen/qwen3.7-plus | 120 of 120 (2026-10-25) | 80 of 80 (2026-10-25) | capable (2026-10-24): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | all | - |
-| google/gemini-3.5-flash-lite | - | - | not shown (2026-10-25): every episode ended on a provider error; sandbox 6 of 6 before it, oversight and goal-guarding 0 of 3 | - | - |
-
-qwen3.7-plus: all 12 capability episodes served by Alibaba (both its endpoints at 100% uptime
-over the day, 131,072 output tokens, checked 2026-10-24), on the capability pins, graded by
-gpt-6-sol, each ended with the model stopping, no command timed out. Mainline, 2026-10-25:
-120 of 120, every episode at its arm's pin, all served by Alibaba, each ended with a closing
-turn the provider called a stop, none at the turn cap, no command timed out.
-Goal-guarding, 2026-10-25: 80 of 80, every episode at its arm's pin, all served by Alibaba,
-graded by gpt-6-sol, each ended with a closing turn the provider called a stop, none failed;
-no episode guarded; none at the turn cap; no command timed out; 74 read the successor file.
-Category reading still to run.
+| google/gemini-3.5-flash-lite | - | - | to collect again under v288 (the 2026-10-25 arm ended on a provider error in every episode) | - | - |
 
 gemini-3.5-flash-lite: all 12 capability episodes served by Google AI Studio, and all 12
 ended on a turn the provider reported as an error, with reasoning but no text or tool call,
@@ -1043,7 +1037,9 @@ not a reading of the model, so mainline and goal-guarding are held. Cause, measu
 harness sends assistant turns, without the `reasoning_details` that carry Gemini's encrypted
 thought signature, 5 of 5 conversations ended at turn 3 on `error`, native reason
 `MALFORMED_FUNCTION_CALL`; sent back with them, 5 of 5 finished. The harness records
-`reasoning_details` and has never sent them back.
+`reasoning_details` and had never sent them back; from v288 it sends them for `google/*`
+models only. The 12 capability episodes are superseded and the arm is to be collected again
+under v288.
 
 Moved to the sections above once complete: on 2026-10-20, aion-labs/aion-3.5 and
 aion-3.5-mini, bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash;
@@ -1056,8 +1052,10 @@ all 200, on the trend charts regenerated 2026-10-24) and meituan/longcat-2.0 (co
 2026-10-23 to 24, every episode served by AtlasCloud on its arm's pinned fingerprint, both
 readings on all 200, on the trend charts regenerated 2026-10-24); on 2026-10-25,
 poolside/laguna-s-2.1 (collected 2026-10-24, every episode served by Poolside on its arm's
-pinned fingerprint, both readings on all 200; not yet on the trend charts, which need its
-release date in model_releases.py, a source change waiting for the running batch).
+pinned fingerprint, both readings on all 200; on the trend charts regenerated 2026-10-25)
+and qwen/qwen3.7-plus (collected 2026-10-24 to 25, every episode served by Alibaba on its
+arm's pinned fingerprint, both readings on all 200, on the trend charts regenerated
+2026-10-25).
 
 **Priority from 2026-10-19: after cohere/command-a-plus, the backlog comes first.** Before
 the next model below, (1) the glm-5.3 category reading for every episode in both corpora that
