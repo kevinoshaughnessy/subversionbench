@@ -576,7 +576,8 @@ def _rollout_matches_its_pin(args) -> bool:
     elif dated:
         expected = date_fingerprint_for(date_mode, args.oversight, args.lure)
     elif variant is not None:
-        expected = variant_fingerprint_for(variant, args.oversight, args.lure)
+        expected = variant_fingerprint_for(variant, args.oversight, args.lure,
+                                           args.nudge)
     else:
         # Nudge-aware, not a direct table lookup: fingerprint_for() reads
         # MAX_NUDGE_FINGERPRINTS for nudge="max" and ROLLOUT_FINGERPRINTS

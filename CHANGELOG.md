@@ -16,6 +16,21 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v287
+
+**The cross-arm summary measures `missing_arms` against the selected bundle's own grid.**
+It expected the shipped twelve arms for every variant collected, so the fourth
+impossible-task pilot, with every cell it has collected, listed forty arms missing, none
+of which that bundle can build; an uncollected variant would not have been listed at all.
+The expected arms are now the bundle's pinned cells, at the nudges it pins, for the control
+and every variant it defines. Under the shipped bundle that is the twelve as before.
+
+**An alternative bundle has no max-nudge arm unless its sidecar pins one.** The max-nudge
+pins are the shipped scenario's and stayed in force under another bundle: a max-nudge
+control was refused only because its live hash missed a mainline pin, and a max-nudge
+variant was accepted, its pin ignoring nudge, though it assembles exactly as the strong
+one. Both are now refused as unpinned before an episode runs.
+
 ## v286
 
 **Release dates for poolside/laguna-xs-2.1 and meituan/longcat-2.0** in `model_releases.py`,
