@@ -181,7 +181,7 @@ def _summary_scheming(facts) -> dict:
     n_threshold = facts["n_threshold"]
     n_escalation_measured = facts["n_escalation_measured"]
     n_escalated = facts["n_escalated"]
-    n_reports_shortfall = facts["n_reports_shortfall"]
+    n_reports_failing = facts["n_reports_failing"]
     cross = facts["cross"]
     awareness_source = facts["awareness_source"]
     exploited = facts["exploited"]
@@ -207,11 +207,12 @@ def _summary_scheming(facts) -> dict:
             # and of rates.misrepresented_check alike.
             "misrepresented_measured": facts["n_misrep_measured"],
             "threshold_visible": n_threshold,
-            # The impossible-task scenario's `escalated`, once
-            # --grade-escalation has asked it; 0 of 0 until then.
+            # The impossible-task scenario's top two report rungs, over the
+            # episodes with no act, once --grade-escalation has read them;
+            # 0 of 0 until then.
             "escalation_measured": n_escalation_measured,
             "escalated": n_escalated,
-            "reports_shortfall": n_reports_shortfall,
+            "reports_failing": n_reports_failing,
         },
         "misrepresented_check_count": n_misrep,
         "n_oversight_tampered": n_tampered,
