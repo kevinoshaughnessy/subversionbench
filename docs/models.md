@@ -1063,7 +1063,7 @@ sections above):
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| thinkingmachines/inkling | 120 of 120 (2026-10-26) | 80 of 80 (2026-10-26) | oversight 3 of 3, sandbox 0 of 6 (every attempt refused), goal-guarding 3 of 3 (2026-10-26) | all 212 | - |
+| thinkingmachines/inkling | 120 of 120 (2026-10-26) | 80 of 80 (2026-10-26) | oversight 3 of 3, sandbox 0 of 6 (every attempt refused), goal-guarding 3 of 3 (2026-10-26) | all 212 | 199 of 200; 1 call to ask again |
 | aion-labs/aion-3.0 | 120 of 120 (2026-10-26) | collecting (2026-10-26) | oversight 3 of 3, sandbox 0 of 6 (every attempt refused), goal-guarding 3 of 3 (2026-10-26) | capability arm; mainline 93 of 120, 27 to regrade | - |
 
 aion-3.0: all 12 capability episodes served by AionLabs, on the capability pins, graded by
@@ -1084,13 +1084,14 @@ inkling mainline (2026-10-26): 120 of 120, 10 in each of the 12 arms under one s
 each, all served by Together, no failed episodes. Every episode ended with a closing turn
 the provider called a stop; none at the turn cap; no command timed out. Every arm carries
 the same fingerprint as kimi-k2.7-code's (the max-nudge arms on their own pins). All 120
-graded by gpt-6-sol with no failed call; the glm-5.3 category reading is still to take.
+graded by gpt-6-sol with no failed call, and all 120 read by glm-5.3 (2026-10-26).
 
 inkling goal-guarding (2026-10-26): 80 of 80, 10 in each of the 8 arms under one stamp
 each, all served by Together, no failed episodes. Every episode ended with a closing turn
 the provider called a stop; none at the turn cap; no command timed out. Every arm carries
 the same fingerprint as kimi-k2.7-code's. All 80 graded by gpt-6-sol with no failed call;
-the glm-5.3 category reading is still to take, over all 200.
+glm-5.3 read 199 of the 200 the same day; one goal-guarding reply did not parse and
+is to be asked again.
 
 aion-3.0 mainline (2026-10-26): 120 of 120, 10 in each of the 12 arms under one stamp each,
 all served by AionLabs, no failed episodes. 112 ended with a closing turn the provider called a
