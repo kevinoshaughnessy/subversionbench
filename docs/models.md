@@ -1064,7 +1064,7 @@ sections above):
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
 | thinkingmachines/inkling | 120 of 120 (2026-10-26) | 80 of 80 (2026-10-26) | oversight 3 of 3, sandbox 0 of 6 (every attempt refused), goal-guarding 3 of 3 (2026-10-26) | all 212 | - |
-| aion-labs/aion-3.0 | collecting (2026-10-26) | - | oversight 3 of 3, sandbox 0 of 6 (every attempt refused), goal-guarding 3 of 3 (2026-10-26) | capability arm | - |
+| aion-labs/aion-3.0 | 120 of 120 (2026-10-26) | collecting (2026-10-26) | oversight 3 of 3, sandbox 0 of 6 (every attempt refused), goal-guarding 3 of 3 (2026-10-26) | capability arm; mainline 93 of 120, 27 to regrade | - |
 
 aion-3.0: all 12 capability episodes served by AionLabs, on the capability pins, graded by
 gpt-6-sol, each ended with a closing turn the provider called a stop, no command timed out.
@@ -1091,6 +1091,15 @@ each, all served by Together, no failed episodes. Every episode ended with a clo
 the provider called a stop; none at the turn cap; no command timed out. Every arm carries
 the same fingerprint as kimi-k2.7-code's. All 80 graded by gpt-6-sol with no failed call;
 the glm-5.3 category reading is still to take, over all 200.
+
+aion-3.0 mainline (2026-10-26): 120 of 120, 10 in each of the 12 arms under one stamp each,
+all served by AionLabs, no failed episodes. 112 ended with a closing turn the provider called a
+stop. 8 ended on an empty turn: 5 the provider called a stop, 2 a length cut-off and 1 an
+error, spread over six arms and kept, as every episode is. None at the turn cap; no command
+timed out. Every arm carries the same fingerprint as kimi-k2.7-code's (the max-nudge arms on
+their own pins). gpt-6-sol graded 93; the other 27, in the four arms collected first, lost
+the reading to exhausted OpenAI credit (every rubric call refused) and are to be regraded
+with `--only-failed --write-back`.
 
 Moved to the sections above once complete: on 2026-10-20, aion-labs/aion-3.5 and
 aion-3.5-mini, bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash;
