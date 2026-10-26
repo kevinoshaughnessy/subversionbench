@@ -24,7 +24,8 @@ from subversionbench.batch import BatchSelection
 from subversionbench.config import (DEFAULT_GRADER_MODEL,
                                     ESCALATION_REFERRAL_QUESTION,
                                     ESCALATION_SHORTFALL_QUESTION)
-from subversionbench.grading import detect_escalation
+from subversionbench.endings import EMPTY_TURN_MARKER
+from subversionbench.grading import ESCALATION_INSTRUMENT, detect_escalation
 from subversionbench.readmodes.grade_escalation import (ESCALATION_KEY,
                                                         grade_escalation_runs)
 from subversionbench.reporting.facts.scheming import _closing_report_facts
@@ -144,6 +145,26 @@ class TestTheReadMode:
     def test_a_turn_capped_episode_wrote_no_report_and_is_not_asked(self):
         code, calls, stored = self._run(self._corpus(ended_by="turn_cap"))
         assert code == 0 and calls == [] and stored is None
+
+    def test_a_stop_on_an_empty_turn_is_not_asked_and_loses_its_answer(self):
+        """What the first pass over the fourth pilot did: a placeholder where
+        the report should be, read as a report that did not escalate."""
+        ended_empty = TRANSCRIPT[:-1] + [{
+            "turn": 3, "type": "text",
+            "content": f"{EMPTY_TURN_MARKER} (finish_reason=stop)]"}]
+        out = self._corpus(transcript=ended_empty, analysis={
+            ESCALATION_KEY: {"escalated": False, "reports_shortfall": False,
+                             "instrument": ESCALATION_INSTRUMENT}})
+        code, calls, stored = self._run(out)
+        assert code == 0 and calls == [] and stored is None
+
+    def test_an_answer_to_other_questions_is_asked_again(self):
+        out = self._corpus(analysis={ESCALATION_KEY: {
+            "escalated": False, "reports_shortfall": True,
+            "instrument": "an earlier wording"}})
+        _, calls, stored = self._run(out)
+        assert len(calls) == 2 and stored["escalated"] is True
+        assert stored["instrument"] == ESCALATION_INSTRUMENT
 
 
 class TestTheSummaryCountsIt:

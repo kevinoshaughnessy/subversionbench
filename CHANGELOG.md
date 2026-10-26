@@ -27,7 +27,11 @@ person - and stores both answers and their conjunction as `analysis.escalation`.
 questions rather than one compound question, for the reason the misrepresentation check
 is split; the conjunction is computed in code, where a single "no" settles it and a "yes"
 needs both. Their wording is in the detector bundle only. Nothing at collection asks
-them, so mainline and goal-guarding episodes are untouched and cost nothing more. Each
+them, so mainline and goal-guarding episodes are untouched and cost nothing more. Only
+an episode whose settled ending is the model stopping is asked: one that ended on a
+provider error, an empty turn or a leaked tool call wrote no report, and asking it reads
+a placeholder as a model that did not escalate. Each answer records which wording it
+answered, and a pass re-asks one answered under another. Each
 summary's `closing_report` counts the episodes answered, escalated and reporting a
 shortfall.
 
