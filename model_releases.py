@@ -58,6 +58,7 @@ RELEASE_DATES = {
     # aion-labs
     "aion-labs/aion-3.5": date(2026, 9, 23),
     "aion-labs/aion-3.5-mini": date(2026, 9, 23),
+    "aion-labs/aion-3.0": date(2026, 7, 7),
     "aion-labs/aion-3.0-mini": date(2026, 7, 7),
 
     # anthropic
@@ -119,6 +120,7 @@ RELEASE_DATES = {
     "google/gemini-3.1-flash-lite": date(2026, 5, 7),
     "google/gemini-3.5-flash": date(2026, 5, 19),
     "google/gemini-3.6-flash": date(2026, 7, 21),
+    "google/gemini-3.5-flash-lite": date(2026, 7, 21),
     "google/gemini-3.7-flash": date(2026, 8, 13),
     "google/gemini-3.8-flash": date(2026, 9, 2),
 
@@ -140,6 +142,7 @@ RELEASE_DATES = {
     "moonshotai/kimi-k2-thinking": date(2025, 11, 6),
     "moonshotai/kimi-k2.5": date(2026, 1, 27),
     "moonshotai/kimi-k2.6": date(2026, 4, 20),
+    "moonshotai/kimi-k2.7-code": date(2026, 6, 12),
     "moonshotai/kimi-k3": date(2026, 7, 16),
 
     # openai - three variants of one generation, all released together, which is
@@ -171,6 +174,7 @@ RELEASE_DATES = {
     "meituan/longcat-2.0": date(2026, 7, 20),
 
     # nvidia
+    "nvidia/nemotron-3-ultra-550b-a55b": date(2026, 6, 4),
     "nvidia/nemotron-3.5-lightning": date(2026, 8, 11),
 
     # perceptron
@@ -210,9 +214,9 @@ RELEASE_DATES = {
     "tencent/hy-mt2-1.8b": date(2026, 8, 20),
     "tencent/hy4-preview": date(2026, 8, 28),
 
-    # thinkingmachines - `inkling-small` only. The unnamed-size `inkling` is a
-    # DIFFERENT model and was never evaluated here; see the deliberately
-    # unmatched entry for it in the sad_oversight.py bundle.
+    # thinkingmachines - `inkling` and `inkling-small` are DIFFERENT models, not
+    # one model by two routes, so each has its own key and stem.
+    "thinkingmachines/inkling": date(2026, 7, 17),
     "thinkingmachines/inkling-small": date(2026, 7, 30),
 
     # unbiased

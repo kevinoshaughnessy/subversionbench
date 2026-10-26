@@ -16,6 +16,13 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v289
+
+**Release dates for google/gemini-3.5-flash-lite, nvidia/nemotron-3-ultra-550b-a55b,
+moonshotai/kimi-k2.7-code, thinkingmachines/inkling and aion-labs/aion-3.0** in
+`model_releases.py`, their OpenRouter listing dates, so each is placed on the trend charts.
+The comment saying the full-size inkling was never evaluated here is corrected.
+
 ## v288
 
 **Gemini models get their thought signature back.** Their thinking models return an
