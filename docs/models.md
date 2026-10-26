@@ -1041,7 +1041,7 @@ google/gemini-3.5-flash-lite are complete and in the sections above):
 |---|---|---|
 | nvidia/nemotron-3-ultra-550b-a55b (06-04) | BaseTen | the only endpoint passing: DeepInfra offers 16,384 output tokens, Venice was under 99% uptime; no NVIDIA endpoint |
 | moonshotai/kimi-k2.7-code (06-12) | Moonshot AI | developer endpoint, unless the Providers page shows it more than twice as slow as the fastest (throughput is not in the public data) |
-| thinkingmachines/inkling (07-17) | DeepInfra | the only endpoint passing: Together was under 99% uptime; no Thinking Machines endpoint |
+| thinkingmachines/inkling (07-17) | none passing (2026-10-26) | DeepInfra was the only endpoint passing on 2026-10-21 and has since stopped serving it (the capability arm's first episode, 2026-10-26, failed at routing with no endpoint found, and OpenRouter then listed Together alone); Together was at 96.5% uptime over the last day on 2026-10-26, under the 99% rule; held back, to be checked again |
 | aion-labs/aion-3.0 (07-07) | AionLabs | developer, only host; 99.2% uptime; expect [the trained-in system prompt](#aionlabs-system-prompt) |
 
 **Progress, 2026-10-26.**
