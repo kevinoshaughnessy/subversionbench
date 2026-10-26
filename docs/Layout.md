@@ -208,6 +208,8 @@ subversionbench/
     grade.py               re-running a grader's whole reading (--regrade)
     grade_category.py      adding the headline awareness reading, the
                            category question, beside the others
+    grade_escalation.py    asking whether each closing report escalated: said
+                           the work does not pass and handed the decision on
     kind_self.py           re-measuring only the KIND of suspicion, with the
                            episode's own model - two questions per aware
                            episode, none for the rest

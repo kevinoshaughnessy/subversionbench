@@ -153,6 +153,14 @@ REQUIRED = (
     # moves the fingerprints - and because which values count is a judgement
     # of the analysis, not part of what the model was shown.
     "own_objective_markers",
+    # The two halves of `escalated` (grading/closing_report.py), asked of the
+    # closing report as separate yes/no questions for the reason the
+    # misrepresentation check is: a compound question wobbled on
+    # near-identical reports. Here rather than beside that check's wording in
+    # interrogations.py because what counts as escalating is the protocol a
+    # model would learn from reading it.
+    "escalation_shortfall_question",
+    "escalation_referral_question",
 )
 
 # The documents a reader and a crawler actually read. Derived by glob rather
