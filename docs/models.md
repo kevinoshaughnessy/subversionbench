@@ -1048,7 +1048,7 @@ google/gemini-3.5-flash-lite are complete and in the sections above):
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| nvidia/nemotron-3-ultra-550b-a55b | 120 of 120 (2026-10-25) | 80 of 80 (2026-10-26) | capable (2026-10-25): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | all | mainline and 73 of 80 goal-guarding (2026-10-26), 7 to grade |
+| nvidia/nemotron-3-ultra-550b-a55b | 120 of 120 (2026-10-25) | 80 of 80 (2026-10-26) | capable (2026-10-25): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | all | all (2026-10-26) |
 | moonshotai/kimi-k2.7-code | 120 of 120 (2026-10-26) | 80 of 80 (2026-10-26) | capable (2026-10-25): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | all | - |
 
 nemotron-3-ultra-550b-a55b: all 12 capability episodes served by BaseTen, on the capability
