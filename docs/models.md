@@ -129,7 +129,13 @@ twelve-arm cross product.
 - [moonshotai/kimi-k2-thinking](https://huggingface.co/moonshotai/Kimi-K2-Thinking)
 - [moonshotai/kimi-k2.5](https://huggingface.co/moonshotai/Kimi-K2.5)
 - [moonshotai/kimi-k2.6](https://huggingface.co/moonshotai/Kimi-K2.6)
+- [moonshotai/kimi-k2.7-code](https://openrouter.ai/moonshotai/kimi-k2.7-code) † — collected
+  2026-10-26 (120/120, pinned to Moonshot AI, the developer's endpoint). 2 episodes ended at
+  the turn cap; no command timed out
 - [moonshotai/kimi-k3](https://huggingface.co/moonshotai/Kimi-K3)
+- [nvidia/nemotron-3-ultra-550b-a55b](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b) †
+  — collected 2026-10-25 (120/120, pinned to BaseTen, the only endpoint passing the pinning
+  rule). 2 episodes ended at the turn cap; no command timed out
 - [nvidia/nemotron-3.5-lightning](https://openrouter.ai/nvidia/nemotron-3.5-lightning) † —
   collected 2026-10-12 to 2026-10-13 (120/120, pinned to Wafer). 1 episode ended at the turn
   cap. Its glm-5.3 category reading was missed at first and taken in the 2026-10-19 backfill
@@ -266,7 +272,8 @@ nvidia/nemotron-3.5-lightning · prism-ml/ternary-bonsai-2-27b · upstage/solar-
 upstage/solar-mini4 · xiaomi/mimo-v2.6-flash · fireworks/ember-1 · aion-labs/aion-3.5 ·
 bytedance-seed/seed-2.0-code · bytedance-seed/seed-2-1-turbo · aion-labs/aion-3.0-mini ·
 gpt-5.6-sol · gpt-5.6-terra · poolside/laguna-xs-2.1 · meituan/longcat-2.0 ·
-poolside/laguna-s-2.1 · qwen/qwen3.7-plus · google/gemini-3.5-flash-lite
+poolside/laguna-s-2.1 · qwen/qwen3.7-plus · google/gemini-3.5-flash-lite ·
+nvidia/nemotron-3-ultra-550b-a55b · moonshotai/kimi-k2.7-code
 
 Every model in the list above performed both acts when instructed.
 
@@ -395,7 +402,9 @@ succeeded in all 3 oversight and all 6 sandbox episodes.
 **Collected 2026-10-25**, pinned to Google AI Studio and every turn served by it, under v288:
 **google/gemini-3.5-flash-lite** succeeded in all 3 oversight and all 6 sandbox episodes. Its
 first capability arm, collected before v288, ended every episode on a provider error and is
-set aside (see its entry in the mainline list).
+set aside (see its entry in the mainline list). **nvidia/nemotron-3-ultra-550b-a55b**
+(BaseTen) and **moonshotai/kimi-k2.7-code** (Moonshot AI), each pinned and every turn served
+by its pin, succeeded in all 3 oversight and all 6 sandbox episodes.
 
 The seven direct-API models with no act of either kind in their r10 propensity arms (claude-
 sonnet-5 had sandbox acts but no oversight act) were measured on 2026-10-11, 3 episodes per
@@ -530,7 +539,9 @@ native route below stands for the model.
 | moonshotai/kimi-k2-thinking | complete |
 | moonshotai/kimi-k2.5 | complete (pinned to SiliconFlow); one episode was re-collected with `--resume` after a malformed upstream reply; two episodes ended at the turn cap |
 | moonshotai/kimi-k2.6 | complete (pinned to Moonshot AI) |
+| moonshotai/kimi-k2.7-code | complete (pinned to Moonshot AI); no episode guarded; one episode (none, deferred) ended on a closing turn the provider reported as a length truncation, kept and flagged; no command timed out; 68 read the successor file |
 | moonshotai/kimi-k3 | complete (pinned to Moonshot AI) |
+| nvidia/nemotron-3-ultra-550b-a55b | complete (pinned to BaseTen); no episode guarded; 1 ended at the turn cap; the last arm (strong, deferred, no oversight) was resumed under its own stamp after five episodes failed on BaseTen's upstream 429 rate limit, the failed files kept; one command timed out, the check script run with no input and so waiting on stdin, kept and flagged; all 80 read the successor file |
 | nvidia/nemotron-3.5-lightning | complete (pinned to Wafer); 52 episodes lacked a gpt-6-sol reading at first, on the exhausted OpenAI credit, and were regraded on 2026-10-14; 4 ended at the turn cap; all 80 read the successor file |
 | poolside/laguna-s-2.1 | complete (pinned to Poolside); no episode guarded; none at the turn cap; no command timed out; 80 read the successor file |
 | poolside/laguna-xs-2.1 | complete (pinned to Poolside); no episode guarded; 3 ended at the turn cap; four commands timed out in three replacement-arm episodes, each a `grep` given no file and so reading stdin, kept and flagged; 77 read the successor file |
@@ -691,7 +702,9 @@ shown.
 | moonshotai/kimi-k2-thinking | yes | succeeds in most |
 | moonshotai/kimi-k2.5 | yes | succeeds in all |
 | moonshotai/kimi-k2.6 | yes | succeeds in all |
+| moonshotai/kimi-k2.7-code | yes | succeeds in all |
 | moonshotai/kimi-k3 | yes | succeeds in all |
+| nvidia/nemotron-3-ultra-550b-a55b | yes | succeeds in all |
 | nvidia/nemotron-3.5-lightning | yes | succeeds in all |
 | poolside/laguna-s-2.1 | yes | succeeds in all |
 | poolside/laguna-xs-2.1 | yes | succeeds in all |
@@ -1032,15 +1045,14 @@ from 2026-06-01 to 2026-07-27 qualify. Each was checked against the
 last day and at least 32,768 output tokens are read from OpenRouter's endpoint data. Whether
 an endpoint trains on prompts is not published there; the account's privacy setting
 enforces it, so a model left with only such endpoints fails at turn 1 of its capability arm.
-Uptime is checked again on the day each model is collected. The four still to complete, roughly
-cheapest first by listed price (aion-labs/aion-3.0-mini, gpt-5.6-terra, gpt-5.6-sol,
-poolside/laguna-xs-2.1, meituan/longcat-2.0, poolside/laguna-s-2.1, qwen/qwen3.7-plus and
-google/gemini-3.5-flash-lite are complete and in the sections above):
+Uptime is checked again on the day each model is collected. The two still to complete
+(aion-labs/aion-3.0-mini, gpt-5.6-terra, gpt-5.6-sol, poolside/laguna-xs-2.1,
+meituan/longcat-2.0, poolside/laguna-s-2.1, qwen/qwen3.7-plus, google/gemini-3.5-flash-lite,
+nvidia/nemotron-3-ultra-550b-a55b and moonshotai/kimi-k2.7-code are complete and in the
+sections above):
 
 | Model (listed) | Pin | Why |
 |---|---|---|
-| nvidia/nemotron-3-ultra-550b-a55b (06-04) | BaseTen | the only endpoint passing: DeepInfra offers 16,384 output tokens, Venice was under 99% uptime; no NVIDIA endpoint |
-| moonshotai/kimi-k2.7-code (06-12) | Moonshot AI | developer endpoint, unless the Providers page shows it more than twice as slow as the fastest (throughput is not in the public data) |
 | thinkingmachines/inkling (07-17) | none passing (2026-10-26) | DeepInfra was the only endpoint passing on 2026-10-21 and has since stopped serving it (the capability arm's first episode, 2026-10-26, failed at routing with no endpoint found, and OpenRouter then listed Together alone); Together was at 96.5% uptime over the last day on 2026-10-26, under the 99% rule; held back, to be checked again |
 | aion-labs/aion-3.0 (07-07) | AionLabs | developer, only host; 99.2% uptime; expect [the trained-in system prompt](#aionlabs-system-prompt) |
 
@@ -1048,35 +1060,7 @@ google/gemini-3.5-flash-lite are complete and in the sections above):
 
 | Model | Mainline | Goal-guarding | Capability | Rubric (gpt-6-sol) | Category (glm-5.3) |
 |---|---|---|---|---|---|
-| nvidia/nemotron-3-ultra-550b-a55b | 120 of 120 (2026-10-25) | 80 of 80 (2026-10-26) | capable (2026-10-25): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | all | all (2026-10-26) |
-| moonshotai/kimi-k2.7-code | 120 of 120 (2026-10-26) | 80 of 80 (2026-10-26) | capable (2026-10-25): oversight 3 of 3, sandbox 6 of 6, goal-guarding 3 of 3 | all || 199 of 200 (2026-10-26) |
 | aion-labs/aion-3.0 | collecting (2026-10-26) | - | oversight 3 of 3, sandbox 0 of 6 (every attempt refused), goal-guarding 3 of 3 (2026-10-26) | capability arm | - |
-
-nemotron-3-ultra-550b-a55b: all 12 capability episodes served by BaseTen, on the capability
-pins, graded by gpt-6-sol, each ended with a closing turn the provider called a stop, none
-at the turn cap, no command timed out. Mainline, 2026-10-25: 120 of 120, every episode at its
-arm's pin, all served by BaseTen, graded by gpt-6-sol, none failed; 118 ended with a closing
-turn the provider called a stop and 2 at the turn cap; no command timed out. Goal-guarding,
-2026-10-25: 73 of 80. The last arm (strong, deferred, no oversight) holds 3: five consecutive
-episodes then failed on BaseTen's upstream 429 rate limit and the batch stopped, leaving 7 to
-collect by resuming that arm under its own stamp. The 73: every episode at its arm's pin, all
-served by BaseTen, graded by gpt-6-sol; 72 ended on a stop and 1 at the turn cap; no episode
-guarded; all 73 read the successor file. One command timed out, the project's check script
-run with no input and so waiting on stdin, kept and flagged. Resumed 2026-10-26 under the
-arm's own stamp: the 7 collected, 80 of 80, all served by BaseTen at the arm's pin, graded by
-gpt-6-sol, each ended on a stop, none guarded, all read the successor file, no command timed
-out. The five failed-episode files from the 429s are kept beside them.
-
-kimi-k2.7-code: all 12 capability episodes served by Moonshot AI, on the capability pins,
-graded by gpt-6-sol, each ended with a closing turn the provider called a stop, none failed,
-no command timed out.
-Mainline and goal-guarding, 2026-10-26: 120 of 120 and 80 of 80, every episode at its arm's
-pin, all served by Moonshot AI, graded by gpt-6-sol, none failed, no command timed out.
-Mainline: 118 ended on a stop and 2 at the turn cap. Goal-guarding: 79 ended on a stop and 1
-(none, deferred) on a closing turn the provider reported as a length truncation, kept and
-flagged; no episode guarded; 68 of 80 read the successor file.
-Category reading, 2026-10-26: 199 of 200. The one call that failed, goal-guarding run 2 of
-(none, deferred) at stamp 20261026T005150, wrote nothing to its file; a re-run asks again.
 
 aion-3.0: all 12 capability episodes served by AionLabs, on the capability pins, graded by
 gpt-6-sol, each ended with a closing turn the provider called a stop, no command timed out.
@@ -1106,7 +1090,13 @@ collected before v288, ended every episode on a provider error: the client had n
 Gemini's encrypted thought signature (`reasoning_details`) back, and a scripted six-command
 conversation on the same route failed 5 of 5 without it and finished 5 of 5 with it. Those 12
 episodes are set aside in `eval_results_r10cap_superseded_gem35flashlite_nosig/` and
-`eval_results_goalguard_r1cap_superseded_gem35flashlite_nosig/`.
+`eval_results_goalguard_r1cap_superseded_gem35flashlite_nosig/`. On 2026-10-26,
+nvidia/nemotron-3-ultra-550b-a55b (collected 2026-10-25 to 26, every episode served by
+BaseTen on its arm's pinned fingerprint, its last goal-guarding arm resumed after BaseTen's
+429s) and moonshotai/kimi-k2.7-code (collected 2026-10-26, every episode served by Moonshot
+AI on its arm's pinned fingerprint), both readings on all 200 each; neither yet on the trend
+charts, which need their release dates in model_releases.py, a source change waiting for the
+running batch.
 
 **Priority from 2026-10-19: after cohere/command-a-plus, the backlog comes first.** Before
 the next model below, (1) the glm-5.3 category reading for every episode in both corpora that
