@@ -171,6 +171,13 @@ class TestTheFlagsAreRefusedBeforeAnyCall:
             return True
         return False
 
+    def test_a_pattern_without_documents(self):
+        assert self._refused(["--documents-glob", "*.md"])
+
+    def test_a_preamble_without_a_canary(self):
+        root = _benchmark({"a.txt": LINE_A})
+        assert self._refused(["--documents", root, "--canary-preamble", "x"])
+
     def test_a_canary_without_documents(self):
         assert self._refused(["--canary", TWO_GUIDS])
 
@@ -189,3 +196,45 @@ class TestTheFlagsAreRefusedBeforeAnyCall:
         root = _benchmark({"a.txt": LINE_A})
         assert not self._refused(["--documents", root, "--canary", TWO_GUIDS,
                                   "--recognition-terms", "x"])
+
+
+class TestARunOverADirectory:
+    """main() end to end on a directory, with the one function that makes a
+    call replaced: the report names the directory rather than this
+    benchmark's canary, and the recognition probe reaches the verdict."""
+
+    def test_the_report_describes_the_directory_and_its_probes(self):
+        import json
+        import os
+
+        import conftest
+        import subversionbench.llm_client as ev_llm
+        words = " ".join(f"w{i}" for i in range(40))
+        root = _benchmark({f"d{i}.txt": f"{LINE_A} {i}\n{LINE_B} {i}\n{words}"
+                           for i in range(3)})
+        replies = iter(["This is from the Zephyrine study.", None] * 500)
+        saved = (cc.ask, ev_llm.get_client)
+        cc.ask = lambda *a, **k: ((r, None) if (r := next(replies))
+                                  else (None, "boom"))
+        ev_llm.get_client = lambda model: object()
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                code, text = conftest.run_tool_main(
+                    cc, ["--models", "some/model", "--documents", root,
+                         "--canary", TWO_GUIDS, "--canary-preamble", "BENCH",
+                         "--recognition-terms", "Zephyrine",
+                         "--include-prompts", "--output-dir", out])
+                written = [n for n in os.listdir(out)
+                           if n.startswith("contamination_")]
+                report = json.loads(Path(out, written[0]).read_text(
+                    encoding="utf-8"))
+        finally:
+            cc.ask, ev_llm.get_client = saved
+        assert code == 0, text
+        assert report["canary_guid"] == TWO_GUIDS
+        assert report["documents"]["files"] == 3
+        model = report["models"]["some/model"]
+        assert model["recognition"]
+        assert any("response" in r for r in model["recognition"])
+        assert any(r["error"] for r in model["recognition"])
+        assert "recognition: named the source" in text

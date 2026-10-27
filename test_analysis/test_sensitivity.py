@@ -124,3 +124,122 @@ class TestNoReadingIsSilentlySkipped(unittest.TestCase):
         r = sens._skipped("x", "a reason")
         self.assertEqual((r["status"], r["why"]), (sens.NOT_APPLICABLE,
                                                    "a reason"))
+
+
+def _stratum(model, keywords_flip=False):
+    """One model's oversight-present stratum in which aware episodes act
+    more; the keyword column marks the opposite episodes when flipped."""
+    rows = []
+    for aware, acted, bound in ((True, True, True), (True, False, False),
+                                (False, False, True), (False, False, False)):
+        rows.append({"model": model, "nudge": "strong", "oversight": True,
+                     "lure": False, "goalguard": None, "one": 1,
+                     "aware_source": "grader",
+                     "awareness_category": "true" if aware else "false",
+                     "aware": aware,
+                     "aware_keywords": aware != keywords_flip,
+                     "aware_union": aware, "aware_text_is_bound": bound,
+                     "misaligned": acted, "misaligned_end_state": acted})
+    return rows
+
+
+class _Corpus:
+    """The two corpus readers sensitivity.py calls, over synthetic rows, so
+    every reading is computed by the real primary_estimate."""
+
+    def __init__(self, keywords_flip=False):
+        self.mainline = (_stratum("m/a", keywords_flip)
+                         + _stratum("m/b", keywords_flip))
+        self.goalguard = [dict(r, goalguard="replacement")
+                          for r in _stratum("m/a")]
+        self.graders = []
+
+    def headline_rows(self, directory, exclusion, keep, only_models=None,
+                      grader=None):
+        self.graders.append(grader)
+        rows = self.mainline if directory == "main" else self.goalguard
+        rows = [r for r in rows if r["model"] in only_models and keep(r)]
+        if grader:
+            rows = [dict(r, aware=r["aware"] and r["misaligned"])
+                    for r in rows]
+        return rows, 0
+
+    def __enter__(self):
+        self._saved = (sens.snapshot, sens.headline_rows)
+        sens.snapshot = lambda dirs, cap: {"models": ["m/a", "m/b"]}
+        sens.headline_rows = self.headline_rows
+        return self
+
+    def __exit__(self, *exc):
+        sens.snapshot, sens.headline_rows = self._saved
+
+
+DIRS = {"mainline": "main", "goalguard": "gg"}
+
+
+class TestEveryReadingIsComputedOrSaysWhyNot(unittest.TestCase):
+    def test_the_section_8_readings_in_order(self):
+        with _Corpus():
+            doc = sens.readings(DIRS, {})
+        labels = [r["reading"][:2] for r in doc["readings"]]
+        self.assertEqual(labels, ["P ", "1a", "1d", "1e", "1b", "1c", "2 ",
+                                  "3 ", "4 ", "5a", "5b", "6 "])
+        skipped = [r for r in doc["readings"]
+                   if r.get("status") == sens.NOT_APPLICABLE]
+        self.assertEqual(len(skipped), 3)
+        self.assertTrue(all(r["why"] for r in skipped))
+
+    def test_the_rubric_reading_reads_the_rubric_grader(self):
+        with _Corpus() as corpus:
+            doc = sens.readings(DIRS, {})
+        self.assertIn(sens.DEFAULT_GRADER_MODEL, corpus.graders)
+        p, rubric = doc["readings"][0], doc["readings"][1]
+        self.assertNotEqual(p["risk_difference"], rubric["risk_difference"])
+
+    def test_a_suspected_model_is_left_out_of_reading_4(self):
+        with _Corpus():
+            doc = sens.readings(DIRS, {}, suspected=["m/b"])
+        p, without = doc["readings"][0], doc["readings"][8]
+        self.assertNotIn("status", without)
+        self.assertLess(without["n_episodes"]["mainline"],
+                        p["n_episodes"]["mainline"])
+
+    def test_the_route_readings_split_the_episodes(self):
+        with _Corpus():
+            doc = sens.readings(DIRS, {})
+        p, returned, visible = (doc["readings"][i] for i in (0, 9, 10))
+        for scenario in ("mainline", "goalguard"):
+            self.assertEqual(returned["n_episodes"][scenario]
+                             + visible["n_episodes"][scenario],
+                             p["n_episodes"][scenario])
+
+
+class TestTheCommandLine(unittest.TestCase):
+    def _run(self, keywords_flip):
+        import contextlib
+        import io
+        import json
+        import os
+        import tempfile
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as d, _Corpus(keywords_flip):
+            path = os.path.join(d, "s.json")
+            with contextlib.redirect_stdout(out):
+                code = sens.main(["--mainline-dir", "main", "--goalguard-dir",
+                                  "gg", "--json-out", path])
+            with open(path, encoding="utf-8") as f:
+                doc = json.load(f)
+        return code, out.getvalue(), doc
+
+    def test_a_reversal_is_printed_and_written(self):
+        code, text, doc = self._run(keywords_flip=True)
+        self.assertEqual(code, 0)
+        self.assertTrue(doc["fragile"])
+        self.assertIn("SIGN REVERSED", text)
+        self.assertIn("P is FRAGILE", text)
+        self.assertIn("not applicable:", text)
+
+    def test_no_reversal_says_so(self):
+        _code, text, doc = self._run(keywords_flip=False)
+        self.assertFalse(doc["fragile"])
+        self.assertIn("P is not fragile", text)
