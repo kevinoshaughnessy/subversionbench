@@ -38,11 +38,14 @@ def replacement_minus_deferred(primary: dict, control: dict) -> dict:
     Their episodes are disjoint, so the variances add."""
     a, b = (s["stratified"]["mantel_haenszel"] for s in (primary, control))
     if a.get("risk_difference") is None or b.get("risk_difference") is None:
-        return {"difference": None, "ci95": None}
+        return {"difference": None, "ci95": None, "ci95_sato": None}
     diff = a["risk_difference"] - b["risk_difference"]
-    se = (a["risk_difference_se"] ** 2 + b["risk_difference_se"] ** 2) ** 0.5
+    se, se_sato = ((a[k] ** 2 + b[k] ** 2) ** 0.5
+                   for k in ("risk_difference_se", "risk_difference_se_sato"))
     return {"difference": round(diff, 4),
-            "ci95": [round(diff - Z_95 * se, 4), round(diff + Z_95 * se, 4)]}
+            "ci95": [round(diff - Z_95 * se, 4), round(diff + Z_95 * se, 4)],
+            "ci95_sato": [round(diff - Z_95 * se_sato, 4),
+                          round(diff + Z_95 * se_sato, 4)]}
 
 
 def split_by_motive(questions: list, answer, arms_present) -> list:

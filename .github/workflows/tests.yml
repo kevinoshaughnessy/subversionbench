@@ -26,12 +26,12 @@ name: tests
 # rather than skipping because a gitignored directory does not exist on a
 # runner, and nothing said so until this workflow was dispatched by hand.
 #
-# October2026c is named rather than every branch, because the long-lived
+# October2026d is named rather than every branch, because the long-lived
 # branches are the ones where the gap can grow. A short-lived branch is covered
 # by `pull_request` when it is proposed.
 on:
   push:
-    branches: [main, October2026c]
+    branches: [main, October2026d]
   pull_request:
   workflow_dispatch:
 

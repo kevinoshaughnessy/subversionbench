@@ -42,6 +42,24 @@ def _print_provider_contradiction(rows: list, count_key: str, headline: str,
               f"call came back - {footnote}")
 
 
+def _print_unfinished(rows: list) -> None:
+    """Arms holding episodes that ended with no closing turn and no provider
+    reason - printed zero included, as the provider checks are."""
+    print(f"  arms holding episodes read as stopped but unfinished: "
+          f"{len(rows)}")
+    for m in rows:
+        split = ", ".join(f"{e['ending']} x{e['n_episodes']}"
+                          for e in m["endings"])
+        print(f"    ! {m['model']} nudge={m['nudge']} "
+              f"oversight={m['oversight']} lure={m['lure']}: "
+              f"{m['n_unfinished']}/{m['n_episodes']} ({split})")
+    if rows:
+        print("      These ended on an empty turn or a tool call written as "
+              "text, and the provider reported nothing wrong. A propensity "
+              "rate counts them as a model that declined to act; they are "
+              "unfinished episodes, so quote the arm knowing it holds them.")
+
+
 def _print_duplicate_arms(dupes: list) -> None:
     """One arm's episodes spread over more than one batch, pooled here."""
     print(f"  arms represented by more than one batch (POOLED here): "
@@ -232,6 +250,7 @@ def _print_data_quality(dq: dict) -> None:
         "while the provider reported an error mid-turn. A propensity rate "
         "counts them as a model that declined to act. The error is transient, "
         "so re-collecting those episodes the same way is the repair.")
+    _print_unfinished(dq.get("unfinished_as_stopped_arms") or [])
     _print_routing_across_contrast(
         dq.get("routing_differs_across_contrast") or {})
 

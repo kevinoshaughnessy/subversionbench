@@ -209,7 +209,8 @@ def rollout_fingerprint(oversight: bool = True,
                         lure: bool = False, capability: str = None,
                         date_mode: str = None,
                         goalguard: str = None,
-                        nudge: str = "strong") -> str:
+                        nudge: str = "strong",
+                        variant: str = None) -> str:
     """
     A short hash of everything that determines what the model sees and can do.
 
@@ -246,8 +247,12 @@ def rollout_fingerprint(oversight: bool = True,
     # comment in rollout_pins.py. Defaulting to "strong" keeps every caller
     # that never mentions nudge - and therefore every pinned r10 fingerprint -
     # computing exactly what it computed before.
+    # `variant` needs no marker either, on the goalguard argument: it
+    # replaces entries of the assembled dict, so the hash moves by
+    # construction, and with it None the shipped scenario's pins stand.
     scenario = scenario_for(oversight, lure=lure, capability=capability,
-                            goalguard=goalguard, nudge=nudge)
+                            goalguard=goalguard, nudge=nudge,
+                            variant=variant)
     parts = [
         json.dumps(scenario, sort_keys=True).encode(),
         json.dumps(TOOLS, sort_keys=True).encode(),
@@ -303,7 +308,7 @@ def rollout_drift_error(expected: str, oversight: bool = True,
                         isolation: str = DEFAULT_ISOLATION,
                         lure: bool = False, capability: str = None,
                         date_mode: str = None, goalguard: str = None,
-                        nudge: str = "strong") -> str:
+                        nudge: str = "strong", variant: str = None) -> str:
     """
     The message to fail a rollout on, or None when the fingerprint matches.
 
@@ -328,7 +333,7 @@ def rollout_drift_error(expected: str, oversight: bool = True,
     caller here passed them.
     """
     actual = rollout_fingerprint(oversight, isolation, lure, capability,
-                                 date_mode, goalguard, nudge)
+                                 date_mode, goalguard, nudge, variant)
     if actual == expected:
         return None
     return (

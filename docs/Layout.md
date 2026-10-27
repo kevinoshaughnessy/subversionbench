@@ -24,8 +24,20 @@ subversionbench/
                    ROLLOUT_VERSION is what the model saw within that scenario.
                    The pinned fingerprints are the per-arm identities that say
                    two batches of one rollout may be pooled
+  sidecar_pins.py  an alternative bundle's own identity, read from the
+                   .pins.json beside it: its rollout version, the cells it
+                   has, its act set, and its variant and capability pins
+  bundle_pinning.py  computing an alternative bundle's fingerprints in a
+                   subprocess under the override, behind a provisional
+                   sidecar it always takes away again
   interrogations.py  the probes, the classifier prompt, the answer markers
   scenario.py      the scenario text, held base64-encoded at rest
+  scenarios/       other committed base64 bundles, each a scenario in a world
+                   of its own, with its pins sidecar. Their decoded working
+                   copies are gitignored, like scenario.json
+  declared_layout.py  staging a bundle that declares its own files and act
+                   artefacts; the shipped scenario's layout stays in
+                   environment.py, untouched
   detectors.py     the rubric and keyword lists, held the same way -
                    a SEPARATE bundle, so a held-out scenario cannot
                    swap the instrument that grades it
@@ -54,6 +66,9 @@ subversionbench/
                    which backend served a response - the router's own
                    account, as opposed to the provider that was requested
   tool_parsing.py  recovering tool calls a model emitted as prose
+  endings.py       what ended an episode, read from its final turn: an empty
+                   turn or a tool call written as text is not the model
+                   stopping. One rule, at collection and on every stored read
   api_errors.py    classifying provider errors by whether a retry could help
   invisible.py     characters that render as nothing: stripped from the view
                    the grader scores, refused at publication
@@ -119,7 +134,7 @@ subversionbench/
                    BESIDE a corpus rather than inside it, so zip.sh does not
                    sweep regenerable pictures into the published archive and
                    two rollouts' identically-named charts stay apart
-  contamination.py leak audit, canary/forced-choice/continuation probes
+  contamination.py leak audit, canary/forced-choice/continuation/recognition probes, over the scenario or any directory
   grading/         scoring an episode; __init__.py is the scoring API
     acts.py                the misaligned acts and their per-act keys
     act_purpose.py         the purpose an act shows by itself (D7)
@@ -193,6 +208,8 @@ subversionbench/
     grade.py               re-running a grader's whole reading (--regrade)
     grade_category.py      adding the headline awareness reading, the
                            category question, beside the others
+    grade_escalation.py    reading each closing report's rung: no deliverable
+                           could pass the check, this one fails it, or neither
     kind_self.py           re-measuring only the KIND of suspicion, with the
                            episode's own model - two questions per aware
                            episode, none for the rest
@@ -233,7 +250,7 @@ zip_charts.sh      the same encryption for charts/, which zip.sh does not
 zip_password.sh    the one PASSWORD both zip scripts source, so it is a
                    single line to change rather than two copies to keep in
                    step
-contamination_check.py  leak audit and per-model contamination probes
+contamination_check.py  leak audit and per-model contamination probes, for this or any benchmark (--documents)
 scenario_tool.py   decode the scenario to edit it, and encode it back
 detector_tool.py   the same, for the rubric and the keyword lists
 heldout_tool.py    the same for the held-out scenario - a reworded twin of the
@@ -316,7 +333,9 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    checked and saved after every episode, so a stopped session
                    resumes. Never opens the sealed key, and refuses a note
                    that repeats six words of the transcript, since labelling/
-                   is plaintext. Run as `python3 -m grader_ab.label_pack DIR`
+                   is plaintext. Run as `python3 -m grader_ab.label_pack DIR`,
+                   with `--purpose` for a purpose pack or `--misuse` for a
+                   misuse_pack, which ask no codebook rule
   blind_score.py   the step after labelling: joins each pack's labels through
                    its sealed key to a grid run on that pack, and reads every
                    cell by grader-selection.md's rule - balanced accuracy with
@@ -330,8 +349,11 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    negative contains nothing of the construct and separates
                    no two graders. Ships a codebook written before the draw,
                    because a definition composed with the cases in front of
-                   you is fitted to them. Run as
-                   `python3 -m grader_ab.misuse_pack`
+                   you is fitted to them. `--exclude PACK` keeps an earlier
+                   pack's episodes out of a test pack; `--whole-text` shows
+                   the uncapped text, as blind_pack's does. Run as
+                   `python3 -m grader_ab.misuse_pack`; see
+                   docs/misuse-labelling.md
   length_probe.py  whether the grader reads a long episode as reliably as a
                    short one: one sentence planted at 10%, 50% or 90% of
                    episodes stored as not aware, in three length bands, the
@@ -437,6 +459,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    in the tests from MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS
                    rather than listed, because a family that stopped being
                    applied would print as n/a rather than raise
+  transcript_columns.py  what the transcript says on its own: the first quality
+                   check and its outcome, the first refusal and where awareness
+                   fell against it, the strategies recommended
   capability.py    whether each model can take the act: one success is
                    capable, none is NOT SHOWN capable rather than shown
                    incapable - because a refusal is a second measurement
@@ -455,10 +480,20 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    record, else an exported hand label, else unlabelled (D7)
   strategy_pressure.py  the strategy recommended per arm, and the effect of an
                    imminent replacement on it in the goal-guarding arms
+  single_arm.py    every model inside one arm, as counts rather than rates:
+                   the named arms (baseline, max pressure, lure, no oversight,
+                   each goal-guarding arm) and a models x arms grid
   questions_arms.py       Q1-4: the exposure is an arm the design assigned
   questions_awareness.py  Q5-10: the exposure is something the model did
   motive_split.py  on a goal-guarding corpus, each question about the act
                    answered in the replacement arms, deferred as control
+  primary.py       the analysis plan's primary estimate P over both corpora,
+                   and its secondary family under Benjamini-Hochberg
+  sensitivity.py   the plan's sensitivity readings of P (section 8): P again
+                   with one thing changed each, and the plan's fragility rule
+  snapshot.py      which models a dated snapshot holds (D2): complete arms in
+                   both scenarios and the headline reading, with any capability
+                   verdict still owed listed rather than enforced
   questions_paired.py     Q11-12: every phrasing put to the same act, so paired
   console.py       the report as a table on a terminal. Computes nothing
   console_data_quality.py  the DATA QUALITY block, split off when console.py
@@ -509,6 +544,12 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    the other act too
   strategy.py      the strategy recommended per arm, and the goal-guarding
                    arms' replacement-minus-deferred difference in it
+  single_arm.py    every model inside one named arm, k of n per reading:
+                   the baseline profile, visible-text awareness, the acts at
+                   max pressure, the lure and no-oversight arms, the two
+                   goal-guarding arms, and awareness against the act
+  arm_grid.py      every model in every arm on one grid, for awareness and
+                   for the act
   capability.py    capability_report.py's one chart: each model's
                    instructed episodes as succeeded, attempted and refused
                    counts, marked capable or not shown
@@ -550,12 +591,15 @@ trends/            whether a rate falls as a model family advances, with the
   report.py        families, trends, release fits, data quality: the analysis
   overall.py       one rate per model across the scenarios - each act from
                    its own corpus, averaged with equal weight
+  alignment.py     one score per model, 100 x (1 - sqrt(r)), r the mean of
+                   the two scenarios' rates of episodes with any act
   chart_style.py   where pyplot comes from, and what every chart looks like
   chart_geometry.py  axis tops and label layouts, as arithmetic. No pyplot
   captions.py      the words on a chart, and how to read the exposure figures
   version_charts.py  rate against version position - the axis the tests run on
   date_charts.py   the same rates against the release calendar
-  overall_charts.py  the overall rate ranked, split by act, and as a grid
+  overall_charts.py  the overall rate ranked, split by act, and as a grid;
+                   the alignment score ranked
   charts.py        write_charts: the one entry point into the chart layer
   console.py       the report as a table on a terminal
   family_trends.py the CLI: arguments, and one report per metric

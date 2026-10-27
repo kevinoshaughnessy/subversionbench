@@ -85,20 +85,23 @@ therefore deliberate, with `git add -f`:
 git add -f eval_results_r4.zip
 ```
 
-**The mainline corpus is a release asset, not a tracked file.** From 2026-10-21
-`eval_results_r10.zip` is over GitHub's 100 MB per-file limit, so it is attached to a GitHub
-Release instead of committed. Download it into the repository root, beside `unzip.sh`, which
-works relative to its own directory:
+**The mainline and goal-guarding corpora are release assets, not tracked files.** From
+2026-10-21 `eval_results_r10.zip` is over GitHub's 100 MB per-file limit, and from 2026-10-27
+`eval_results_goalguard_r1.zip` is close enough to it that each refresh would also add its whole
+size to the history, so each is attached to a GitHub Release instead of committed. Download them
+into the repository root, beside `unzip.sh`, which works relative to its own directory:
 
 ```bash
 curl -L -o eval_results_r10.zip \
-  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-21/eval_results_r10.zip
-./unzip.sh --dirs eval_results_r10.zip
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-27/eval_results_r10.zip
+curl -L -o eval_results_goalguard_r1.zip \
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-10-27/eval_results_goalguard_r1.zip
+./unzip.sh --dirs eval_results_r10.zip eval_results_goalguard_r1.zip
 ```
 
-To refresh it, rebuild with `./zip.sh --dirs eval_results_r10` and replace the asset in place
-with `gh release upload corpus-r10-2026-10-21 eval_results_r10.zip --clobber`. The other
-corpora and `charts.zip` are still tracked files.
+To refresh one, rebuild it with `./zip.sh --dirs <dir>` and publish it as a new release tagged
+`corpus-<rollout>-<date>`, leaving the earlier release in place as the record of what was
+published then. The capability corpora and `charts.zip` are still tracked files.
 
 `zip.sh` verifies the archive before `--remove`
 deletes anything and refuses to run against a directory a batch is still writing to;

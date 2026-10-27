@@ -130,8 +130,14 @@ def _pooled_rows(section: dict) -> list:
                         demoted=diverges))
     mh = ((section.get("stratified") or {}).get("mantel_haenszel") or {})
     if mh.get("risk_difference") is not None:
-        ci = mh.get("risk_difference_ci95") or (None, None)
-        rows.append(Row(f"STRATIFIED (MH, {mh.get('n_strata_used', '?')} models)",
+        # Sato's interval where the estimator gave one: the interval the
+        # analysis plan reports, so the chart agrees with the printed report's
+        # primary interval. Greenland-Robins where it did not (a hand-built
+        # result). And STRATA, not models: since D5 the strata are model x arm
+        # cells, so this count is never a count of models.
+        ci = (mh.get("risk_difference_ci95_sato")
+              or mh.get("risk_difference_ci95") or (None, None))
+        rows.append(Row(f"STRATIFIED (MH, {mh.get('n_strata_used', '?')} strata)",
                         mh["risk_difference"], ci[0], ci[1],
                         "stratified", marked=bool(mh.get("separated")),
                         note=_effect_note(mh["risk_difference"],

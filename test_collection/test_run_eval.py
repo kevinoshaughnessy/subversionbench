@@ -562,7 +562,7 @@ class TestTheParserIsReadableWithoutRunningABatch:
         "--complete-pending",
         "--concurrency",
         "--date-mode", "--delay", "--effort", "--goalguard", "--grade-category",
-        "--grade-existing",
+        "--grade-escalation", "--grade-existing",
         "--grader-model",
         "--interrogation", "--isolation", "--lure", "--max-consecutive-failures",
         "--max-tokens", "--max-turns", "--min-answered", "--model",
@@ -572,7 +572,7 @@ class TestTheParserIsReadableWithoutRunningABatch:
         "--oversight", "--reclassify", "--regrade", "--reinterrogate", "--resume",
         "--resummarise", "--resummarize", "--runs", "--self-grade-kind",
         "--summarise-arms",
-        "--summarize-arms", "--thinking-budget", "--use-opencode",
+        "--summarize-arms", "--thinking-budget", "--use-opencode", "--variant",
         "--write-back", "--yes",
         "-h", "--help",
     }

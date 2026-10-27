@@ -16,12 +16,16 @@ import sys
 import tempfile
 from pathlib import Path
 
-from subversionbench import rollout_pins
+from subversionbench import rollout_pins, sidecar_pins
 from subversionbench.scenario import (BUNDLE_ENV_VAR, bundle_is_overridden,
                                       encode_scenario, load_scenario,
                                       selected_bundle_path)
 
 from test_corpus.heldout_fixtures import (overridden)
+
+# What the readers compare a sidecar against: the shipped tables.
+SHIPPED = (rollout_pins.ROLLOUT_VERSION, rollout_pins.ROLLOUT_FINGERPRINTS,
+           rollout_pins.SCENARIO_ACTS)
 
 # The same list test_scenario.py checks the counterfactual against. Imported
 # by value rather than shared, because the two files pin the same rule for two
@@ -127,7 +131,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
 
     def test_no_override_means_no_alternative_pins(self):
         with overridden(None):
-            assert rollout_pins._alternative_pins() is None
+            assert sidecar_pins.alternative_pins(*SHIPPED) is None
 
     def test_the_shipped_pins_are_literals(self):
         """The reason the block that replaces them sits at the bottom of the
@@ -176,7 +180,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         bundle = self._staged(Path(tempfile.mkdtemp()), write=False)
         with overridden(bundle):
             try:
-                rollout_pins._alternative_pins()
+                sidecar_pins.alternative_pins(*SHIPPED)
             except FileNotFoundError as e:
                 assert "pins" in str(e).lower()
             else:
@@ -191,7 +195,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         bundle = self._staged(Path(tempfile.mkdtemp()), version=shipped)
         with overridden(bundle):
             try:
-                rollout_pins._alternative_pins()
+                sidecar_pins.alternative_pins(*SHIPPED)
             except ValueError as e:
                 assert shipped in str(e)
             else:
@@ -202,7 +206,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         bundle = self._staged(Path(tempfile.mkdtemp()), version="  ")
         with overridden(bundle):
             try:
-                rollout_pins._alternative_pins()
+                sidecar_pins.alternative_pins(*SHIPPED)
             except ValueError:
                 pass
             else:
@@ -215,7 +219,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         bundle = self._staged(Path(tempfile.mkdtemp()), arms=partial)
         with overridden(bundle):
             try:
-                rollout_pins._alternative_pins()
+                sidecar_pins.alternative_pins(*SHIPPED)
             except ValueError as e:
                 assert "unpinned" in str(e)
             else:
@@ -224,7 +228,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
     def test_a_complete_sidecar_replaces_version_and_all_four_arms(self):
         bundle = self._staged(Path(tempfile.mkdtemp()))
         with overridden(bundle):
-            version, pins, acts = rollout_pins._alternative_pins()
+            version, pins, acts = sidecar_pins.alternative_pins(*SHIPPED)
         assert version == "heldout-test"
         assert set(pins) == set(rollout_pins.ROLLOUT_FINGERPRINTS)
         assert not set(pins.values()) & set(
@@ -241,7 +245,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         field existed describes."""
         bundle = self._staged(Path(tempfile.mkdtemp()))
         with overridden(bundle):
-            _version, _pins, acts = rollout_pins._alternative_pins()
+            _version, _pins, acts = sidecar_pins.alternative_pins(*SHIPPED)
         assert acts == rollout_pins.SCENARIO_ACTS
 
     def test_a_sidecar_may_declare_a_different_act_set(self):
@@ -249,7 +253,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         scenario, not a twin, and says so rather than inheriting."""
         bundle = self._staged(Path(tempfile.mkdtemp()), acts=["goalguard"])
         with overridden(bundle):
-            _version, _pins, acts = rollout_pins._alternative_pins()
+            _version, _pins, acts = sidecar_pins.alternative_pins(*SHIPPED)
         assert tuple(acts) == ("goalguard",)
         assert rollout_pins.scenario_id_for(acts) == "goalguard"
 
@@ -261,7 +265,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         bundle = self._staged(Path(tempfile.mkdtemp()), acts=[])
         with overridden(bundle):
             try:
-                rollout_pins._alternative_pins()
+                sidecar_pins.alternative_pins(*SHIPPED)
             except ValueError as e:
                 assert "scenario_acts" in str(e)
             else:
@@ -275,7 +279,7 @@ class TestAnAlternativeBundleIsADifferentRollout:
         plaintext = root / "alt.json"
         plaintext.write_text("{}", encoding="utf-8")
         with overridden(plaintext):
-            version, pins, acts = rollout_pins._alternative_pins()
+            version, pins, acts = sidecar_pins.alternative_pins(*SHIPPED)
         assert version == "heldout-test" and len(pins) == 4
 
 
@@ -549,13 +553,15 @@ class TestATwinPinsItsOwnGoalGuardingArms:
     def test_a_twin_that_declares_none_reads_as_none(self):
         bundle = self._sidecar(Path(tempfile.mkdtemp()))
         with overridden(bundle):
-            assert rollout_pins._alternative_goalguard_pins() is None
+            assert sidecar_pins.alternative_goalguard_pins(
+                rollout_pins.GOALGUARD_FINGERPRINTS) is None
 
     def test_a_twin_that_pins_every_cell_replaces_the_shipped_table(self):
         cells = self._every_cell()
         bundle = self._sidecar(Path(tempfile.mkdtemp()), goalguard=cells)
         with overridden(bundle):
-            pins = rollout_pins._alternative_goalguard_pins()
+            pins = sidecar_pins.alternative_goalguard_pins(
+                rollout_pins.GOALGUARD_FINGERPRINTS)
         assert set(pins) == set(rollout_pins.GOALGUARD_FINGERPRINTS)
         assert not set(pins.values()) & set(
             rollout_pins.GOALGUARD_FINGERPRINTS.values()), (
@@ -569,7 +575,8 @@ class TestATwinPinsItsOwnGoalGuardingArms:
         bundle = self._sidecar(Path(tempfile.mkdtemp()), goalguard=cells)
         with overridden(bundle):
             try:
-                rollout_pins._alternative_goalguard_pins()
+                sidecar_pins.alternative_goalguard_pins(
+                rollout_pins.GOALGUARD_FINGERPRINTS)
             except ValueError as e:
                 assert "unpinned" in str(e)
             else:
@@ -577,7 +584,8 @@ class TestATwinPinsItsOwnGoalGuardingArms:
 
     def test_the_shipped_bundle_has_no_alternative_goal_guarding_pins(self):
         with overridden(None):
-            assert rollout_pins._alternative_goalguard_pins() is None
+            assert sidecar_pins.alternative_goalguard_pins(
+                rollout_pins.GOALGUARD_FINGERPRINTS) is None
 
     def _in_a_subprocess(self, bundle, code):
         """

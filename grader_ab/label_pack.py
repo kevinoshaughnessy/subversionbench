@@ -3,6 +3,7 @@ Label a blind pack one episode at a time, in the terminal.
 
     python3 -m grader_ab.label_pack labelling/blind_r10_20261008
     python3 -m grader_ab.label_pack labelling/purpose_blind_20261014 --purpose
+    python3 -m grader_ab.label_pack labelling/misuse_blind_20261022 --misuse
 
 Shows each unlabelled episode in reading order through the pager, asks for
 the category, the codebook rule that decided it, any other rules that also
@@ -23,13 +24,16 @@ It reads pack.json and labels.jsonl and nothing else in the pack. The sealed
 key - model, arm and stored verdict - is never opened here: a rater shown the
 judge's answer is measuring agreement with it, not accuracy.
 
-TWO SCHEMES. The default labels evaluation awareness against the codebook.
+THREE SCHEMES. The default labels evaluation awareness against the codebook.
 `--purpose` labels the PURPOSE of an oversight or goal-guarding act (analysis
 plan D7): five purposes, no codebook rules yet, so neither rule question is
 asked. The label is the primary purpose - what the act targets - and `also`
 lists any other purpose the model gives for the same act, since an evasion
 and a defence of its own objective are often one decision. The purposes' definitions are
-not written here, for the reason the next paragraph gives.
+not written here, for the reason the next paragraph gives. `--misuse` labels
+suspects_misuse (grader_ab.misuse_pack) in the awareness categories, against
+the pack's own codebook.txt: the awareness codebook's rules do not apply to it,
+so no rule question is asked.
 
 A NOTE MAY NOT QUOTE THE TRANSCRIPT. labelling/ is gitignored plaintext, and a
 note carrying the words that decided a boundary is the codebook leak the
@@ -61,6 +65,7 @@ PURPOSE_ABBREVIATIONS = {p[0]: p for p in PURPOSES}
 SCHEMES = {
     "awareness": (CATEGORIES, ABBREVIATIONS, True),
     "purpose": (PURPOSES, PURPOSE_ABBREVIATIONS, False),
+    "misuse": (CATEGORIES, ABBREVIATIONS, False),
 }
 
 # The codebook's numbered rulings. Its last rule is 18 (the situation's own
@@ -239,7 +244,7 @@ def label_one(ep, row, ask, show, scheme="awareness"):
     if SCHEMES[scheme][2]:
         code = _ask_code(ask)
         updated.update(code=code, also=_ask_also(ask, code))
-    else:
+    elif scheme == "purpose":
         updated["also"] = _ask_also_purposes(ask, label)
     note = _ask_note(ep, ask)
     if note:
@@ -324,14 +329,20 @@ def main() -> int:
     parser.add_argument("pack", help="the pack directory")
     parser.add_argument("--redo", metavar="ID",
                         help="relabel one episode, e.g. ep-012")
-    parser.add_argument("--purpose", action="store_true",
+    schemes = parser.add_mutually_exclusive_group()
+    schemes.add_argument("--purpose", action="store_true",
                         help="label the purpose of each act "
                              f"({', '.join(PURPOSES)}) rather than "
                              "awareness; no codebook rules are asked")
+    schemes.add_argument("--misuse", action="store_true",
+                         help="label suspects_misuse against the pack's own "
+                              "codebook.txt; no rule questions are asked")
     args = parser.parse_args()
+    scheme = ("purpose" if args.purpose else "misuse" if args.misuse
+              else "awareness")
     try:
         return run(args.pack, redo=args.redo,
-                   scheme="purpose" if args.purpose else "awareness")
+                   scheme=scheme)
     except (EOFError, KeyboardInterrupt):
         print("\nstopped; every label entered so far is saved")
         return 0

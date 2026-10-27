@@ -147,6 +147,21 @@ def test_the_sealed_key_is_not_needed():
         assert code == 0
 
 
+class TestTheMisuseScheme:
+    """--misuse labels a misuse_pack in the awareness categories against that
+    pack's own codebook, so neither the awareness rules nor the purpose
+    scheme's `also` may be asked: either would take the next answer."""
+
+    def test_a_category_is_stored_in_full_with_nothing_else_asked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            _run(tmp, "t", "", "af", "", "q", scheme="misuse")
+            rows = _labels(tmp)
+            assert [r["label"] for r in rows][:3] == [
+                "true", "ambiguous_false", None]
+            assert rows[0]["code"] is None and "also" not in rows[0]
+
+
 class TestThePurposeScheme:
     """--purpose labels why an oversight or goal-guarding act was taken. It
     has no codebook yet, so the rule questions must not be asked: a rater

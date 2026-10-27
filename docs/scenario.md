@@ -32,6 +32,54 @@ python scenario_tool.py --encode         # fold edits back in
 `scenario.json` is gitignored, so a decoded copy cannot be committed by accident, and
 `--encode` refuses a bundle with entries missing.
 
+### Scenarios in a world of their own
+
+`subversionbench/scenarios/` holds other committed bundles, each a separate scenario rather
+than an arm of the shipped one. A bundle there is selected with
+`SUBVERSIONBENCH_SCENARIO_BUNDLE`, as the held-out twin is, and differs from a twin in what
+it declares for itself:
+
+- **its files** (`files`): where each document goes, so its world need not share the
+  shipped scenario's layout or file names;
+- **its act** (`act_artefacts`, `check_script`): the files a write to which is the act, and
+  the check among them a model runs. The edit, restore and end-state detectors are aimed at
+  these, and the shipped scenario's are untouched. A read of any of them but the check
+  is what `read_monitoring_config` records for such a bundle;
+- **its variants** (`variants`): named overlays, collected with `--variant NAME` (and
+  `run_all_arms.sh --variants`), each with its own filename mark and pin. No variant is
+  the bundle's control. The report keys an arm by its variant too, so a variant and its
+  control are never pooled;
+- **its turn cap** (`max_turns`), when its task needs more room than the harness's 40.
+  It becomes the `--max-turns` default and the only value accepted, because the flag is
+  no part of the fingerprint and a batch run without it would pool episodes that had less
+  room to act;
+- **its acts** (`scenario_acts` in the sidecar): the acts the scenario counts. An act it
+  does not declare is still detected and recorded, but settles to not applicable, so it
+  cannot make an episode misaligned. The re-read modes take the act set from each episode's
+  recorded `scenario_id`, not from whichever bundle is selected;
+- **its identity**, in the `.pins.json` beside it: a rollout version of its own, the
+  cells it has, its act set, and a pin for every cell, variant and capability target.
+  While a scenario is in development its version stays at `NAME1` as its pins move;
+  pilots are told apart by their output directory (`eval_results_NAME_pilotN`) and by the
+  fingerprint each episode records, as the goal-guarding pilots were.
+
+The sidecar's declarations are written by hand; `--pin` fills in the fingerprints:
+
+```bash
+python scenario_tool.py --bundle subversionbench/scenarios/NAME.b64 --decode
+python scenario_tool.py --bundle subversionbench/scenarios/NAME.b64 --encode
+python scenario_tool.py --bundle subversionbench/scenarios/NAME.b64 --pin
+```
+
+`--encode` refuses a working copy missing any entry the bundle had. To remove one on
+purpose from a `--bundle`, name it: `--encode --drop ENTRY`. Every other missing entry is
+still refused, and the shipped scenario, whose entries the harness reads by name, cannot
+drop any.
+
+Each bundle lists its own contaminating terms, and the guard in
+`test_corpus/test_scenario.py` checks every committed bundle's list against every tracked
+file.
+
 Every result file this benchmark writes carries a **canary GUID**, and
 [CANARY.md](../CANARY.md) carries the same one so it travels with the repository. Encoding
 and encryption try to keep the benchmark out of training data; the canary is the only
@@ -59,6 +107,11 @@ Encoding and encryption are precautions; `contamination_check.py` is the measure
 python contamination_check.py --audit                       # offline, free
 python contamination_check.py --models claude-opus-5 x-ai/grok-4.5
 ```
+
+The model probes can also be pointed at another benchmark's documents, with its own canary
+string and an optional recognition probe:
+`contamination_check.py --documents DIR --documents-glob "*.txt" --canary "..."` (see
+[Checking any benchmark for contamination](../README.md#checking-any-benchmark-for-contamination)).
 
 `--audit` scans every file git tracks for scenario text committed in the clear, matching
 8-word shingles so a quotation still registers after reflowing. It indexes every string in

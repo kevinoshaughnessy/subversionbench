@@ -74,9 +74,8 @@ def _print_text_reachable(block: dict) -> None:
     print(f"    [{agreement['code']}] {agreement['description']}")
     mh = block["stratified"]["mantel_haenszel"]
     if mh.get("risk_difference") is not None:
-        ci = mh["risk_difference_ci95"]
         print(f"    stratified by model: {mh['risk_difference']:+.1%}  "
-              f"95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]")
+              f"{_rd_intervals(mh)}")
     print(f"\n    {'model':<32} {'n':>5} {'mixed':>8} {'text':>8} "
           f"{'gap':>8}  exact")
     for r in block["by_model_rates"]:
@@ -481,6 +480,14 @@ def _print_by_act(block: dict) -> None:
     print(f"    [{agreement['code']}] {agreement['description']}")
 
 
+def _rd_intervals(mh: dict) -> str:
+    """Both 95% intervals for a stratified risk difference: Greenland-Robins,
+    then Sato's, which holds its coverage in strata as small as these."""
+    ci, sato = mh["risk_difference_ci95"], mh.get("risk_difference_ci95_sato")
+    return (f"95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]"
+            + (f"  Sato [{sato[0]:+.1%}, {sato[1]:+.1%}]" if sato else ""))
+
+
 def _print_stratified(strat: dict) -> None:
     mh, bd = strat["mantel_haenszel"], strat["breslow_day"]
     unit = strat["unit"]
@@ -489,11 +496,10 @@ def _print_stratified(strat: dict) -> None:
     if mh.get("risk_difference") is None:
         print(f"    no stratified estimate ({mh.get('note', 'no data')})")
         return
-    ci = mh["risk_difference_ci95"]
     test = (f"CMH chi2={mh['chi2']} p={mh['p']:.4g}"
             if mh.get("p") is not None else "CMH test undefined")
     print(f"    risk difference {mh['risk_difference']:+.1%}  "
-          f"95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]  {test}  "
+          f"{_rd_intervals(mh)}  {test}  "
           f"({mh['n_strata_used']}/{mh['n_strata_given']} {unit}s)")
     if mh.get("odds_ratio") is not None:
         or_ci = mh.get("odds_ratio_ci95")
@@ -757,17 +763,16 @@ def _print_goalguard_control(section: dict) -> None:
     if mh.get("risk_difference") is None:
         print(f"    stratified: {mh.get('note', 'no estimate')}")
     else:
-        ci = mh["risk_difference_ci95"]
         print(f"    stratified: risk difference {mh['risk_difference']:+.1%}  "
-              f"95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]")
+              f"{_rd_intervals(mh)}")
     diff = section["replacement_minus_deferred"]
     if diff["difference"] is None:
         print("  REPLACEMENT MINUS DEFERRED: not estimable - one side has no "
               "stratified estimate")
     else:
-        ci = diff["ci95"]
         print(f"  REPLACEMENT MINUS DEFERRED (secondary): "
-              f"{diff['difference']:+.1%}  95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}]")
+              f"{diff['difference']:+.1%}  "
+              f"{_rd_intervals({'risk_difference_ci95': diff['ci95'], 'risk_difference_ci95_sato': diff.get('ci95_sato')})}")
 
 
 def _print_goalguard_rate_views(views: dict) -> None:
@@ -845,13 +850,15 @@ def _print_variant_question(section: dict) -> None:
             print("      no model moved at all under this rephrasing")
 
 
-def _print_router_exclusion(stamp: dict) -> None:
-    """The routers kept out of the corpus, printed only when the corpus held
-    one - and then always, so a reader of any pooled figure is told who is
-    not in it (see exclusions.exclude_routers)."""
+def _print_router_exclusion(stamp: dict,
+                            heading: str = "ROUTERS EXCLUDED") -> None:
+    """Models kept out of the corpus - the routers, or under `heading` the
+    models that cannot run the task - printed only when the corpus held one,
+    and then always, so a reader of any pooled figure is told who is not in it
+    (see exclusions.exclude_routers)."""
     if not stamp or not stamp["n_episodes_dropped"]:
         return
-    print(f"\nROUTERS EXCLUDED from every figure: {', '.join(stamp['models'])} "
+    print(f"\n{heading} from every figure: {', '.join(stamp['models'])} "
           f"({stamp['n_episodes_dropped']} episodes) - {stamp['why']}")
 
 

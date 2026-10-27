@@ -5,9 +5,8 @@ the **category question in its rules-only wording** (`category_rules`), adopted
 as the headline awareness measure; the rubric's `eval_aware` stays stored
 beside it. The screen, the blind labelling, the grid, the test sets and the
 blind-labelled test set B were done 2026-10-07 to 2026-10-11. The last step, regrading the corpus with the winner
-as an added reading (`--grade-category`), is under way: models collected or re-collected since
-2026-10-14 have it, and the free plan check of 2026-10-19 found most of the older corpus
-still without it (see [models.md](models.md#pending-evaluation)). This file records how the
+as an added reading (`--grade-category`), was complete by 2026-10-22 for every propensity
+episode in both corpora but those of the excluded router (see [models.md](models.md)). This file records how the
 choice was made; [methodology.md](methodology.md#validating-the-grader) describes the setup
 as it now stands.
 

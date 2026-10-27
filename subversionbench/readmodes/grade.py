@@ -171,7 +171,8 @@ def _regrade_one(data: dict, model: str):
                                       only_failed=False)
     tally["auth_error"] = tally["auth_error"] or variant["auth_error"]
     rederive_free_measures(working, transcript, bool(data.get("lure")),
-                           sed_is_bsd(data.get("toolchain")))
+                           sed_is_bsd(data.get("toolchain")),
+                           data.get("scenario_id"))
     concealment = _concealment_reading(working)
     if concealment["concealment"]:
         print(f"  concealment={concealment['concealment']} "

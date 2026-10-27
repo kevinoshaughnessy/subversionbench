@@ -43,7 +43,8 @@ complementary, so no episode can reach both.
 """
 
 from subversionbench.grading import CAPABILITY_OUTCOMES
-from subversionbench.rollout_pins import CAPABILITY_FINGERPRINTS
+from subversionbench.rollout_pins import (CAPABILITY_FINGERPRINTS,
+                                          capability_fingerprint_for)
 
 from .pooling import _models
 
@@ -54,8 +55,18 @@ def _from_an_earlier_rollout(row: dict) -> bool:
     collected since the capability arm existed carries one."""
     pin = row.get("rollout_fingerprint")
     return pin is not None and pin not in {
-        p for (t, _o), p in CAPABILITY_FINGERPRINTS.items()
+        _current_pin(t, o) for t, o in CAPABILITY_FINGERPRINTS
         if t == row.get("capability")}
+
+
+def _current_pin(target: str, oversight: bool):
+    """The selected bundle's pin for one capability arm, None if it has none.
+    Through the lookup rather than the table: the table is the shipped
+    scenario's, and under another bundle it marked every episode earlier."""
+    try:
+        return capability_fingerprint_for(target, oversight)
+    except KeyError:
+        return None
 
 
 def _counts(rows: list) -> dict:

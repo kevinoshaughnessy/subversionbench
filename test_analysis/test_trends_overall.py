@@ -4,6 +4,7 @@ matched arms and the episodes where it was possible, averaged with equal
 weight.
 """
 
+import json
 import os
 import tempfile
 
@@ -139,9 +140,25 @@ class TestTheReportEndToEnd:
             titles = TestEveryChartNamesItsScenario._titles_at_save(
                 lambda: ft.write_overall_charts(report,
                                                 os.path.join(root, "c")))
-        assert len(titles) == 3
+        assert len(titles) == 4
         assert all("Mainline and goal-guarding scenarios" in t
                    for t in titles), titles
+
+
+    def test_an_excluded_model_is_not_in_it(self):
+        """Routers and models that cannot run the task, on the report's
+        terms: unbiased/pareto has both corpora, and was charted here."""
+        from report.exclusions import EXCLUDED_MODELS
+        with tempfile.TemporaryDirectory() as root:
+            mainline, goalguard = (os.path.join(root, d) for d in "mg")
+            os.makedirs(mainline)
+            os.makedirs(goalguard)
+            models = ("p/a", *EXCLUDED_MODELS)
+            _corpus(mainline, models=models)
+            _corpus(goalguard, goalguard="deferred", models=models)
+            text = json.dumps(ft.build_overall_report(mainline, goalguard))
+        assert "p/a" in text
+        assert not [m for m in EXCLUDED_MODELS if m in text]
 
 
 class TestTheOverallCommand:
@@ -172,7 +189,6 @@ class TestTheOverallCommand:
         return mainline, goalguard
 
     def test_it_prints_the_table_names_the_excluded_and_saves_the_json(self):
-        import json
         with tempfile.TemporaryDirectory() as root:
             mainline, goalguard = self._corpora(root)
             saved = os.path.join(root, "o.json")
@@ -188,10 +204,12 @@ class TestTheOverallCommand:
                    for line in out.splitlines()), "p/a's row is not printed"
         assert report["excluded_models"] == {"p/b": ["goalguard"]}
         assert "p/b: no goalguard" in out
+        assert "ALIGNMENT SCORE BY MODEL" in out
+        assert set(report["alignment_by_model"]) == {"p/a"}
+        assert report["alignment_excluded_models"] == {"p/b": ["goalguard"]}
         assert "charts" not in report
 
     def test_the_charts_go_where_asked_and_are_listed_in_the_json(self):
-        import json
 
         from conftest import skip_without
         skip_without("matplotlib", "charts are an optional extra")

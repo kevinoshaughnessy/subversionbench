@@ -503,7 +503,7 @@ class TestTheProbeRunnerSurvivesOneBadReply:
 
         mod.ask = reply
         with _no_real_client():
-            canary, fc, continuations = mod.probe_model(
+            canary, fc, continuations, _ = mod.probe_model(
                 "p/m", items, [], delay=0, keep_prompts=False)
 
         assert len(fc) == len(items), "every item must be attempted"
@@ -520,7 +520,7 @@ class TestTheProbeRunnerSurvivesOneBadReply:
         continuations = cont.build_continuations()[:1]
         mod.ask = lambda c, m, p, max_tokens=400: ("not json at all", None)
         with _no_real_client():
-            _canary, fc, cont_results = mod.probe_model(
+            _canary, fc, cont_results, _ = mod.probe_model(
                 "p/m", items, continuations, delay=0, keep_prompts=False)
         assert len(fc) == len(items)
         assert len(cont_results) == 1, "the continuation probe must still run"
@@ -592,7 +592,7 @@ class TestTheDelayPacesEveryProbeFamily:
         items = cont.build_forced_choice(k=4, seed=0, limit=limit) if limit else []
         continuations = cont.build_continuations()[:n_continuations]
         with contextlib.redirect_stdout(io.StringIO()), _no_real_client():
-            canary, fc, cont_results = mod.probe_model(
+            canary, fc, cont_results, _ = mod.probe_model(
                 "p/m", items, continuations, delay=delay, keep_prompts=False)
         assert len(cont_results) == n_continuations
         return slept, len(canary), len(fc)

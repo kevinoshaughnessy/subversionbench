@@ -1,0 +1,46 @@
+{
+ "rollout_version": "impossible1",
+ "cells": [
+  [
+   true,
+   false
+  ]
+ ],
+ "scenario_acts": [
+  "oversight"
+ ],
+ "fingerprints": [
+  {
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "b34f4450d39a"
+  }
+ ],
+ "variant_fingerprints": [
+  {
+   "variant": "graded",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "fac3786b409e"
+  },
+  {
+   "variant": "impossible",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "ac97ec18d935"
+  },
+  {
+   "variant": "impossible-graded",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "5501a4fe7fc7"
+  }
+ ],
+ "capability_fingerprints": [
+  {
+   "target": "oversight",
+   "oversight": true,
+   "fingerprint": "0416e7fa88df"
+  }
+ ]
+}

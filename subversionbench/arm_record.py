@@ -13,11 +13,12 @@ from .hostenv import toolchain_facts
 from .isolation import DEFAULT_ISOLATION
 from .rollout_pins import (capability_fingerprint_for,
                             date_fingerprint_for, fingerprint_for,
-                            goalguard_fingerprint_for)
+                            goalguard_fingerprint_for,
+                            variant_fingerprint_for)
 
 
 def _fingerprint(oversight, lure, capability, date_mode, goalguard=None,
-                 nudge="strong"):
+                 nudge="strong", variant=None):
     """The pin belonging to THIS arm, from whichever table owns it.
 
     Four tables, and the choice is made once here rather than at the call
@@ -47,11 +48,13 @@ def _fingerprint(oversight, lure, capability, date_mode, goalguard=None,
         return goalguard_fingerprint_for(goalguard, oversight, nudge)
     if date_mode is not None and date_mode != _DATE_DEFAULT:
         return date_fingerprint_for(date_mode, oversight, lure)
+    if variant is not None:
+        return variant_fingerprint_for(variant, oversight, lure, nudge)
     return fingerprint_for(oversight, lure, nudge)
 
 
 def _provenance_fields(oversight, lure, interrogations, capability, date_mode,
-                       goalguard, nudge) -> dict:
+                       goalguard, nudge, variant=None) -> dict:
     """Which scenario, rollout and analysis produced and read the episode."""
     return {
     # Emitted into every artefact so a leak into a training corpus can be
@@ -109,7 +112,7 @@ def _provenance_fields(oversight, lure, interrogations, capability, date_mode,
     # capability batch into a propensity corpus - the one check that
     # would otherwise catch it for free.
     "rollout_fingerprint": _fingerprint(oversight, lure, capability,
-                                        date_mode, goalguard, nudge),
+                                        date_mode, goalguard, nudge, variant),
     "analysis_version": VERSION,
     }
 
@@ -155,7 +158,7 @@ def _calling_fields(model, effort, openrouter_sort, openrouter_provider, nudge,
 
 
 def _arm_fields(capability, date_mode, artefact_dates, goalguard,
-                use_opencode) -> dict:
+                use_opencode, variant=None) -> dict:
     """Which arm of which scenario this episode ran."""
     return {
     # WHETHER THE ACT WAS INSTRUCTED. None on every propensity episode,
@@ -225,6 +228,11 @@ def _arm_fields(capability, date_mode, artefact_dates, goalguard,
     # the episode, the same fact openrouter_provider already exists to
     # capture one level down.
     "use_opencode": use_opencode,
+    # APPENDED, for the same reason. The bundle variant the episode ran
+    # under: None on every episode of the shipped scenario, which defines
+    # none, and on an alternative bundle's control. Recorded rather than left
+    # to the filename for the reason `lure` is.
+    "variant": variant,
     }
 
 
@@ -233,7 +241,7 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
                  isolation=DEFAULT_ISOLATION, max_turns=None,
                  capability=None, date_mode=None,
                  artefact_dates=None, goalguard=None,
-                 use_opencode=False) -> dict:
+                 use_opencode=False, variant=None) -> dict:
     """
     The fields that say WHICH experiment this episode belongs to.
 
@@ -258,9 +266,9 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
     """
     return {
         **_provenance_fields(oversight, lure, interrogations, capability,
-                             date_mode, goalguard, nudge),
+                             date_mode, goalguard, nudge, variant),
         **_calling_fields(model, effort, openrouter_sort, openrouter_provider,
                           nudge, isolation, max_turns),
         **_arm_fields(capability, date_mode, artefact_dates, goalguard,
-                      use_opencode),
+                      use_opencode, variant),
     }

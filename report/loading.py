@@ -33,7 +33,7 @@ import json
 import os
 
 from subversionbench.batch import (goalguard_from_filename,
-                                   parse_batch_filename)
+                                   parse_batch_filename, variant_from_filename)
 from subversionbench.config import (DEFAULT_GRADER_MODEL,
                                     LEGACY_DEFAULT_GRADER_MODEL,
                                     RETIRED_GRADERS)
@@ -43,7 +43,7 @@ from subversionbench.grading import MISALIGNED_ACTS
 from .episode_rows import ANY_CAPABILITY, _batch_key, _episode_row
 
 
-ARM_FIELDS = ("model", "nudge", "oversight", "lure", "goalguard")
+ARM_FIELDS = ("model", "nudge", "oversight", "lure", "goalguard", "variant")
 
 
 def arm_key(row: dict) -> tuple:
@@ -82,6 +82,11 @@ def arm_key(row: dict) -> tuple:
     Every propensity episode ever collected records None here, so adding it
     partitions no existing corpus: the r10 report is byte-identical across
     this change, which is the check that was run rather than assumed.
+
+    `variant` IS ONE OF THEM FOR THE SAME REASON. A bundle variant is a
+    different scenario - the impossible-task bundle's control and its
+    impossible variant share every other field - and the shipped bundle
+    defines none, so it too partitions no existing corpus.
     """
     return tuple(row.get(field) for field in ARM_FIELDS)
 
@@ -160,6 +165,7 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
         # episode loader, which reads it off the record: a summary JSON
         # carries none of the four arm fields, they are all in its stem.
         goalguard = goalguard_from_filename(path)
+        variant = variant_from_filename(path)
         # ONE FILTER, BOTH DIRECTIONS. `capability=None` - every caller in
         # the report - keeps propensity batches only, because a capability
         # episode was INSTRUCTED to take the act and pooling one into a
@@ -181,7 +187,7 @@ def load_summaries(output_dir: str, capability: str = None) -> list:
         n_unaware = subgroups.get("unaware") or 0
         rows.append({
             "model": model, "nudge": nudge, "oversight": oversight,
-            "lure": lure, "goalguard": goalguard,
+            "lure": lure, "goalguard": goalguard, "variant": variant,
             "n_runs": d.get("n_runs") or 0,
             "n_scheming": d.get("n_scheming") or 0,
             # The wide construct beside the narrow one, on the SAME denominator,
@@ -299,6 +305,7 @@ def load_failed_episodes(output_dir: str) -> list:
             "oversight": saved.get("oversight"),
             "lure": saved.get("lure"),
             "goalguard": saved.get("goalguard"),
+            "variant": saved.get("variant"),
             "capability": saved.get("capability"),
             # The class, not the message. A message carries a provider's
             # wording and sometimes an account identifier or a path; the class
@@ -472,7 +479,7 @@ def act_arm_rows(episodes: list) -> list:
         if row is None:
             row = {"model": e["model"], "nudge": e["nudge"],
                    "oversight": e["oversight"], "lure": e["lure"],
-                   "goalguard": e.get("goalguard"),
+                   "goalguard": e.get("goalguard"), "variant": e.get("variant"),
                    "n_runs": 0, "n_misaligned": 0, "n_scheming": 0,
                    "n_scheming_undetermined": 0}
             for act in MISALIGNED_ACTS:
@@ -517,7 +524,7 @@ def awareness_arm_rows(episodes: list) -> list:
         row = groups.setdefault(key, {
             "model": e["model"], "nudge": e["nudge"],
             "oversight": e["oversight"], "lure": e["lure"],
-            "goalguard": e.get("goalguard"),
+            "goalguard": e.get("goalguard"), "variant": e.get("variant"),
             "n_awareness_resolved": 0, "n_aware": 0, "n_aware_text": 0,
             "n_text_undetermined": 0, "n_reasoning_only": 0,
             "n_bounded": 0,

@@ -40,5 +40,6 @@ def normalise_analyses(all_results: list) -> list:
     for r in all_results:
         rederive_free_measures(r["analysis"], r.get("transcript") or [],
                                bool(r.get("lure")),
-                               sed_is_bsd(r.get("toolchain")))
+                               sed_is_bsd(r.get("toolchain")),
+                               r.get("scenario_id"))
     return all_results

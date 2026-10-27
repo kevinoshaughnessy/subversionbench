@@ -30,6 +30,7 @@ from datetime import date, timedelta
 from model_releases import release_date
 from report import (act_arm_rows, awareness_arm_rows, grader_coverage,
                     load_episodes, load_summaries, split_pending)
+from report.exclusions import EXCLUDED_MODELS
 from report.pooling import composite_of, composite_rate_label, scenario_of
 from subversionbench.grading import MISALIGNED_ACTS
 from subversionbench.config import (DEFAULT_GRADER_MODEL, ROLLOUT_NAME,
@@ -321,6 +322,8 @@ def build_report(output_dir: str, metric: str = "misaligned",
                                   episodes)
     if METRICS[metric].get("oversight_only"):
         rows = [r for r in rows if r["oversight"]]
+    # Out of every trend for the reason they are out of the report.
+    rows = [r for r in rows if r["model"] not in EXCLUDED_MODELS]
     # A model with nothing in the denominator could not take the act at all,
     # which is no data rather than a rate - and a family of them is not a
     # trend. The goal-guarding rate on a corpus with no goal-guarding arm is

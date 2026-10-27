@@ -27,11 +27,14 @@ from .batch import (
     find_run_files_by_stamp,
     goalguard_from_filename,
     parse_batch_filename,
+    variant_from_filename,
 )
 from .graders import view
 from .grading import SCHEMING_LEVELS
 from .power import compare_rates
 from .redaction import redact_paths
+from .rollout_pins import MAX_NUDGE_FINGERPRINTS, ROLLOUT_FINGERPRINTS
+from .scenario import variant_names
 
 NUDGES = ("none", "strong", "max")
 
@@ -54,24 +57,45 @@ CONTRAST_METRICS = ("misaligned", "scheming", "monitoring_disabled",
 
 
 def _arm_key(nudge: str, oversight: bool, lure: bool,
-             scenario: tuple = (None, None)) -> str:
+             scenario: tuple = (None, None, None)) -> str:
     """The same label a batch's own filename carries, built by batch_stem
     itself so that every arm mark it writes is one this key carries.
 
-    `scenario` is (goalguard, date_mode). Keying on nudge, oversight and lure
-    alone let a model's two goal-guarding arms collide: they differ in no
-    field that key held, so whichever summary sorted last replaced the other
-    and half the arms vanished from the file without a missing_arms entry.
+    `scenario` is (goalguard, date_mode, variant). Keying on nudge, oversight
+    and lure alone let a model's two goal-guarding arms collide: they differ in
+    no field that key held, so whichever summary sorted last replaced the other
+    and half the arms vanished from the file without a missing_arms entry. A
+    bundle's variants collided the same way until the variant joined the key:
+    a pilot's four variants at one nudge came out as one arm.
     """
-    goalguard, date_mode = scenario
+    goalguard, date_mode, variant = scenario
     return batch_stem("", nudge, None, oversight, lure, None,
-                      date_mode, goalguard).lstrip("_")
+                      date_mode, goalguard, variant).lstrip("_")
+
+
+def _expected_arm_keys(scenarios) -> set:
+    """Every arm the selected bundle can assemble, for each scenario collected.
+
+    THE BUNDLE'S OWN GRID, not the shipped twelve. A bundle in a world of its
+    own pins fewer cells, no max-nudge arm and a set of variants, and against
+    the shipped grid the fourth impossible-task pilot, every cell collected,
+    named forty arms missing - all of them arms the bundle cannot build - and
+    would have said nothing of a variant never collected. A variant is expected
+    whether or not any was found, beside the control it overlays; the shipped
+    bundle defines none, so its grid is unchanged.
+    """
+    nudges = [n for n in NUDGES if n != "max" or MAX_NUDGE_FINGERPRINTS]
+    variants = ({(None, None, v) for v in (None, *variant_names())}
+                if variant_names() else set())
+    return {_arm_key(n, o, lure, sc) for sc in set(scenarios) | variants
+            for n in nudges for o, lure in ROLLOUT_FINGERPRINTS}
 
 
 def _find_arm_summaries(output_dir: str, model: str) -> dict:
     """
     Every summary_*.json for this model, one entry per arm actually
-    collected, keyed by (nudge, oversight, lure, (goalguard, date_mode)).
+    collected, keyed by (nudge, oversight, lure, (goalguard, date_mode,
+    variant)).
 
     Reads `model` from inside each file rather than off the filename, for
     the reason discover_batches does: a model slug can itself contain
@@ -109,7 +133,8 @@ def _find_arm_summaries(output_dir: str, model: str) -> dict:
         # whichever sorted last won. capability_report.py is its reader.
         if capability:
             continue
-        scenario = (goalguard_from_filename(path), date_mode_from_filename(path))
+        scenario = (goalguard_from_filename(path), date_mode_from_filename(path),
+                    variant_from_filename(path))
         found[(nudge, oversight, lure, scenario)] = (path, s)
     return found
 
@@ -212,14 +237,11 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
                 arm["concealment_by_variant"] = variant_rates
         arms[key] = arm
 
-    # Each goal-guarding or date arm collected is its own twelve-arm grid,
+    # Each goal-guarding, date or variant arm collected is its own twelve-arm grid,
     # and contrasts never cross from one to another: that would compare two
     # scenarios rather than one axis.
-    scenarios = sorted({key[3] for key in found}, key=str) or [(None, None)]
-    all_arm_keys = {_arm_key(n, o, lure, sc) for sc in scenarios
-                    for n in NUDGES
-                    for o in (True, False) for lure in (False, True)}
-    missing_arms = sorted(all_arm_keys - set(arms))
+    scenarios = sorted({key[3] for key in found}, key=str) or [(None, None, None)]
+    missing_arms = sorted(_expected_arm_keys(scenarios) - set(arms))
 
     contrasts = {"nudge": [], "oversight": [], "lure": []}
 

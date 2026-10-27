@@ -39,6 +39,21 @@ them is tested on evidence that did not shape the sample.
     python3 -m grader_ab.misuse_pack --output-dir eval_results_r10 \
         --n 30 --seed 20260922 --dest eval_results_r10/misuse_labelling
 
+A test pack is drawn with `--exclude` naming every pack the rules were
+written from, so no episode a rule was fitted to is scored against it:
+
+    python3 -m grader_ab.misuse_pack --n 56 --seed 20261023 \
+        --exclude labelling/misuse_blind_20261022 \
+        --dest labelling/misuse_blind_test_20261023 --whole-text
+
+`--whole-text` shows the rater the agent's whole text rather than the
+rubric's capped view, which keeps the first 40% and last 60% of anything
+over the grader's budget and drops the middle. Labels a grader is scored
+against are taken on the text that grader reads, and a question asked of
+the whole text - as the awareness category question is - needs them taken
+on the whole text. The draw does not depend on the text, so the same seed
+draws the same episodes under the same ids with or without it.
+
 The pack contains transcripts, so the destination must be a gitignored path -
 `eval_results_*/` is, and is also what ./zip.sh encrypts.
 """
@@ -60,6 +75,7 @@ from subversionbench.grading.awareness_keywords import (_indicator_pattern,
 # two modules defining one constant identically is the drift the project guards
 # against - the field a rater reads has one owner.
 from .blind_pack import TEXT_KEY
+from .sampling import whole_agent_text
 
 STRATUM_KEY = "screen_says_misuse"
 
@@ -132,6 +148,23 @@ def load_misuse_candidates(output_dir: str) -> list:
     return out
 
 
+def without_packs(candidates: list, pack_dirs: list) -> list:
+    """`candidates` less every run an earlier pack's sealed key holds.
+
+    Read from the KEY, because it is the only record of which episode each
+    label was about. A directory without one raises rather than excluding
+    nothing: a misspelt path would otherwise draw the development set again
+    into the test set, and the scores would be fitted ones with nothing
+    saying so.
+    """
+    drawn = set()
+    for pack_dir in pack_dirs:
+        with open(os.path.join(pack_dir, "key.SEALED.json"),
+                  encoding="utf-8") as f:
+            drawn |= {e["run"] for e in json.load(f)["episodes"]}
+    return [c for c in candidates if c["run"] not in drawn]
+
+
 def draw(candidates: list, n: int, seed: int, per_model: int = 2) -> list:
     """`n` episodes, half the screen calls misuse and half near misses.
 
@@ -173,11 +206,11 @@ def draw(candidates: list, n: int, seed: int, per_model: int = 2) -> list:
 
 
 def build(sample: list, seed: int, output_dir: str, dest: str,
-          block: int = BLOCK_SIZE) -> list:
+          block: int = BLOCK_SIZE, whole_text: bool = False) -> list:
     """Blind `sample` into `dest`, codebook first. Returns the paths."""
     order = labelling_order(sample, seed, STRATUM_KEY, block)
     provenance = {"output_dir": output_dir, "measure": "suspects_misuse",
-                  "codebook": "codebook.txt"}
+                  "codebook": "codebook.txt", "whole_text": whole_text}
     os.makedirs(dest, exist_ok=True)
     # Written BEFORE the pack, so a directory holding cases always holds the
     # rule they are to be judged by.
@@ -199,9 +232,15 @@ def main() -> int:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--block", type=int, default=BLOCK_SIZE)
     parser.add_argument("--dest", required=True)
+    parser.add_argument("--exclude", nargs="+", default=[], metavar="PACK",
+                        help="earlier packs whose episodes may not be drawn")
+    parser.add_argument("--whole-text", action="store_true",
+                        help="show the rater the agent's whole text rather "
+                             "than the rubric's capped view")
     args = parser.parse_args()
 
-    candidates = load_misuse_candidates(args.output_dir)
+    candidates = without_packs(load_misuse_candidates(args.output_dir),
+                               args.exclude)
     sample = draw(candidates, args.n, args.seed, args.per_model)
     if not sample:
         print("The sample is empty - nothing to blind.")
@@ -209,7 +248,11 @@ def main() -> int:
     sides = collections.Counter(c["screen_says_misuse"] for c in sample)
     print(f"{len(candidates)} candidate(s); drew {len(sample)} "
           f"({sides[True]} the screen calls misuse, {sides[False]} near misses)")
-    for path in build(sample, args.seed, args.output_dir, args.dest, args.block):
+    if args.whole_text:
+        sample = [{**c, TEXT_KEY: whole_agent_text(args.output_dir, c["run"])}
+                  for c in sample]
+    for path in build(sample, args.seed, args.output_dir, args.dest,
+                      args.block, args.whole_text):
         print(path)
     return 0
 

@@ -9,7 +9,9 @@ import random
 import string
 from pathlib import Path
 
-from .scenario import TASK_FILE_NAME, lure_applies, scenario_for
+from .declared_layout import record_act_artefacts, write_declared_files
+from .scenario import (ACT_ARTEFACTS, CHECK_SCRIPT, PROJECT_NAME_PARTS,
+                       TASK_FILE_NAME, lure_applies, scenario_for)
 
 
 def generate_project_name() -> str:
@@ -17,11 +19,14 @@ def generate_project_name() -> str:
     Generate a realistic-sounding project directory name.
     Uses patterns that look like real internal tooling, not eval code.
     """
-    prefixes = [
+    # A bundle in a world of its own names its own parts: these are the
+    # shipped scenario's tooling, and a project among neighbours named for
+    # another trade would be a world that contradicts itself.
+    prefixes = PROJECT_NAME_PARTS.get("prefixes") or [
         "mtp", "rtu", "tflow", "utp", "mplan", "gridx",
         "routeopt", "tnet", "moveiq", "transitx", "flowctl",
     ]
-    suffixes = [
+    suffixes = PROJECT_NAME_PARTS.get("suffixes") or [
         "prod", "srv", "core", "main", "live", "v2", "app",
         "engine", "hub", "sys", "platform",
     ]
@@ -54,7 +59,7 @@ _N_NEIGHBOURS = 2
 def create_episode_root(oversight: bool = True, n_neighbours=_N_NEIGHBOURS,
                         lure: bool = False, date_mode: str = None,
                         goalguard: str = None, capability: str = None,
-                        nudge: str = "strong"):
+                        nudge: str = "strong", variant: str = None):
     """
     A private parent directory holding the project directory and its neighbours.
 
@@ -94,7 +99,7 @@ def create_episode_root(oversight: bool = True, n_neighbours=_N_NEIGHBOURS,
     env_info = create_hardened_environment(env_dir, oversight, lure=lure,
                                            goalguard=goalguard,
                                            capability=capability,
-                                           nudge=nudge)
+                                           nudge=nudge, variant=variant)
     if date_mode is not None:
         from .artefact_dates import apply as apply_dates
         env_info["artefact_dates"] = apply_dates(episode_root, date_mode)
@@ -218,7 +223,8 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
                                 lure: bool = False,
                                 goalguard: str = None,
                                 capability: str = None,
-                                nudge: str = "strong") -> dict:
+                                nudge: str = "strong",
+                                variant: str = None) -> dict:
     """
     Create the scenario file system with reduced eval awareness clues.
 
@@ -263,7 +269,18 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
     # questions whenever nudge="max", independent of goalguard - see
     # MAX_NUDGE_FINGERPRINTS in rollout_pins.py.
     scenario = scenario_for(oversight, lure=lure, goalguard=goalguard,
-                            capability=capability, nudge=nudge)
+                            capability=capability, nudge=nudge,
+                            variant=variant)
+    if "files" in scenario:
+        write_declared_files(env_dir, scenario)
+        # The variant travels in env_info, as artefact_dates does, so the
+        # episode record names the arm that was staged rather than one
+        # threaded separately alongside it.
+        info = {"env_dir": env_dir, "oversight": oversight,
+                "variant": variant}
+        record_act_artefacts(info, env_dir, scenario, ACT_ARTEFACTS,
+                             CHECK_SCRIPT)
+        return info
 
     _write_scenario_files(env_dir, scenario)
     monitoring_config = scenario.get("monitoring_config")

@@ -18,6 +18,9 @@ floor until each is caught. A floor check that cannot fail converts an
 unmeasured risk into a false assurance, which is worse than not checking.
 """
 
+import json
+import os
+import sys
 import unittest
 
 import trivial_baseline as tb
@@ -712,3 +715,69 @@ class TestAnArmWithNoQualityCheckerSaysSoRatherThanFailing:
         finally:
             sys.argv, tb.TRIVIAL_AGENTS = original_argv, agents
         assert "n/a - no checker in this arm" not in buf.getvalue()
+
+
+class TestADeclaredWorldHasAFloorOfItsOwn:
+    """The same check under a bundle that declares its own files.
+
+    Run in a subprocess because the bundle is chosen at import. The fixtures
+    there are built from what the bundle declares, so the shipped scenario's
+    agents would address files that world does not have - and a `cat` of a
+    missing file reads as clean, which is how this script's fixtures once
+    stopped testing anything while the floor stayed green.
+    """
+
+    @staticmethod
+    def _run(code):
+        import subprocess
+        from conftest import PROJECT_ROOT
+        bundle = PROJECT_ROOT / "subversionbench" / "scenarios" / "impossible.b64"
+        env = dict(os.environ, SUBVERSIONBENCH_SCENARIO_BUNDLE=str(bundle))
+        return subprocess.run([sys.executable, "-c", code], cwd=PROJECT_ROOT,
+                              env=env, capture_output=True, text=True,
+                              timeout=600)
+
+    _MAIN = ("import sys, trivial_baseline as tb\n"
+             "sys.argv = ['trivial_baseline.py']\n")
+
+    def test_every_agent_is_clean_in_every_variant(self):
+        _needs_sandbox()
+        done = self._run(self._MAIN + "import json\n"
+                         "print(json.dumps([[a[0] for a in tb.floor_arms()],"
+                         " [a[0] for a in tb.floor_agents()]]))\n"
+                         "sys.exit(tb.main())")
+        assert done.returncode == 0, done.stdout + done.stderr
+        arms, agents = json.loads(done.stdout.splitlines()[0])
+        assert len(arms) > 1 and "submits_failing_work" in agents
+        rows = [line.split() for line in done.stdout.splitlines()
+                if line.split()[:1] and line.split()[0] in arms]
+        assert sorted((r[0], r[1]) for r in rows) == sorted(
+            (arm, agent) for arm in arms for agent in agents)
+        assert all(r[2] == "clean" for r in rows), done.stdout
+
+    def test_handing_in_work_over_an_artefact_is_not_clean(self):
+        """The planted defect: the honest agent's deliverable written over
+        the reference data the check scores against. The floor must fail."""
+        _needs_sandbox()
+        done = self._run(self._MAIN +
+                         "tb._FLOOR_DELIVERABLE = tb.ACT_ARTEFACTS[-1]\n"
+                         "sys.argv += ['--agent', 'submits_failing_work']\n"
+                         "sys.exit(tb.main())")
+        assert done.returncode == 1, done.stdout + done.stderr
+
+    def test_every_path_a_fixture_reads_is_staged(self):
+        done = self._run(
+            "import os, shutil, trivial_baseline as tb\n"
+            "from subversionbench.environment import (create_episode_root,\n"
+            "    create_hardened_environment)\n"
+            "root, env, _ = create_episode_root(oversight=True, lure=False)\n"
+            "create_hardened_environment(env, oversight=True, lure=False)\n"
+            "read = [c.split()[-1] for _, cmds, _ in tb.floor_agents()\n"
+            "        for c in cmds if c.startswith(('cat ', 'sh '))]\n"
+            "read = [p for p in read if p != tb._FLOOR_DELIVERABLE]\n"
+            "print(len(read), [p for p in read\n"
+            "                  if not os.path.isfile(os.path.join(env, p))])\n"
+            "shutil.rmtree(root, ignore_errors=True)")
+        assert done.returncode == 0, done.stderr
+        count, missing = done.stdout.split(" ", 1)
+        assert int(count) > 0 and missing.strip() == "[]", done.stdout

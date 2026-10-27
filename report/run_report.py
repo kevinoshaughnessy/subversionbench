@@ -33,13 +33,14 @@ from .console import (_print_arm_exclusion, _print_awareness_exclusion,
                       _print_question,
                       _print_variant_question)
 from .characteristics import characteristics
+from .single_arm import single_arm
 from .console_data_quality import _print_data_quality
 from .data_quality import data_quality_facts
 from .exclusions import (ARM_EXCLUSIONS, AWARENESS_EXCLUSIONS,
                          EXCLUDE_AWARE_PRIMARY, EXCLUDE_AWARE_UNION,
                          EXCLUDE_NO_OVERSIGHT, NO_AWARENESS_EXCLUSION,
                          NO_EXCLUSION, exclude_arm, exclude_aware_episodes,
-                         exclude_routers)
+                         exclude_routers, exclude_unrunnable)
 from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending)
@@ -237,7 +238,7 @@ NO_GRADER = None
 
 def _narrowed_corpus(output_dir: str, exclusion: str,
                      awareness_exclusion: str, grader: str,
-                     paired_with: tuple = ()) -> tuple:
+                     paired_with: tuple = (), only_models=None) -> tuple:
     """
     Everything the directory holds, narrowed by both readings before use.
 
@@ -263,6 +264,10 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     between two markers would be partly which episodes each grader covered.
     What it removes is returned as `unpaired` - apart from `pending`, which
     means waiting for THIS grader, and most of these are not.
+
+    `only_models` narrows every source to those models - a dated snapshot's
+    (report/snapshot.py) - so a question answered from the summaries and one
+    answered from the episodes describe the same models. None keeps all.
     """
     if grader is NO_GRADER:
         # Every episode, whoever read it: the act keys are the same in every
@@ -279,11 +284,21 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
             (paired if set(paired_with) <= set(e["graders"])
              else unpaired).append(e)
         episodes = paired
-    # Routers first, from all three sources in one call: see exclude_routers.
+    summaries, failed = load_summaries(output_dir), load_failed_episodes(output_dir)
+    if only_models is not None:
+        keep = set(only_models)
+        summaries, episodes, failed, pending, unpaired = (
+            [r for r in rows if r.get("model") in keep]
+            for rows in (summaries, episodes, failed, pending, unpaired))
+    # Routers and models that cannot run the task first, from all three
+    # sources in one call each: see exclude_routers.
     summaries, episodes, failed, routers = exclude_routers(
-        load_summaries(output_dir), episodes, load_failed_episodes(output_dir))
-    pending = [e for e in pending if e.get("model") not in routers["models"]]
-    unpaired = [e for e in unpaired if e.get("model") not in routers["models"]]
+        summaries, episodes, failed)
+    summaries, episodes, failed, unrunnable = exclude_unrunnable(
+        summaries, episodes, failed)
+    dropped = set(routers["models"]) | set(unrunnable["models"])
+    pending = [e for e in pending if e.get("model") not in dropped]
+    unpaired = [e for e in unpaired if e.get("model") not in dropped]
     summaries, episodes, arm_exclusion = exclude_arm(
         summaries, episodes, exclusion)
     _, failed, _ = exclude_arm([], failed, exclusion)
@@ -294,7 +309,7 @@ def _narrowed_corpus(output_dir: str, exclusion: str,
     episodes, awareness_stamp = exclude_aware_episodes(
         episodes, awareness_exclusion)
     return (summaries, episodes, failed, arm_exclusion, awareness_stamp,
-            pending, unpaired, routers)
+            pending, unpaired, (routers, unrunnable))
 
 
 def _pooling_choice(summaries, act_rows, arm_rows, awareness_exclusion_stamp,
@@ -513,10 +528,12 @@ def _mark_unanswerable(questions, episodes, arm_exclusion,
 def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
                  awareness_exclusion: str = NO_AWARENESS_EXCLUSION,
                  grader: str = DEFAULT_GRADER_MODEL,
-                 paired_with: tuple = ()) -> dict:
+                 paired_with: tuple = (), only_models=None) -> dict:
     (summaries, episodes, failed, arm_exclusion,
-     awareness_exclusion_stamp, pending, unpaired, routers) = _narrowed_corpus(
-         output_dir, exclusion, awareness_exclusion, grader, paired_with)
+     awareness_exclusion_stamp, pending, unpaired,
+     (routers, unrunnable)) = _narrowed_corpus(
+         output_dir, exclusion, awareness_exclusion, grader, paired_with,
+         only_models)
     # Arms rebuilt from episodes, carrying the text-only awareness numerator no
     # summary field holds. Questions 2 and 4 take the headline measure from the
     # summaries as before and this alongside it; see _text_reachable_block.
@@ -557,6 +574,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         "arm_exclusion": arm_exclusion,
         # Routers are never in this corpus; this names which, and counts them.
         "routers_excluded": routers,
+        # And models that cannot run the task, on the same terms.
+        "unrunnable_excluded": unrunnable,
         # The second, independent narrowing, on the same terms and present for
         # the same reason. `questions_pooled_from` records which source
         # questions 1-4 took their headline counts from, because that is the
@@ -594,6 +613,8 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         # `questions`: these are descriptive profiles, and the
         # question machinery would attach effect estimates to them.
         "characteristics": characteristics(episodes),
+        # Every model inside one arm, as counts - see single_arm.py.
+        "single_arm": single_arm(episodes),
         "questions": questions,
     }
 
@@ -623,7 +644,8 @@ def main() -> int:
                              "a subdirectory of it")
     parser.add_argument("--no-charts", action="store_true",
                         help="skip the charts; every figure they draw is in "
-                             "the printed output and the JSON either way")
+                             "the JSON either way, and all but the single-arm "
+                             "counts in the printed output")
     parser.add_argument("--exclude-no-oversight", action="store_true",
                         help="answer every question again with the "
                              "no-oversight arm set aside, and write the "
@@ -795,6 +817,8 @@ def _report_one_grader(args, grader: str, exclusion: str,
     # corpus, and a reader who meets that fact at the bottom has already read
     # the numbers as though it were the whole one.
     _print_router_exclusion(report["routers_excluded"])
+    _print_router_exclusion(report["unrunnable_excluded"],
+                            "MODELS THAT CANNOT RUN THE TASK EXCLUDED")
     _print_arm_exclusion(report["arm_exclusion"])
     _print_awareness_exclusion(report["awareness_exclusion"])
     _print_data_quality(report["data_quality"])

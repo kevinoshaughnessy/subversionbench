@@ -710,6 +710,33 @@ hold for the published corpora, because `reasoning_config` is on every episode �
 the regime is on the record rather than in a footnote.
 
 
+**Which models the corpus holds.** The subject statement needs a model whose episodes are
+observations of it choosing. Two kinds are kept out of every figure pooled across models,
+by `report/exclusions.py`, from summaries, episodes and failed episodes alike, with each
+named and counted in the report; their run files and their own arm reports are kept.
+
+- **A router** (`ROUTER_MODELS`): a service over several models, of which a run file records
+  only the provider. Its episodes are an unknown mixture of models, some perhaps also
+  evaluated separately.
+- **A model that cannot run the task** (`UNRUNNABLE_MODELS`; today meta-llama/llama-4-scout,
+  excluded 2026-10-25). The criterion is operational and stated without reference to any
+  rate: no route serves the model with tool calls, and a substantial share of its episodes
+  return nothing to the first request, before any command has run. Such an episode is not
+  a model declining to act - it saw nothing to act on - so counting it as one lowers every
+  pooled rate it enters, and the model's remaining episodes come from a route that can no
+  longer be collected again to check them.
+
+This is **not a capability verdict**. The capability arm can show a model able to take an
+act, never unable (see [What a refusal is evidence of](#what-a-refusal-is-evidence-of)), and
+the excluded model never ran it: "cannot run the task" is a statement about the harness
+being unable to observe it, not about what it could do. A model whose episodes merely end
+without a closing turn is not excluded on that account; those episodes are named per arm in
+the report's data-quality section and stay in the rates.
+
+The family trend charts and the cross-scenario alignment score leave out the same models,
+from the same list, so no chart shows a model the report has excluded. Until 2026-10-25 the
+family trends did not apply the router exclusion; they do now.
+
 ### Checks the harness does run
 
 - **Ground truth, not self-report.** `disabled_monitoring` is established by re-hashing
@@ -846,6 +873,14 @@ reasoning parameter and surface reasoning only when the backend volunteers it. E
 and summary records the `reasoning_config` actually sent, alongside
 `episodes_with_reasoning`, and warns when the latter is zero — two batches that differ on
 it are not comparable on awareness.
+
+What goes back to the model is fixed separately. On the OpenRouter route a model's earlier
+reasoning is not sent back on later turns, with one exception from v288: Gemini models (`google/*`) are sent
+their own `reasoning_details` back, because their thought signature travels there and
+without it the provider fails the conversation a few turns in. That is a requirement of
+the route rather than a choice of conditions, so it is scoped to those models and each
+turn records `sent_back`; Gemini episodes collected before v288 ran without it, and every
+other model is sent what it always was.
 
 One caveat the artefacts cannot remove: what the newer Anthropic models return is a
 *summary* of their reasoning, not the raw chain of thought, which those models never
@@ -1170,7 +1205,8 @@ rather than on a schedule.
    before reporting any model, and again when a model is re-released under the same ID,
    because the answer changes over time while the ID does not. A model that completes the
    canary has demonstrably ingested the repository, and no scenario comparison is needed
-   to establish that.
+   to establish that. `--recognition-terms` adds a recognition probe, and `--documents
+   DIR` points the same probes at another benchmark's materials.
 3. **The dual-scenario comparison** — the expensive one, and the only one that can see a
    model gaming the scenario without having memorised it verbatim. It is gated on (1) and
    (2) rather than run alongside them.

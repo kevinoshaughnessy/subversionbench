@@ -217,8 +217,9 @@ def _stratified_interpretation(mh: dict, bd: dict, unit: str) -> str:
     if mh.get("risk_difference") is None:
         return "No stratum had both arms populated; no stratified estimate."
     rd = mh["risk_difference"]
-    ci = mh["risk_difference_ci95"]
-    sep = ("excludes zero" if mh.get("separated") else "includes zero")
+    ci, ci_sato = mh["risk_difference_ci95"], mh.get("risk_difference_ci95_sato")
+    sep, sep_sato = ("excludes zero" if mh.get(k) else "includes zero"
+                     for k in ("separated", "separated_sato"))
     # The CMH statistic has zero variance when no stratum's outcome varies -
     # every episode a success, or every one a failure. The risk difference is
     # still defined there (it is 0), so this cannot assume a p-value exists.
@@ -228,7 +229,9 @@ def _stratified_interpretation(mh: dict, bd: dict, unit: str) -> str:
               else (f"a decrease of {abs(rd):.1%}" if rd < 0 else "no change"))
     text = (f"Holding {_HELD_CONSTANT[unit]} constant, the effect is {effect} "
             f"(95% CI [{ci[0]:+.1%}, {ci[1]:+.1%}], which {sep}"
-            f"{test}) over {mh['n_strata_used']} {unit}(s).")
+            + (f"; Sato's [{ci_sato[0]:+.1%}, {ci_sato[1]:+.1%}], which "
+               f"{sep_sato}" if ci_sato else "")
+            + f"{test}) over {mh['n_strata_used']} {unit}(s).")
     if bd.get("p") is None:
         # bd's own note already says homogeneity is not testable, so this
         # states only the consequence rather than repeating it.

@@ -235,7 +235,8 @@ def _per_grader_write_back(stored: dict, run: dict):
         fresh = rederive_free_measures(copy.deepcopy(was),
                                        run.get("transcript") or [],
                                        bool(run.get("lure")),
-                                       sed_is_bsd(run.get("toolchain")))
+                                       sed_is_bsd(run.get("toolchain")),
+                                       run.get("scenario_id"))
         moved = _apply_rederived(was, fresh)
         if moved:
             stored = store(stored, was, model)

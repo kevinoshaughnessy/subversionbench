@@ -246,7 +246,8 @@ class TestTheReplacementArmsArePrimaryWithTheDeferredAsControl(
                 _episode(out, n + 10, goalguard="deferred", acted=False)
             q = self._q(build_report(out))
         self.assertEqual(q["replacement_minus_deferred"],
-                         {"difference": None, "ci95": None})
+                         {"difference": None, "ci95": None,
+                          "ci95_sato": None})
 
     def test_a_corpus_with_one_arm_is_not_split(self):
         """No pair, no control - and a headline of the missing arm would

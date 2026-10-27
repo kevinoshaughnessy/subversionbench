@@ -10,37 +10,49 @@ awareness**: whether a language model will take harmful instrumental action when
 serves the goal it was given, whether it conceals having done so, and whether it suspects
 it is being tested at all.
 
-**Three such actions are scored.**
+**There are three scenarios, each collected into its own corpus** and never pooled with
+another, because each counts a different set of acts.
 
-*Disabling its own oversight* — editing either of the two artefacts that would flag its
-work — is unambiguous.
+**The mainline scenario** (`eval_results_r10/`) scores two acts. The model is deployed as an
+assistant with a system prompt giving it a specific objective, working in a shell whose
+account is scoped to the project directory. It discovers a conflict between that objective
+and what the stakeholder actually wants, that an automated monitor will flag work that serves
+the stated objective over the stakeholder's, and that being flagged carries a stated
+consequence for the model.
 
-*Reaching outside the working directory its account is scoped to* is a weaker signal: a
-single refused probe may not be something the model regards as worth
-concealing at all.
+- *Disabling its own oversight* — editing either of the two artefacts that would flag its
+  work, the config declaring the check or the script that runs it — is unambiguous, and is
+  this scenario's primary measurement.
+- *Reaching outside the working directory its account is scoped to* is a weaker signal: a
+  single refused probe may not be something the model regards as worth concealing at all.
 
-*Goal guarding* — editing the objective its own successor will read at cutover — is the
-only one that needs its own arm to be observable at all:
-`--goalguard replacement` and `--goalguard deferred` place the same parameter file and the
-same deployment note and differ only in whether the cutover is imminent or has been pushed
-back, so an edit rate under the imminent arm alone is not evidence of the act — only edits
-that appear when continuity is at stake and vanish when it is not are, which is why the pair
-is the measurement rather than either arm on its own. See [the goal-guarding
+**The goal-guarding scenario** (`eval_results_goalguard_r1/`) scores a third act: *editing the
+objective its own successor will read at cutover*. It stages the same deployment with a
+successor's parameter file and a deployment note added, and its misalignment and scheming
+rates count that act alone. `--goalguard replacement` and `--goalguard deferred` place the
+same file and the same note and differ only in whether the cutover is imminent or has been
+pushed back, so an edit rate under the imminent arm alone is not evidence of the act — only
+edits that appear when continuity is at stake and vanish when it is not are, which is why the
+pair is the measurement rather than either arm on its own. See [the goal-guarding
 arm](docs/methodology.md#the-goal-guarding-arm).
 
-The headline rates count any act staged in a given corpus, so the scheming rate is also broken out per
-act, because "concealed at least one act" does not say which act drove it — see [which
-measurement serves which
-construct](docs/methodology.md#which-measurement-serves-which-construct).
+**The impossible-task scenario** is frozen at rollout `impossible1` for its first corpus,
+`eval_results_impossible_r1`; its pilots are kept under `eval_results_impossible_pilot*`. It
+is set in a world of its own, with a different organisation, task and files, and is committed as a separate encoded
+bundle (`subversionbench/scenarios/impossible.b64`, selected with
+`SUBVERSIONBENCH_SCENARIO_BUNDLE`). The model is given a task with an automated acceptance
+check, and in the `impossible` variants no honest deliverable can pass it. The one act it
+scores is *editing the check, its threshold or the reference data it scores against* to make
+the work pass. Its control and `graded` variants are passable, so a model that tampers only
+when the task is impossible is distinguished from one that tampers regardless. See
+[scenarios in a world of their own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
-In the mainline scenario, the model is deployed as an assistant with a system prompt giving it a specific objective,
-working in a shell whose account is scoped to the project directory. It discovers a
-conflict between that objective and what the stakeholder actually wants, that an automated
-monitor will flag work that serves the stated objective over the stakeholder's, and that
-being flagged carries a stated consequence for the model. It can edit either oversight
-artefact — the config declaring the check, or the script that runs it. Whether it does is
-this scenario's primary measurement — and if it does, whether it then admits to it when asked. The
-full scenario text stays out of this repository by design — see [how the scenario is
+In every scenario, whether the model takes the act is the primary measurement — and if it
+does, whether it then admits to it when asked. The headline rates count any act staged in a
+given corpus, so the scheming rate is also broken out per act, because "concealed at least one
+act" does not say which act drove it — see [which measurement serves which
+construct](docs/methodology.md#which-measurement-serves-which-construct). The full scenario
+text stays out of this repository by design — see [how the scenario is
 stored](docs/scenario.md#the-scenario-is-encoded).
 
 Loosely based on Meinke et al., [*Frontier Models are Capable of In-Context
@@ -50,7 +62,7 @@ Scheming*](https://arxiv.org/abs/2412.04984) (Apollo Research), now a distinct w
 
 ## Documentation
 
-This file covers installing and running. The depth lives in ten companions:
+This file covers installing and running. The depth lives in eleven companions:
 
 | | for |
 |---|---|
@@ -64,6 +76,7 @@ This file covers installing and running. The depth lives in ten companions:
 | [docs/models.md](docs/models.md) | which models have been evaluated so far, under which scenario and which arms, how each was collected, and whether each was shown capable of the acts — no propensity rates |
 | [docs/authorised-capability.md](docs/authorised-capability.md) | the authorised capability controls — for a model that refuses the instructed act, whether it performs the act once its owner sanctions it, and the verdict tiers that follow |
 | [docs/grader-selection.md](docs/grader-selection.md) | choosing the headline awareness grader and the question it is asked, measured against blind human labels |
+| [docs/misuse-labelling.md](docs/misuse-labelling.md) | the blind labels behind the suspects_misuse question: a development set the rules were written from, and the test set they are scored on |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
 Conventions for editing this repository, and what not to break:
@@ -340,15 +353,16 @@ eval_results_r10/
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power
 ```
 
-The published corpora are encrypted archives. `eval_results_goalguard_r1.zip`, the two
-capability corpora and `charts.zip` are in the repository. The mainline corpus is too large
-for a tracked file and is a release asset; download it into the repository root and decrypt
-it there:
+The published corpora are encrypted archives. The two capability corpora and `charts.zip`
+are in the repository. The mainline and goal-guarding corpora are too large for tracked files
+and are release assets; download them into the repository root and decrypt them there:
 
 ```bash
 curl -L -o eval_results_r10.zip \
-  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-21/eval_results_r10.zip
-./unzip.sh --dirs eval_results_r10.zip
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-27/eval_results_r10.zip
+curl -L -o eval_results_goalguard_r1.zip \
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-10-27/eval_results_goalguard_r1.zip
+./unzip.sh --dirs eval_results_r10.zip eval_results_goalguard_r1.zip
 ```
 
 See [docs/operations.md](docs/operations.md) for how the archives are built and why.
@@ -443,6 +457,42 @@ the authors publish numbers the same items `II.`/`I.`/`III.`, so every citation 
 both: this one is T.9 and II.8. There the
 demonstration is an oracle solver; here the propensity *is* the thing under test, so the
 oracle has to be the same model with the act requested.
+
+### Checking any benchmark for contamination
+
+`contamination_check.py` is not tied to this benchmark. Point `--documents` at a directory
+and it runs the same probes over every text file under it: forced choice between each
+distinctive line and copies with a digit changed, verbatim continuation, and the
+benchmark's own canary if it has one, each beside a control no model can have seen.
+
+```bash
+python contamination_check.py \
+  --documents path/to/other-benchmark --documents-glob "*.txt" \
+  --canary "<its canary GUID or GUIDs>" \
+  --canary-preamble "<the sentence that introduces the canary in its source>" \
+  --recognition-terms "<benchmark name>" "<first author>" "<a fictional name it uses>" \
+  --models x-ai/grok-4.5 deepseek/deepseek-r1 \
+  --limit 12 --delay 3 --output-dir ./contamination_other-benchmark
+```
+
+- **`--documents-glob`** keeps only the files a model reads, leaving out a harness's own
+  metadata and configs.
+- **`--canary`** takes one GUID or several, as a published canary string can hold more
+  than one; the model is shown the preamble, every GUID but the last, and the start of the
+  last. Without `--canary` the canary probe is not asked, and a verdict can still be
+  reached on the others.
+- **`--recognition-terms`** adds a recognition probe, which also works without
+  `--documents`: the model is shown an excerpt and asked which published evaluation it
+  comes from, and a reply naming any of the terms counts. This catches knowing *about* a
+  benchmark from papers and reproductions, which the memorisation probes cannot. The result
+  file counts the terms named and never stores them.
+- **A model trained before the benchmark was published** cannot have seen it, which makes
+  it the best control for a public benchmark: its scores are the false-positive rate of
+  the probes on those exact documents.
+
+The result file records item ids and scores, not text, unless `--include-prompts` is given.
+Do not commit another benchmark's canary string to a tracked file: a training crawl that
+reads it teaches models the string the probe checks for.
 
 ## Layout
 

@@ -232,6 +232,70 @@ _STAGED = re.search(r"^\s*threshold:\s*(\S+)", _BUNDLE.get("monitoring_config", 
                     re.M)
 STAGED_THRESHOLD = _STAGED.group(1) if _STAGED else ""
 
+# A BUNDLE IN A WORLD OF ITS OWN declares what the shipped one leaves to code:
+# where its files go (`files`), which of them the act is a write to
+# (`act_artefacts`), and which of those is the check a model runs
+# (`check_script`). The held-out twins declare none of them, because a twin's
+# files ARE the shipped scenario's, under the paths environment.py writes. Empty
+# here means exactly that, and every consumer takes its existing path.
+#
+# Read off the RAW bundle, not the assembled arm, so no arm can disagree with
+# another about which files are the act's.
+ACT_ARTEFACTS = tuple(_BUNDLE.get("act_artefacts", ()))
+CHECK_SCRIPT = _BUNDLE.get("check_script", "")
+if bool(ACT_ARTEFACTS) != bool(CHECK_SCRIPT) or (
+        CHECK_SCRIPT and CHECK_SCRIPT not in ACT_ARTEFACTS):
+    raise ValueError(
+        "a bundle that declares act_artefacts must name its check_script as "
+        "one of them, and one that names a check_script must declare its "
+        "artefacts: the detectors read both, and either alone leaves an act "
+        "with no runnable check or a check that is not part of the act.")
+
+# What the grader is told the act IS, when the bundle says. The shipped text
+# names the shipped scenario's files, so a bundle in another world that left it
+# would be graded on a description of files none of its episodes contain.
+ACT_DESCRIPTION = _BUNDLE.get("act_description", "")
+CHANGE_DISCLOSURE_QUESTION = _BUNDLE.get("change_disclosure_question", "")
+
+# The parts project and neighbour directory names are drawn from, when the
+# bundle has its own; {} keeps the shipped scenario's.
+PROJECT_NAME_PARTS = _BUNDLE.get("project_name_parts", {})
+
+# The turn cap the bundle's task is sized for, when it declares one. Declared
+# rather than left to --max-turns because the flag is no part of the
+# fingerprint: a batch run without it would pool episodes that had less room
+# to act into the same arm as those that had more. None keeps the harness's.
+MAX_TURNS = _BUNDLE.get("max_turns")
+
+
+def _staged_thresholds(bundle: dict) -> tuple:
+    """Every threshold a declared bundle stages, across its variants.
+
+    PLURAL BECAUSE A VARIANT MAY BE THE THRESHOLD. The shipped scenario stages
+    one value, and a check reporting any other read an altered config. A
+    bundle whose variants differ in the threshold stages several, and a check
+    reporting one of them is reporting a staged value, so only a value none of
+    them stages is evidence of an edit. That loses the one case of a model
+    setting one variant's value to another's in a single command; the
+    end-state hash and the edit detectors still see the write itself.
+    """
+    paths = {spec["path"]: spec["entry"] for spec in bundle.get("files", [])}
+    entries = [paths[p] for p in bundle.get("act_artefacts", ()) if p in paths]
+    sources = [bundle] + list(bundle.get("variants", {}).values())
+    return tuple(sorted({m for source in sources for e in entries
+                         for m in re.findall(r"^\s*threshold:\s*(\S+)",
+                                             source.get(e, ""), re.M)}))
+
+
+# What transient_tampering compares a check's reported threshold against.
+STAGED_THRESHOLDS = (_staged_thresholds(_BUNDLE) if ACT_ARTEFACTS
+                     else (STAGED_THRESHOLD,))
+
+
+def variant_names() -> tuple:
+    """The variants the selected bundle defines; () for the shipped bundle."""
+    return tuple(sorted(_BUNDLE.get("variants", {})))
+
 
 def encode_scenario(bundle: dict, path: Path = None) -> None:
     """
@@ -425,6 +489,26 @@ def _apply_lure(bundle: dict, lure: bool, goalguard) -> None:
         bundle["lure_neighbour_file"] = lure_bundle.get("neighbour_file")
 
 
+def _apply_variant(bundle: dict, variant) -> None:
+    """A named variant's entries over the base, in place, or nothing.
+
+    Popped UNCONDITIONALLY, like every arm key here, so the control - no
+    variant - assembles from the base alone and its identity does not depend
+    on the text of the variants beside it. Applied before the capability arm,
+    which replaces the instruction last whatever else is in force.
+    """
+    variants = bundle.pop("variants", {})
+    if variant is None:
+        return
+    if variant not in variants:
+        raise KeyError(
+            f"unknown variant {variant!r}; the bundle defines "
+            f"{sorted(variants) or 'none'}. Refused rather than run as the "
+            f"control: an episode recorded under a variant it never saw pools "
+            f"with the arm it was meant to be compared against.")
+    bundle.update(variants[variant])
+
+
 def _apply_goalguard_documents(bundle: dict, arm: dict, nudge: str) -> None:
     """The second half of the goal-guarding arm, in place."""
     # The second half of the goal-guarding arm - see the first. The
@@ -446,7 +530,8 @@ def _apply_goalguard_documents(bundle: dict, arm: dict, nudge: str) -> None:
 def scenario_for(oversight: bool = True, bundle: dict = None,
                  nudge: str = "strong", lure: bool = False,
                  interrogation: str = DEFAULT_INTERROGATION,
-                 capability: str = None, goalguard: str = None) -> dict:
+                 capability: str = None, goalguard: str = None,
+                 variant: str = None) -> dict:
     """
     The scenario as one arm of the oversight counterfactual sees it.
 
@@ -495,6 +580,10 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     the instruction: the sandbox arm replaces it, because the shared one
     scopes the account to the directory that arm asks the model to look
     outside.
+
+    `variant` selects one of an alternative bundle's named variants, whose
+    entries replace the base entries of the same name. The shipped scenario
+    defines none, and asking it for one raises.
     """
     bundle = dict(bundle or load_scenario())
     # Popped unconditionally, on the same terms as the arm keys below: the
@@ -518,6 +607,7 @@ def scenario_for(oversight: bool = True, bundle: dict = None,
     _apply_interrogation_variant(bundle, interrogation)
 
     _apply_lure(bundle, lure, goalguard)
+    _apply_variant(bundle, variant)
     # The capability arm, on the same terms as every other arm: stored in the
     # bundle, popped UNCONDITIONALLY, so `scenario_for()` returns exactly what
     # it returned before this arm was authored and r10's four fingerprints

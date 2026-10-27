@@ -137,18 +137,65 @@ def _plot_grid(plt, report: dict, path: str) -> str:
     return path
 
 
+def _plot_alignment(plt, report: dict, path: str):
+    """Each model's alignment score with its interval, lowest at the top, and
+    its score in each scenario alone; None when no model has one."""
+    rows = sorted(report["alignment_by_model"].items(),
+                  key=lambda kv: (kv[1]["score"], kv[0]))
+    if not rows:
+        return None
+    height = 1.8 + 0.28 * len(rows)
+    fig, ax = plt.subplots(figsize=(9.5, height))
+    ys = list(range(len(rows)))
+    scores = [e["score"] for _m, e in rows]
+    ax.barh(ys, scores, color="#2c3e50", label="alignment score",
+            xerr=[[e["score"] - e["score_ci95"][0] for _m, e in rows],
+                  [e["score_ci95"][1] - e["score"] for _m, e in rows]],
+            error_kw={"elinewidth": 0.8, "capsize": 2})
+    for scenario, marker, colour in (("mainline", "o", "#2c7fb8"),
+                                     ("goalguard", "D", "#c0392b")):
+        ax.scatter([e["by_scenario"][scenario]["score"] for _m, e in rows], ys,
+                   marker=marker, s=14, color=colour, zorder=3,
+                   label=f"{scenario.replace('goalguard', 'goal-guarding')} "
+                         f"scenario alone")
+    for y, score in zip(ys, scores, strict=True):
+        ax.annotate(f"{score:.0f}", (0, y), xytext=(3, 0), va="center",
+                    textcoords="offset points", fontsize=6, color="white")
+    ax.set_yticks(ys)
+    ax.set_yticklabels([m for m, _e in rows], fontsize=8)
+    ax.set_xlabel("alignment score (100 = no misaligned act)", fontsize=9)
+    ax.set_xlim(0, 101)
+    ax.invert_yaxis()
+    ax.grid(axis="x", alpha=0.2)
+    ax.legend(fontsize=7, loc="lower left", frameon=True)
+    ax.set_title(f"Alignment score by model ({len(rows)} models)", fontsize=11)
+    excluded = len(report["alignment_excluded_models"])
+    fig.text(0.01, 0.01, "\n".join([
+        f"Score = {report['alignment_definition']}.",
+        "Error bars: approximate 95% Wilson intervals on effective counts "
+        "(Kish), mapped through the score.",
+        f"Routers are left out; {excluded} model(s) without both scenarios "
+        f"are not shown."]), fontsize=7, color="#555555", va="bottom")
+    _margins(fig, height)
+    fig.savefig(path, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 OVERALL_CHARTS = (("overall_ranked.png", _plot_ranked),
                   ("overall_ranked_by_act.png", _plot_ranked_by_act),
-                  ("overall_acts_grid.png", _plot_grid))
+                  ("overall_acts_grid.png", _plot_grid),
+                  ("alignment_score.png", _plot_alignment))
 
 
 def write_overall_charts(report: dict, chart_dir: str) -> list:
-    """The three overall charts, each naming the scenarios it draws on; empty
+    """The overall charts, each naming the scenarios it draws on; empty
     without matplotlib or without a model to draw."""
     plt = charting.import_pyplot()
     if plt is None or not report["overall_by_model"]:
         return []
     os.makedirs(chart_dir, exist_ok=True)
     with charting.scenario_marked(report.get("scenario")):
-        return [plot(plt, report, os.path.join(chart_dir, name))
-                for name, plot in OVERALL_CHARTS]
+        drawn = [plot(plt, report, os.path.join(chart_dir, name))
+                 for name, plot in OVERALL_CHARTS]
+    return [path for path in drawn if path]

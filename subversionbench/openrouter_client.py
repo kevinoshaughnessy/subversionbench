@@ -22,12 +22,39 @@ import uuid
 from .blocks import (_Block, _Response, _block_attr, _block_type,
                      _reasoning_detail_summary, _reasoning_usage)
 from .config import OPENROUTER_BASE_URL
+from .endings import EMPTY_TURN_MARKER
 from .tool_parsing import (
     _INVOKE_START,
     _RAW_TOOL_CALL_START,
     _parse_bracket_tool_calls,
     _parse_invoke_tool_calls,
     _parse_raw_tool_call_text)
+
+# Gemini's thinking models return their thought signature as an encrypted
+# `reasoning_details` part and need it back on the next turn. Without it
+# gemini-3.5-flash-lite on Google AI Studio ended 5 of 5 scripted tool
+# conversations at turn 3 on finish_reason "error", native reason
+# MALFORMED_FUNCTION_CALL; with it, 5 of 5 finished (2026-10-25). Every
+# other model keeps the conditions its corpus was collected under, so the
+# send-back is scoped to these and never widened silently.
+_SENDS_REASONING_BACK = ("google/",)
+
+
+def sends_reasoning_back(model: str) -> bool:
+    return model.startswith(_SENDS_REASONING_BACK)
+
+
+def _reasoning_details_of(blocks: list):
+    """The provider's own reasoning parts attached to an assistant turn, or
+    None. Every block of the turn carries them, so dropping one block on
+    replay cannot drop them."""
+    for block in blocks:
+        details = (block.get("reasoning_details") if isinstance(block, dict)
+                   else getattr(block, "reasoning_details", None))
+        if details:
+            return details
+    return None
+
 
 def _to_openai_messages(msg: dict) -> list:
     """Translate one Anthropic-style message (as built by run_eval.py) into
@@ -57,6 +84,9 @@ def _to_openai_messages(msg: dict) -> list:
         oa_msg = {"role": "assistant", "content": "\n".join(text_parts) or None}
         if tool_calls:
             oa_msg["tool_calls"] = tool_calls
+        details = _reasoning_details_of(content)
+        if details:
+            oa_msg["reasoning_details"] = details
         return [oa_msg]
 
     # role == "user": either tool results (from execute_tool_sandboxed) or
@@ -261,9 +291,10 @@ class OpenRouterClient:
         finish_reason = getattr(completion.choices[0], "finish_reason", None)
         reasoning = getattr(choice, "reasoning", None)
         # Alongside the string, the provider's account of what the string IS.
-        # Recorded, never sent back: see _reasoning_detail_summary.
-        reasoning_details = _reasoning_detail_summary(
-            getattr(choice, "reasoning_details", None))
+        # Recorded, and sent back only where the model needs it - see
+        # _SENDS_REASONING_BACK.
+        raw_details = getattr(choice, "reasoning_details", None)
+        reasoning_details = _reasoning_detail_summary(raw_details)
         # Which backend answered THIS call. OpenRouter reports it top-level on
         # the completion; it is not a field we send, and it can differ between
         # turns of one episode when the router falls back mid-run - which is
@@ -271,8 +302,12 @@ class OpenRouterClient:
         # records only what was asked for. See _Response.provider.
         served_by = getattr(completion, "provider", None)
 
-        return _Response(_response_blocks(choice, tools, reasoning,
-                                          finish_reason),
+        blocks = _response_blocks(choice, tools, reasoning, finish_reason)
+        if reasoning_details and sends_reasoning_back(model):
+            for block in blocks:
+                block.reasoning_details = list(raw_details)
+            reasoning_details["sent_back"] = True
+        return _Response(blocks,
                          _reasoning_usage(completion),
                          stop_reason=finish_reason,
                          reasoning_details=reasoning_details,
@@ -358,7 +393,7 @@ def _response_blocks(choice, tools, reasoning, finish_reason) -> list:
         blocks.append(_Block(
             "text",
             text=(
-                f"[No visible output from the model this turn ({detail}). "
+                f"{EMPTY_TURN_MARKER} ({detail}). "
                 "If finish_reason is 'length', the model likely exhausted "
                 "max_tokens on internal reasoning before producing an "
                 "answer or tool call - try raising --max-tokens.]"

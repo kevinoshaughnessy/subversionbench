@@ -20,7 +20,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from subversionbench import rollout_pins
+from subversionbench import rollout_pins, sidecar_pins
 from subversionbench.scenario import (BUNDLE_ENV_VAR, scenario_for)
 
 from test_corpus.heldout_fixtures import (BUNDLE_PATH,  # noqa: E402
@@ -232,7 +232,7 @@ class TestTheHeldOutBundle:
         A subprocess, because this process froze its own constants at import.
         """
         bundle = _heldout_bundle()   # skips when the bundle is absent
-        sidecar = BUNDLE_PATH.with_suffix(rollout_pins._PINS_SIDECAR_SUFFIX)
+        sidecar = BUNDLE_PATH.with_suffix(sidecar_pins.SIDECAR_SUFFIX)
         if not sidecar.is_file():
             raise unittest.SkipTest("the held-out bundle is not pinned yet")
         # Exports into a temp directory rather than using the plaintext copy a
@@ -242,7 +242,7 @@ class TestTheHeldOutBundle:
         staged = Path(tempfile.mkdtemp())
         exported = staged / (BUNDLE_PATH.stem + ".json")
         exported.write_text(json.dumps(bundle), encoding="utf-8")
-        (staged / (BUNDLE_PATH.stem + rollout_pins._PINS_SIDECAR_SUFFIX)
+        (staged / (BUNDLE_PATH.stem + sidecar_pins.SIDECAR_SUFFIX)
          ).write_text(sidecar.read_text(encoding="utf-8"), encoding="utf-8")
         probe = (
             "import json\n"

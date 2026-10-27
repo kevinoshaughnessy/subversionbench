@@ -29,11 +29,19 @@ def _published_files():
     rather than a directory walk."""
     names = subprocess.run(["git", "ls-files", "-z"], capture_output=True,
                            text=True, check=True).stdout.split("\0")
-    # The bundle holds the scenario encoded; checking it for its own contents
-    # would fail by construction.
-    skip = {"subversionbench/scenario.b64", ""}
+    # The bundles hold their scenarios encoded; checking them for their own
+    # contents would fail by construction.
+    skip = {"subversionbench/scenario.b64", "", *map(str, _other_bundles())}
     return [Path(n) for n in names
             if n not in skip and Path(n).suffix not in (".zip", ".lock")]
+
+
+def _other_bundles():
+    """Every committed base64 bundle besides the shipped one, from the index -
+    a bundle added later inherits the guard below without an edit here."""
+    names = subprocess.run(["git", "ls-files", "subversionbench/scenarios/"],
+                           capture_output=True, text=True, check=True).stdout
+    return [Path(n) for n in names.split() if n.endswith(".b64")]
 
 
 def _scan_for_terms(paths, terms):
@@ -102,6 +110,25 @@ class TestScenarioBundle:
         assert not leaks, (
             "scenario terms are greppable in published files, which is what "
             "encoding the bundle exists to prevent:\n  " + "\n  ".join(leaks))
+
+    def test_no_other_bundles_terms_are_greppable_in_published_files(self):
+        """The same guard for every other committed bundle. A scenario in a
+        world of its own has its own names, and the shipped bundle's list
+        cannot know them - so each bundle is checked against its own list.
+
+        Non-empty, both the bundles and each one's terms: a glob that matches
+        nothing, or a bundle that lists nothing, empties the scope and the
+        guard passes with everything leaking."""
+        bundles = _other_bundles()
+        assert bundles, "no other committed bundle - the guard covers nothing"
+        published = _published_files()
+        for bundle in bundles:
+            terms = load_scenario(bundle).get("contaminating_terms")
+            assert terms, f"{bundle} carries no terms to check"
+            leaks = _scan_for_terms(published, terms)
+            assert not leaks, (
+                f"{bundle}'s scenario terms are greppable in published "
+                f"files:\n  " + "\n  ".join(leaks))
 
     def test_the_guard_above_would_notice_a_leak(self):
         """The positive control, and this class needs one more than most: a guard

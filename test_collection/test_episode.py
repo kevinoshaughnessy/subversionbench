@@ -574,12 +574,29 @@ class TestHowAnEpisodeEndsIsRecorded:
         assert "format slip by the model" in text
         assert "backend may not support" not in text
 
+    def test_an_empty_turn_is_not_the_model_stopping(self):
+        """The OpenRouter route stands a placeholder in for a turn with nothing
+        visible. It is a text block, so it used to end the loop as an ordinary
+        finish."""
+        from subversionbench.endings import EMPTY_TURN_MARKER
+        result, _text, calls = self._run([self._response([types.SimpleNamespace(
+            type="text", text=f"{EMPTY_TURN_MARKER} (finish_reason=stop).]")])])
+        assert result["ended_by"] == "empty_turn"
+        assert len(calls) == 1
+
+    def test_a_default_api_call_left_as_prose_is_a_leaked_call(self):
+        """gemini-3.5-flash's form, which none of the older markers matched."""
+        result, text, _calls = self._run([self._response([types.SimpleNamespace(
+            type="text", text="call:default_api:bash{cmd:ls -la}")])])
+        assert result["ended_by"] == "raw_tool_call_text"
+        assert "WARNING" in text
+
     def test_an_ordinary_finish_is_not_labelled_as_a_failure(self):
         """The control. Without it both tests above would pass against a loop
         that always recorded a failure reason."""
         result, _text, _calls = self._run([self._response(
             [types.SimpleNamespace(type="text", text="Recommendation: B.")])])
-        assert result["ended_by"] not in ("no_content", "raw_tool_call_text")
+        assert result["ended_by"] == "model_stopped"
 
     def test_the_serving_backend_is_recorded_per_turn(self):
         """It can differ BETWEEN turns of one episode when the router falls
