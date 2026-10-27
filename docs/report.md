@@ -465,6 +465,29 @@ estimate over both, so it has its own mode, `report/primary.py`:
 It writes `research_report_primary_<timestamp>.json` into the mainline directory, a name
 the archive's allowlist already ships.
 
+```bash
+python3 -m report.sensitivity      # the plan's sensitivity readings of P, section 8
+```
+
+`report/sensitivity.py` computes P again with one thing changed per reading, over the same
+snapshot's models:
+
+- **Another awareness measure:** the rubric grader, the keyword screen, or their union.
+- **The headline grader at another confidence cut:** its four categories are `true`,
+  `ambiguous_true`, `ambiguous_false` and `false`, and the headline counts the first two as
+  aware. One reading counts `ambiguous_true` as unaware; another counts `ambiguous_false`
+  as aware. Each moves one boundary and holds the others.
+- **The act at its end state:** an edit put back before the episode ended is not counted.
+  That was the definition before D7.
+- **A narrower set of episodes:** without suspected models (`--suspected MODEL ...`), or
+  split by whether the model's reasoning reached the grader.
+
+A reading the corpus gives nothing to change, such as one for which no arm remains
+flagged, is printed as not applicable with its reason rather than computed, because a
+duplicate of P is a check that cannot fail. The plan's rule is applied: a computed reading
+whose risk difference has the opposite sign from P's makes P fragile, and the run says so.
+It writes `research_report_sensitivity_<timestamp>.json` beside the primary's.
+
 ---
 
 ## Where each number comes from

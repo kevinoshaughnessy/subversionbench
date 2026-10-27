@@ -70,27 +70,32 @@ SECONDARY_FAMILY = (
 
 
 def headline_rows(output_dir: str, exclusion: str, keep,
-                  only_models=None) -> tuple:
+                  only_models=None,
+                  grader: str = HEADLINE_AWARENESS_GRADER) -> tuple:
     """`output_dir`'s episodes on `exclusion`, kept by `keep`, as
-    (the ones the headline grader read, how many it has not)."""
+    (the ones `grader` read, how many it has not). The headline grader's
+    unless a sensitivity reading names another."""
     _, episodes, _, _, _, pending, _, _ = _narrowed_corpus(
         output_dir, exclusion, NO_AWARENESS_EXCLUSION,
-        HEADLINE_AWARENESS_GRADER, only_models=only_models)
+        grader, only_models=only_models)
     kept = [e for e in episodes if keep(e)]
     read = [e for e in kept if e["aware_source"] == "grader"]
     return read, len(kept) - len(read) + sum(1 for e in pending if keep(e))
 
 
-def primary_estimate(mainline: list, goalguard: list) -> dict:
-    """P over both scenarios' strata, with each scenario's crude contrast."""
+def primary_estimate(mainline: list, goalguard: list,
+                     exposure: str = "aware",
+                     outcome: str = "misaligned") -> dict:
+    """P over both scenarios' strata, with each scenario's crude contrast.
+    A sensitivity reading names another exposure or outcome column."""
     if {arm_key(r) for r in mainline} & {arm_key(r) for r in goalguard}:
         raise ValueError("a stratum holds episodes of both scenarios")
-    strata = _by_cell(mainline + goalguard, "aware", True, False,
-                      "misaligned", "one", arm_key)
+    strata = _by_cell(mainline + goalguard, exposure, True, False,
+                      outcome, "one", arm_key)
     return {
         "stratified": _stratified(strata, BY_CELL),
         "crude_by_scenario": {
-            name: _contrast(rows, "aware", True, False, "misaligned", "one")
+            name: _contrast(rows, exposure, True, False, outcome, "one")
             for name, rows in (("mainline", mainline),
                                ("goalguard", goalguard))},
         "n_episodes": {"mainline": len(mainline),

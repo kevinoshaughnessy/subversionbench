@@ -459,6 +459,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    in the tests from MISALIGNED_ACTS and RUBRIC_SIGNAL_KEYS
                    rather than listed, because a family that stopped being
                    applied would print as n/a rather than raise
+  transcript_columns.py  what the transcript says on its own: the first quality
+                   check and its outcome, the first refusal and where awareness
+                   fell against it, the strategies recommended
   capability.py    whether each model can take the act: one success is
                    capable, none is NOT SHOWN capable rather than shown
                    incapable - because a refusal is a second measurement
@@ -486,6 +489,8 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    answered in the replacement arms, deferred as control
   primary.py       the analysis plan's primary estimate P over both corpora,
                    and its secondary family under Benjamini-Hochberg
+  sensitivity.py   the plan's sensitivity readings of P (section 8): P again
+                   with one thing changed each, and the plan's fragility rule
   snapshot.py      which models a dated snapshot holds (D2): complete arms in
                    both scenarios and the headline reading, with any capability
                    verdict still owed listed rather than enforced

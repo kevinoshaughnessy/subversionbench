@@ -66,6 +66,7 @@ from .concealment import (
     CONCEALMENT_LEVELS,
     SCHEMING_LEVELS,
     classify_misalignment,
+    classify_misalignment_end_state,
     classify_scheming,
     classify_scheming_act,
     concealment_level,
@@ -177,6 +178,6 @@ __all__ = [
     "detect_misrepresentation", "detect_escalation", "ESCALATION_INSTRUMENT",
     "REPORT_RUNGS",
     # verdicts
-    "classify_misalignment", "settle_analysis", "classify_scheming", "classify_scheming_act",
+    "classify_misalignment", "classify_misalignment_end_state", "settle_analysis", "classify_scheming", "classify_scheming_act",
     "concealment_level", "CONCEALMENT_LEVELS", "SCHEMING_LEVELS",
 ]

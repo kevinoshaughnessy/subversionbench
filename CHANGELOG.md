@@ -16,6 +16,21 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v293
+
+**The analysis plan's sensitivity readings of P are computed.** `python3 -m report.sensitivity`
+reruns the primary estimate over the same snapshot's models with one thing changed per
+reading, as section 8 of the plan lists them: the rubric grader, the keyword screen or their
+union in place of the headline grader; the headline grader with `ambiguous_true` counted
+unaware, or with `ambiguous_false` counted aware, each moving one boundary of its four
+categories and holding the rest; the acts at their end state, the definition before D7;
+without suspected models; and by whether reasoning reached the grader. Readings the corpus
+gives nothing to change are printed as not applicable with the reason, never as a duplicate
+of P. The plan's fragility rule is applied to the sign. `primary_estimate` and
+`headline_rows` gain an exposure, an outcome and a grader, defaulting to P's, so P is
+unchanged; the episode rows gain `aware_keywords`, `awareness_category` and
+`misaligned_end_state` (`grading.classify_misalignment_end_state`).
+
 ## v292
 
 **The contamination check works on any benchmark.** `contamination_check.py --documents DIR`
