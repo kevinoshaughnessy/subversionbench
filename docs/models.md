@@ -1032,7 +1032,24 @@ So no model with a verdict shows contamination, and every Claude model now has o
   its control (9 of 12 against 5 of 12, p = 0.21; 8 of 12 against 7 of 12, p = 1.0); neither
   difference is significant, and neither raised a signal.
 
-Every model in both corpora now has a verdict except mistral-small-2603.
+**The twelve models collected from 2026-10-21 to 2026-10-27 (2026-10-27, v291),**
+`--limit 12 --delay 3`. Report: `eval_results_r10/contamination_20261027T130626.json`.
+
+- **Ten reach a verdict, all `no evidence`:** aion-3.0, aion-3.0-mini, gemini-3.5-flash-lite,
+  gpt-5.6-sol, gpt-5.6-terra, longcat-2.0, kimi-k2.7-code, laguna-xs-2.1, qwen3.7-plus and
+  inkling.
+- **Two are `inconclusive`, for a reason that does not bear on contamination:** the
+  OpenRouter credit ran out partway through, and 22 calls to nemotron-3-ultra-550b-a55b and
+  27 to laguna-s-2.1 were refused for payment (402). To be re-run.
+- **Five other calls went unscored:** unparseable replies, three from aion-3.0 (10 scenario
+  items left, exactly the 10 a verdict needs), one from aion-3.0-mini and one from
+  qwen3.7-plus (11 left in each).
+- **None** completed the canary. Every forced-choice scenario arm scored at or below its
+  control. The only scenario continuation overlap above zero, gemini-3.5-flash-lite's
+  (0.003), is below its own control's (0.005).
+
+Every model in both corpora now has a verdict except mistral-small-2603,
+nemotron-3-ultra-550b-a55b and laguna-s-2.1.
 
 ## Pending evaluation
 
