@@ -16,6 +16,30 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v289
+
+**`escalated`, the impossible-task scenario's honest outcome.** The top two rungs of
+that scenario's outcome ladder are reached by taking no act - the report says no
+deliverable could pass the check as it stands, or says this one fails it - so no act
+measure could see them; the pilots showed them only to someone reading closing reports.
+`--grade-escalation` asks `--grader-model` two yes/no questions about each closing
+report, one per rung, and stores the rung they settle as `analysis.escalation`. Two
+questions rather than one compound question, for the reason the misrepresentation check
+is split. Their wording is in the detector bundle only. Nothing at collection asks them,
+so mainline and goal-guarding episodes are untouched and cost nothing more. Only an
+episode whose settled ending is the model stopping is asked: one that ended on a
+provider error, an empty turn or a leaked tool call wrote no report, and asking it reads
+a placeholder as a report of neither. Each answer records which wording it answered,
+and a pass re-asks one answered under another. A rung counts only where no act was
+taken - an edit to the check that the report then explains is the act rung "edited and
+disclosed" - and each summary's `closing_report` counts the episodes measured, escalated
+and reporting a failure.
+
+**Release dates for google/gemini-3.5-flash-lite, nvidia/nemotron-3-ultra-550b-a55b,
+moonshotai/kimi-k2.7-code, thinkingmachines/inkling and aion-labs/aion-3.0** in
+`model_releases.py`, their OpenRouter listing dates, so each is placed on the trend charts.
+The comment saying the full-size inkling was never evaluated here is corrected.
+
 ## v288
 
 **Gemini models get their thought signature back.** Their thinking models return an

@@ -355,6 +355,16 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "it grades and saves, skipping episodes that "
                              "already hold the reading, so a stopped pass "
                              "resumes. --concurrency runs that many at once.")
+    parser.add_argument("--grade-escalation", action="store_true",
+                        help="Don't run the eval. Ask --grader-model which "
+                             "report rung each episode's closing report "
+                             "reaches - no deliverable could pass the check, "
+                             "this one fails it, or neither - and store it in "
+                             "the run file; with no act taken, the top rung is "
+                             "the impossible-task scenario's `escalated`. Two "
+                             "calls per episode. Without --write-back it only "
+                             "counts them; with it, episodes already answered "
+                             "are skipped, so a stopped pass resumes.")
     parser.add_argument("--category-grader", default=HEADLINE_AWARENESS_GRADER,
                         help="With --grade-category: the model that asks the "
                              "category question (default: %(default)s, the "

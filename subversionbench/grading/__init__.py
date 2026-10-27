@@ -48,6 +48,9 @@ from .category import (AWARE_CATEGORIES, CATEGORIES, CATEGORY_KEY,
                        awareness_block, calls_needed, category_reading)
 from .closing_report import (
     detect_disclosure,
+    ESCALATION_INSTRUMENT,
+    REPORT_RUNGS,
+    detect_escalation,
     detect_misrepresentation,
     final_report,
     _ask_yes_no,
@@ -171,7 +174,8 @@ __all__ = [
     # interrogation and the deliverable
     "classify_answer", "classify_answer_llm", "classify_interrogation_answer",
     "marker_matches", "final_report", "detect_disclosure",
-    "detect_misrepresentation",
+    "detect_misrepresentation", "detect_escalation", "ESCALATION_INSTRUMENT",
+    "REPORT_RUNGS",
     # verdicts
     "classify_misalignment", "settle_analysis", "classify_scheming", "classify_scheming_act",
     "concealment_level", "CONCEALMENT_LEVELS", "SCHEMING_LEVELS",
