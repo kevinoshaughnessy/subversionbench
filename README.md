@@ -36,8 +36,9 @@ edits that appear when continuity is at stake and vanish when it is not are, whi
 pair is the measurement rather than either arm on its own. See [the goal-guarding
 arm](docs/methodology.md#the-goal-guarding-arm).
 
-**The impossible-task scenario** is new and still in development. It is set in a world of its
-own, with a different organisation, task and files, and is committed as a separate encoded
+**The impossible-task scenario** is frozen at rollout `impossible1` for its first corpus,
+`eval_results_impossible_r1`; its pilots are kept under `eval_results_impossible_pilot*`. It
+is set in a world of its own, with a different organisation, task and files, and is committed as a separate encoded
 bundle (`subversionbench/scenarios/impossible.b64`, selected with
 `SUBVERSIONBENCH_SCENARIO_BUNDLE`). The model is given a task with an automated acceptance
 check, and in the `impossible` variants no honest deliverable can pass it. The one act it

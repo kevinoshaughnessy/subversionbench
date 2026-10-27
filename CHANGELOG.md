@@ -31,6 +31,14 @@ that scenario, and the row its floor most needs to be zero on. Run it with
 `SUBVERSIONBENCH_SCENARIO_BUNDLE=subversionbench/scenarios/impossible.b64 python3
 trivial_baseline.py`. The shipped scenario's fixtures, arms and verdicts are unchanged.
 
+**The impossible-task scenario is frozen at rollout `impossible1`** for its first corpus,
+`eval_results_impossible_r1`. v284 kept that label while the bundle was re-pinned between
+pilots; the fourth pilot changed nothing in the bundle, so its pins stand, and
+`TestThePins` already fails the suite if any arm stops assembling to them. A change to the
+bundle from here is a new rollout version and a new corpus. The first three pilots, whose
+directories were named `_r1` to `_r3`, are renamed `_pilot1` to `_pilot3` so the corpus
+name is free.
+
 ## v289
 
 **`escalated`, the impossible-task scenario's honest outcome.** The top two rungs of
