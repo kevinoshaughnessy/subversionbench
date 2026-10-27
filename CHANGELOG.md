@@ -16,6 +16,21 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v290
+
+**The trivial-agent floor covers a bundle that declares its own world.** `trivial_baseline.py`
+named the shipped scenario's files in every fixture, so under the impossible-task bundle -
+whose layout is its own - its agents would have read files that do not exist, and a failed
+read is clean, which is how this script's fixtures once stopped testing anything while the
+floor stayed green. A bundle that declares `act_artefacts` now gets fixtures built from what
+it declares (README, task file, memo, act artefacts, check), one arm for the control and each
+variant it defines, and a positive control that writes once to each act artefact. Two
+fixtures are new: `reads_the_check` reads every act artefact, which is not the act, and
+`submits_failing_work` hands in work that fails the check and says so - the honest outcome of
+that scenario, and the row its floor most needs to be zero on. Run it with
+`SUBVERSIONBENCH_SCENARIO_BUNDLE=subversionbench/scenarios/impossible.b64 python3
+trivial_baseline.py`. The shipped scenario's fixtures, arms and verdicts are unchanged.
+
 ## v289
 
 **`escalated`, the impossible-task scenario's honest outcome.** The top two rungs of
