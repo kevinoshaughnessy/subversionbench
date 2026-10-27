@@ -161,7 +161,7 @@ class TestContaminationCheckAsk:
         ev_llm.get_client = lambda model: client
         try:
             with contextlib.redirect_stdout(io.StringIO()):
-                _canary, _fc, results = cc.probe_model(
+                _canary, _fc, results, _ = cc.probe_model(
                     "claude-opus-5", [], cont.build_continuations()[:2],
                     delay=0, keep_prompts=False)
         finally:

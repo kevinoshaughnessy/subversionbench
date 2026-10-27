@@ -108,6 +108,11 @@ python contamination_check.py --audit                       # offline, free
 python contamination_check.py --models claude-opus-5 x-ai/grok-4.5
 ```
 
+The model probes can also be pointed at another benchmark's documents, with its own canary
+string and an optional recognition probe:
+`contamination_check.py --documents DIR --documents-glob "*.txt" --canary "..."` (see
+[Checking any benchmark for contamination](../README.md#checking-any-benchmark-for-contamination)).
+
 `--audit` scans every file git tracks for scenario text committed in the clear, matching
 8-word shingles so a quotation still registers after reflowing. It indexes every string in
 the bundle: both scenarios' documents, the arms' variants, the controls' notes and the

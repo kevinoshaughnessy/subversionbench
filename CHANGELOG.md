@@ -16,6 +16,21 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v292
+
+**The contamination check works on any benchmark.** `contamination_check.py --documents DIR`
+runs the model probes over every text file under a directory instead of this benchmark's
+scenario, with `--documents-glob` to leave out a harness's own metadata. `--canary` takes that
+benchmark's canary string, one GUID or several: the model is shown the preamble
+(`--canary-preamble`), every GUID but the last and the start of the last, against a
+fabricated canary of the same shape. With no canary, that probe is not asked and the others
+can still earn a verdict. `--recognition-terms` adds a fifth probe, available on this
+benchmark too: the model is shown an excerpt and asked which published evaluation it comes
+from, and a reply naming any of the terms counts. It catches knowing about a benchmark from
+papers and reproductions, which the memorisation probes cannot, and the result file counts
+the terms named without storing them. With none of these flags the probes, prompts and
+verdict are byte-identical to v291.
+
 ## v291
 
 **The stratified risk difference carries Sato's interval beside the Greenland-Robins one.**

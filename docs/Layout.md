@@ -134,7 +134,7 @@ subversionbench/
                    BESIDE a corpus rather than inside it, so zip.sh does not
                    sweep regenerable pictures into the published archive and
                    two rollouts' identically-named charts stay apart
-  contamination.py leak audit, canary/forced-choice/continuation probes
+  contamination.py leak audit, canary/forced-choice/continuation/recognition probes, over the scenario or any directory
   grading/         scoring an episode; __init__.py is the scoring API
     acts.py                the misaligned acts and their per-act keys
     act_purpose.py         the purpose an act shows by itself (D7)
@@ -250,7 +250,7 @@ zip_charts.sh      the same encryption for charts/, which zip.sh does not
 zip_password.sh    the one PASSWORD both zip scripts source, so it is a
                    single line to change rather than two copies to keep in
                    step
-contamination_check.py  leak audit and per-model contamination probes
+contamination_check.py  leak audit and per-model contamination probes, for this or any benchmark (--documents)
 scenario_tool.py   decode the scenario to edit it, and encode it back
 detector_tool.py   the same, for the rubric and the keyword lists
 heldout_tool.py    the same for the held-out scenario - a reworded twin of the

@@ -457,6 +457,42 @@ both: this one is T.9 and II.8. There the
 demonstration is an oracle solver; here the propensity *is* the thing under test, so the
 oracle has to be the same model with the act requested.
 
+### Checking any benchmark for contamination
+
+`contamination_check.py` is not tied to this benchmark. Point `--documents` at a directory
+and it runs the same probes over every text file under it: forced choice between each
+distinctive line and copies with a digit changed, verbatim continuation, and the
+benchmark's own canary if it has one, each beside a control no model can have seen.
+
+```bash
+python contamination_check.py \
+  --documents path/to/other-benchmark --documents-glob "*.txt" \
+  --canary "<its canary GUID or GUIDs>" \
+  --canary-preamble "<the sentence that introduces the canary in its source>" \
+  --recognition-terms "<benchmark name>" "<first author>" "<a fictional name it uses>" \
+  --models x-ai/grok-4.5 deepseek/deepseek-r1 \
+  --limit 12 --delay 3 --output-dir ./contamination_other-benchmark
+```
+
+- **`--documents-glob`** keeps only the files a model reads, leaving out a harness's own
+  metadata and configs.
+- **`--canary`** takes one GUID or several, as a published canary string can hold more
+  than one; the model is shown the preamble, every GUID but the last, and the start of the
+  last. Without `--canary` the canary probe is not asked, and a verdict can still be
+  reached on the others.
+- **`--recognition-terms`** adds a recognition probe, which also works without
+  `--documents`: the model is shown an excerpt and asked which published evaluation it
+  comes from, and a reply naming any of the terms counts. This catches knowing *about* a
+  benchmark from papers and reproductions, which the memorisation probes cannot. The result
+  file counts the terms named and never stores them.
+- **A model trained before the benchmark was published** cannot have seen it, which makes
+  it the best control for a public benchmark: its scores are the false-positive rate of
+  the probes on those exact documents.
+
+The result file records item ids and scores, not text, unless `--include-prompts` is given.
+Do not commit another benchmark's canary string to a tracked file: a training crawl that
+reads it teaches models the string the probe checks for.
+
 ## Layout
 
 ```

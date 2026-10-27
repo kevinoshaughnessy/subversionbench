@@ -29,6 +29,21 @@ Two modes
         headroom above the 10-per-arm floor a verdict needs. A smaller limit
         buys nothing: it returns `inconclusive` however well the run goes.
 
+Any other benchmark
+-------------------
+    python contamination_check.py --documents path/to/benchmark \
+        --documents-glob "*.txt" \
+        --canary "<its canary GUID(s)>" --canary-preamble "<text before them>" \
+        --recognition-terms "<benchmark name>" "<first author>" \
+        --models x-ai/grok-4.5 --output-dir ./contamination_otherbench
+        The same probes over every text file under a directory, in place of
+        this repository's scenario. --canary is that benchmark's own canary
+        string, if it has one; without it the canary probe is not asked.
+        --recognition-terms adds the recognition probe (also available on this
+        benchmark): an excerpt is shown and the model asked to name its source,
+        and a reply naming any of the terms counts. --audit stays a scan for
+        this repository's scenario.
+
 Reading the result
 ------------------
 `contaminated` means the canary was completed and the fabricated control canary
@@ -57,14 +72,18 @@ from subversionbench.contamination import (
     audit_paths,
     build_continuations,
     build_forced_choice,
+    build_recognition,
     canary_prompt,
     canary_prompts,
     continuation_overlap,
     continuation_prompt,
+    directory_documents,
     forced_choice_prompt,
     MIN_ITEMS_FOR_VERDICT,
+    recognition_prompt,
     score_canary,
     score_forced_choice,
+    score_recognition,
     summarise_contamination,
 )
 from subversionbench.grading import _parse_first_json
@@ -133,26 +152,61 @@ def ask(client, model, prompt, max_tokens=400):
         return None, str(e)
 
 
-def probe_model(model, items, continuations, delay, keep_prompts):
-    """Run all four probe families against one model."""
-    client = llm_client.get_client(model)
-
-    print(f"\n{'='*60}")
-    print(f"CONTAMINATION PROBE: {model}")
-    print(f"{'='*60}")
-
-    canary_results = []
-    for probe in canary_prompts(CANARY_GUID):
+def _probe_canary(client, model, canaries, delay):
+    """The canary pair; none asked when the benchmark has no canary."""
+    results = []
+    for probe in canaries:
         text, error = ask(client, model, canary_prompt(probe), max_tokens=120)
         scored = score_canary(probe, text or "")
         scored["error"] = error
-        canary_results.append(scored)
+        results.append(scored)
         mark = "HIT" if scored["hit"] else ("declined" if scored["declined"]
                                            else "no")
         print(f"  canary ({probe['source']:7}): {mark}"
               + (f"   error: {error[:60]}" if error else ""))
         if delay:
             time.sleep(delay)
+    return results
+
+
+def _probe_recognition(client, model, recognition, terms, delay,
+                       keep_prompts):
+    """Ask the model to name the source of each excerpt; the terms named are
+    counted, never saved."""
+    if not recognition:
+        return []
+    print(f"\n  recognition, {len(recognition)} excerpts:")
+    results = []
+    for item in recognition:
+        text, error = ask(client, model, recognition_prompt(item),
+                          max_tokens=1500)
+        record = {"id": item["id"], "document": item["document"],
+                  "source": item["source"], "error": error,
+                  **score_recognition(text, terms)}
+        if keep_prompts:
+            record["response"] = text
+        results.append(record)
+        print(f"    {item['source']:8} {item['document'][:40]:40} "
+              + (f"error: {str(error)[:40]}" if error else
+                 "NAMED" if record["named"] else
+                 "declined" if record["declined"] else "not named"))
+        if delay:
+            time.sleep(delay)
+    return results
+
+
+def probe_model(model, items, continuations, delay, keep_prompts,
+                canaries=None, recognition=None, terms=()):
+    """Run every probe family against one model."""
+    client = llm_client.get_client(model)
+
+    print(f"\n{'='*60}")
+    print(f"CONTAMINATION PROBE: {model}")
+    print(f"{'='*60}")
+
+    canary_results = _probe_canary(
+        client, model,
+        canary_prompts(CANARY_GUID) if canaries is None else canaries, delay)
 
     print(f"\n  forced choice, {len(items)} items:")
     fc_results = []
@@ -226,7 +280,9 @@ def probe_model(model, items, continuations, delay, keep_prompts):
         if delay:
             time.sleep(delay)
 
-    return canary_results, fc_results, cont_results
+    rec_results = _probe_recognition(client, model, recognition, terms, delay,
+                                     keep_prompts)
+    return canary_results, fc_results, cont_results, rec_results
 
 
 def print_verdict(model, summary):
@@ -243,6 +299,11 @@ def print_verdict(model, summary):
               f"chance {fc['chance_rate']:.0%}")
         if fc["p_vs_control"] is not None:
             print(f"  scenario vs control: p = {fc['p_vs_control']:.4f}")
+    rec = summary.get("recognition")
+    if rec:
+        print(f"  recognition: named the source of "
+              f"{rec['scenario']['named']}/{rec['scenario']['n']} excerpts, "
+              f"control {rec['control']['named']}/{rec['control']['n']}")
     cont = summary["continuation"]
     if cont["scenario_overlap"] is not None:
         print(f"  continuation overlap: scenario "
@@ -277,6 +338,26 @@ def _parser() -> argparse.ArgumentParser:
                         help="seconds between calls, for rate limits")
     parser.add_argument("--output-dir", default=f"./eval_results_{ROLLOUT_VERSION}",
                         help="where to write the report (default: %(default)s)")
+    parser.add_argument("--documents", default=None, metavar="DIR",
+                        help="probe every text file under DIR instead of this "
+                             "benchmark's scenario, so another benchmark can "
+                             "be checked")
+    parser.add_argument("--documents-glob", default="*", metavar="PATTERN",
+                        help="with --documents: only files whose name matches, "
+                             "e.g. '*.txt', to leave out a harness's metadata "
+                             "(default: every text file)")
+    parser.add_argument("--canary", default=None,
+                        help="with --documents: that benchmark's canary "
+                             "string, one or more GUIDs. Without it no canary "
+                             "is asked")
+    parser.add_argument("--canary-preamble", default=None,
+                        help="with --canary: the text that precedes it in its "
+                             "source, shown to the model before the GUIDs")
+    parser.add_argument("--recognition-terms", nargs="+", default=None,
+                        metavar="TERM",
+                        help="add the recognition probe: a reply naming any "
+                             "TERM (the benchmark, its authors, its fictional "
+                             "names) counts as recognising the excerpt")
     parser.add_argument("--include-prompts", action="store_true",
                         help="save option text and responses. Writes scenario "
                              "text to disk - treat the file as a transcript.")
@@ -317,14 +398,53 @@ def _run_audit(audit_paths_given) -> dict:
     return audit
 
 
+def _probe_inputs(args, parser):
+    """The documents, canary probes and recognition items the flags select,
+    refused here when they cannot work rather than after calls are paid for."""
+    if args.documents_glob != "*" and not args.documents:
+        parser.error("--documents-glob needs --documents.")
+    if args.canary and not args.documents:
+        parser.error("--canary is another benchmark's canary: it needs "
+                     "--documents. This benchmark's own canary is built in.")
+    if args.canary_preamble and not args.canary:
+        parser.error("--canary-preamble needs --canary.")
+    documents = None
+    canaries = None
+    if args.documents:
+        if not os.path.isdir(args.documents):
+            parser.error(f"--documents: no such directory: {args.documents}")
+        documents = directory_documents(args.documents, args.documents_glob)
+        if not documents:
+            parser.error(f"--documents: no text files matching "
+                         f"{args.documents_glob} under {args.documents}")
+        canaries = []
+        if args.canary:
+            try:
+                canaries = canary_prompts(
+                    args.canary,
+                    lead=(f"{args.canary_preamble} " if args.canary_preamble
+                          else "canary string: "))
+            except ValueError as e:
+                parser.error(f"--canary: {e}")
+    recognition = (build_recognition(documents=documents)
+                   if args.recognition_terms else None)
+    return documents, canaries, recognition
+
+
 def main():
     parser = _parser()
     args = parser.parse_args()
 
     if not args.audit and not args.models:
         parser.error("nothing to do: pass --audit, --models, or both.")
+    documents, canaries, recognition = _probe_inputs(args, parser)
 
     report = {"version": VERSION, "canary_guid": CANARY_GUID}
+    if documents is not None:
+        report.update({"canary_guid": args.canary,
+                       "documents": {"directory": os.path.basename(
+                           os.path.normpath(args.documents)),
+                           "files": len(documents)}})
 
     if args.audit:
         report["audit"] = _run_audit(args.audit_paths)
@@ -332,8 +452,9 @@ def main():
             return 1
 
     if args.models:
-        items = build_forced_choice(k=args.k, seed=args.seed, limit=args.limit)
-        continuations = build_continuations()
+        items = build_forced_choice(k=args.k, seed=args.seed, limit=args.limit,
+                                    documents=documents)
+        continuations = build_continuations(documents=documents)
         n_scenario = sum(1 for i in items if i["source"] == "scenario")
         n_control = sum(1 for i in items if i["source"] == "control")
         print(f"\n{len(items)} forced-choice items "
@@ -354,17 +475,22 @@ def main():
         report["models"] = {}
         for model in args.models:
             try:
-                canary, fc, cont = probe_model(
+                canary, fc, cont, rec = probe_model(
                     model, items, continuations, args.delay,
-                    args.include_prompts)
+                    args.include_prompts, canaries, recognition,
+                    args.recognition_terms or ())
             except Exception as e:
                 print(f"\n! {model}: {str(e)[:200]}")
                 report["models"][model] = {"error": str(e)}
                 continue
-            summary = summarise_contamination(fc, canary, cont, k=args.k)
+            summary = summarise_contamination(
+                fc, canary, cont, k=args.k,
+                recognition=rec if recognition else None,
+                canary_expected=canaries is None or bool(canaries))
             report["models"][model] = {
                 "summary": summary, "canary": canary,
                 "forced_choice": fc, "continuation": cont,
+                **({"recognition": rec} if recognition else {}),
             }
             print_verdict(model, summary)
 

@@ -1205,7 +1205,8 @@ rather than on a schedule.
    before reporting any model, and again when a model is re-released under the same ID,
    because the answer changes over time while the ID does not. A model that completes the
    canary has demonstrably ingested the repository, and no scenario comparison is needed
-   to establish that.
+   to establish that. `--recognition-terms` adds a recognition probe, and `--documents
+   DIR` points the same probes at another benchmark's materials.
 3. **The dual-scenario comparison** — the expensive one, and the only one that can see a
    model gaming the scenario without having memorised it verbatim. It is gated on (1) and
    (2) rather than run alongside them.
