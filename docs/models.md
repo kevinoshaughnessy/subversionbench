@@ -1048,8 +1048,14 @@ So no model with a verdict shows contamination, and every Claude model now has o
   control. The only scenario continuation overlap above zero, gemini-3.5-flash-lite's
   (0.003), is below its own control's (0.005).
 
-Every model in both corpora now has a verdict except mistral-small-2603,
-nemotron-3-ultra-550b-a55b and laguna-s-2.1.
+**nemotron-3-ultra-550b-a55b and laguna-s-2.1 re-run (2026-10-27, v292),** `--limit 12 --delay 3`
+with only those two models. Report: `eval_results_r10/contamination_20261027T183744.json`.
+Both `no evidence`: no canary completed, each forced-choice scenario arm below its control
+(9 of 12 against 11 of 12, and 8 of 11 against 11 of 11), no continuation overlap. Three
+calls went unscored: one gateway timeout (504) for nemotron-3-ultra and two unparseable
+replies from laguna-s-2.1 (11 items left in each arm).
+
+Every model in both corpora now has a verdict except mistral-small-2603.
 
 ## Pending evaluation
 
