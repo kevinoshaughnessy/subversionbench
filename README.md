@@ -353,15 +353,16 @@ eval_results_r10/
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power
 ```
 
-The published corpora are encrypted archives. `eval_results_goalguard_r1.zip`, the two
-capability corpora and `charts.zip` are in the repository. The mainline corpus is too large
-for a tracked file and is a release asset; download it into the repository root and decrypt
-it there:
+The published corpora are encrypted archives. The two capability corpora and `charts.zip`
+are in the repository. The mainline and goal-guarding corpora are too large for tracked files
+and are release assets; download them into the repository root and decrypt them there:
 
 ```bash
 curl -L -o eval_results_r10.zip \
-  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-21/eval_results_r10.zip
-./unzip.sh --dirs eval_results_r10.zip
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-27/eval_results_r10.zip
+curl -L -o eval_results_goalguard_r1.zip \
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-10-27/eval_results_goalguard_r1.zip
+./unzip.sh --dirs eval_results_r10.zip eval_results_goalguard_r1.zip
 ```
 
 See [docs/operations.md](docs/operations.md) for how the archives are built and why.
