@@ -82,7 +82,19 @@ class TestBothPooledEstimatesAreAlwaysDrawn:
         how many of them fed it."""
         row = next(r for r in rc._pooled_rows(_section())
                    if r.kind == "stratified")
-        assert "2 models" in row.label
+        assert "2 strata" in row.label and "models" not in row.label
+
+    def test_the_stratified_row_draws_sato_s_interval_when_there_is_one(self):
+        """The interval the analysis plan reports, so the chart and the printed
+        report's primary interval agree; Greenland-Robins only as a fallback."""
+        section = _section()
+        mh = section["stratified"]["mantel_haenszel"]
+        mh["risk_difference_ci95_sato"] = [-0.03, 0.001]
+        row = next(r for r in rc._pooled_rows(section) if r.kind == "stratified")
+        assert (row.lo, row.hi) == (-0.03, 0.001)
+        del mh["risk_difference_ci95_sato"]
+        row = next(r for r in rc._pooled_rows(section) if r.kind == "stratified")
+        assert (row.lo, row.hi) == tuple(mh["risk_difference_ci95"])
 
     def test_the_parallel_measure_appears_only_where_a_question_has_one(self):
         assert not [r for r in rc._pooled_rows(_section())

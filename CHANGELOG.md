@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v294
+
+**The stratified row of every forest chart counts strata, and draws Sato's interval.** Its
+label read "(MH, N models)", but since D5 the strata are model x arm cells, so the number was
+the strata used and could exceed the model count; the test meant to guard it asserted the
+wrong word. The row also drew the Greenland-Robins interval while the report and the paper
+take Sato's as primary (v291), so a chart and the printed estimate could disagree. It now
+draws Sato's interval, falling back to Greenland-Robins where an estimate has none.
+
 ## v293
 
 **The analysis plan's sensitivity readings of P are computed.** `python3 -m report.sensitivity`
