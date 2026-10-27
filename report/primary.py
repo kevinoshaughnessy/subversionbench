@@ -110,7 +110,9 @@ def secondary_family(reports: dict) -> list:
             "mantel_haenszel"]
         tests.append({"test": label, "reading": reading, "question": qid,
                       "risk_difference": mh["risk_difference"],
-                      "ci95": mh["risk_difference_ci95"], "p": mh["p"]})
+                      "ci95": mh["risk_difference_ci95"],
+                      "ci95_sato": mh.get("risk_difference_ci95_sato"),
+                      "p": mh["p"]})
     bh = benjamini_hochberg([t["p"] for t in tests])
     for t, adj, rej in zip(tests, bh["adjusted"], bh["rejected"],
                            strict=True):
@@ -163,7 +165,8 @@ def print_primary(doc: dict) -> None:
           f"{p['n_models']} models; episodes {p['n_episodes']}; missing "
           f"headline reading {p['n_missing_headline_reading']})")
     print(f"  MH risk difference {_pct(mh['risk_difference'])} "
-          f"{_ci(mh['risk_difference_ci95'])}  OR {mh['odds_ratio']} "
+          f"{_ci(mh['risk_difference_ci95'])} Sato "
+          f"{_ci(mh.get('risk_difference_ci95_sato'))}  OR {mh['odds_ratio']} "
           f"{mh['odds_ratio_ci95']}  p={mh['p']}  strata used "
           f"{mh['n_strata_used']}/{mh['n_strata_given']}")
     print(f"  Breslow-Day: {bd}")
@@ -176,7 +179,8 @@ def print_primary(doc: dict) -> None:
     print("\nSECONDARY FAMILY (stratified, Benjamini-Hochberg over the family)")
     for t in doc["secondary"]:
         print(f"  {t['test']:<50} {_pct(t['risk_difference']):>8} "
-              f"{_ci(t['ci95']):<22} p={t['p']}  p_bh={t['p_bh']}")
+              f"{_ci(t['ci95']):<22} Sato {_ci(t.get('ci95_sato')):<22} "
+              f"p={t['p']}  p_bh={t['p_bh']}")
 
 
 def _print_snapshot(snap: dict) -> None:

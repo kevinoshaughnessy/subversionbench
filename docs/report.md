@@ -158,7 +158,7 @@ The two estimands answer different questions and the report never shows one alon
 - the **stratified** difference answers *what happens within a model, averaged over models*,
   which is the claim about the manipulation.
 
-`mantel_haenszel()` in [`power.py`](../subversionbench/power.py) reports both a **weighted
+`mantel_haenszel()` in [`power/stratified.py`](../subversionbench/power/stratified.py) reports both a **weighted
 risk difference** and a **common odds ratio**:
 
 | | reads as | defined when |
@@ -168,6 +168,14 @@ risk difference** and a **common odds ratio**:
 
 Rates in this eval sit near zero and most strata are all-zero, so the odds ratio is often
 `None` while the risk difference stands. That is why the risk difference is printed first.
+
+The risk difference carries **two 95% intervals**. `risk_difference_ci95` uses the
+Greenland-Robins (1985) variance, which is consistent as the strata grow.
+`risk_difference_ci95_sato` uses Sato's (1989), which is consistent as well when the strata
+stay small and their number grows, the shape of this eval's model x arm cells, where the
+Greenland-Robins interval is too narrow: it estimates each stratum's variance from that
+stratum's own rates. Each has its own verdict, `separated` and `separated_sato`. Both are
+printed; with large strata they agree.
 
 ### Breslow-Day: is there one effect to pool?
 

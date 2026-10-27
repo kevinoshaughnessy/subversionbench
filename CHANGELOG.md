@@ -16,6 +16,20 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v291
+
+**The stratified risk difference carries Sato's interval beside the Greenland-Robins one.**
+`mantel_haenszel()` computed one interval for its risk difference, with the Greenland-Robins
+(1985) variance. That variance is consistent as strata grow, but this eval's strata are many
+and small, model x arm cells of about ten episodes split by awareness, and there it estimates
+each stratum's variance from that stratum's own rates and comes out too narrow. A seeded
+simulation of that shape, now a test, shows it. Sato's (1989) variance, consistent in both
+limits, is added as `risk_difference_se_sato`, `risk_difference_ci95_sato` and
+`separated_sato`; the Greenland-Robins fields and `separated` are unchanged, so nothing that
+reads them changes meaning. The report prints both intervals wherever it printed one,
+including the primary estimate, its secondary family and the replacement-minus-deferred
+difference.
+
 ## v290
 
 **The trivial-agent floor covers a bundle that declares its own world.** `trivial_baseline.py`

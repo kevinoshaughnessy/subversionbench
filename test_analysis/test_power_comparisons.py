@@ -198,6 +198,83 @@ class TestMantelHaenszel:
         assert width(1000) < width(200) < width(50)
 
 
+class TestTheSatoInterval:
+    """Sato's (1989) variance for the MH risk difference, reported beside the
+    Greenland-Robins one rather than in its place.
+
+    The claim that earns it a place is coverage in many small strata, the
+    shape of this eval's model x arm cells, so that is what is tested: by a
+    seeded simulation whose answer is fixed, not by restating the formula.
+    """
+
+    @staticmethod
+    def _coverage(reps=400, seed=7):
+        """How often each 95% interval holds the true difference, over
+        150 strata of 10 with 10% in arm 1 - where the two part company."""
+        import random
+        from subversionbench.power import mantel_haenszel
+        rng, true_rd = random.Random(seed), 0.05
+        held_gr = held_sato = 0
+        for _ in range(reps):
+            strata = []
+            for _ in range(150):
+                p2 = rng.uniform(0, 0.10)
+                n1 = sum(rng.random() < 0.1 for _ in range(10))
+                strata.append((sum(rng.random() < p2 + true_rd for _ in range(n1)),
+                               n1, sum(rng.random() < p2 for _ in range(10 - n1)),
+                               10 - n1))
+            mh = mantel_haenszel(strata)
+            for key in ("risk_difference_ci95", "risk_difference_ci95_sato"):
+                lo, hi = mh[key]
+                hit = lo <= true_rd <= hi
+                held_gr += hit and key == "risk_difference_ci95"
+                held_sato += hit and key != "risk_difference_ci95"
+        return held_gr / reps, held_sato / reps
+
+    def test_it_holds_its_coverage_in_many_small_strata(self):
+        gr, sato = self._coverage()
+        assert 0.92 <= sato <= 0.98, sato
+        assert gr < 0.85, ("the Greenland-Robins interval no longer "
+                           f"under-covers here ({gr}), so this test has lost "
+                           "the case it was written for")
+
+    def test_it_agrees_with_greenland_robins_in_large_strata(self):
+        from subversionbench.power import mantel_haenszel
+        mh = mantel_haenszel([(30, 100, 20, 100), (15, 80, 10, 120),
+                              (40, 150, 25, 150)])
+        ratio = mh["risk_difference_se_sato"] / mh["risk_difference_se"]
+        assert 0.97 < ratio < 1.03, ratio
+
+    def test_the_greenland_robins_fields_are_that_estimator(self):
+        """The comment on _mh_risk_difference says its variance is
+        Greenland-Robins (1985) rearranged; this is their form, written out."""
+        from subversionbench.power import mantel_haenszel
+        strata = [(3, 7, 1, 9), (0, 4, 2, 6), (5, 12, 5, 8)]
+        weight = sum(n1 * n2 / (n1 + n2) for _, n1, _, n2 in strata)
+        var = sum((x1 * (n1 - x1) * n2 ** 3 + x2 * (n2 - x2) * n1 ** 3)
+                  / (n1 * n2 * (n1 + n2) ** 2)
+                  for x1, n1, x2, n2 in strata) / weight ** 2
+        assert abs(mantel_haenszel(strata)["risk_difference_se"]
+                   - var ** 0.5) < 1e-6
+
+    def test_its_verdict_is_its_own(self):
+        """separated is read from the Greenland-Robins interval, as it always
+        was; separated_sato from Sato's, so neither can stand in for the
+        other."""
+        from subversionbench.power import mantel_haenszel
+        mh = mantel_haenszel([(3, 7, 1, 9), (0, 4, 2, 6), (5, 12, 5, 8)])
+        for key, ci in (("separated", "risk_difference_ci95"),
+                        ("separated_sato", "risk_difference_ci95_sato")):
+            assert mh[key] == (mh[ci][0] > 0 or mh[ci][1] < 0)
+
+    def test_the_report_prints_both(self):
+        from report.pooling import _stratified_interpretation
+        from subversionbench.power import mantel_haenszel
+        mh = mantel_haenszel([(3, 7, 1, 9), (0, 4, 2, 6), (5, 12, 5, 8)])
+        text = _stratified_interpretation(mh, {"p": None}, "model")
+        assert "95% CI" in text and "Sato's [" in text, text
+
+
 class TestBreslowDay:
     def test_homogeneous_strata_are_not_rejected(self):
         from subversionbench.power import breslow_day, mantel_haenszel
