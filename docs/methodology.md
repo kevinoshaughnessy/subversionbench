@@ -868,8 +868,8 @@ Both awareness measures below read the model's **reasoning** as well as its visi
 so whether reasoning is captured changes the evidence they work from. Reasoning is
 therefore requested by default, in whichever form the model accepts: adaptive thinking
 with `display: "summarized"` from Sonnet 4.6 / Opus 4.6 onwards, a `budget_tokens` count
-of half `--max-tokens` below that, and nothing at all for OpenRouter models, which take no
-reasoning parameter and surface reasoning only when the backend volunteers it. Every run
+of half `--max-tokens` below that, and nothing at all for OpenRouter models unless
+`--effort` is given, which surface reasoning when the backend volunteers it. Every run
 and summary records the `reasoning_config` actually sent, alongside
 `episodes_with_reasoning`, and warns when the latter is zero — two batches that differ on
 it are not comparable on awareness.
