@@ -260,16 +260,20 @@ def _add_budget_and_routing_arguments(parser: argparse.ArgumentParser) -> None:
                              "4.6 / Opus 4.6 onwards a token budget is not "
                              "accepted at all - those models use adaptive "
                              "thinking, steered by --effort - and OpenRouter "
-                             "models take no reasoning parameter, surfacing "
+                             "models take no token budget, surfacing "
                              "reasoning by themselves when the backend "
                              "provides it.")
     parser.add_argument("--effort", choices=sorted(EFFORT_LEVELS), default=None,
                         help="Reasoning depth for adaptive-thinking Anthropic "
                              "models (output_config.effort) - the replacement "
-                             "for a fixed thinking budget. Omit to use the "
-                             "API default of 'high'. Not every model accepts "
-                             "every level, and it is ignored where the "
-                             "parameter is unsupported.")
+                             "for a fixed thinking budget - for OpenAI models, "
+                             "and for OpenRouter models (sent as "
+                             "reasoning.effort; nothing is sent when omitted, "
+                             "so the model's own default applies). Omit to use "
+                             "the API default. Not every model accepts every "
+                             "level: an Anthropic model warns and sends none, "
+                             "and whether an OpenRouter provider honours a "
+                             "level shows only in the reasoning tokens.")
     parser.add_argument("--openrouter-sort", choices=["price", "throughput"],
                         default=None,
                         help="Bias OpenRouter's backend routing for the "

@@ -8,8 +8,10 @@ nothing else - it builds request parameters and never makes a request.
 
 The non-Anthropic branches live here too, because the question they answer is
 the same one: what reasoning parameters does this harness send? For OpenRouter
-it sends none - that route does accept a `reasoning` parameter, but omitting it
-suppresses nothing, so nothing has to be sent to capture what a model produces.
+it sends none unless --effort is given - that route does accept a `reasoning`
+parameter, but omitting it suppresses nothing, so nothing has to be sent to
+capture what a model produces. With --effort it sends `reasoning.effort`, for
+experiments that vary the level; without it, the request is unchanged.
 For OpenAI it is the Responses API's own effort, alongside a summary request.
 
 Sent, not accepted: the distinction matters because this module's description
@@ -67,7 +69,10 @@ _EFFORT_NO_XHIGH = frozenset({"low", "medium", "high", "max"})
 _EFFORT_BASIC = frozenset({"low", "medium", "high"})
 _EFFORT_NONE = frozenset()
 
-EFFORT_LEVELS = _EFFORT_FULL
+# `minimal` is no Anthropic model's level, so it reaches only the routes that
+# pass the word through: OpenRouter, where the Gemini 3 family lists it as its
+# lowest, and OpenAI. An Anthropic model asked for it warns and sends nothing.
+EFFORT_LEVELS = _EFFORT_FULL | {"minimal"}
 
 # Matched as prefixes against the model ID, first match winning, so a bare
 # family name must come after every dated or dotted variant of it
@@ -160,8 +165,8 @@ def is_known_anthropic_model(model: str) -> bool:
 # lands in reasoning_config, so a batch always records what it ran with.
 DEFAULT_OPENAI_EFFORT = "medium"
 
-# What every OpenRouter run records as its reasoning config. Describes what the
-# harness SENT - nothing - and why that still captures reasoning, rather than
+# What every OpenRouter run collected without --effort records as its reasoning
+# config. Describes what the harness SENT - nothing - and why that still captures reasoning, rather than
 # asserting the route has no reasoning parameter. It has one; this does not send
 # it, and omitting it suppresses nothing.
 OPENROUTER_REASONING_CONFIG = (
@@ -176,6 +181,11 @@ OPENROUTER_REASONING_CONFIG = (
 _SUPERSEDED_CONFIGS = frozenset({
     "not sent (OpenRouter takes no reasoning parameter)",
 })
+
+
+def openrouter_effort_config(effort: str) -> str:
+    """What an OpenRouter run records when --effort was given and sent."""
+    return f"reasoning.effort={effort} (sent)"
 
 
 def same_reasoning_config(recorded: str, resolved: str) -> bool:
@@ -230,8 +240,8 @@ def resolve_thinking_budget(requested, max_tokens: int):
     characters of reasoning while native Anthropic runs contributed none,
     purely because extended thinking defaulted to off.
 
-    There is no OpenRouter setting to copy here. That path sends no reasoning
-    parameter; reasoning appears only when the model volunteers it, as
+    There is no OpenRouter setting to copy here. That path sends no token
+    budget, and no reasoning parameter at all unless --effort is given; reasoning appears only when the model volunteers it, as
     always-reasoning models do. So the budget is chosen on its own terms:
     half the output budget for reasoning and half for the answer, which
     scales if --max-tokens is raised for a verbose model.
@@ -282,7 +292,8 @@ def reasoning_flag_error(model: str, requested_budget, effort):
 
 def _unsurfaced_kwargs(model: str, requested_budget, effort):
     """resolve_thinking_kwargs for a model with no Anthropic thinking surface:
-    OpenAI's Responses API, or an OpenRouter route that is sent nothing."""
+    OpenAI's Responses API, or an OpenRouter route, which is sent an effort
+    only when one was typed."""
     warnings = []
     if is_openai_model(model):
         # The Responses API returns a reasoning SUMMARY, never the trace, so
@@ -307,16 +318,20 @@ def _unsurfaced_kwargs(model: str, requested_budget, effort):
     if requested_budget:
         warnings.append(
             f"--thinking-budget {requested_budget} does not apply to "
-            f"OpenRouter model {model}: this harness sends no reasoning "
-            f"parameter on that route. Reasoning is captured when the "
-            f"model returns it, which omitting the parameter does not "
-            f"prevent."
+            f"OpenRouter model {model}: this harness sends no token budget "
+            f"on that route, only reasoning.effort when --effort is given. "
+            f"Reasoning is captured when the model returns it, which "
+            f"omitting the parameter does not prevent."
         )
     if effort:
-        warnings.append(
-            f"--effort {effort} does not apply to OpenRouter model "
-            f"{model}: this harness sends no reasoning parameter there."
-        )
+        # Sent only when typed, so a batch without --effort makes exactly the
+        # request every OpenRouter batch made before this, and records the same
+        # config. OpenRouterClient.create translates output_config.effort into
+        # reasoning.effort. Whether the provider honours the level is not
+        # something a request can establish: read the per-level reasoning
+        # tokens before any rate.
+        return ({"output_config": {"effort": effort}},
+                openrouter_effort_config(effort), warnings)
     return {}, OPENROUTER_REASONING_CONFIG, warnings
 
 

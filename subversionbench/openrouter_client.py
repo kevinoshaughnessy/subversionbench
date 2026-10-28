@@ -3,11 +3,12 @@ OpenRouter adapter: OpenAI-compatible chat completions in, Anthropic-shaped
 blocks out.
 
 Reasoning appears here only when the backend volunteers it, because a rollout on
-this path sends no reasoning parameter. That is a choice, not a limit of the API:
+this path sends no reasoning parameter unless --effort was given, when it sends
+`reasoning.effort` and nothing else. That is a choice, not a limit of the API:
 OpenRouter accepts a `reasoning` parameter, and omitting it suppresses nothing -
 reasoning tokens are returned whenever the model generates them. So a model that
 returns none here did not reason, or withheld it upstream; it was not silenced by
-what this adapter sent. The one call that does send it is a short grader call,
+what this adapter sent. The other call that sends it is a short grader call,
 which asks for a low effort - see `short_call_thinking_kwargs`.
 
 That is why the same model can return a full trace through one provider route and

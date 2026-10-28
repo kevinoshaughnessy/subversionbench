@@ -27,8 +27,8 @@ routes is deliberate:
 
 The same OpenAI model is reachable on two of those, and the choice changes what
 the harness controls: the Responses route sends an effort and asks for a
-reasoning summary, while OpenRouter sends no reasoning parameter, so effort is
-the model's own default. Both awareness measures read reasoning, so the route
+reasoning summary, while OpenRouter sends no reasoning parameter unless --effort
+is given, so effort is otherwise the model's own default. Both awareness measures read reasoning, so the route
 stays an explicit choice recorded in every run's `reasoning_config`. What it
 does NOT change is whether reasoning comes back at all - see routing.py for the
 measurement that retired that claim.

@@ -8,8 +8,8 @@ The OpenRouter and OpenAI routes overlap deliberately. "openai/gpt-5.4" and
 "gpt-5.4" are the same model reached two ways, and the choice has to stay
 selectable because it changes what the harness CONTROLS: the Responses route
 sends an effort and asks for a reasoning summary, while the OpenRouter route
-sends no reasoning parameter at all, so effort is whatever the model does by
-default. Both return a summary, never the trace. Every run records which, in
+sends no reasoning parameter unless --effort is given, so effort is otherwise
+whatever the model does by default. Both return a summary, never the trace. Every run records which, in
 `reasoning_config`.
 
 WHAT IT DOES NOT CHANGE IS WHETHER REASONING COMES BACK. This said, until it

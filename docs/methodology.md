@@ -1083,6 +1083,12 @@ the model that may decline to return them — OpenRouter notes that "some reason
 not return their reasoning tokens", the o-series being its own example. So `gpt-5.4`'s zero
 is that model withholding, not the route suppressing.
 
+The OpenRouter route sends a `reasoning` parameter in one case only: `--effort` given on
+the command line, sent as `reasoning.effort` and recorded in `reasoning_config` and the
+run's `effort` field. That exists for experiments that vary the level within one model.
+Without it the request is the one every batch in the corpora was collected with, so each
+OpenRouter model there ran at its provider's default effort.
+
 Measured across r9, the two routes agree for the one model collected on both:
 `openai/gpt-5.6-luna` returns a median 2,266 reasoning characters through OpenRouter against
 2,175 native, with awareness at 9.2% and 5.8% respectively. Near-identical exposure is not a

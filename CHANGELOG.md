@@ -16,6 +16,17 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v296
+
+**`--effort` reaches OpenRouter models.** It used to be dropped there with a warning, so an
+effort experiment could use only native OpenAI and Anthropic models. It is now sent as
+`reasoning.effort` and recorded as `reasoning.effort=<level> (sent)`, which also labels the
+batch with the level. It is sent only when typed: without it the request, and the recorded
+config, are the ones every OpenRouter batch already collected made. `minimal` is accepted,
+since it is the lowest level the Gemini 3 family lists; an Anthropic model asked for it warns
+and sends nothing. A provider may accept a level without honouring it, so read the reasoning
+tokens per level before any rate.
+
 ## v295
 
 **The recognition probe does not count a term the excerpt contains.** `contamination_check.py
