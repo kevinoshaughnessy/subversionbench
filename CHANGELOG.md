@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v295
+
+**The recognition probe does not count a term the excerpt contains.** `contamination_check.py
+--recognition-terms` counted a reply as naming the source whenever it contained a term, and a
+benchmark's own fictional names make useful terms; but those names are also in the excerpts the
+model is shown, so a reply that only repeated the excerpt scored as recognition, and a model was
+reported suspected for it. A term is now counted only when the excerpt it was asked about does
+not contain it.
+
 ## v294
 
 **The stratified row of every forest chart counts strata, and draws Sato's interval.** Its

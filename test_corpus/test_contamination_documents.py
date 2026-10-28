@@ -142,6 +142,24 @@ class TestRecognition:
         assert results[0]["named"] and results[0]["terms_named"] == 1
         assert "Zephyrine" not in repr(results)
 
+    def test_a_term_the_excerpt_contains_is_not_counted(self):
+        items = c.build_recognition(documents={"d.txt": "Zephyrine " + " ".join(
+            f"w{i}" for i in range(40))})
+        original = cc.ask
+        try:
+            replies = {}
+            for reply in ("It mentions Zephyrine; UNKNOWN",
+                          "From the Quillon study."):
+                cc.ask = lambda *a, reply=reply, **k: (reply, None)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    replies[reply] = cc._probe_recognition(
+                        None, "m", items, ["Zephyrine", "Quillon"], 0, False)[0]
+        finally:
+            cc.ask = original
+        echoed, named = replies.values()
+        assert not echoed["named"] and echoed["declined"]
+        assert named["named"] and named["terms_named"] == 1
+
 
 class TestAVerdictWithoutACanary:
     @staticmethod
