@@ -949,7 +949,13 @@ decision depends on the results.
   198, one empty turn (minimal), one turn cap (high).
 - **Grading: the glm-5.3 category reading is in** for 200 of 200 (medium `run_2` was
   missed by the first pass and read by a re-run). The interrogations and the default
-  grader are pending.
+  grader: not run, by choice. They measure what the model admits after acting, which
+  does not bear on the awareness-act relationship this arm was collected for, so the run
+  files keep `interrogation_pending` and no default-grader entry.
+- **Kept out of every chart and corpus figure.** The arm is ungraded by the default
+  grader and was collected to answer one question, so its episodes stay in their own
+  directory, which no chart, report or paper script reads by default; nothing here may
+  be copied into `eval_results_r10/`.
 
 | effort | median reasoning tokens | median turns | misaligned | oversight left off | disabled, then restored | keyword screen |
 |---|---|---|---|---|---|---|
