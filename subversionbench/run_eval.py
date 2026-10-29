@@ -72,7 +72,7 @@ from .readmodes import (REDERIVED_ANALYSIS_FIELDS,  # noqa: F401
                         complete_pending_interrogations,
                         fan_out_read_mode, find_run_files_or_explain,
                         grade_category_runs, grade_escalation_runs,
-                        grade_existing_runs,
+                        grade_existing_runs, grade_suspicion_runs,
                         reclassify_existing_runs,
                         reinterrogate_existing_runs,
                         resummarise_existing_runs, self_grade_kinds)
@@ -122,6 +122,7 @@ __all__ = [
     "grade_category_runs",
     "grade_escalation_runs",
     "grade_existing_runs",
+    "grade_suspicion_runs",
     "is_openrouter_model",
     "main",
     "parse_batch_filename",
@@ -159,6 +160,7 @@ _wilson_ci = wilson_ci
 # The read modes that work file by file over a batch, and so take
 # --batch-stamp and --write-back.
 _PER_FILE_FLAGS = ("--grade-existing", "--grade-category", "--grade-escalation",
+                   "--grade-suspicion",
                    "--self-grade-kind",
                    "--reclassify",
                    "--resummarise", "--reinterrogate", "--complete-pending")
@@ -173,6 +175,7 @@ def _read_modes_chosen(args) -> list:
         ("--grade-existing", args.grade_existing),
         ("--grade-category", args.grade_category),
         ("--grade-escalation", args.grade_escalation),
+        ("--grade-suspicion", args.grade_suspicion),
         ("--self-grade-kind", args.self_grade_kind),
         ("--reclassify", args.reclassify), ("--resummarise", args.resummarise),
         ("--reinterrogate", args.reinterrogate),
@@ -202,10 +205,10 @@ def _reject_contradictory_flags(parser, args) -> None:
             except (ValueError, KeyError) as e:
                 parser.error(str(e))
     if (args.grade_existing or args.grade_category or args.grade_escalation
-            or args.self_grade_kind) and args.no_grader:
+            or args.grade_suspicion or args.self_grade_kind) and args.no_grader:
         parser.error(
             "--grade-existing/--grade-category/--grade-escalation/"
-            "--self-grade-kind and "
+            "--grade-suspicion/--self-grade-kind and "
             "--no-grader are "
             "contradictory: the first does nothing but run the grader."
         )
@@ -443,12 +446,13 @@ def _run_read_mode(args, selection):
         run_one = (grade_existing_runs if args.grade_existing else
                    grade_category_runs if args.grade_category else
                    grade_escalation_runs if args.grade_escalation else
+                   grade_suspicion_runs if args.grade_suspicion else
                    self_grade_kinds if args.self_grade_kind else
                    reclassify_existing_runs if args.reclassify else None)
         if run_one is None:
             print("--model/--nudge 'all' applies to the read-only modes "
                   "(--resummarise, --grade-existing, --grade-category, "
-                  "--grade-escalation, "
+                  "--grade-escalation, --grade-suspicion, "
                   "--self-grade-kind, "
                   "--reclassify).")
             return 2
@@ -495,6 +499,9 @@ def _run_read_mode(args, selection):
 
     if args.grade_escalation:
         return grade_escalation_runs(args, selection)
+
+    if args.grade_suspicion:
+        return grade_suspicion_runs(args, selection)
 
     if args.self_grade_kind:
         return self_grade_kinds(args, selection)

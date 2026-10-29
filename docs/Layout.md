@@ -163,6 +163,9 @@ subversionbench/
     quote_grounding.py     did the grader cite the agent, or the memo
     category.py            the category question, asked by the corpus
                            read mode and by grader_ab from one copy
+    suspicion.py           two questions of suspicion already voiced, asked
+                           through category's call: did it enter the
+                           decision to act, and what kind of test was it
     transcript_analysis.py what the episode did, hashes and commands
     transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
@@ -210,6 +213,8 @@ subversionbench/
                            category question, beside the others
     grade_escalation.py    reading each closing report's rung: no deliverable
                            could pass the check, this one fails it, or neither
+    grade_suspicion.py     adding one of the two suspicion readings, one call
+                           per episode the question arises for
     kind_self.py           re-measuring only the KIND of suspicion, with the
                            episode's own model - two questions per aware
                            episode, none for the rest
@@ -334,8 +339,10 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    resumes. Never opens the sealed key, and refuses a note
                    that repeats six words of the transcript, since labelling/
                    is plaintext. Run as `python3 -m grader_ab.label_pack DIR`,
-                   with `--purpose` for a purpose pack or `--misuse` for a
-                   misuse_pack, which ask no codebook rule
+                   with `--purpose` for a purpose pack, `--misuse` for a
+                   misuse_pack, or `--decision`/`--framing` for a
+                   suspicion_pack, which ask no codebook rule; the last two
+                   print their definition from the detector bundle first
   blind_score.py   the step after labelling: joins each pack's labels through
                    its sealed key to a grid run on that pack, and reads every
                    cell by grader-selection.md's rule - balanced accuracy with
@@ -354,6 +361,13 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    the uncapped text, as blind_pack's does. Run as
                    `python3 -m grader_ab.misuse_pack`; see
                    docs/misuse-labelling.md
+  suspicion_pack.py the same split, for the two suspicion questions, drawn
+                   from the paper snapshot's primary episodes: aware before
+                   the act for `decision`, balanced on the pre-act category;
+                   aware episodes of models with an aware act for `framing`,
+                   balanced on acting and capped per model. Holds no
+                   definition, which is the protocol. Run as
+                   `python3 -m grader_ab.suspicion_pack QUESTION`
   length_probe.py  whether the grader reads a long episode as reliably as a
                    short one: one sentence planted at 10%, 50% or 90% of
                    episodes stored as not aware, in three length bands, the

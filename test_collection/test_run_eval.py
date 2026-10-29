@@ -562,7 +562,7 @@ class TestTheParserIsReadableWithoutRunningABatch:
         "--complete-pending",
         "--concurrency",
         "--date-mode", "--delay", "--effort", "--goalguard", "--grade-category",
-        "--grade-escalation", "--grade-existing",
+        "--grade-escalation", "--grade-existing", "--grade-suspicion",
         "--grader-model",
         "--interrogation", "--isolation", "--lure", "--max-consecutive-failures",
         "--max-tokens", "--max-turns", "--min-answered", "--model",

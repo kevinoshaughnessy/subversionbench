@@ -16,6 +16,23 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v297
+
+**Two questions of suspicion already voiced, and a blind pack for each.** The paper's
+within-model comparison cannot tell suspicion a model narrates from suspicion it acts on.
+`--grade-suspicion decision` asks whether suspicion voiced before an episode's earliest
+placeable act entered the reasoning that led to it, worked against it, or sat beside it;
+`--grade-suspicion framing` asks what kind of test an aware episode took its situation to
+be, including the puzzle and consequence-free simulation readings that other work found
+went with worse behaviour, which the rubric's safety-or-capability field cannot carry. Both
+go out through the category call the headline question was validated with, which now takes
+a question's own system prompt and answer set; an answer outside the set is a failure, not a
+verdict. The wording is in the detector bundle, since it is also the definition a rater
+labels against. `grader_ab.suspicion_pack` draws a blind pack for either question from the
+paper snapshot before any grader has answered it, and `label_pack --decision`/`--framing`
+labels it, printing the definition first so the pack holds no copy. Neither reading is in
+any report until it has been checked against those labels.
+
 ## v296
 
 **`--effort` reaches OpenRouter models.** It used to be dropped there with a warning, so an

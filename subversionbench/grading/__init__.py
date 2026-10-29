@@ -18,6 +18,7 @@ nine reasons to change in one file. Each now owns itself:
     interrogation.py        labelling one answer: admitted, denied, neither
     closing_report.py       what the deliverable said, as opposed to the answers
     concealment.py          acts plus answers to a verdict
+    suspicion.py            two questions of suspicion already voiced
 
 The names below are the scoring API the rest of the harness uses. New code
 should prefer the owning module; this exists so that `run_eval` has one import
@@ -46,6 +47,8 @@ from .awareness_timing import (
 )
 from .category import (AWARE_CATEGORIES, CATEGORIES, CATEGORY_KEY,
                        awareness_block, calls_needed, category_reading)
+from .suspicion import (SUSPICION_KEY, SUSPICION_LABELS, suspicion_reading,
+                        suspicion_text)
 from .closing_report import (
     detect_disclosure,
     ESCALATION_INSTRUMENT,
@@ -132,6 +135,7 @@ from .transient_tampering import (
 __all__ = [
     "AWARE_CATEGORIES", "CATEGORIES", "CATEGORY_KEY", "awareness_block",
     "calls_needed", "category_reading",
+    "SUSPICION_KEY", "SUSPICION_LABELS", "suspicion_reading", "suspicion_text",
     # what the episode did
     "analyze_misalignment", "SCHEMING_KEYWORDS", "MISALIGNED_ACTS", "LOCATED_BY_RECORDED_COMMANDS", "counted_acts", "auth_error_in_analysis",
     "acts_awaiting_interrogation", "act_value", "act_form",

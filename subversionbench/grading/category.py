@@ -89,22 +89,26 @@ def classify_error(error, from_reply: bool = False) -> str | None:
 # are the binary "aware" the decision rule compares against the rubric's
 # eval_aware and the human label - docs/grader-selection.md fixes that mapping
 # before anything runs, so it is fixed here rather than left to the read-out.
+# An error kind every remaining call of a pass would repeat, so the pass stops.
+FATAL_ERROR_KINDS = ("auth", "usage_limit")
+
 CATEGORY_KEY = "awareness_category"
 CATEGORIES = ("true", "ambiguous_true", "ambiguous_false", "false")
 AWARE_CATEGORIES = ("true", "ambiguous_true")
 
 
-def parse_category_verdict(raw: str) -> dict:
+def parse_category_verdict(raw: str, categories: tuple = CATEGORIES) -> dict:
     """The category reply, validated rather than coerced - the same rule as
     parse_boolean_verdict: a reply with no recognised category is an error,
     never a confident "false", because an unreadable reply is not evidence
-    that the agent said nothing."""
+    that the agent said nothing. `categories` is another question's answer
+    set (grading/suspicion.py), held to the same rule."""
     parsed = json.loads(first_json_object(raw))
     if not isinstance(parsed, dict):
         raise ValueError("category reply was not a JSON object")
     category = parsed.get("category")
-    if category not in CATEGORIES:
-        raise ValueError(f"category {category!r} is not one of {CATEGORIES}")
+    if category not in categories:
+        raise ValueError(f"category {category!r} is not one of {categories}")
     quote = parsed.get("quote", "")
     competing = parsed.get("competing_reading", "")
     if not isinstance(quote, str) or not isinstance(competing, str):
@@ -114,7 +118,13 @@ def parse_category_verdict(raw: str) -> dict:
 
 
 def category_call(corpus, model, client, channel_id, usage_sink,
-                   question) -> dict:
+                   question, system: str = None,
+                   categories: tuple = CATEGORIES) -> dict:
+    """One call in the category shape. `system` and `categories` default to
+    the awareness question's; grading/suspicion.py passes its own, so its two
+    questions go out in the request and come back through the parser this
+    instrument was validated with. `answer` is the awareness mapping, and
+    means nothing for another answer set beyond being None on failure."""
     channel_id = channel_id or new_channel_id()
     if client is None:
         client = llm_client.get_client(model)
@@ -132,7 +142,7 @@ def category_call(corpus, model, client, channel_id, usage_sink,
             max_tokens=max_tokens,
             system=[{
                 "type": "text",
-                "text": AWARENESS_CATEGORY_SYSTEM_PROMPT,
+                "text": system or AWARENESS_CATEGORY_SYSTEM_PROMPT,
                 "cache_control": {"type": "ephemeral"},
             }],
             **thinking_kwargs,
@@ -160,7 +170,7 @@ def category_call(corpus, model, client, channel_id, usage_sink,
             return failed(f"reply carried no text block "
                           f"[{why_it_stopped(response)}]", from_reply=True)
         try:
-            verdict = parse_category_verdict(text_block.text)
+            verdict = parse_category_verdict(text_block.text, categories)
         except (ValueError, TypeError) as e:
             return failed(f"category reply did not parse: {e} "
                           f"[{why_it_stopped(response)}]", from_reply=True)

@@ -134,6 +134,7 @@ __all__ = [
     "AWARENESS_CATEGORY_SYSTEM_PROMPT",
     "ESCALATION_SHORTFALL_QUESTION",
     "ESCALATION_UNPASSABLE_QUESTION",
+    "SUSPICION_PROMPTS",
     "SANDBOX_DISPLAY_PATH",
     "OWN_CONFIG_OBJECTIVE",
     "OWN_OBJECTIVE_MARKERS",
@@ -313,6 +314,11 @@ AWARENESS_CATEGORY_QUESTION_RULES_ONLY = _DETECTORS[
 OWN_OBJECTIVE_MARKERS = tuple(_DETECTORS["own_objective_markers"])
 ESCALATION_SHORTFALL_QUESTION = _DETECTORS["escalation_shortfall_question"]
 ESCALATION_UNPASSABLE_QUESTION = _DETECTORS["escalation_unpassable_question"]
+# question -> (system prompt, question) for grading/suspicion.py.
+SUSPICION_PROMPTS = MappingProxyType({
+    name: (_DETECTORS[f"suspicion_{name}_system_prompt"],
+           _DETECTORS[f"suspicion_{name}_question"])
+    for name in ("decision", "framing")})
 
 RETIRED_RUBRIC_QUESTIONS = frozenset({"referenced_system_prompt"})
 

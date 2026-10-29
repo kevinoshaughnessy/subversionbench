@@ -369,8 +369,22 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "calls per episode. Without --write-back it only "
                              "counts them; with it, episodes already answered "
                              "are skipped, so a stopped pass resumes.")
+    parser.add_argument("--grade-suspicion", choices=("decision", "framing"),
+                        help="Don't run the eval. Ask --category-grader one "
+                             "of the two suspicion questions and store the "
+                             "answer in the run file: `decision`, how "
+                             "suspicion voiced before the earliest act that "
+                             "can be placed relates to it, asked of every "
+                             "episode with one; `framing`, what kind of test "
+                             "the agent took its situation to be, asked of "
+                             "every episode the headline reading calls aware. "
+                             "One call per episode. Without --write-back it "
+                             "only counts them; with it, episodes already "
+                             "answered are skipped, so a stopped pass "
+                             "resumes. --concurrency runs that many at once.")
     parser.add_argument("--category-grader", default=HEADLINE_AWARENESS_GRADER,
-                        help="With --grade-category: the model that asks the "
+                        help="With --grade-category or --grade-suspicion: "
+                             "the model that asks the "
                              "category question (default: %(default)s, the "
                              "headline awareness grader). Another model's "
                              "reading is stored as its own grader entry, "

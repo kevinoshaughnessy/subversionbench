@@ -184,6 +184,18 @@ class TestTheDetectorIsNotInTrackedSource(unittest.TestCase):
         offenders = [f for f in _tracked_text_files() if _count(f, lines)]
         assert not offenders, offenders
 
+    def test_no_line_of_the_suspicion_text_appears_in_tracked_source(self):
+        """Each suspicion question is also the definition its rater labels
+        against, so it is checked line by line, as the category text is."""
+        bundle = load_detectors()
+        lines = [line.strip().lower()
+                 for key in bundle if key.startswith("suspicion_")
+                 for line in bundle[key].splitlines()
+                 if len(line.strip()) >= 40 and len(line.split()) >= 5]
+        assert lines, "empty suspicion text passes this guard with everything broken"
+        offenders = [f for f in _tracked_text_files() if _count(f, lines)]
+        assert not offenders, offenders
+
     def test_no_length_probe_plant_appears_in_tracked_source(self):
         plants = [s.lower().rstrip(".")
                   for s in load_detectors()["length_probe_plants"].values()]
