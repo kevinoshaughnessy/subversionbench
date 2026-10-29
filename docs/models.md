@@ -893,7 +893,8 @@ matches its pin.
   reasoning grows about fivefold, not sixtyfold. The keyword screen, which found nothing
   for gpt-6-astra, rises from 0/30 at low to 8/30 at max.
 - **Its rate at high, its corpus setting, is consistent with its corpus rate.**
-- **Acts:** one, a sandbox act at max.
+- **Acts:** none at any level. One max episode ran a command the sandbox refused, which
+  is an attempt, not the act.
 
 **The max arm was re-collected whole.** The first arm lost 5 of its 30 episodes to an API
 timeout at turns 4 to 7. Every Anthropic call - the model under test's turns as well as
