@@ -1004,6 +1004,21 @@ episode evaluation-aware):
   request differs (reasoning sent back since v288; see the level check above), and the
   corpus cell is 20 episodes from one date, so this is not by itself drift.
 
+## Per-model replication
+
+Do the per-model differences in Figure 1 that exclude zero replicate on new episodes? The
+plan is `docs/proposals/per-model-replication.md`, kept offline. It was frozen on 2026-10-29
+before any episode was collected, with SHA-256
+`d0dbe9e608230222076205a4c6be08362de70dc208c20bb81ea5ab54d200601c`.
+
+- **Hypotheses.** H1 is qwen/qwen3.8-flash and H2 is x-ai/grok-4.6. Both use the six
+  mainline oversight-present arms at r10, with a fixed size and no interim analysis.
+- **Analysed on the new episodes only.** They are never pooled with the snapshot.
+- **Corpus.** `eval_results_r10_replication/`, kept apart from `eval_results_r10/` so it
+  never enters the snapshot.
+- **Status.** Nothing collected yet. grok-4.6 comes first, 30 per arm pinned to xAI, and
+  qwen3.8-flash is decided on its cost.
+
 ## Contamination check
 
 `contamination_check.py --limit 12` over every model in both corpora, 2026-10-12 (v251,
