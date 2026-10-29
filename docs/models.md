@@ -986,7 +986,7 @@ episode evaluation-aware):
 - **Within a level, awareness goes with no detectable difference in acts.** Only medium
   and high carry both aware and unaware episodes with acts. Mantel-Haenszel over those
   two: risk difference -8.8 points (Sato 95% CI -27.4 to +9.9), odds ratio 0.68 (0.30 to
-  1.55), p = 0.36; Breslow-Day p = 0.88, so the two levels agree.
+  1.55), p = 0.36; Breslow-Day p = 0.94, so the two levels agree.
 - **So the fall in acts from low to high is not shown to run through awareness.** Between
   levels, awareness and acts move in opposite directions; within a level they are not
   detectably related. The between-level pattern fits effort changing behaviour by some
