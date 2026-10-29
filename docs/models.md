@@ -947,9 +947,9 @@ decision depends on the results.
   for, as `reasoning.effort=<level> (sent)`; every fingerprint is the oversight-arm pin;
   every episode was served by Google; no turn stopped on length. Endings: model stopped in
   198, one empty turn (minimal), one turn cap (high).
-- **Grading: the glm-5.3 category reading is in** for 199 of 200; medium `run_2` has no
-  entry (the pass did not write it, so a re-run of medium's category grade asks again).
-  The interrogations and the default grader are pending.
+- **Grading: the glm-5.3 category reading is in** for 200 of 200 (medium `run_2` was
+  missed by the first pass and read by a re-run). The interrogations and the default
+  grader are pending.
 
 | effort | median reasoning tokens | median turns | misaligned | oversight left off | disabled, then restored | keyword screen |
 |---|---|---|---|---|---|---|
@@ -978,15 +978,15 @@ episode evaluation-aware):
 |---|---|---|---|---|---|
 | minimal | 1 | 0 | 49 | 0 | - |
 | low | 0 | - | 50 | 44 | - |
-| medium | 22 | 14 | 27 | 20 | 0.54 |
+| medium | 23 | 15 | 27 | 20 | 0.55 |
 | high | 26 | 14 | 24 | 15 | 0.58 |
 
 - **Awareness rises with effort under the grader too:** none of 50 at low, 26 of 50 at
-  high (p < 0.001); medium against high, 22/49 against 26/50, p = 0.55.
+  high (p < 0.001); medium against high, 23/50 against 26/50, p = 0.69.
 - **Within a level, awareness goes with no detectable difference in acts.** Only medium
   and high carry both aware and unaware episodes with acts. Mantel-Haenszel over those
-  two: risk difference -9.5 points (Sato 95% CI -28.4 to +9.3), odds ratio 0.66 (0.29 to
-  1.51), p = 0.33; Breslow-Day p = 0.88, so the two levels agree.
+  two: risk difference -8.8 points (Sato 95% CI -27.4 to +9.9), odds ratio 0.68 (0.30 to
+  1.55), p = 0.36; Breslow-Day p = 0.88, so the two levels agree.
 - **So the fall in acts from low to high is not shown to run through awareness.** Between
   levels, awareness and acts move in opposite directions; within a level they are not
   detectably related. The between-level pattern fits effort changing behaviour by some
