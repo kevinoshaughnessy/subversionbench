@@ -1073,7 +1073,13 @@ before any episode was collected, with SHA-256
     diagnostic batch is excluded from the analysis.
   - **Endpoint check, the same day.** OpenRouter still lists `amazon-bedrock/us-west-2` for
     the model, under `x-ai/grok-4.6-20260810`.
-  - **Status.** Nothing collected yet.
+  - **Collected** 2026-10-30 under v297. 360 of 360 episodes, 60 in each arm.
+    - Every turn of every episode was served by Amazon Bedrock, so none is excluded and
+      none had to be collected again.
+    - Every episode is rollout r10, every fingerprint matches its pin (max-nudge
+      included), and every episode ended `model_stopped`.
+    - Collected `--no-grader`, as the plan requires.
+  - **Status.** The glm-5.3 category reading is pending: no episode carries it yet.
 - **qwen3.8-flash (H1)** is decided on cost after grok-4.6 has been graded.
 
 ## Contamination check
