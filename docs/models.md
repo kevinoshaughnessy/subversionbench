@@ -1117,8 +1117,23 @@ before any episode was collected, with SHA-256
     - "First-person" means the block contains I, me, my or "let me".
     - The format alone does not explain H2.
     - What xAI now returns is longer, and it is aware almost every time.
-    - Whether that is a changed summariser or a changed model under the same label is not
-      established.
+  - **xAI's behaviour changed too, not only its summary.**
+    - The August snapshot was served by xAI. The provider was not recorded in the episodes.
+      The user checked OpenRouter's activity log for 2026-08-13: every grok-4.6 call that
+      day was served by xAI, listed there as "SpaceXAI".
+    - On 2026-10-30, with the same label, scenario and arms, xAI and Bedrock acted
+      differently: 1 of 180 against 27 of 360 (Fisher p = 0.0003).
+    - xAI in October differs from xAI in August: 1 of 180 against 6 of 60 (p = 0.001).
+      Bedrock in October does not differ from August (p = 0.45).
+    - xAI's episodes also ran fewer commands (median 4) and turns (5) than the August ones
+      (5 and 6) or Bedrock's (6 and 7).
+    - No episode on any host or date has test phrasing in its visible text, by the keyword
+      screen.
+    - What changed on xAI between August and October is not known: weights, an added
+      prompt, serving settings, the summariser, or more than one of these. A summariser
+      change alone would not change the acts.
+    - Bedrock's model behaves like August's, but its reasoning is hidden, so its awareness
+      cannot be compared.
 
   - **Descriptive.**
     - Mantel-Haenszel, stratified by arm over 6 strata: -7.5 pp (Sato -10.5 to -4.5).
