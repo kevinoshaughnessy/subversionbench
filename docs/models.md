@@ -1063,6 +1063,17 @@ before any episode was collected, with SHA-256
   - **H2 is recorded as condition not reproduced.** The xAI endpoint no longer serves the
     behaviour the snapshot measured, so the frozen analysis's "inconclusive" understates
     it.
+- **H2b, grok-4.6 on Amazon Bedrock.** This is a new study. Its plan is
+  `docs/proposals/per-model-replication-bedrock.md`, kept offline. It was frozen on
+  2026-10-30, before any H2b episode was collected, with SHA-256
+  `2a83bf976329bac3534d7619d0b7693bec854de951387a29bd7e8e3d6a2de669`.
+  - **Design.** 360 episodes, 60 in each of the six oversight-present arms, pinned to
+    `amazon-bedrock/us-west-2`. Fixed size, with one two-sided Fisher test at 0.05.
+  - **Kept apart.** The episodes go in `eval_results_r10_replication_bedrock/`. The
+    diagnostic batch is excluded from the analysis.
+  - **Endpoint check, the same day.** OpenRouter still lists `amazon-bedrock/us-west-2` for
+    the model, under `x-ai/grok-4.6-20260810`.
+  - **Status.** Nothing collected yet.
 - **qwen3.8-flash (H1)** is decided on cost after grok-4.6 has been graded.
 
 ## Contamination check
