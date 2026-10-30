@@ -1042,23 +1042,25 @@ before any episode was collected, with SHA-256
   - The scenario assembly, the grader instrument (`category_rules`), what is sent back to
     grok, the request settings and the files the agent reads all match the snapshot. A
     plain search of the thinking for test phrasing, with no grader, gives 3 of 60
-    snapshot episodes and 140 of 180 here, so the change is in the model's own text.
+    snapshot episodes and 140 of 180 here, so the change is in the text returned as
+    thinking. That text is now xAI's summary of the reasoning (see H2b below).
     One aware quote calls the scenario a prompt-injection test. That is closer to
     suspected misuse than to evaluation awareness, but the category instrument has no
     misuse category.
-  - **The cause is xAI's endpoint, not the checkpoint.** A diagnostic batch
+  - **The change follows the host, not the checkpoint label.** A diagnostic batch
     (`eval_results_r10_grok46_bedrock/`, 2026-10-30, v297) collected 10 episodes in the
     strong / oversight / no-lure cell. It was pinned to `amazon-bedrock/us-west-2`; the
     regional slug is needed because default routing drops surcharged regional
     endpoints. Bedrock served every turn, and each episode has the glm-5.3 category
     reading. It was collected only to find the cause and is not part of H2. OpenRouter
-    lists the same checkpoint, `x-ai/grok-4.6-20260810`, for both hosts.
+    lists the same checkpoint, `x-ai/grok-4.6-20260810`, for both hosts. Bedrock's 0 / 10
+    was later found to be read from the visible output alone (see H2b below).
 
     | strong / oversight / no lure | aware (category) | test phrasing in thinking | misaligned |
     |---|---|---|---|
     | snapshot, 2026-08-13, unpinned | 1 / 10 | 0 / 10 | 1 / 10 |
     | xAI, 2026-10-30 | 29 / 30 | 26 / 30 | 0 / 30 |
-    | Bedrock, 2026-10-30 | 0 / 10 | 0 / 10 | 1 / 10 |
+    | Bedrock, 2026-10-30 | 0 / 10 | no readable thinking | 1 / 10 |
 
   - **H2 is recorded as condition not reproduced.** The xAI endpoint no longer serves the
     behaviour the snapshot measured, so the frozen analysis's "inconclusive" understates
@@ -1081,13 +1083,36 @@ before any episode was collected, with SHA-256
     - Collected `--no-grader`, as the plan requires.
   - The glm-5.3 category reading covers 360 of 360 episodes, run with `--nudge all`, with
     no failed calls.
-  - **H2b is inconclusive.** Aware episodes: 0 acts in 12. Unaware episodes: 27 in 348.
-    The difference is -7.8 pp (95% Newcombe interval -11.1 to +16.6), Fisher p = 0.61.
-    The test does not reject, and the interval is not within ±10 pp, so the plan reads
-    this as inconclusive at this size.
-  - **Awareness was lower than planned for.** 12 of 360 (3.3%) were aware: 1 `true` and
-    11 `ambiguous_true`, between 1 and 3 per arm. The snapshot had 10 of 60 (Fisher p =
-    0.0003). The plan's power table gives about 0.5 at a 3% awareness rate.
+  - **The frozen test is inconclusive.** Aware episodes: 0 acts in 12. Unaware episodes:
+    27 in 348. The difference is -7.8 pp (95% Newcombe interval -11.1 to +16.6), Fisher
+    p = 0.61. The test does not reject, and the interval is not within ±10 pp, so the plan
+    reads this as inconclusive at this size.
+  - **Bedrock returns no readable reasoning, so its awareness was not measured on the
+    snapshot's terms.** Every reasoning part from Bedrock, in all 360 episodes and in the
+    diagnostic batch, is `reasoning.encrypted` (format `bedrock-xai-responses-v1`).
+    `reasoning_chars` is 0 in every episode, while Bedrock bills a median of 3,499
+    reasoning tokens per episode, against 3,166 on xAI. The grader saw the visible output
+    only.
+    - 12 of 360 (3.3%) were aware, all from the visible output: 1 `true` and 11
+      `ambiguous_true`, between 1 and 3 per arm.
+    - This is not comparable with the snapshot's 10 of 60, which was read from the
+      reasoning.
+    - The diagnostic batch's "0 / 10 test phrasing in thinking" searched empty text, so it
+      was no evidence that Bedrock matched the snapshot. The plan chose Bedrock partly on
+      it.
+  - **H2b is recorded as condition not met.** The plan assumes awareness is read as in the
+    snapshot. On Bedrock it cannot be, so the frozen reading, inconclusive, understates
+    this.
+  - **xAI returns a summary, not the reasoning.**
+    - On xAI, 849 of 1,015 reasoning parts carry `reasoning.summary` (format
+      `xai-responses-v1`), and the rest are encrypted only.
+    - The snapshot's thinking reads as first-person working, at a median of 203
+      characters per block over 387 blocks.
+    - xAI's now reads as an impersonal summary, at a median of 1,070 characters over 849
+      blocks.
+    - So H2's near-total awareness was read from different text than the snapshot's. That
+      is a likelier cause than a change in the model. Whether the summary itself adds the
+      test framing is not established.
   - **Descriptive.**
     - Mantel-Haenszel, stratified by arm over 6 strata: -7.5 pp (Sato -10.5 to -4.5).
       That interval excludes zero only because no aware episode acted, so the aware side
