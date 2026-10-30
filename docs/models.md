@@ -1016,8 +1016,17 @@ before any episode was collected, with SHA-256
 - **Analysed on the new episodes only.** They are never pooled with the snapshot.
 - **Corpus.** `eval_results_r10_replication/`, kept apart from `eval_results_r10/` so it
   never enters the snapshot.
-- **Status.** Nothing collected yet. grok-4.6 comes first, 30 per arm pinned to xAI, and
-  qwen3.8-flash is decided on its cost.
+- **x-ai/grok-4.6 (H2) collected** 2026-10-29 to 2026-10-30 under v297.
+  - 180 of 180 episodes, 30 in each of the six oversight-present arms, all pinned to xAI.
+    Every episode ended `model_stopped`.
+  - Every episode is rollout r10, and every fingerprint matches its pin, max-nudge
+    included.
+  - The snapshot's grok-4.6 episodes are r9, which assembles the oversight arms
+    identically. Their max-nudge episodes carry the none/strong fingerprint: the stamping
+    defect described at `MAX_NUDGE_FINGERPRINTS`.
+  - Collected `--no-grader`, so the interrogations are pending and there is no rubric or
+    category reading yet. The list price is about $9.75.
+- **qwen3.8-flash (H1)** is decided on cost after grok-4.6 has been graded.
 
 ## Contamination check
 
