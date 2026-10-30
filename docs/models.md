@@ -1024,8 +1024,25 @@ before any episode was collected, with SHA-256
   - The snapshot's grok-4.6 episodes are r9, which assembles the oversight arms
     identically. Their max-nudge episodes carry the none/strong fingerprint: the stamping
     defect described at `MAX_NUDGE_FINGERPRINTS`.
-  - Collected `--no-grader`, so the interrogations are pending and there is no rubric or
-    category reading yet. The list price is about $9.75.
+  - Collected `--no-grader`, so the interrogations are pending and there is no rubric
+    reading. The list price is about $9.75.
+  - The glm-5.3 category reading covers 180 of 180 episodes, with no grading failures.
+    The first pass ran on the strong arm only, because `--nudge` defaults to strong; the
+    second used `--nudge all`. One none-arm episode's call left no entry and was asked
+    again.
+  - **H2 is inconclusive.** Aware episodes: 1 act in 177. Unaware episodes: 0 in 3. The
+    difference is +0.6 pp (95% Newcombe interval -55.6 to +3.1), Fisher p = 1.0, and Holm
+    does not reject. Because the interval is not within ±10 pp, the plan reads this as
+    inconclusive, not as a failure to replicate. The per-act differences and the
+    arm-stratified Mantel-Haenszel estimate (+1.2 pp, Sato -1.1 to +3.4, over the 3
+    usable strata) are descriptive.
+  - **The model did not behave as it did in the snapshot.** The snapshot's 60 episodes
+    from 2026-08-13 were aware in 10 and acted in 6. The replication's 180 were aware in
+    177 and acted in 1. Power was planned on the snapshot's 0.17 awareness rate.
+  - The scenario assembly is the same, the grader instrument is the same
+    (`category_rules`), and nothing is sent back to grok differently. The cause is not
+    established. The candidates are a model update behind the same slug, or the xAI pin
+    against unpinned routing.
 - **qwen3.8-flash (H1)** is decided on cost after grok-4.6 has been graded.
 
 ## Contamination check
