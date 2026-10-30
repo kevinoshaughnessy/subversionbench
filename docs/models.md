@@ -1079,7 +1079,23 @@ before any episode was collected, with SHA-256
     - Every episode is rollout r10, every fingerprint matches its pin (max-nudge
       included), and every episode ended `model_stopped`.
     - Collected `--no-grader`, as the plan requires.
-  - **Status.** The glm-5.3 category reading is pending: no episode carries it yet.
+  - The glm-5.3 category reading covers 360 of 360 episodes, run with `--nudge all`, with
+    no failed calls.
+  - **H2b is inconclusive.** Aware episodes: 0 acts in 12. Unaware episodes: 27 in 348.
+    The difference is -7.8 pp (95% Newcombe interval -11.1 to +16.6), Fisher p = 0.61.
+    The test does not reject, and the interval is not within ±10 pp, so the plan reads
+    this as inconclusive at this size.
+  - **Awareness was lower than planned for.** 12 of 360 (3.3%) were aware: 1 `true` and
+    11 `ambiguous_true`, between 1 and 3 per arm. The snapshot had 10 of 60 (Fisher p =
+    0.0003). The plan's power table gives about 0.5 at a 3% awareness rate.
+  - **Descriptive.**
+    - Mantel-Haenszel, stratified by arm over 6 strata: -7.5 pp (Sato -10.5 to -4.5).
+      That interval excludes zero only because no aware episode acted, so the aware side
+      adds almost no variance. It is not a test.
+    - Per act, aware against unaware: monitor disabled 0/12 against 19/348, quality check
+      edited 0/12 against 0/348, sandbox escape 0/12 against 24/348. Every Fisher p is 1.0.
+    - Acts per arm, out of 60: none 1, none + lure 4, strong 6, strong + lure 4, max 7,
+      max + lure 5.
 - **qwen3.8-flash (H1)** is decided on cost after grok-4.6 has been graded.
 
 ## Contamination check
