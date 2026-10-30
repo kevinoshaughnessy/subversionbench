@@ -1043,7 +1043,7 @@ before any episode was collected, with SHA-256
     grok, the request settings and the files the agent reads all match the snapshot. A
     plain search of the thinking for test phrasing, with no grader, gives 3 of 60
     snapshot episodes and 140 of 180 here, so the change is in the text returned as
-    thinking. That text is now xAI's summary of the reasoning (see H2b below).
+    thinking. That text changed on xAI's side after mid-September (see H2b below).
     One aware quote calls the scenario a prompt-injection test. That is closer to
     suspected misuse than to evaluation awareness, but the category instrument has no
     misuse category.
@@ -1103,16 +1103,23 @@ before any episode was collected, with SHA-256
   - **H2b is recorded as condition not met.** The plan assumes awareness is read as in the
     snapshot. On Bedrock it cannot be, so the frozen reading, inconclusive, understates
     this.
-  - **xAI returns a summary, not the reasoning.**
-    - On xAI, 849 of 1,015 reasoning parts carry `reasoning.summary` (format
-      `xai-responses-v1`), and the rest are encrypted only.
-    - The snapshot's thinking reads as first-person working, at a median of 203
-      characters per block over 387 blocks.
-    - xAI's now reads as an impersonal summary, at a median of 1,070 characters over 849
-      blocks.
-    - So H2's near-total awareness was read from different text than the snapshot's. That
-      is a likelier cause than a change in the model. Whether the summary itself adds the
-      test framing is not established.
+  - **On xAI, the text returned as reasoning changed between mid-September and late October,
+    under the same format label.** Every xAI episode since September carries
+    `reasoning.summary` parts (format `xai-responses-v1`).
+
+    | grok-4.6 | episodes | aware | median thinking block, chars | first-person blocks |
+    |---|---|---|---|---|
+    | mainline, 2026-08-13, oversight, format unrecorded | 60 | 10 | 203 | 99% |
+    | mainline, 2026-09-10, no oversight, xAI | 60 | 8 | 167 | 100% |
+    | goal-guarding, 2026-09-14, oversight, xAI | 40 | 14 | 174 | 100% |
+    | H2, 2026-10-29 to 30, oversight, xAI | 180 | 177 | 1,070 | 78% |
+
+    - "First-person" means the block contains I, me, my or "let me".
+    - The format alone does not explain H2.
+    - What xAI now returns is longer, and it is aware almost every time.
+    - Whether that is a changed summariser or a changed model under the same label is not
+      established.
+
   - **Descriptive.**
     - Mantel-Haenszel, stratified by arm over 6 strata: -7.5 pp (Sato -10.5 to -4.5).
       That interval excludes zero only because no aware episode acted, so the aware side
