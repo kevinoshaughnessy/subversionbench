@@ -775,6 +775,23 @@ between episodes and sometimes within one, and in some models it lines up with t
 contrast between two arms served by different providers is partly a contrast between providers.
 `served_by` records the provider of every turn, so this is measured rather than assumed.
 
+**Mainline episodes collected from 2026-08-13 to 2026-09-05 do not record the provider.** That
+is 3,143 episodes from 32 snapshot models. The provider was recovered from the user's OpenRouter
+Explore export of requests by model and provider for 2026-08-12 to 2026-09-04. The export counts
+every request to the model, interrogations included, so it gives each model's mix, not any one
+episode's provider. The counts are in the paper repository's `scripts/provider_mix.py`.
+
+- **One provider:** the xAI, Alibaba-served Qwen flash and Google models, muse-spark-1.2 (Meta)
+  and mistral-small-2603 (Mistral). Google's Vertex and AI Studio endpoints are counted as one.
+- **More than one provider serving over 5% of requests: 16 models.** These are deepseek-v4-flash,
+  deepseek-v4-pro and its -0813, ling-3.0-flash, llama-4-maverick, muse-glimmer-30b, kimi-k2-thinking,
+  kimi-k2.5, kimi-k2.6, kimi-k3, qwen3.6-27b, qwen3.8-27b, hy3, inkling-small, glm-5.1 and glm-5.2.
+  The largest provider's share ranges from 38% (deepseek-v4-flash) to 88% (qwen3.8-27b).
+- Only 4 of their mainline strata have aware and unaware episodes and an act, which is the only
+  kind in which mixing can bias the primary.
+- **Without the 16 models, the primary is +1.04 pp** (Sato -0.35 to +2.43, 246 strata), against
+  +0.82 with them.
+
 **From 2026-10-06, each model is pinned to one provider** with `--openrouter-provider`, chosen as follows:
 
 1. Exclude any endpoint that trains on its prompts (as throughout; see
