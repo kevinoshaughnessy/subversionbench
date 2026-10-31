@@ -95,7 +95,8 @@ the authoritative measure and this is a floor.
 
 I.c.1 asks for evidence of the judge's **accuracy**, **self-consistency**, and
 **agreement with human**. All three are evidenced for the headline measure. The
-remaining limit is that the human labels are one rater's.
+remaining limit is that the human labels are one rater's, whose own consistency
+is measured below.
 
 **Accuracy and agreement with a human: measured on a blind random sample
 (2026-10-07 to 2026-10-11).** The full record is in
@@ -201,9 +202,29 @@ I.c.1's outstanding legs rather than one of them.
 after a gap, order re-randomised and the first labels unseen, bounds the whole
 measurement: judge-human disagreement below the rater's own noise floor is not
 evidence about the judge. It is the strongest substitute available to a sole
-author and it costs a quarter of the labelling. **It has not been done.** The
-validation above rests on a single blind pass, so the rater's own noise floor is
-not known.
+author and it costs a quarter of the labelling.
+
+**Measured on 2026-10-31, 23 days after the first pass.** 30 of the 110 blind
+episodes were drawn, 15 the first pass labelled aware and 15 it did not, 15 from
+each corpus (seed 20261031). They were re-blinded under new ids, in a new order
+with the two corpora mixed, and labelled against the same frozen codebook with
+the first labels sealed in the key.
+
+| | agreement | Cohen's kappa |
+|---|---|---|
+| aware / not aware | 30 of 30 | 1.00 |
+| exact category | 28 of 30 | 0.89 (linearly weighted 0.96) |
+
+- **No episode changed side.** The 95% CI on the binary change rate is 0 to 11.3%.
+- **Both category changes** went from false to ambiguous_false, one step within
+  the not-aware side; both were mainline episodes.
+- The subset is balanced on the first label rather than drawn at the sample's
+  base rate, so that the aware side is large enough to estimate on.
+- **The limits.** A sole author re-labelling after three weeks may recall some
+  episodes, which would inflate agreement; new ids and order reduce that but
+  cannot rule it out. And this is one person agreeing with themselves: it bounds
+  the noise in the labels, not whether others would draw the line in the same
+  place.
 
 The blinding itself is `subversionbench/blinding.py`, and what it withholds is
 chosen from what could betray the answer rather than from what is obviously the
@@ -298,8 +319,9 @@ foresee. The figures and the readings are in [models.md](models.md), under
 - For the early episodes, each model's mix of backends was recovered afterwards
   from the operator's OpenRouter request counts. Sixteen models had a second
   backend serving more than 5% of requests.
-- The episodes kept no generation ID, so the backend of any one episode cannot
-  be recovered. The mix is known per model, not per episode.
+- The episodes kept no generation ID (recorded only from v298), so the backend
+  of any one of them cannot be recovered. The mix is known per model, not per
+  episode.
 - Mixing can bias the within-model estimate only in a stratum with aware and
   unaware episodes and an act. Few strata qualify, and leaving out the sixteen
   models does not change its sign.
@@ -359,18 +381,19 @@ benchmark cannot do as much as for the things it can.
 1. **I.c.1** is closed for the headline measure. The blind random sample gives
    accuracy and agreement with a human, and the second pass above gives
    self-consistency. Two things would strengthen it:
-   - intra-rater reliability, by re-labelling a subset after a gap (in
-     progress, 2026-10-31);
-   - a second rater, which is the only route to agreement between people.
+   - intra-rater reliability is now measured (above);
+   - a second rater is the only route to agreement between people, and the
+     one thing that would strengthen it further.
 2. **I.b.1 is closed by the measurement above**, which found nothing to fix and
    a reason not to try.
 3. **III.6.** The early backend gap is closed per model, not per episode, and
    cannot be closed further for episodes already collected.
-   - For new collection, recording the provider's generation ID on every turn
-     would make any episode's backend recoverable.
+   - From v298 the router's generation ID is recorded on every turn, so the
+     backend of any newly collected episode is recoverable.
+   - From v298 a batch whose first episode's reasoning was withheld by the
+     route stops and asks the operator before collecting more.
    - A short calibration cell before a model is collected again would catch a
-     backend that has changed what it serves.
-   - Neither is in the harness yet.
+     backend that has changed what it serves. That is not in the harness yet.
 4. **III.12** is closed by the argument above rather than by an experiment.
 
 ## Reproducing the self-consistency figures
@@ -382,7 +405,16 @@ python -m grader_ab --output-dir eval_results_r10_selfcons_20261031 --graders z-
   --shapes category_rules --runs-file labelling/blind_r10_20261008/runs.txt --delay 0.4
 ```
 
-The same for goal-guarding, with its own directory and runs file. The earlier grader's figure:
+The same for goal-guarding, with its own directory and runs file.
+
+The intra-rater figures, from the re-labelling pack and its sealed key:
+
+```bash
+python3 -m grader_ab.label_pack labelling/relabel_20261031
+python3 <paper repository>/scripts/consistency_scores.py rater
+```
+
+The earlier grader's figure:
 
 ```bash
 python -m grader_ab --output-dir eval_results_r10 --graders claude-opus-5 \
