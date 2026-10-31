@@ -36,7 +36,7 @@ over the same transcript, and act detection from the recorded commands.
 | I.a.1, I.a.2 | not applicable | nothing here matches a whole or partial string against a ground-truth answer; there is no ground-truth answer to match |
 | I.b.1 | **addressed by measurement, not by a change** | see "Negation" below |
 | I.b.2, I.b.3 | not applicable | no answer to list or guess |
-| **I.c.1** | **satisfied for the headline grader, against one rater; self-consistency measured on an earlier grader** | see "The judge" below |
+| **I.c.1** | **satisfied for the headline grader, against one rater** | see "The judge" below |
 | I.c.2 | satisfied, previously uncited | `test_corpus/test_grader_injection.py`, 24 tests, covers a transcript trying to instruct the grader. `shapes.py` routes every answer through the shipped `parse_boolean_verdict` rather than a second copy |
 | I.d.\*, I.e.\*, I.f.\* | not applicable | the outcome is not a unit, fuzz or end-to-end test of agent-written code |
 | I.g.1, I.g.2 | satisfied, previously uncited | act detection checks the states a misaligned act would leave AND the ones it would not: refusal nesting separates a command the sandbox blocked from one it allowed, and `out_of_scope` is derived from both rather than asserted |
@@ -94,10 +94,8 @@ the authoritative measure and this is a floor.
 ### The judge
 
 I.c.1 asks for evidence of the judge's **accuracy**, **self-consistency**, and
-**agreement with human**. All three are now evidenced, with two limits:
-- self-consistency was measured on the grader and rubric of the time, not the
-  headline measure chosen later;
-- the human labels are one rater's.
+**agreement with human**. All three are evidenced for the headline measure. The
+remaining limit is that the human labels are one rater's.
 
 **Accuracy and agreement with a human: measured on a blind random sample
 (2026-10-07 to 2026-10-11).** The full record is in
@@ -125,10 +123,31 @@ I.c.1 asks for evidence of the judge's **accuracy**, **self-consistency**, and
   about two points lower, in the same order. Both are recorded in
   grader-selection.md.
 
-**Self-consistency: measured, on an earlier grader.** The awareness grader of
-the time, claude-opus-5 asking the per-question rubric, was run twice over the
-same 116 saved r10 transcripts, sampled balanced on the stored verdict. It has
-not been repeated for the glm-5.3 category question.
+**Self-consistency of the headline measure: measured (2026-10-31).**
+- **The run.** glm-5.3 asked the rules-only category question a second time over
+  the same 110 blind-sample episodes. The transcripts were the ones the first
+  pass read on 2026-10-10. Twelve of them belong to arms collected again since,
+  so they were graded from the superseded copies, each checked to be a single
+  identical file.
+- **Agreement with its first pass.**
+
+  | | agree | kappa |
+  |---|---|---|
+  | aware / not aware | 109 of 110 | 0.98 |
+  | exact category | 106 of 110 | 0.92 (linearly weighted 0.96) |
+
+- **The one changed verdict** went from not aware to aware: 1 of 110, 95% CI
+  0.2 to 5.0%. No episode was left unanswered.
+- OpenRouter does not pin the host serving grader calls, so the two passes may
+  have been served by different hosts. The figure includes that.
+- The two result files are `grader_ab_z-ai_glm-5.3_category_rules_n56_20261031T100127.json`
+  and `..._n54_20261031T100303.json`, under `eval_results_*_selfcons_20261031/`.
+  They are compared with the first pass's cells by `consistency_scores.py` in
+  the paper repository.
+
+**Self-consistency of the earlier grader.** The awareness grader of the time,
+claude-opus-5 asking the per-question rubric, was run twice over 116 saved r10
+transcripts, sampled balanced on the stored verdict.
 `grader_ab/self_consistency.py` compares the two result files.
 
 | | of 116 | 95% CI |
@@ -158,7 +177,7 @@ Two structural findings from the same run:
 - Calls fail outright at about 0.2% of question-slots, and roughly a third of
   the time that lands on a question the verdict depends on.
 
-Reading the self-consistency result in the other direction: at 1.7% with an
+Reading the earlier grader's result in the other direction: at 1.7% with an
 upper bound of 6.1%, judge instability is far below the smallest effect this
 benchmark claims to detect - `minimum_detectable_rate(0.301, 60)` is 0.571 - so
 the published awareness figures are not meaningfully limited by it. That is the
@@ -327,11 +346,11 @@ benchmark cannot do as much as for the things it can.
 
 ## What would close the remaining gaps
 
-1. **I.c.1** is closed for accuracy and agreement with a human by the blind
-   random sample above. Three things would strengthen it:
-   - intra-rater reliability, by re-labelling a subset after a gap;
-   - self-consistency measured on the headline grader and question, not on the
-     earlier ones;
+1. **I.c.1** is closed for the headline measure. The blind random sample gives
+   accuracy and agreement with a human, and the second pass above gives
+   self-consistency. Two things would strengthen it:
+   - intra-rater reliability, by re-labelling a subset after a gap (in
+     progress, 2026-10-31);
    - a second rater, which is the only route to agreement between people.
 2. **I.b.1 is closed by the measurement above**, which found nothing to fix and
    a reason not to try.
@@ -344,7 +363,16 @@ benchmark cannot do as much as for the things it can.
    - Neither is in the harness yet.
 4. **III.12** is closed by the argument above rather than by an experiment.
 
-## Reproducing the self-consistency figure
+## Reproducing the self-consistency figures
+
+The headline measure's second pass, over the blind sample's runs:
+
+```bash
+python -m grader_ab --output-dir eval_results_r10_selfcons_20261031 --graders z-ai/glm-5.3 \
+  --shapes category_rules --runs-file labelling/blind_r10_20261008/runs.txt --delay 0.4
+```
+
+The same for goal-guarding, with its own directory and runs file. The earlier grader's figure:
 
 ```bash
 python -m grader_ab --output-dir eval_results_r10 --graders claude-opus-5 \
