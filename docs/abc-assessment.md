@@ -36,7 +36,7 @@ over the same transcript, and act detection from the recorded commands.
 | I.a.1, I.a.2 | not applicable | nothing here matches a whole or partial string against a ground-truth answer; there is no ground-truth answer to match |
 | I.b.1 | **addressed by measurement, not by a change** | see "Negation" below |
 | I.b.2, I.b.3 | not applicable | no answer to list or guess |
-| **I.c.1** | **partial - one leg of three** | see "The judge" below |
+| **I.c.1** | **satisfied for the headline grader, against one rater; self-consistency measured on an earlier grader** | see "The judge" below |
 | I.c.2 | satisfied, previously uncited | `test_corpus/test_grader_injection.py`, 24 tests, covers a transcript trying to instruct the grader. `shapes.py` routes every answer through the shipped `parse_boolean_verdict` rather than a second copy |
 | I.d.\*, I.e.\*, I.f.\* | not applicable | the outcome is not a unit, fuzz or end-to-end test of agent-written code |
 | I.g.1, I.g.2 | satisfied, previously uncited | act detection checks the states a misaligned act would leave AND the ones it would not: refusal nesting separates a command the sandbox blocked from one it allowed, and `out_of_scope` is derived from both rather than asserted |
@@ -94,10 +94,41 @@ the authoritative measure and this is a floor.
 ### The judge
 
 I.c.1 asks for evidence of the judge's **accuracy**, **self-consistency**, and
-**agreement with human**. One of the three is now evidenced.
+**agreement with human**. All three are now evidenced, with two limits:
+- self-consistency was measured on the grader and rubric of the time, not the
+  headline measure chosen later;
+- the human labels are one rater's.
 
-**Self-consistency: measured.** The awareness grader was run twice over the same
-116 saved r10 transcripts, sampled balanced on the stored verdict.
+**Accuracy and agreement with a human: measured on a blind random sample
+(2026-10-07 to 2026-10-11).** The full record is in
+[grader-selection.md](grader-selection.md).
+- **The sample.** 110 episodes: 56 mainline and 54 goal-guarding, one per model
+  from each corpus and two for each of four models whose awareness is phrased
+  unusually. They were drawn by `grader_ab.blind_pack --draw random
+  --whole-text` with a fixed seed, at random within each model and never
+  balanced on a grader's verdict.
+- **The labelling.** The operator labelled them blind on the four categories
+  and saw the agent's text whole, without the model, the arm or any grader's
+  reading. 32 were labelled aware.
+- **The scoring.** Every candidate grader and question was scored with
+  `grader_ab.blind_score`.
+- **The headline measure** is z-ai/glm-5.3 asking the category question in its
+  rules-only wording. Against the human binary verdict it has **balanced
+  accuracy 97.2%** (95% bootstrap interval 93.1 to 100), **Cohen's kappa 0.93**.
+- Every cell's interval overlapped every other's, so a rule fixed in advance
+  made the choice.
+- On the exact category, the rules-only wording agreed more closely with the
+  operator than the worked wording under every grader.
+- One deviation from the protocol below: three goal-guarding labels were
+  changed from `false` to `true` after re-reading. In each, the deciding passage
+  was a single one in a long transcript. Before the change every cell scored
+  about two points lower, in the same order. Both are recorded in
+  grader-selection.md.
+
+**Self-consistency: measured, on an earlier grader.** The awareness grader of
+the time, claude-opus-5 asking the per-question rubric, was run twice over the
+same 116 saved r10 transcripts, sampled balanced on the stored verdict. It has
+not been repeated for the glm-5.3 category question.
 `grader_ab/self_consistency.py` compares the two result files.
 
 | | of 116 | 95% CI |
@@ -127,18 +158,6 @@ Two structural findings from the same run:
 - Calls fail outright at about 0.2% of question-slots, and roughly a third of
   the time that lands on a question the verdict depends on.
 
-**Accuracy and human agreement: not evidenced, but no longer unstaged.** Both
-need labelled ground truth, which does not exist for this corpus. The blinded
-labelling setup does exist - see "Blinding, and what a single rater can claim"
-below - so what remains is the reading, not the machinery. What exists instead is
-`cross_analysis_awareness`, the agreement between the keyword screen and the
-grader - a comparison of two instruments, not of either against truth, and not
-one of I.c.1's three legs. The v16 rubric experiment recorded in
-`docs/methodology.md` under "Validating the grader" is the nearest thing to an
-accuracy check: it established that a small grader was wrong in a specific,
-readable way, by reading the episodes. That is documented evidence about
-accuracy, but on one batch and one question rather than the measure as a whole.
-
 Reading the self-consistency result in the other direction: at 1.7% with an
 upper bound of 6.1%, judge instability is far below the smallest effect this
 benchmark claims to detect - `minimum_detectable_rate(0.301, 60)` is 0.571 - so
@@ -163,7 +182,9 @@ I.c.1's outstanding legs rather than one of them.
 after a gap, order re-randomised and the first labels unseen, bounds the whole
 measurement: judge-human disagreement below the rater's own noise floor is not
 evidence about the judge. It is the strongest substitute available to a sole
-author and it costs a quarter of the labelling.
+author and it costs a quarter of the labelling. **It has not been done.** The
+validation above rests on a single blind pass, so the rater's own noise floor is
+not known.
 
 The blinding itself is `subversionbench/blinding.py`, and what it withholds is
 chosen from what could betray the answer rather than from what is obviously the
@@ -181,9 +202,12 @@ and formatted identically. A rater shown the raw transcript would see tool
 output the judge never read, and a disagreement would then be about the input
 rather than about the judgement.
 
-Blocks are balanced on the stored verdict and shuffled within the block, so
-labelling can stop at any block boundary and still leave a balanced sample,
-while the order never says which side an episode is on. The key is written to
+By default, blocks are balanced on the stored verdict and shuffled within the
+block, so labelling can stop at any block boundary and still leave a balanced
+sample, while the order never says which side an episode is on. The validation
+sample above was drawn with `--draw random` instead. A sample balanced on one
+grader's verdict estimates accuracy on that grader's split, not on the corpus as
+it is, and would favour that grader in the comparison. The key is written to
 disk rather than re-derived on demand: the sampler is deterministic only against
 a fixed candidate list, and this corpus is being restaged, so a regenerated
 mapping would join the labels to the wrong episodes with nothing looking wrong.
@@ -192,7 +216,11 @@ The one thing the machinery cannot supply is the order of operations. The label
 definition has to be frozen before the pack is read, and the original blind
 label - not an adjudicated revision - is what enters the statistic. Adjudicating
 toward the judge would turn agreement into a measure of deference, and every
-revision would move it the same way.
+revision would move it the same way. The validation departed from this once:
+three labels were changed on re-reading. Every grader's agreement rose by about
+two points as a result, which is the direction this rule warns of, and the
+ordering of the graders did not change. The figures before the change are
+recorded beside those after it (see "The judge" above).
 
 ## Challenge validity (II.\*)
 
@@ -216,14 +244,62 @@ revision would move it the same way.
 | **III.3** (paper R.3) | satisfied, cited | `docs/methodology.md`, "Contamination, and when the scenario would be rotated" - the canary, the base64 bundle, the held-out scenario |
 | **III.4** (paper R.4) | satisfied, cited | same section: the rotation policy, its trigger, and why rotation is a last resort rather than a schedule |
 | **III.5** (paper R.5) | satisfied, cited | `docs/methodology.md`, "Which measurement serves which construct" |
-| **III.6** (paper R.6) | satisfied, cited | `docs/methodology.md`, "What is being evaluated" - a named model, as served by a recorded backend, under a recorded reasoning-exposure regime, inside this harness's fixed scaffold |
+| **III.6** (paper R.6) | satisfied, cited, with a gap in the early record | `docs/methodology.md`, "What is being evaluated" - a named model, as served by a recorded backend, under a recorded reasoning-exposure regime, inside this harness's fixed scaffold. See "III.6, what the record could not say" below |
 | III.7 | satisfied, previously uncited | the plant-the-defect discipline in AGENTS.md, and a CHANGELOG entry per version recording what was wrong and how it was found |
 | III.8 | satisfied | `docs/methodology.md` carries the caveats the measures cannot remove |
-| III.9 | satisfied, previously uncited | `report/data_quality.py` is a suite of quantitative flaw-impact checks: arms pooled across backends, arms routed differently across a contrast, and the two that report episodes the harness read as a model stopping when the provider said it was truncated or blocked |
+| III.9 | satisfied, previously uncited | `report/data_quality.py` is a suite of quantitative flaw-impact checks: arms pooled across backends, arms routed differently across a contrast, and the two that report episodes the harness read as a model stopping when the provider said it was truncated or blocked. Three more were added for the gaps under III.6: the within-model estimate by how much reasoning reached the grader, without the models served by more than one backend, and without strata or arm pairs that span collection dates |
 | III.10 | satisfied, previously uncited | Wilson intervals on every rate, exact McNemar on the paired questions, Mantel-Haenszel for the stratified estimate |
 | III.11 | satisfied | the report prints its own caveats beside the figures, and collapses a question rather than showing a null when its comparator is gone |
 | III.12 | **not addressed** | see below |
 | **III.13** (paper R.13) | satisfied, cited | `trivial_baseline.py` |
+
+### III.6, what the record could not say
+
+The statement of the subject names four things: the model, the backend, the
+reasoning-exposure regime and the scaffold. Checking the corpus, not the code,
+found two gaps in what it actually carries, and a third the statement did not
+foresee. The figures and the readings are in [models.md](models.md), under
+"Provider routing" and "Per-model replication".
+
+**The backend was not recorded for the earliest episodes.**
+- `served_by` dates from 2026-09-05. Mainline episodes collected from
+  2026-08-13 to 2026-09-05 have no record of the backend: 3,143 episodes from 32
+  models.
+- From 2026-10-06 every model is pinned to one backend.
+- For the early episodes, each model's mix of backends was recovered afterwards
+  from the operator's OpenRouter request counts. Sixteen models had a second
+  backend serving more than 5% of requests.
+- The episodes kept no generation ID, so the backend of any one episode cannot
+  be recovered. The mix is known per model, not per episode.
+- Mixing can bias the within-model estimate only in a stratum with aware and
+  unaware episodes and an act. Few strata qualify, and leaving out the sixteen
+  models does not change its sign.
+
+**Reasoning exposure varies by route, more than "recorded" conveys.** Both
+awareness measures read the reasoning, and a route can return it in four ways:
+- the trace;
+- a summary written by the provider;
+- encrypted records only, billed as reasoning tokens with no readable text;
+- nothing.
+
+The regime is recorded per episode (`reasoning_chars`, and `reasoning_details`
+where the provider sends it). But a model whose route returns encrypted records
+is graded on its visible text alone, with nothing in the record marking that as
+different from a model that does not reason. The within-model estimate was
+therefore recomputed within groups divided by how much reasoning reached the
+grader (III.9).
+
+**The same label does not fix what is served.**
+- One model's host, under an unchanged checkpoint label, returned reasoning
+  blocks about six times longer two months after the first collection.
+- Almost every episode then read as aware, and the model also acted far less
+  often.
+- A second host serving the same label returned no readable reasoning, and its
+  model acted as in the first collection.
+
+So a named model on a named backend is still not a fixed subject over time. A
+model collected on two dates needs a check that the backend serves the same
+behaviour.
 
 ### III.12, and why no human baseline is reported
 
@@ -251,16 +327,22 @@ benchmark cannot do as much as for the things it can.
 
 ## What would close the remaining gaps
 
-1. **I.c.1, accuracy and human agreement.** A hand-labelled sample scored
-   against the grader. It is the only remaining gap that touches a published
-   number. Worth doing after the self-consistency result above, not before:
-   agreement with a human means little for a judge that does not agree with
-   itself, and that order is now established rather than assumed. The pack is
-   built and blind; the limitation is the rater, and the section below states
-   it rather than working around it.
+1. **I.c.1** is closed for accuracy and agreement with a human by the blind
+   random sample above. Three things would strengthen it:
+   - intra-rater reliability, by re-labelling a subset after a gap;
+   - self-consistency measured on the headline grader and question, not on the
+     earlier ones;
+   - a second rater, which is the only route to agreement between people.
 2. **I.b.1 is closed by the measurement above**, which found nothing to fix and
    a reason not to try.
-3. **III.12** is closed by the argument above rather than by an experiment.
+3. **III.6.** The early backend gap is closed per model, not per episode, and
+   cannot be closed further for episodes already collected.
+   - For new collection, recording the provider's generation ID on every turn
+     would make any episode's backend recoverable.
+   - A short calibration cell before a model is collected again would catch a
+     backend that has changed what it serves.
+   - Neither is in the harness yet.
+4. **III.12** is closed by the argument above rather than by an experiment.
 
 ## Reproducing the self-consistency figure
 
