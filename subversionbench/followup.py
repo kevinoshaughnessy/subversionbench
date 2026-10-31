@@ -223,6 +223,7 @@ def run_followup(system_prompt, messages, model, client, act,
             # from the backend that served the episode, and this is the only
             # record that it did.
             "served_by": getattr(response, "provider", None),
+            "generation_id": getattr(response, "generation_id", None),
         }
         print(f"[{label} A] {answer[:400]}\n")
         # Same constraint as the main loop: an empty text block coming back

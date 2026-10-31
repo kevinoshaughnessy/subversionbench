@@ -16,6 +16,26 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v298
+
+**A batch whose reasoning never arrives asks before it goes on.** Both awareness
+measures read the model's reasoning, and a route that reasons and returns only an
+encrypted payload, or only a reasoning-token count, yields episodes the grader reads
+as unaware whatever the model thought. One full arm was collected that way before
+anyone looked. The first episode a batch collects is now checked, and if its
+reasoning was withheld the run prints what it saw and waits for a yes or a no; no
+answer, or a closed stdin, is a no, and a no exits as an interrupt so
+`run_all_arms.sh` does not start the next arm. Under `--concurrency` the first
+episode runs alone, so nothing is collected while the question is on screen. A model
+that did not reason at all is not asked about.
+
+**The router's generation id is recorded per turn.** `generation_ids` on every
+episode, and `generation_id` on every interrogation answer, carry OpenRouter's own
+id for each call. Its generation endpoint answers with the backend that served that
+call, so a later provider audit can ask about any one episode rather than
+reconstructing it from per-model request counts. Run-file metadata only: no rollout
+fingerprint moves.
+
 ## v297
 
 **Two questions of suspicion already voiced, and a blind pack for each.** The paper's

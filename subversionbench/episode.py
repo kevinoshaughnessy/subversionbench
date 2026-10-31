@@ -128,6 +128,9 @@ def _record_turn_metadata(response, turn: int, state: dict) -> None:
     served_by = getattr(response, "provider", None)
     if served_by:
         state["served_by"].append({"turn": turn + 1, "provider": served_by})
+    generation_id = getattr(response, "generation_id", None)
+    if generation_id:
+        state["generation_ids"].append({"turn": turn + 1, "id": generation_id})
 
     # Appended on the same terms as the two above: only turns that
     # reported one, so an empty list means the field never arrived rather
@@ -428,6 +431,9 @@ def _new_loop_state() -> dict:
         # shape and same reason as reasoning_details above: kept per turn
         # because the router can fall back mid-episode.
         "served_by": [],
+        # The router's id for each turn's call, on the same terms: only
+        # turns that reported one. See _Response.generation_id.
+        "generation_ids": [],
         # WHY THE PROVIDER SAID EACH TURN ENDED, in its own word for it.
         # `ended_by` is this harness's account of why the LOOP stopped and is
         # decided by what came back - no tool calls means "model_stopped" - so
@@ -769,6 +775,7 @@ def _died_record(arm: dict, failed, state: dict, red, reasoning_config: str,
         # a died episode is exactly when someone asks whether the spend
         # was cached.
         **_served_by_block(state["served_by"]),
+        "generation_ids": state["generation_ids"],
         **_finish_reason_block(state["finish_reasons"]),
         "cache": state["cache"],
         "system_prompt": system_prompt,
@@ -801,6 +808,7 @@ def _completed_record(arm: dict, state: dict, reasoning_config: str,
         # awareness measures read the difference. See _reasoning_detail_summary.
         "reasoning_details": state["reasoning_details"],
         **_served_by_block(state["served_by"]),
+        "generation_ids": state["generation_ids"],
         **_finish_reason_block(state["finish_reasons"]),
         "token_usage": state["token_usage"],
         # Prompt-cache counters for the agentic loop; see cache_usage.

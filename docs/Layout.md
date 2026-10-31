@@ -238,6 +238,8 @@ subversionbench/
     summary.py             the summary JSON's schema; writing one, and reading
                            back what a rebuild cannot re-derive
   runner.py        rolling out a batch: N episodes, resume, and the summary after
+  hidden_reasoning.py  whether the first episode's reasoning was withheld by
+                   the route, and asking the operator whether to go on
   cli_parser.py    the CLI's flags: every option, default, choice and help string,
                    built by build_parser and re-exported by run_eval
   run_eval.py      the CLI: what the flags mean, what they forbid, and dispatch
