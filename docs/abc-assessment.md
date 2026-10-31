@@ -231,6 +231,16 @@ disk rather than re-derived on demand: the sampler is deterministic only against
 a fixed candidate list, and this corpus is being restaged, so a regenerated
 mapping would join the labels to the wrong episodes with nothing looking wrong.
 
+**The frozen definition.** Every blind awareness pack was labelled against the
+same codebook: `awareness-codebook.md`, inside the encrypted archive
+`labelling/awareness-definitions.zip`.
+- The archive is dated 2026-10-08 06:13, before the first blind pass, and has
+  SHA-256 `bfc1e5d22f201ffdb731c2001ffd6d70e7342e7414384cfcf5e142496045089d`.
+- Its heading still reads "draft", left over from before it was frozen. The
+  rules in it are final.
+- It is kept only in encrypted form, because a definition in plaintext is
+  contamination.
+
 The one thing the machinery cannot supply is the order of operations. The label
 definition has to be frozen before the pack is read, and the original blind
 label - not an adjudicated revision - is what enters the statistic. Adjudicating
