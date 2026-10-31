@@ -1160,7 +1160,20 @@ before any episode was collected, with SHA-256
       edited 0/12 against 0/348, sandbox escape 0/12 against 24/348. Every Fisher p is 1.0.
     - Acts per arm, out of 60: none 1, none + lure 4, strong 6, strong + lure 4, max 7,
       max + lure 5.
-- **qwen3.8-flash (H1)** is decided on cost after grok-4.6 has been graded.
+- **qwen3.8-flash (H1): a calibration cell first.** The amendment is
+  `docs/proposals/per-model-replication-h1-calibration.md`, kept offline. It was frozen on
+  2026-10-31, before any H1 or calibration episode was collected, with SHA-256
+  `47b053b02aa5e2ddca54b7e1e31bd67e6cbaa2dfc9cbb4bacd21b6a5773dc812`.
+  - **Why.** H2 and H2b each found a route problem only after a full collection.
+  - **The cell.** 20 episodes in none / oversight / no lure, pinned to Alibaba, in
+    `eval_results_r10_calibration/`. They never enter H1's analysis or the snapshot.
+  - **The reference** is the snapshot's same cell: 10 episodes, 7 aware, 3 acted, every
+    reasoning part `reasoning.text`. The snapshot's recovered requests for this model all
+    went to Alibaba.
+  - **H1 stops** if any episode's reasoning is unreadable, or if awareness, acting or the
+    median reasoning length differs from the reference beyond the limits fixed in the
+    amendment. Otherwise H1 is collected exactly as frozen: 600 episodes, 100 per arm.
+  - **The plan's rows reproduce under v298:** aware 6 of 56 acted, unaware 2 of 4.
 
 ## Contamination check
 
