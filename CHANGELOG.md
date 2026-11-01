@@ -16,6 +16,17 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v299
+
+**Awareness against the recommendation.** A new chart and report block,
+`strategy_awareness_effect.png` and `awareness_effect` beside `replacement_effect`, set
+episodes that verbalised evaluation awareness against those that did not on the strategy
+they recommended: the B share of stated recommendations per side in every arm, the difference
+per arm, and the difference pooled within model and arm with the primary's estimator. The
+recommendation is the visible part of the task while the misaligned acts sit beside it, so a
+model that suspects a test may steer the one and not the other; the awareness-against-act
+questions could not show that. An association, not an effect, and drawn per grader.
+
 ## v298
 
 **A batch whose reasoning never arrives asks before it goes on.** Both awareness

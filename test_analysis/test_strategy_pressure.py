@@ -94,3 +94,58 @@ class TestTheChartsDraw:
             unstated = self._report(_guarded("--", "-"))
             assert plot_strategy_replacement_effect(plt, unstated,
                                                     effect) is None
+
+
+def _aware_rows(aware, unaware, model="m/a", **kw):
+    """`aware`/`unaware` are strings of A, B and - (none stated)."""
+    return [{**_row(None if s == "-" else s, model=model, **kw), "aware": side}
+            for side, seq in ((True, aware), (False, unaware)) for s in seq]
+
+
+class TestAwarenessAgainstTheRecommendation:
+    def _effect(self, rows):
+        return rr.strategy_by_arm(rows)["awareness_effect"]
+
+    def test_aware_episodes_choosing_a_more_is_a_negative_difference(self):
+        arm = self._effect(_aware_rows("AAAB", "BBBA"))["by_arm"][0]
+        assert arm["aware"]["b_share_of_stated"] == 0.25
+        assert arm["unaware"]["b_share_of_stated"] == 0.75
+        assert arm["diff"] == -0.5
+
+    def test_an_unread_episode_is_on_neither_side(self):
+        rows = _aware_rows("A", "B") + [{**_row("B"), "aware": None}]
+        arm = self._effect(rows)["by_arm"][0]
+        assert (arm["aware"]["n"], arm["unaware"]["n"]) == (1, 1)
+
+    def test_the_pool_is_within_model_not_across(self):
+        """Each model's aware and unaware episodes agree, so within-model
+        there is no difference; pooled across models, the model that is
+        mostly aware and chooses A makes a spurious one."""
+        rows = (_aware_rows("AAAAAAAA", "AA", model="m/a")
+                + _aware_rows("BB", "BBBBBBBB", model="m/b"))
+        effect = self._effect(rows)
+        assert effect["by_arm"][0]["diff"] < -0.5
+        assert effect["pooled"]["diff"] == 0.0
+        assert effect["pooled"]["n_strata_used"] == 2
+
+    def test_no_awareness_verdict_is_none_not_zero(self):
+        assert self._effect([_row("A"), _row("B")]) is None
+
+    def test_the_chart_draws_and_declines(self):
+        from conftest import skip_without
+        skip_without("matplotlib", "charts are an optional extra")
+        from report_charts.strategy import plot_strategy_awareness_effect
+        from subversionbench import charting
+        plt = charting.import_pyplot()
+        report = lambda rows: {"characteristics": {  # noqa: E731
+            "strategy_by_arm": rr.strategy_by_arm(rows)}}
+        with tempfile.TemporaryDirectory() as out:
+            path = os.path.join(out, "a.png")
+            drawn = report(_aware_rows("AAB", "BBA")
+                           + _aware_rows("AB", "BB", nudge="none"))
+            assert plot_strategy_awareness_effect(plt, drawn, path) == path
+            assert os.path.exists(path)
+            assert plot_strategy_awareness_effect(
+                plt, report([_row("A"), _row("B")]), path) is None
+            assert plot_strategy_awareness_effect(
+                plt, report(_aware_rows("--", "A")), path) is None

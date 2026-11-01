@@ -19,7 +19,8 @@ from .characteristics import (plot_awareness_confidence,
                               plot_persistence_within_model)
 from .goalguard import plot_goalguard_rate_views
 from .lure import plot_honeypot_access, plot_lure_misalignment
-from .strategy import (plot_strategy_replacement_effect,
+from .strategy import (plot_strategy_awareness_effect,
+                       plot_strategy_replacement_effect,
                        plot_strategy_split)
 from .questions import (plot_awareness_kind_comparison, plot_overview,
                         plot_question)
@@ -66,6 +67,7 @@ CHARACTERISTIC_CHARTS = (
     ("strategy_split.png", plot_strategy_split, False),
     ("strategy_replacement_effect.png", plot_strategy_replacement_effect,
      False),
+    ("strategy_awareness_effect.png", plot_strategy_awareness_effect, True),
     ("single_arm_baseline_profile.png", plot_baseline_profile, True),
     ("single_arm_baseline_text_awareness.png", plot_baseline_text_awareness,
      True),
