@@ -367,8 +367,10 @@ def _add_read_mode_arguments(parser: argparse.ArgumentParser) -> None:
                              "the run file; with no act taken, the top rung is "
                              "the impossible-task scenario's `escalated`. Two "
                              "calls per episode. Without --write-back it only "
-                             "counts them; with it, episodes already answered "
-                             "are skipped, so a stopped pass resumes.")
+                             "counts them; with it, episodes this grader "
+                             "already answered are skipped, so a stopped pass "
+                             "resumes, and another grader's answer is asked "
+                             "again and replaced.")
     parser.add_argument("--grade-suspicion", choices=("decision", "framing"),
                         help="Don't run the eval. Ask --category-grader one "
                              "of the two suspicion questions and store the "

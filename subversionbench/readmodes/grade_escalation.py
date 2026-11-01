@@ -20,6 +20,14 @@ Without --write-back it is a plan, as --grade-category is. A pass resumes for
 free - an episode answered under the current wording is skipped, an unmeasured
 one is never written so the next pass asks again, and an answer to an earlier
 wording of the questions is asked again.
+
+ONE GRADER'S ANSWER PER EPISODE. An answer from a grader other than
+--grader-model is asked again, and replaced once the new grader settles it; a
+failed call leaves the old answer in place. Comparing two graders is done on a
+copy of the run files, as the impossible-task scenario's switch from gpt-6-sol
+to gpt-6.1-terra was (2026-11-01: they agreed on every episode where escalation
+counts). Keeping both side by side would make escalation a per-grader field in
+graders.py, which nothing yet needs.
 """
 
 import json
@@ -44,13 +52,16 @@ def _save(path: str, data: dict) -> None:
     os.replace(tmp, path)
 
 
-def _plan(path: str) -> str:
-    """"ask", "withdraw" (holds an answer it must not), or "skip"."""
+def _plan(path: str, model: str) -> str:
+    """"ask", "withdraw" (holds an answer it must not), or "skip". An answer is
+    current only if it answers the current wording and `model` gave it."""
     data = _load(path)
     stored = (data.get("analysis") or {}).get(ESCALATION_KEY)
     if settled_ending(data) != "model_stopped":
         return "withdraw" if stored is not None else "skip"
-    current = (stored or {}).get("instrument") == ESCALATION_INSTRUMENT
+    stored = stored or {}
+    current = (stored.get("instrument") == ESCALATION_INSTRUMENT
+               and stored.get("model") == model)
     return "skip" if current and stored.get("rung") is not None else "ask"
 
 
@@ -75,15 +86,16 @@ def grade_escalation_runs(args, selection) -> int:
     run_files = find_run_files_or_explain(args, selection)
     if run_files is None:
         return 1
-    plans = {p: _plan(p) for p in run_files}
+    plans = {p: _plan(p, args.grader_model) for p in run_files}
     todo = [p for p, plan in plans.items() if plan == "ask"]
     stale = [p for p, plan in plans.items() if plan == "withdraw"]
     print(f"\n{'=' * 60}\nESCALATION GRADE: {selection.model} | "
           f"nudge={selection.nudge}\ngrader: {args.grader_model}\n{'=' * 60}")
     print(f"{len(run_files)} run file(s); {len(todo)} to grade, "
           f"{2 * len(todo)} call(s); {len(stale)} answer(s) to withdraw from "
-          f"episodes with no closing turn; the rest already answered or with "
-          f"no closing turn.")
+          f"episodes with no closing turn; the rest already answered by this "
+          f"grader or with no closing turn. An answer from another grader is "
+          f"asked again and replaced.")
     if not (todo or stale):
         return 0
     if not args.write_back:

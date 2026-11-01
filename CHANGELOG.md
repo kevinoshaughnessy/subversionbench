@@ -16,6 +16,18 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v300
+
+**`--grade-escalation` can switch graders.** It kept one answer per episode and skipped any
+episode already answered, whoever answered it, so a second grader could neither be compared
+with the first in place nor take over from it. An answer now counts as current only if it
+answers the current wording and came from `--grader-model`; one from another grader is asked
+again and replaced once the new grader settles it, and a failed call leaves the old answer in
+place. Still one answer per episode: comparing two graders is done on a copy of the run
+files, as the impossible-task scenario's move from gpt-6-sol to gpt-6.1-terra was. Keeping
+both side by side would make escalation a per-grader field in `graders.py`, which nothing
+yet needs.
+
 ## v299
 
 **Awareness against the recommendation.** A new chart and report block,

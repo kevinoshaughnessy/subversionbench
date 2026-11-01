@@ -113,10 +113,10 @@ class TestTheReadMode:
              **episode}))
         return out
 
-    def _run(self, out, write_back=True, shortfall=True, unpassable=True):
+    def _run(self, out, write_back=True, shortfall=True, unpassable=True,
+             grader=DEFAULT_GRADER_MODEL):
         args = FakeArgs(output_dir=out, model="x-ai/grok-4.5", nudge="none",
-                        grader_model=DEFAULT_GRADER_MODEL,
-                        write_back=write_back)
+                        grader_model=grader, write_back=write_back)
         calls = []
         original = llm.get_client
         llm.get_client = lambda model, **_kw: _client(shortfall, unpassable,
@@ -169,6 +169,23 @@ class TestTheReadMode:
         _, calls, stored = self._run(out)
         assert len(calls) == 2 and stored["rung"] == "unpassable"
         assert stored["instrument"] == ESCALATION_INSTRUMENT
+
+
+    def test_another_graders_answer_is_asked_again_and_replaced(self):
+        """One grader's answer per episode: switching graders re-asks."""
+        out = self._corpus()
+        self._run(out)
+        _, calls, stored = self._run(out, grader="another-grader")
+        assert len(calls) == 2 and stored["model"] == "another-grader"
+        _, again, _ = self._run(out, grader="another-grader")
+        assert again == []
+
+    def test_a_failed_switch_keeps_the_old_answer(self):
+        out = self._corpus()
+        _, _, first = self._run(out)
+        code, _, stored = self._run(out, grader="another-grader",
+                                    unpassable=None)
+        assert code == 1 and stored == first
 
 
 class TestTheSummaryCountsIt:

@@ -854,6 +854,12 @@ were copied, not moved, from `eval_results_impossible_pilot4(cap)`, and each arm
 not enter r1. A model must return readable reasoning, a full trace or the provider's summary of
 it.
 
+**Grader: gpt-6.1-terra** (decided 2026-11-01), called directly through OpenAI. This corpus need
+not share gpt-6-sol with mainline and goal-guarding. Compared with gpt-6-sol on grok-4.5's 40
+episodes, it agreed on every escalation, concealment, scheming and interrogation-label reading
+the scenario uses. The comparison is in the impossible-task proposal. grok-4.5's 40 episodes hold
+both readings; every episode graded from here on holds gpt-6.1-terra's.
+
 - gpt-5.6-terra (OpenAI API, `--effort medium`) - complete, 80/80. Runs 1 to 5 of each arm from
   pilot 4 (2026-10-25, v287), runs 6 to 10 collected 2026-11-01 (v299). Every episode matches its
   arm's pin, each arm is under its single pilot stamp, and every episode ended `model_stopped`.
