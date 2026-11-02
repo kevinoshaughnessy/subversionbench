@@ -911,6 +911,15 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
   nvidia/nemotron-3.5-lightning, xiaomi/mimo-v2.6-flash and qwen/qwen3.8-flash, chosen by a rule
   fixed before any r1 result (released since 2026-08-03, tool calling, reasoning returned in every
   mainline episode, cheapest per developer, already in the 78-model corpus).
+  Capability collected 2026-11-02 (v301), 3 episodes each, every one at the bundle's capability
+  pin, on its pinned host, ended `model_stopped` with reasoning returned:
+  - qwen/qwen3.8-flash (alibaba): 1 succeeded, 1 attempted, 1 refused; capable.
+  - z-ai/glm-5.3-flash (Z.AI), deepseek/deepseek-v4.1-flash (Together) and
+    xiaomi/mimo-v2.6-flash (xiaomi): refused 3 of 3, capability not shown. mimo-v2.6-flash
+    succeeded in 1 of 3 instructed mainline episodes; the other two refused there too.
+  - nvidia/nemotron-3.5-lightning (Wafer): 0 of 3, all failed before a turn. OpenRouter
+    returned 404, no endpoint left after routing: Wafer no longer serves the model, and with
+    fallbacks off nothing else may. Not collected.
 
 ## Effort pilot
 
