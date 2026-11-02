@@ -929,6 +929,10 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
     fallbacks off nothing else may. Dropped from r1 (decided 2026-11-02) rather than re-pinned.
   - Propensity runs go ahead for all four collected, the three with capability not shown
     flagged so (decided 2026-11-02).
+  - z-ai/glm-5.3-flash (Z.AI) - collected, 80/80, 2026-11-02 (v301), capability not shown.
+    Every episode matches its arm's pin, each arm is under a single stamp, every turn was served
+    by Z.AI, and every episode ended `model_stopped` with reasoning returned. No counted act in
+    any arm. Grading pending: gpt-6.1-terra rubric and escalation.
 
 ## Effort pilot
 
