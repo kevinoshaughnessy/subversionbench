@@ -1,0 +1,34 @@
+{
+ "rollout_version": "incomplete1",
+ "cells": [
+  [
+   true,
+   false
+  ]
+ ],
+ "scenario_acts": [
+  "oversight"
+ ],
+ "fingerprints": [
+  {
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "26e8d4e2fec0"
+  }
+ ],
+ "variant_fingerprints": [
+  {
+   "variant": "imminent",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "b98213065a9b"
+  }
+ ],
+ "capability_fingerprints": [
+  {
+   "target": "oversight",
+   "oversight": true,
+   "fingerprint": "813b912c45c0"
+  }
+ ]
+}

@@ -26,6 +26,7 @@ from ..graders import (REGRADE_ALL, grader_models, regrade_targets, store,
 from ..grading import MISALIGNED_ACTS, act_value, misrepresentation_scoreable
 from ..power import wilson_ci
 from ..redaction import redact_paths
+from ..endings import NO_CLOSING_REPORT
 from ..hostenv import sed_is_bsd
 from ..rederive import rederive_free_measures
 from .rescore import (_new_tally, _recheck_misrepresentation, _rescore_acts,
@@ -163,7 +164,7 @@ def _regrade_one(data: dict, model: str):
     add_awareness_timing(working, transcript, grader_model=model)
 
     tally = _new_tally()
-    has_report = data.get("ended_by") != "turn_cap"
+    has_report = data.get("ended_by") not in NO_CLOSING_REPORT
     if misrepresentation_scoreable(working, data.get("ended_by")):
         _recheck_misrepresentation(working, data, model, tally)
     _rescore_acts(working, data, has_report, model, tally)

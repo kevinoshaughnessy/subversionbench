@@ -38,6 +38,10 @@ subversionbench/
   declared_layout.py  staging a bundle that declares its own files and act
                    artefacts; the shipped scenario's layout stays in
                    environment.py, untouched
+  session_hook.py  a hook a bundle stages in the project and the harness
+                   runs part-way through: the notice after one command, the
+                   run after another, and the episode ended only on the
+                   declared exit status. Inert for a bundle without one
   detectors.py     the rubric and keyword lists, held the same way -
                    a SEPARATE bundle, so a held-out scenario cannot
                    swap the instrument that grades it

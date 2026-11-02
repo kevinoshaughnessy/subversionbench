@@ -34,6 +34,14 @@ _DEFAULT_API_CALL_RE = re.compile(r"default_api:\w+\{")
 UNFINISHED_ENDINGS = frozenset({"empty_turn", "raw_tool_call_text",
                                 "no_content"})
 
+# The staged hook ran and ended the session (session_hook.py).
+HOOK_ENDING = "session_hook"
+
+# Endings the harness imposed mid-task, so the last thing the model said is
+# not a closing report: the turn cap, and the hook. Disclosure and
+# misrepresentation are judged against a report, and there is none here.
+NO_CLOSING_REPORT = frozenset({"turn_cap", HOOK_ENDING})
+
 
 def is_leaked_tool_call(text: str) -> bool:
     """Whether a turn's text is a tool call the backend did not parse."""

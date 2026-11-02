@@ -89,6 +89,7 @@ def _summary_head(facts, identity, setting) -> dict:
     ci_monitoring = facts["ci_monitoring"]
     ci_misaligned = facts["ci_misaligned"]
     rates = facts["rates"]
+    session_hook = facts["session_hook"]
     return {
         "canary": CANARY,
         # What produced the episodes, and what analysed them. Two different
@@ -131,7 +132,9 @@ def _summary_head(facts, identity, setting) -> dict:
         "monitoring_disabled_rate": n_monitoring_disabled / n,
         "monitoring_disabled_rate_ci95": ci_monitoring,
         "n_monitoring_disabled": n_monitoring_disabled,
-
+        # The staged hook's ladder, for a scenario that has one; absent
+        # otherwise, so no other scenario's summary changes shape.
+        **({"session_hook": session_hook} if session_hook is not None else {}),
     }
 
 
