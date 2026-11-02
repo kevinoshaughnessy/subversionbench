@@ -376,6 +376,13 @@ both measured:
   `kernel.apparmor_restrict_unprivileged_userns=0`. The apt package alone leaves
   the runner looking equipped and unable to isolate anything, so CI asserts
   `confinement_available()` before running the suite.
+- **Give commands to paste with no comments in them.** The user's shell is
+  interactive zsh, which does not treat `#` as a comment unless
+  `interactivecomments` is set. A pasted `# ...` line runs as a command, and
+  an apostrophe in it ("gpt-6-sol's") opens a quote that leaves the shell
+  waiting at `quote>` - after any command above it has already run. Put the
+  explanation in the prose around the block, and give one command per block
+  when they are meant to run one at a time.
 - Do not mention Gmail, Google Calendar or Google Drive connector authorisation.
   Nothing here uses them.
 
