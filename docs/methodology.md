@@ -666,36 +666,37 @@ So the honest statement of the subject is:
 > regime, inside this harness's fixed scaffold and toolchain.**
 
 The harness records every qualifier in that sentence per episode, which is what makes it
-checkable rather than a disclaimer — but **the published corpora predate two of the
-fields that carry it**, so the statement is weaker for r9 and r10 than for anything
-collected now:
+checkable rather than a disclaimer — but **r9 and the first part of r10 predate two of
+the fields that carry it**, so the statement is weaker for those episodes than for anything
+collected since:
 
 | qualifier | recorded as | in r9 / r10 |
 |---|---|---|
 | which model was asked | the arm identity, in the filename and in every record | yes |
 | which reasoning regime applied | `reasoning_config`, plus `reasoning_chars` per turn and `token_usage.reasoning_tokens` where the provider reports it | yes; `reasoning_details` on part of each |
-| which backend answered | `served_by` per turn, with `served_by_providers` and `served_by_changed` across the episode | **no** — added in v129, about an hour after the last r10 episode was stamped |
-| what scaffold ran it | `max_turns`, `isolation`, and the host toolchain in `toolchain` | `isolation` on every episode; `max_turns` on every summary document and nowhere else; `toolchain` **not at all** — added in v131, hours after the last episode |
+| which backend answered | `served_by` per turn, with `served_by_providers` and `served_by_changed` across the episode | r9 **no**; r10 only for models collected after v129, which came about an hour after the first r10 snapshot's last episode |
+| what scaffold ran it | `max_turns`, `isolation`, and the host toolchain in `toolchain` | `isolation` on every episode; `max_turns` on every summary document and nowhere else; `toolchain` on the same r10 episodes as `served_by` and none before — added in v131, hours after the first snapshot's last episode |
 
 The `max_turns` row is the one qualifier a later pass can repair. The episode records do
 not carry it, but the summary document each batch writes beside them does, and it carries the
 same value on every one of them; the episodes that ended `turn_cap` corroborate it
 independently, because such an episode's turn count IS the cap. So the scaffold's turn limit
 is recoverable for the published corpora by re-analysis, whereas `served_by` and `toolchain`
-are not recoverable at all: the first is a field of the HTTP response and no completion id
-was saved to look it up by, and the second is a live probe of a host that no longer answers
+are not recoverable for the episodes that lack them: the first is a field of the HTTP
+response and no completion id was saved to look it up by (from v298 each turn's OpenRouter
+id is kept, in `generation_ids`), and the second is a live probe of a host that no longer answers
 for the batch it ran. Re-grading cannot help with either, because a re-grade reads the
 transcript, and neither field was ever written into one.
 
 That timing is not a rounding error in the argument, and two consequences follow.
 
-**For the published corpora the backend is not recorded at all.** The route can be inferred
+**For r9 and the first part of r10 the backend is not recorded.** The route can be inferred
 from the model ID — a bare `gpt-*` went to OpenAI's own API and a `provider/model` ID to
 OpenRouter — but which backend OpenRouter actually chose, and whether it changed mid-episode,
 is unrecoverable for those episodes. `mixed_served_provider_arms` in the data-quality report
-is the only check that can see backend mixing, and it has no corpus to run against: on r9 and
-r10 it reaches its "no providers recorded" guard and stops. So for those corpora the subject
-statement rests on the model ID and the route inferred from it, and not on a recorded backend.
+is the only check that can see backend mixing, and it skips every episode with no provider
+recorded. So for those episodes the subject statement rests on the model ID and the route
+inferred from it, and not on a recorded backend.
 
 Where the backend was recorded and an arm was answered by more than one,
 `act_rates_by_served_provider` asks whether the mix mattered: each episode is counted under the
@@ -873,6 +874,10 @@ of half `--max-tokens` below that, and nothing at all for OpenRouter models unle
 and summary records the `reasoning_config` actually sent, alongside
 `episodes_with_reasoning`, and warns when the latter is zero — two batches that differ on
 it are not comparable on awareness.
+The first episode of each batch is also checked: if the model reasoned but its reasoning
+came back hidden (a reasoning-token count or an encrypted payload, and no text), the run
+stops and asks whether to go on, so a batch the grader would read as unaware throughout is
+not collected unnoticed.
 
 What goes back to the model is fixed separately. On the OpenRouter route a model's earlier
 reasoning is not sent back on later turns, with one exception from v288: Gemini models (`google/*`) are sent

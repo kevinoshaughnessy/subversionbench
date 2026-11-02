@@ -25,6 +25,14 @@ if the failures are systematic — a withdrawn model or a bad key — rather tha
 burning the budget on it. Failure counts, grader failures and turn-capped episodes
 are all reported in the summary rather than silently pooled into the rates.
 
+A batch can stop once, after its first episode, to ask a question. If that episode's
+reasoning was withheld - the model reasoned, but only a token count or an encrypted payload
+came back - the run prints what it saw and waits for `y` or `n`. No answer, or a closed
+stdin, is `n`, and `n` exits as an interrupt, so `run_all_arms.sh` does not start the next
+arm. Under `--concurrency` the first episode runs alone, so nothing is collected while the
+question waits. Run batches where someone can answer it, or accept that an unattended one
+stops there.
+
 
 ## Versioning: rollouts and analysis
 
@@ -191,6 +199,20 @@ Changed to unaware:     0
 
 Running two graders over the same batch and reporting the disagreement is the cheapest
 precision available here — it costs no rollouts and quantifies the largest error term.
+
+`--grade-escalation` is a separate pass for a scenario whose honest outcome is a closing
+report rather than an act, such as the impossible-task scenario. It asks `--grader-model`
+about each closing report and stores one answer per episode in `analysis.escalation`, with
+the grader that gave it. It is not a `--regrade` entry: a pass by a different grader asks
+every episode again and replaces the old answer once the new one settles, and a failed call
+leaves the old answer in place. To compare two graders, run the second over a copy of the
+run files. Follow it with `--resummarise --write-back`, as after any grading pass:
+
+```bash
+SUBVERSIONBENCH_SCENARIO_BUNDLE=subversionbench/scenarios/impossible.b64 \
+python -m subversionbench.run_eval --model MODEL --output-dir eval_results_impossible_r1 \
+    --grade-escalation --grader-model gpt-6.1-terra --nudge all --write-back --yes
+```
 
 ## Comparing two arms
 

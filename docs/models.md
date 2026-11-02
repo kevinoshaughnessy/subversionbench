@@ -792,7 +792,9 @@ episode's provider. The counts are in the paper repository's `scripts/provider_m
 - **Without the 16 models, the primary is +1.04 pp** (Sato -0.35 to +2.43, 246 strata), against
   +0.82 with them.
 
-**From 2026-10-06, each model is pinned to one provider** with `--openrouter-provider`, chosen as follows:
+**From 2026-10-06, each model is pinned to one provider** with `--openrouter-provider`, chosen as
+follows. One mainline batch is the exception: z-ai/glm-5.3-flash, collected 2026-10-10 without a
+pin (see the mainline audit below).
 
 1. Exclude any endpoint that trains on its prompts (as throughout; see
    [Pending evaluation](#pending-evaluation)), and any without tool support, under 99% uptime
@@ -816,8 +818,7 @@ about twice in price per token.
 the run files on 2026-10-19, after the cut-off re-collection replaced some arms with pinned
 ones). Models reached through their developer's own API (claude-*, gpt-*) and the OpenRouter
 models not listed below meet it: one provider throughout, capability included. "Google" and
-"Google AI Studio" are counted as one provider. The mainline corpus cannot be audited:
-`served_by` was added after the last r10 episode.
+"Google AI Studio" are counted as one provider. The mainline audit follows the table.
 
 | model | episodes by provider | episodes switching mid-episode | capability arm served by | developer endpoint listed on OpenRouter (2026-10-06) |
 |---|---|---|---|---|
@@ -838,6 +839,24 @@ models not listed below meet it: one provider throughout, capability included. "
 A developer endpoint listed then may not have been listed when the model was collected. The
 per-arm breakdown that stood here on 2026-10-06 is in git history; the report's data-quality
 block gives the current one (arms answered by more than one backend).
+
+**Audit of the mainline corpus** (2026-11-02, from the run files). 6,270 of its 9,833 episodes,
+from 64 models, record `served_by`; the rest are covered by the OpenRouter export above. Of
+those 64, six were served by more than one provider, none of them pinned for the episodes
+concerned:
+
+| model | collected | episodes by provider | episodes switching mid-episode |
+|---|---|---|---|
+| qwen/qwen3.8-flash | 2026-09-09 | 20 recorded, every one switching | 20 |
+| thinkingmachines/inkling-small | 2026-09-09 to 10 | DeepInfra 58 | 2 |
+| z-ai/glm-5.1 | 2026-09-10 (later 20 pinned to Z.AI) | StreamLake 56, Z.AI 20 | 4 |
+| z-ai/glm-5.2 | 2026-09-10 | Mistral 57, DeepInfra 1 | 2 |
+| z-ai/glm-5.3 | 2026-09-10 (later 70 pinned to Makora) | Makora 70, Together 34, Modal 4, Decart 2, Wafer 1 | 9 |
+| z-ai/glm-5.3-flash | 2026-10-10, not pinned | Friendli 30, Fireworks 20, Together 16, Sail Research 15, InferenceNet 11, Decart 7, Parasail 6 | 15 |
+
+An episode that switched is counted only in the last column, so a row's first counts can sum
+to less than its episodes. glm-5.3-flash is the only mainline batch collected after 2026-10-06
+without a pin.
 
 ## Impossible-task scenario (r1)
 
@@ -1239,7 +1258,7 @@ real text: 5-gram overlap was zero for every model.
 
 - **The five Claude models** (claude-haiku-4-5-20251001, claude-opus-5, claude-sonnet-4-5,
   claude-sonnet-4-6, claude-sonnet-5): every call failed to authenticate. The process had
-  no Anthropic credential. To be re-run.
+  no Anthropic credential. Re-run 2026-10-14; see below.
 - **Nine models whose reasoning used up the forced-choice allowance:**
   deepseek-v4.1-flash, kimi-k2.6, qwen3.8-2.4t-a95b, qwen3.8-27b, qwen3.8-flash, hy3,
   hy4-preview, plus three to five calls each from several models that still reached a
@@ -1352,7 +1371,7 @@ So no model with a verdict shows contamination, and every Claude model now has o
   inkling.
 - **Two are `inconclusive`, for a reason that does not bear on contamination:** the
   OpenRouter credit ran out partway through, and 22 calls to nemotron-3-ultra-550b-a55b and
-  27 to laguna-s-2.1 were refused for payment (402). To be re-run.
+  27 to laguna-s-2.1 were refused for payment (402). Re-run 2026-10-27; see below.
 - **Five other calls went unscored:** unparseable replies, three from aion-3.0 (10 scenario
   items left, exactly the 10 a verdict needs), one from aion-3.0-mini and one from
   qwen3.7-plus (11 left in each).
