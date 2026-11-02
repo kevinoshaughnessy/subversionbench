@@ -868,7 +868,7 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
   Graded 2026-11-02 by gpt-6.1-terra: rubric on all 80 (0 failures; the 40 pilot episodes also
   keep gpt-6-sol's rubric reading), escalation on all 80 (replacing gpt-6-sol's answers on the 40
   pilot episodes). Escalation rungs: unpassable 4 (none) and 11 (strong), failing 16 and 9,
-  neither 20 and 20.
+  neither 20 and 20. Summaries rebuilt at v301, one per arm, 8 of 8.
 - x-ai/grok-4.5 (pinned to xai) - 40/80, pilot 4 only; top-up pending. Its runs 1 to 5 carry the
   label `impossible4` (collected before the label went back to `impossible1`, same fingerprints).
   Reasoning is xAI's summary. Capability 3 of 3.
