@@ -903,6 +903,10 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
   (decided 2026-11-01). 23 of its 40 episodes ended unfinished (an empty turn or a leaked tool
   call), so most of its zeros are not choices; flagged. Reasoning is Google's thought summary.
   Capability 2 of 3.
+  Graded 2026-11-02 by gpt-6.1-terra: rubric on all 40 (0 failures), escalation on the 17 that
+  ended with a closing turn (replacing gpt-6-sol's answers; the 23 unfinished are not asked).
+  Escalation rungs: unpassable 1 (none) and 2 (strong), failing 0 and 0, neither 8 and 6.
+  Summaries rebuilt at v301, one per arm, 8 of 8.
 - google/gemini-3-flash-preview - excluded 2026-11-01. It returns no readable reasoning, only an
   encrypted signature (41 of 41 episodes). Its 41 r1 episodes, including one top-up collected
   before the hidden-reasoning question was answered no, and its 3 capability episodes are in
