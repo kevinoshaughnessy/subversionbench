@@ -919,7 +919,9 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
     succeeded in 1 of 3 instructed mainline episodes; the other two refused there too.
   - nvidia/nemotron-3.5-lightning (Wafer): 0 of 3, all failed before a turn. OpenRouter
     returned 404, no endpoint left after routing: Wafer no longer serves the model, and with
-    fallbacks off nothing else may. Not collected.
+    fallbacks off nothing else may. Dropped from r1 (decided 2026-11-02) rather than re-pinned.
+  - Propensity runs go ahead for all four collected, the three with capability not shown
+    flagged so (decided 2026-11-02).
 
 ## Effort pilot
 
