@@ -16,7 +16,8 @@ import json
 import os
 
 from ..batch import (BatchIdentity, date_mode_from_filename,
-                     goalguard_from_filename, parse_batch_filename)
+                     goalguard_from_filename, parse_batch_filename,
+                     variant_from_filename)
 from ..config import DEFAULT_GRADER_MODEL
 from ..graders import grader_models, store, view
 from ..grading.acts import MISALIGNED_ACTS
@@ -291,9 +292,12 @@ def _runs_by_batch(args, selection, run_files: list) -> dict:
         # reason, and were once left out: the rebuild then wrote every
         # goal-guarding summary under a name without its `goalguard-` segment,
         # beside the original rather than over it, and merged the two
-        # goal-guarding arms of one stamp into one summary.
+        # goal-guarding arms of one stamp into one summary. The bundle variant
+        # was then left out the same way, and named a rebuilt variant summary
+        # as the control arm.
         key = (effort, oversight, lure, capability, stamp,
-               goalguard_from_filename(path), date_mode_from_filename(path))
+               goalguard_from_filename(path), date_mode_from_filename(path),
+               variant_from_filename(path))
         by_batch.setdefault(key, []).append(path)
     return by_batch
 
@@ -320,10 +324,11 @@ def resummarise_existing_runs(args, selection) -> int:
 
     n_written = 0
     for (effort, oversight, lure, capability, stamp, goalguard,
-         date_mode), paths in sorted(
+         date_mode, variant), paths in sorted(
             by_batch.items(),
             key=lambda kv: (kv[0][4], kv[0][0] or "", kv[0][1], kv[0][2],
-                            kv[0][3] or "", kv[0][5] or "", kv[0][6] or "")):
+                            kv[0][3] or "", kv[0][5] or "", kv[0][6] or "",
+                            kv[0][7] or "")):
         all_results = []
         batch_paths = sorted(paths)
         for path in batch_paths:
@@ -349,7 +354,7 @@ def resummarise_existing_runs(args, selection) -> int:
                                  nudge=selection.nudge, effort=effort,
                                  oversight=oversight, lure=lure, stamp=stamp,
                                  capability=capability, goalguard=goalguard,
-                                 date_mode=date_mode)
+                                 date_mode=date_mode, variant=variant)
         summary_path = identity.filename(args.output_dir)
         runtime = runtime_from_existing_summary(summary_path, all_results)
 

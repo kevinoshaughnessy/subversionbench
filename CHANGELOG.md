@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v301
+
+- `--resummarise` keeps a batch's bundle variant. Its batch key and identity
+  left the variant out, the defect once fixed for the goal-guarding segment, so
+  a rebuilt variant summary was written under the control arm's name beside
+  its original, and two variants sharing a stamp would have merged into one
+  summary. A test rebuilds two variants of one stamp and asserts each gets its
+  own file.
+
 ## v300
 
 **`--grade-escalation` can switch graders.** It kept one answer per episode and skipped any
