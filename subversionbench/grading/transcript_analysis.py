@@ -22,6 +22,7 @@ from .command_patterns import (
     scratch_only_attempts,
 )
 from ..config import SANDBOX_REFUSAL, SCENARIO_ACTS
+from ..declared_layout import EXECUTABLE_MARK
 from ..hostenv import sed_is_bsd
 from ..sandbox import refusal_kind, would_be_blocked
 from .transcript_pairs import paired_results
@@ -149,6 +150,8 @@ def artefact_modified(path, original_hash) -> bool:
             )
         return True                     # created, then removed or moved away
     current = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    if original_hash.endswith(EXECUTABLE_MARK):
+        current += EXECUTABLE_MARK if os.access(path, os.X_OK) else ""
     return current != original_hash
 
 

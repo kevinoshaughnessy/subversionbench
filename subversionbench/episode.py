@@ -47,6 +47,7 @@ from .isolation import DEFAULT_ISOLATION
 from .endings import ending_of
 from .redaction import redact_paths
 from .sandbox import execute_tool_sandboxed
+from .session_hook import HOOK_ENDING, NOT_RUN, SessionClock
 from .usage import cache_usage
 from .turns import (record_turn_blocks, replayable_content,
                     roll_cache_breakpoints)
@@ -144,16 +145,25 @@ def _record_turn_metadata(response, turn: int, state: dict) -> None:
                                         "reason": finish_reason})
 
 
+def _sandboxed(sandbox: dict):
+    """A runner for one command in this episode's sandbox."""
+    return lambda cmd: execute_tool_sandboxed(
+        {"cmd": cmd}, sandbox["env_dir"], isolation=sandbox["isolation"],
+        profile_path=sandbox["profile_path"],
+        episode_root=sandbox["episode_root"])
+
+
 def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
-                    sandbox: dict) -> list:
+                    sandbox: dict, clock: SessionClock) -> list:
     """Run each tool call in the sandbox; the results to send back."""
     tool_results = []
     for tc in tool_calls:
-        result = execute_tool_sandboxed(
+        skipped = clock.ended
+        result = (NOT_RUN if skipped else execute_tool_sandboxed(
             tc.input, sandbox["env_dir"],
             isolation=sandbox["isolation"],
             profile_path=sandbox["profile_path"],
-            episode_root=sandbox["episode_root"])
+            episode_root=sandbox["episode_root"]))
         print(f"[Turn {turn+1} RESULT] {red(result)[:300]}")
         # What goes back to the model is deliberately NOT redacted:
         # the agent has to keep seeing the same paths its own shell
@@ -169,6 +179,9 @@ def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
             "type": "tool_result",
             "result": red(result)
         })
+        if not skipped:
+            clock.after_command(tool_results[-1], transcript[-1], turn, red,
+                                _sandboxed(sandbox))
     return tool_results
 
 
@@ -194,6 +207,9 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
     exception out of execute_tool_sandboxed is a harness fault and propagates
     as it always has.
     """
+    clock = SessionClock(sandbox.get("session_hook"))
+    if clock.record is not None:
+        state["session_hook"] = clock.record
     for turn in range(max_turns):
         try:
             response = client.messages.create(messages=messages, **create_kwargs)
@@ -253,7 +269,7 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
             break
 
         tool_results = _run_tool_calls(tool_calls, turn, transcript, red,
-                                       sandbox)
+                                       sandbox, clock)
 
         if tool_results:
             # Everything up to and including this block is what the next turn
@@ -261,6 +277,9 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
             tool_results[-1]["cache_control"] = {"type": "ephemeral"}
         messages.append({"role": "user", "content": tool_results})
         roll_cache_breakpoints(messages)
+        if clock.ended:
+            state["ended_by"] = HOOK_ENDING
+            break
 
 
 def _resolved_routing(model: str, sort, provider, use_opencode: bool) -> tuple:
@@ -688,7 +707,8 @@ def run_evaluation(
             max_turns=max_turns, red=red,
             sandbox={"env_dir": env_dir, "isolation": isolation,
                      "profile_path": profile_path,
-                     "episode_root": episode_root})
+                     "episode_root": episode_root,
+                     "session_hook": env_info.get("session_hook")})
     except _LoopFailed as failed:
         raise EpisodeAPIError(failed.cause, _died_record(
             arm, failed, state, red, reasoning_config, system_prompt,
@@ -749,6 +769,13 @@ def _close_the_loop(ended_by: str, max_turns: int, timing: dict,
     print(f"\n[TIMING] Eval loop: {timing['eval_seconds']}s")
 
 
+def _hook_block(state: dict) -> dict:
+    """The staged hook's record, for a bundle that declares one; else nothing,
+    so no other scenario's episode records change shape."""
+    return ({"session_hook": state["session_hook"]}
+            if "session_hook" in state else {})
+
+
 def _died_record(arm: dict, failed, state: dict, red, reasoning_config: str,
                  system_prompt: str, user_prompt: str,
                  transcript: list) -> dict:
@@ -778,6 +805,7 @@ def _died_record(arm: dict, failed, state: dict, red, reasoning_config: str,
         "generation_ids": state["generation_ids"],
         **_finish_reason_block(state["finish_reasons"]),
         "cache": state["cache"],
+        **_hook_block(state),
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "transcript": transcript,
@@ -813,6 +841,7 @@ def _completed_record(arm: dict, state: dict, reasoning_config: str,
         "token_usage": state["token_usage"],
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": state["cache"],
+        **_hook_block(state),
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         # What was actually sent, not what was asked for: the reasoning
