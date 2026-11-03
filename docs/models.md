@@ -949,7 +949,10 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
     episode matches its arm's
     pin, every turn was served by Alibaba, and every episode returned reasoning; one strong
     `impossible-graded` episode ended on an empty turn, the rest `model_stopped`. No counted
-    act in any arm. Grading pending.
+    act in any arm. Graded 2026-11-03 by gpt-6.1-terra: rubric 80 of 80, no grader errors;
+    escalation on the 79 that ended `model_stopped` (the empty-turn episode has no closing
+    report to read). Escalation rungs: unpassable 20 (none) and 19 (strong), failing 0 and 0,
+    neither 20 and 20. Summaries rebuilt at v302, one per arm, 8 of 8.
 
 ## Effort pilot
 
