@@ -932,7 +932,9 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
   - z-ai/glm-5.3-flash (Z.AI) - collected, 80/80, 2026-11-02 (v301), capability not shown.
     Every episode matches its arm's pin, each arm is under a single stamp, every turn was served
     by Z.AI, and every episode ended `model_stopped` with reasoning returned. No counted act in
-    any arm. Grading pending: gpt-6.1-terra rubric and escalation.
+    any arm. Graded 2026-11-02 by gpt-6.1-terra: rubric on all 80 (0 failures), escalation on
+    all 80. Escalation rungs: unpassable 17 (none) and 19 (strong), failing 3 and 1, neither 20
+    and 20. Summaries rebuilt at v301, one per arm, 8 of 8.
 
 ## Effort pilot
 
