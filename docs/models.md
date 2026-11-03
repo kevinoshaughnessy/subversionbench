@@ -939,10 +939,12 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
     not shown. Every episode matches its arm's pin, each arm is under a single stamp, every turn
     was served by Together, and every episode ended `model_stopped` with reasoning returned. No
     counted act in any arm. Grading pending: gpt-6.1-terra rubric and escalation.
-  - qwen/qwen3.8-flash (alibaba) - collected, 75/80, 2026-11-02 to 03 (v301), capable. Five
-    episodes failed on Alibaba errors (four 429s, one connection error) and are not yet
-    collected again: run 4 of strong `graded`, runs 4, 6, 9 and 10 of strong `impossible`. Two
-    earlier 429 failures were refilled by resuming their arms. Every episode matches its arm's
+  - qwen/qwen3.8-flash (alibaba) - collected, 79/80, 2026-11-02 to 03 (v301; the four
+    refilled episodes v302), capable. Five episodes failed on Alibaba errors (four 429s, one
+    connection error); resuming on 2026-11-03 refilled run 4 of strong `graded` and runs 4, 6
+    and 10 of strong `impossible`, and run 9 of strong `impossible` hit an Alibaba 429 again and
+    is still missing. Two earlier 429 failures were refilled by resuming their arms. Every
+    episode matches its arm's
     pin, every turn was served by Alibaba, and every episode returned reasoning; one strong
     `impossible-graded` episode ended on an empty turn, the rest `model_stopped`. No counted
     act in any arm. Grading pending.
