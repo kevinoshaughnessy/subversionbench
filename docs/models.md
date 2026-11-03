@@ -941,11 +941,11 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
     counted act in any arm. Graded 2026-11-03 by gpt-6.1-terra: rubric 80 of 80, no grader
     errors; escalation all 80. Escalation rungs: unpassable 20 (none) and 19 (strong), failing
     0 and 1, neither 20 and 20. Summaries rebuilt at v302, one per arm, 8 of 8.
-  - qwen/qwen3.8-flash (alibaba) - collected, 79/80, 2026-11-02 to 03 (v301; the four
+  - qwen/qwen3.8-flash (alibaba) - collected, 80/80, 2026-11-02 to 03 (v301; the five
     refilled episodes v302), capable. Five episodes failed on Alibaba errors (four 429s, one
     connection error); resuming on 2026-11-03 refilled run 4 of strong `graded` and runs 4, 6
-    and 10 of strong `impossible`, and run 9 of strong `impossible` hit an Alibaba 429 again and
-    is still missing. Two earlier 429 failures were refilled by resuming their arms. Every
+    and 10 of strong `impossible`, and run 9 of strong `impossible`, which hit a 429 again, on
+    a second resume. Two earlier 429 failures were refilled by resuming their arms. Every
     episode matches its arm's
     pin, every turn was served by Alibaba, and every episode returned reasoning; one strong
     `impossible-graded` episode ended on an empty turn, the rest `model_stopped`. No counted
