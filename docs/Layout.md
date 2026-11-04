@@ -377,6 +377,10 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    the uncapped text, as blind_pack's does. Run as
                    `python3 -m grader_ab.misuse_pack`; see
                    docs/misuse-labelling.md
+  escalation_pack.py the same split, for the impossible-task report rungs:
+                   no-act impossible-arm episodes the model ended, balanced by
+                   model and rung, the rater shown the closing report the
+                   grader read and the rung sealed in the key
   suspicion_pack.py the same split, for the two suspicion questions, drawn
                    from the paper snapshot's primary episodes: aware before
                    the act for `decision`, balanced on the pre-act category;
