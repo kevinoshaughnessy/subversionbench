@@ -33,6 +33,16 @@ arm. Under `--concurrency` the first episode runs alone, so nothing is collected
 question waits. Run batches where someone can answer it, or accept that an unattended one
 stops there.
 
+Collect at `--concurrency 4`, and lower it only for a host that rate-limits. The episodes are
+the same either way. The time saved is what decides it: a slow host takes about ten minutes
+per episode, so 80 episodes run one at a time take over half a day, and four at a time take
+a quarter of that. Each sandboxed command still has its 10-second timeout, so watch the
+transcripts for `Command timed out.` when raising it further on a busy machine: concurrency
+competes for the same CPU the commands run on. Running the test suite at the same time is
+the case AGENTS.md warns about, and it remains off limits. A host that answers with 429s
+loses episodes rather than slowing down. Resume the arm, as for any failure, and drop that
+host to `--concurrency 1` for the rest of its run.
+
 
 ## Versioning: rollouts and analysis
 

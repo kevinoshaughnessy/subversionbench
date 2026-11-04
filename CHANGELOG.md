@@ -66,6 +66,9 @@ impossible-task corpus misleading.
   counters. Until now no grader token was stored anywhere, so a grading pass couldn't be
   costed. Every API call outside collection's own turns goes through
   `usage_ledger.create`, and a guard derived from the source holds every module to that.
+- **Collection runs at `--concurrency 4` as standard practice** (operations.md, "Long runs").
+  Episodes are unchanged, and the slowest hosts' arms finish in a quarter of the time. A host
+  that rate-limits drops to 1.
 - **The act count by nudge and variant, pooled** (`variant_act_grid.png`). A bundle with
   variants is drawn as nudge by variant, beside the per-model act grid.
 
