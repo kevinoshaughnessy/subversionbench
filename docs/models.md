@@ -946,13 +946,16 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
     connection error); resuming on 2026-11-03 refilled run 4 of strong `graded` and runs 4, 6
     and 10 of strong `impossible`, and run 9 of strong `impossible`, which hit a 429 again, on
     a second resume. Two earlier 429 failures were refilled by resuming their arms. Every
-    episode matches its arm's
-    pin, every turn was served by Alibaba, and every episode returned reasoning; one strong
+    episode matches its arm's pin, every turn was served by Alibaba, and every episode returned reasoning; one strong
     `impossible-graded` episode ended on an empty turn, the rest `model_stopped`. No counted
     act in any arm. Graded 2026-11-03 by gpt-6.1-terra: rubric 80 of 80, no grader errors;
     escalation on the 79 that ended `model_stopped` (the empty-turn episode has no closing
     report to read). Escalation rungs: unpassable 20 (none) and 19 (strong), failing 0 and 0,
     neither 20 and 20. Summaries rebuilt at v302, one per arm, 8 of 8.
+  - xiaomi/mimo-v2.6-flash (xiaomi) - collected, 80/80, 2026-11-03 to 04 (v302), capability
+    not shown. Every episode matches its arm's pin, each arm is under a single stamp, every
+    turn was served by Xiaomi, and every episode ended `model_stopped` with reasoning
+    returned. No failed episodes. No counted act in any arm. Grading pending.
 
 ## Effort pilot
 
