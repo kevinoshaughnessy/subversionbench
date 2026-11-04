@@ -44,9 +44,10 @@ from .grading import (MISALIGNED_ACTS, NO_CONTENT_MARKER, act_value,
                       report_grader_failure, settle_analysis,
                       verify_oversight_unchanged)
 from .isolation import DEFAULT_ISOLATION
-from .endings import ending_of
+from .endings import UNFINISHED_ENDINGS, ending_of
 from .redaction import redact_paths
 from .sandbox import execute_tool_sandboxed
+from .scenario import UNFINISHED_TURN_RETRIES
 from .session_hook import HOOK_ENDING, NOT_RUN, SessionClock
 from .usage import cache_usage
 from .turns import (record_turn_blocks, replayable_content,
@@ -185,6 +186,45 @@ def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
     return tool_results
 
 
+def _unfinished(content) -> str:
+    """The ending a turn would settle to if the loop stopped on it, when that
+    ending is not the model finishing; else None."""
+    if not replayable_content(content):
+        return "no_content"
+    if any(block.type == "tool_use" for block in content):
+        return None
+    ending = ending_of("model_stopped", "".join(
+        block.text for block in content if block.type == "text"))
+    return ending if ending in UNFINISHED_ENDINGS else None
+
+
+def _request_turn(client, messages: list, create_kwargs: dict, turn: int,
+                  state: dict):
+    """One turn's response, asked again up to UNFINISHED_TURN_RETRIES times
+    while it comes back unfinished. A discarded response never reaches the
+    conversation; its ending and finish reason are kept in
+    `state["resampled_turns"]`, and its tokens in the usage like any other.
+
+    Raises _LoopFailed if a request fails. Raised rather than recorded here:
+    the caller assembles the partial record, because that record shares
+    thirteen fields with the completed one and both are built in one place -
+    see arm_identity. `state` is the caller's own dict, so everything the
+    episode accumulated before it died is already visible there.
+    """
+    for attempt in range(UNFINISHED_TURN_RETRIES + 1):
+        try:
+            response = client.messages.create(messages=messages, **create_kwargs)
+        except Exception as e:
+            raise _LoopFailed(e, turn) from e
+        _record_turn_metadata(response, turn, state)
+        ending = _unfinished(response.content)
+        if ending is None or attempt == UNFINISHED_TURN_RETRIES:
+            return response
+        state["resampled_turns"].append({
+            "turn": turn + 1, "ending": ending,
+            "reason": getattr(response, "stop_reason", None)})
+
+
 def run_agentic_loop(client, create_kwargs: dict, messages: list,
                      transcript: list, state: dict, *, max_turns: int,
                      red, sandbox: dict) -> None:
@@ -210,19 +250,10 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
     clock = SessionClock(sandbox.get("session_hook"))
     if clock.record is not None:
         state["session_hook"] = clock.record
+    if UNFINISHED_TURN_RETRIES:
+        state["resampled_turns"] = []
     for turn in range(max_turns):
-        try:
-            response = client.messages.create(messages=messages, **create_kwargs)
-        except Exception as e:
-            # Raised rather than recorded here. The caller assembles the partial
-            # record, because that record shares thirteen fields with the
-            # completed one and both are built in one place - see arm_identity.
-            # `state` is the caller's own dict, so everything the episode
-            # accumulated before it died is already visible there.
-            raise _LoopFailed(e, turn) from e
-
-        _record_turn_metadata(response, turn, state)
-
+        response = _request_turn(client, messages, create_kwargs, turn, state)
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
         # conversation; see replayable_content.
@@ -769,6 +800,13 @@ def _close_the_loop(ended_by: str, max_turns: int, timing: dict,
     print(f"\n[TIMING] Eval loop: {timing['eval_seconds']}s")
 
 
+def _resample_block(state: dict) -> dict:
+    """The turns asked again, for a bundle that declares retries; else
+    nothing, so no other scenario's episode records change shape."""
+    return ({"resampled_turns": state["resampled_turns"]}
+            if "resampled_turns" in state else {})
+
+
 def _hook_block(state: dict) -> dict:
     """The staged hook's record, for a bundle that declares one; else nothing,
     so no other scenario's episode records change shape."""
@@ -806,6 +844,7 @@ def _died_record(arm: dict, failed, state: dict, red, reasoning_config: str,
         **_finish_reason_block(state["finish_reasons"]),
         "cache": state["cache"],
         **_hook_block(state),
+        **_resample_block(state),
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "transcript": transcript,
@@ -842,6 +881,7 @@ def _completed_record(arm: dict, state: dict, reasoning_config: str,
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": state["cache"],
         **_hook_block(state),
+        **_resample_block(state),
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         # What was actually sent, not what was asked for: the reasoning

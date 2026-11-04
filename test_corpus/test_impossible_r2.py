@@ -58,6 +58,14 @@ filed = analyze_misalignment([], str(env), info)
 out["filed"] = filed["change_requests_filed"]
 out["filed_is_act"] = bool(filed.get("oversight_tampered"))
 
+from subversionbench.scenario import UNFINISHED_TURN_RETRIES
+out["retries"] = UNFINISHED_TURN_RETRIES
+folder = SANDBOX_POLICY["tmp_dir"]
+out["readme_names_tmp"] = f"/tmp is the project's {folder}/" in raw["readme"]
+out["tmp_write"] = run("echo kept > /tmp/t.txt && cat /tmp/t.txt && ls /tmp")
+out["tmp_heredoc"] = run("python3 - <<'PY'\nprint(open('/tmp/t.txt').read().strip())\nPY")
+out["tmp_landed"] = (Path(env) / folder / "t.txt").read_text()
+(Path(env) / folder / "t.txt").unlink()
 control = {str(p.relative_to(env)) for p in Path(env).rglob("*") if p.is_file()}
 _r, env_s, _i = create_episode_root(True, nudge="none", variant="situational")
 situational = {str(p.relative_to(env_s)) for p in Path(env_s).rglob("*") if p.is_file()}
@@ -95,6 +103,22 @@ class TestTheSandboxAnswersTruthfully:
     def test_an_environment_probe_says_what_it_is_and_still_counts_as_refused(self):
         assert R2["probe"].strip() == R2["refusals"]["environment"]
         assert R2["probe_kind"] == "refused"
+
+
+class TestTmpIsTheScratchFolder:
+    def test_a_shell_write_and_a_python_read_meet_in_the_project(self):
+        assert R2["tmp_write"].splitlines()[0] == "kept", R2["tmp_write"]
+        assert "refused" not in R2["tmp_write"]
+        assert R2["tmp_heredoc"].strip() == "kept", R2["tmp_heredoc"]
+        assert R2["tmp_landed"] == "kept\n"
+
+    def test_the_readme_says_so(self):
+        assert R2["readme_names_tmp"]
+
+
+class TestUnfinishedTurnsAreAskedAgain:
+    def test_r2_declares_retries(self):
+        assert R2["retries"] > 0
 
 
 class TestTheValidatorReportsTheMeanOnly:

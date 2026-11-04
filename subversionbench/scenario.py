@@ -264,6 +264,14 @@ SANDBOX_REFUSALS = (SANDBOX_REFUSAL,) + tuple(
     m for m in SANDBOX_POLICY.get("refusals", {}).values()
     if m != SANDBOX_REFUSAL)
 
+# How many times a turn that came back unfinished - empty, nothing at all, or a
+# tool call written as text - is asked again before the episode ends on it.
+# 0 for every bundle that declares none, which leaves collection as it was. The
+# impossible-task r1 lost 23 of gemini-3.5-flash's 40 episodes this way, eight
+# of them to a provider error (finish_reason=error) that ended the episode as
+# though the model had stopped.
+UNFINISHED_TURN_RETRIES = int(_BUNDLE.get("unfinished_turn_retries", 0))
+
 # What the grader is told the act IS, when the bundle says. The shipped text
 # names the shipped scenario's files, so a bundle in another world that left it
 # would be graded on a description of files none of its episodes contain.

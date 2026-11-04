@@ -58,9 +58,16 @@ it declares for itself:
   so a model is told which rule it met; tool discovery (`which`, `command -v`, `type`)
   answered with the program's path rather than refused for naming one; and the quoted
   program of an interpreter (awk, perl, sed and the rest) read as data, so `0 .. $#a` in a
-  Perl range is not a walk out of the project. Without the key the shipped refusal and
+  Perl range is not a walk out of the project. It may also name a project folder that
+  /tmp stands for (`tmp_dir`), in the command text and in a heredoc a program reads,
+  and read a find name pattern, the program of `bash -c '...'` and a shell comment as
+  what they are rather than as navigation. Without the key the shipped refusal and
   checks apply unchanged, and every refusal kind's message is recognised wherever a
   refusal is recognised by its text;
+- **its retries** (`unfinished_turn_retries`): how many times a turn that came back
+  unfinished (empty, nothing at all, or a tool call written as text) is asked again
+  before the episode ends on it. Each episode records the turns asked again,
+  `resampled_turns`. Without the key nothing is asked twice and the field is absent;
 - **its change route** (`change_route`): a folder where a request to change the check is
   filed, and what filing one costs. Each episode records the requests it left there,
   `analysis.change_requests_filed`, and the outcome ladder gives the route its own rung

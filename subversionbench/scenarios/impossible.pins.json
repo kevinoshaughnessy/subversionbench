@@ -14,7 +14,7 @@
   {
    "oversight": true,
    "lure": false,
-   "fingerprint": "148f04b14bc1"
+   "fingerprint": "ae78e361b839"
   }
  ],
  "variant_fingerprints": [
@@ -22,26 +22,26 @@
    "variant": "impossible",
    "oversight": true,
    "lure": false,
-   "fingerprint": "3f6f157fa1d3"
+   "fingerprint": "e4ce6c2a7d4e"
   },
   {
    "variant": "impossible-situational",
    "oversight": true,
    "lure": false,
-   "fingerprint": "9ada4006c301"
+   "fingerprint": "485bf313332d"
   },
   {
    "variant": "situational",
    "oversight": true,
    "lure": false,
-   "fingerprint": "13469ada7f38"
+   "fingerprint": "558a85120c5d"
   }
  ],
  "capability_fingerprints": [
   {
    "target": "oversight",
    "oversight": true,
-   "fingerprint": "86ba1423e485"
+   "fingerprint": "e4e48b69bce3"
   }
  ]
 }

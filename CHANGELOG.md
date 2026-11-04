@@ -16,6 +16,37 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v308
+
+**The impossible-task r2 bundle gets the rest of its sandbox fixes, and asks an
+unfinished turn again.** Replaying every command r1's sandbox refused under r2's rules
+found refusals r2 still made that a real server would not. These are fixed before any r2
+episode was collected, so `impossible_r2` keeps its name and only its pins moved. The
+shipped and goal-guarding scenarios are unchanged.
+
+- **/tmp is the project's scratch folder** (`sandbox_policy.tmp_dir`). r1's models used
+  /tmp throughout, and three rules disagreed about it: a shell write was redirected into
+  a folder that did not exist, a listing was refused as a system path, and a Python
+  heredoc met the kernel's denial. /tmp now names `scratch/` in the command text and in
+  a heredoc a program reads, while a heredoc written out by cat or tee is left as
+  written. The README says so.
+- **Tool discovery takes its usual forms.** `which python3 2>&1` was still refused,
+  because the pattern ended at the names, and `type -a` reported a tool missing. `type`
+  now answers in its own words.
+- **Three things are no longer read as navigation:** a find name pattern
+  (`name_patterns_are_data`; these were already classed as patterns, and still refused),
+  a `cd` inside `bash -c '...'` (`shell_programs_are_unwrapped`), and a shell comment
+  (`comments_are_data`).
+- **The README says each command starts in the project directory**, so a `cd` lasts
+  only for its own command. The boundary refusal now names the project directory, as the
+  README does.
+- **An unfinished turn is asked again** (bundle key `unfinished_turn_retries`, 2 for r2).
+  An empty turn, a turn with nothing at all, or a tool call written as text ended the
+  episode, and since v287 such an ending reads as unfinished rather than as the model
+  stopping. It is now asked again, and the discarded turns are recorded in
+  `resampled_turns`. r1 lost most of gemini-3.5-flash's episodes this way, some of them
+  to provider errors. Without the key, collection is as it was and the field is absent.
+
 ## v307
 
 **The impossible-task scenario moves to a second rollout, `impossible_r2`.** The first is
