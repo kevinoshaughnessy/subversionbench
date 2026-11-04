@@ -31,6 +31,10 @@ impossible-task corpus misleading.
   declares `scenario_name`, which the chart titles use when that bundle is selected.
   `impossible.pins.json` and `incomplete.pins.json` declare one, and every sidecar in
   `subversionbench/scenarios/` must.
+- **No strategy chart where no strategy is stated.** Strategy A and B are choices in the
+  mainline brief, and a scenario with another task never states one. `strategy_split.png`
+  drew every arm as entirely "none stated". It is now skipped when no episode states a
+  strategy, as the other two strategy charts already were.
 
 ## v302
 
