@@ -21,7 +21,9 @@ sections below that re-list the same models.
 
 **SDK versions.** From v306 each episode records the client SDKs and the Anthropic API version
 it was collected under, as `client_sdk`. The run files of mainline r10, goal-guarding r1 and
-impossible-task r1 (16,883, collected 2026-08-13 to 2026-11-04) were given one afterwards,
+impossible-task r1 (16,883, collected 2026-08-13 to 2026-11-04), and of their capability corpora
+(`eval_results_r10cap`, `_goalguard_r1cap`, `_impossible_r1cap`: 1,456, 2026-09-10 to
+2026-11-02) were given one afterwards,
 marked `"backfilled": "2026-11-04"`: anthropic 0.120.0, openai 2.48.0, API version
 `2023-06-01`. The API version holds for all of them, since every anthropic 0.x sent it by
 default. The package versions are those installed on 2026-11-04, and may be inexact for
