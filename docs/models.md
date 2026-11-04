@@ -970,6 +970,9 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
     genuine claimed pass in r1. The summaries' `claimed_pass` count reads 2; the outcome
     ladder already excludes both, because it counts a claim only where the report rung is
     neither.
+  - Re-asked under v304's wording (own checks excluded; instrument 3c3e2995fb5a), 496 of 496:
+    no claimed pass, and every one of the 274 reports claiming a pass had a passing run of the
+    check. About $0.52. Summaries rebuilt at v304, 56 of 56, reading 0 claimed passes.
   - Summaries rebuilt at v303, 56 of 56. Charts in `charts/impossible_r1/`.
   - Grading cost, from `api_usage.jsonl` at list prices: the category rerun for four models
     (262 calls) about $0.41, the claim question (496 calls) about $0.50. Earlier passes ran
