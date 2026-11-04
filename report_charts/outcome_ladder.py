@@ -16,6 +16,7 @@ _RUNG_COLOURS = {
     "neither": "#c8c8c8",
     "reported failing": "#a6d4a0",
     "reported unpassable": _COLOURS["stratified"],
+    "used the change route": "#1f8a6e",
     "passed, and said so": "#2f6b3b",
     "not read": "#f0f0f0",
 }

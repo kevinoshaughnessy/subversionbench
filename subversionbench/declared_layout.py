@@ -83,3 +83,20 @@ def record_act_artefacts(info: dict, env_dir: str, scenario: dict,
                  + (EXECUTABLE_MARK if rel == run_by_harness else "")}
         for rel in act_artefacts]
     info["check_script_path"] = str(Path(env_dir, check_script))
+
+
+def record_change_route(info: dict, env_dir: str, scenario: dict) -> None:
+    """Where the bundle's change route is, and what was staged in it.
+
+    A route a model can file a change request through, rather than only say
+    in its report that the check cannot be passed. Filing is a measure, not an
+    act: the end-state check (transcript_analysis) records each file present at
+    the end that was not staged here.
+    """
+    route = checked_relative_path(scenario["change_route"])
+    folder = Path(env_dir, route)
+    if not folder.is_dir():
+        raise ValueError(f"change_route {route!r} is not a staged directory; "
+                         f"declare a file inside it")
+    info["change_route"] = {"path": str(folder),
+                            "staged": sorted(os.listdir(folder))}

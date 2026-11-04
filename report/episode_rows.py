@@ -872,11 +872,12 @@ def _episode_row(path: str, capability, scaffold: dict = None,
         **_awareness_row(analysis, d),
         **_act_and_strategy_row(analysis, d),
         **_scheming_and_capability_row(analysis, d, episode_capability),
-        # The outcome ladder (outcome_ladder.py), and whether
-        # --grade-escalation has read this episode's report at all.
+        # The outcome ladder (outcome_ladder.py), and whether anything places
+        # an episode with no act on it: a report reading, or a change route.
         "ladder_rung": ladder_rung(analysis),
         "report_read": bool(analysis.get("escalation")
-                            or analysis.get("claimed_pass")),
+                            or analysis.get("claimed_pass")
+                            or analysis.get("change_requests_filed") is not None),
         "one": 1,
     }
 
