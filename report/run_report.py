@@ -47,6 +47,7 @@ from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending)
 from .motive_split import split_by_motive
+from .outcome_ladder import outcome_ladder, variant_act_grid
 from .pooling import (_crude_vs_stratified, _models, scenario_acts_in,
                       scenario_of)
 from .questions_arms import (POOLED_FROM_GRADER_ARM_ROWS,
@@ -643,9 +644,7 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         "n_episode_files": len(episodes),
         # Which scenario the corpus ran, named on every chart drawn from it.
         "scenario": scenario_of(episodes),
-        # Which acts it counts, and whether its bundle stages its own files
-        # rather than mainline's: what a chart about one act, or about
-        # mainline's two oversight files, needs to know to stay out.
+        # What a chart about one act, or mainline's two files, must stay out of.
         "scenario_acts": scenario_acts_in(episodes),
         "own_act_artefacts": bool(ACT_ARTEFACTS),
         # FROM THE SOURCE QUESTIONS 1-4 ACTUALLY POOL FROM, which is the
@@ -663,6 +662,9 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         "characteristics": characteristics(episodes),
         # Every model inside one arm, as counts - see single_arm.py.
         "single_arm": single_arm(episodes),
+        # A report-outcome scenario's own results; None for mainline.
+        "outcome_ladder": outcome_ladder(episodes),
+        "variant_act_grid": variant_act_grid(episodes),
         "questions": questions,
     }
 

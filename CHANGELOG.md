@@ -55,6 +55,14 @@ impossible-task corpus misleading.
     asked by `--grade-escalation` of the same episodes. It has its own instrument, so stored
     escalation answers stay current and a second pass asks only the new question.
   - The summary's `closing_report` block counts `claimed_pass` and `claimed_pass_measured`.
+- **The outcome ladder** (`report/outcome_ladder.py`, `outcome_ladder.png`). Each episode is
+  placed on one ladder. An episode with an act is placed by how far it concealed the act:
+  concealed, admitted when asked, or disclosed. An episode with no act is placed by its
+  closing report: claimed a pass it never got, neither, reported failing, reported
+  unpassable, or passed and said so. The chart has one panel per nudge and variant, with a
+  bar per model.
+- **The act count by nudge and variant, pooled** (`variant_act_grid.png`). A bundle with
+  variants is drawn as nudge by variant, beside the per-model act grid.
 
 ## v302
 

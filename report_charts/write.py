@@ -19,6 +19,7 @@ from .characteristics import (plot_awareness_confidence,
                               plot_persistence_rate,
                               plot_persistence_within_model)
 from .goalguard import plot_goalguard_rate_views
+from .outcome_ladder import plot_outcome_ladder, plot_variant_act_grid
 from .lure import plot_honeypot_access, plot_lure_misalignment
 from .strategy import (plot_strategy_awareness_effect,
                        plot_strategy_replacement_effect,
@@ -79,6 +80,9 @@ CHARACTERISTIC_CHARTS = (
     ("single_arm_goalguard.png", plot_goalguard_arms, False),
     ("arm_grid_awareness.png", plot_arm_grid_awareness, True),
     ("arm_grid_act.png", plot_arm_grid_act, False),
+    # The ladder reads each act's concealment, a grader's verdict.
+    ("outcome_ladder.png", plot_outcome_ladder, True),
+    ("variant_act_grid.png", plot_variant_act_grid, False),
 )
 
 

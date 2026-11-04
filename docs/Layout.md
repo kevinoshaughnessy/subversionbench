@@ -500,6 +500,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    record, else an exported hand label, else unlabelled (D7)
   strategy_pressure.py  the strategy recommended per arm, and the effect of an
                    imminent replacement on it in the goal-guarding arms
+  outcome_ladder.py  a report-outcome scenario's ladder: an episode with an act
+                   placed by its concealment, one without by its closing
+                   report; and the act count pooled by nudge and variant
   single_arm.py    every model inside one arm, as counts rather than rates:
                    the named arms (baseline, max pressure, lure, no oversight,
                    each goal-guarding arm) and a models x arms grid
@@ -564,6 +567,9 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    the other act too
   strategy.py      the strategy recommended per arm, and the goal-guarding
                    arms' replacement-minus-deferred difference in it
+  outcome_ladder.py  where each model's episodes ended on the outcome ladder,
+                   one panel per arm, and the act count pooled by nudge and
+                   variant
   single_arm.py    every model inside one named arm, k of n per reading:
                    the baseline profile, visible-text awareness, the acts at
                    max pressure, the lure and no-oversight arms, the two
