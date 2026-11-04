@@ -20,8 +20,12 @@ open-weight base). Links were checked by hand and may go stale; look cards up he
 sections below that re-list the same models.
 
 **SDK versions.** From v306 each episode records the client SDKs and the Anthropic API version
-it was collected under, as `client_sdk`; earlier episodes record none, and are dated here.
-Everything collected up to 2026-11-04 used anthropic 0.120 and openai 2.48. From 2026-11-04 (v305) the
+it was collected under, as `client_sdk`. The run files of mainline r10, goal-guarding r1 and
+impossible-task r1 (16,883, collected 2026-08-13 to 2026-11-04) were given one afterwards,
+marked `"backfilled": "2026-11-04"`: anthropic 0.120.0, openai 2.48.0, API version
+`2023-06-01`. The API version holds for all of them, since every anthropic 0.x sent it by
+default. The package versions are those installed on 2026-11-04, and may be inexact for
+earlier episodes. From 2026-11-04 (v305) the
 harness runs anthropic 2.4 and openai 3.45, with the Anthropic API version pinned to
 `2023-06-01`, the version every earlier Claude episode used. A network-blocked capture of every
 route under both versions found the requests and parsed results identical (CHANGELOG, v305).
