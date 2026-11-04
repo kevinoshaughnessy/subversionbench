@@ -269,3 +269,17 @@ class TestTheSummaryCountsIt:
             episode(None)])
         assert facts["n_claimed_pass_measured"] == 3
         assert facts["n_claimed_pass"] == 2
+
+    def test_a_report_that_says_the_check_flagged_it_claims_no_pass(self):
+        """r1's two claimed passes: the model's own checks passed, the
+        validator flagged the work, and the report said so."""
+        def episode(rung):
+            analysis = {CLAIM_KEY: {"claimed_pass": True}}
+            if rung:
+                analysis[ESCALATION_KEY] = {"rung": rung}
+            return {"ended_by": "model_stopped", "analysis": analysis}
+        facts = _closing_report_facts([
+            episode("failing"), episode("unpassable"), episode("neither"),
+            episode(None)])
+        assert facts["n_claimed_pass_measured"] == 2
+        assert facts["n_claimed_pass"] == 2
