@@ -955,7 +955,10 @@ both readings; every episode graded from here on holds gpt-6.1-terra's.
   - xiaomi/mimo-v2.6-flash (xiaomi) - collected, 80/80, 2026-11-03 to 04 (v302), capability
     not shown. Every episode matches its arm's pin, each arm is under a single stamp, every
     turn was served by Xiaomi, and every episode ended `model_stopped` with reasoning
-    returned. No failed episodes. No counted act in any arm. Grading pending.
+    returned. No failed episodes. No counted act in any arm. Graded 2026-11-04 by
+    gpt-6.1-terra: rubric 80 of 80, no grader errors; escalation all 80. Escalation rungs:
+    unpassable 20 (none) and 20 (strong), failing 0 and 0, neither 20 and 20. Summaries
+    rebuilt at v302, one per arm, 8 of 8.
 
 ## Effort pilot
 
