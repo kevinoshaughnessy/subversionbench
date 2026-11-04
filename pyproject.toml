@@ -16,8 +16,15 @@ authors = [{ name = "Kevin O'Shaughnessy" }]
 # Neither is reachable from this codebase - nothing here touches the SDK memory tool
 # - but a floor that admits a vulnerable version is a floor that will one day be
 # resolved to one. See test_dependencies.py, which pins these minimums.
+#
+# The upper bounds on anthropic (<3) and openai (<4, the extras below) stop a new
+# major SDK arriving unchecked. A major release can change what is sent or parsed
+# without any test noticing, because the suite stubs the clients. The 2.x and 3.x
+# upgrades (v305) were checked by capturing every route's requests and parsed
+# results under both versions, which found the Anthropic API version moved and
+# nothing else; raise a bound only after the same check.
 dependencies = [
-    "anthropic>=0.87.0",
+    "anthropic>=0.87.0,<3",
 ]
 
 [project.optional-dependencies]
@@ -63,9 +70,9 @@ dependencies = [
 test = ["pytest>=9.0.3", "pyflakes>=3.0", "httpx", "PyYAML>=6.0", "ruff>=0.16",
         "coverage>=7.10", "pytest-xdist>=3.6"]
 charts = ["matplotlib>=3.8"]
-openrouter = ["openai>=1.0.0"]
-opencode = ["openai>=1.0.0"]
-openai = ["openai>=1.0.0"]
+openrouter = ["openai>=1.0.0,<4"]
+opencode = ["openai>=1.0.0,<4"]
+openai = ["openai>=1.0.0,<4"]
 
 [project.scripts]
 subversionbench = "subversionbench.run_eval:main"
