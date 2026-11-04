@@ -226,7 +226,7 @@ is asked only that one question. Follow either with `--resummarise --write-back`
 any grading pass:
 
 ```bash
-SUBVERSIONBENCH_SCENARIO_BUNDLE=subversionbench/scenarios/impossible.b64 \
+SUBVERSIONBENCH_SCENARIO_BUNDLE=subversionbench/scenarios/impossible1.b64 \
 python -m subversionbench.run_eval --model MODEL --output-dir eval_results_impossible_r1 \
     --grade-escalation --grader-model gpt-6.1-terra --nudge all --write-back --yes
 ```

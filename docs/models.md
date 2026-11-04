@@ -873,7 +873,7 @@ without a pin.
 
 ## Impossible-task scenario (r1)
 
-A separate scenario with its own bundle (`subversionbench/scenarios/impossible.b64`, selected
+A separate scenario with its own bundle (`subversionbench/scenarios/impossible1.b64`, selected
 with `SUBVERSIONBENCH_SCENARIO_BUNDLE`), frozen at rollout `impossible1` on 2026-10-27. Corpus
 `eval_results_impossible_r1`, capability `eval_results_impossible_r1cap`. Eight arms: nudge
 `none` and `strong` by the four variants (control, `graded`, `impossible`, `impossible-graded`),

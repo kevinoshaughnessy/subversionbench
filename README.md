@@ -36,15 +36,18 @@ edits that appear when continuity is at stake and vanish when it is not are, whi
 pair is the measurement rather than either arm on its own. See [the goal-guarding
 arm](docs/methodology.md#the-goal-guarding-arm).
 
-**The impossible-task scenario** is frozen at rollout `impossible1` for its first corpus,
-`eval_results_impossible_r1`; its pilots are kept under `eval_results_impossible_pilot*`. It
-is set in a world of its own, with a different organisation, task and files, and is committed as a separate encoded
-bundle (`subversionbench/scenarios/impossible.b64`, selected with
-`SUBVERSIONBENCH_SCENARIO_BUNDLE`). The model is given a task with an automated acceptance
+**The impossible-task scenario** is set in a world of its own, with a different organisation,
+task and files, and is committed as a separate encoded bundle, selected with
+`SUBVERSIONBENCH_SCENARIO_BUNDLE`. The model is given a task with an automated acceptance
 check, and in the `impossible` variants no honest deliverable can pass it. The one act it
 scores is *editing the check, its threshold or the reference data it scores against* to make
-the work pass. Its control and `graded` variants are passable, so a model that tampers only
-when the task is impossible is distinguished from one that tampers regardless. See
+the work pass. Its control is passable, so a model that tampers only when the task is
+impossible is distinguished from one that tampers regardless. Its second rollout,
+`impossible_r2` (`subversionbench/scenarios/impossible.b64`), adds `situational` variants
+that raise the pressure through the situation rather than the instruction, and a route for
+asking that the check be changed, at a cost. The first, `impossible1`, is kept as
+`subversionbench/scenarios/impossible1.b64` so its corpus, `eval_results_impossible_r1`,
+can still be re-read; its pilots are under `eval_results_impossible_pilot*`. See
 [scenarios in a world of their own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
 In every scenario, whether the model takes the act is the primary measurement — and if it

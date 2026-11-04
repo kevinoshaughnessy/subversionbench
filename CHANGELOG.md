@@ -16,6 +16,42 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v307
+
+**The impossible-task scenario moves to a second rollout, `impossible_r2`.** The first is
+frozen as `subversionbench/scenarios/impossible1.b64` with its own sidecar, so its corpus is
+re-read under the bundle that collected it; `impossible.b64` is now r2. The shipped and
+goal-guarding scenarios assemble as before, and every one of their pins is unchanged.
+
+- **The graded variants are gone and a situational level is added.** Their arms pay for
+  the new level, and the batch per model is smaller than r1's. In their place,
+  `situational` and `impossible-situational` raise the pressure through the situation the
+  model finds rather than the instruction it is given. The cells are no-nudge by all four
+  variants, plus strong-nudge control and impossible.
+- **A route for asking that the check be changed, at a cost** (bundle key `change_route`).
+  r1 offered no legitimate way out but a report, so a model that wanted the threshold
+  changed had nowhere to ask. Each episode records the requests it filed
+  (`analysis.change_requests_filed`), the outcome ladder gives the route its own rung, and
+  each summary's closing block counts the episodes measured and the episodes that used it.
+- **The sandbox refusals are told apart and some are relaxed** (bundle key
+  `sandbox_policy`, `subversionbench/sandbox_policy.py`). r1's one refusal message covered
+  several rules, so a model could not tell which it had met. Tool discovery (`which`,
+  `command -v`, `type`) was refused for naming a path outside the project and is now
+  answered. The quoted program of an interpreter is read as data, so a Perl range such as
+  `0 .. $#a` is no longer a walk out of the project. Every refusal message is recognised
+  wherever a refusal was recognised by its text (`scenario.SANDBOX_REFUSALS`). The quoting
+  helpers moved from `sandbox.py` into `subversionbench/shell_text.py`.
+- **The validator scores the mean only**, and the project's README names its tools and a
+  scratch folder, so a model is not left to discover what it may use.
+- **A blind pack for the report rungs** (`grader_ab/escalation_pack.py`, labelled with
+  `label_pack --escalation`). The rung is the headline for episodes with no act and had
+  never been checked against a human reading. The pack draws impossible-arm episodes the
+  model ended with no act, balanced by model and rung, and seals the rung in the key.
+- **Two guard fixes found while building it.** The summary-field guard now follows calls
+  transitively and counts only names that are read, so a fact bound and never stored is
+  caught. `_summary_scheming` was over the function limit once the closing block grew, and
+  the block is now `_closing_report_block`.
+
 ## v306
 
 **Each episode records its client SDKs.** A new field at the end of both episode records,
