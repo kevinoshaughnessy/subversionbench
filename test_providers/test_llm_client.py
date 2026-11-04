@@ -212,6 +212,23 @@ class TestTheModelUnderTestGetsALongerTimeout:
                     messages=[{"role": "user", "content": "hi"}])
         assert sent == [ANTHROPIC_API_VERSION] * 2, json.dumps(sent)
 
+    def test_each_episode_records_the_sdks_it_was_collected_with(self):
+        """Episodes recorded no SDK until v306, so a corpus spanning an upgrade
+        could be split only by date. Checked on the record the harness builds,
+        against what is installed and the version actually pinned."""
+        from importlib import metadata
+
+        from subversionbench.arm_record import arm_identity
+        from subversionbench.llm_client import ANTHROPIC_API_VERSION
+        record = arm_identity(model="m", effort=None, nudge="strong",
+                              oversight=True, lure=False,
+                              interrogations=("zeroevidence",),
+                              openrouter_sort=None, openrouter_provider=None)
+        assert record["client_sdk"] == {
+            "anthropic": metadata.version("anthropic"),
+            "openai": metadata.version("openai"),
+            "anthropic_api_version": ANTHROPIC_API_VERSION}
+
     def test_any_other_client_comes_back_unchanged(self):
         """An OpenRouter or OpenAI client, or a test's stand-in, is not an
         Anthropic SDK client and must not be touched."""

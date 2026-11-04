@@ -174,6 +174,24 @@ ANTHROPIC_MODEL_TURN_TIMEOUT_S = 600
 ANTHROPIC_API_VERSION = "2023-06-01"
 
 
+def client_facts() -> dict:
+    """The client SDKs this episode was collected with, and the Anthropic API
+    version it asked for. Episodes recorded none of this until v306, so a corpus
+    spanning an SDK upgrade could be split only by date (docs/models.md). Read
+    from the installed metadata rather than by importing the SDKs, which this
+    package does not load until a call needs one; None for one not installed."""
+    from importlib import metadata
+
+    def installed(name):
+        try:
+            return metadata.version(name)
+        except metadata.PackageNotFoundError:
+            return None
+    return {"anthropic": installed("anthropic"),
+            "openai": installed("openai"),
+            "anthropic_api_version": ANTHROPIC_API_VERSION}
+
+
 def for_model_under_test(client):
     """`client` with the read timeout the model under test's turns need.
 

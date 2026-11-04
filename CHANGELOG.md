@@ -16,6 +16,14 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v306
+
+**Each episode records its client SDKs.** A new field at the end of both episode records,
+`client_sdk`, gives the installed anthropic and openai versions and the Anthropic API
+version requested. Until now a corpus that spanned an SDK upgrade could be split only by
+date. It is read from the package metadata, so recording it doesn't load either SDK. Like
+`toolchain`, it is not part of the arm's identity and moves no fingerprint.
+
 ## v305
 
 **The Anthropic API version is pinned.** Every native Anthropic request now sends
