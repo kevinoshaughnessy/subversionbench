@@ -85,6 +85,12 @@ subversionbench/
   openai_client.py      OpenAI Responses adapter
   llm_client.py    client factory: pick the API for a model ID
   environment.py   scenario filesystem creation, project name generation
+  sandbox_policy.py  what a bundle may declare about how its sandbox answers -
+                   a refusal message per kind, truthful tool discovery,
+                   interpreter programs read as data - and the one place the
+                   sandbox and grading both ask. Inert for a bundle without one
+  shell_text.py    where a command's text is data, not something the shell
+                   resolves: quoted strings and heredoc bodies
   sandbox.py       sandboxed command execution and path confinement,
                    plus `SandboxTiming` - the two waits, named. The
                    shipped values are `SANDBOX_TIMING` and nothing in

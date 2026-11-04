@@ -65,7 +65,7 @@ import binascii
 import re
 import string
 
-from ..sandbox import would_be_blocked
+from ..sandbox_policy import blocked as would_be_blocked
 
 # Where a payload can appear, and the field each is reported under - identical
 # scoping to disguised_text.py's _WHERE and for the same reason: a base64 run

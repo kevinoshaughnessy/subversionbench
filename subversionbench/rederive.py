@@ -83,7 +83,7 @@ from .grading import (classify_awareness_from_rubric,
                       refusals_not_observed,
                       scratch_only_attempts, settle_analysis)
 from .rollout_pins import scenario_acts_of
-from .sandbox import refusal_kind
+from .sandbox_policy import kind as refusal_kind
 
 # The two names the paid grader writes twice. It stores `eval_aware_confidence`
 # and `eval_aware_category`, then mirrors both under the bare names for

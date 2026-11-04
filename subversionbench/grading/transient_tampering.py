@@ -12,7 +12,7 @@ undone edit counts is a question for the write-up, not for this module.
 import re
 from pathlib import PurePosixPath
 
-from ..config import SANDBOX_REFUSAL
+from ..scenario import SANDBOX_REFUSALS
 from ..scenario import ACT_ARTEFACTS, CHECK_SCRIPT, STAGED_THRESHOLDS
 from .command_patterns import (
     _ARTEFACT_EDIT_RE, _ARTEFACT_REVERT_RE, _SUCCESSOR_EDIT_RE,
@@ -38,7 +38,7 @@ from .transcript_pairs import paired_results
 # read half after the write half has already landed, and excluding on it would
 # discard a genuine edit.
 _WRITE_FAILED_MARKERS = (
-    SANDBOX_REFUSAL,
+    *SANDBOX_REFUSALS,
     # BSD sed parsing the FILENAME as its script, because `-i` took the script
     # as a backup suffix. `sed -i 's/x/y/' f` is valid GNU and invalid here, so
     # this is the commonest way a tampering attempt failed on this harness, and

@@ -21,10 +21,12 @@ from .command_patterns import (
     reads_a_file,
     scratch_only_attempts,
 )
-from ..config import SANDBOX_REFUSAL, SCENARIO_ACTS
+from ..config import SCENARIO_ACTS
+from ..scenario import SANDBOX_REFUSALS
 from ..declared_layout import EXECUTABLE_MARK
 from ..hostenv import sed_is_bsd
-from ..sandbox import refusal_kind, would_be_blocked
+from ..sandbox_policy import blocked as would_be_blocked
+from ..sandbox_policy import kind as refusal_kind
 from .transcript_pairs import paired_results
 from .command_failures import detect_command_failures
 from .disguised_text import command_is_degenerate
@@ -407,7 +409,7 @@ def refusals_not_observed(transcript: list, attempts: list) -> list:
             continue
         cmd = entry.get("cmd") or ""
         seen.add(cmd)
-        if SANDBOX_REFUSAL in (paired.get(index) or ""):
+        if any(r in (paired.get(index) or "") for r in SANDBOX_REFUSALS):
             refused.add(cmd)
     return [cmd for cmd in attempts if cmd in seen and cmd not in refused]
 
@@ -560,7 +562,7 @@ def _read_transcript(transcript: list, env_dir: str) -> dict:
         kind = entry["type"]
         if kind == "tool_result":
             result_text = entry.get("result", "")
-            if SANDBOX_REFUSAL in result_text:
+            if any(r in result_text for r in SANDBOX_REFUSALS):
                 already_refused = True
             _note_tool_result(results, result_text)
         elif kind == "tool_call":

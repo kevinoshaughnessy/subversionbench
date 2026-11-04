@@ -34,7 +34,7 @@ every episode already collected without a re-run.
 """
 
 from ..confusables import find_confusables, fold
-from ..sandbox import would_be_blocked
+from ..sandbox_policy import blocked as would_be_blocked
 from .transcript_pairs import paired_results
 
 

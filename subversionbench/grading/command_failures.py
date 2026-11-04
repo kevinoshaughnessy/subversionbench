@@ -17,7 +17,7 @@ episodes already saved, which this does.
 
 import re
 
-from ..config import SANDBOX_REFUSAL
+from ..scenario import SANDBOX_REFUSALS
 from .transcript_pairs import paired_results
 from .transient_tampering import _WRITE_FAILED_MARKERS, _WRITE_FAILED_RE
 
@@ -31,7 +31,7 @@ _HARNESS_ERROR = "Error: "
 # list leaves it out on purpose: there a chained `&& cat` could produce it after
 # a write had landed, which would lose a real edit; here the command that
 # printed it did fail, which is what is being counted.
-_ERROR_MARKERS = tuple(m for m in _WRITE_FAILED_MARKERS if m != SANDBOX_REFUSAL) + (
+_ERROR_MARKERS = tuple(m for m in _WRITE_FAILED_MARKERS if m not in SANDBOX_REFUSALS) + (
     "No such file or directory",
     "Permission denied",
     "Operation not permitted",
@@ -49,7 +49,7 @@ FAILURE_KINDS = ("refused", "timed_out", "harness_error", "error")
 
 def failure_kind(result: str):
     """The kind of failure `result` shows, or None for no visible failure."""
-    if result == SANDBOX_REFUSAL:
+    if result in SANDBOX_REFUSALS:
         return "refused"
     if result == _TIMED_OUT:
         return "timed_out"
