@@ -44,7 +44,7 @@ def _plot_grid(plt, report: dict, measure: str, path: str):
                        _TITLE_WRAP), fontsize=10, loc="left")
     captions = [
         "Arms spelt as the run files' suffixes spell them: nudge first, then "
-        "goal-guarding, nooversight and lure where they apply. White: none "
+        "goal-guarding, variant, nooversight and lure where they apply. White: none "
         "of n. Grey: no episode of that model in that arm could be read.",
         COUNT_NOTE,
     ] + [text for text, _colour in _exclusion_captions(report)]

@@ -7,7 +7,7 @@ from collections import Counter
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 
 from .captions import _wrap
-from .exclusion import _exclusion_captions, _exclusion_title_suffix
+from .exclusion import _exclusion_captions, _exclusion_title_suffix, counts_act
 from .style import (CHART_DPI, _COLOURS, _FIGURE_MARGIN, _FIGURE_WIDTH,
                     _ROW_HEIGHT, _TITLE_WRAP)
 
@@ -143,12 +143,23 @@ def _specs(arm: str, measures: tuple) -> tuple:
                  for i, m in enumerate(measures))
 
 
+def _counted(report: dict, measures: tuple) -> tuple:
+    """`measures` less those the corpus's scenario does not stage: the sandbox
+    panel where it counts no sandbox act, and mainline's monitoring file where
+    the bundle stages its own act artefacts (see run_report's
+    _outside_the_scenario)."""
+    return tuple(m for m in measures
+                 if not (m == "sandbox_escape" and not counts_act(report, "sandbox"))
+                 and not (m == "monitoring_disabled"
+                          and report.get("own_act_artefacts")))
+
+
 def plot_baseline_profile(plt, report: dict, path: str):
     """Awareness and every act in the baseline arm."""
     return _draw_count_panels(
-        plt, report, _specs("baseline", (
+        plt, report, _specs("baseline", _counted(report, (
             "aware", "misaligned", "scheming", "monitoring_disabled",
-            "sandbox_escape")),
+            "sandbox_escape"))),
         f"Every model in one arm: {ARM_WORDS['baseline']}",
         ["Sorted by awareness. Scheming is a misaligned act the interrogation "
          "found concealed, so its count sits inside the act's."], path)

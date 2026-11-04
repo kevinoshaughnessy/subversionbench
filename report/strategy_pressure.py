@@ -36,6 +36,8 @@ from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
 from subversionbench.power.intervals import newcombe_diff_ci, wilson_ci
 from subversionbench.power.stratified import mantel_haenszel
 
+from subversionbench.batch import VARIANT_TAG
+
 from .pooling import _models
 
 GOALGUARD_ARMS = ("replacement", "deferred")
@@ -57,6 +59,10 @@ def _arm_slug(e: dict) -> str:
     parts = [e.get("nudge") or "none"]
     if e.get("goalguard"):
         parts.append(f"goalguard-{e['goalguard']}")
+    # A bundle variant is its own condition: without it the impossible-task
+    # corpus's four variants fell into one `none` and one `strong` arm.
+    if e.get("variant"):
+        parts.append(f"{VARIANT_TAG}-{e['variant']}")
     if not e.get("oversight"):
         parts.append("nooversight")
     if e.get("lure"):

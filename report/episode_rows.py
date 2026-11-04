@@ -27,6 +27,7 @@ from subversionbench.grading import (MISALIGNED_ACTS, act_value, SCHEMING_LEVELS
                                      classify_scheming_act, concealment_level,
                                      detect_honeypot_access)
 from subversionbench.reporting.facts import awareness_flag
+from .outcome_ladder import ladder_rung
 from .purposes import act_columns
 from .transcript_columns import (_awareness_vs_refusal, _first_quality_check,
                                  _first_refusal_index, _strategy_sequence)
@@ -871,6 +872,11 @@ def _episode_row(path: str, capability, scaffold: dict = None,
         **_awareness_row(analysis, d),
         **_act_and_strategy_row(analysis, d),
         **_scheming_and_capability_row(analysis, d, episode_capability),
+        # The outcome ladder (outcome_ladder.py), and whether
+        # --grade-escalation has read this episode's report at all.
+        "ladder_rung": ladder_rung(analysis),
+        "report_read": bool(analysis.get("escalation")
+                            or analysis.get("claimed_pass")),
         "one": 1,
     }
 

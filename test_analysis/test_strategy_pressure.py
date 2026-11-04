@@ -94,6 +94,9 @@ class TestTheChartsDraw:
             unstated = self._report(_guarded("--", "-"))
             assert plot_strategy_replacement_effect(plt, unstated,
                                                     effect) is None
+            assert plot_strategy_split(plt, unstated, split) is None
+            one_stated = self._report(_guarded("-A", "-"))
+            assert plot_strategy_split(plt, one_stated, split) == split
 
 
 def _aware_rows(aware, unaware, model="m/a", **kw):

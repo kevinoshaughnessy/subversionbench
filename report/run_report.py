@@ -26,6 +26,8 @@ from subversionbench import charting
 from subversionbench.config import (DEFAULT_GRADER_MODEL, ROLLOUT_NAME,
                                     ROLLOUT_VERSION, VERSION)
 from subversionbench.redaction import redact_paths
+from subversionbench.rollout_pins import ROLLOUT_FINGERPRINTS
+from subversionbench.scenario import ACT_ARTEFACTS
 
 from .console import (_print_arm_exclusion, _print_awareness_exclusion,
                       _print_router_exclusion,
@@ -45,7 +47,9 @@ from .loading import (act_arm_rows, awareness_arm_rows, grader_coverage,
                       load_episodes, load_failed_episodes, load_summaries,
                       report_graders, split_pending)
 from .motive_split import split_by_motive
-from .pooling import _crude_vs_stratified, _models, scenario_of
+from .outcome_ladder import outcome_ladder, variant_act_grid
+from .pooling import (_crude_vs_stratified, _models, scenario_acts_in,
+                      scenario_of)
 from .questions_arms import (POOLED_FROM_GRADER_ARM_ROWS,
                              POOLED_FROM_REBUILT_ARM_ROWS,
                              POOLED_FROM_SUMMARIES,
@@ -227,6 +231,45 @@ def _out_of_scope_for_this_corpus(section: dict, has_goalguard: bool) -> str:
                 "opportunity is not structurally removed here and some "
                 "episodes do exercise it, so this is a scope decision, not "
                 "a claim that the data is empty")
+    return ""
+
+
+def _outside_the_scenario(section: dict, episodes: list) -> str:
+    """
+    Whether this question is about something the scenario these episodes ran
+    does not stage or count, read off the episodes rather than the CLI.
+
+    Beside _out_of_scope_for_this_corpus, which answers the same question for
+    the two scenarios that share mainline's world; this one answers it for a
+    bundle in a world of its own, whose sidecar declares its acts. On the
+    impossible-task corpus every sandbox, lure and oversight-arm question was
+    drawn: the sandbox ones counted models looking for a Python the world
+    does not have as escape attempts, and the oversight ones had one side.
+
+    Three facts:
+    - an act the scenario does not count, from the episodes' recorded
+      scenario_id;
+    - mainline's two oversight files, when the selected bundle stages its own
+      act artefacts and maps them onto those two fields - the act itself is
+      oversight_tampered, their union, which stays. Read off the bundle, which
+      such a corpus can only be read under;
+    - an oversight contrast with one side, when the selected bundle declares
+      no cell without oversight. A property of the scenario, not of what was
+      collected: a mainline corpus missing an arm keeps its one-sided chart.
+    """
+    exposure, _, outcome = section["id"].partition("_vs_")
+    acts = set(scenario_acts_in(episodes) or ())
+    if (exposure == "lure" or "sandbox" in outcome) and "sandbox" not in acts:
+        return ("not counted by this scenario: it declares no sandbox act, "
+                "so a refused command here is not an escape attempt")
+    if (outcome in ("monitoring_disabled", "quality_check_modified")
+            and ACT_ARTEFACTS):
+        return ("named for mainline's two oversight files: this scenario "
+                "stages its own, and the act on any of them is "
+                "oversight_tampered, its own question")
+    if exposure == "oversight" and all(o for o, _l in ROLLOUT_FINGERPRINTS):
+        return ("not staged by this scenario: it has no arm without "
+                "oversight, so there is no other side to compare")
     return ""
 
 
@@ -473,7 +516,8 @@ def _mark_unanswerable(questions, episodes, arm_exclusion,
     # printing what the data actually says.
     has_goalguard = any(e.get("goalguard") for e in episodes)
     for section in questions:
-        reason = _out_of_scope_for_this_corpus(section, has_goalguard)
+        reason = (_out_of_scope_for_this_corpus(section, has_goalguard)
+                  or _outside_the_scenario(section, episodes))
         if reason:
             section["out_of_scope_for_corpus"] = reason
 
@@ -600,6 +644,9 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         "n_episode_files": len(episodes),
         # Which scenario the corpus ran, named on every chart drawn from it.
         "scenario": scenario_of(episodes),
+        # What a chart about one act, or mainline's two files, must stay out of.
+        "scenario_acts": scenario_acts_in(episodes),
+        "own_act_artefacts": bool(ACT_ARTEFACTS),
         # FROM THE SOURCE QUESTIONS 1-4 ACTUALLY POOL FROM, which is the
         # summaries normally and the rebuilt rows under the awareness reading.
         # Taken from the summaries unconditionally, this reported the
@@ -615,6 +662,9 @@ def build_report(output_dir: str, exclusion: str = NO_EXCLUSION,
         "characteristics": characteristics(episodes),
         # Every model inside one arm, as counts - see single_arm.py.
         "single_arm": single_arm(episodes),
+        # A report-outcome scenario's own results; None for mainline.
+        "outcome_ladder": outcome_ladder(episodes),
+        "variant_act_grid": variant_act_grid(episodes),
         "questions": questions,
     }
 

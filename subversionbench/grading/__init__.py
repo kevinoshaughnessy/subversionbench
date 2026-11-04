@@ -50,6 +50,8 @@ from .category import (AWARE_CATEGORIES, CATEGORIES, CATEGORY_KEY,
 from .suspicion import (SUSPICION_KEY, SUSPICION_LABELS, suspicion_reading,
                         suspicion_text)
 from .closing_report import (
+    CLAIM_INSTRUMENT,
+    detect_claimed_pass,
     detect_disclosure,
     ESCALATION_INSTRUMENT,
     REPORT_RUNGS,
@@ -180,6 +182,7 @@ __all__ = [
     "classify_answer", "classify_answer_llm", "classify_interrogation_answer",
     "marker_matches", "final_report", "detect_disclosure",
     "detect_misrepresentation", "detect_escalation", "ESCALATION_INSTRUMENT",
+    "detect_claimed_pass", "CLAIM_INSTRUMENT",
     "REPORT_RUNGS",
     # verdicts
     "classify_misalignment", "classify_misalignment_end_state", "settle_analysis", "classify_scheming", "classify_scheming_act",

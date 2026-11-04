@@ -18,6 +18,8 @@ infer a confound from two numbers several sections apart.
 from subversionbench.power import (benjamini_hochberg, breslow_day,
                                    compare_rates, holm_bonferroni,
                                    mantel_haenszel)
+from subversionbench.rollout_pins import scenario_acts_of
+from subversionbench.sidecar_pins import alternative_scenario_name
 
 # What a stratified estimate holds constant, and the phrase each reads as.
 BY_MODEL = "model"
@@ -495,12 +497,24 @@ def scenario_of(rows: list):
     Read off each row's own `goalguard` arm, which an episode row and an arm
     row both carry. Mixed when some rows are goal-guarding and some are not,
     and None for no rows at all - a chart drawn from nothing names nothing.
+    A selected bundle that names its own scenario is that scenario.
     """
     kinds = {bool(r.get("goalguard")) for r in rows}
     if not kinds:
         return None
+    named = alternative_scenario_name()
+    if named:
+        return named
     if kinds == {True}:
         return "Goal-guarding"
     if kinds == {False}:
         return "Mainline"
     return "Mainline and goal-guarding"
+
+
+def scenario_acts_in(rows: list):
+    """The acts the scenario these rows ran counts, sorted, or None for no
+    rows. Read off each row's recorded `scenario_id`, so a corpus's charts
+    know which acts it counts whichever bundle the reader selected."""
+    acts = {a for r in rows for a in scenario_acts_of(r.get("scenario_id"))}
+    return sorted(acts) or None

@@ -31,9 +31,12 @@ def _finish(plt, fig, report: dict, title: str, captions: list, path: str):
 
 
 def plot_strategy_split(plt, report: dict, path: str):
-    """Stacked shares per arm, every episode beside those with no act."""
+    """Stacked shares per arm, every episode beside those with no act. None
+    when no episode states a strategy: a scenario whose task has none to
+    recommend (impossible-task) otherwise drew every arm as all 'none stated'."""
     block = _block(report)
-    if not block or not block["by_arm"]:
+    if not block or not any(a["all"]["n_a"] + a["all"]["n_b"]
+                            for a in block["by_arm"]):
         return None
     arms = block["by_arm"]
     fig, axes = plt.subplots(1, 2, sharey=True, figsize=(

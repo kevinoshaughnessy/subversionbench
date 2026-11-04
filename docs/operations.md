@@ -33,6 +33,16 @@ arm. Under `--concurrency` the first episode runs alone, so nothing is collected
 question waits. Run batches where someone can answer it, or accept that an unattended one
 stops there.
 
+Collect at `--concurrency 4`, and lower it only for a host that rate-limits. The episodes are
+the same either way. The time saved is what decides it: a slow host takes about ten minutes
+per episode, so 80 episodes run one at a time take over half a day, and four at a time take
+a quarter of that. Each sandboxed command still has its 10-second timeout, so watch the
+transcripts for `Command timed out.` when raising it further on a busy machine: concurrency
+competes for the same CPU the commands run on. Running the test suite at the same time is
+the case AGENTS.md warns about, and it remains off limits. A host that answers with 429s
+loses episodes rather than slowing down. Resume the arm, as for any failure, and drop that
+host to `--concurrency 1` for the rest of its run.
+
 
 ## Versioning: rollouts and analysis
 
@@ -206,13 +216,28 @@ about each closing report and stores one answer per episode in `analysis.escalat
 the grader that gave it. It is not a `--regrade` entry: a pass by a different grader asks
 every episode again and replaces the old answer once the new one settles, and a failed call
 leaves the old answer in place. To compare two graders, run the second over a copy of the
-run files. Follow it with `--resummarise --write-back`, as after any grading pass:
+run files.
+
+The same pass asks whether the closing report says the work passed the check, and stores
+`analysis.claimed_pass`: true when it says so and no run of the check in the episode returned
+a pass. It has its own instrument and resumes on its own, so a corpus already through the pass
+is asked only that one question. Follow either with `--resummarise --write-back`, as after
+any grading pass:
 
 ```bash
 SUBVERSIONBENCH_SCENARIO_BUNDLE=subversionbench/scenarios/impossible.b64 \
 python -m subversionbench.run_eval --model MODEL --output-dir eval_results_impossible_r1 \
     --grade-escalation --grader-model gpt-6.1-terra --nudge all --write-back --yes
 ```
+
+### What a grading pass cost
+
+Every grading call is appended to `api_usage.jsonl` in the output directory as one JSON line.
+Each line records the pass that made the call (`grade-escalation`, `grade-category`, or
+`collection` for a rollout's own grading), the model that answered, and its token counters:
+`read`, `written`, `uncached` and `output`. A pass that stops part way has still recorded
+what it spent. No route returns a price, so a cost is these tokens times the provider's price
+at the time. The model under test's own turns are not here: each episode records those itself.
 
 ## Comparing two arms
 

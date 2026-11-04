@@ -82,3 +82,10 @@ def _scope_caption(section: dict) -> str:
     reason = section.get("not_applicable_reason", "the act was observable")
     return (f"{considered} episode(s) where {reason}; "
             f"{excluded} not applicable and excluded from the denominator")
+
+
+def counts_act(report: dict, act: str) -> bool:
+    """Whether the corpus's scenario counts `act` (report["scenario_acts"]).
+    True when it was not recorded, as every act counted then."""
+    acts = report.get("scenario_acts")
+    return acts is None or act in acts
