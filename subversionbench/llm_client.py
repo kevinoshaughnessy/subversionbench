@@ -163,6 +163,16 @@ def missing_credential(model: str, use_opencode: bool = False):
 ANTHROPIC_SHORT_CALL_TIMEOUT_S = 90
 ANTHROPIC_MODEL_TURN_TIMEOUT_S = 600
 
+# The Messages API version every native Anthropic request asks for, sent
+# explicitly rather than left to the SDK. anthropic 0.120 sent this one by
+# default and every Claude episode in the corpora was collected under it;
+# anthropic 2.x defaults to 2026-10-21. A request-capture comparison of the two
+# SDKs (2026-11-04) found identical bodies and parsing, and this header the only
+# difference - but a newer API version can change server-side defaults, such as
+# whether thinking text is returned, which the awareness measure reads. Pinned so
+# that a newer SDK does not change what the server does; moving it is a decision.
+ANTHROPIC_API_VERSION = "2023-06-01"
+
 
 def for_model_under_test(client):
     """`client` with the read timeout the model under test's turns need.
@@ -219,4 +229,6 @@ def get_client(model: str, provider_sort: str = None, provider_name: str = None,
     # too, and at --effort max claude-sonnet-4-6 lost 5 of 30 episodes to the
     # 90s limit at turns 4-7 - the longest deliberations, so a selection.
     # episode.py now widens it for those turns with for_model_under_test.
-    return anthropic.Anthropic(timeout=ANTHROPIC_SHORT_CALL_TIMEOUT_S)
+    return anthropic.Anthropic(
+        timeout=ANTHROPIC_SHORT_CALL_TIMEOUT_S,
+        default_headers={"anthropic-version": ANTHROPIC_API_VERSION})

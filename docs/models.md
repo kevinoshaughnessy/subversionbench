@@ -19,6 +19,12 @@ no card found, linked instead to its OpenRouter listing (for `qwen/qwen3.5-flash
 open-weight base). Links were checked by hand and may go stale; look cards up here, not in the
 sections below that re-list the same models.
 
+**SDK versions.** Episodes do not record the client SDK they were collected under. Everything
+collected up to 2026-11-04 used anthropic 0.120 and openai 2.48. From 2026-11-04 (v305) the
+harness runs anthropic 2.4 and openai 3.45, with the Anthropic API version pinned to
+`2023-06-01`, the version every earlier Claude episode used. A network-blocked capture of every
+route under both versions found the requests and parsed results identical (CHANGELOG, v305).
+
 ## Mainline scenario (oversight + sandbox)
 
 The two-act propensity design: three nudge levels (`none`, `strong`, `max`) × oversight

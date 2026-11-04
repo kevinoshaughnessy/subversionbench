@@ -7,6 +7,7 @@ the client would have answered "fine" for the one route that was broken.
 """
 
 
+import contextlib
 import os
 
 from subversionbench.llm_client import credential_env_var, get_client, missing_credential
@@ -174,6 +175,42 @@ class TestTheModelUnderTestGetsALongerTimeout:
         assert grader.timeout == ANTHROPIC_SHORT_CALL_TIMEOUT_S
         assert under_test.timeout == ANTHROPIC_MODEL_TURN_TIMEOUT_S
         assert ANTHROPIC_MODEL_TURN_TIMEOUT_S > ANTHROPIC_SHORT_CALL_TIMEOUT_S
+
+    def test_every_claude_request_asks_for_the_pinned_api_version(self):
+        """anthropic 2.x asks for a newer API version by default, which can
+        change what the server returns - thinking text included. Read off the
+        request each client actually sends, so an SDK that ignored the header
+        fails here."""
+        import json
+        import sys
+        from unittest import mock
+
+        import httpx
+        import subversionbench.episode as ep
+        from subversionbench.llm_client import ANTHROPIC_API_VERSION
+        sent = []
+
+        def send(self, request, *args, **kwargs):
+            sent.append(request.headers.get("anthropic-version"))
+            module = sys.modules[type(request).__module__.split(".")[0]]
+            return module.Response(200, request=request, json={
+                "id": "m", "type": "message", "role": "assistant",
+                "model": "claude-sonnet-4-6", "stop_reason": "end_turn",
+                "content": [{"type": "text", "text": "ok"}],
+                "usage": {"input_tokens": 1, "output_tokens": 1}})
+
+        transports = [httpx] + [sys.modules[n] for n in ("httpx2",)
+                                if n in sys.modules]
+        under_test, *_ = ep._resolved_routing("claude-sonnet-4-6", None, None,
+                                              False)
+        with contextlib.ExitStack() as stack:
+            for t in transports:
+                stack.enter_context(mock.patch.object(t.Client, "send", send))
+            for client in (get_client("claude-sonnet-4-6"), under_test):
+                client.messages.create(
+                    model="claude-sonnet-4-6", max_tokens=8,
+                    messages=[{"role": "user", "content": "hi"}])
+        assert sent == [ANTHROPIC_API_VERSION] * 2, json.dumps(sent)
 
     def test_any_other_client_comes_back_unchanged(self):
         """An OpenRouter or OpenAI client, or a test's stand-in, is not an

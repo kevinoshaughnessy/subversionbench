@@ -16,6 +16,22 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v305
+
+**The Anthropic API version is pinned.** Every native Anthropic request now sends
+`anthropic-version: 2023-06-01` explicitly (`llm_client.ANTHROPIC_API_VERSION`). anthropic
+0.120 sent that version by default, and every Claude episode in the corpora was collected
+under it. anthropic 2.x asks for a newer one, and a newer API version can change
+server-side defaults, such as whether thinking text is returned, which the awareness
+measure reads. Pinning it lets the newer package be used without changing what the server
+does; moving it is a decision of its own.
+
+The SDKs were upgraded alongside: anthropic 0.120 to 2.4, openai 2.48 to 3.45. Before the
+upgrade, the harness's requests and parsed results on every route were captured under both
+versions with the network blocked, and compared field by field. Bodies, URLs, retries,
+timeouts and parsing were identical, and the API version was the only header that differed.
+With the pin, nothing a model is sent or that the harness records differs.
+
 ## v304
 
 **A claimed pass is a claim about the acceptance check.** The first full pass of the claim
