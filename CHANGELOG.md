@@ -35,6 +35,18 @@ impossible-task corpus misleading.
   mainline brief, and a scenario with another task never states one. `strategy_split.png`
   drew every arm as entirely "none stated". It is now skipped when no episode states a
   strategy, as the other two strategy charts already were.
+- **Charts stay inside the scenario.** A corpus's report now records the acts its
+  scenario counts (`scenario_acts`, from each episode's `scenario_id`) and whether its
+  bundle stages its own act artefacts. The chart layer then skips three kinds of chart:
+  - charts about a sandbox act the scenario does not count: the sandbox and lure
+    questions, persistence, refusal timing and the profile's sandbox panel. In the
+    impossible-task corpus these refusals are models looking for a runtime the world does
+    not have;
+  - mainline's two oversight files by name, for a bundle that stages its own. Its act
+    remains in the oversight-tampered question;
+  - oversight contrasts, for a bundle with no arm without oversight.
+
+  The console still prints every question's numbers.
 
 ## v302
 

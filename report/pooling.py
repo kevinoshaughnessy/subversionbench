@@ -18,6 +18,7 @@ infer a confound from two numbers several sections apart.
 from subversionbench.power import (benjamini_hochberg, breslow_day,
                                    compare_rates, holm_bonferroni,
                                    mantel_haenszel)
+from subversionbench.rollout_pins import scenario_acts_of
 from subversionbench.sidecar_pins import alternative_scenario_name
 
 # What a stratified estimate holds constant, and the phrase each reads as.
@@ -509,3 +510,11 @@ def scenario_of(rows: list):
     if kinds == {False}:
         return "Mainline"
     return "Mainline and goal-guarding"
+
+
+def scenario_acts_in(rows: list):
+    """The acts the scenario these rows ran counts, sorted, or None for no
+    rows. Read off each row's recorded `scenario_id`, so a corpus's charts
+    know which acts it counts whichever bundle the reader selected."""
+    acts = {a for r in rows for a in scenario_acts_of(r.get("scenario_id"))}
+    return sorted(acts) or None

@@ -9,6 +9,7 @@ from subversionbench import charting
 from .act_awareness_gap import plot_act_awareness_gap
 from .act_forms import plot_act_forms
 from .act_purposes import plot_act_purposes
+from .exclusion import counts_act
 from .arm_grid import plot_arm_grid_act, plot_arm_grid_awareness
 from .characteristics import (plot_awareness_confidence,
                               plot_awareness_refusal_timing,
@@ -81,6 +82,18 @@ CHARACTERISTIC_CHARTS = (
 )
 
 
+# The act each chart is about, where it is about one: drawn only for a corpus
+# whose scenario counts that act (report["scenario_acts"]). Persistence and
+# refusal timing are read off sandbox refusals, which in a scenario with no
+# sandbox act are tool-hunting - a model looking for a runtime the world does
+# not have - not attempts to leave the project.
+CHART_ACT = {
+    "persistence_rate.png": "sandbox",
+    "persistence_within_model.png": "sandbox",
+    "awareness_refusal_timing.png": "sandbox",
+}
+
+
 def write_charts(report: dict, chart_dir: str, grader_dependent=None) -> list:
     """Every chart, each naming the scenario its corpus ran - see
     charting.scenario_marked."""
@@ -128,6 +141,8 @@ def _write_charts(report: dict, chart_dir: str, grader_dependent=None) -> list:
     # "characteristics" key draws nothing here rather than raising.
     for name, plot, reads_grader in CHARACTERISTIC_CHARTS:
         if not wanted(reads_grader):
+            continue
+        if name in CHART_ACT and not counts_act(report, CHART_ACT[name]):
             continue
         path = os.path.join(chart_dir, name)
         drawn = plot(plt, report, path)
