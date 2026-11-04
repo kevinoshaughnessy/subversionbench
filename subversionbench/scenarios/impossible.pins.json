@@ -1,5 +1,6 @@
 {
  "rollout_version": "impossible1",
+ "scenario_name": "Impossible-task",
  "cells": [
   [
    true,

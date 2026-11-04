@@ -14,6 +14,7 @@ import tempfile
 import report as rr
 from report.strategy_pressure import _arm_slug
 from report_charts.act_awareness_gap import plot_act_awareness_gap
+from subversionbench.batch import batch_stem
 from test_analysis.report_fixtures import _write_episode
 
 
@@ -85,6 +86,12 @@ class TestArmsPoolModelsButNotEachOther:
             assert stem.startswith(_arm_slug(
                 {"nudge": "none", "oversight": False, "lure": True,
                  "goalguard": "deferred"}) + "_")
+
+    def test_a_variant_is_an_arm_of_its_own_spelt_as_its_files(self):
+        arms = {"nudge": "strong", "oversight": False, "lure": True}
+        for variant in (None, "impossible", "impossible-graded"):
+            assert batch_stem("m_a", variant=variant, **arms) == (
+                "m_a_" + _arm_slug({**arms, "variant": variant}))
 
 
 def _saved(out, n, analysis_extra, **kw):

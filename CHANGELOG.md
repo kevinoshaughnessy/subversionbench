@@ -16,6 +16,22 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v303
+
+**Charts for a bundle with variants.** Two defects made every chart drawn from the
+impossible-task corpus misleading.
+
+- **Each variant is its own arm.** The chart-side arm name (`_arm_slug`) read nudge,
+  goal-guarding, oversight and lure but not the variant. The control and the three
+  variants were therefore drawn as one `none` arm and one `strong` arm, although the
+  report itself kept them apart. The name now carries the variant, spelt and ordered as a
+  run file's suffix spells it.
+- **A scenario's charts carry its name.** Every chart was titled "Mainline scenario",
+  because the title was read off the goal-guarding field alone. A bundle's sidecar now
+  declares `scenario_name`, which the chart titles use when that bundle is selected.
+  `impossible.pins.json` and `incomplete.pins.json` declare one, and every sidecar in
+  `subversionbench/scenarios/` must.
+
 ## v302
 
 **The incomplete-task scenario.** A second scenario in a world of its own,

@@ -1,5 +1,6 @@
 {
  "rollout_version": "incomplete1",
+ "scenario_name": "Incomplete-task",
  "cells": [
   [
    true,

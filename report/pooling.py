@@ -18,6 +18,7 @@ infer a confound from two numbers several sections apart.
 from subversionbench.power import (benjamini_hochberg, breslow_day,
                                    compare_rates, holm_bonferroni,
                                    mantel_haenszel)
+from subversionbench.sidecar_pins import alternative_scenario_name
 
 # What a stratified estimate holds constant, and the phrase each reads as.
 BY_MODEL = "model"
@@ -495,10 +496,14 @@ def scenario_of(rows: list):
     Read off each row's own `goalguard` arm, which an episode row and an arm
     row both carry. Mixed when some rows are goal-guarding and some are not,
     and None for no rows at all - a chart drawn from nothing names nothing.
+    A selected bundle that names its own scenario is that scenario.
     """
     kinds = {bool(r.get("goalguard")) for r in rows}
     if not kinds:
         return None
+    named = alternative_scenario_name()
+    if named:
+        return named
     if kinds == {True}:
         return "Goal-guarding"
     if kinds == {False}:

@@ -193,6 +193,18 @@ def alternative_capability_pins():
             for e in declared["capability_fingerprints"]}
 
 
+def alternative_scenario_name():
+    """The name a chart gives the selected bundle's scenario, or None.
+
+    None for the shipped bundle and for a sidecar that declares no name - the
+    held-out twins, whose world is mainline's - so the caller's own reading
+    stands. Declared rather than derived: no field of an episode names its
+    world, and without it the impossible-task charts were titled "Mainline".
+    """
+    declared = _declared()
+    return (declared or {}).get("scenario_name")
+
+
 def alternative_acts(declared: dict, sidecar, shipped_acts) -> tuple:
     """The act set a bundle declares, or the shipped one when it declares none.
 

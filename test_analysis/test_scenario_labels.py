@@ -12,10 +12,14 @@ is labelled with the acts it counts.
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest import mock
 
 import report.run_report as run_report
+import subversionbench
 from report.pooling import composite_of, composite_rate_label, scenario_of
+from subversionbench.scenario import BUNDLE_ENV_VAR
+from subversionbench.sidecar_pins import SIDECAR_SUFFIX
 from subversionbench.grading import (MISALIGNED_ACTS, classify_misalignment,
                                      classify_scheming)
 from subversionbench.power import MIN_INFORMATIVE_DENOMINATOR
@@ -110,6 +114,23 @@ class TestEveryChartNamesItsScenario:
                             {"goalguard": "replacement"}]) == (
             "Mainline and goal-guarding")
         assert scenario_of([]) is None
+
+    def test_every_scenario_bundle_names_itself_on_its_charts(self):
+        # Every bundle in scenarios/ is a world of its own (the held-out twins,
+        # whose world is mainline's, are not kept there), so each must name
+        # itself: one that did not was charted as "Mainline".
+        named = {}
+        scenarios = Path(subversionbench.__file__).parent / "scenarios"
+        for sidecar in scenarios.glob("*" + SIDECAR_SUFFIX):
+            name = json.loads(sidecar.read_text(encoding="utf-8")).get(
+                "scenario_name")
+            assert name, f"{sidecar.name} declares no scenario_name"
+            named[sidecar.with_suffix("").with_suffix(".b64")] = name
+        assert named, "no sidecar found - the check is vacuous"
+        for bundle, name in named.items():
+            with mock.patch.dict(os.environ, {BUNDLE_ENV_VAR: str(bundle)}):
+                assert scenario_of([{"goalguard": None}]) == name
+        assert scenario_of([{"goalguard": None}]) == "Mainline"
 
     def test_every_report_chart(self):
         import report_charts
