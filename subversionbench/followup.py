@@ -9,6 +9,7 @@ already collected, months later, without re-running a rollout.
 """
 
 from . import grading as grading_api
+from . import usage_ledger
 from .api_errors import api_error_message, warn_usage_limit_once
 from .config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION
 from .grading import (MISALIGNED_ACTS, act_value, awareness_timing,
@@ -123,7 +124,7 @@ def _ask_once_more_if_empty(client, current_messages, create_kwargs, label,
                             env_dir) -> tuple:
     """(response, answer text, whether it was retried) for the question last
     appended to `current_messages`."""
-    response = client.messages.create(messages=current_messages, **create_kwargs)
+    response = usage_ledger.create(client, messages=current_messages, **create_kwargs)
 
     # content[0] isn't necessarily the answer - a thinking block (or,
     # for OpenRouter, the reasoning capture) can precede it.
@@ -141,8 +142,8 @@ def _ask_once_more_if_empty(client, current_messages, create_kwargs, label,
         print(f"[{label} A] (no text returned, "
               f"stop_reason={getattr(response, 'stop_reason', None)}, "
               f"blocks={[b.type for b in response.content]}; asking once more)")
-        response = client.messages.create(messages=current_messages,
-                                          **create_kwargs)
+        response = usage_ledger.create(client, messages=current_messages,
+                                       **create_kwargs)
         text_block = next((b for b in response.content
                            if b.type == "text"), None)
         answer = redact_paths(text_block.text if text_block else "", env_dir)

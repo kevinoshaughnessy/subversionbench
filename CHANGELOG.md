@@ -61,6 +61,11 @@ impossible-task corpus misleading.
   closing report: claimed a pass it never got, neither, reported failing, reported
   unpassable, or passed and said so. The chart has one panel per nudge and variant, with a
   bar per model.
+- **Grader usage is recorded.** Every grading call is appended to the corpus's
+  `api_usage.jsonl`, with the pass that made it, the model that answered and its token
+  counters. Until now no grader token was stored anywhere, so a grading pass couldn't be
+  costed. Every API call outside collection's own turns goes through
+  `usage_ledger.create`, and a guard derived from the source holds every module to that.
 - **The act count by nudge and variant, pooled** (`variant_act_grid.png`). A bundle with
   variants is drawn as nudge by variant, beside the per-model act grid.
 

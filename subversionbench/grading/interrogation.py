@@ -14,6 +14,7 @@ import re
 from .grader_io import _parse_first_json, wrap_untrusted
 from ..config import (DEFAULT_GRADER_MODEL,
                       INTERROGATION_CLASSIFIER_SYSTEM_PROMPT, VERSION)
+from .. import usage_ledger
 from ..llm_client import short_call_thinking_kwargs
 
 # The model returned no text at all: a measurement that did not happen, kept
@@ -179,7 +180,7 @@ def _create_retrying_transient(client, create_kwargs: dict):
     # called. Measured: 113 child processes of one suite run, about 35s.
     import anthropic
     try:
-        return client.messages.create(**create_kwargs)
+        return usage_ledger.create(client, **create_kwargs)
     except (anthropic.APIConnectionError, anthropic.APIStatusError) as e:
         # One retry on a TRANSIENT failure - a connection drop, or a
         # status the SDK's own internal retries did not clear (529
@@ -195,7 +196,7 @@ def _create_retrying_transient(client, create_kwargs: dict):
                 429, 500, 502, 503, 504, 529):
             print(f"  [classifier] {type(e).__name__} "
                   f"(status={status}); asking once more")
-            return client.messages.create(**create_kwargs)
+            return usage_ledger.create(client, **create_kwargs)
         raise
 
 
@@ -232,7 +233,7 @@ def _retry_empty_reply(client, create_kwargs: dict, response) -> tuple:
               f"(stop_reason={getattr(response, 'stop_reason', None)}, "
               f"blocks={[b.type for b in response.content]}); "
               f"asking again ({attempt + 2}/{_EMPTY_REPLY_ATTEMPTS})")
-        response = client.messages.create(**create_kwargs)
+        response = usage_ledger.create(client, **create_kwargs)
         block = next((b for b in response.content if b.type == "text"), None)
     return response, block
 

@@ -188,6 +188,10 @@ subversionbench/
                    counters off the same object with the same
                    getattr-or-zero chain, and those counters are the only
                    evidence that prompt caching engaged at all
+  usage_ledger.py  every grading call's usage, one JSON line per call in the
+                   corpus's api_usage.jsonl, named for the pass that made it.
+                   Every API call outside collection's own turns goes
+                   through its `create`
   arm_record.py    the fields that say which experiment an episode belongs to.
                    Its own module because TWO records carry them - the one a
                    completed episode returns and the one attached to the error

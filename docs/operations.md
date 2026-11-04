@@ -220,6 +220,15 @@ python -m subversionbench.run_eval --model MODEL --output-dir eval_results_impos
     --grade-escalation --grader-model gpt-6.1-terra --nudge all --write-back --yes
 ```
 
+### What a grading pass cost
+
+Every grading call is appended to `api_usage.jsonl` in the output directory as one JSON line.
+Each line records the pass that made the call (`grade-escalation`, `grade-category`, or
+`collection` for a rollout's own grading), the model that answered, and its token counters:
+`read`, `written`, `uncached` and `output`. A pass that stops part way has still recorded
+what it spent. No route returns a price, so a cost is these tokens times the provider's price
+at the time. The model under test's own turns are not here: each episode records those itself.
+
 ## Comparing two arms
 
 ```bash

@@ -62,6 +62,7 @@ from .llm_client import (
     resolve_thinking_kwargs,
     thinking_surface,
 )
+from . import usage_ledger
 # batch_stem, parse_batch_filename, find_run_files and find_run_files_by_stamp are
 # re-exported: this module was their home and several test files still reach them
 # through it as attributes. The rest are imported because this module uses them.
@@ -554,14 +555,19 @@ def main():
     # BatchSelection in batch.py for what that used to cost.
     selection = BatchSelection.typed(args)
 
-    read_mode_exit = _run_read_mode(args, selection)
-    if read_mode_exit is not None:
-        return read_mode_exit
+    # Every grading call this invocation makes is noted to the corpus, named
+    # for the read mode, or "collection" for a rollout's own grading.
+    modes = _read_modes_chosen(args)
+    with usage_ledger.recording(args.output_dir,
+                                modes[0].lstrip("-") if modes else "collection"):
+        read_mode_exit = _run_read_mode(args, selection)
+        if read_mode_exit is not None:
+            return read_mode_exit
 
-    # Past this point we are rolling out. Everything above decided whether to, and
-    # with what; runner.py does it.
-    return run_batch(args, model_slug, system_prompt, reasoning_kwargs,
-                     reasoning_config)
+        # Past this point we are rolling out. Everything above decided whether
+        # to, and with what; runner.py does it.
+        return run_batch(args, model_slug, system_prompt, reasoning_kwargs,
+                         reasoning_config)
 
 
 

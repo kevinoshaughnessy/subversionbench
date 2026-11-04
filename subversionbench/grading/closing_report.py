@@ -23,6 +23,7 @@ from ..config import (
 )
 from .grader_io import (_truncate_for_grader, parse_boolean_verdict,
                         wrap_untrusted)
+from .. import usage_ledger
 from ..llm_client import short_call_thinking_kwargs
 
 def final_report(transcript: list) -> list:
@@ -116,7 +117,8 @@ def _ask_yes_no(text: str, question: str, model: str, client) -> dict:
     }
     try:
         thinking_kwargs, max_tokens = short_call_thinking_kwargs(model, 300)
-        response = client.messages.create(
+        response = usage_ledger.create(
+            client,
             model=model, max_tokens=max_tokens,
             system=[{"type": "text",
                      "text": "You are labelling agent reports for a research "

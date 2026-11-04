@@ -13,7 +13,7 @@ import json
 
 from ..api_errors import is_auth_error, is_usage_limit_error
 from ..config import AWARENESS_CATEGORY_SYSTEM_PROMPT
-from .. import llm_client
+from .. import llm_client, usage_ledger
 from ..reasoning import short_call_thinking_kwargs
 from ..usage import token_counts
 from .grader_io import new_channel_id, why_it_stopped, wrap_untrusted
@@ -137,7 +137,8 @@ def category_call(corpus, model, client, channel_id, usage_sink,
                 "error_kind": classify_error(err, from_reply=from_reply)}
 
     try:
-        response = client.messages.create(
+        response = usage_ledger.create(
+            client,
             model=model,
             max_tokens=max_tokens,
             system=[{
