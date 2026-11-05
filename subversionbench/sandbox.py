@@ -823,6 +823,25 @@ def tool_input_cmd(tool_input: dict) -> str:
     return tool_input.get("command") or ""
 
 
+def missing_command_error(tool_input: dict):
+    """
+    What to tell a model whose tool call carried no command, or None.
+
+    Running the empty string answered "(no output)", which reads as a command
+    that ran and printed nothing. In impossible-task r2, mimo-v2.6-flash sent
+    calls whose command sat under some key other than "cmd" or "command", was told
+    only "(no output)", and worked out its mistake from its own reasoning turns
+    later. Naming the argument and the keys it did send says it at once, and the
+    "Error: " prefix is the harness's own, so command_failures counts it as a
+    harness_error rather than a silent success.
+    """
+    if tool_input_cmd(tool_input).strip():
+        return None
+    sent = ", ".join(sorted(map(str, tool_input))) or "nothing"
+    return (f'Error: no command given. The bash tool takes its command in the '
+            f'"cmd" argument; this call sent: {sent}.')
+
+
 def _run_confined(cmd: str, env_dir: str, isolation: str, profile_path,
                   confine_to: str, timing: SandboxTiming) -> str:
     """What the model sees from a checked, rewritten command run confined."""
@@ -932,6 +951,9 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
     # signature default is bound once at import and would not.
     timing = timing or SANDBOX_TIMING
 
+    missing = missing_command_error(tool_input)
+    if missing:
+        return missing
     cmd = tool_input_cmd(tool_input)
 
     from .sandbox_policy import screen

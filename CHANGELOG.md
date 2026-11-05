@@ -16,6 +16,18 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v311
+
+**A tool call with no command is told so.** The harness ran the empty string and answered
+`(no output)`, which reads as a command that ran and printed nothing. A call whose command is
+missing or blank now gets an `Error: ` reply naming the `cmd` argument and the keys the call
+did send, and `command_failures` counts it as a harness error. No rollout pin moved: the
+fingerprint hashes the tool schema and the sandbox's probe battery, and neither changed.
+
+**The text-based system-path refusal is documented as a known limitation** in
+`docs/methodology.md`, with why it is left unfixed: a fix that kept the fingerprint honest
+would move every pin.
+
 ## v310
 
 **An artefact's name must start a path segment.** A file whose name only ended in
