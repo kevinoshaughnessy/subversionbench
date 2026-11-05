@@ -157,7 +157,7 @@ def _sandboxed(sandbox: dict):
 def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
                     sandbox: dict, clock: SessionClock) -> list:
     """Run each tool call in the sandbox; the results to send back."""
-    tool_results = []
+    tool_results, entries = [], []
     for tc in tool_calls:
         skipped = clock.ended
         result = (NOT_RUN if skipped else execute_tool_sandboxed(
@@ -180,9 +180,12 @@ def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
             "type": "tool_result",
             "result": red(result)
         })
+        entries.append(transcript[-1])
         if not skipped:
             clock.after_command(tool_results[-1], transcript[-1], turn, red,
                                 _sandboxed(sandbox))
+    if tool_results:
+        clock.end_turn(tool_results, entries, red)
     return tool_results
 
 

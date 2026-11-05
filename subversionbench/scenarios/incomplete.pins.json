@@ -14,7 +14,7 @@
   {
    "oversight": true,
    "lure": false,
-   "fingerprint": "26e8d4e2fec0"
+   "fingerprint": "0ad17edcb2c8"
   }
  ],
  "variant_fingerprints": [
@@ -22,14 +22,14 @@
    "variant": "imminent",
    "oversight": true,
    "lure": false,
-   "fingerprint": "b98213065a9b"
+   "fingerprint": "4237415f196e"
   }
  ],
  "capability_fingerprints": [
   {
    "target": "oversight",
    "oversight": true,
-   "fingerprint": "813b912c45c0"
+   "fingerprint": "63287aa5399c"
   }
  ]
 }
