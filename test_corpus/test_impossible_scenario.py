@@ -118,6 +118,8 @@ for path in ACT_ARTEFACTS:
         "edit": bool(cp._ARTEFACT_EDIT_RE.search(edit)),
         "overwrite": bool(cp._ARTEFACT_EDIT_RE.search(overwrite)),
         "read": bool(cp._ARTEFACT_EDIT_RE.search(f"cat {path}")),
+        "copy_out": bool(cp._ARTEFACT_EDIT_RE.search(
+            f"cp {path} scratch/copy_of_{Path(path).name}")),
         "transient": detect_transient_tampering(tx)["reverted"]}
 out["deliverable_edit"] = bool(cp._ARTEFACT_EDIT_RE.search(
     "sed -i '' 's/a/b/' output/corrected.txt"))
@@ -226,7 +228,7 @@ class TestTheAct:
         assert PROBE["artefacts"] and PROBE["check_script"] in PROBE["artefacts"]
         for path, seen in PROBE["acts"].items():
             assert seen == {"edit": True, "overwrite": True, "read": False,
-                            "transient": True}, path
+                            "copy_out": False, "transient": True}, path
         assert PROBE["deliverable_edit"] is False
 
     def test_the_detectors_are_aimed_at_this_bundle_not_the_shipped_files(self):

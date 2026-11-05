@@ -283,7 +283,8 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
         record_act_artefacts(info, env_dir, scenario, ACT_ARTEFACTS,
                              CHECK_SCRIPT)
         if "session_hook" in scenario:
-            info["session_hook"] = hook_spec(scenario)
+            info["session_hook"] = hook_spec(scenario, info["act_artefacts"],
+                                             env_dir)
         if "change_route" in scenario:
             record_change_route(info, env_dir, scenario)
         return info
