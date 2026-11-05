@@ -21,7 +21,7 @@ exemption's test requires the mention to stay.
 **An artefact's name must start a path segment.** A file whose name only ended in
 an artefact's was taken for the artefact, so copying a reference file out to a
 scratch copy named after it counted as an act. That made one false positive in the
-impossible-task r2 corpus, which `--rescore` now clears. Every match of every
+impossible-task r2 corpus, which `--resummarise --write-back` clears. Every match of every
 pattern in the mainline and goal-guarding corpora is unchanged, so those corpora
 need no rescore. No rollout pin moved.
 
