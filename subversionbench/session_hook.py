@@ -39,7 +39,7 @@ A bundle that declares no `session_hook` never reaches this module's effects:
 from pathlib import Path
 
 from .endings import HOOK_ENDING
-from .grading.transcript_analysis import artefact_modified
+from .grading import artefact_modified
 
 # What the harness appends to its own runs to learn their exit status, since
 # the sandbox returns only output. Stripped before the model sees anything.

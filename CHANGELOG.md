@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v310
+
+**An artefact's name must start a path segment.** A file whose name only ended in
+an artefact's was taken for the artefact, so copying a reference file out to a
+scratch copy named after it counted as an act. That made one false positive in the
+impossible-task r2 corpus, which `--rescore` now clears. Every match of every
+pattern in the mainline and goal-guarding corpora is unchanged, so those corpora
+need no rescore. No rollout pin moved.
+
 ## v309
 
 **The incomplete-task scenario compares its cells over the same commands, and no
