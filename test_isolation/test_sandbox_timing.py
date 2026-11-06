@@ -285,7 +285,11 @@ _DENIAL_MARKERS = ("PermissionError", "not permitted",
 # back with a timeout instead. Accepting any failure would therefore pass with
 # isolation completely broken, which is the non-discriminating version of this
 # test rather than a more portable one.
-_NOT_DENIED_MARKERS = ("timed out", "timeout")
+#
+# The markers name the exception, never the bare word "timeout": from 3.13 a
+# traceback quotes the -c source, which itself calls s.settimeout(2), so that
+# word read a genuine Linux denial on the 3.13 job as not denied.
+_NOT_DENIED_MARKERS = ("timed out", "TimeoutError")
 
 
 def _reads_as_denied(out: str) -> bool:
