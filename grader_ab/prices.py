@@ -82,7 +82,7 @@ PRICES_PER_MTOK = {
     "claude-haiku-5-5": (0.1, 0.5),
     "google/gemini-3.8-flash": (0.825, 4.125),
     "z-ai/glm-5.3-flash": (0.15, 0.5),
-    "deepseek/deepseek-v4.1-flash-1017": (0.15, 0.6),
+    "deepseek/deepseek-v4.1-flash-1017": (0.022, 0.4),
 }
 
 # What a cached read costs as a fraction of the base input price. 0.1x is the

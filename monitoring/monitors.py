@@ -22,10 +22,14 @@ MONITORS = {
     # Step 2; the pin its agent episodes were collected on.
     "google/gemini-3.8-flash": "google-ai-studio",
     # The latest small DeepSeek model: the dated snapshot listed 2026-10-17,
-    # not the deepseek-v4.1-flash this corpus evaluated as an agent. Step 2,
-    # DeepSeek's own endpoint, which this snapshot has and the earlier one
-    # does not.
-    "deepseek/deepseek-v4.1-flash-1017": "deepseek",
+    # not the deepseek-v4.1-flash this corpus evaluated as an agent. DeepSeek's
+    # own endpoint trains on paid traffic, so step 1 removes it - pinned to it,
+    # every call of the first pilot was refused in routing by the account's
+    # no-training setting. Step 3 then: the endpoints within twice the cheapest
+    # per call (7,800 input and 170 output tokens) are Relace fp4, OpenInference
+    # fp4 and Morph fp8; throughput is not in the public endpoint data, so Morph
+    # is taken as the one not quantised to 4 bits.
+    "deepseek/deepseek-v4.1-flash-1017": "morph",
 }
 
 
