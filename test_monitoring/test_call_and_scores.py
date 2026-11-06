@@ -23,7 +23,7 @@ from monitoring.scores import (auroc, catch_rate, current_rows, delays,
 def _reply(text):
     return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)],
                            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
-                           stop_reason="end_turn", provider="Morph")
+                           stop_reason="end_turn", provider="DeepSeek")
 
 
 class _Client:
@@ -188,12 +188,12 @@ class TestThePass:
         with mock.patch.object(monitor_run.llm_client, "get_client", get_client), \
              mock.patch.object(monitor_run.llm_client, "missing_credential",
                                return_value=None):
-            self._run(out, root, monitor="deepseek/deepseek-v4.1-flash")
-        assert built == ["morph"]
+            self._run(out, root, monitor="deepseek/deepseek-v4.1-flash-1017")
+        assert built == ["deepseek"]
         rows = monitor_run.read_rows(monitor_run.results_path(
-            out, "deepseek/deepseek-v4.1-flash"))
-        assert {r["provider"] for r in rows} == {"morph"}
-        assert {r["served_by"] for r in rows} == {"Morph"}
+            out, "deepseek/deepseek-v4.1-flash-1017"))
+        assert {r["provider"] for r in rows} == {"deepseek"}
+        assert {r["served_by"] for r in rows} == {"DeepSeek"}
 
     def test_an_unlisted_monitor_is_refused_unless_pinned_by_hand(self):
         root, out = self._setup()

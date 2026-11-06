@@ -21,13 +21,11 @@ MONITORS = {
     "z-ai/glm-5.3-flash": "Z.AI",
     # Step 2; the pin its agent episodes were collected on.
     "google/gemini-3.8-flash": "google-ai-studio",
-    # DeepSeek lists no endpoint of its own, so step 3: the fastest priced at
-    # no more than twice the cheapest per call (7,800 input and 170 output
-    # tokens, the first pilot's mean). Throughput is not in the public endpoint
-    # data, so among the three within that price Morph is chosen as the one
-    # not quantised to 4 bits. Together, which served the model's own agent
-    # episodes, is 19 times the cheapest and outside the rule.
-    "deepseek/deepseek-v4.1-flash": "morph",
+    # The latest small DeepSeek model: the dated snapshot listed 2026-10-17,
+    # not the deepseek-v4.1-flash this corpus evaluated as an agent. Step 2,
+    # DeepSeek's own endpoint, which this snapshot has and the earlier one
+    # does not.
+    "deepseek/deepseek-v4.1-flash-1017": "deepseek",
 }
 
 

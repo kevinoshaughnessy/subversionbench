@@ -50,7 +50,7 @@ r1 are the two so far, and a new scenario becomes an arm by adding its corpus th
 that a grader model names its own surface caught it falling through to the default.
 
 **Monitor prices** for claude-haiku-5-5, gemini-3.8-flash, glm-5.3-flash and
-deepseek-v4.1-flash in `grader_ab/prices.py`.
+deepseek-v4.1-flash-1017 in `grader_ab/prices.py`.
 
 ## v312
 
