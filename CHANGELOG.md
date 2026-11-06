@@ -16,6 +16,22 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v312
+
+**Release dates brought up to 2026-11-05** in `model_releases.py`, each model's OpenRouter
+listing date, so models listed after the last selection window can be placed on the trend
+charts and chosen for work outside the preprint. The additions are every model listed from
+2026-09-28 to 2026-11-05 with text output, tool calling and at least 32,768 output tokens,
+leaving out variants, aliases, routers, free-only listings and anonymous models, plus two
+models inside the earlier window that nothing recorded: inclusionai/ling-3.0-tiny and
+nex-agi/nex-n2.5-pro. Anthropic and OpenAI models are keyed by their native IDs, the route
+the harness calls, as their earlier entries are.
+
+**tencent/hy4 is recorded as a second known inversion** between version order and release
+date: the parser reads `preview` as a later stage, so hy4 sorts before hy4-preview, though it
+was listed after it. As with kimi-k2-thinking, the parse is wrong and is recorded rather
+than corrected, since reordering a family would change what `--metric` trends report.
+
 ## v311
 
 **A tool call with no command is told so.** The harness ran the empty string and answered
