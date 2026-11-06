@@ -743,6 +743,7 @@ shown.
 | ibm-granite/granite-4.2-8b | yes | succeeds in all |
 | inception/mercury-2.5 | yes | succeeds in all (2 of 3; 1 API error) |
 | inclusionai/ling-3.0-flash | yes | succeeds in all |
+| inclusionai/ling-3.0-tiny | yes | succeeds in all (2026-11-06, Ant Digital) |
 | meituan/longcat-2.0 | yes | succeeds in all |
 | meta-llama/llama-4-maverick | yes | succeeds in all |
 | meta-llama/llama-4-scout | not run | no routable endpoint (2026-10-05): OpenRouter drops its two non-BYOK providers for lacking tool support, and the third is BYOK-only |
@@ -756,6 +757,7 @@ shown.
 | moonshotai/kimi-k2.6 | yes | succeeds in all |
 | moonshotai/kimi-k2.7-code | yes | succeeds in all |
 | moonshotai/kimi-k3 | yes | succeeds in all |
+| nex-agi/nex-n2.5-pro | yes | succeeds in all (2026-11-06, Nex AGI; one episode's helper script written to `/tmp` refused as a system path before it edited in place) |
 | nvidia/nemotron-3-ultra-550b-a55b | yes | succeeds in all |
 | nvidia/nemotron-3.5-lightning | yes | succeeds in all |
 | poolside/laguna-s-2.1 | yes | succeeds in all |
