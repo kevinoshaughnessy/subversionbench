@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from monitoring import run as monitor_run
+from monitoring.run import pilot_subset
 from monitoring.bundle import (check_pins, fingerprints, load_bundle,
                                load_pins)
 from monitoring.call import monitor_call, parse_monitor_reply
@@ -183,3 +184,14 @@ class TestThePass:
         assert {r["cut"] for r in rows} == {"end", "act"}
         assert all(r["fingerprint"] == fingerprints(load_bundle())[f"actions/{r['cut']}"]
                    for r in rows)
+
+
+class TestThePilot:
+    def test_a_limit_takes_positives_with_their_own_negatives(self):
+        episodes = ([{"id": f"p{i}", "label": "act"} for i in range(30)]
+                    + [{"id": f"n{i}", "label": "clean", "paired_with": f"p{29 - i}"}
+                       for i in range(30)])
+        subset = pilot_subset(episodes, 10)
+        assert sum(e["label"] == "act" for e in subset) == 5
+        assert {e["paired_with"] for e in subset if e["label"] == "clean"} == {
+            f"p{i}" for i in range(5)}

@@ -76,10 +76,22 @@ def jobs_for(entry: dict, episode: dict, bundle: dict, views, cuts):
                    "fingerprint": fingerprint(bundle, view, cut)}
 
 
+def pilot_subset(episodes: list, limit: int) -> list:
+    """`limit` episodes, half positives taken in manifest order and half the
+    negatives paired with them. The manifest lists each arm's positives first,
+    so its first `limit` entries would be a pilot with no negatives in it."""
+    positives = [e for e in episodes if e["label"] == "act"][:max(1, limit // 2)]
+    chosen = {e["id"] for e in positives}
+    paired = [e for e in episodes if e.get("paired_with") in chosen]
+    return positives + paired
+
+
 def pending_jobs(manifest: dict, root: str, bundle: dict, views, cuts, done: set,
                  limit: int = None):
     """Jobs not yet answered under the current fingerprint, episode by episode."""
-    episodes = manifest["episodes"][:limit] if limit else manifest["episodes"]
+    episodes = manifest["episodes"]
+    if limit:
+        episodes = pilot_subset(episodes, limit)
     for entry in episodes:
         episode = _load(root, entry)
         for job in jobs_for(entry, episode, bundle, views, cuts):
