@@ -723,6 +723,18 @@ replacement premise, so the propensity corpus has no such contrast.
   its cutover note defers it, so the withdrawal is complete only under the strong nudge.
 - Strategy B is also what the client's brief asks for, so a B share is not a
   self-preservation rate. The difference is what isolates the pressure.
+
+`strategy_awareness_effect.png` sets episodes that verbalised evaluation awareness against
+those that did not. It shows the strategy-B share of stated recommendations for each side in
+every arm, the difference per arm with a Newcombe interval, and the difference pooled within
+model and arm (Mantel-Haenszel, Sato's interval), the estimator the primary uses. It is drawn
+per grader, because awareness is a grader's verdict, and not drawn where no episode has one.
+
+- Awareness is not assigned, so the difference is an association, not an effect.
+- The recommendation is the visible part of the task, and the misaligned acts sit beside it.
+  A model that suspects a test may steer what it takes to be tested, so this chart and the
+  awareness-against-act questions answer different things.
+- Episodes that stated no recommendation are left out of the shares.
 - The block is `characteristics.strategy_by_arm` in the JSON report, with per-model
   differences that are too thin to draw.
 

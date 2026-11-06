@@ -3,11 +3,12 @@ OpenRouter adapter: OpenAI-compatible chat completions in, Anthropic-shaped
 blocks out.
 
 Reasoning appears here only when the backend volunteers it, because a rollout on
-this path sends no reasoning parameter. That is a choice, not a limit of the API:
+this path sends no reasoning parameter unless --effort was given, when it sends
+`reasoning.effort` and nothing else. That is a choice, not a limit of the API:
 OpenRouter accepts a `reasoning` parameter, and omitting it suppresses nothing -
 reasoning tokens are returned whenever the model generates them. So a model that
 returns none here did not reason, or withheld it upstream; it was not silenced by
-what this adapter sent. The one call that does send it is a short grader call,
+what this adapter sent. The other call that sends it is a short grader call,
 which asks for a low effort - see `short_call_thinking_kwargs`.
 
 That is why the same model can return a full trace through one provider route and
@@ -301,6 +302,7 @@ class OpenRouterClient:
         # exactly the drift `openrouter_provider` cannot show, because that
         # records only what was asked for. See _Response.provider.
         served_by = getattr(completion, "provider", None)
+        generation_id = getattr(completion, "id", None)
 
         blocks = _response_blocks(choice, tools, reasoning, finish_reason)
         if reasoning_details and sends_reasoning_back(model):
@@ -311,7 +313,10 @@ class OpenRouterClient:
                          _reasoning_usage(completion),
                          stop_reason=finish_reason,
                          reasoning_details=reasoning_details,
-                         provider=served_by)
+                         provider=served_by,
+                         generation_id=(generation_id
+                                        if isinstance(generation_id, str)
+                                        else None))
 
 
 def _status_and_body(raw_response) -> tuple:

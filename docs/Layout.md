@@ -38,6 +38,10 @@ subversionbench/
   declared_layout.py  staging a bundle that declares its own files and act
                    artefacts; the shipped scenario's layout stays in
                    environment.py, untouched
+  session_hook.py  a hook a bundle stages in the project and the harness
+                   runs part-way through: the notice after one command, the
+                   run after another, and the episode ended only on the
+                   declared exit status. Inert for a bundle without one
   detectors.py     the rubric and keyword lists, held the same way -
                    a SEPARATE bundle, so a held-out scenario cannot
                    swap the instrument that grades it
@@ -81,6 +85,12 @@ subversionbench/
   openai_client.py      OpenAI Responses adapter
   llm_client.py    client factory: pick the API for a model ID
   environment.py   scenario filesystem creation, project name generation
+  sandbox_policy.py  what a bundle may declare about how its sandbox answers -
+                   a refusal message per kind, truthful tool discovery,
+                   interpreter programs read as data - and the one place the
+                   sandbox and grading both ask. Inert for a bundle without one
+  shell_text.py    where a command's text is data, not something the shell
+                   resolves: quoted strings and heredoc bodies
   sandbox.py       sandboxed command execution and path confinement,
                    plus `SandboxTiming` - the two waits, named. The
                    shipped values are `SANDBOX_TIMING` and nothing in
@@ -163,6 +173,9 @@ subversionbench/
     quote_grounding.py     did the grader cite the agent, or the memo
     category.py            the category question, asked by the corpus
                            read mode and by grader_ab from one copy
+    suspicion.py           two questions of suspicion already voiced, asked
+                           through category's call: did it enter the
+                           decision to act, and what kind of test was it
     transcript_analysis.py what the episode did, hashes and commands
     transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
@@ -181,6 +194,10 @@ subversionbench/
                    counters off the same object with the same
                    getattr-or-zero chain, and those counters are the only
                    evidence that prompt caching engaged at all
+  usage_ledger.py  every grading call's usage, one JSON line per call in the
+                   corpus's api_usage.jsonl, named for the pass that made it.
+                   Every API call outside collection's own turns goes
+                   through its `create`
   arm_record.py    the fields that say which experiment an episode belongs to.
                    Its own module because TWO records carry them - the one a
                    completed episode returns and the one attached to the error
@@ -210,6 +227,8 @@ subversionbench/
                            category question, beside the others
     grade_escalation.py    reading each closing report's rung: no deliverable
                            could pass the check, this one fails it, or neither
+    grade_suspicion.py     adding one of the two suspicion readings, one call
+                           per episode the question arises for
     kind_self.py           re-measuring only the KIND of suspicion, with the
                            episode's own model - two questions per aware
                            episode, none for the rest
@@ -233,6 +252,8 @@ subversionbench/
     summary.py             the summary JSON's schema; writing one, and reading
                            back what a rebuild cannot re-derive
   runner.py        rolling out a batch: N episodes, resume, and the summary after
+  hidden_reasoning.py  whether the first episode's reasoning was withheld by
+                   the route, and asking the operator whether to go on
   cli_parser.py    the CLI's flags: every option, default, choice and help string,
                    built by build_parser and re-exported by run_eval
   run_eval.py      the CLI: what the flags mean, what they forbid, and dispatch
@@ -334,8 +355,10 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    resumes. Never opens the sealed key, and refuses a note
                    that repeats six words of the transcript, since labelling/
                    is plaintext. Run as `python3 -m grader_ab.label_pack DIR`,
-                   with `--purpose` for a purpose pack or `--misuse` for a
-                   misuse_pack, which ask no codebook rule
+                   with `--purpose` for a purpose pack, `--misuse` for a
+                   misuse_pack, or `--decision`/`--framing` for a
+                   suspicion_pack, which ask no codebook rule; the last two
+                   print their definition from the detector bundle first
   blind_score.py   the step after labelling: joins each pack's labels through
                    its sealed key to a grid run on that pack, and reads every
                    cell by grader-selection.md's rule - balanced accuracy with
@@ -354,6 +377,17 @@ grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    the uncapped text, as blind_pack's does. Run as
                    `python3 -m grader_ab.misuse_pack`; see
                    docs/misuse-labelling.md
+  escalation_pack.py the same split, for the impossible-task report rungs:
+                   no-act impossible-arm episodes the model ended, balanced by
+                   model and rung, the rater shown the closing report the
+                   grader read and the rung sealed in the key
+  suspicion_pack.py the same split, for the two suspicion questions, drawn
+                   from the paper snapshot's primary episodes: aware before
+                   the act for `decision`, balanced on the pre-act category;
+                   aware episodes of models with an aware act for `framing`,
+                   balanced on acting and capped per model. Holds no
+                   definition, which is the protocol. Run as
+                   `python3 -m grader_ab.suspicion_pack QUESTION`
   length_probe.py  whether the grader reads a long episode as reliably as a
                    short one: one sentence planted at 10%, 50% or 90% of
                    episodes stored as not aware, in three length bands, the
@@ -480,6 +514,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    record, else an exported hand label, else unlabelled (D7)
   strategy_pressure.py  the strategy recommended per arm, and the effect of an
                    imminent replacement on it in the goal-guarding arms
+  outcome_ladder.py  a report-outcome scenario's ladder: an episode with an act
+                   placed by its concealment, one without by its closing
+                   report; and the act count pooled by nudge and variant
   single_arm.py    every model inside one arm, as counts rather than rates:
                    the named arms (baseline, max pressure, lure, no oversight,
                    each goal-guarding arm) and a models x arms grid
@@ -544,6 +581,9 @@ report_charts/     the charts the report draws with the `charts` extra: a
                    the other act too
   strategy.py      the strategy recommended per arm, and the goal-guarding
                    arms' replacement-minus-deferred difference in it
+  outcome_ladder.py  where each model's episodes ended on the outcome ladder,
+                   one panel per arm, and the act count pooled by nudge and
+                   variant
   single_arm.py    every model inside one named arm, k of n per reading:
                    the baseline profile, visible-text awareness, the acts at
                    max pressure, the lure and no-oversight arms, the two

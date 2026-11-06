@@ -19,6 +19,7 @@ from .grader_io import (
     wrap_untrusted,
 )
 from ..llm_client import short_call_thinking_kwargs
+from .. import usage_ledger
 from ..usage import cache_usage
 from .quote_grounding import (
     _normalise_quote,
@@ -55,7 +56,8 @@ def _ask_rubric_question_once(question: str, corpus: str, model: str,
 
     thinking_kwargs, max_tokens = short_call_thinking_kwargs(model, 200)
     try:
-        response = client.messages.create(
+        response = usage_ledger.create(
+            client,
             model=model,
             max_tokens=max_tokens,
             system=[{

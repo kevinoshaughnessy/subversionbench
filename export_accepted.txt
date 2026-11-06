@@ -136,3 +136,5 @@ f15f020fca3be9b2  # home directory a model invented in its own command
 a8741f9ab2b8d0c6  # home path a model wrote in its own message
 57b927daf792083a  # home directory a model invented; the sandbox answered no such file
 282d1d2ef757cca9  # project script run through /bin/sh; no host file read, no output
+1e833b8b12a98686  # home directory a model invented; the sandbox answered no such file
+c8805d1b7d27eda1  # home directory a model invented in its own command

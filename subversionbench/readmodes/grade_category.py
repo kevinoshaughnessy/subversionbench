@@ -31,13 +31,12 @@ import os
 import time
 
 from ..config import CATEGORY_INSTRUMENT
-from ..grading.category import calls_needed, category_reading
+from ..grading.category import (FATAL_ERROR_KINDS as _FATAL_ERRORS,
+                                calls_needed, category_reading)
 from ..graders import (awareness_keys, graders_of, is_awareness_only,
                        store_awareness, view)
 from .selection import find_run_files_or_explain
 
-# A failure of either kind repeats on every remaining call, so the pass stops.
-_FATAL_ERRORS = ("auth", "usage_limit")
 
 # _plan's answer for a file the headline grader has already read in FULL, by
 # the rubric: store_awareness refuses to replace that reading with an

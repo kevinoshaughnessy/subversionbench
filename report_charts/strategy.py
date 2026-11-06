@@ -31,9 +31,12 @@ def _finish(plt, fig, report: dict, title: str, captions: list, path: str):
 
 
 def plot_strategy_split(plt, report: dict, path: str):
-    """Stacked shares per arm, every episode beside those with no act."""
+    """Stacked shares per arm, every episode beside those with no act. None
+    when no episode states a strategy: a scenario whose task has none to
+    recommend (impossible-task) otherwise drew every arm as all 'none stated'."""
     block = _block(report)
-    if not block or not block["by_arm"]:
+    if not block or not any(a["all"]["n_a"] + a["all"]["n_b"]
+                            for a in block["by_arm"]):
         return None
     arms = block["by_arm"]
     fig, axes = plt.subplots(1, 2, sharey=True, figsize=(
@@ -64,6 +67,65 @@ def plot_strategy_split(plt, report: dict, path: str):
                        "Descriptive: the arms differ in more than one thing. "
                        "'No misaligned act' leaves out the episodes whose "
                        "verdict counts an act.", _B_NOTE], path)
+
+
+def plot_strategy_awareness_effect(plt, report: dict, path: str):
+    """The B share for aware and unaware episodes in each arm, the difference
+    per arm, and the pooled difference within model and arm. None where no
+    episode carries an awareness verdict or no arm has both sides stated."""
+    block = _block(report)
+    effect = block and block.get("awareness_effect")
+    if not effect or not any(a["diff"] is not None for a in effect["by_arm"]):
+        return None
+    arms = effect["by_arm"]
+    fig, (shares, diffs) = plt.subplots(1, 2, sharey=True, figsize=(
+        _FIGURE_WIDTH, 2.6 + 0.4 * (len(arms) + 1)))
+    labelled = set()
+    for y, a in enumerate(arms):
+        for offset, side, colour in ((-0.15, "aware", "#8e44ad"),
+                                     (0.15, "unaware", "#7f8c8d")):
+            c = a[side]
+            if c["ci95"]:
+                rate = c["b_share_of_stated"] * PP
+                shares.errorbar(rate, y + offset, fmt="o", color=colour,
+                                xerr=[[rate - c["ci95"][0] * PP],
+                                      [c["ci95"][1] * PP - rate]], capsize=2,
+                                label=None if side in labelled else side)
+                labelled.add(side)
+        if a["diff"] is not None:
+            _diff_marker(diffs, a["diff"], a["ci95"], y, "o", "#2c3e50")
+    pooled = effect["pooled"]
+    if pooled["diff"] is not None:
+        _diff_marker(diffs, pooled["diff"], pooled["ci95"], len(arms), "D",
+                     "#2ca02c")
+    shares.set_yticks(range(len(arms) + 1))
+    shares.set_yticklabels([a["arm"] for a in arms]
+                           + [f"pooled (MH, {pooled['n_strata_used']} strata)"],
+                           fontsize=8)
+    shares.invert_yaxis()
+    shares.set_xlim(0, PP)
+    shares.set_xlabel("strategy B, % of stated")
+    shares.legend(fontsize=8, frameon=False)
+    diffs.axvline(0, color="#555555", linewidth=0.8)
+    diffs.set_xlabel("aware minus unaware (pp)")
+    fig.subplots_adjust(left=0.3, wspace=0.12, bottom=0.34, top=0.84)
+    return _finish(plt, fig, report,
+                   "Does verbalised evaluation awareness go with a different "
+                   "recommendation? All models, per arm", [
+                       "Awareness is not assigned, so the difference is an "
+                       "association, not an effect. Per arm, Newcombe "
+                       "intervals; pooled, the Mantel-Haenszel difference "
+                       "within model and arm with Sato's interval.", _B_NOTE,
+                       WILSON_NOTE + "; episodes that stated no "
+                       "recommendation are left out."], path)
+
+
+def _diff_marker(ax, diff, ci95, y, fmt, colour):
+    d = diff * PP
+    ax.errorbar(d, y, fmt=fmt, color=colour,
+                xerr=[[d - ci95[0] * PP], [ci95[1] * PP - d]], capsize=2)
+    ax.annotate(f"{d:+.1f}pp", (ci95[1] * PP, y), xytext=(4, 0),
+                textcoords="offset points", va="center", fontsize=7)
 
 
 def plot_strategy_replacement_effect(plt, report: dict, path: str):

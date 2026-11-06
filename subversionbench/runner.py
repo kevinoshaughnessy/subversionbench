@@ -31,6 +31,7 @@ from .config import capability_fingerprint_for, fingerprint_for
 from .environment import create_episode_root
 from .episode import EpisodeAPIError, run_evaluation
 from .graders import view
+from .hidden_reasoning import continue_despite_hidden_reasoning
 from .grading import MISALIGNED_ACTS, act_value, auth_error_in_analysis
 from .isolation import (confinement_available, isolation_available,
                         probe_isolation, profile_for, verify_confinement,
@@ -140,6 +141,9 @@ class _BatchProgress:
         # limit and by an auth failure. Only a human asking to stop should stop
         # the arms AFTER this one.
         self.interrupted = False
+        # Until the first episode is collected and its reasoning checked, the
+        # pool runs one episode at a time - see hidden_reasoning.
+        self.reasoning_checked = False
         self._max_consecutive_failures = max_consecutive_failures
         self._batch_stamp = batch_stamp
 
@@ -155,6 +159,11 @@ class _BatchProgress:
         if _scoring_auth_failed(record, len(self.results), self._batch_stamp):
             self.aborted = True
             return True
+        if not self.reasoning_checked:
+            self.reasoning_checked = True
+            if not continue_despite_hidden_reasoning(record["result"]):
+                self.aborted = self.interrupted = True
+                return True
         return False
 
     def _absorb_failure(self, record) -> bool:
@@ -201,13 +210,24 @@ def _drain_after_interrupt(futures, progress):
             progress.keep(futures[fut], record)
 
 
-def _launch_next(ex, worker, remaining, futures):
-    """Submit the next pending episode into `futures`, or do nothing if none
-    are left. Shared by the initial fill and every refill, which were two
-    copies of the same three lines."""
+def _launch_next(ex, worker, remaining, futures) -> bool:
+    """Submit the next pending episode into `futures`; False if none are
+    left. Shared by the initial fill and every refill, which were two copies
+    of the same three lines."""
     i = next(remaining, None)
     if i is not None:
         futures[ex.submit(worker, i)] = i
+    return i is not None
+
+
+def _fill(ex, worker, remaining, futures, concurrency, progress, stop):
+    """Launch until the pool is full. It is one episode wide until the first
+    one is collected, so that if the operator is asked about its reasoning,
+    nothing else is being collected while they answer."""
+    width = concurrency if progress.reasoning_checked else 1
+    while (not stop.is_set() and len(futures) < width
+           and _launch_next(ex, worker, remaining, futures)):
+        pass
 
 
 def _keep_pool_full(ex, worker, pending, concurrency, progress, stop):
@@ -221,8 +241,7 @@ def _keep_pool_full(ex, worker, pending, concurrency, progress, stop):
     """
     remaining = iter(pending)
     futures = {}
-    for _ in range(concurrency):
-        _launch_next(ex, worker, remaining, futures)
+    _fill(ex, worker, remaining, futures, concurrency, progress, stop)
 
     try:
         while futures:
@@ -236,8 +255,7 @@ def _keep_pool_full(ex, worker, pending, concurrency, progress, stop):
                     continue
                 if progress.absorb(i, record):
                     stop.set()
-                if not stop.is_set():
-                    _launch_next(ex, worker, remaining, futures)
+            _fill(ex, worker, remaining, futures, concurrency, progress, stop)
     except KeyboardInterrupt:
         print("\n\nInterrupted by user. Episode(s) already in flight will "
               "finish and save; nothing further will be launched.")
@@ -708,6 +726,7 @@ def _run_episodes_sequentially(args, identity, system_prompt, user_prompt,
     consecutive_failures = 0
     aborted = False
     interrupted = False
+    reasoning_checked = False
     total_delay_seconds = 0
 
     for i in range(args.runs):
@@ -770,6 +789,12 @@ def _run_episodes_sequentially(args, identity, system_prompt, user_prompt,
         if _scoring_auth_failed(record, len(all_results), batch_stamp):
             aborted = True
             break
+
+        if not reasoning_checked:
+            reasoning_checked = True
+            if not continue_despite_hidden_reasoning(record["result"]):
+                aborted = interrupted = True
+                break
 
         if i < args.runs - 1:
             print(f"\nWaiting {args.delay}s before next run...")

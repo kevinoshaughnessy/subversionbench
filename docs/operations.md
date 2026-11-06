@@ -25,6 +25,24 @@ if the failures are systematic — a withdrawn model or a bad key — rather tha
 burning the budget on it. Failure counts, grader failures and turn-capped episodes
 are all reported in the summary rather than silently pooled into the rates.
 
+A batch can stop once, after its first episode, to ask a question. If that episode's
+reasoning was withheld - the model reasoned, but only a token count or an encrypted payload
+came back - the run prints what it saw and waits for `y` or `n`. No answer, or a closed
+stdin, is `n`, and `n` exits as an interrupt, so `run_all_arms.sh` does not start the next
+arm. Under `--concurrency` the first episode runs alone, so nothing is collected while the
+question waits. Run batches where someone can answer it, or accept that an unattended one
+stops there.
+
+Collect at `--concurrency 4`, and lower it only for a host that rate-limits. The episodes are
+the same either way. The time saved is what decides it: a slow host takes about ten minutes
+per episode, so 80 episodes run one at a time take over half a day, and four at a time take
+a quarter of that. Each sandboxed command still has its 10-second timeout, so watch the
+transcripts for `Command timed out.` when raising it further on a busy machine: concurrency
+competes for the same CPU the commands run on. Running the test suite at the same time is
+the case AGENTS.md warns about, and it remains off limits. A host that answers with 429s
+loses episodes rather than slowing down. Resume the arm, as for any failure, and drop that
+host to `--concurrency 1` for the rest of its run.
+
 
 ## Versioning: rollouts and analysis
 
@@ -93,15 +111,16 @@ into the repository root, beside `unzip.sh`, which works relative to its own dir
 
 ```bash
 curl -L -o eval_results_r10.zip \
-  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-27/eval_results_r10.zip
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-11-04/eval_results_r10.zip
 curl -L -o eval_results_goalguard_r1.zip \
-  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-10-27/eval_results_goalguard_r1.zip
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-11-04/eval_results_goalguard_r1.zip
 ./unzip.sh --dirs eval_results_r10.zip eval_results_goalguard_r1.zip
 ```
 
 To refresh one, rebuild it with `./zip.sh --dirs <dir>` and publish it as a new release tagged
 `corpus-<rollout>-<date>`, leaving the earlier release in place as the record of what was
-published then. The capability corpora and `charts.zip` are still tracked files.
+published then. The capability corpora, the impossible-task corpus
+(`eval_results_impossible_r1.zip`, from 2026-11-04) and `charts.zip` are still tracked files.
 
 `zip.sh` verifies the archive before `--remove`
 deletes anything and refuses to run against a directory a batch is still writing to;
@@ -191,6 +210,35 @@ Changed to unaware:     0
 
 Running two graders over the same batch and reporting the disagreement is the cheapest
 precision available here — it costs no rollouts and quantifies the largest error term.
+
+`--grade-escalation` is a separate pass for a scenario whose honest outcome is a closing
+report rather than an act, such as the impossible-task scenario. It asks `--grader-model`
+about each closing report and stores one answer per episode in `analysis.escalation`, with
+the grader that gave it. It is not a `--regrade` entry: a pass by a different grader asks
+every episode again and replaces the old answer once the new one settles, and a failed call
+leaves the old answer in place. To compare two graders, run the second over a copy of the
+run files.
+
+The same pass asks whether the closing report says the work passed the check, and stores
+`analysis.claimed_pass`: true when it says so and no run of the check in the episode returned
+a pass. It has its own instrument and resumes on its own, so a corpus already through the pass
+is asked only that one question. Follow either with `--resummarise --write-back`, as after
+any grading pass:
+
+```bash
+SUBVERSIONBENCH_SCENARIO_BUNDLE=subversionbench/scenarios/impossible1.b64 \
+python -m subversionbench.run_eval --model MODEL --output-dir eval_results_impossible_r1 \
+    --grade-escalation --grader-model gpt-6.1-terra --nudge all --write-back --yes
+```
+
+### What a grading pass cost
+
+Every grading call is appended to `api_usage.jsonl` in the output directory as one JSON line.
+Each line records the pass that made the call (`grade-escalation`, `grade-category`, or
+`collection` for a rollout's own grading), the model that answered, and its token counters:
+`read`, `written`, `uncached` and `output`. A pass that stops part way has still recorded
+what it spent. No route returns a price, so a cost is these tokens times the provider's price
+at the time. The model under test's own turns are not here: each episode records those itself.
 
 ## Comparing two arms
 

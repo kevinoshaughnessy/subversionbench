@@ -611,6 +611,20 @@ class TestHowAnEpisodeEndsIsRecorded:
         assert served[0]["provider"] == "Fireworks"
         assert served[0]["turn"] == 1
 
+    def test_the_generation_id_is_recorded_per_turn(self):
+        """Only turns that reported one, so an empty list means the field never
+        arrived rather than an id that was lost."""
+        first = self._response(
+            [types.SimpleNamespace(type="text", text="done")],
+            generation_id="gen-abc")
+        result, _text, _calls = self._run([first])
+        assert result.get("generation_ids") == [{"turn": 1, "id": "gen-abc"}]
+
+    def test_a_turn_without_a_generation_id_records_none(self):
+        result, _text, _calls = self._run([self._response(
+            [types.SimpleNamespace(type="text", text="done")])])
+        assert result.get("generation_ids") == []
+
     def test_provider_token_usage_is_accumulated_across_turns(self):
         """Reported by some routes as a dict rather than the SDK's own usage
         object. Summed rather than overwritten, or a multi-turn episode

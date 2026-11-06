@@ -27,8 +27,8 @@ routes is deliberate:
 
 The same OpenAI model is reachable on two of those, and the choice changes what
 the harness controls: the Responses route sends an effort and asks for a
-reasoning summary, while OpenRouter sends no reasoning parameter, so effort is
-the model's own default. Both awareness measures read reasoning, so the route
+reasoning summary, while OpenRouter sends no reasoning parameter unless --effort
+is given, so effort is otherwise the model's own default. Both awareness measures read reasoning, so the route
 stays an explicit choice recorded in every run's `reasoning_config`. What it
 does NOT change is whether reasoning comes back at all - see routing.py for the
 measurement that retired that claim.
@@ -163,6 +163,34 @@ def missing_credential(model: str, use_opencode: bool = False):
 ANTHROPIC_SHORT_CALL_TIMEOUT_S = 90
 ANTHROPIC_MODEL_TURN_TIMEOUT_S = 600
 
+# The Messages API version every native Anthropic request asks for, sent
+# explicitly rather than left to the SDK. anthropic 0.120 sent this one by
+# default and every Claude episode in the corpora was collected under it;
+# anthropic 2.x defaults to 2026-10-21. A request-capture comparison of the two
+# SDKs (2026-11-04) found identical bodies and parsing, and this header the only
+# difference - but a newer API version can change server-side defaults, such as
+# whether thinking text is returned, which the awareness measure reads. Pinned so
+# that a newer SDK does not change what the server does; moving it is a decision.
+ANTHROPIC_API_VERSION = "2023-06-01"
+
+
+def client_facts() -> dict:
+    """The client SDKs this episode was collected with, and the Anthropic API
+    version it asked for. Episodes recorded none of this until v306, so a corpus
+    spanning an SDK upgrade could be split only by date (docs/models.md). Read
+    from the installed metadata rather than by importing the SDKs, which this
+    package does not load until a call needs one; None for one not installed."""
+    from importlib import metadata
+
+    def installed(name):
+        try:
+            return metadata.version(name)
+        except metadata.PackageNotFoundError:
+            return None
+    return {"anthropic": installed("anthropic"),
+            "openai": installed("openai"),
+            "anthropic_api_version": ANTHROPIC_API_VERSION}
+
 
 def for_model_under_test(client):
     """`client` with the read timeout the model under test's turns need.
@@ -219,4 +247,6 @@ def get_client(model: str, provider_sort: str = None, provider_name: str = None,
     # too, and at --effort max claude-sonnet-4-6 lost 5 of 30 episodes to the
     # 90s limit at turns 4-7 - the longest deliberations, so a selection.
     # episode.py now widens it for those turns with for_model_under_test.
-    return anthropic.Anthropic(timeout=ANTHROPIC_SHORT_CALL_TIMEOUT_S)
+    return anthropic.Anthropic(
+        timeout=ANTHROPIC_SHORT_CALL_TIMEOUT_S,
+        default_headers={"anthropic-version": ANTHROPIC_API_VERSION})

@@ -9,7 +9,9 @@ import random
 import string
 from pathlib import Path
 
-from .declared_layout import record_act_artefacts, write_declared_files
+from .declared_layout import (record_act_artefacts, record_change_route,
+                              write_declared_files)
+from .session_hook import hook_spec
 from .scenario import (ACT_ARTEFACTS, CHECK_SCRIPT, PROJECT_NAME_PARTS,
                        TASK_FILE_NAME, lure_applies, scenario_for)
 
@@ -280,6 +282,11 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
                 "variant": variant}
         record_act_artefacts(info, env_dir, scenario, ACT_ARTEFACTS,
                              CHECK_SCRIPT)
+        if "session_hook" in scenario:
+            info["session_hook"] = hook_spec(scenario, info["act_artefacts"],
+                                             env_dir)
+        if "change_route" in scenario:
+            record_change_route(info, env_dir, scenario)
         return info
 
     _write_scenario_files(env_dir, scenario)

@@ -316,3 +316,48 @@ class TestThePurposePromptsEndToEnd:
         assert calls == [
             ("some/pack", {"redo": None, "scheme": "purpose"}),
             ("some/pack", {"redo": "ep-002", "scheme": "awareness"})]
+
+
+class TestTheSuspicionSchemes:
+    """--decision and --framing label in their own answer sets, ask no rule
+    question, and show the definition first, since the pack holds none."""
+
+    def test_an_answer_is_stored_in_full_with_nothing_else_asked(self):
+        for scheme, typed, stored in (("decision", ("b", "f"), ("beside", "for")),
+                                      ("framing", ("st", "p"),
+                                       ("safety_test", "puzzle"))):
+            with tempfile.TemporaryDirectory() as tmp:
+                _pack(tmp)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    _run(tmp, typed[0], "", typed[1], "", "q", scheme=scheme)
+                rows = _labels(tmp)
+                assert [r["label"] for r in rows][:2] == list(stored)
+                assert rows[0]["code"] is None and "also" not in rows[0]
+
+    def test_an_answer_from_another_scheme_is_asked_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _pack(tmp)
+            with contextlib.redirect_stdout(io.StringIO()):
+                _run(tmp, "t", "beside", "", "q", scheme="framing")
+            assert _labels(tmp)[0]["label"] is None
+            with contextlib.redirect_stdout(io.StringIO()):
+                _run(tmp, "true", "n", "", "q", scheme="decision")
+            assert _labels(tmp)[0]["label"] == "none"
+
+    def test_every_answer_has_a_distinct_short_form(self):
+        for scheme in label_pack.SUSPICION_ABBREVIATIONS:
+            labels, short, _ = label_pack.SCHEMES[scheme]
+            assert sorted(short.values()) == sorted(labels)
+
+    def test_the_definition_is_shown_without_the_reply_format(self):
+        from subversionbench.config import SUSPICION_PROMPTS
+        for scheme in label_pack.SUSPICION_ABBREVIATIONS:
+            with tempfile.TemporaryDirectory() as tmp:
+                _pack(tmp)
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    _run(tmp, "q", scheme=scheme)
+            shown = label_pack.definition(scheme)
+            assert shown in out.getvalue()
+            assert shown != SUSPICION_PROMPTS[scheme][0]
+            assert "JSON" not in shown

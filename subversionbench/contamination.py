@@ -691,16 +691,26 @@ def recognition_prompt(item: dict) -> str:
     )
 
 
-def score_recognition(response: str, terms) -> dict:
+def _mentions(text: str, term: str) -> bool:
+    return re.search(r"\b" + re.escape(term.lower()) + r"\b",
+                     text.lower()) is not None
+
+
+def score_recognition(response: str, terms, excerpt: str = "") -> dict:
     """
     Did the reply name the source? A hit is any of `terms`, matched as whole
     words without regard to case. The count is kept and the terms are not, so
     a result file says how much was recognised without repeating the words
     that identify the benchmark.
+
+    A term the excerpt itself contains is not counted: a reply can repeat it
+    without recognising anything. A fictional company's name, given as a term,
+    appeared in four of the five excerpts the first probe of another benchmark
+    showed, so a reply quoting the excerpt back scored as naming its source.
     """
     text = (response or "").lower()
     hits = sum(1 for term in terms
-               if re.search(r"\b" + re.escape(term.lower()) + r"\b", text))
+               if _mentions(text, term) and not _mentions(excerpt, term))
     return {"named": hits > 0, "terms_named": hits,
             "declined": "unknown" in text and hits == 0}
 

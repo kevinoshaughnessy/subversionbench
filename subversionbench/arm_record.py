@@ -10,6 +10,7 @@ stops a third record growing its own copy.
 from .config import (CANARY, DEFAULT_INTERROGATION, ROLLOUT_VERSION,
                      VERSION, scenario_acts_for, scenario_id_for)
 from .hostenv import toolchain_facts
+from .llm_client import client_facts
 from .isolation import DEFAULT_ISOLATION
 from .rollout_pins import (capability_fingerprint_for,
                             date_fingerprint_for, fingerprint_for,
@@ -271,4 +272,9 @@ def arm_identity(model, effort, nudge, oversight, lure, interrogations,
                           nudge, isolation, max_turns),
         **_arm_fields(capability, date_mode, artefact_dates, goalguard,
                       use_opencode, variant),
+        # WHAT THE CLIENT LIBRARY CONTRIBUTED - the SDK versions and the
+        # Anthropic API version asked for. Like the toolchain, not hashed into
+        # the arm's identity; recorded because a major SDK can change what is
+        # sent or parsed. Last, as a new field goes.
+        "client_sdk": client_facts(),
     }

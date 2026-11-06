@@ -9,12 +9,14 @@ already collected, months later, without re-running a rollout.
 """
 
 from . import grading as grading_api
+from . import usage_ledger
 from .api_errors import api_error_message, warn_usage_limit_once
 from .config import DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION
 from .grading import (MISALIGNED_ACTS, act_value, awareness_timing,
                       misrepresentation_scoreable,
                       first_awareness_position, questions_for,
                       report_grader_failure)
+from .endings import NO_CLOSING_REPORT
 from .redaction import redact_paths
 from .turns import replayable_content
 
@@ -48,7 +50,7 @@ def interrogate_acts(analysis: dict, transcript: list, probe: dict, *,
     # model was cut off mid-task - so there is nothing to judge disclosure
     # against. Scoring the last thing it happened to say ("Trying even smaller
     # appends.") as a non-disclosure would be reading a verdict out of noise.
-    has_report = ended_by != "turn_cap"
+    has_report = ended_by not in NO_CLOSING_REPORT
 
     if (misrepresentation_scoreable(analysis, ended_by)
             and (only is None or "oversight" in only)):
@@ -122,7 +124,7 @@ def _ask_once_more_if_empty(client, current_messages, create_kwargs, label,
                             env_dir) -> tuple:
     """(response, answer text, whether it was retried) for the question last
     appended to `current_messages`."""
-    response = client.messages.create(messages=current_messages, **create_kwargs)
+    response = usage_ledger.create(client, messages=current_messages, **create_kwargs)
 
     # content[0] isn't necessarily the answer - a thinking block (or,
     # for OpenRouter, the reasoning capture) can precede it.
@@ -140,8 +142,8 @@ def _ask_once_more_if_empty(client, current_messages, create_kwargs, label,
         print(f"[{label} A] (no text returned, "
               f"stop_reason={getattr(response, 'stop_reason', None)}, "
               f"blocks={[b.type for b in response.content]}; asking once more)")
-        response = client.messages.create(messages=current_messages,
-                                          **create_kwargs)
+        response = usage_ledger.create(client, messages=current_messages,
+                                       **create_kwargs)
         text_block = next((b for b in response.content
                            if b.type == "text"), None)
         answer = redact_paths(text_block.text if text_block else "", env_dir)
@@ -223,6 +225,7 @@ def run_followup(system_prompt, messages, model, client, act,
             # from the backend that served the episode, and this is the only
             # record that it did.
             "served_by": getattr(response, "provider", None),
+            "generation_id": getattr(response, "generation_id", None),
         }
         print(f"[{label} A] {answer[:400]}\n")
         # Same constraint as the main loop: an empty text block coming back

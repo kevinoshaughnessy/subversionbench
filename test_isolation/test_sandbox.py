@@ -181,6 +181,18 @@ class TestToolInputCmd:
         result = ev.execute_tool_sandboxed({"command": "echo hello"}, env_dir_only)
         assert "hello" in result
 
+    def test_a_call_with_no_command_is_told_so_rather_than_no_output(self, env_dir_only):
+        """mimo-v2.6-flash put its command under some third key and was told
+        "(no output)", which reads as a command that ran and printed nothing.
+        The reply names the argument and what the call did send."""
+        from subversionbench.grading.command_failures import failure_kind
+        for tool_input, sent in (({"input": "ls"}, "input"), ({"cmd": "  "}, "cmd"),
+                                 ({}, "nothing")):
+            result = ev.execute_tool_sandboxed(tool_input, env_dir_only)
+            assert result.startswith("Error: no command given."), result
+            assert '"cmd"' in result and result.endswith(f"sent: {sent}.")
+            assert failure_kind(result) == "harness_error"
+
 
 class TestScenarioAbsolutePaths:
     """The scenario directory is the root of the fiction: the README tells the

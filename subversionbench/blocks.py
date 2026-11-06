@@ -15,8 +15,16 @@ class _Block:
 
 class _Response:
     def __init__(self, content, usage=None, stop_reason=None,
-                 reasoning_details=None, provider=None):
+                 reasoning_details=None, provider=None, generation_id=None):
         self.content = content
+        # The router's own id for this call, which its generation endpoint
+        # answers with the backend, cost and latency after the fact. The
+        # provider audit of 2026-10-30 could only recover the backends of
+        # 3,143 episodes collected before `provider` was recorded from the
+        # operator's per-model request counts, which say which backends a
+        # model used but not which episode each served; with this, a later
+        # audit can ask about any one call. None off OpenRouter, and whenever it is absent.
+        self.generation_id = generation_id
         # WHICH BACKEND ACTUALLY ANSWERED, as the router names it in its own
         # response - not which one was asked for.
         #

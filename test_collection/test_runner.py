@@ -714,8 +714,10 @@ class TestTheConcurrentLoopEndsEarly:
         `interrupt_once_running` raises KeyboardInterrupt from
         concurrent.futures.wait - which is where a real Ctrl-C lands, in the
         main thread waiting on the pool - but only once every episode of the
-        initial pool has entered run_evaluation, so the futures are provably
-        RUNNING and not merely submitted.
+        full pool has entered run_evaluation, so the futures are provably
+        RUNNING and not merely submitted. The full pool is the one after the
+        first episode, which runs alone so that its reasoning can be checked
+        (hidden_reasoning); it is let through untouched.
         """
         import subversionbench.runner as runner
         out = tempfile.mkdtemp()
@@ -725,7 +727,8 @@ class TestTheConcurrentLoopEndsEarly:
         def counting(*a, **k):
             with lock:
                 calls.append(1)
-            if barrier is not None:
+                first = len(calls) == 1
+            if barrier is not None and not first:
                 barrier.wait(timeout=10)
             return fake(*a, **k)
 
@@ -733,10 +736,15 @@ class TestTheConcurrentLoopEndsEarly:
         barrier = (threading.Barrier(concurrency + 1)
                    if interrupt_once_running else None)
 
+        waits = []
+
         def wait(*a, **k):
             # Meet the episodes at the barrier, so they are all inside
             # run_evaluation, then interrupt. Released either way, so a
             # failure here cannot hang the suite.
+            waits.append(1)
+            if len(waits) == 1:
+                return real_wait(*a, **k)
             barrier.wait(timeout=10)
             raise KeyboardInterrupt
 
@@ -811,21 +819,21 @@ class TestTheConcurrentLoopEndsEarly:
             self._episode(with_auth_error=False),
             runs=8, concurrency=2, interrupt_once_running=True)
         assert "Interrupted by user" in output
-        assert n_calls == 2, (
-            f"expected exactly the initial pool to run, got {n_calls}")
-        assert reached == 2, (
-            f"2 episodes were in flight but {reached} reached the summary - "
+        assert n_calls == 3, (
+            f"expected the first episode and then one full pool, got {n_calls}")
+        assert reached == 3, (
+            f"2 episodes were in flight but {reached - 1} reached the summary - "
             f"the drain dropped what was already running")
-        assert len(saved) == 2
+        assert len(saved) == 3
 
     def test_an_interrupt_launches_nothing_further(self):
-        """8 requested, 2 in flight, interrupted: the other 6 must never be
-        paid for."""
+        """8 requested, 1 done, 2 in flight, interrupted: the other 5 must
+        never be paid for."""
         code, output, n_calls, _, reached = self._run(
             self._episode(with_auth_error=False),
             runs=8, concurrency=2, interrupt_once_running=True)
         assert "Interrupted by user" in output
-        assert n_calls == 2, f"{n_calls} episodes ran after the interrupt"
+        assert n_calls == 3, f"{n_calls - 3} episodes ran after the interrupt"
 
 
 class TestThePerThreadStdoutBehavesLikeAStream:

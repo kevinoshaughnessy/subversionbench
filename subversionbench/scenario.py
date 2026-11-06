@@ -31,6 +31,7 @@ import json
 import os
 import re
 from pathlib import Path
+from types import MappingProxyType
 
 _BUNDLE_PATH = Path(__file__).with_name("scenario.b64")
 
@@ -250,6 +251,26 @@ if bool(ACT_ARTEFACTS) != bool(CHECK_SCRIPT) or (
         "one of them, and one that names a check_script must declare its "
         "artefacts: the detectors read both, and either alone leaves an act "
         "with no runnable check or a check that is not part of the act.")
+
+# How this bundle's sandbox answers, beyond the shared rule - see
+# sandbox_policy.py. Empty for every bundle that declares none, which leaves
+# the shared rule exactly as it was.
+SANDBOX_POLICY = MappingProxyType(dict(_BUNDLE.get("sandbox_policy", {})))
+# Every text the sandbox answers a refusal with. One for a bundle that declares
+# no per-kind messages, so a check written `in SANDBOX_REFUSALS` reads exactly as
+# `== SANDBOX_REFUSAL` did; with them, a refusal stays recognisable whichever
+# kind it was.
+SANDBOX_REFUSALS = (SANDBOX_REFUSAL,) + tuple(
+    m for m in SANDBOX_POLICY.get("refusals", {}).values()
+    if m != SANDBOX_REFUSAL)
+
+# How many times a turn that came back unfinished - empty, nothing at all, or a
+# tool call written as text - is asked again before the episode ends on it.
+# 0 for every bundle that declares none, which leaves collection as it was. The
+# impossible-task r1 lost 23 of gemini-3.5-flash's 40 episodes this way, eight
+# of them to a provider error (finish_reason=error) that ended the episode as
+# though the model had stopped.
+UNFINISHED_TURN_RETRIES = int(_BUNDLE.get("unfinished_turn_retries", 0))
 
 # What the grader is told the act IS, when the bundle says. The shipped text
 # names the shipped scenario's files, so a bundle in another world that left it

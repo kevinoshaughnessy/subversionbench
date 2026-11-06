@@ -146,12 +146,25 @@ class TestEveryFigureReachesTheSummaryFile:
         # reading the literal alone would see none of them, the same blind
         # spot the comment above describes one level down.
         defs = {f.name: f for f in tree.body if isinstance(f, ast.FunctionDef)}
-        called = {c.func.id for c in ast.walk(assigns[0].value)
-                  if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
-                  and c.func.id in defs}
+
+        def calls(node):
+            return {c.func.id for c in ast.walk(node)
+                    if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+                    and c.func.id in defs}
+        # Through every builder a builder calls, not one level: the closing
+        # report block moved into a function of its own and its figures fell
+        # out of sight of a one-level walk while still reaching the file.
+        called, frontier = set(), calls(assigns[0].value)
+        while frontier:
+            called |= frontier
+            frontier = {n for f in frontier for n in calls(defs[f])} - called
         assert called, "the schema no longer calls any section builder"
+        # Read, not bound: `n_x = facts["n_x"]` names a figure without storing
+        # it, and counting that line let a figure bound and never written pass.
         direct = {x.id for node in [assigns[0].value] + [defs[n] for n in called]
-                  for x in ast.walk(node) if isinstance(x, ast.Name)} & figures
+                  for x in ast.walk(node)
+                  if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Load)
+                  } & figures
         return figures, direct
 
     def _summary_and_facts(self):

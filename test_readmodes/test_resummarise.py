@@ -323,6 +323,27 @@ class TestARebuildWritesToTheArmItRebuilt:
             f"summary_m_strong_goalguard-replacement_nooversight_{STAMP}.json",
         ], written
 
+    def test_each_variant_is_rebuilt_over_its_own_summary(self):
+        """The bundle variant is part of the arm too, and was left out of the
+        key on the same terms as the goal-guarding segment above: a rebuilt
+        variant summary was named as the control arm, beside its original."""
+        out = tempfile.mkdtemp()
+        _counterfactual_run(out)
+        src = Path(f"{out}/run_1_m_strong_nooversight_{STAMP}.json")
+        for variant in ("graded", "impossible"):
+            Path(f"{out}/run_1_m_strong_variant-{variant}_nooversight_"
+                 f"{STAMP}.json").write_text(src.read_text())
+        src.unlink()
+        with contextlib.redirect_stdout(io.StringIO()):
+            a = _args(out)
+            ev_run.resummarise_existing_runs(a, BatchSelection.typed(a))
+
+        written = sorted(p.name for p in Path(out).glob("summary_*.json"))
+        assert written == [
+            f"summary_m_strong_variant-graded_nooversight_{STAMP}.json",
+            f"summary_m_strong_variant-impossible_nooversight_{STAMP}.json",
+        ], written
+
     def test_the_summary_records_the_arm_it_was_rebuilt_from(self):
         """Not just the filename - the contents have to agree with it, or a
         reader pooling by field rather than by name still gets it wrong."""

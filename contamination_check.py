@@ -182,7 +182,7 @@ def _probe_recognition(client, model, recognition, terms, delay,
                           max_tokens=1500)
         record = {"id": item["id"], "document": item["document"],
                   "source": item["source"], "error": error,
-                  **score_recognition(text, terms)}
+                  **score_recognition(text, terms, item["excerpt"])}
         if keep_prompts:
             record["response"] = text
         results.append(record)

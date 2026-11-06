@@ -219,7 +219,7 @@ class TestWhichBackendActuallyAnswered:
         fake_raw.parse.return_value = fake_completion
         client._client.chat.completions.with_raw_response.create.return_value = fake_raw
 
-    def _completion(self, provider=...):
+    def _completion(self, provider=..., generation_id=None):
         from unittest.mock import MagicMock
         message = MagicMock()
         message.content = "done"
@@ -235,6 +235,7 @@ class TestWhichBackendActuallyAnswered:
         # provider" has to be spelled out - left unset, the double would supply
         # a value the API never did, which is how a mock leaks into a run file.
         completion.provider = None if provider is ... else provider
+        completion.id = generation_id
         return completion
 
     def _create(self, client):
@@ -251,6 +252,21 @@ class TestWhichBackendActuallyAnswered:
         client = self._make_client()
         self._set_completion(client, self._completion())
         assert self._create(client).provider is None
+
+    def test_the_generation_id_reaches_the_response(self):
+        """The router's id for the call, which its generation endpoint can be
+        asked about later - the backend of any one call, after the fact."""
+        client = self._make_client()
+        self._set_completion(client, self._completion(generation_id="gen-1"))
+        assert self._create(client).generation_id == "gen-1"
+
+    def test_a_generation_id_that_is_not_a_string_is_not_recorded(self):
+        """A double that answers every attribute must not put itself in a run
+        file, and the API's id is always a string."""
+        from unittest.mock import MagicMock
+        client = self._make_client()
+        self._set_completion(client, self._completion(generation_id=MagicMock()))
+        assert self._create(client).generation_id is None
 
     def test_it_is_read_off_the_response_not_the_request(self):
         """The whole point of the field. A client that pinned one provider and

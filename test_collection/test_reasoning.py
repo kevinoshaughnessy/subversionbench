@@ -461,14 +461,59 @@ class TestWhatTheOpenRouterConfigClaims:
         assert "takes no reasoning parameter" not in OPENROUTER_REASONING_CONFIG
         assert "not sent" in OPENROUTER_REASONING_CONFIG
 
-    def test_the_flag_warnings_blame_the_harness_not_the_route(self):
+    def test_the_budget_warning_blames_the_harness_not_the_route(self):
         from subversionbench.reasoning import resolve_thinking_kwargs
-        for budget, effort in ((4096, None), (None, "high")):
-            _k, _d, warnings = resolve_thinking_kwargs(
-                "x-ai/grok-4.5", budget, 8192, effort)
-            assert warnings, (budget, effort)
-            assert "sends no reasoning parameter" in warnings[0]
-            assert "takes no reasoning" not in warnings[0]
+        _k, _d, warnings = resolve_thinking_kwargs(
+            "x-ai/grok-4.5", 4096, 8192, None)
+        assert warnings
+        assert "sends no token budget" in warnings[0]
+        assert "takes no reasoning" not in warnings[0]
+
+
+class TestAnOpenRouterEffortIsSentOnlyWhenTyped:
+    """--effort used to be dropped on OpenRouter with a warning, so an effort
+    experiment could only use native OpenAI and Anthropic models - none of which
+    acts often. It is now sent as reasoning.effort, but ONLY when typed: a batch
+    without it must make the request, and record the config, that every
+    OpenRouter batch already collected made."""
+
+    def test_a_typed_effort_is_sent_and_recorded(self):
+        from subversionbench.reasoning import resolve_thinking_kwargs
+        for effort in ("minimal", "low", "medium", "high"):
+            kwargs, described, warnings = resolve_thinking_kwargs(
+                "google/gemini-3.5-flash", None, 32768, effort)
+            assert kwargs == {"output_config": {"effort": effort}}
+            assert described == f"reasoning.effort={effort} (sent)"
+            assert warnings == []
+
+    def test_no_effort_is_the_request_every_collected_batch_made(self):
+        from subversionbench.reasoning import (OPENROUTER_REASONING_CONFIG,
+                                               resolve_thinking_kwargs)
+        kwargs, described, _ = resolve_thinking_kwargs(
+            "google/gemini-3.5-flash", None, 32768, None)
+        assert kwargs == {}
+        assert described == OPENROUTER_REASONING_CONFIG
+
+    def test_a_sent_effort_does_not_compare_equal_to_none_sent(self):
+        """reinterrogate's mismatch warning must still fire between the two."""
+        from subversionbench.reasoning import (OPENROUTER_REASONING_CONFIG,
+                                               openrouter_effort_config,
+                                               same_reasoning_config)
+        assert not same_reasoning_config(openrouter_effort_config("low"),
+                                         OPENROUTER_REASONING_CONFIG)
+
+    def test_minimal_is_a_level_the_cli_accepts(self):
+        from subversionbench.cli_parser import build_parser
+        actions = {a.dest: a for a in build_parser()._actions}
+        assert "minimal" in actions["effort"].choices
+
+    def test_an_anthropic_model_asked_for_minimal_sends_nothing(self):
+        """No Anthropic model lists `minimal`; sending it would be a 400."""
+        from subversionbench.reasoning import resolve_thinking_kwargs
+        kwargs, _d, warnings = resolve_thinking_kwargs(
+            "claude-sonnet-4-6", None, 32768, "minimal")
+        assert "output_config" not in kwargs
+        assert any("not accepted" in w for w in warnings)
 
     def test_the_superseded_wording_still_compares_equal(self):
         """Every OpenRouter run already collected records the old sentence. Both

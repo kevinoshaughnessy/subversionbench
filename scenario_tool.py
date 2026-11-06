@@ -143,8 +143,9 @@ def _pin(bundle: Path) -> int:
     """Fill the bundle's sidecar with the fingerprints it assembles to."""
     sidecar = bundle.with_suffix(SIDECAR_SUFFIX)
     if not sidecar.is_file():
-        print(f"{sidecar.name} not found. Write its rollout_version, cells and "
-              f"scenario_acts by hand first; --pin fills in the fingerprints.")
+        print(f"{sidecar.name} not found. Write its rollout_version, "
+              f"scenario_name, cells and scenario_acts by hand first; --pin "
+              f"fills in the fingerprints.")
         return 1
     declared = json.loads(sidecar.read_text(encoding="utf-8"))
     raw = load_scenario(bundle)

@@ -44,9 +44,11 @@ from .grading import (MISALIGNED_ACTS, NO_CONTENT_MARKER, act_value,
                       report_grader_failure, settle_analysis,
                       verify_oversight_unchanged)
 from .isolation import DEFAULT_ISOLATION
-from .endings import ending_of
+from .endings import UNFINISHED_ENDINGS, ending_of
 from .redaction import redact_paths
 from .sandbox import execute_tool_sandboxed
+from .scenario import UNFINISHED_TURN_RETRIES
+from .session_hook import HOOK_ENDING, NOT_RUN, SessionClock
 from .usage import cache_usage
 from .turns import (record_turn_blocks, replayable_content,
                     roll_cache_breakpoints)
@@ -128,6 +130,9 @@ def _record_turn_metadata(response, turn: int, state: dict) -> None:
     served_by = getattr(response, "provider", None)
     if served_by:
         state["served_by"].append({"turn": turn + 1, "provider": served_by})
+    generation_id = getattr(response, "generation_id", None)
+    if generation_id:
+        state["generation_ids"].append({"turn": turn + 1, "id": generation_id})
 
     # Appended on the same terms as the two above: only turns that
     # reported one, so an empty list means the field never arrived rather
@@ -141,16 +146,25 @@ def _record_turn_metadata(response, turn: int, state: dict) -> None:
                                         "reason": finish_reason})
 
 
+def _sandboxed(sandbox: dict):
+    """A runner for one command in this episode's sandbox."""
+    return lambda cmd: execute_tool_sandboxed(
+        {"cmd": cmd}, sandbox["env_dir"], isolation=sandbox["isolation"],
+        profile_path=sandbox["profile_path"],
+        episode_root=sandbox["episode_root"])
+
+
 def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
-                    sandbox: dict) -> list:
+                    sandbox: dict, clock: SessionClock) -> list:
     """Run each tool call in the sandbox; the results to send back."""
-    tool_results = []
+    tool_results, entries = [], []
     for tc in tool_calls:
-        result = execute_tool_sandboxed(
+        skipped = clock.ended
+        result = (NOT_RUN if skipped else execute_tool_sandboxed(
             tc.input, sandbox["env_dir"],
             isolation=sandbox["isolation"],
             profile_path=sandbox["profile_path"],
-            episode_root=sandbox["episode_root"])
+            episode_root=sandbox["episode_root"]))
         print(f"[Turn {turn+1} RESULT] {red(result)[:300]}")
         # What goes back to the model is deliberately NOT redacted:
         # the agent has to keep seeing the same paths its own shell
@@ -166,7 +180,52 @@ def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
             "type": "tool_result",
             "result": red(result)
         })
+        entries.append(transcript[-1])
+        if not skipped:
+            clock.after_command(tool_results[-1], transcript[-1], turn, red,
+                                _sandboxed(sandbox))
+    if tool_results:
+        clock.end_turn(tool_results, entries, red)
     return tool_results
+
+
+def _unfinished(content) -> str:
+    """The ending a turn would settle to if the loop stopped on it, when that
+    ending is not the model finishing; else None."""
+    if not replayable_content(content):
+        return "no_content"
+    if any(block.type == "tool_use" for block in content):
+        return None
+    ending = ending_of("model_stopped", "".join(
+        block.text for block in content if block.type == "text"))
+    return ending if ending in UNFINISHED_ENDINGS else None
+
+
+def _request_turn(client, messages: list, create_kwargs: dict, turn: int,
+                  state: dict):
+    """One turn's response, asked again up to UNFINISHED_TURN_RETRIES times
+    while it comes back unfinished. A discarded response never reaches the
+    conversation; its ending and finish reason are kept in
+    `state["resampled_turns"]`, and its tokens in the usage like any other.
+
+    Raises _LoopFailed if a request fails. Raised rather than recorded here:
+    the caller assembles the partial record, because that record shares
+    thirteen fields with the completed one and both are built in one place -
+    see arm_identity. `state` is the caller's own dict, so everything the
+    episode accumulated before it died is already visible there.
+    """
+    for attempt in range(UNFINISHED_TURN_RETRIES + 1):
+        try:
+            response = client.messages.create(messages=messages, **create_kwargs)
+        except Exception as e:
+            raise _LoopFailed(e, turn) from e
+        _record_turn_metadata(response, turn, state)
+        ending = _unfinished(response.content)
+        if ending is None or attempt == UNFINISHED_TURN_RETRIES:
+            return response
+        state["resampled_turns"].append({
+            "turn": turn + 1, "ending": ending,
+            "reason": getattr(response, "stop_reason", None)})
 
 
 def run_agentic_loop(client, create_kwargs: dict, messages: list,
@@ -191,19 +250,13 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
     exception out of execute_tool_sandboxed is a harness fault and propagates
     as it always has.
     """
+    clock = SessionClock(sandbox.get("session_hook"))
+    if clock.record is not None:
+        state["session_hook"] = clock.record
+    if UNFINISHED_TURN_RETRIES:
+        state["resampled_turns"] = []
     for turn in range(max_turns):
-        try:
-            response = client.messages.create(messages=messages, **create_kwargs)
-        except Exception as e:
-            # Raised rather than recorded here. The caller assembles the partial
-            # record, because that record shares thirteen fields with the
-            # completed one and both are built in one place - see arm_identity.
-            # `state` is the caller's own dict, so everything the episode
-            # accumulated before it died is already visible there.
-            raise _LoopFailed(e, turn) from e
-
-        _record_turn_metadata(response, turn, state)
-
+        response = _request_turn(client, messages, create_kwargs, turn, state)
         assistant_content = response.content
         # Only what the API will accept back on the next request goes into the
         # conversation; see replayable_content.
@@ -250,7 +303,7 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
             break
 
         tool_results = _run_tool_calls(tool_calls, turn, transcript, red,
-                                       sandbox)
+                                       sandbox, clock)
 
         if tool_results:
             # Everything up to and including this block is what the next turn
@@ -258,6 +311,9 @@ def run_agentic_loop(client, create_kwargs: dict, messages: list,
             tool_results[-1]["cache_control"] = {"type": "ephemeral"}
         messages.append({"role": "user", "content": tool_results})
         roll_cache_breakpoints(messages)
+        if clock.ended:
+            state["ended_by"] = HOOK_ENDING
+            break
 
 
 def _resolved_routing(model: str, sort, provider, use_opencode: bool) -> tuple:
@@ -428,6 +484,9 @@ def _new_loop_state() -> dict:
         # shape and same reason as reasoning_details above: kept per turn
         # because the router can fall back mid-episode.
         "served_by": [],
+        # The router's id for each turn's call, on the same terms: only
+        # turns that reported one. See _Response.generation_id.
+        "generation_ids": [],
         # WHY THE PROVIDER SAID EACH TURN ENDED, in its own word for it.
         # `ended_by` is this harness's account of why the LOOP stopped and is
         # decided by what came back - no tool calls means "model_stopped" - so
@@ -682,7 +741,8 @@ def run_evaluation(
             max_turns=max_turns, red=red,
             sandbox={"env_dir": env_dir, "isolation": isolation,
                      "profile_path": profile_path,
-                     "episode_root": episode_root})
+                     "episode_root": episode_root,
+                     "session_hook": env_info.get("session_hook")})
     except _LoopFailed as failed:
         raise EpisodeAPIError(failed.cause, _died_record(
             arm, failed, state, red, reasoning_config, system_prompt,
@@ -743,6 +803,20 @@ def _close_the_loop(ended_by: str, max_turns: int, timing: dict,
     print(f"\n[TIMING] Eval loop: {timing['eval_seconds']}s")
 
 
+def _resample_block(state: dict) -> dict:
+    """The turns asked again, for a bundle that declares retries; else
+    nothing, so no other scenario's episode records change shape."""
+    return ({"resampled_turns": state["resampled_turns"]}
+            if "resampled_turns" in state else {})
+
+
+def _hook_block(state: dict) -> dict:
+    """The staged hook's record, for a bundle that declares one; else nothing,
+    so no other scenario's episode records change shape."""
+    return ({"session_hook": state["session_hook"]}
+            if "session_hook" in state else {})
+
+
 def _died_record(arm: dict, failed, state: dict, red, reasoning_config: str,
                  system_prompt: str, user_prompt: str,
                  transcript: list) -> dict:
@@ -769,8 +843,11 @@ def _died_record(arm: dict, failed, state: dict, red, reasoning_config: str,
         # a died episode is exactly when someone asks whether the spend
         # was cached.
         **_served_by_block(state["served_by"]),
+        "generation_ids": state["generation_ids"],
         **_finish_reason_block(state["finish_reasons"]),
         "cache": state["cache"],
+        **_hook_block(state),
+        **_resample_block(state),
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "transcript": transcript,
@@ -801,10 +878,13 @@ def _completed_record(arm: dict, state: dict, reasoning_config: str,
         # awareness measures read the difference. See _reasoning_detail_summary.
         "reasoning_details": state["reasoning_details"],
         **_served_by_block(state["served_by"]),
+        "generation_ids": state["generation_ids"],
         **_finish_reason_block(state["finish_reasons"]),
         "token_usage": state["token_usage"],
         # Prompt-cache counters for the agentic loop; see cache_usage.
         "cache": state["cache"],
+        **_hook_block(state),
+        **_resample_block(state),
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         # What was actually sent, not what was asked for: the reasoning

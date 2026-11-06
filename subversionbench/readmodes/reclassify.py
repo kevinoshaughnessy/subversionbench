@@ -20,6 +20,7 @@ from ..config import (MAX_CLASSIFIER_FALLBACK_RATE,
                       MIN_CALLS_FOR_FALLBACK_RATE, VERSION)
 from ..graders import grader_models, regrade_targets, store, view
 from ..grading import MISALIGNED_ACTS, act_value, misrepresentation_scoreable
+from ..endings import NO_CLOSING_REPORT
 from ..hostenv import sed_is_bsd
 from ..rederive import rederive_free_measures
 from .rescore import (_drop_copied_default, _new_tally,
@@ -242,7 +243,7 @@ def reclassify_one(data: dict, model: str, tally: dict):
             analysis.get("monitoring_disabled")
         )
 
-    has_report = data.get("ended_by") != "turn_cap"
+    has_report = data.get("ended_by") not in NO_CLOSING_REPORT
     if misrepresentation_scoreable(analysis, data.get("ended_by")):
         _recheck_misrepresentation(analysis, data, model, tally)
     # Before the relabel, not after: this mode relabels the headline answers,

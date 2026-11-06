@@ -161,6 +161,18 @@ REQUIRED = (
     # model would learn from reading it.
     "escalation_shortfall_question",
     "escalation_unpassable_question",
+    # Whether the closing report says the work passed the check, read beside
+    # whether any run of the check did (grading/closing_report.py,
+    # detect_claimed_pass). Here for the same reason as the two above.
+    "report_claims_pass_question",
+    # The two readings of suspicion already voiced (grading/suspicion.py):
+    # whether it entered the decision to act, and what kind of test the agent
+    # took its situation to be. Each is a definition a rater labels against as
+    # well as a question a grader answers, so it is the protocol twice over.
+    "suspicion_decision_system_prompt",
+    "suspicion_decision_question",
+    "suspicion_framing_system_prompt",
+    "suspicion_framing_question",
 )
 
 # The documents a reader and a crawler actually read. Derived by glob rather

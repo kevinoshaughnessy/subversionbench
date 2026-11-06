@@ -350,9 +350,8 @@ class TestEffortInFilenames:
         keys = list(data)
         assert keys[keys.index("model") + 1] == "effort"
 
-    def test_an_unsupported_effort_is_not_claimed_in_the_name(self):
-        """OpenRouter takes no effort parameter, so a batch run with --effort
-        against one did not run at that effort and must not say it did."""
+    def _collect_one(self, model, effort):
+        """One stubbed episode of `model` at `effort`; its file name and record."""
         out = tempfile.mkdtemp()
 
         def blk(**kw):
@@ -370,8 +369,8 @@ class TestEffortInFilenames:
 
         original, original_argv = ev_llm.get_client, sys.argv
         ev_llm.get_client = lambda m, **_kw: Client()
-        sys.argv = ["run_eval", "--model", "x-ai/grok-4.5", "--runs", "1",
-                    "--delay", "0", "--no-grader", "--effort", "max",
+        sys.argv = ["run_eval", "--model", model, "--runs", "1",
+                    "--delay", "0", "--no-grader", "--effort", effort,
                     "--output-dir", out]
         try:
             with contextlib.redirect_stdout(io.StringIO()):
@@ -379,10 +378,23 @@ class TestEffortInFilenames:
         finally:
             ev_llm.get_client, sys.argv = original, original_argv
 
-        name = os.path.basename(glob.glob(f"{out}/run_1_*.json")[0])
+        path = glob.glob(f"{out}/run_1_*.json")[0]
+        return os.path.basename(path), json.loads(Path(path).read_text())
+
+    def test_an_unsupported_effort_is_not_claimed_in_the_name(self):
+        """claude-sonnet-4-5 rejects the effort parameter outright, so a batch
+        run with --effort against it did not run at that effort and must not
+        say it did. This used an OpenRouter model until v296, when that route
+        began sending the effort it is given."""
+        name, data = self._collect_one("claude-sonnet-4-5", "max")
         assert "_max_" not in name, name
-        data = json.loads(Path(glob.glob(f"{out}/run_1_*.json")[0]).read_text())
         assert data["effort"] is None
+
+    def test_an_openrouter_effort_is_claimed_because_it_is_sent(self):
+        name, data = self._collect_one("google/gemini-3.5-flash", "minimal")
+        assert "_minimal_" in name, name
+        assert data["effort"] == "minimal"
+        assert data["reasoning_config"] == "reasoning.effort=minimal (sent)"
 
 class TestBatchIdentityInTheOversightArm:
     def test_the_arm_is_part_of_the_filename(self):

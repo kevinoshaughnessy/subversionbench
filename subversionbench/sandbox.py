@@ -11,7 +11,8 @@ import tempfile
 import time
 from dataclasses import dataclass
 
-from .config import SANDBOX_DISPLAY_PATH, SANDBOX_REFUSAL
+from .shell_text import _heredoc_body_spans, _quoted_spans
+from .config import SANDBOX_DISPLAY_PATH
 from .isolation import DEFAULT_ISOLATION, wrap_command
 
 
@@ -330,7 +331,6 @@ _ABS_PATH_TOKEN_RE = re.compile(r'(?<![\w./:~-])/[\w./~-]+')
 _BARE_SLASH_RE = re.compile(r'(?<![\w./:~-])/(?![\w./~-])')
 
 # `<<EOF`, `<<-EOF`, `<<"EOF"`, `<<'EOF'`.
-_HEREDOC_START_RE = re.compile(r'<<-?\s*(["\']?)([A-Za-z_][\w-]*)\1')
 
 # Real system locations left pointing at the real filesystem: executables,
 # libraries and devices, so `/bin/sh script.sh` and `> /dev/null` keep
@@ -732,64 +732,6 @@ def refusal_kind(cmd: str, env_dir: str):
     return "environment"
 
 
-def _heredoc_body_spans(cmd: str) -> list:
-    """
-    Character ranges of any heredoc bodies in `cmd`.
-
-    A heredoc body is data the agent is writing, not arguments the shell will
-    resolve, so nothing in it may be rewritten - see _rewrite_scenario_paths.
-    """
-    spans = []
-    pos = 0
-    while True:
-        match = _HEREDOC_START_RE.search(cmd, pos)
-        if not match:
-            return spans
-
-        delimiter = match.group(2)
-        newline = cmd.find("\n", match.end())
-        if newline == -1:
-            # Opened but never started a body; nothing to protect.
-            return spans
-        body_start = newline + 1
-
-        body_end = len(cmd)
-        cursor = body_start
-        while cursor <= len(cmd):
-            line_end = cmd.find("\n", cursor)
-            line = cmd[cursor:line_end if line_end != -1 else len(cmd)]
-            if line.strip() == delimiter:
-                body_end = cursor
-                break
-            if line_end == -1:
-                break
-            cursor = line_end + 1
-
-        spans.append((body_start, body_end))
-        pos = body_end
-
-
-def _quoted_spans(text: str) -> list:
-    """Character ranges inside single or double quotes."""
-    spans = []
-    quote = None
-    start = 0
-    i = 0
-    while i < len(text):
-        char = text[i]
-        if quote is None and char in "\"'":
-            quote, start = char, i + 1
-        elif quote == char:
-            spans.append((start, i))
-            quote = None
-        elif quote == '"' and char == "\\":
-            i += 1
-        i += 1
-    if quote is not None:
-        spans.append((start, len(text)))
-    return spans
-
-
 def _rewrite_command_text(text: str, env_dir: str) -> str:
     """Rewrite scenario-absolute paths in one stretch of actual command text."""
     def replace(match):
@@ -879,6 +821,25 @@ def tool_input_cmd(tool_input: dict) -> str:
     if "cmd" in tool_input:
         return tool_input.get("cmd") or ""
     return tool_input.get("command") or ""
+
+
+def missing_command_error(tool_input: dict):
+    """
+    What to tell a model whose tool call carried no command, or None.
+
+    Running the empty string answered "(no output)", which reads as a command
+    that ran and printed nothing. In impossible-task r2, mimo-v2.6-flash sent
+    calls whose command sat under some key other than "cmd" or "command", was told
+    only "(no output)", and worked out its mistake from its own reasoning turns
+    later. Naming the argument and the keys it did send says it at once, and the
+    "Error: " prefix is the harness's own, so command_failures counts it as a
+    harness_error rather than a silent success.
+    """
+    if tool_input_cmd(tool_input).strip():
+        return None
+    sent = ", ".join(sorted(map(str, tool_input))) or "nothing"
+    return (f'Error: no command given. The bash tool takes its command in the '
+            f'"cmd" argument; this call sent: {sent}.')
 
 
 def _run_confined(cmd: str, env_dir: str, isolation: str, profile_path,
@@ -990,10 +951,15 @@ def execute_tool_sandboxed(tool_input: dict, env_dir: str,
     # signature default is bound once at import and would not.
     timing = timing or SANDBOX_TIMING
 
+    missing = missing_command_error(tool_input)
+    if missing:
+        return missing
     cmd = tool_input_cmd(tool_input)
 
-    if would_be_blocked(cmd, env_dir):
-        return SANDBOX_REFUSAL
+    from .sandbox_policy import screen
+    refusal, cmd = screen(cmd, env_dir)
+    if refusal:
+        return refusal
 
     cmd = _rewrite_scenario_paths(cmd, env_dir)
     return _run_confined(cmd, env_dir, isolation, profile_path,
