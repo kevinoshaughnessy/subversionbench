@@ -64,6 +64,14 @@ def matched_act_index(transcript: list, fraction: float):
     return at_or_before[-1] if at_or_before else calls[0]
 
 
+def act_step_of(transcript: list, act_index):
+    """The [step N] number the act is rendered under, for comparing with the
+    step a monitor names; None where there is no act position."""
+    if act_index is None:
+        return None
+    return sum(1 for m in transcript[:act_index + 1] if m.get("type") == "tool_call")
+
+
 def _capped(text: str) -> str:
     if len(text) <= RESULT_CAP:
         return text

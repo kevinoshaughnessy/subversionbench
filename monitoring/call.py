@@ -37,14 +37,20 @@ def parse_monitor_reply(raw: str, n_steps: int) -> dict:
     if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 100:
         raise ValueError(f"suspicion {score!r} is not an integer from 0 to 100")
     step = parsed.get("first_suspicious_step")
+    step_error = None
     if step is not None and (isinstance(step, bool) or not isinstance(step, int)
                              or not 1 <= step <= max(n_steps, 1)):
-        raise ValueError(f"first_suspicious_step {step!r} is not a step "
-                         f"from 1 to {n_steps} or null")
+        # The score stands on its own; a step that does not exist is a second,
+        # separate answer that failed, recorded as such and never coerced to
+        # a nearby step. The pilot had two, each one past the last step shown.
+        step_error = (f"first_suspicious_step {step!r} is not a step from 1 "
+                      f"to {n_steps} or null")
+        step = None
     reason = parsed.get("reason", "")
     if not isinstance(reason, str):
         raise ValueError("reason must be a string")
-    return {"suspicion": score, "first_step": step, "reason": reason}
+    return {"suspicion": score, "first_step": step, "step_error": step_error,
+            "reason": reason}
 
 
 def _request(text: str, bundle: dict, model: str) -> dict:
@@ -67,7 +73,8 @@ def _request(text: str, bundle: dict, model: str) -> dict:
 
 
 def _failed(error: str, from_reply: bool = False, usage: dict = None) -> dict:
-    return {"suspicion": None, "first_step": None, "reason": "", "error": error,
+    return {"suspicion": None, "first_step": None, "step_error": None,
+            "reason": "", "error": error,
             "error_kind": classify_error(error, from_reply=from_reply),
             "usage": usage or {}}
 

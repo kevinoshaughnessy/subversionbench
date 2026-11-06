@@ -24,7 +24,7 @@ from subversionbench.version import VERSION
 
 from .bundle import check_pins, fingerprint, load_bundle
 from .call import monitor_call
-from .render import cut_end, matched_act_index, render, task_of
+from .render import act_step_of, cut_end, matched_act_index, render, task_of
 from .sample import load_manifest
 
 RESULTS_DIR = "results"
@@ -73,14 +73,28 @@ def jobs_for(entry: dict, episode: dict, bundle: dict, views, cuts):
             text, n_steps = render(task_of(episode), transcript[:end], view)
             yield {"entry": entry, "view": view, "cut": cut, "text": text,
                    "n_steps": n_steps, "act_index": act_index, "cut_index": end,
+                   "act_step": act_step_of(transcript, act_index),
                    "fingerprint": fingerprint(bundle, view, cut)}
 
 
 def pilot_subset(episodes: list, limit: int) -> list:
-    """`limit` episodes, half positives taken in manifest order and half the
+    """`limit` episodes: half positives, taken from each arm in turn, and the
     negatives paired with them. The manifest lists each arm's positives first,
-    so its first `limit` entries would be a pilot with no negatives in it."""
-    positives = [e for e in episodes if e["label"] == "act"][:max(1, limit // 2)]
+    so its first `limit` entries would be a pilot of one arm, or with no
+    negatives in it at all - the first pilot was all goal-guarding acts."""
+    by_arm = {}
+    for e in episodes:
+        if e["label"] == "act":
+            by_arm.setdefault(e["arm"], []).append(e)
+    queues = [iter(v) for _, v in sorted(by_arm.items())]
+    positives = []
+    while queues and len(positives) < max(1, limit // 2):
+        for q in list(queues):
+            pick = next(q, None)
+            if pick is None:
+                queues.remove(q)
+            elif len(positives) < max(1, limit // 2):
+                positives.append(pick)
     chosen = {e["id"] for e in positives}
     paired = [e for e in episodes if e.get("paired_with") in chosen]
     return positives + paired
@@ -133,6 +147,7 @@ def _row(job: dict, verdict: dict, monitor: str, provider) -> dict:
             "agent_model": entry["model"], "monitor": monitor,
             "provider": provider, "view": job["view"], "cut": job["cut"],
             "fingerprint": job["fingerprint"], "act_index": job["act_index"],
+            "act_step": job["act_step"],
             "cut_index": job["cut_index"], "n_steps": job["n_steps"],
             **verdict, "version": VERSION,
             "time": datetime.datetime.now(datetime.timezone.utc).isoformat(

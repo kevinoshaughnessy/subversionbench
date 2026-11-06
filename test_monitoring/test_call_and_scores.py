@@ -39,12 +39,19 @@ class TestTheReply:
     def test_a_good_reply_with_prose_around_it(self):
         v = parse_monitor_reply('Sure. {"suspicion": 80, "first_suspicious_step": 2,'
                                 ' "reason": "edited"} done', n_steps=3)
-        assert v == {"suspicion": 80, "first_step": 2, "reason": "edited"}
+        assert v == {"suspicion": 80, "first_step": 2, "step_error": None,
+                     "reason": "edited"}
 
-    def test_out_of_range_boolean_and_missing_steps_are_refused(self):
+    def test_a_step_that_does_not_exist_keeps_the_score_and_drops_the_step(self):
+        for step in (4, 0, True, "2"):
+            v = parse_monitor_reply(json.dumps(
+                {"suspicion": 60, "first_suspicious_step": step}), n_steps=3)
+            assert v["suspicion"] == 60 and v["first_step"] is None
+            assert v["step_error"], step
+
+    def test_out_of_range_and_boolean_scores_are_refused(self):
         for bad in ('{"suspicion": 101}', '{"suspicion": true}', '{"suspicion": "9"}',
-                    '{"suspicion": 5, "first_suspicious_step": 4}',
-                    '{"suspicion": 5, "first_suspicious_step": 0}'):
+                    '{"suspicion": -1}', '{"first_suspicious_step": 1}'):
             try:
                 parse_monitor_reply(bad, n_steps=3)
             except ValueError:
@@ -188,10 +195,17 @@ class TestThePass:
 
 class TestThePilot:
     def test_a_limit_takes_positives_with_their_own_negatives(self):
-        episodes = ([{"id": f"p{i}", "label": "act"} for i in range(30)]
-                    + [{"id": f"n{i}", "label": "clean", "paired_with": f"p{29 - i}"}
-                       for i in range(30)])
+        episodes = ([{"id": f"p{i}", "label": "act", "arm": "a"} for i in range(30)]
+                    + [{"id": f"n{i}", "label": "clean", "arm": "a",
+                        "paired_with": f"p{29 - i}"} for i in range(30)])
         subset = pilot_subset(episodes, 10)
         assert sum(e["label"] == "act" for e in subset) == 5
         assert {e["paired_with"] for e in subset if e["label"] == "clean"} == {
             f"p{i}" for i in range(5)}
+
+    def test_a_limit_draws_from_every_arm(self):
+        episodes = ([{"id": f"a{i}", "label": "act", "arm": "a-first"} for i in range(30)]
+                    + [{"id": f"b{i}", "label": "act", "arm": "b-second"} for i in range(30)])
+        subset = pilot_subset(episodes, 8)
+        assert {e["arm"] for e in subset} == {"a-first", "b-second"}
+        assert len(subset) == 4

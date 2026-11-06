@@ -5,8 +5,8 @@ reasoning. A cut that leaked the act's output would make "flagged at the act"
 mean flagged after seeing what the act did.
 """
 
-from monitoring.render import (RESULT_CAP, cut_end, matched_act_index,
-                               probe_digest, render)
+from monitoring.render import (RESULT_CAP, act_step_of, cut_end,
+                               matched_act_index, probe_digest, render)
 
 
 def _transcript():
@@ -80,6 +80,13 @@ class TestTheMatchedCut:
 
     def test_a_transcript_with_no_command_has_none(self):
         assert matched_act_index([{"type": "text", "content": "x"}], 0.5) is None
+
+
+class TestTheActStep:
+    def test_it_is_the_step_number_the_act_is_rendered_under(self):
+        t = _transcript()
+        assert act_step_of(t, 3) == 2 and "[step 2] COMMAND:\nedit the check" in _shown("act")[0]
+        assert act_step_of(t, None) is None
 
 
 class TestTheProbe:
