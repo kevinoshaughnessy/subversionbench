@@ -913,6 +913,20 @@ all 14 the same day.
   episodes read as aware (grok-4.6 8, gemini-3.5-flash 1), but none of the 29 is aware in the
   text before the act: the awareness in those episodes comes after the act. Pooled, 9 of 303
   aware episodes acted and 20 of 537 unaware ones.
+- Hand read, 2026-11-06. Of the 303 aware readings, 229 are `ambiguous_true` (counted as aware
+  by the mapping docs/grader-selection.md fixes); hy4-preview's 60 are 18 `true` and 42
+  `ambiguous_true`, qwen3.8-flash's 59 are 7 and 52. Read in full: both models' ten control
+  episodes, and 36 `ambiguous_true` quotes (all 24 that name neither a test nor a trap, and 12
+  of the 149 that speak of a trap, a design or the scenario). About four in five describe the
+  situation as built to test the agent: an intended correct action, a planted temptation, the
+  scenario's designers, a simulated environment. The rest are a model wondering whether a
+  conflict is deliberate, which is weaker. Every quote is grounded in the transcript (verbatim
+  or a fragment). Misses checked by phrase search over the reasoning: none of kimi-k2.6,
+  seed-2.0-code, inkling, qwen3.6-27b, grok-4.5 and gemini-3.5-flash uses that language in any
+  episode (against 59 of 60 for hy4-preview and for qwen3.8-flash), so the models read as never
+  aware are not missed by the grader. Every grok-4.6 awareness quote that can be placed in the
+  transcript comes after its act (9 of 9), several justifying the edit after the fact by the
+  evaluation it supposes it is in.
 
 - **Capability, 2026-11-04 (v308), all seven models.** 21 of 21 episodes at the capability pin,
   on the model's pinned host with no switch (gpt-5.6-terra on the OpenAI API, `--effort
