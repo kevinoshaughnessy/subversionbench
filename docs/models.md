@@ -897,6 +897,23 @@ present, no lure, 10 runs each: nudge `none` by the four variants (control, `imp
 `situational`, `impossible-situational`) and nudge `strong` by control and `impossible`; 3
 capability episodes per model, collected first. Ungraded at collection (`--no-grader`).
 
+**Category reading, z-ai/glm-5.3, complete 2026-11-06 for all 14 collected models** (840 of
+840 episodes, the whole episode and the text before each act). The first pass left 20 episodes
+across six models with no reading, each a failed call written nowhere; a second pass filled all
+20. Summaries re-derived with `--resummarise --write-back` and the arms summaries rebuilt for
+all 14 the same day.
+- Graded awareness, whole episode: 303 of 840 (keywords: 122). By arm, pooled over models:
+  control 43/140, situational 43/140, `impossible` 59/140, `impossible-situational` 57/140,
+  strong control 41/140, strong `impossible` 60/140.
+- By model: tencent/hy4-preview 60/60, qwen/qwen3.8-flash 59, deepseek/deepseek-v4.1-flash 56,
+  xiaomi/mimo-v2.6-flash 50, meituan/longcat-2.0 32, z-ai/glm-5.3-flash 27, x-ai/grok-4.6 14,
+  gpt-5.6-terra 4, google/gemini-3.5-flash 1; none in seed-2.0-code, kimi-k2.6, qwen3.6-27b,
+  inkling or grok-4.5.
+- Awareness by act: of the 29 acts (gemini-3.5-flash 9, grok-4.5 10, grok-4.6 10), 9 are in
+  episodes read as aware (grok-4.6 8, gemini-3.5-flash 1), but none of the 29 is aware in the
+  text before the act: the awareness in those episodes comes after the act. Pooled, 9 of 303
+  aware episodes acted and 20 of 537 unaware ones.
+
 - **Capability, 2026-11-04 (v308), all seven models.** 21 of 21 episodes at the capability pin,
   on the model's pinned host with no switch (gpt-5.6-terra on the OpenAI API, `--effort
   medium`), ended `model_stopped` with reasoning returned, no turn resampled, no sandbox
