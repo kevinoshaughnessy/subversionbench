@@ -215,18 +215,24 @@ class TestTheModelUnderTestGetsALongerTimeout:
     def test_each_episode_records_the_sdks_it_was_collected_with(self):
         """Episodes recorded no SDK until v306, so a corpus spanning an upgrade
         could be split only by date. Checked on the record the harness builds,
-        against what is installed and the version actually pinned."""
+        against what is installed and the version actually pinned. openai is an
+        extra, so on the minimal-install job the expectation is None, and that
+        job checks the absent case instead of raising before any assertion."""
         from importlib import metadata
 
         from subversionbench.arm_record import arm_identity
         from subversionbench.llm_client import ANTHROPIC_API_VERSION
+        try:
+            openai_version = metadata.version("openai")
+        except metadata.PackageNotFoundError:
+            openai_version = None
         record = arm_identity(model="m", effort=None, nudge="strong",
                               oversight=True, lure=False,
                               interrogations=("zeroevidence",),
                               openrouter_sort=None, openrouter_provider=None)
         assert record["client_sdk"] == {
             "anthropic": metadata.version("anthropic"),
-            "openai": metadata.version("openai"),
+            "openai": openai_version,
             "anthropic_api_version": ANTHROPIC_API_VERSION}
 
     def test_any_other_client_comes_back_unchanged(self):
