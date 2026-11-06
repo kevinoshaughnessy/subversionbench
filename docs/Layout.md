@@ -316,6 +316,25 @@ trivial_baseline.py  what the detectors say about an agent that did nothing
                    reported separately, because a clean grader floor built
                    out of transport errors is worse than an unmeasured one
 rubric_ab.py       A/B a rubric question's wording on saved transcripts
+monitoring/        the transcript-monitoring scenario: the model under
+                   evaluation is a MONITOR, shown transcripts other scenarios
+                   collected and scored on what it flags, how early and at
+                   what false-positive rate. Each collected scenario is one of
+                   its arms. Run as `python3 -m monitoring sample|run|report`
+  arms.py          the collected scenarios it reads, one arm each
+  sample.py        which episodes: every act, each with a negative matched by
+                   model and arm cell, and nothing in neither class
+  render.py        a transcript in one view (actions, or with reasoning) up to
+                   one cut (the act, a few commands after it, the end), never
+                   reading past the cut
+  bundle.py        the monitor's instructions, base64 at rest with no decoded
+                   copy, and the fingerprints its results are pinned to
+  call.py          one monitor call through the grading package's parts, the
+                   reply validated rather than coerced
+  run.py           a resumable pass over the manifest for one monitor, with a
+                   free dry run; the only module here that pays
+  scores.py        catch rate at a fixed false-positive rate, AUROC, the first
+                   cut each act was flagged at
 grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    saved transcripts: nine calls per episode against one
                    batched call, on each grader given. The batched asker lives

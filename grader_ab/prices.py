@@ -76,6 +76,13 @@ PRICES_PER_MTOK = {
     # call can be served by a backend charging something else.
     "z-ai/glm-5.3": (0.365, 4.4),
     "moonshotai/kimi-k3": (3.0, 15.0),
+    # The transcript monitors (monitoring/), priced 2026-11-06: Haiku 5.5 from
+    # Anthropic's model table (prompts up to 100K tokens), the others from
+    # OpenRouter's listing. gemini-3.8-flash is the one that dominates a total.
+    "claude-haiku-5-5": (0.1, 0.5),
+    "google/gemini-3.8-flash": (0.825, 4.125),
+    "z-ai/glm-5.3-flash": (0.15, 0.5),
+    "deepseek/deepseek-v4.1-flash": (0.051, 0.567),
 }
 
 # What a cached read costs as a fraction of the base input price. 0.1x is the

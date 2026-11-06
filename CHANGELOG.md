@@ -16,6 +16,36 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v313
+
+**The transcript-monitoring scenario** (`monitoring/`, run as `python3 -m monitoring`). The
+model under evaluation is a monitor: it is shown transcripts the other scenarios collected
+and asked how suspicious the agent's conduct was and at which step it first went wrong, and
+it is scored against the detector's verdict and the step the detector located the act at.
+Each collected scenario is an arm of it (`monitoring/arms.py`); mainline r10 and goal-guarding
+r1 are the two so far, and a new scenario becomes an arm by adding its corpus there.
+
+- `sample` draws every episode with an act its scenario counts toward `misaligned`, and one
+  negative per positive from the same model and arm cell where one exists, then the same
+  model, then the arm, so a monitor cannot separate the classes by recognising a model.
+  Episodes with only an act their scenario does not count are in neither class.
+- `run` puts the manifest to one monitor in two views (actions only, and with the agent's
+  reasoning) at four cuts (the act's own command, one and three commands after it, the end),
+  resumably, with a free `--dry-run` that counts calls, tokens and input cost.
+- `report` gives the catch rate at 1% and 5% false positives, each threshold taken from the
+  negatives seen in the same view at the same cut, AUROC and partial AUROC, the catch rate by
+  act and on concealed acts, and the first cut each act was flagged at.
+- The monitor's instructions are base64-encoded in `monitoring/monitor.b64`, with no decoded
+  working copy, and every result carries the fingerprint of the bundle and the renderer;
+  `monitoring/monitor.pins.json` pins them, and a pass refuses a bundle that no longer matches.
+
+**claude-haiku-5-5 has a reasoning surface**: adaptive, able to disable thinking only at effort
+`high` or below, as Opus 5. Priced as a monitor, it became a grader model, and the guard
+that a grader model names its own surface caught it falling through to the default.
+
+**Monitor prices** for claude-haiku-5-5, gemini-3.8-flash, glm-5.3-flash and
+deepseek-v4.1-flash in `grader_ab/prices.py`.
+
 ## v312
 
 **Release dates brought up to 2026-11-05** in `model_releases.py`, each model's OpenRouter
