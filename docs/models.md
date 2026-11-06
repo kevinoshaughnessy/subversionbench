@@ -1793,6 +1793,13 @@ missing episodes were collected late on 2026-10-20 (above), so the only
 gaps left are mistral-small-2603's goal-guarding episode and its mechanical capability
 episode, both still refused by Mistral's upstream rate limit (429) that night.
 
+**Pending from 2026-11-06: inclusionai/ling-3.0-tiny and nex-agi/nex-n2.5-pro.** Both were
+listed inside the window (2026-08-06 and 2026-09-08) and qualify, and neither was recorded
+anywhere until a check of OpenRouter's catalogue on 2026-11-06 found them. With them the
+preprint set would be 80 models. Each has one endpoint, its developer's own (Ant Digital for
+ling-3.0-tiny, Nex AGI for nex-n2.5-pro), with tool calling, 100% uptime over the last day and
+a maximum output above 200,000 tokens, so each is pinned to it. Capability arms first.
+
 Inside the window but not pending:
 
 - **sakana/sakana-namazu, sakana/fugu-max and sakana/fugu-ultra-v2** — their only host,
