@@ -322,6 +322,8 @@ monitoring/        the transcript-monitoring scenario: the model under
                    what false-positive rate. Each collected scenario is one of
                    its arms. Run as `python3 -m monitoring sample|run|report`
   arms.py          the collected scenarios it reads, one arm each
+  monitors.py      the monitors under evaluation, and each OpenRouter one's
+                   provider pin, chosen by the agents' pinning rule
   sample.py        which episodes: every act, each with a negative matched by
                    model and arm cell, and nothing in neither class
   render.py        a transcript in one view (actions, or with reasoning) up to

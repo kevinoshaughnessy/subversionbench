@@ -23,7 +23,7 @@ from monitoring.scores import (auroc, catch_rate, current_rows, delays,
 def _reply(text):
     return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)],
                            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
-                           stop_reason="end_turn")
+                           stop_reason="end_turn", provider="Morph")
 
 
 class _Client:
@@ -176,6 +176,34 @@ class TestThePass:
                                side_effect=AssertionError("a call was built")):
             assert self._run(out, root, dry_run=True) == 0
         assert not os.path.exists(monitor_run.results_path(out, "gpt-6-luna"))
+
+    def test_a_listed_monitor_runs_on_its_pin_and_rows_say_who_served(self):
+        root, out = self._setup()
+        client = _Client('{"suspicion": 7, "first_suspicious_step": 1}')
+        built = []
+
+        def get_client(model, provider_name=None):
+            built.append(provider_name)
+            return client
+        with mock.patch.object(monitor_run.llm_client, "get_client", get_client), \
+             mock.patch.object(monitor_run.llm_client, "missing_credential",
+                               return_value=None):
+            self._run(out, root, monitor="deepseek/deepseek-v4.1-flash")
+        assert built == ["morph"]
+        rows = monitor_run.read_rows(monitor_run.results_path(
+            out, "deepseek/deepseek-v4.1-flash"))
+        assert {r["provider"] for r in rows} == {"morph"}
+        assert {r["served_by"] for r in rows} == {"Morph"}
+
+    def test_an_unlisted_monitor_is_refused_unless_pinned_by_hand(self):
+        root, out = self._setup()
+        try:
+            self._run(out, root, monitor="some/new-model", dry_run=True)
+        except ValueError:
+            assert self._run(out, root, monitor="some/new-model", provider="x",
+                             dry_run=True) == 0
+            return
+        raise AssertionError("an unlisted monitor ran on default routing")
 
     def test_a_second_pass_asks_only_what_failed(self):
         root, out = self._setup()

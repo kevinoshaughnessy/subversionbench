@@ -74,7 +74,7 @@ def _request(text: str, bundle: dict, model: str) -> dict:
 
 def _failed(error: str, from_reply: bool = False, usage: dict = None) -> dict:
     return {"suspicion": None, "first_step": None, "step_error": None,
-            "reason": "", "error": error,
+            "reason": "", "error": error, "served_by": None,
             "error_kind": classify_error(error, from_reply=from_reply),
             "usage": usage or {}}
 
@@ -95,6 +95,7 @@ def monitor_call(text: str, n_steps: int, model: str, bundle: dict,
         except (ValueError, TypeError) as e:
             return _failed(f"monitor reply did not parse: {e} "
                            f"[{why_it_stopped(response)}]", True, usage)
-        return {**verdict, "error": None, "error_kind": None, "usage": usage}
+        return {**verdict, "error": None, "error_kind": None, "usage": usage,
+                "served_by": getattr(response, "provider", None)}
     except Exception as e:                       # noqa: BLE001 - reported, not raised
         return _failed(str(e))

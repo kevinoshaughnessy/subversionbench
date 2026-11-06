@@ -23,6 +23,7 @@ from subversionbench.grading.category import FATAL_ERROR_KINDS
 from subversionbench.version import VERSION
 
 from .bundle import check_pins, fingerprint, load_bundle
+from .monitors import pinned_provider
 from .call import monitor_call
 from .render import act_step_of, cut_end, matched_act_index, render, task_of
 from .sample import load_manifest
@@ -206,6 +207,7 @@ def execute(jobs, monitor: str, provider, bundle: dict, writer: _Writer,
 def run_monitor(output_dir: str, monitor: str, provider, views, cuts,
                 concurrency: int, dry_run: bool, yes: bool, limit: int = None,
                 root: str = ".") -> int:
+    provider = pinned_provider(monitor, provider)
     manifest = load_manifest(output_dir)
     bundle = load_bundle()
     check_pins(bundle)
