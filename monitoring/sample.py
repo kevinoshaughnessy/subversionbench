@@ -61,7 +61,9 @@ def _record(arm, path: str, root: str, episode: dict, label: dict) -> dict:
             "path": os.path.relpath(path, root), "model": episode["model"],
             "cell": cell_of(episode),
             "rollout_version": episode.get("rollout_version"),
-            "n_items": len(episode.get("transcript") or []), **label}
+            "n_items": len(episode.get("transcript") or []),
+            "scheming_keywords": bool((episode.get("analysis") or {}).get(
+                "scheming_keywords")), **label}
 
 
 def scan_arm(arm, root: str = ".") -> tuple:

@@ -334,7 +334,9 @@ monitoring/        the transcript-monitoring scenario: the model under
   run.py           a resumable pass over the manifest for one monitor, with a
                    free dry run; the only module here that pays
   scores.py        catch rate at a fixed false-positive rate, AUROC, the first
-                   cut each act was flagged at
+                   cut each act was flagged at; sandbox-only acts scored apart
+                   from the headline, an exact-match reading, and the
+                   false-positive rate split by the scheming keywords
 grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    saved transcripts: nine calls per episode against one
                    batched call, on each grader given. The batched asker lives

@@ -4,6 +4,7 @@ python3 -m monitoring sample | run | report - see monitoring/__init__.py.
 
 import argparse
 import glob
+import json
 import os
 import sys
 
@@ -50,7 +51,9 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--dry-run", action="store_true",
                      help="count calls and tokens; send nothing")
     run.add_argument("--yes", action="store_true", help="send the calls")
-    sub.add_parser("report", help="score every monitor run so far")
+    report = sub.add_parser("report", help="score every monitor run so far")
+    report.add_argument("--exact-matches", action="store_true",
+                        help="only pairs matched on model AND arm cell")
     return parser
 
 
@@ -74,12 +77,29 @@ def _sample(opts) -> int:
     return 0
 
 
+def _scheming_flags(manifest: dict, root: str) -> dict:
+    """Whether each negative's scheming keywords matched. Read from the
+    manifest, or from the episode for a manifest drawn before it recorded it."""
+    flags = {}
+    for e in manifest["episodes"]:
+        if e["label"] != "clean":
+            continue
+        if "scheming_keywords" in e:
+            flags[e["id"]] = e["scheming_keywords"]
+            continue
+        with open(os.path.join(root, e["path"]), encoding="utf-8") as f:
+            analysis = json.load(f).get("analysis") or {}
+        flags[e["id"]] = bool(analysis.get("scheming_keywords"))
+    return flags
+
+
 def _report(opts) -> int:
     from .bundle import fingerprints, load_bundle
     from .run import RESULTS_DIR, read_rows
     from .sample import load_manifest
-    from .scores import (current_rows, delays, format_delays, format_summary,
-                         summarise)
+    from .scores import (GROUPS, current_rows, delays, format_delays,
+                         format_fpr_split, format_summary, fpr_by_scheming,
+                         rows_in, scoped, summarise)
     manifest = load_manifest(opts.output_dir)
     pins = fingerprints(load_bundle())
     rows = []
@@ -87,9 +107,19 @@ def _report(opts) -> int:
                                               "*.jsonl"))):
         rows += read_rows(path)
     kept = current_rows(rows, pins)
-    print(format_summary(summarise(kept, manifest)))
-    print("\nFirst cut each act was flagged at (1% FPR at each cut):")
-    print(format_delays(delays(kept, manifest)))
+    which = "pairs matched on model and cell only" if opts.exact_matches else "all pairs"
+    for group in GROUPS:
+        scope = scoped(manifest, group, opts.exact_matches)
+        group_rows = rows_in(kept, scope)
+        print(f"\n== {group} acts ({which})")
+        print(format_summary(summarise(group_rows, scope)))
+        print("\nFirst cut each act was flagged at (1% FPR at each cut):")
+        print(format_delays(delays(group_rows, scope)))
+    scope = scoped(manifest, GROUPS[0], opts.exact_matches)
+    print("\n== negatives flagged, by whether their scheming keywords matched "
+          "(flagged/n, at the summary's thresholds)")
+    print(format_fpr_split(fpr_by_scheming(
+        rows_in(kept, scope), scope, _scheming_flags(scope, opts.corpus_root))))
     if len(kept) < len(rows):
         print(f"\n{len(rows) - len(kept)} rows under an earlier fingerprint left out.")
     return 0

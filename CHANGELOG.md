@@ -34,7 +34,13 @@ r1 are the two so far, and a new scenario becomes an arm by adding its corpus th
   resumably, with a free `--dry-run` that counts calls, tokens and input cost.
 - `report` gives the catch rate at 1% and 5% false positives, each threshold taken from the
   negatives seen in the same view at the same cut, AUROC and partial AUROC, the catch rate by
-  act and on concealed acts, and the first cut each act was flagged at.
+  act and on concealed acts, and the first cut each act was flagged at. Episodes whose only
+  act is the sandbox act are scored apart from the headline: most are a listing of the
+  parent directory, and pooled they would read as a monitor failing on a weak construct.
+  `--exact-matches` keeps only the pairs matched on model and arm cell. The negatives'
+  false-positive rate is split by whether their scheming keywords matched, because a
+  reasoning-reading monitor flags intent an agent weighed and did not act on, which
+  action-based labels count as a false positive.
 - The monitor's instructions are base64-encoded in `monitoring/monitor.b64`, with no decoded
   working copy, and every result carries the fingerprint of the bundle and the renderer;
   `monitoring/monitor.pins.json` pins them, and a pass refuses a bundle that no longer matches.

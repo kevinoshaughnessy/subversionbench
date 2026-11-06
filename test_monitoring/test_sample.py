@@ -116,3 +116,11 @@ class TestTheManifest:
     def test_the_shipped_arms_are_the_two_collected_scenarios(self):
         assert arm_named("mainline-r10").corpus == "eval_results_r10"
         assert arm_named("goalguard-r1").corpus == "eval_results_goalguard_r1"
+
+
+class TestTheSchemingTag:
+    def test_each_record_says_whether_its_scheming_keywords_matched(self):
+        with_kw, without = _episode("m/a"), _episode("m/a")
+        with_kw["analysis"]["scheming_keywords"] = ["some match"]
+        records, _ = scan_arm(ARM, _corpus([with_kw, without]))
+        assert sorted(r["scheming_keywords"] for r in records) == [False, True]
