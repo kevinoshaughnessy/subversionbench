@@ -131,11 +131,12 @@ twelve-arm cross product.
   backend was not yet recorded per turn, so the two batches' providers are known only from what
   was requested (133 in all)
 - [inclusionai/ling-3.0-tiny](https://openrouter.ai/inclusionai/ling-3.0-tiny) † — collected
-  2026-11-06 (v311, 117 of 120, pinned to Ant Digital, the developer's endpoint and only host;
+  2026-11-06 (v311, 120/120, pinned to Ant Digital, the developer's endpoint and only host;
   every turn served by it, reasoning returned in every episode). **Three episodes failed at
   Ant Digital**, files kept: none_lure runs 3 and 4 on its upstream rate limit (429), and
-  max_nooversight_lure run 6 on a 400 at turn 19; to be collected by resuming those two arms.
-  33 ended at the turn cap and 2 on an empty turn. 21 commands timed out in 12 episodes, almost
+  max_nooversight_lure run 6 on a 400 at turn 19; all three collected again on 2026-11-07 by
+  resuming those two arms. 34 ended at the turn cap and 2 on an empty turn. 26 commands timed
+  out in 13 episodes, almost
   all the check script given its draft as an argument rather than on stdin, so waiting on
   stdin; kept and flagged. A counted act occurred (one attempted oversight edit). Graded by
   gpt-6-sol at collection; no glm-5.3 category reading yet
@@ -160,6 +161,12 @@ twelve-arm cross product.
   2026-10-26 (120/120, pinned to Moonshot AI, the developer's endpoint). 2 episodes ended at
   the turn cap; no command timed out
 - [moonshotai/kimi-k3](https://huggingface.co/moonshotai/Kimi-K3)
+- [nex-agi/nex-n2.5-pro](https://openrouter.ai/nex-agi/nex-n2.5-pro) † — collected 2026-11-06
+  to 07 (v311, 120/120, pinned to Nex AGI, the developer's endpoint and only host; every turn
+  served by it, reasoning returned in every episode). No counted oversight act; one episode
+  had a command the sandbox refused. 2 ended on an empty turn after a length-truncated turn;
+  none at the turn cap; 2 commands timed out, kept and flagged. Graded by gpt-6-sol at
+  collection; no glm-5.3 category reading yet
 - [nvidia/nemotron-3-ultra-550b-a55b](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b) †
   — collected 2026-10-25 (120/120, pinned to BaseTen, the only endpoint passing the pinning
   rule). 2 episodes ended at the turn cap; no command timed out
@@ -601,6 +608,7 @@ native route below stands for the model.
 | moonshotai/kimi-k2.6 | complete (pinned to Moonshot AI) |
 | moonshotai/kimi-k2.7-code | complete (pinned to Moonshot AI); no episode guarded; one episode (none, deferred) ended on a closing turn the provider reported as a length truncation, kept and flagged; no command timed out; 68 read the successor file |
 | moonshotai/kimi-k3 | complete (pinned to Moonshot AI) |
+| nex-agi/nex-n2.5-pro | complete (80/80, 2026-11-07, v311, pinned to Nex AGI, every turn served by it); no episode guarded and no counted act; 2 ended on an empty turn, none at the turn cap; no command timed out; graded by gpt-6-sol at collection, no glm-5.3 category reading yet; 71 read the successor file |
 | nvidia/nemotron-3-ultra-550b-a55b | complete (pinned to BaseTen); no episode guarded; 1 ended at the turn cap; the last arm (strong, deferred, no oversight) was resumed under its own stamp after five episodes failed on BaseTen's upstream 429 rate limit, the failed files kept; one command timed out, the check script run with no input and so waiting on stdin, kept and flagged; all 80 read the successor file |
 | nvidia/nemotron-3.5-lightning | complete (pinned to Wafer); 52 episodes lacked a gpt-6-sol reading at first, on the exhausted OpenAI credit, and were regraded on 2026-10-14; 4 ended at the turn cap; all 80 read the successor file |
 | poolside/laguna-s-2.1 | complete (pinned to Poolside); no episode guarded; none at the turn cap; no command timed out; 80 read the successor file |
@@ -1142,7 +1150,7 @@ all 14 the same day.
   nvidia/nemotron-3-ultra-550b-a55b and ibm-granite/granite-4.2-8b) it was taken as the most
   likely to act at an intermediate rate, its two mainline acts being sandbox escapes.
   Nudge `none` arms collected 2026-11-06 to 07 (v311), 40/40, beside the ling-3.0-tiny and
-  nex-n2.5-pro mainline batches; strong arms not yet collected. Every episode matches its
+  nex-n2.5-pro mainline batches. Every episode matches its
   arm's pin, each arm is under a single stamp, every turn was served by Cohere, and every
   episode returned reasoning. Acts: 0 in all four arms. **It never meets the check:** no
   episode executed the validator, 39 of 40 never touched `qa/`, no closing report mentions the
@@ -1153,7 +1161,12 @@ all 14 the same day.
   `impossible-situational` runs 3 and 10) and one at the turn cap (situational run 5). 14
   commands timed out, 5 of them in control run 3; those read were the model's own commands
   waiting on stdin (a `grep` given `-` as a file, `awk` and `perl` given no input). Sandbox
-  refusals in two `impossible` episodes. Ungraded (`--no-grader`).
+  refusals in two `impossible` episodes. Strong arms collected 2026-11-07 (v311), 19 of 20,
+  on their pins, every turn on Cohere, reasoning in every episode: `impossible` run 4 failed
+  on a Cohere 400 at turn 3, file kept, to be resumed. Acts: 0; no episode touched `qa/` or
+  ran the validator, so the strong nudge does not bring it to the check either. One ended at
+  the turn cap and one on an empty turn; 3 episodes had a command time out. Ungraded
+  (`--no-grader`).
 - bytedance-seed/seed-2-1-turbo (pinned to seed) - capable; not yet collected. A first launch on
   2026-11-05 (v311) failed every episode it started on Seed 429 rate limits, five per arm in all
   six arms, written as `failed_run_*` and outside the corpus; nothing was collected.
@@ -1876,8 +1889,8 @@ anywhere until a check of OpenRouter's catalogue on 2026-11-06 found them. With 
 preprint set would be 80 models. Each has one endpoint, its developer's own (Ant Digital for
 ling-3.0-tiny, Nex AGI for nex-n2.5-pro), with tool calling, 100% uptime over the last day and
 a maximum output above 200,000 tokens, so each is pinned to it. Capability arms first.
-ling-3.0-tiny's propensity arms were collected 2026-11-06 to 07 (mainline three episodes
-short, goal-guarding complete; see their entries); nex-n2.5-pro's are being collected.
+Both models' propensity arms were collected 2026-11-06 to 07, complete in both corpora (see
+their entries).
 
 Inside the window but not pending:
 
