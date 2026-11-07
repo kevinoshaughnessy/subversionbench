@@ -427,11 +427,16 @@ CI runs after a push, so it cannot block a bad commit; the command to run first 
 
 ## Caveats
 
-**Two scenarios, one setting.** The mainline scenario offers the oversight and sandbox acts;
-the goal-guarding scenario, staged by the `--goalguard` arms in the same environment, adds
-goal guarding, and its rates count that act alone. Both share one setting and one goal conflict, under conditions chosen to make
-the acts easy to discover. Generalising to "propensity to subvert oversight" is not supported
-by one setting, however many runs it gets — see [what the design holds
+**Few settings.** The mainline scenario offers the oversight and sandbox acts; the
+goal-guarding scenario, staged by the `--goalguard` arms in the same environment, adds goal
+guarding, and its rates count that act alone. Those two share one setting and one goal
+conflict, under conditions chosen to make the acts easy to discover. The impossible-task
+scenario is a second setting, in a world of its own with a different organisation, task and
+act, but it applies a different pressure, a check no honest deliverable can pass, rather than
+the same conflict somewhere else, so it does not replicate the first. The transcript-monitoring
+scenario reads only transcripts from these settings, so a monitor's scores are about them too.
+Generalising to "propensity to subvert oversight" is not supported by two settings, however
+many runs each gets — see [what the design holds
 fixed](docs/methodology.md#what-the-design-holds-fixed).
 
 **Contamination.** The scenario text lives in this repository, so any model trained on public

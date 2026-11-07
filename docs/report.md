@@ -639,7 +639,7 @@ MULTIPLICITY over the 27 per-model test(s):
 `SEPARATED` means the 95% interval on the **difference** excludes zero — not that the
 marginal intervals fail to overlap, which is the comparison a reader is most likely to get
 wrong and which systematically under-reports real differences. See
-[`newcombe_diff_ci`](../subversionbench/power.py) and
+[`newcombe_diff_ci`](../subversionbench/power/intervals.py) and
 [Uncertainty on every score](operations.md#uncertainty-on-every-score).
 
 In the per-model table the trailing `*HB` flags are, in order: CI excludes zero, survives
