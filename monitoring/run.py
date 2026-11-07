@@ -4,8 +4,16 @@ pass, and the results it appends.
 
 One JSON line per (episode, view, cut) in results/<monitor>.jsonl, carrying the
 fingerprint it was produced under. A pass skips every line already answered
-under the current fingerprint, so a stopped pass resumes where it stopped and a
-failed call is asked again; an answered line is never paid for twice.
+under the current fingerprint at the same cut point, so a stopped pass resumes
+where it stopped and a failed call is asked again; an answered line is never
+paid for twice.
+
+WHERE THE ACT IS COMES FROM THE EPISODE, NOT THE MANIFEST. The manifest names
+the episodes and their pairs; the act's position is read from the episode's
+analysis as it stands, and a negative is cut where its pair's act now is. v314
+moved 29 act positions after r1's manifest was drawn, and with the position
+copied into the manifest and the cut point outside the skip key, those cuts
+would have been reported at the old position and never asked again.
 
 Episodes are rendered one at a time as the pass reaches them, never all at once:
 a thousand episodes in eight renderings each is several hundred megabytes of
@@ -26,7 +34,7 @@ from .bundle import check_pins, fingerprint, load_bundle
 from .monitors import pinned_provider
 from .call import monitor_call
 from .render import act_step_of, cut_end, matched_act_index, render, task_of
-from .sample import load_manifest
+from .sample import episode_label, load_manifest
 
 RESULTS_DIR = "results"
 # Characters per token for the dry run's estimate. The tokenizers differ; the
@@ -47,7 +55,7 @@ def read_rows(path: str) -> list:
 
 
 def answered(rows: list) -> set:
-    return {(r["id"], r["view"], r["cut"], r["fingerprint"])
+    return {(r["id"], r["view"], r["cut"], r["fingerprint"], r.get("cut_index"))
             for r in rows if r.get("error") is None}
 
 
@@ -56,16 +64,47 @@ def _load(root: str, entry: dict) -> dict:
         return json.load(f)
 
 
-def _act_index(entry: dict, transcript: list):
+def _positive_act_index(entry: dict, episode: dict):
+    """Where the act is in the episode now, falling back to the manifest's
+    copy only where the episode no longer places one."""
+    label = episode_label(episode.get("analysis") or {})
+    if label and label.get("act_index") is not None:
+        return label["act_index"]
+    return entry["act_index"]
+
+
+class _Positions:
+    """Each positive's current act position, loaded once, for its pair."""
+
+    def __init__(self, manifest: dict, root: str):
+        self._by_id = {e["id"]: e for e in manifest["episodes"]}
+        self._root, self._known = root, {}
+
+    def note(self, entry: dict, episode: dict):
+        self._known[entry["id"]] = _positive_act_index(entry, episode)
+        return self._known[entry["id"]]
+
+    def fraction(self, positive_id: str, fallback: float) -> float:
+        positive = self._by_id.get(positive_id)
+        if positive is None:
+            return fallback
+        if positive_id not in self._known:
+            self.note(positive, _load(self._root, positive))
+        return self._known[positive_id] / max(1, positive["n_items"])
+
+
+def _act_index(entry: dict, episode: dict, positions: _Positions):
     if entry["label"] == "act":
-        return entry["act_index"]
-    return matched_act_index(transcript, entry["cut_fraction"])
+        return positions.note(entry, episode)
+    fraction = positions.fraction(entry.get("paired_with"), entry["cut_fraction"])
+    return matched_act_index(episode.get("transcript") or [], fraction)
 
 
-def jobs_for(entry: dict, episode: dict, bundle: dict, views, cuts):
+def jobs_for(entry: dict, episode: dict, bundle: dict, views, cuts,
+             positions: _Positions):
     """Every (view, cut) rendering of one episode that exists."""
     transcript = episode.get("transcript") or []
-    act_index = _act_index(entry, transcript)
+    act_index = _act_index(entry, episode, positions)
     for view in views:
         for cut in cuts:
             end = cut_end(transcript, act_index, cut)
@@ -107,10 +146,12 @@ def pending_jobs(manifest: dict, root: str, bundle: dict, views, cuts, done: set
     episodes = manifest["episodes"]
     if limit:
         episodes = pilot_subset(episodes, limit)
+    positions = _Positions(manifest, root)
     for entry in episodes:
         episode = _load(root, entry)
-        for job in jobs_for(entry, episode, bundle, views, cuts):
-            if (entry["id"], job["view"], job["cut"], job["fingerprint"]) not in done:
+        for job in jobs_for(entry, episode, bundle, views, cuts, positions):
+            if (entry["id"], job["view"], job["cut"], job["fingerprint"],
+                    job["cut_index"]) not in done:
                 yield job
 
 

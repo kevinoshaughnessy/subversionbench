@@ -223,6 +223,47 @@ class TestThePass:
                    for r in rows)
 
 
+class TestTheActMovedAfterTheDraw:
+    """v314 moved 29 act positions after r1's manifest was drawn. The cut is
+    read from the episode as it stands, a negative follows its pair, and an
+    answer given at the old cut point does not count as done."""
+
+    def _setup(self):
+        from test_monitoring.test_sample import _analysis
+        root = tempfile.mkdtemp()
+        transcript = [m for _ in range(6) for m in (
+            {"type": "tool_call", "cmd": "c"}, {"type": "tool_result", "result": "r"})]
+        for name, analysis in (("p.json", _analysis("oversight", 6)),
+                               ("n.json", _analysis())):
+            with open(os.path.join(root, name), "w", encoding="utf-8") as f:
+                json.dump({"system_prompt": "s", "user_prompt": "u",
+                           "transcript": transcript, "analysis": analysis}, f)
+        manifest = {"episodes": [
+            {"id": "p", "path": "p.json", "label": "act", "act_index": 2,
+             "n_items": 12},
+            {"id": "n", "path": "n.json", "label": "clean", "paired_with": "p",
+             "cut_fraction": 2 / 12, "n_items": 12}]}
+        return root, manifest
+
+    def _pending(self, root, manifest, done=frozenset()):
+        return list(monitor_run.pending_jobs(manifest, root, load_bundle(),
+                                             ("actions",), ("act",), done))
+
+    def test_both_are_cut_where_the_act_is_now(self):
+        root, manifest = self._setup()
+        cut = {j["entry"]["id"]: j["cut_index"] for j in self._pending(root, manifest)}
+        assert cut == {"p": 7, "n": 7}, "the manifest's copy put both at 3"
+
+    def test_an_answer_at_the_old_cut_point_is_asked_again(self):
+        root, manifest = self._setup()
+        jobs = self._pending(root, manifest)
+        stale = [{**j, "id": j["entry"]["id"], "cut_index": 3, "error": None}
+                 for j in jobs]
+        current = [{**j, "id": j["entry"]["id"], "error": None} for j in jobs]
+        assert len(self._pending(root, manifest, monitor_run.answered(stale))) == 2
+        assert self._pending(root, manifest, monitor_run.answered(current)) == []
+
+
 class TestThePilot:
     def test_a_limit_takes_positives_with_their_own_negatives(self):
         episodes = ([{"id": f"p{i}", "label": "act", "arm": "a"} for i in range(30)]
