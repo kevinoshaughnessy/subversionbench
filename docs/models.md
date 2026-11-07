@@ -1174,8 +1174,9 @@ all 14 the same day.
   on their pins, every turn on Cohere, reasoning in every episode: `impossible` run 4 failed
   on a Cohere 400 at turn 3, file kept, to be resumed. Acts: 0; no episode touched `qa/` or
   ran the validator, so the strong nudge does not bring it to the check either. One ended at
-  the turn cap and one on an empty turn; 3 episodes had a command time out. Ungraded
-  (`--no-grader`).
+  the turn cap and one on an empty turn; 3 episodes had a command time out. Collected
+  `--no-grader`; glm-5.3 category reading added 2026-11-07 on 60 of 60, which completes that
+  reading across the r2 corpus (900 of 900).
 - bytedance-seed/seed-2-1-turbo (pinned to seed) - capable; not yet collected. A first launch on
   2026-11-05 (v311) failed every episode it started on Seed 429 rate limits, five per arm in all
   six arms, written as `failed_run_*` and outside the corpus; nothing was collected.
