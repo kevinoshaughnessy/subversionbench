@@ -48,8 +48,9 @@ dates, and joining it to a corpus is the caller's job.
 import sys
 from datetime import date
 
-# Every model evaluated in this corpus or pending evaluation, with the date
-# OpenRouter lists it.
+# Every model evaluated in this corpus or pending evaluation, and every model
+# qualifying under the selection rules in docs/models.md that OpenRouter listed
+# up to 2026-11-05, with the date OpenRouter lists it.
 # Grouped by provider and ordered by release within each group, so that adding a
 # model puts it somewhere a reader would look for it. The grouping is a
 # courtesy to whoever edits this next - nothing reads it, and
@@ -95,6 +96,10 @@ RELEASE_DATES = {
     # OpenRouter spells this generation with a dot, so "anthropic/claude-opus-5.5"
     # has stem "claude-opus-5.5" and does not collide with the dashes.
     "claude-opus-5-5": date(2026, 9, 22),
+    # Bare like claude-opus-5-5, the route the harness calls; OpenRouter's
+    # dotted listing date stands in, as it does for that entry.
+    "claude-sonnet-5-5": date(2026, 9, 28),
+    "claude-haiku-5-5": date(2026, 10, 7),
 
     # bytedance-seed
     "bytedance-seed/seed-2-1-turbo": date(2026, 8, 12),
@@ -109,6 +114,10 @@ RELEASE_DATES = {
     "deepseek/deepseek-v4-flash-0731": date(2026, 7, 31),
     "deepseek/deepseek-v4-pro-0813": date(2026, 8, 12),
     "deepseek/deepseek-v4.1-flash": date(2026, 9, 10),
+    "deepseek/deepseek-v4.1-flash-1017": date(2026, 10, 17),
+
+    # elorian
+    "elorian/glimpse": date(2026, 10, 17),
 
     # fireworks
     "fireworks/ember-1": date(2026, 9, 24),
@@ -123,18 +132,23 @@ RELEASE_DATES = {
     "google/gemini-3.5-flash-lite": date(2026, 7, 21),
     "google/gemini-3.7-flash": date(2026, 8, 13),
     "google/gemini-3.8-flash": date(2026, 9, 2),
+    "google/gemini-4-argon": date(2026, 10, 13),
 
     # ibm-granite
     "ibm-granite/granite-4.2-8b": date(2026, 8, 31),
 
     # inception
     "inception/mercury-2.5": date(2026, 9, 8),
+    "inception/mercury-3": date(2026, 10, 16),
 
     # inclusionai
     "inclusionai/ling-3.0-flash": date(2026, 7, 23),
+    "inclusionai/ling-3.0-tiny": date(2026, 8, 6),
+    "inclusionai/ling-3.1-flash": date(2026, 10, 2),
 
     # mistralai
     "mistralai/mistral-small-2603": date(2026, 3, 16),
+    "mistralai/mistral-large-4-0": date(2026, 10, 6),
 
     # moonshotai
     "moonshotai/kimi-k2": date(2025, 7, 11),
@@ -144,6 +158,7 @@ RELEASE_DATES = {
     "moonshotai/kimi-k2.6": date(2026, 4, 20),
     "moonshotai/kimi-k2.7-code": date(2026, 6, 12),
     "moonshotai/kimi-k3": date(2026, 7, 16),
+    "moonshotai/kimi-k3.1-pro": date(2026, 10, 23),
 
     # openai - three variants of one generation, all released together, which is
     # why they are three families here rather than three versions of one.
@@ -161,6 +176,8 @@ RELEASE_DATES = {
     "gpt-6-luna": date(2026, 9, 22),
     # Native key like gpt-6-sol; stem "gpt-6.1-sol" does not collide with it.
     "gpt-6.1-sol": date(2026, 9, 29),
+    # Native key like gpt-6.1-sol, the route the rubric grader calls it by.
+    "gpt-6.1-terra": date(2026, 10, 26),
 
     # meta
     "meta-llama/llama-4-maverick": date(2025, 4, 5),
@@ -169,13 +186,25 @@ RELEASE_DATES = {
     "meta/muse-spark-1.2": date(2026, 8, 6),
     "meta/muse-glimmer-30b": date(2026, 8, 9),
     "meta/muse-spark-1.3": date(2026, 9, 2),
+    "meta/muse-wonder": date(2026, 10, 12),
+    "meta/muse-spark-open": date(2026, 10, 15),
 
     # meituan
     "meituan/longcat-2.0": date(2026, 7, 20),
 
+    # minimax
+    "minimax/minimax-m3.1-flash": date(2026, 10, 19),
+
+    # nex-agi
+    "nex-agi/nex-n2.5-pro": date(2026, 9, 8),
+
     # nvidia
     "nvidia/nemotron-3-ultra-550b-a55b": date(2026, 6, 4),
     "nvidia/nemotron-3.5-lightning": date(2026, 8, 11),
+    "nvidia/nemotron-3.5-super-vl": date(2026, 10, 15),
+
+    # particle-ai
+    "particle-ai/particle-1": date(2026, 10, 28),
 
     # perceptron
     "perceptron/perceptron-mk1.5": date(2026, 9, 25),
@@ -186,6 +215,7 @@ RELEASE_DATES = {
 
     # prism-ml
     "prism-ml/ternary-bonsai-2-27b": date(2026, 9, 18),
+    "prism-ml/ternary-bonsai-2-9b": date(2026, 10, 16),
 
     # qwen
     "qwen/qwen3.5-flash-02-23": date(2026, 2, 25),
@@ -204,15 +234,25 @@ RELEASE_DATES = {
     "qwen/qwen3.8-max-0902": date(2026, 9, 3),
     "qwen/qwen3.8-omni-flash": date(2026, 9, 21),
 
+    # reflection
+    "reflection/beam-1.0-501b-a23b": date(2026, 10, 16),
+
+    # ricursiveai
+    "ricursiveai/ripple-65b-preview": date(2026, 11, 4),
+
     # sakana
     "sakana/sakana-namazu": date(2026, 8, 11),
     "sakana/fugu-max": date(2026, 9, 11),
     "sakana/fugu-ultra-v2": date(2026, 9, 11),
 
+    # stepfun
+    "stepfun/step-5-preview": date(2026, 10, 8),
+
     # tencent
     "tencent/hy3": date(2026, 7, 6),
     "tencent/hy-mt2-1.8b": date(2026, 8, 20),
     "tencent/hy4-preview": date(2026, 8, 28),
+    "tencent/hy4": date(2026, 11, 4),
 
     # thinkingmachines - `inkling` and `inkling-small` are DIFFERENT models, not
     # one model by two routes, so each has its own key and stem.

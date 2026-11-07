@@ -122,16 +122,21 @@ class TestAgainstTheVersionOrder:
     def _families(self):
         return ft.group_families(list(mr.RELEASE_DATES), "decimal")
 
-    def test_the_kimi_thinking_snapshot_is_the_one_known_inversion(self):
+    def test_the_known_inversions_are_exactly_these_two(self):
         """kimi-k2-thinking has no date stamp, so the parser sorts it with the
         undated k2 members - ahead of k2-0905. It was released two months
-        AFTER. The parse is what is wrong here, not the dates, and it is
-        recorded rather than silently corrected because reordering a family on
-        a date would change what `--metric` trends report."""
+        AFTER. tencent/hy4 is the release of hy4-preview and sorts before it,
+        because the parser reads `preview` as a later stage rather than an
+        earlier one; it was listed two months after the preview. In both the
+        parse is what is wrong, not the dates, and each is recorded rather than
+        silently corrected because reordering a family on a date would change
+        what `--metric` trends report."""
         found = mr.disagreements(self._families())
-        assert list(found) == ["moonshotai/kimi-k"]
+        assert sorted(found) == ["moonshotai/kimi-k", "tencent/hy"]
         assert [(a, b) for a, _, b, _ in found["moonshotai/kimi-k"]] == [
             ("moonshotai/kimi-k2-thinking", "moonshotai/kimi-k2-0905")]
+        assert [(a, b) for a, _, b, _ in found["tencent/hy"]] == [
+            ("tencent/hy4", "tencent/hy4-preview")]
 
     def test_grok_420_agrees_with_its_release_date(self):
         """The decimal reading of 4.20 was a correction to an earlier

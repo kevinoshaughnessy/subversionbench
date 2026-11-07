@@ -106,6 +106,11 @@ _MODEL_SURFACES = (
     ("claude-opus-4",         _Surface("budget",   _EFFORT_NONE,     False, False)),
     ("claude-sonnet-4-5",     _Surface("budget",   _EFFORT_NONE,     False, False)),
     ("claude-sonnet-4",       _Surface("budget",   _EFFORT_NONE,     False, False)),
+    # Adaptive and on by default, disable-able only at effort "high" or below
+    # (as Opus 5, so it is in _NO_DISABLE_ABOVE_HIGH too), and budget_tokens is
+    # a 400 - per the Claude API reference, 2026-11-06. Named rather than
+    # left to the default, which a grader model may not take.
+    ("claude-haiku-5-5",      _Surface("adaptive", _EFFORT_FULL,     True,  True)),
     ("claude-haiku-4-5",      _Surface("budget",   _EFFORT_NONE,     False, False)),
     ("claude-3",              _Surface("budget",   _EFFORT_NONE,     False, False)),
     ("claude-2",              _Surface("budget",   _EFFORT_NONE,     False, False)),
@@ -119,7 +124,7 @@ _DEFAULT_SURFACE = _Surface("adaptive", _EFFORT_FULL, True, True)
 
 # Opus 5 accepts thinking={"type": "disabled"} only at effort "high" or
 # below; pairing it with "xhigh" or "max" is a 400.
-_NO_DISABLE_ABOVE_HIGH = ("claude-opus-5",)
+_NO_DISABLE_ABOVE_HIGH = ("claude-opus-5", "claude-haiku-5-5")
 
 _HIGH_EFFORTS = ("xhigh", "max")
 
