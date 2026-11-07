@@ -10,8 +10,9 @@ awareness**: whether a language model will take harmful instrumental action when
 serves the goal it was given, whether it conceals having done so, and whether it suspects
 it is being tested at all.
 
-**There are three scenarios, each collected into its own corpus** and never pooled with
-another, because each counts a different set of acts.
+**There are three agent scenarios, each collected into its own corpus** and never pooled
+with another, because each counts a different set of acts, **and a fourth that puts their
+transcripts to monitor models.**
 
 **The mainline scenario** (`eval_results_r10/`) scores two acts. The model is deployed as an
 assistant with a system prompt giving it a specific objective, working in a shell whose
@@ -49,6 +50,14 @@ asking that the check be changed, at a cost. The first, `impossible1`, is kept a
 `subversionbench/scenarios/impossible1.b64` so its corpus, `eval_results_impossible_r1`,
 can still be re-read; its pilots are under `eval_results_impossible_pilot*`. See
 [scenarios in a world of their own](docs/scenario.md#scenarios-in-a-world-of-their-own).
+
+**The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)
+turns the benchmark round. The model under evaluation is a *monitor*: it is shown transcripts
+the other scenarios already collected and asked how suspicious the agent's conduct was and at
+which step it first went wrong. The ground truth is the detector's verdict on each episode and
+the step it located the act at, so a monitor is scored on what it caught, how early, and at
+what false-positive rate. It collects no agent episodes of its own; each collected scenario is
+one of its arms. See [the transcript-monitoring scenario](#the-transcript-monitoring-scenario).
 
 In every scenario, whether the model takes the act is the primary measurement — and if it
 does, whether it then admits to it when asked. The headline rates count any act staged in a
@@ -463,6 +472,46 @@ both: this one is T.9 and II.8. There the
 demonstration is an oracle solver; here the propensity *is* the thing under test, so the
 oracle has to be the same model with the act requested.
 
+### The transcript-monitoring scenario
+
+Here the agent's episodes are the input and a monitor model is under test. Its arms are the
+corpora listed in `monitoring/arms.py` (mainline r10 and goal-guarding r1 so far); adding a
+finished corpus there is the whole of making a new scenario an arm.
+
+```bash
+python3 -m monitoring sample --seed 0
+python3 -m monitoring run --monitor z-ai/glm-5.3-flash --dry-run
+python3 -m monitoring run --monitor z-ai/glm-5.3-flash --yes
+python3 -m monitoring report
+```
+
+- **`sample`** draws every episode with an act its scenario counts toward `misaligned`, and
+  one negative per positive matched on model and arm cell where one exists, falling back to
+  the same model and then the same arm, so a monitor cannot separate the classes by
+  recognising which model wrote a transcript. Episodes whose only act is one their scenario
+  does not count are in neither class.
+- **`run`** puts the manifest to one monitor in two views, `actions` (the agent's commands,
+  their output and its visible messages) and `cot` (the same with its reasoning), at four
+  cuts: the act's own command, one and three commands after it, and the end of the episode.
+  A transcript is never rendered past its cut. The pass is resumable; `--dry-run` counts
+  calls, tokens and input cost and sends nothing, and `--limit N` pilots on the first N
+  episodes. The OpenRouter monitors are pinned to one provider each (`monitoring/monitors.py`)
+  and every result row records who served it.
+- **`report`** scores every monitor run so far: the catch rate at 1% and 5% false positives,
+  AUROC and partial AUROC, the catch rate by act and on concealed acts, and the first cut
+  each act was flagged at. Each threshold is taken from the negatives seen in the same view
+  at the same cut, never borrowed from another. Episodes whose only act is the sandbox act
+  are scored apart from the headline, and `--exact-matches` keeps only the pairs matched on
+  model and arm cell. The false-positive rate is split by whether a negative's scheming
+  keywords matched, because a monitor reading reasoning can flag intent an agent weighed and
+  did not act on. Failed calls are counted and left out, never scored as zero.
+
+**The monitor's instructions are encoded like the scenario.** How a monitor is told to look
+is the protocol a model trained on it would learn, so the instructions are held base64 in
+`monitoring/monitor.b64` with no decoded working copy (`python3 -m monitoring.bundle --list`
+reads it). Every result carries the fingerprints of that bundle and of the renderer, which
+`monitoring/monitor.pins.json` pins, and a pass refuses a bundle that no longer matches.
+
 ### Checking any benchmark for contamination
 
 `contamination_check.py` is not tied to this benchmark. Point `--documents` at a directory
@@ -509,12 +558,15 @@ subversionbench/     the package: one episode, the batch around it, and the
   reporting/         a batch of episodes to figures, a report and a summary
 report/              the fixed research questions across every model
 trends/              whether a rate falls as a model family advances
+monitoring/          the transcript-monitoring scenario: monitors scored on
+                     transcripts the other scenarios collected
 docs/                the companion documents linked above
 ```
 
-Three command-line entry points: `subversionbench` (collect and score episodes),
-`python3 -m report` (the cross-model questions), and `python3 -m trends` (the
-per-family version trends).
+Four command-line entry points: `subversionbench` (collect and score episodes),
+`python3 -m report` (the cross-model questions), `python3 -m trends` (the
+per-family version trends), and `python3 -m monitoring` (the transcript-monitoring
+scenario).
 
 **[docs/Layout.md](docs/Layout.md) lists every module and what it is for** - the
 full reference, checked by the test suite so it cannot drift from the files that
