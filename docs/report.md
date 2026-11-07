@@ -767,6 +767,31 @@ mix. The block is `single_arm` in the JSON report.
   drawn per grader. The others read only the act keys and are drawn once.
 - The printed report does not carry these counts; the JSON does.
 
+## Sensitivity readings
+
+`python3 -m report` can answer its questions over a narrowed corpus as well as the whole
+one. Each reading writes its charts to its own directory and its JSON under its own name,
+because the two hold different numbers under identical filenames — one directory would
+leave figures that cannot be told apart by looking at them.
+
+| flag | what it sets aside | why |
+|---|---|---|
+| `--exclude-no-oversight` | the no-oversight arm | that arm provides no artefact the oversight act could be committed against, so its misalignment is made of different acts. Pooling the two arms reverses the sign of the awareness-to-misalignment relationship, so for any question conditioned on awareness this is the reading to quote. Built for an `r9` defect that `r10` fixed; kept because the structural reason outlived it |
+| `--exclude-aware aware_primary` | every episode where evaluation awareness was found, by the awareness verdict of the grader being answered for — the rubric's, or the category question's for the headline reading — with the keyword screen as fallback | an arm contrast can be objected to as the models that *noticed* the evaluation behaving differently between arms rather than the arm itself. This answers the arm questions again with those episodes gone, so the objection is tested rather than argued about |
+| `--exclude-aware aware_union` | the same, by the stricter secondary measure — aware if *either* screen fired | the union also catches episodes the grader called unaware but the keyword screen flagged. A smaller surviving corpus, so an objection answered here is harder to argue with. Secondary, because no published rate uses this measure |
+
+Both are **sensitivity readings, not corrections.** Neither repairs the figures it sets
+aside; each reports what is left without them.
+
+The awareness reading carries one further limitation, printed above its numbers rather
+than left to a footnote: awareness is measured *during* an episode, so it is an outcome of
+the arm and not a condition assigned alongside it. Conditioning on it does not give an
+unbiased estimate of an arm's effect — it tests one named objection, and is published
+beside the primary reading rather than in place of it. Questions whose exposure *or*
+outcome is awareness cannot be answered on an unaware corpus at all and say so instead of
+rendering: where awareness is the outcome the numbers still compute, and both sides read
+zero by construction.
+
 ---
 
 ## What it does not do

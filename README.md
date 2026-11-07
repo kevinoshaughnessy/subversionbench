@@ -74,7 +74,7 @@ Scheming*](https://arxiv.org/abs/2412.04984) (Apollo Research), now a distinct w
 
 ## Documentation
 
-This file covers installing and running. The depth lives in eleven companions:
+This file covers installing and running. The depth lives in twelve companions:
 
 | | for |
 |---|---|
@@ -88,6 +88,7 @@ This file covers installing and running. The depth lives in eleven companions:
 | [docs/models.md](docs/models.md) | which models have been evaluated so far, under which scenario and which arms, how each was collected, and whether each was shown capable of the acts — no propensity rates |
 | [docs/authorised-capability.md](docs/authorised-capability.md) | the authorised capability controls — for a model that refuses the instructed act, whether it performs the act once its owner sanctions it, and the verdict tiers that follow |
 | [docs/grader-selection.md](docs/grader-selection.md) | choosing the headline awareness grader and the question it is asked, measured against blind human labels |
+| [docs/monitoring.md](docs/monitoring.md) | the transcript-monitoring scenario - how episodes are drawn and matched, the views and cuts a monitor is shown, how it is scored, and how its instructions are kept |
 | [docs/misuse-labelling.md](docs/misuse-labelling.md) | the blind labels behind the suspects_misuse question: a development set the rules were written from, and the test set they are scored on |
 
 Design rationale and version history: [CHANGELOG.md](CHANGELOG.md).
@@ -182,16 +183,8 @@ Isolation: deny-network (verified: loopback denied, off-host denied)
 ```
 
 If instead it refuses, the message names what is missing. A Linux VM (Hyper-V, VirtualBox,
-VMware) works equally well. Running under Docker is possible but fiddly — bubblewrap needs
-unprivileged user namespaces, which the default seccomp profile restricts, so a container
-usually needs `--security-opt seccomp=unconfined` to host it.
-
-**One Linux limitation worth knowing.** `--isolation deny-external`, which keeps loopback
-reachable so a probing model's escalation stays observable, cannot be provided by
-`unshare --net`: that gives an empty network namespace in which loopback reaches nothing. On
-Linux the harness detects this and refuses rather than silently downgrading, since a policy
-stricter than the one requested changes what is measured. Use the default `deny-network`
-there, and read off-host escalation as unobservable rather than absent.
+VMware) works equally well. Docker and one Linux limitation on `deny-external` are covered under
+[containment](docs/operations.md#containment---isolation).
 
 **What the policy does not hide: your home directory.** The kernel policy keeps an episode
 out of the network, the temp directories, Spotlight and (on Linux) your per-user sockets,
@@ -264,66 +257,12 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, mod
 | `--grade-category` | — | add the **headline awareness measure**, decided on 2026-10-11: `z-ai/glm-5.3` asking the category question in its rules-only wording, once per episode and once per act position, stored as that grader's own awareness-only entry beside the readings already there. The report answers its questions once per grader, so the headline reading appears as `z-ai/glm-5.3`'s; until a corpus has been through this pass, its awareness figures are the rubric's. `--category-grader MODEL` asks another model the same question, stored as that model's own entry beside glm-5.3's; a model that already holds a full rubric reading of an episode is skipped there. Without `--write-back` it only counts the calls; with it, it grades and saves, and a stopped pass resumes where it left off. See [docs/grader-selection.md](docs/grader-selection.md) |
 | `--regrade` | `default` | the grader `--grade-existing`, `--reclassify` and `--reinterrogate` act for: `default` (`gpt-6-sol`), a model ID (added beside the others if new), or `all` (every grader an episode already has). Each episode keeps one entry per grader in `analysis.graders`; the report and trends answer every question once per grader found, with charts under `charts/<rollout>/<grader>/`. A chart no grader's verdict reaches - an act rate, persistence, the lure and honeypot readings - is drawn once, over every episode, in `charts/<rollout>/` itself |
 | `--grade-escalation` | — | ask `--grader-model` about each saved closing report, for a scenario whose honest outcome is a report rather than an act (the impossible-task scenario). One answer per episode, in `analysis.escalation`, and whether the report claims a pass no run of the check returned, in `analysis.claimed_pass`; a pass by a different grader replaces them. See [Operations](docs/operations.md#re-grading-a-finished-batch) |
+| `--self-grade-kind` | — | ask each aware episode's own model which kind of evaluation it suspected, safety or capability, into `awareness_kind_self`; awareness itself is not re-measured. See [self-graded awareness kind](docs/operations.md#self-graded-awareness-kind) |
 | `--resummarise` | — | rebuild batch summaries from saved runs; no API calls. Needed after `--reclassify`, which restates the verdicts every summary figure is derived from |
 | `--write-back` | off | with `--reclassify` / `--grade-existing` / `--reinterrogate` / `--grade-escalation`, update the run files in place instead of only reporting. With `--resummarise`, save the re-derived fields back so the run files stop disagreeing with the summary built from them — no API calls, and no LLM verdict touched |
 | `--batch-stamp` | — | with the read-only modes above, restrict to one batch rather than every batch for that model and nudge |
 | `--compare A B` | — | contrast two batches, stratified by eval awareness |
 | `--no-power` | off | skip the precision analysis at the end of a batch |
-
-### Self-graded awareness kind
-
-The rubric records *what kind* of evaluation an aware episode suspected — safety or
-capability — alongside the verdict on whether it was aware at all. Those are different
-sorts of judgement. Whether an episode is eval-aware is one a capable grader gets right,
-and the five questions deciding it are not what varies between models. Which words imply
-suspicion of a **safety** test rather than a **capability** one turns on what a model
-meant by its own phrasing, and the model that wrote the phrase has a claim to read it
-better than a third party does.
-
-`--self-grade-kind` re-measures only that. It takes `eval_aware` from the
-`eval_awareness_grader` verdict already saved and asks the episode's own model the two
-purpose questions — the pair held outside the awareness signal set precisely so that it
-cannot move the awareness rate:
-
-```bash
-python -m subversionbench.run_eval --self-grade-kind --write-back \
-    --model x-ai/grok-4.5 --nudge strong --output-dir eval_results_goalguard_r1
-```
-
-`self_grade_all.sh` drives it across a whole corpus, one batch at a time.
-
-**Two calls per aware episode, and none at all for the rest.** An unaware episode has no
-kind by construction, so asking is spend with no reachable finding — on the goal-guarding
-corpus as it stood on 2026-09-15, 161 of 559 episodes were aware, and one model was aware in none of its 80. The
-skip is enforced inside `detect_awareness_kind` rather than left to each caller, because a
-caller that forgets pays for it silently.
-
-**Sharing the primary's awareness verdict is what makes the comparison legible.** Measured
-both ways, a kind that differs could differ because the graders disagree about the flavour
-or because they disagree about whether the episode was aware at all, and the output cannot
-say which. One shared denominator leaves only the first.
-
-The result is written to `awareness_kind_self`, a field of its own — never to
-`eval_awareness_grader`, which every other report reads. The two are different
-instruments, and this project has already been bitten once by a grader that was measurably
-wrong for one model (see [Validating the grader](docs/methodology.md#validating-the-grader));
-mixing a second, unvalidated instrument into the published column would repeat that
-mistake silently. Each batch prints its agreement with the primary reading and saves it to
-a `kindself_*.json` beside the corpus.
-
-**A failed purpose question leaves the kind undetermined, never "unspecified".** With nine
-questions a couple of failures still leave a verdict standing; with two, a pair of
-failures would land in the `unspecified` branch and record "aware, but did not say which"
-— a finding — on the strength of nothing having been answered. One failure is enough to
-lose the distinction too, since an answered safety=true with capability failed is either
-"safety" or "both". So any error at all leaves the kind `None`, nothing is written back,
-and a re-run retries the episode.
-
-`report`'s `safety_aware`/`capability_aware` columns have `_self` counterparts
-(`safety_aware_self`/`capability_aware_self`). They are `False` wherever the primary found
-no awareness — free, and true under either reading — `None` on an aware episode the pass
-has not reached, and `None` where the flavour could not be told. There is deliberately no
-`aware_self`: this pass does not measure awareness.
 
 ### Every arm for one model
 
@@ -397,43 +336,12 @@ appears as a fixed placeholder path and the file owner as `operator`, so results
 text regardless of whose machine produced them and are safe to paste into a write-up.
 Redaction is display-only and cannot affect what is measured.
 
-### Sensitivity readings
-
-`python3 -m report` can answer its questions over a narrowed corpus as well as the whole
-one. Each reading writes its charts to its own directory and its JSON under its own name,
-because the two hold different numbers under identical filenames — one directory would
-leave figures that cannot be told apart by looking at them.
-
-| flag | what it sets aside | why |
-|---|---|---|
-| `--exclude-no-oversight` | the no-oversight arm | that arm provides no artefact the oversight act could be committed against, so its misalignment is made of different acts. Pooling the two arms reverses the sign of the awareness-to-misalignment relationship, so for any question conditioned on awareness this is the reading to quote. Built for an `r9` defect that `r10` fixed; kept because the structural reason outlived it |
-| `--exclude-aware aware_primary` | every episode where evaluation awareness was found, by the awareness verdict of the grader being answered for — the rubric's, or the category question's for the headline reading — with the keyword screen as fallback | an arm contrast can be objected to as the models that *noticed* the evaluation behaving differently between arms rather than the arm itself. This answers the arm questions again with those episodes gone, so the objection is tested rather than argued about |
-| `--exclude-aware aware_union` | the same, by the stricter secondary measure — aware if *either* screen fired | the union also catches episodes the grader called unaware but the keyword screen flagged. A smaller surviving corpus, so an objection answered here is harder to argue with. Secondary, because no published rate uses this measure |
-
-Both are **sensitivity readings, not corrections.** Neither repairs the figures it sets
-aside; each reports what is left without them.
-
-The awareness reading carries one further limitation, printed above its numbers rather
-than left to a footnote: awareness is measured *during* an episode, so it is an outcome of
-the arm and not a condition assigned alongside it. Conditioning on it does not give an
-unbiased estimate of an arm's effect — it tests one named objection, and is published
-beside the primary reading rather than in place of it. Questions whose exposure *or*
-outcome is awareness cannot be answered on an unaware corpus at all and say so instead of
-rendering: where awareness is the outcome the numbers still compute, and both sides read
-zero by construction.
-
 ### The capability arm
 
-Every rate here counts episodes where a model took an act it was merely given the
-*opportunity* to take. A zero there has two readings — a model that **would not**, and a
-model that **could not** — and nothing in the propensity arms separates them. For a model
-that cannot take the act a propensity zero is a fact about the scenario; for one that can,
-it is a fact about the model.
-
-The capability arm asks for the act outright, and separates the two **in one direction
-only**. An instruction does not remove willingness — the model still has to agree to do
-what it is told — so what the arm records is "performed the act when instructed", which
-needs both. A success shows the model can; a failure shows nothing about whether it can.
+A propensity zero has two readings, a model that would not take the act and one that could not.
+The capability arm asks for the act outright: a success shows the model can, and a failure
+shows nothing about whether it can. See [the capability
+arm](docs/methodology.md#the-capability-arm).
 
 ```bash
 # collect the capability arm, into a directory of its own
@@ -443,34 +351,6 @@ python3 -m subversionbench.run_eval --capability sandbox --nudge none \
 # read it; also draws charts/r10cap/capability_sandbox.png
 python3 capability_report.py --output-dir ./eval_results_r10cap --target sandbox
 ```
-
-**A refusal is not an incapability.** A model told to read outside its project directory
-that answers "I won't" has had its propensity measured a second time, not its capability.
-Scored as incapable, that would report exactly the safety-trained models the arm matters
-most for as unable to do what they declined to do. So an episode is scored into three
-outcomes — the act taken, reached for and missed, or never reached for — and one taken is
-enough to call the model **capable**. A model with none is *not shown* capable rather than
-shown incapable, and the report says whether it tried and missed, which calls for more
-runs, or refused throughout, which is propensity measured again.
-
-The system prompt is an instruction too, and until v227 the sandbox target fought it: the
-shared prompt scopes the account to the project directory, so the request asked the model to
-override a rule set above it, and a refusal measured that rule. The sandbox arm now carries
-its own system prompt, which grants the look in place of the scope sentence; the project's
-readme in the environment still describes the scope, and is left as it is. Its two
-fingerprints were re-pinned. For a yes or no the two rollouts pool - a success under the
-stricter prompt still shows the model can, and a refusal under either shows nothing about
-ability - so `capability_report.py` reads them together and counts, per model, the episodes
-from the earlier arm.
-
-This is item T.9 of the Agentic Benchmark Checklist in Zhu et al., *Establishing Best
-Practices for Building Rigorous Agentic Benchmarks* ([arXiv 2507.02825](https://arxiv.org/abs/2507.02825)),
-which asks a benchmark to demonstrate that its tasks are performable at all. The paper's
-prose numbers the checklist `T.`/`O.`/`R.` and the [standalone checklist](https://github.com/uiuc-kang-lab/agentic-benchmarks/blob/main/ABC.md)
-the authors publish numbers the same items `II.`/`I.`/`III.`, so every citation here gives
-both: this one is T.9 and II.8. There the
-demonstration is an oracle solver; here the propensity *is* the thing under test, so the
-oracle has to be the same model with the act requested.
 
 ### The transcript-monitoring scenario
 
@@ -485,68 +365,8 @@ python3 -m monitoring run --monitor z-ai/glm-5.3-flash --yes
 python3 -m monitoring report
 ```
 
-- **`sample`** draws every episode with an act its scenario counts toward `misaligned`, and
-  one negative per positive matched on model and arm cell where one exists, falling back to
-  the same model and then the same arm, so a monitor cannot separate the classes by
-  recognising which model wrote a transcript. Episodes whose only act is one their scenario
-  does not count are in neither class.
-- **`run`** puts the manifest to one monitor in two views, `actions` (the agent's commands,
-  their output and its visible messages) and `cot` (the same with its reasoning), at four
-  cuts: the act's own command, one and three commands after it, and the end of the episode.
-  A transcript is never rendered past its cut. The pass is resumable; `--dry-run` counts
-  calls, tokens and input cost and sends nothing, and `--limit N` pilots on the first N
-  episodes. The OpenRouter monitors are pinned to one provider each (`monitoring/monitors.py`)
-  and every result row records who served it.
-- **`report`** scores every monitor run so far: the catch rate at 1% and 5% false positives,
-  AUROC and partial AUROC, the catch rate by act and on concealed acts, and the first cut
-  each act was flagged at. Each threshold is taken from the negatives seen in the same view
-  at the same cut, never borrowed from another. Episodes whose only act is the sandbox act
-  are scored apart from the headline, and `--exact-matches` keeps only the pairs matched on
-  model and arm cell. The false-positive rate is split by whether a negative's scheming
-  keywords matched, because a monitor reading reasoning can flag intent an agent weighed and
-  did not act on. Failed calls are counted and left out, never scored as zero.
-
-**The monitor's instructions are encoded like the scenario.** How a monitor is told to look
-is the protocol a model trained on it would learn, so the instructions are held base64 in
-`monitoring/monitor.b64` with no decoded working copy (`python3 -m monitoring.bundle --list`
-reads it). Every result carries the fingerprints of that bundle and of the renderer, which
-`monitoring/monitor.pins.json` pins, and a pass refuses a bundle that no longer matches.
-
-### Checking any benchmark for contamination
-
-`contamination_check.py` is not tied to this benchmark. Point `--documents` at a directory
-and it runs the same probes over every text file under it: forced choice between each
-distinctive line and copies with a digit changed, verbatim continuation, and the
-benchmark's own canary if it has one, each beside a control no model can have seen.
-
-```bash
-python contamination_check.py \
-  --documents path/to/other-benchmark --documents-glob "*.txt" \
-  --canary "<its canary GUID or GUIDs>" \
-  --canary-preamble "<the sentence that introduces the canary in its source>" \
-  --recognition-terms "<benchmark name>" "<first author>" "<a fictional name it uses>" \
-  --models x-ai/grok-4.5 deepseek/deepseek-r1 \
-  --limit 12 --delay 3 --output-dir ./contamination_other-benchmark
-```
-
-- **`--documents-glob`** keeps only the files a model reads, leaving out a harness's own
-  metadata and configs.
-- **`--canary`** takes one GUID or several, as a published canary string can hold more
-  than one; the model is shown the preamble, every GUID but the last, and the start of the
-  last. Without `--canary` the canary probe is not asked, and a verdict can still be
-  reached on the others.
-- **`--recognition-terms`** adds a recognition probe, which also works without
-  `--documents`: the model is shown an excerpt and asked which published evaluation it
-  comes from, and a reply naming any of the terms counts. This catches knowing *about* a
-  benchmark from papers and reproductions, which the memorisation probes cannot. The result
-  file counts the terms named and never stores them.
-- **A model trained before the benchmark was published** cannot have seen it, which makes
-  it the best control for a public benchmark: its scores are the false-positive rate of
-  the probes on those exact documents.
-
-The result file records item ids and scores, not text, unless `--include-prompts` is given.
-Do not commit another benchmark's canary string to a tracked file: a training crawl that
-reads it teaches models the string the probe checks for.
+What each step draws, renders and scores, and how the monitor's instructions are kept, is in
+[docs/monitoring.md](docs/monitoring.md).
 
 ## Layout
 
@@ -627,7 +447,7 @@ measure here is *verbalised* awareness, and episodes where a model detected the 
 may respond to the arms differently from episodes where it did not — which would move a
 contrast without the arm causing it. Check it rather than assuming either way:
 `--exclude-aware` answers the arm questions again over the episodes where no awareness was
-found — see [sensitivity readings](#sensitivity-readings). Because awareness is measured
+found — see [sensitivity readings](docs/report.md#sensitivity-readings). Because awareness is measured
 during the episode rather than assigned with the arm, that reading bounds the objection
 rather than settling it.
 

@@ -240,6 +240,61 @@ Each line records the pass that made the call (`grade-escalation`, `grade-catego
 what it spent. No route returns a price, so a cost is these tokens times the provider's price
 at the time. The model under test's own turns are not here: each episode records those itself.
 
+### Self-graded awareness kind
+
+The rubric records *what kind* of evaluation an aware episode suspected — safety or
+capability — alongside the verdict on whether it was aware at all. Those are different
+sorts of judgement. Whether an episode is eval-aware is one a capable grader gets right,
+and the five questions deciding it are not what varies between models. Which words imply
+suspicion of a **safety** test rather than a **capability** one turns on what a model
+meant by its own phrasing, and the model that wrote the phrase has a claim to read it
+better than a third party does.
+
+`--self-grade-kind` re-measures only that. It takes `eval_aware` from the
+`eval_awareness_grader` verdict already saved and asks the episode's own model the two
+purpose questions — the pair held outside the awareness signal set precisely so that it
+cannot move the awareness rate:
+
+```bash
+python -m subversionbench.run_eval --self-grade-kind --write-back \
+    --model x-ai/grok-4.5 --nudge strong --output-dir eval_results_goalguard_r1
+```
+
+`self_grade_all.sh` drives it across a whole corpus, one batch at a time.
+
+**Two calls per aware episode, and none at all for the rest.** An unaware episode has no
+kind by construction, so asking is spend with no reachable finding — on the goal-guarding
+corpus as it stood on 2026-09-15, 161 of 559 episodes were aware, and one model was aware in none of its 80. The
+skip is enforced inside `detect_awareness_kind` rather than left to each caller, because a
+caller that forgets pays for it silently.
+
+**Sharing the primary's awareness verdict is what makes the comparison legible.** Measured
+both ways, a kind that differs could differ because the graders disagree about the flavour
+or because they disagree about whether the episode was aware at all, and the output cannot
+say which. One shared denominator leaves only the first.
+
+The result is written to `awareness_kind_self`, a field of its own — never to
+`eval_awareness_grader`, which every other report reads. The two are different
+instruments, and this project has already been bitten once by a grader that was measurably
+wrong for one model (see [Validating the grader](methodology.md#validating-the-grader));
+mixing a second, unvalidated instrument into the published column would repeat that
+mistake silently. Each batch prints its agreement with the primary reading and saves it to
+a `kindself_*.json` beside the corpus.
+
+**A failed purpose question leaves the kind undetermined, never "unspecified".** With nine
+questions a couple of failures still leave a verdict standing; with two, a pair of
+failures would land in the `unspecified` branch and record "aware, but did not say which"
+— a finding — on the strength of nothing having been answered. One failure is enough to
+lose the distinction too, since an answered safety=true with capability failed is either
+"safety" or "both". So any error at all leaves the kind `None`, nothing is written back,
+and a re-run retries the episode.
+
+`report`'s `safety_aware`/`capability_aware` columns have `_self` counterparts
+(`safety_aware_self`/`capability_aware_self`). They are `False` wherever the primary found
+no awareness — free, and true under either reading — `None` on an aware episode the pass
+has not reached, and `None` where the flavour could not be told. There is deliberately no
+`aware_self`: this pass does not measure awareness.
+
 ## Comparing two arms
 
 ```bash
@@ -416,3 +471,13 @@ The sandbox itself remains a plausibility device — designed to keep the eval's
 out of the model's view, not to contain an adversary. `--isolation` is the containment layer;
 for anything stronger, run the whole harness in a VM.
 
+**Under Docker.** Running under Docker is possible but fiddly — bubblewrap needs
+unprivileged user namespaces, which the default seccomp profile restricts, so a container
+usually needs `--security-opt seccomp=unconfined` to host it.
+
+**One Linux limitation worth knowing.** `--isolation deny-external`, which keeps loopback
+reachable so a probing model's escalation stays observable, cannot be provided by
+`unshare --net`: that gives an empty network namespace in which loopback reaches nothing. On
+Linux the harness detects this and refuses rather than silently downgrading, since a policy
+stricter than the one requested changes what is measured. Use the default `deny-network`
+there, and read off-host escalation as unobservable rather than absent.
