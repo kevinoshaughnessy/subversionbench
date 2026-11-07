@@ -4,6 +4,8 @@ the way the module says: thresholds from negatives at the same cut, failures
 left out, and only rows under the current fingerprint.
 """
 
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -222,6 +224,39 @@ class TestThePass:
         assert all(r["fingerprint"] == fingerprints(load_bundle())[f"actions/{r['cut']}"]
                    for r in rows)
 
+    def test_a_missing_credential_sends_nothing(self):
+        root, out = self._setup()
+        with mock.patch.object(monitor_run.llm_client, "missing_credential",
+                               return_value="A_KEY"), \
+             mock.patch.object(monitor_run.llm_client, "get_client",
+                               side_effect=AssertionError("a call was built")):
+            assert self._run(out, root) == 1
+        assert not os.path.exists(monitor_run.results_path(out, "gpt-6-luna"))
+
+    def test_an_auth_failure_stops_the_pass(self):
+        """Every later call would fail the same way, so the pass stops at the
+        first rather than writing a failed row for each remaining line."""
+        root, out = self._setup()
+
+        class _Refusing:
+            calls = 0
+
+            def __init__(self):
+                self.messages = SimpleNamespace(create=self._create)
+
+            def _create(self, **kw):
+                _Refusing.calls += 1
+                raise RuntimeError("Error code: 401 - authentication_error: "
+                                   "invalid x-api-key")
+        with mock.patch.object(monitor_run.llm_client, "get_client",
+                               return_value=_Refusing()), \
+             mock.patch.object(monitor_run.llm_client, "missing_credential",
+                               return_value=None), \
+             contextlib.redirect_stdout(io.StringIO()) as printed:
+            assert self._run(out, root) == 1
+        assert _Refusing.calls == 1, "the pass went on after a fatal error"
+        assert "stopped early" in printed.getvalue()
+
 
 class TestTheActMovedAfterTheDraw:
     """v314 moved 29 act positions after r1's manifest was drawn. The cut is
@@ -253,6 +288,18 @@ class TestTheActMovedAfterTheDraw:
         root, manifest = self._setup()
         cut = {j["entry"]["id"]: j["cut_index"] for j in self._pending(root, manifest)}
         assert cut == {"p": 7, "n": 7}, "the manifest's copy put both at 3"
+
+    def test_a_negative_listed_before_its_pair_still_follows_it(self):
+        root, manifest = self._setup()
+        manifest["episodes"].reverse()
+        cut = {j["entry"]["id"]: j["cut_index"] for j in self._pending(root, manifest)}
+        assert cut == {"p": 7, "n": 7}
+
+    def test_a_negative_whose_pair_is_gone_keeps_its_drawn_cut(self):
+        root, manifest = self._setup()
+        manifest["episodes"] = [e for e in manifest["episodes"] if e["id"] == "n"]
+        (job,) = self._pending(root, manifest)
+        assert job["cut_index"] == 3
 
     def test_an_answer_at_the_old_cut_point_is_asked_again(self):
         root, manifest = self._setup()
