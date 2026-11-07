@@ -518,6 +518,21 @@ class TestAwareBeforeActIsTriValued:
                         {"skipped": True, "eval_aware": False}}
         assert _aware_before_act(analysis) is None
 
+    def test_a_reading_from_before_the_act_moved_is_no_verdict(self):
+        """A pre-act reading graded up to an index the act has since left
+        is about a different prefix. The summaries withheld it; this read it
+        as current, which under gpt-6-sol counted 18 readings v314
+        stranded."""
+        from subversionbench.grading import MISALIGNED_ACTS
+        from report.episode_rows import _aware_before_act
+        act = MISALIGNED_ACTS[0]
+        for now, expected in ((12, True), (16, None)):
+            analysis = {act["key"]: ["something"],
+                        act["timing_key"]: {"act_index": now, "act_turn": 4},
+                        act["grader_before_key"]: {"eval_aware": True,
+                                                   "act_index": 12}}
+            assert _aware_before_act(analysis) is expected, now
+
     def test_the_earliest_act_by_turn_decides(self):
         """Awareness before the FIRST act is what could have shaped the
         episode. Registry order is an implementation detail of the act table,

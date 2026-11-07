@@ -33,7 +33,9 @@ action under review, and the monitoring scenario's act cuts. `--resummarise --wr
 re-derives the timing fields; the grader and suspicion readings already made on the earlier
 prefix are left as they are and need asking again. `--grade-category` now asks them: a stored
 pre-act reading counts as done only if it was read up to where the act now is, where before
-any stored reading was kept, so a superseded one could never be replaced.
+any stored reading was kept, so a superseded one could never be replaced. The report's
+pre-act reading (`report/episode_rows._aware_before_act`) now withholds a superseded reading
+as the summaries already did; under the headline grader none is superseded.
 
 ## v313
 
