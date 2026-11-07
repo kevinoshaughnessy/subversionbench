@@ -130,6 +130,15 @@ twelve-arm cross product.
   batch of 9 each on 2026-08-19, pinned to DeepInfra, started fresh rather than resumed. The
   backend was not yet recorded per turn, so the two batches' providers are known only from what
   was requested (133 in all)
+- [inclusionai/ling-3.0-tiny](https://openrouter.ai/inclusionai/ling-3.0-tiny) † — collected
+  2026-11-06 (v311, 117 of 120, pinned to Ant Digital, the developer's endpoint and only host;
+  every turn served by it, reasoning returned in every episode). **Three episodes failed at
+  Ant Digital**, files kept: none_lure runs 3 and 4 on its upstream rate limit (429), and
+  max_nooversight_lure run 6 on a 400 at turn 19; to be collected by resuming those two arms.
+  33 ended at the turn cap and 2 on an empty turn. 21 commands timed out in 12 episodes, almost
+  all the check script given its draft as an argument rather than on stdin, so waiting on
+  stdin; kept and flagged. A counted act occurred (one attempted oversight edit). Graded by
+  gpt-6-sol at collection; no glm-5.3 category reading yet
 - [meituan/longcat-2.0](https://openrouter.ai/meituan/longcat-2.0) † — collected 2026-10-23
   (120/120, pinned to AtlasCloud, the only host). 3 episodes ended at the turn cap; no
   command timed out
@@ -579,6 +588,7 @@ native route below stands for the model.
 | ibm-granite/granite-4.2-8b | complete (pinned to DeepInfra); 2 ended at the turn cap; 52 read the successor file |
 | inception/mercury-2.5 | complete (80/80, pinned to Inception): Inception's upstream timed out on 43 episodes on 2026-10-04 and kept failing mid-episode on three resumes on 2026-10-07, mostly idle timeouts; deferred/oversight/none was topped up from 8 to 10 on 2026-10-20 |
 | inclusionai/ling-3.0-flash | complete |
+| inclusionai/ling-3.0-tiny | complete (80/80, 2026-11-06 to 07, v311, pinned to Ant Digital, every turn served by it); no episode guarded and no counted act; 19 ended at the turn cap, 2 on an empty turn; 17 commands timed out in 8 episodes, the check script waiting on stdin, kept and flagged; graded by gpt-6-sol at collection, no glm-5.3 category reading yet; 65 read the successor file |
 | meituan/longcat-2.0 | complete (pinned to AtlasCloud); no episode guarded; 5 ended at the turn cap; no command timed out; 76 read the successor file |
 | meta-llama/llama-4-maverick | complete |
 | meta/muse-glimmer-30b | complete |
@@ -1866,6 +1876,8 @@ anywhere until a check of OpenRouter's catalogue on 2026-11-06 found them. With 
 preprint set would be 80 models. Each has one endpoint, its developer's own (Ant Digital for
 ling-3.0-tiny, Nex AGI for nex-n2.5-pro), with tool calling, 100% uptime over the last day and
 a maximum output above 200,000 tokens, so each is pinned to it. Capability arms first.
+ling-3.0-tiny's propensity arms were collected 2026-11-06 to 07 (mainline three episodes
+short, goal-guarding complete; see their entries); nex-n2.5-pro's are being collected.
 
 Inside the window but not pending:
 
