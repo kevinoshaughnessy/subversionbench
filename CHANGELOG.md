@@ -31,7 +31,9 @@ the act's step and turn, the awareness timing and read-to-act gap measured again
 anything cut at the act: the pre-act awareness grader's prefix, the suspicion questions'
 action under review, and the monitoring scenario's act cuts. `--resummarise --write-back`
 re-derives the timing fields; the grader and suspicion readings already made on the earlier
-prefix are left as they are and need asking again.
+prefix are left as they are and need asking again. `--grade-category` now asks them: a stored
+pre-act reading counts as done only if it was read up to where the act now is, where before
+any stored reading was kept, so a superseded one could never be replaced.
 
 ## v313
 
