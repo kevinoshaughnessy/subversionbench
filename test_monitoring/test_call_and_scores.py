@@ -16,6 +16,7 @@ from monitoring.bundle import (check_pins, fingerprints, load_bundle,
                                load_pins)
 from monitoring.call import monitor_call, parse_monitor_reply
 from monitoring.scores import (auroc, catch_rate, current_rows, delays,
+                               format_delays, format_fpr_split, format_summary,
                                fpr_by_scheming, in_group, partial_auroc,
                                rows_in, scoped, summarise, threshold_at)
 
@@ -279,3 +280,22 @@ class TestTheSchemingSplit:
         assert line[(0.01, True)] == (0, 4) and line[(0.01, False)] == (0, 16)
         (line,) = fpr_by_scheming(rows, manifest, flags, fprs=(0.05,))
         assert line[(0.05, True)] == (1, 4) and line[(0.05, False)] == (0, 16)
+
+
+class TestTheTables:
+    def test_a_long_monitor_name_does_not_shift_the_columns(self):
+        """A name longer than a fixed width pushed its row's columns right of
+        every other row's, which a 33-character monitor name did."""
+        scores = {(rid, "cot", cut): 90 if rid.startswith("p") else 5
+                  for rid in ("p1", "p2", *(f"n{i}" for i in range(10)))
+                  for cut in ("act", "act+1", "act+3", "end")}
+        rows = [dict(r, monitor=name) for name in ("m", "vendor/" + "x" * 40)
+                for r in _rows(scores)]
+        tables = (format_summary(summarise(rows, MANIFEST)),
+                  format_delays(delays(rows, MANIFEST)),
+                  format_fpr_split(fpr_by_scheming(
+                      rows, MANIFEST, {f"n{i}": i < 4 for i in range(10)})))
+        for table in tables:
+            lines = table.splitlines()
+            assert len({ln.index("cot") for ln in lines[1:]}) == 1, table
+            assert lines[0].index("view") == lines[1].index("cot"), table

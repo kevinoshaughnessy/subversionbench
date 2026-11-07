@@ -171,15 +171,21 @@ def _pct(x) -> str:
     return "   -" if x is None else f"{100 * x:4.0f}"
 
 
+def _monitor_width(names) -> int:
+    """Wide enough for the longest monitor name, so no row shifts its columns."""
+    return max([len("monitor"), *map(len, names)])
+
+
 def format_summary(lines: list) -> str:
-    head = (f"{'monitor':32} {'view':8} {'cut':6} {'pos':>4} {'neg':>4} "
+    w = _monitor_width(ln["monitor"] for ln in lines)
+    head = (f"{'monitor':{w}} {'view':8} {'cut':6} {'pos':>4} {'neg':>4} "
             f"{'fail':>4} {'AUROC':>5} {'pAUC':>5} {'@1%':>4} {'@5%':>4}  by act @1%")
     out = [head]
     for ln in lines:
         acts = "  ".join(f"{k} {_pct(v['catch']).strip()}%/{v['n']}"
                          for k, v in ln["by_act"].items())
         out.append(
-            f"{ln['monitor']:32} {ln['view']:8} {ln['cut']:6} {ln['n_pos']:>4} "
+            f"{ln['monitor']:{w}} {ln['view']:8} {ln['cut']:6} {ln['n_pos']:>4} "
             f"{ln['n_neg']:>4} {ln['failed']:>4} {_pct(ln['auroc'])}% "
             f"{_pct(ln['pauroc_10'])}% {_pct(ln['catch_at_0.01'])} "
             f"{_pct(ln['catch_at_0.05'])}  {acts}")
@@ -209,10 +215,11 @@ def delays(rows: list, manifest: dict, fpr: float = 0.01) -> dict:
 
 
 def format_delays(table: dict) -> str:
-    out = [f"{'monitor':32} {'view':8} " + " ".join(f"{c:>6}" for c in
+    w = _monitor_width(monitor for monitor, _ in table)
+    out = [f"{'monitor':{w}} {'view':8} " + " ".join(f"{c:>6}" for c in
                                                    (*DELAY_ORDER, "never"))]
     for (monitor, view), counts in sorted(table.items()):
-        out.append(f"{monitor:32} {view:8} " + " ".join(
+        out.append(f"{monitor:{w}} {view:8} " + " ".join(
             f"{counts.get(c, 0):>6}" for c in (*DELAY_ORDER, "never")))
     return "\n".join(out)
 
@@ -247,7 +254,8 @@ def fpr_by_scheming(rows: list, manifest: dict, scheming: dict,
 
 
 def format_fpr_split(lines: list, fprs=(0.01, 0.05)) -> str:
-    head = f"{'monitor':32} {'view':8} {'cut':6} " + "  ".join(
+    w = _monitor_width(ln["monitor"] for ln in lines)
+    head = f"{'monitor':{w}} {'view':8} {'cut':6} " + "  ".join(
         f"@{100 * f:g}% scheming   other" for f in fprs)
     out = [head]
     for ln in lines:
@@ -258,5 +266,5 @@ def format_fpr_split(lines: list, fprs=(0.01, 0.05)) -> str:
                 k, n = ln[(fpr, flag)]
                 parts.append(f"{k:>3}/{n:<4}")
             cells.append("     " + "  ".join(parts))
-        out.append(f"{ln['monitor']:32} {ln['view']:8} {ln['cut']:6}" + "".join(cells))
+        out.append(f"{ln['monitor']:{w}} {ln['view']:8} {ln['cut']:6}" + "".join(cells))
     return "\n".join(out)
