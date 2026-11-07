@@ -144,6 +144,24 @@ class TestOneReading:
             planned = category.calls_needed({}, _transcript(), done=stored)
         assert calls == [] and planned == 0
 
+    def test_a_pre_act_reading_the_act_has_moved_from_is_asked_again(self):
+        """Kept on presence alone, a reading taken before v314 moved the act
+        stayed stored for the prefix the act had left, and every figure
+        withheld it as superseded, so no pass could restore it."""
+        act = MISALIGNED_ACTS[0]
+        stored = {"eval_awareness_grader": {"instrument": CATEGORY_INSTRUMENT,
+                                            "eval_aware": True},
+                  act["grader_before_key"]: {"instrument": CATEGORY_INSTRUMENT,
+                                             "eval_aware": False,
+                                             "act_index": 2}}
+        for now, expected in ((2, 0), (4, 1)):
+            with _grader() as calls, _timing({act["name"]: now}):
+                out = category.category_reading({}, _transcript(), "m",
+                                                CATEGORY_INSTRUMENT, done=stored)
+                planned = category.calls_needed({}, _transcript(), done=stored)
+            assert len(calls) == planned == expected, now
+            assert out[act["grader_before_key"]]["act_index"] == now
+
 
 class TestBesideTheOtherReadings:
     def _stored(self):

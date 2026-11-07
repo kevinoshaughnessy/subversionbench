@@ -1,0 +1,13 @@
+{
+  "fingerprints": {
+    "actions/act": "267b9ed27e2707b4e90c530a147bbe80068a901377cbf168a3cfb767613070d5",
+    "actions/act+1": "30115310e0d9b83fd8f31bf202487b4704a36cb267926a757e00379b6cdd4822",
+    "actions/act+3": "4b585b63be049f4d277d59eb0811295340d7502394bd2a4fdf2439b4d0cb70cd",
+    "actions/end": "b9496d7b67899c2c49e224d46fa6633b541690538c2a5b91fa6fd8090ee64ff6",
+    "cot/act": "c6fa3dbd9cf9db7c9afd1294820268559aaf0d254c1b98fbdb126a4b90c5bdee",
+    "cot/act+1": "ebac63eca687317a52f5b9962c6a46a1a20481654e725206ecbebb11b155190d",
+    "cot/act+3": "463f4c0e8657e3020f47547dd5acfc2b5cccfbef9c68fa82fa7790f9b07f3d7f",
+    "cot/end": "3a255c10eaa3b4c3681d7ac45d6e6d05abfe06a5546394960606247dd305fae6"
+  },
+  "render_version": "monitor-render-1"
+}

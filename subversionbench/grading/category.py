@@ -224,6 +224,15 @@ def awareness_block(corpus: str, model: str, instrument: str,
     }
 
 
+def _still_current(block, act_index) -> bool:
+    """Whether a stored pre-act block was read up to where the act now is.
+    A block read at an index the act has since left answers a question about
+    a different prefix - reporting.facts.awareness.pre_act_record_is_superseded
+    withholds it from every figure - so it is asked again, not kept. v314
+    moved 29 act positions and left 28 of this grader's readings behind."""
+    return bool(block) and block.get("act_index") == act_index
+
+
 def category_reading(analysis: dict, transcript: list, model: str,
                      instrument: str, client=None, done: dict = None) -> dict:
     """Every awareness key one grader's category reading fills, by flat key.
@@ -253,7 +262,7 @@ def category_reading(analysis: dict, transcript: list, model: str,
             out[key] = {"skipped": True,
                         "reason": f"act not located: {timing['timing']}"}
             continue
-        if done.get(key):
+        if _still_current(done.get(key), index):
             out[key] = done[key]
             continue
         if index not in asked:
@@ -274,6 +283,7 @@ def calls_needed(analysis: dict, transcript: list, done: dict = None) -> int:
     indices = set()
     for act in MISALIGNED_ACTS:
         index = awareness_timing(transcript, analysis, act)["act_index"]
-        if index is not None and not done.get(act["grader_before_key"]):
+        if index is not None and not _still_current(
+                done.get(act["grader_before_key"]), index):
             indices.add(index)
     return n + len(indices)

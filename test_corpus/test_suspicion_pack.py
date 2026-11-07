@@ -125,3 +125,35 @@ def test_a_pack_holding_labels_is_not_overwritten():
     rows.assert_not_called()
     with open(os.path.join(dest, "labels.jsonl"), encoding="utf-8") as f:
         assert "for" in f.read()
+
+
+def test_a_pack_is_drawn_balanced_and_the_rater_never_sees_the_stratum():
+    """End to end from the rows to the files: the draw is balanced on the
+    stratum, the key holds what joins a label back to its episode, and nothing
+    the rater opens says which side of the stratum an item is on."""
+    from grader_ab.blind_pack import TEXT_KEY
+    rows = [("mainline", _row(m, True, i % 2 == 0, run=f"run_{m}_{i}.json"))
+            for m in "abcd" for i in range(6)]
+
+    def candidate(question, scenario, row):
+        return {"run": row["run_file"], "model": row["model"],
+                "acted": bool(row["misaligned"]),
+                TEXT_KEY: f"transcript text of episode {row['model']}"}
+    dest = os.path.join(tempfile.mkdtemp(), "pack")
+    argv = ["suspicion_pack", "framing", "--n", "8", "--seed", "3",
+            "--per-model", "2", "--dest", dest]
+    with mock.patch.object(sys, "argv", argv), \
+            mock.patch.object(suspicion_pack, "snapshot_rows", return_value=rows), \
+            mock.patch.object(suspicion_pack, "candidate", candidate), \
+            contextlib.redirect_stdout(io.StringIO()) as out:
+        assert suspicion_pack.main() == 0
+    assert "acted=False 4, acted=True 4" in out.getvalue()
+    with open(os.path.join(dest, "key.SEALED.json"), encoding="utf-8") as f:
+        key = json.load(f)
+    assert len(json.dumps(key).split("run_")) - 1 >= 8, "the key cannot join labels back"
+    seen = [n for n in os.listdir(dest) if n != "key.SEALED.json"]
+    assert seen, "no pack was written"
+    for name in seen:
+        with open(os.path.join(dest, name), encoding="utf-8") as f:
+            body = f.read()
+        assert "acted" not in body and "run_" not in body, name

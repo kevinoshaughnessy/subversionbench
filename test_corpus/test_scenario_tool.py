@@ -28,6 +28,7 @@ import json
 import sys
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -335,3 +336,66 @@ class TestItRefusesWhenAnotherBundleIsSelected:
         that refused unconditionally."""
         with _Tool() as tool:
             assert tool.run("--list") == 0
+
+
+class TestPin:
+    """--pin fills a --bundle's sidecar with the fingerprints the bundle
+    assembles to. Run on a scratch copy of a committed bundle, it must
+    reproduce the committed pins exactly: anything else means --pin and the
+    harness disagree about what a bundle's identity is."""
+
+    _NAME = "impossible"
+
+    def _copy(self):
+        src = Path(scenario_tool.__file__).resolve().parent / "subversionbench" / "scenarios"
+        scratch = Path(tempfile.mkdtemp())
+        for suffix in (".b64", scenario_tool.SIDECAR_SUFFIX):
+            (scratch / (self._NAME + suffix)).write_bytes(
+                (src / (self._NAME + suffix)).read_bytes())
+        return scratch / (self._NAME + ".b64"), src / (self._NAME + scenario_tool.SIDECAR_SUFFIX)
+
+    def _pin(self, bundle):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = scenario_tool._pin(bundle)
+        return code, buf.getvalue()
+
+    @staticmethod
+    def _tables(sidecar: dict) -> dict:
+        return {k: sorted(json.dumps(r, sort_keys=True) for r in sidecar[k])
+                for k in ("fingerprints", "variant_fingerprints",
+                          "capability_fingerprints")}
+
+    def test_repinning_a_committed_bundle_reproduces_its_pins(self):
+        bundle, committed = self._copy()
+        sidecar = bundle.with_suffix(scenario_tool.SIDECAR_SUFFIX)
+        sidecar.write_text(json.dumps({
+            k: v for k, v in json.loads(committed.read_text(encoding="utf-8")).items()
+            if not k.endswith("fingerprints")}), encoding="utf-8")
+        code, out = self._pin(bundle)
+        assert code == 0, out
+        assert self._tables(json.loads(sidecar.read_text(encoding="utf-8"))) == \
+            self._tables(json.loads(committed.read_text(encoding="utf-8")))
+
+    def test_a_pin_equal_to_the_shipped_scenarios_is_refused(self):
+        bundle, committed = self._copy()
+        sidecar = bundle.with_suffix(scenario_tool.SIDECAR_SUFFIX)
+        before = sidecar.read_text(encoding="utf-8")
+        clash = json.loads(committed.read_text(encoding="utf-8"))["fingerprints"][0]["fingerprint"]
+        from subversionbench import rollout_pins
+        with mock.patch.object(rollout_pins, "ROLLOUT_FINGERPRINTS",
+                               {**rollout_pins.ROLLOUT_FINGERPRINTS, ("clash",): clash}):
+            code, out = self._pin(bundle)
+        assert code == 1 and "Refusing to pin" in out
+        assert sidecar.read_text(encoding="utf-8") == before, "a refused pin wrote"
+
+    def test_a_bundle_without_a_sidecar_is_refused(self):
+        bundle, _ = self._copy()
+        bundle.with_suffix(scenario_tool.SIDECAR_SUFFIX).unlink()
+        code, out = self._pin(bundle)
+        assert code == 1 and "by hand first" in out
+
+    def test_the_shipped_scenario_cannot_be_pinned(self):
+        with _Tool() as tool:
+            assert tool.run("--pin") == 1
+            assert "rollout_pins.py" in tool.out

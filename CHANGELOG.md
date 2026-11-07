@@ -16,6 +16,79 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v314
+
+**An artefact act is placed at the command its own detector found.** `first_act_position`
+took the first command that named an artefact and wrote any file, so a draft written to a
+temp file and piped to the check script was read as the act, and so were a read, a block of
+comments and an editor that timed out. Every act moved was moved earlier than it happened.
+The oversight and goal-guarding acts are now placed at the first aimed write in their
+detector's detail (`attempt_index`), the same detector that decides the act's form; the old
+rule stays as the fallback for an act the detector cannot see being made.
+
+Whether an act happened and its form are unchanged. What moves for the affected episodes is
+the act's step and turn, the awareness timing and read-to-act gap measured against it, and
+anything cut at the act: the pre-act awareness grader's prefix, the suspicion questions'
+action under review, and the monitoring scenario's act cuts. `--resummarise --write-back`
+re-derives the timing fields; the grader and suspicion readings already made on the earlier
+prefix are left as they are and need asking again. `--grade-category` now asks them: a stored
+pre-act reading counts as done only if it was read up to where the act now is, where before
+any stored reading was kept, so a superseded one could never be replaced. The report's
+pre-act reading (`report/episode_rows._aware_before_act`) now withholds a superseded reading
+as the summaries already did; under the headline grader none is superseded.
+
+## v313
+
+**The transcript-monitoring scenario** (`monitoring/`, run as `python3 -m monitoring`). The
+model under evaluation is a monitor: it is shown transcripts the other scenarios collected
+and asked how suspicious the agent's conduct was and at which step it first went wrong, and
+it is scored against the detector's verdict and the step the detector located the act at.
+Each collected scenario is an arm of it (`monitoring/arms.py`); mainline r10 and goal-guarding
+r1 are the two so far, and a new scenario becomes an arm by adding its corpus there.
+
+- `sample` draws every episode with an act its scenario counts toward `misaligned`, and one
+  negative per positive from the same model and arm cell where one exists, then the same
+  model, then the arm, so a monitor cannot separate the classes by recognising a model.
+  Episodes with only an act their scenario does not count are in neither class.
+- `run` puts the manifest to one monitor in two views (actions only, and with the agent's
+  reasoning) at four cuts (the act's own command, one and three commands after it, the end),
+  resumably, with a free `--dry-run` that counts calls, tokens and input cost.
+- `report` gives the catch rate at 1% and 5% false positives, each threshold taken from the
+  negatives seen in the same view at the same cut, AUROC and partial AUROC, the catch rate by
+  act and on concealed acts, and the first cut each act was flagged at. Episodes whose only
+  act is the sandbox act are scored apart from the headline: most are a listing of the
+  parent directory, and pooled they would read as a monitor failing on a weak construct.
+  `--exact-matches` keeps only the pairs matched on model and arm cell. The negatives'
+  false-positive rate is split by whether their scheming keywords matched, because a
+  reasoning-reading monitor flags intent an agent weighed and did not act on, which
+  action-based labels count as a false positive.
+- The monitor's instructions are base64-encoded in `monitoring/monitor.b64`, with no decoded
+  working copy, and every result carries the fingerprint of the bundle and the renderer;
+  `monitoring/monitor.pins.json` pins them, and a pass refuses a bundle that no longer matches.
+
+**claude-haiku-5-5 has a reasoning surface**: adaptive, able to disable thinking only at effort
+`high` or below, as Opus 5. Priced as a monitor, it became a grader model, and the guard
+that a grader model names its own surface caught it falling through to the default.
+
+**Monitor prices** for claude-haiku-5-5, gemini-3.8-flash, glm-5.3-flash and
+deepseek-v4.1-flash-1017 in `grader_ab/prices.py`.
+
+## v312
+
+**Release dates brought up to 2026-11-05** in `model_releases.py`, each model's OpenRouter
+listing date, so models listed after the last selection window can be placed on the trend
+charts and chosen for work outside the preprint. The additions are every model listed from
+2026-09-28 to 2026-11-05 with text output, tool calling and at least 32,768 output tokens,
+leaving out variants, aliases, routers, free-only listings and anonymous models, plus two
+models inside the earlier window that nothing recorded: inclusionai/ling-3.0-tiny and
+nex-agi/nex-n2.5-pro. Anthropic and OpenAI models are keyed by their native IDs, the route
+the harness calls, as their earlier entries are.
+
+**tencent/hy4 is recorded as a second known inversion** between version order and release
+date: the parser reads `preview` as a later stage, so hy4 sorts before hy4-preview, though it
+was listed after it. As with kimi-k2-thinking, the parse is wrong and is recorded rather
+than corrected, since reordering a family would change what `--metric` trends report.
+
 ## v311
 
 **A tool call with no command is told so.** The harness ran the empty string and answered
