@@ -16,6 +16,23 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v314
+
+**An artefact act is placed at the command its own detector found.** `first_act_position`
+took the first command that named an artefact and wrote any file, so a draft written to a
+temp file and piped to the check script was read as the act, and so were a read, a block of
+comments and an editor that timed out. Every act moved was moved earlier than it happened.
+The oversight and goal-guarding acts are now placed at the first aimed write in their
+detector's detail (`attempt_index`), the same detector that decides the act's form; the old
+rule stays as the fallback for an act the detector cannot see being made.
+
+Whether an act happened and its form are unchanged. What moves for the affected episodes is
+the act's step and turn, the awareness timing and read-to-act gap measured against it, and
+anything cut at the act: the pre-act awareness grader's prefix, the suspicion questions'
+action under review, and the monitoring scenario's act cuts. `--resummarise --write-back`
+re-derives the timing fields; the grader and suspicion readings already made on the earlier
+prefix are left as they are and need asking again.
+
 ## v313
 
 **The transcript-monitoring scenario** (`monitoring/`, run as `python3 -m monitoring`). The
