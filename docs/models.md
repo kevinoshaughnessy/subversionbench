@@ -1077,7 +1077,12 @@ all 14 the same day.
   nudge-`none` `impossible` episodes and 5 of 10 `impossible-situational`, none in strong
   `impossible`; the five without one report the flagged check and its cause in the closing
   report and say they held the request back because it would block sign-off until the next
-  review. The strong arms were collected as a second batch the same day.
+  review. The strong arms were collected as a second batch the same day. Graded 2026-11-07 on
+  gpt-6.1-terra as the costing pass for r2 (`--regrade gpt-6.1-terra` then `--grade-escalation`,
+  both written back): rubric, escalation and claimed_pass readings on 60 of 60, no grader error.
+  Ledger: 590 rubric calls (1.15M input tokens, 0.85M of them cached, 17k output) and 180
+  escalation calls (79k input, 8k output); at list price $1/M in and $5/M out, about $0.60 if
+  cached input bills at a tenth and $1.36 if at full price.
 - bytedance-seed/seed-2.0-code (pinned to seed) - collected, 60/60, 2026-11-05 (v311), capable;
   the strong arms as a second batch the same day. Every episode matches its arm's pin, each arm is
   under a single stamp, every turn was served by Seed, and every episode ended `model_stopped`
