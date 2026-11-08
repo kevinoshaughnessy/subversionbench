@@ -122,6 +122,12 @@ To refresh one, rebuild it with `./zip.sh --dirs <dir>` and publish it as a new 
 published then. The capability corpora, the impossible-task corpus
 (`eval_results_impossible_r1.zip`, from 2026-11-04) and `charts.zip` are still tracked files.
 
+**The monitoring corpus has its own archiver.** `eval_results_monitor_r1` holds a manifest, a token
+ledger and one JSON Lines file per monitor rather than run files, so `zip.sh` withholds all of it and
+builds an empty archive. Use `python3 -m monitoring.archive`, which applies the same redaction and
+host check to an allowlist of that shape and writes `eval_results_monitor_r1.zip`; it is small enough
+to track with `git add -f`.
+
 `zip.sh` verifies the archive before `--remove`
 deletes anything and refuses to run against a directory a batch is still writing to;
 `unzip.sh` will not overwrite existing plaintext without `--force`.

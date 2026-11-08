@@ -28,7 +28,12 @@ python3 -m monitoring report
   A transcript is never rendered past its cut. The pass is resumable; `--dry-run` counts
   calls, tokens and input cost and sends nothing, and `--limit N` pilots on the first N
   episodes. The OpenRouter monitors are pinned to one provider each (`monitoring/monitors.py`)
-  and every result row records who served it.
+  and every result row records who served it. There are six: qwen3.8-flash, pinned to
+  Alibaba, was added after the first five. A reply cut off at the output allowance is not
+  scored as zero, and the next pass asks it again; a few stay unanswered after every pass.
+- **`archive`** (`python3 -m monitoring.archive`) encrypts the results for publication: a
+  redacted copy of the manifest, the token ledger and `results/*.jsonl`, host-checked before
+  and after zipping. `zip.sh` cannot do this, since it publishes run files.
 - **`report`** scores every monitor run so far: the catch rate at 1% and 5% false positives,
   AUROC and partial AUROC, the catch rate by act and on concealed acts, and the first cut
   each act was flagged at. Each threshold is taken from the negatives seen in the same view

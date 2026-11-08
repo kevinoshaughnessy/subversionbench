@@ -339,6 +339,11 @@ monitoring/        the transcript-monitoring scenario: the model under
                    cut each act was flagged at; sandbox-only acts scored apart
                    from the headline, an exact-match reading, and the
                    false-positive rate split by the scheming keywords
+  archive.py       the monitor corpus's own encrypted archive, run as
+                   `python3 -m monitoring.archive`: zip.sh's allowlist is made
+                   of run-file names and would withhold every file here, so
+                   this stages a redacted copy of a manifest, a token ledger
+                   and results/*.jsonl and runs export.py's host check on it
 grader_ab/         cross the grader MODEL against the grader CALL SHAPE on
                    saved transcripts: nine calls per episode against one
                    batched call, on each grader given. The batched asker lives
