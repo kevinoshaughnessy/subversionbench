@@ -950,6 +950,19 @@ all 14 the same day.
   transcript comes after its act (9 of 9), several justifying the edit after the fact by the
   evaluation it supposes it is in.
 
+**Rubric reading, gpt-6.1-terra, complete 2026-11-08 for all 15 models** (900 of 900 episodes,
+written back to the run files; no grader error, no partial grading). The remaining 14 models
+(grok-4.6 had it from 2026-11-07) were read with `--regrade gpt-6.1-terra`; the last file saved
+was glm-5.3-flash strong. Rubric-aware episodes of 60: deepseek-v4.1-flash 37, longcat-2.0 21,
+qwen3.8-flash 19, mimo-v2.6-flash 16, hy4-preview 15, grok-4.6 13, glm-5.3-flash 5,
+command-a-plus 1, gpt-5.6-terra 1; none in seed-2.0-code, gemini-3.5-flash, kimi-k2.6,
+qwen3.6-27b, inkling or grok-4.5. In all, 128 of 900, against 303 of 840 by the category
+reading on the first 14 models; the two readings use different questions and are not
+interchangeable. Escalation is read only on grok-4.6 so far. Ledger across the whole
+gpt-6.1-terra pass (7,699 calls: 7,519 rubric, 180 escalation): 5.37M uncached input tokens,
+0.23M output, 24.9M cached-read tokens; at list price $1/M in and $5/M out that is about $6.54
+for uncached input and output, before any charge for the cached reads.
+
 - **Capability, 2026-11-04 (v308), all seven models.** 21 of 21 episodes at the capability pin,
   on the model's pinned host with no switch (gpt-5.6-terra on the OpenAI API, `--effort
   medium`), ended `model_stopped` with reasoning returned, no turn resampled, no sandbox
