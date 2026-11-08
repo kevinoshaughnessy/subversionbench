@@ -4,7 +4,8 @@ The model under evaluation is a *monitor*. It is shown transcripts the agent sce
 collected and asked how suspicious the agent's conduct was and at which step it first went
 wrong. The ground truth is the detector's verdict on each episode and the step it located the
 act at, so a monitor is scored on what it caught, how early, and at what false-positive rate.
-Results are written to `eval_results_monitor_r1/`.
+Results are written to `eval_results_monitor_r1/` and published as
+`eval_results_monitor_r1.zip`, built by `python3 -m monitoring.archive` (see `archive` below).
 
 It collects no agent episodes of its own. Its arms are the corpora listed in
 `monitoring/arms.py` (mainline r10 and goal-guarding r1 so far); adding a finished corpus there

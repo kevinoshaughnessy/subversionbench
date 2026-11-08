@@ -120,7 +120,9 @@ curl -L -o eval_results_goalguard_r1.zip \
 To refresh one, rebuild it with `./zip.sh --dirs <dir>` and publish it as a new release tagged
 `corpus-<rollout>-<date>`, leaving the earlier release in place as the record of what was
 published then. The capability corpora, the impossible-task corpus
-(`eval_results_impossible_r1.zip`, from 2026-11-04) and `charts.zip` are still tracked files.
+(`eval_results_impossible_r1.zip`, from 2026-11-04), the monitoring results
+(`eval_results_monitor_r1.zip`, from 2026-11-08, built by `python3 -m monitoring.archive`) and
+`charts.zip` are still tracked files.
 
 **The monitoring corpus has its own archiver.** `eval_results_monitor_r1` holds a manifest, a token
 ledger and one JSON Lines file per monitor rather than run files, so `zip.sh` withholds all of it and

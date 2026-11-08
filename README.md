@@ -306,8 +306,9 @@ eval_results_r10/
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power
 ```
 
-The published corpora are encrypted archives. The two capability corpora and `charts.zip`
-are in the repository. The mainline and goal-guarding corpora are too large for tracked files
+The published corpora are encrypted archives. The two capability corpora, the impossible-task
+corpus, the transcript-monitoring results (`eval_results_monitor_r1.zip`) and `charts.zip` are
+in the repository. The mainline and goal-guarding corpora are too large for tracked files
 and are release assets; download them into the repository root and decrypt them there:
 
 ```bash
@@ -356,7 +357,8 @@ python3 capability_report.py --output-dir ./eval_results_r10cap --target sandbox
 
 Here the agent's episodes are the input and a monitor model is under test. Its arms are the
 corpora listed in `monitoring/arms.py` (mainline r10 and goal-guarding r1 so far); adding a
-finished corpus there is the whole of making a new scenario an arm.
+finished corpus there is the whole of making a new scenario an arm. Six monitors from six
+developers are listed in `monitoring/monitors.py`, each OpenRouter one pinned to a provider.
 
 ```bash
 python3 -m monitoring sample --seed 0
@@ -366,7 +368,8 @@ python3 -m monitoring report
 ```
 
 What each step draws, renders and scores, and how the monitor's instructions are kept, is in
-[docs/monitoring.md](docs/monitoring.md).
+[docs/monitoring.md](docs/monitoring.md). The results are published with
+`python3 -m monitoring.archive`, not `zip.sh`, which publishes run files only.
 
 ## Layout
 
