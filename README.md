@@ -307,9 +307,10 @@ eval_results_r10/
 ```
 
 The published corpora are encrypted archives. The two capability corpora, the impossible-task
-corpus, the transcript-monitoring results (`eval_results_monitor_r1.zip`) and `charts.zip` are
-in the repository. The mainline and goal-guarding corpora are too large for tracked files
-and are release assets; download them into the repository root and decrypt them there:
+corpus and the transcript-monitoring results (`eval_results_monitor_r1.zip`) are in the
+repository. The mainline and goal-guarding corpora, and `charts.zip` (over 100 MB), are too
+large for tracked files and are release assets; download them into the repository root and
+decrypt them there:
 
 ```bash
 curl -L -o eval_results_r10.zip \
@@ -318,6 +319,13 @@ curl -L -o eval_results_goalguard_r1.zip \
   https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-10-27/eval_results_goalguard_r1.zip
 ./unzip.sh --dirs eval_results_r10.zip eval_results_goalguard_r1.zip
 ```
+
+```bash
+curl -L -o charts.zip \
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/charts-2026-11-08/charts.zip
+```
+
+`charts.zip` is encrypted with the same password and unpacks to `charts/`.
 
 See [docs/operations.md](docs/operations.md) for how the archives are built and why.
 

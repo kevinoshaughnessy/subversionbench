@@ -91,3 +91,7 @@ subversionbench/detectors.json
 
 # Unpublished design drafts. Never committed, in any form.
 docs/proposals/
+
+# Over GitHub's 100 MB file limit: a release asset, not a tracked file. See
+# docs/operations.md.
+charts.zip

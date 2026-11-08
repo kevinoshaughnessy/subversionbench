@@ -121,8 +121,18 @@ To refresh one, rebuild it with `./zip.sh --dirs <dir>` and publish it as a new 
 `corpus-<rollout>-<date>`, leaving the earlier release in place as the record of what was
 published then. The capability corpora, the impossible-task corpus
 (`eval_results_impossible_r1.zip`, from 2026-11-04), the monitoring results
-(`eval_results_monitor_r1.zip`, from 2026-11-08, built by `python3 -m monitoring.archive`) and
-`charts.zip` are still tracked files.
+(`eval_results_monitor_r1.zip`, from 2026-11-08, built by `python3 -m monitoring.archive`) are
+still tracked files.
+
+**`charts.zip` is a release asset from 2026-11-08.** With the six-monitor figures it passed 100 MB,
+so it is attached to the `charts-2026-11-08` release and `.gitignore` excludes it. Build it with
+`./zip_charts.sh`, publish it with `gh release create charts-<date> charts.zip`, and download it
+beside `unzip.sh`:
+
+```bash
+curl -L -o charts.zip \
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/charts-2026-11-08/charts.zip
+```
 
 **The monitoring corpus has its own archiver.** `eval_results_monitor_r1` holds a manifest, a token
 ledger and one JSON Lines file per monitor rather than run files, so `zip.sh` withholds all of it and
