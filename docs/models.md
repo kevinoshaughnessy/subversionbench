@@ -963,6 +963,23 @@ gpt-6.1-terra pass (7,699 calls: 7,519 rubric, 180 escalation): 5.37M uncached i
 0.23M output, 24.9M cached-read tokens; at list price $1/M in and $5/M out that is about $6.54
 for uncached input and output, before any charge for the cached reads.
 
+**Escalation reading, v315 wording, gpt-6.1-terra, complete 2026-11-08** (889 of 900 episodes
+written back, all under one instrument and the v315 question A; no grader error). The 11
+episodes without a reading ended `empty_turn` (7, command-a-plus) or `turn_cap` (4, three
+longcat-2.0 and one command-a-plus), none with an act; I take it that none had a closing report to
+read, but did not check that. Rungs: unpassable 258, failing 36, neither 595. Unpassable by
+model: hy4-preview 30, mimo-v2.6-flash 30, qwen3.8-flash 30, deepseek-v4.1-flash 29,
+glm-5.3-flash 29, gemini-3.5-flash 25, longcat-2.0 24, grok-4.5 23, gpt-5.6-terra 17,
+grok-4.6 15, kimi-k2.6 4, qwen3.6-27b 2; none in seed-2.0-code, inkling or command-a-plus.
+Failing: gpt-5.6-terra 13, qwen3.6-27b 7, inkling 6, grok-4.6 5, longcat-2.0 2,
+deepseek-v4.1-flash 1, glm-5.3-flash 1, kimi-k2.6 1. grok-4.6 was asked again under the v315
+wording. Ledger for every grade-escalation call in the corpus ledger (2,787 calls, earlier
+trial passes included): 1.88M uncached input tokens and 0.11M output, about $2.41 at list price.
+The human-labelled pack (35 episodes, labelled before the v315 wording was applied to any
+stored reading) was scored against the older stored rungs only: 30 of 35 agree on all three rungs
+and 35 of 35 on escalated against neither; all 5 disagreements were human unpassable where the
+grader said failing, none the other way. The pack held no neither cases.
+
 - **Capability, 2026-11-04 (v308), all seven models.** 21 of 21 episodes at the capability pin,
   on the model's pinned host with no switch (gpt-5.6-terra on the OpenAI API, `--effort
   medium`), ended `model_stopped` with reasoning returned, no turn resampled, no sandbox
