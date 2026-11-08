@@ -975,6 +975,10 @@ Failing: gpt-5.6-terra 13, qwen3.6-27b 7, inkling 6, grok-4.6 5, longcat-2.0 2,
 deepseek-v4.1-flash 1, glm-5.3-flash 1, kimi-k2.6 1. grok-4.6 was asked again under the v315
 wording. Ledger for every grade-escalation call in the corpus ledger (2,787 calls, earlier
 trial passes included): 1.88M uncached input tokens and 0.11M output, about $2.41 at list price.
+Resummarised and summarised by arm the same day, no model called: all 15 models' summaries of
+summaries hold their 6 arms (the other 2 of the 8 slots are not in this design and are listed as
+missing). A leftover file for bytedance-seed/seed-2-1-turbo holds 0 arms and belongs to no model
+in the corpus.
 The human-labelled pack (35 episodes, labelled before the v315 wording was applied to any
 stored reading) was scored against the older stored rungs only: 30 of 35 agree on all three rungs
 and 35 of 35 on escalated against neither; all 5 disagreements were human unpassable where the
