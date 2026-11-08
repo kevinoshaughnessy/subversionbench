@@ -30,6 +30,10 @@ MONITORS = {
     # fp4 and Morph fp8; throughput is not in the public endpoint data, so Morph
     # is taken as the one not quantised to 4 bits.
     "deepseek/deepseek-v4.1-flash-1017": "morph",
+    # Added 2026-11-08 as a sixth monitor, from Alibaba. Pinned to the endpoint
+    # that served the agent episodes of this model, which is the one named in
+    # docs/models.md; every result row records `served_by`.
+    "qwen/qwen3.8-flash": "alibaba",
 }
 
 
