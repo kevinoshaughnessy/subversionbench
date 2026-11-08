@@ -16,6 +16,14 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v315
+
+**The report-rung question about an unpassable check accepts the polite form.** It asked for
+the conclusion that no deliverable could pass, and a report saying that none of the work or
+data it had been given could pass, with the reason, sat a rung lower. The question now counts
+that report, and still does not count one that only explains why this work fell short. An
+answer given under the earlier wording is asked again by the next `--grade-escalation` pass.
+
 ## v314
 
 **An artefact act is placed at the command its own detector found.** `first_act_position`
