@@ -464,9 +464,13 @@ class TestConcurrency:
     handed to the summary in.
     """
 
-    def _run(self, out, argv, sleep=0.05, fail_on=()):
+    def _run(self, out, argv, sleep=0.05, fail_on=(), peak=None):
+        """Run a batch against a stub client. If `peak` is a dict, it gets the
+        most API calls in flight at once under "max"."""
         counter = {"n": 0}
         lock = threading.Lock()
+        if peak is not None:
+            peak.update(now=0, max=0)
 
         def blk(**kw):
             return types.SimpleNamespace(**kw)
@@ -478,7 +482,14 @@ class TestConcurrency:
                     self.idx = counter["n"]
 
             def create(self, messages=None, **kw):
+                if peak is not None:
+                    with lock:
+                        peak["now"] += 1
+                        peak["max"] = max(peak["max"], peak["now"])
                 time.sleep(sleep)
+                if peak is not None:
+                    with lock:
+                        peak["now"] -= 1
                 if self.idx in fail_on:
                     raise RuntimeError("429 rate limit exceeded")
                 return blk(stop_reason="end_turn", content=[
@@ -505,45 +516,36 @@ class TestConcurrency:
             sys.argv = original_argv
 
     def test_concurrency_actually_overlaps_episodes(self):
-        """The point of the flag: wall-clock time has to reflect episodes
-        overlapping, not stacking end to end.
+        """The point of the flag: episodes have to be in flight together, not
+        stacking end to end.
 
-        TIMED AGAINST THE SAME WORKLOAD RUN SEQUENTIALLY, not against a number
-        of seconds. An absolute bound has to be picked for one machine: this
-        asserted `elapsed < 1.5` and took 1.54s the first time it ran under
-        coverage's instrumentation, failing for a reason with nothing to do with
-        overlap. Running both ways calibrates on whatever the host, the
-        interpreter and any instrumentation cost.
-
-        The assertion is on the DIFFERENCE rather than the ratio, because
-        per-episode harness overhead is the same in both runs and cancels out of
-        a subtraction while it dominates a ratio on a slow host.
+        ASSERTED ON THE OVERLAP ITSELF, the most API calls in flight at once,
+        not on elapsed time. The wall-clock version compared the same workload
+        run both ways and asserted on the saving, and still failed on a loaded
+        CI runner: the per-episode work that is not the API call is CPU-bound,
+        so under `pytest -n auto` it did not shrink when three episodes ran at
+        once, and a saving of 0.52s was seen where 0.60s was required with
+        overlap working. The sequential run is the control: it must peak at
+        exactly one, or the count is not measuring overlap.
         """
-        runs, concurrency, sleep = 6, 3, 0.3
-        out_sequential = tempfile.mkdtemp()
-        rc_sequential, _, sequential = self._run(
-            out_sequential, ["--runs", str(runs), "--concurrency", "1"],
-            sleep=sleep)
+        runs, concurrency = 6, 3
+        sequential_peak, concurrent_peak = {}, {}
+        rc_sequential, _, _ = self._run(
+            tempfile.mkdtemp(), ["--runs", str(runs), "--concurrency", "1"],
+            sleep=0.3, peak=sequential_peak)
         out_concurrent = tempfile.mkdtemp()
-        rc_concurrent, _, concurrent = self._run(
+        rc_concurrent, _, _ = self._run(
             out_concurrent,
             ["--runs", str(runs), "--concurrency", str(concurrency)],
-            sleep=sleep)
+            sleep=0.3, peak=concurrent_peak)
 
         assert rc_sequential == 0 and rc_concurrent == 0
         assert len(glob.glob(f"{out_concurrent}/run_*.json")) == runs
-
-        # Sequential spends runs * sleep in the API; three at once spends
-        # ceil(runs / concurrency) * sleep. Half of that saving is a wide margin
-        # around the ideal which still cannot be reached by episodes that ran end
-        # to end.
-        rounds = -(-runs // concurrency)
-        expected_saving = (runs - rounds) * sleep
-        assert sequential - concurrent > expected_saving * 0.5, (
-            f"no overlap detected: {concurrent:.2f}s with concurrency "
-            f"{concurrency} against {sequential:.2f}s sequential, a saving of "
-            f"{sequential - concurrent:.2f}s where at least "
-            f"{expected_saving * 0.5:.2f}s was expected")
+        assert sequential_peak["max"] == 1
+        assert concurrent_peak["max"] > 1, (
+            f"no overlap detected: never more than {concurrent_peak['max']} API "
+            f"call in flight with --concurrency {concurrency}")
+        assert concurrent_peak["max"] <= concurrency
 
     def test_a_default_of_one_looks_exactly_like_no_flag_at_all(self):
         """concurrency=1 is what every batch ran before this flag existed, so
