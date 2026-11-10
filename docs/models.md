@@ -2129,6 +2129,40 @@ The arms, with cut-off episodes over the arm's size:
 Separately, 151 older mainline episodes end on an empty turn the provider called a normal
 `stop`, not a cut-off. A higher cap does not address that; it is not yet examined.
 
+## Reasoning legibility grading (2026-11-10)
+
+The legibility term of the SubversionBench score ([leaderboard](leaderboard.md)): how easily an
+English-reading overseer could follow a model's returned reasoning. Graded on windows of about
+3,000 characters cut from each episode's merged reasoning, after the mojibake repair. The
+grader definitions are in the encrypted definitions archive only.
+
+**Validation, with few human labels.** A blind pack of 147 windows (two or three per model
+returning text) was drawn on 2026-11-05. It was too many to label, so the check was redesigned
+around 30 labels:
+
+- **Controls with no human label.** 40 windows made by spoiling real ones (words shuffled, or
+  one short span repeated to fill the window). Both candidate graders scored every one 0 or 1
+  (rule set beforehand: at least 38 of 40).
+- **Two graders on all 147 windows**, glm-5.3 and gpt-6.1-terra (native OpenAI). They gave the
+  identical score on 128 and differed by two points or more on 2.
+- **30 windows labelled by hand**, chosen after grading and without showing the labeller any
+  grader score: 15 where the graders differed, 15 where they agreed, at random. On the 15 agreed
+  windows both graders were within one point of the human on all 15. On the 15 disagreed windows
+  glm-5.3 was within one point on 14 of 14 it judged and gpt-6.1-terra on 14 of 15.
+- **Both passed, so the grader was chosen on other grounds.** glm-5.3 was the cheaper (about
+  $0.0007 a window against about $0.0023) and was used, pinned to Z.AI. The human labels were
+  almost all 3 (26 of 30), so the 1 to 2 range was tested lightly; the controls are the check
+  on the bottom of the scale.
+
+**Grading run.** 3,508 windows from 69 models returning text (30 episodes each, two windows,
+or one where the merged text is shorter than a window), the pack's 67 plus `inclusionai/ling-3.0-tiny`
+and `nex-agi/nex-n2.5-pro`. All graded by `z-ai/glm-5.3`, every scored call served by Z.AI,
+one window needing a second pass. About 2.2 million input and 0.2 million output tokens, about
+$2.40 at the repository price. Scores: 3,159 threes, 272 twos, 55 ones, 8 zeros, 13 `u`.
+
+**Limitation.** glm-5.3 graded its own family's reasoning (the four glm models score 0.99 to
+1.0). The grader is not independent of them.
+
 ## Regenerating this list
 
 ```bash
