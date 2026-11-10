@@ -8,7 +8,7 @@ version number climbs". It groups every model in a results directory into
 families, orders each family by version, and tests whether the rate moves
 along that order. It calls no API.
 
-Read [docs/report.md](report.md) first for the twelve questions and the
+Read [docs/report.md](report.md) first for the questions and the
 stratified machinery both scripts share - the rates here come through
 `report.load_summaries`, so a family's figure here and a model's figure
 there cannot disagree.

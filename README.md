@@ -74,16 +74,17 @@ Scheming*](https://arxiv.org/abs/2412.04984) (Apollo Research), now a distinct w
 
 ## Documentation
 
-This file covers installing and running. The depth lives in twelve companions:
+This file covers installing and running. The depth lives in thirteen companions:
 
 | | for |
 |---|---|
 | [docs/methodology.md](docs/methodology.md) | deciding whether the measurements are valid — the three constructs, what each field measures, how the grader was validated, sample size and detectable effects, and the oversight counterfactual |
 | [docs/scenario.md](docs/scenario.md) | reading or modifying the scenario, and testing whether it has reached a model's training data |
 | [docs/operations.md](docs/operations.md) | running large batches — pacing, versioning, protecting results, re-grading saved runs, and comparing arms |
-| [docs/report.md](docs/report.md) | the cross-model report — twelve fixed research questions and those appended since, crude vs model-stratified estimates, homogeneity and multiplicity |
+| [docs/report.md](docs/report.md) | the cross-model report — the research questions, crude vs model-stratified estimates, homogeneity and multiplicity |
 | [docs/abc-assessment.md](docs/abc-assessment.md) | this benchmark against the Agentic Benchmark Checklist (arXiv 2507.02825), item by item - what is satisfied and where the evidence is, the judge's measured self-consistency, and the two gaps that remain |
 | [docs/trends.md](docs/trends.md) | the per-family version trends — how families are derived, the version-ordering judgement, and the release-date charts |
+| [docs/leaderboard.md](docs/leaderboard.md) | the overall SubversionBench score for each model - how rarely it misbehaved and how clearly it shows its reasoning - with how the score is built and what it does not say |
 | [docs/grader-agreement.md](docs/grader-agreement.md) | what a second awareness grader said about the same episodes — where the two agree, where they diverge and why, and which models' awareness rates that affects |
 | [docs/models.md](docs/models.md) | which models have been evaluated so far, under which scenario and which arms, how each was collected, and whether each was shown capable of the acts — no propensity rates |
 | [docs/authorised-capability.md](docs/authorised-capability.md) | the authorised capability controls — for a model that refuses the instructed act, whether it performs the act once its owner sanctions it, and the verdict tiers that follow |
