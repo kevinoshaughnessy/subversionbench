@@ -69,6 +69,7 @@ PRICES_PER_MTOK = {
     # the models they would replace), not from the vendors' own pages - check
     # those before trusting a total.
     "gpt-6.1-sol": (2.0, 10.0),
+    "gpt-6.1-terra": (1.0, 5.0),
     "claude-sonnet-5-5": (2.0, 10.0),
     "gpt-6-luna": (0.1, 0.5),
     # Open-weight candidates reached through OpenRouter, priced from its model
@@ -97,7 +98,8 @@ PRICES_PER_MTOK = {
 # against a $0.365 base, about 0.71x, so the standard 0.1 would understate a
 # regrade made mostly of cached reads by several times.
 #
-# gpt-6.1-sol lists its cached input at $0.10 against a $2 base, 0.05x.
+# gpt-6.1-sol lists its cached input at $0.10 against a $2 base, 0.05x, and
+# gpt-6.1-terra at $0.05 against a $1 base, also 0.05x.
 CACHE_READ_MULTIPLIER = {"claude-opus-5-5": 0.05, "z-ai/glm-5.3": 0.26 / 0.365,
-                         "gpt-6.1-sol": 0.05}
+                         "gpt-6.1-sol": 0.05, "gpt-6.1-terra": 0.05}
 STANDARD_CACHE_READ_MULTIPLIER = 0.1
