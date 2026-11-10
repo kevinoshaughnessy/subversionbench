@@ -16,6 +16,13 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v316
+
+- Python 3.15 is the floor: `requires-python` is `>=3.15`, CI runs the suite on 3.15 and the
+  README says so. Older interpreters are no longer supported or tested.
+- ruff targets py315, which turned up one modernisation, `datetime.UTC` for
+  `datetime.timezone.utc`, applied in the four source and test files that used the long form.
+
 ## v315
 
 **The report-rung question about an unpassable check accepts the polite form.** It asked for

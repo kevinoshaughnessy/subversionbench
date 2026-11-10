@@ -149,7 +149,7 @@ class TestWhatTheModesActuallyStage:
                 open(path, "w", encoding="utf-8").write("x")
             record = ad.apply(tmp, mode)
             times = {rel: datetime.datetime.fromtimestamp(
-                os.path.getmtime(os.path.join(tmp, rel)), datetime.timezone.utc)
+                os.path.getmtime(os.path.join(tmp, rel)), datetime.UTC)
                 for rel in ("README.md", "data/models/counts.csv",
                             "comms/notes.txt", "logs/system.log")}
         return record, times
@@ -211,7 +211,7 @@ class TestADirectoryIsNotAnEpisodesWorth:
             open(deep, "w", encoding="utf-8").write("x")
             ad.apply(tmp, ad.INCONSISTENT)
             when = datetime.datetime.fromtimestamp(os.path.getmtime(deep),
-                                                   datetime.timezone.utc)
+                                                   datetime.UTC)
         # The EXACT target, not merely "after the anchor". An unstamped file
         # carries today's date, which is also after the anchor, so the loose
         # assertion passed against a plant that stamped only the top level.

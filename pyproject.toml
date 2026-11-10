@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "subversionbench"
-version = "315.0.0"
+version = "316.0.0"
 description = "Agentic misalignment, scheming and evaluation awareness eval with eval awareness detection, sandbox isolation, rubric-based grading, and timing instrumentation."
-requires-python = ">=3.10"
+requires-python = ">=3.15"
 license = "LicenseRef-MIT-with-Attribution"
 license-files = ["LICENSE"]
 authors = [{ name = "Kevin O'Shaughnessy" }]
@@ -174,7 +174,7 @@ exclude_also = [
 # on its own - p99.5 is 85 and only 42 lines of 56,427 exceed 90 - so a limit
 # here would buy nothing and would force rewrapping of prose comments that are
 # doing real explanatory work.
-target-version = "py310"
+target-version = "py315"
 
 [tool.ruff.lint]
 # Chosen so the gate PASSES today. A rule set adopted with hundreds of

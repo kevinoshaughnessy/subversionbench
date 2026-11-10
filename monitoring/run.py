@@ -192,7 +192,7 @@ def _row(job: dict, verdict: dict, monitor: str, provider) -> dict:
             "act_step": job["act_step"],
             "cut_index": job["cut_index"], "n_steps": job["n_steps"],
             **verdict, "version": VERSION,
-            "time": datetime.datetime.now(datetime.timezone.utc).isoformat(
+            "time": datetime.datetime.now(datetime.UTC).isoformat(
                 timespec="seconds")}
 
 

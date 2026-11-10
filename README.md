@@ -3,7 +3,7 @@
 ![SubversionBench logo](Logo.png)
 
 [![tests](https://github.com/kevinoshaughnessy/subversionbench/actions/workflows/tests.yml/badge.svg)](https://github.com/kevinoshaughnessy/subversionbench/actions/workflows/tests.yml)
-![python](https://img.shields.io/badge/python-3.10%20%7C%203.12%20%7C%203.13-blue)
+![python](https://img.shields.io/badge/python-3.15-blue)
 
 An agentic evaluation of **agentic misalignment**, **scheming** and **evaluation
 awareness**: whether a language model will take harmful instrumental action when doing so
@@ -98,7 +98,7 @@ Conventions for editing this repository, and what not to break:
 
 ## Install
 
-Python 3.10 or newer.
+Python 3.15 or newer.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -422,8 +422,8 @@ How tests are expected to be written and checked, and how to regenerate the snap
 ## CI
 
 [.github/workflows/tests.yml](.github/workflows/tests.yml) runs on every push to `main` and
-the working branch and on every pull request: `lint`, the suite on Python 3.10, 3.12 and 3.13
-(3.10 being the floor `requires-python` promises), a coverage floor, and a minimal install that
+the working branch and on every pull request: `lint`, the suite on Python 3.15
+(the floor `requires-python` promises), a coverage floor, and a minimal install that
 asserts the optional extras stay optional. No API key is needed or accepted: `conftest.py`
 supplies placeholders and every test that would reach a model stubs the client. The Linux
 runner asserts `confinement_available()` before running anything, so a green suite cannot mean

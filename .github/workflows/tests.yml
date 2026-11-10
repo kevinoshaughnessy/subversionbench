@@ -58,7 +58,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.15"
 
       - name: Install
         # The test extra, so CI and a developer's checkout pin the same ruff. A
@@ -83,10 +83,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.10 is the floor pyproject declares and nothing verified it; 3.12 is
-        # what development happens on; 3.13 is the newest release. Kept in step
-        # with requires-python by test_ci_workflow.py.
-        python: ["3.10", "3.12", "3.13"]
+        # The floor pyproject declares, which is also what development happens
+        # on. Kept in step with requires-python by test_ci_workflow.py.
+        python: ["3.15"]
     steps:
       - uses: actions/checkout@v7
 
@@ -164,7 +163,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.15"
 
       - name: Install bubblewrap and let it create namespaces
         # Same as the suite job: without confinement a large part of the sandbox
@@ -209,7 +208,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.15"
 
       - name: Install bubblewrap and let it create namespaces
         # The sandbox is enforced by the kernel, and on Linux that means bwrap:

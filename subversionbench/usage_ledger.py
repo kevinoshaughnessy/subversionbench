@@ -65,7 +65,7 @@ def note(model: str, response) -> None:
     cost = (usage.get("cost") if isinstance(usage, dict)
             else getattr(usage, "cost", None))
     line = json.dumps({
-        "time": datetime.datetime.now(datetime.timezone.utc).isoformat(
+        "time": datetime.datetime.now(datetime.UTC).isoformat(
             timespec="seconds"),
         "mode": mode, "model": model, **token_counts(response),
         "cost": cost if isinstance(cost, (int, float)) else None})

@@ -43,7 +43,7 @@ writes, so naming them here adds nothing the repository did not already carry.
 
 import hashlib
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
 DEFAULT = "default"
 CONSISTENT = "consistent"
@@ -52,7 +52,7 @@ INCONSISTENT = "inconsistent"
 MODES = (DEFAULT, CONSISTENT, INCONSISTENT)
 
 # Read off the artefact filenames in environment.py, not out of the bundle.
-_ANCHOR = datetime(2025, 9, 12, 17, 4, tzinfo=timezone.utc)
+_ANCHOR = datetime(2025, 9, 12, 17, 4, tzinfo=UTC)
 
 # How far into the future arm B puts everything. Decades rather than months:
 # the point is an impossibility no reading of clock drift explains, and the

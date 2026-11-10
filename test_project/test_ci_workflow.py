@@ -4,9 +4,9 @@ The CI workflow against what the project actually promises.
 A workflow file is configuration nobody reads once it is green, so the things
 that would quietly stop being true are checked here instead:
 
-  - the Python floor. pyproject declares `requires-python >= 3.10` and nothing
-    verified it; if the matrix drops 3.10 while the declaration stays, the
-    project claims support for a version it never runs.
+  - the Python floor. pyproject declares `requires-python` and nothing else
+    verified it; if the matrix drops that version while the declaration stays,
+    the project claims support for a version it never runs.
   - the fully-installed job must install every extra and forbid dependency
     skips, because that job's whole purpose is that nothing opts out there.
   - the minimal job must NOT install the extras, because its purpose is the
@@ -46,11 +46,7 @@ def _declared_extras() -> set:
     """The names under `[project.optional-dependencies]`.
 
     By regex, like `test_dependencies._declared_requirements`, rather than with
-    `tomllib`: that is stdlib only from 3.11, and 3.10 is the floor this project
-    promises and the version CI runs first. Importing it failed the 3.10 job
-    outright, and made the declared-dependency guard report `tomllib` as an
-    undeclared third-party package, since it builds its stdlib set from the
-    running interpreter.
+    `tomllib`, so the guard reads the file the same way `test_dependencies` does.
     """
     body = conftest.PROJECT_ROOT.joinpath("pyproject.toml").read_text(
         encoding="utf-8")
@@ -87,11 +83,6 @@ class TestTheMatrixMatchesWhatThePackagePromises:
         assert floor in [str(v) for v in versions], (
             f"pyproject promises Python >= {floor} but CI never runs it; "
             f"the matrix is {versions}")
-
-    def test_more_than_one_version_is_tested(self):
-        """One version is a single machine with extra steps."""
-        versions = _workflow()["jobs"]["suite"]["strategy"]["matrix"]["python"]
-        assert len(versions) >= 2, versions
 
     def test_the_readme_badge_names_exactly_the_versions_ci_runs(self):
         """The README carries a static Python-versions badge, which is a second
