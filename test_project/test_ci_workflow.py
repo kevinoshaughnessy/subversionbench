@@ -21,6 +21,8 @@ this project - the checks below are about CI's own configuration.
 """
 
 import re
+import tomllib
+
 import conftest
 
 WORKFLOW = conftest.PROJECT_ROOT / ".github" / "workflows" / "tests.yml"
@@ -33,25 +35,22 @@ def _workflow() -> dict:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
+def _project() -> dict:
+    """pyproject's `[project]` table."""
+    return tomllib.loads(conftest.PROJECT_ROOT.joinpath("pyproject.toml")
+                         .read_text(encoding="utf-8"))["project"]
+
+
 def _declared_floor() -> tuple:
     """The (major, minor) in `requires-python` from pyproject."""
-    body = conftest.PROJECT_ROOT.joinpath("pyproject.toml").read_text(
-        encoding="utf-8")
-    m = re.search(r'requires-python\s*=\s*"[^0-9]*(\d+)\.(\d+)"', body)
+    m = re.search(r"(\d+)\.(\d+)", _project().get("requires-python", ""))
     assert m, "pyproject does not declare requires-python"
     return int(m.group(1)), int(m.group(2))
 
 
 def _declared_extras() -> set:
-    """The names under `[project.optional-dependencies]`.
-
-    By regex, like `test_dependencies._declared_requirements`, rather than with
-    `tomllib`, so the guard reads the file the same way `test_dependencies` does.
-    """
-    body = conftest.PROJECT_ROOT.joinpath("pyproject.toml").read_text(
-        encoding="utf-8")
-    section = body.split("[project.optional-dependencies]")[1].split("\n[")[0]
-    return set(re.findall(r"^([A-Za-z0-9_-]+)\s*=\s*\[", section, re.M))
+    """The names under `[project.optional-dependencies]`."""
+    return set(_project().get("optional-dependencies", {}))
 
 
 def _steps_text(job: dict) -> str:

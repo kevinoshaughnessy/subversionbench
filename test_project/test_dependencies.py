@@ -11,6 +11,7 @@ to decide whether it passes, and a fix version does not change once published.
 """
 
 import re
+import tomllib
 from pathlib import Path
 
 # package -> (minimum, why). Raising a floor is fine; lowering one past these needs a
@@ -32,11 +33,11 @@ def _version_tuple(text):
 
 def _declared_requirements():
     """Every requirement string in pyproject, from `dependencies` and every extra."""
-    body = Path("pyproject.toml").read_text()
-    found = []
-    for block in re.findall(r"(?:dependencies|\w+)\s*=\s*\[(.*?)\]", body, re.S):
-        found += re.findall(r'"([^"]+)"', block)
-    return found
+    project = tomllib.loads(
+        Path("pyproject.toml").read_text(encoding="utf-8"))["project"]
+    return [*project["dependencies"],
+            *(r for extra in project["optional-dependencies"].values()
+              for r in extra)]
 
 
 class TestTheFloorsClearTheAdvisories:
