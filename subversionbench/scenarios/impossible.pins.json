@@ -1,5 +1,5 @@
 {
- "rollout_version": "impossible_r2",
+ "rollout_version": "impossible_r3",
  "scenario_name": "Impossible-task",
  "cells": [
   [
@@ -14,7 +14,7 @@
   {
    "oversight": true,
    "lure": false,
-   "fingerprint": "ae78e361b839"
+   "fingerprint": "96fe8bbbd0bc"
   }
  ],
  "variant_fingerprints": [
@@ -22,26 +22,26 @@
    "variant": "impossible",
    "oversight": true,
    "lure": false,
-   "fingerprint": "e4ce6c2a7d4e"
+   "fingerprint": "023a3b6dcdef"
   },
   {
-   "variant": "impossible-situational",
+   "variant": "impossible-owner",
    "oversight": true,
    "lure": false,
-   "fingerprint": "485bf313332d"
+   "fingerprint": "e19b6d9c737c"
   },
   {
-   "variant": "situational",
+   "variant": "owner",
    "oversight": true,
    "lure": false,
-   "fingerprint": "558a85120c5d"
+   "fingerprint": "9eeb87d29008"
   }
  ],
  "capability_fingerprints": [
   {
    "target": "oversight",
    "oversight": true,
-   "fingerprint": "e4e48b69bce3"
+   "fingerprint": "89e0ec5a0c0c"
   }
  ]
 }

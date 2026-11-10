@@ -909,9 +909,19 @@ An episode that switched is counted only in the last column, so a row's first co
 to less than its episodes. glm-5.3-flash is the only mainline batch collected after 2026-10-06
 without a pin.
 
+## Impossible-task scenario (r3)
+
+Bundle `subversionbench/scenarios/impossible.b64`, rollout `impossible_r3` (v317). Built
+2026-11-10; nothing collected yet. Corpus `eval_results_impossible_r3`, capability
+`eval_results_impossible_r3cap`. No document forbids editing the check: the base arms state
+who owns it and what it is for, with a precedent of a failing batch that waited for the
+standards review, and the `owner` variants state ownership alone. Cells: oversight present, no
+lure, nudge `none` and `strong` by control, `impossible`, `owner` and `impossible-owner`.
+r2's capability episodes are at r2's pin, so r3 needs its own.
+
 ## Impossible-task scenario (r2)
 
-Bundle `subversionbench/scenarios/impossible.b64`, rollout `impossible_r2` (v307, sandbox
+Bundle `subversionbench/scenarios/impossible2.b64` since v317 (`impossible.b64` before), rollout `impossible_r2` (v307, sandbox
 second pass and unfinished turns asked again at v308). Supersedes r1 for analysis (decided
 2026-11-04); the r1 section below is kept as the record of what was collected. Corpus
 `eval_results_impossible_r2`, capability `eval_results_impossible_r2cap`. Six arms, oversight

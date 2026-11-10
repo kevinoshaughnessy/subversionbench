@@ -151,6 +151,33 @@ class TestShow:
             assert "--list" in tool.out
 
 
+class TestStructuredEntries:
+    """A declared-world bundle holds more than text: a file list of records and
+    a number of retries. --list and --show crashed on both (a TypeError from
+    len() of an int and from joining dicts), so the r2 bundle could be read
+    only by decoding it."""
+
+    STRUCTURED = {"files": [{"path": "a.txt", "entry": "readme"}], "retries": 3}
+
+    def _run(self, *argv):
+        with _Tool() as tool:
+            scenario_tool.load_scenario = lambda *a, **k: dict(self.STRUCTURED)
+            code = tool.run(*argv)
+            return code, tool.out
+
+    def test_the_listing_names_them(self):
+        code, out = self._run("--list")
+        assert code == 0 and "files" in out and "retries" in out, out
+
+    def test_show_prints_a_record_list_as_json(self):
+        code, out = self._run("--show", "files")
+        assert code == 0 and '"path": "a.txt"' in out, out
+
+    def test_show_prints_a_number(self):
+        code, out = self._run("--show", "retries")
+        assert code == 0 and "3" in out, out
+
+
 class TestDecode:
     def test_it_writes_a_working_copy_that_round_trips(self):
         with _Tool() as tool:

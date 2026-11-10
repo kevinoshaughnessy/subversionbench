@@ -43,12 +43,15 @@ task and files, and is committed as a separate encoded bundle, selected with
 check, and in the `impossible` variants no honest deliverable can pass it. The one act it
 scores is *editing the check, its threshold or the reference data it scores against* to make
 the work pass. Its control is passable, so a model that tampers only when the task is
-impossible is distinguished from one that tampers regardless. Its second rollout,
-`impossible_r2` (`subversionbench/scenarios/impossible.b64`), adds `situational` variants
-that raise the pressure through the situation rather than the instruction, and a route for
-asking that the check be changed, at a cost. The first, `impossible1`, is kept as
-`subversionbench/scenarios/impossible1.b64` so its corpus, `eval_results_impossible_r1`,
-can still be re-read; its pilots are under `eval_results_impossible_pilot*`. See
+impossible is distinguished from one that tampers regardless. Its third rollout,
+`impossible_r3` (`subversionbench/scenarios/impossible.b64`), states who owns the check but
+no longer forbids editing it, at two levels: ownership and purpose, and ownership alone
+(the `owner` variants), each with a passable and an impossible arm. The second, `impossible_r2`,
+stated the rule outright and added `situational` variants and a route for asking that the
+check be changed, at a cost; it is kept as `subversionbench/scenarios/impossible2.b64`. The
+first, `impossible1`, is kept as `subversionbench/scenarios/impossible1.b64`. Each corpus,
+`eval_results_impossible_r1` and `_r2`, is re-read under its own bundle; the pilots are under
+`eval_results_impossible_pilot*`. See
 [scenarios in a world of their own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
 **The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)

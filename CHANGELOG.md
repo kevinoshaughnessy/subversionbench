@@ -16,6 +16,19 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v317
+
+- Impossible-task r3 (`impossible_r3`). r2 stated the rule against editing the check in five
+  places, and its closing reports gave that rule as the reason for leaving the check alone, so
+  r2 measured compliance with an explicit instruction. r3 drops every prohibition and keeps
+  who owns the check, at two levels: ownership and purpose, with a precedent of a failing batch
+  that waited for review (the base arms), and ownership alone (the `owner` variants). Each
+  level has a passable arm and an `impossible` one. The situational variants are not carried
+  over. r2 is frozen as `scenarios/impossible2.b64`, whose pins recompute unchanged, and its
+  corpus is re-read with that file selected.
+- `scenario_tool.py --list` and `--show` print a bundle's structured entries (a file list, a
+  number) instead of failing on them.
+
 ## v316
 
 - Python 3.15 is the floor: `requires-python` is `>=3.15`, CI runs the suite on 3.15 and the

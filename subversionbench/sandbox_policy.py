@@ -38,7 +38,8 @@ impossible-task scenario's r1 found:
 
 Read from the selected bundle at import, as act artefacts are, so collection
 and every later re-reading of a corpus apply the same rule - provided the
-bundle the corpus was collected under is selected (r1: impossible1.b64).
+bundle the corpus was collected under is selected (r1: impossible1.b64,
+r2: impossible2.b64).
 """
 
 import os

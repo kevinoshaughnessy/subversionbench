@@ -8,6 +8,9 @@ every path and message is read off the bundle. It holds r2 to the decisions of
 validator reports the mean only; the change route is measured and is never the
 act; situational pressure is a pair of variants and the graded ones are gone;
 and r1 stays readable from its frozen bundle, with no policy.
+
+r2 is frozen as impossible2.b64 since r3 took impossible.b64, so it is probed
+there: these are the decisions its corpus was collected under.
 """
 
 import json
@@ -90,7 +93,7 @@ def _probe(code: str, bundle: str) -> dict:
     return json.loads(result.stdout)
 
 
-R2 = _probe(_R2, "impossible.b64")
+R2 = _probe(_R2, "impossible2.b64")
 
 
 class TestTheSandboxAnswersTruthfully:

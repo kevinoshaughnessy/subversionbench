@@ -80,11 +80,24 @@ def _decode(bundle: Path, working: Path) -> int:
     return 0
 
 
+def _as_text(value) -> str:
+    """An entry as printable text. Bundles hold strings, lists of strings, and
+    structured entries (a file list, a number of retries) that are shown as
+    JSON rather than refused."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return "\n\n".join(value)
+    return json.dumps(value, indent=2, ensure_ascii=False)
+
+
 def _list(bundle: Path) -> int:
     for name, value in load_scenario(bundle).items():
-        size = sum(len(v) for v in value) if isinstance(value, list) \
-            else len(value)
-        kind = f"list[{len(value)}]" if isinstance(value, list) else "text"
+        kind = (f"list[{len(value)}]" if isinstance(value, list) else
+                "text" if isinstance(value, str) else type(value).__name__)
+        size = (sum(len(v) for v in value)
+                if isinstance(value, list) and all(isinstance(v, str) for v in value)
+                else len(_as_text(value)))
         print(f"  {name:34s} {kind:9s} {size:6d} chars")
     return 0
 
@@ -96,7 +109,7 @@ def _show(bundle: Path, substring: str) -> int:
             continue
         found = True
         print(f"===== {name} =====")
-        print("\n\n".join(value) if isinstance(value, list) else value)
+        print(_as_text(value))
         print()
     if not found:
         print(f"No entry matching {substring!r}. Try --list.")
