@@ -325,6 +325,24 @@ def is_awareness_only(entry: dict) -> bool:
     return bool((entry.get("eval_awareness_grader") or {}).get("instrument"))
 
 
+def figures_grader(analyses, acts=MISALIGNED_ACTS):
+    """Whose reading a batch's figures are: the default where it read any of
+    these episodes, else the one rubric grader that did, else None.
+
+    The fallback exists because a corpus graded only by another rubric
+    grader - every impossible-task corpus, graded by gpt-6.1-terra - was
+    summarised from the default's view, which it has none of, so its
+    awareness and scheming figures were empty on every arm. An awareness-only
+    entry is never chosen: it judged nothing but awareness. Two rubric
+    graders and no default is ambiguous, and stays None.
+    """
+    entries = [e for a in analyses for e in graders_of(a, acts)]
+    if any(e["grader_model"] == DEFAULT_GRADER_MODEL for e in entries):
+        return DEFAULT_GRADER_MODEL
+    rubric = {e["grader_model"] for e in entries if not is_awareness_only(e)}
+    return rubric.pop() if len(rubric) == 1 else None
+
+
 def store_awareness(analysis: dict, blocks: dict, model: str,
                     acts=MISALIGNED_ACTS) -> dict:
     """`analysis` with `model`'s awareness-only entry set to `blocks`.

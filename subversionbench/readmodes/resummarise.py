@@ -222,9 +222,9 @@ def _apply_rederived(stored: dict, fresh: dict) -> list:
 def _per_grader_write_back(stored: dict, run: dict):
     """The same allowlist, applied to each grader's reading of an array file.
 
-    summarise_batch re-derived the DEFAULT grader's view only, so every other
-    grader's settled verdicts and awareness block are re-derived here, one
-    view at a time, and folded back with graders.store. An array file with no
+    summarise_batch re-derived one grader's view only (graders.figures_grader),
+    so every other grader's settled verdicts and awareness block are re-derived
+    here, one view at a time, and folded back with graders.store. An array file with no
     entry at all still has free fields to refresh, which the ungraded view of
     the default carries.
 

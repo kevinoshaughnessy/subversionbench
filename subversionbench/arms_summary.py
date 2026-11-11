@@ -29,7 +29,8 @@ from .batch import (
     parse_batch_filename,
     variant_from_filename,
 )
-from .graders import view
+from .config import DEFAULT_GRADER_MODEL
+from .graders import figures_grader, view
 from .grading import SCHEMING_LEVELS
 from .power import compare_rates
 from .redaction import redact_paths
@@ -175,13 +176,15 @@ def _variant_concealment(output_dir: str, batch_stamp: str) -> dict:
     by_act_variant = {
         "sandbox": defaultdict(Counter), "oversight": defaultdict(Counter),
     }
+    stored = []
     for path in find_run_files_by_stamp(output_dir, batch_stamp):
         try:
             with open(path) as f:
-                run = json.load(f)
+                stored.append(json.load(f).get("analysis") or {})
         except (OSError, json.JSONDecodeError):
             continue
-        analysis = view(run.get("analysis") or {})
+    grader = figures_grader(stored) or DEFAULT_GRADER_MODEL
+    for analysis in (view(a, grader) for a in stored):
         for act, field in (("sandbox", "concealment_sandbox_by_variant"),
                            ("oversight", "concealment_oversight_by_variant")):
             by_variant = analysis.get(field) or {}

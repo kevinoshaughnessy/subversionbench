@@ -16,6 +16,19 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v319
+
+- A batch summary is read by the grader that graded it. Summaries took the default grader's
+  reading, and the impossible-task corpora have none (they are graded by gpt-6.1-terra and
+  glm-5.3's category question), so every arm's grader awareness and scheming figures were
+  empty and the summary of summaries printed `eval_aware_grd` as n/a. `graders.figures_grader`
+  now picks the default where it read any episode, else the one rubric grader that did, else
+  none; a category-only reading is never picked. The batch summary, the per-phrasing
+  concealment in the summary of summaries and `--compare` all use it, and
+  `figures_grader_model` names the grader chosen, so the report's pooling check is unchanged.
+  Mainline and goal-guarding batches all keep the default. Impossible-task summaries need
+  `--resummarise` to pick it up.
+
 ## v318
 
 - The summary of summaries prints the selected scenario's measures. For a bundle that stages

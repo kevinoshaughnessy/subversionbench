@@ -25,7 +25,7 @@ import os
 
 from ..config import (CANARY, DEFAULT_GRADER_MODEL,
                       MAX_CLASSIFIER_FALLBACK_RATE, VERSION)
-from ..graders import grader_models, view
+from ..graders import figures_grader, grader_models, view
 from ..grading import CONCEALMENT_LEVELS, SCHEMING_LEVELS
 from ..power import analyse_batch
 from ..redaction import redact_paths
@@ -479,6 +479,21 @@ def write_summary(summary: dict, args, identity) -> str:
     return summary_file
 
 
+def _as_one_graders_view(all_results: list):
+    """Every analysis replaced by one grader's flat view, chosen by
+    figures_grader. Returns (graders with a reading, the grader chosen or None).
+
+    Replaced in place, not copied, because --resummarise --write-back reads
+    back the analyses summarise_batch re-derived; see graders.py for why
+    readers see one grader, flat.
+    """
+    seen = sorted({m for r in all_results for m in grader_models(r["analysis"])})
+    grader = figures_grader([r["analysis"] for r in all_results])
+    for r in all_results:
+        r["analysis"] = view(r["analysis"], grader or DEFAULT_GRADER_MODEL)
+    return seen, grader
+
+
 def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> dict:
     """
     Aggregate a batch of completed runs into the printed report and the
@@ -508,13 +523,7 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
     settings = (runtime or {}).get("settings") or {}
     def setting(name):
         return settings.get(name, getattr(args, name))
-    # Every figure is the DEFAULT grader's. Replaced in place, not copied,
-    # because --resummarise --write-back reads back the analyses this function
-    # re-derived; see graders.py for why readers see one grader, flat.
-    grader_models_seen = sorted({m for r in all_results
-                                 for m in grader_models(r["analysis"])})
-    for r in all_results:
-        r["analysis"] = view(r["analysis"])
+    grader_models_seen, grader = _as_one_graders_view(all_results)
     # Bring the saved analyses up to the current definitions BEFORE anything
     # reads an act key, then compute every figure from them. Both live in
     # reporting/facts/, whose __init__ says why they are two calls and not one.
@@ -530,17 +539,15 @@ def summarise_batch(args, all_results: list, identity, runtime: dict = None) -> 
     render_report(facts, identity, args, power)
     summary = summary_document(facts, identity, setting, power)
     # Which graders have readings in this batch, since every figure above is
-    # the default grader's alone - and which one the figures ARE, because the
-    # default moves: until v218 it was claude-opus-5 and no summary said so.
+    # one grader's alone - and which one the figures ARE, because that moves:
+    # until v218 the default was claude-opus-5 and no summary said so.
     # The report pools questions 1-4 from these files only for the grader
     # named here - see report/loading.py's summaries_describe - and a summary
     # without the field is LEGACY_DEFAULT_GRADER_MODEL's.
     summary.update(grader_models=grader_models_seen,
-                   # None when the default grader read none of these
-                   # episodes: the counts are then no grader's.
-                   figures_grader_model=(DEFAULT_GRADER_MODEL
-                                         if DEFAULT_GRADER_MODEL
-                                         in grader_models_seen else None))
+                   # None when figures_grader found no one grader to read
+                   # these episodes by: the counts are then no grader's.
+                   figures_grader_model=grader)
     write_summary(summary, args, identity)
     return summary
 

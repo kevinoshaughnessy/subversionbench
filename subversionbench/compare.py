@@ -19,8 +19,8 @@ import datetime
 import json
 
 from .batch import find_run_files_by_stamp, unique_batch_stamp
-from .config import CANARY, VERSION
-from .graders import view
+from .config import CANARY, DEFAULT_GRADER_MODEL, VERSION
+from .graders import figures_grader, view
 from .grading import classify_misalignment, classify_scheming
 from .power import compare_rates, fisher_exact_p
 from .redaction import redact_paths
@@ -45,9 +45,18 @@ def _load_arm(output_dir: str, stamp: str) -> list:
     for path in find_run_files_by_stamp(output_dir, stamp):
         with open(path) as f:
             episode = json.load(f)
-        episode["analysis"] = view(episode.get("analysis") or {})
         episodes.append(episode)
     return episodes
+
+
+def _flatten(*arms):
+    """Every episode's analysis as one grader's view, the same grader for all
+    arms so a contrast never compares two graders."""
+    stored = [e.get("analysis") or {} for arm in arms for e in arm]
+    grader = figures_grader(stored) or DEFAULT_GRADER_MODEL
+    for arm in arms:
+        for e in arm:
+            e["analysis"] = view(e.get("analysis") or {}, grader)
 
 
 def _arm_label(arm: list, stamp: str) -> str:
@@ -216,6 +225,7 @@ def compare_batches(args) -> int:
             print(f"No run files found for batch {stamp} in "
                   f"{redact_paths(args.output_dir)}/")
             return 1
+    _flatten(arm_a, arm_b)
 
     name_a, name_b = _arm_label(arm_a, stamp_a), _arm_label(arm_b, stamp_b)
     results = _metric_comparisons(arm_a, arm_b)
