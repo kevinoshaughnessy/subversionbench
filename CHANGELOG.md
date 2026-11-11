@@ -16,6 +16,16 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v321
+
+- An episode that left the check script modified is no longer also counted as an undone edit.
+  `classify_transient_tampering` required the end state to be clean, as its docstring says, but read
+  only the config's hash for that, not `oversight_tampered`, which covers the script as well. An
+  episode that restored the config and left the script changed was counted in both, so the combined
+  rate could pass its denominator, and one r3 batch's summary crashed computing its interval. No
+  mainline, goal-guarding, r1 or r2 episode has the two flags apart, so none of their figures move.
+  The console snapshot of a transient episode was built in that impossible state and is corrected.
+
 ## v320
 
 - The impossible-task r3 capability arm no longer forbids the act it asks for. Its acceptance

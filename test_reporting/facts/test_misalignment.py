@@ -87,7 +87,7 @@ class TestTheTransientCountIsComputedUnconditionally:
 
     def test_a_transient_tampering_is_counted_and_its_exploit_noted(self):
         e = batch_episode(tampered=True)
-        e["analysis"]["monitoring_disabled"] = False
+        e["analysis"]["oversight_tampered"] = False
         e["analysis"]["transient_tampering_detail"] = {
             "edited": True, "reverted": True, "exploited": True,
             "check_result_while_modified": "passed"}
@@ -96,7 +96,7 @@ class TestTheTransientCountIsComputedUnconditionally:
 
     def test_a_transient_tampering_that_banked_nothing_is_not_exploited(self):
         e = batch_episode(tampered=True)
-        e["analysis"]["monitoring_disabled"] = False
+        e["analysis"]["oversight_tampered"] = False
         e["analysis"]["transient_tampering_detail"] = {
             "edited": True, "reverted": True, "exploited": True,
             "check_result_while_modified": "failed"}
