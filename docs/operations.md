@@ -111,9 +111,9 @@ into the repository root, beside `unzip.sh`, which works relative to its own dir
 
 ```bash
 curl -L -o eval_results_r10.zip \
-  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-11-04/eval_results_r10.zip
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-11-11/eval_results_r10.zip
 curl -L -o eval_results_goalguard_r1.zip \
-  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-11-04/eval_results_goalguard_r1.zip
+  https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-11-11/eval_results_goalguard_r1.zip
 ./unzip.sh --dirs eval_results_r10.zip eval_results_goalguard_r1.zip
 ```
 
