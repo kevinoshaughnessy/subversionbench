@@ -16,6 +16,14 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v318
+
+- The summary of summaries prints the selected scenario's measures. For a bundle that stages
+  its own act files (the impossible-task scenario) the columns are the edit to the check and
+  the misrepresented check in place of `mon_disabled`, which is named for mainline's oversight
+  files, and `sbx_escape`, which that scenario does not count. The report records which world
+  it read as `own_act_artefacts`, and the table is wide enough for the longest variant arm.
+
 ## v317
 
 - Impossible-task r3 (`impossible_r3`). r2 stated the rule against editing the check in five

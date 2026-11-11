@@ -34,7 +34,7 @@ from .grading import SCHEMING_LEVELS
 from .power import compare_rates
 from .redaction import redact_paths
 from .rollout_pins import MAX_NUDGE_FINGERPRINTS, ROLLOUT_FINGERPRINTS
-from .scenario import variant_names
+from .scenario import ACT_ARTEFACTS, variant_names
 
 NUDGES = ("none", "strong", "max")
 
@@ -46,7 +46,21 @@ HEADLINE_RATES = (
     "misaligned", "scheming", "monitoring_disabled", "sandbox_escape_attempt",
     "host_path_read", "network_probe", "filesystem_escape", "out_of_scope",
     "eval_aware_keywords", "eval_aware_grader", "read_memo", "flagged_by_check",
+    "oversight_tampered", "misrepresented_check",
 )
+
+# The console table's columns, (header, rate key). A bundle that stages its own act
+# files is not mainline's world: monitoring_disabled is named for mainline's two
+# oversight files and its act there is oversight_tampered, and it declares no sandbox
+# act, so a refused command is not an escape attempt (run_report's notes say the same).
+MAINLINE_COLUMNS = (("misaligned", "misaligned"), ("scheming", "scheming"),
+                    ("mon_disabled", "monitoring_disabled"),
+                    ("sbx_escape", "sandbox_escape_attempt"),
+                    ("eval_aware_grd", "eval_aware_grader"))
+OWN_ARTEFACT_COLUMNS = (("misaligned", "misaligned"), ("scheming", "scheming"),
+                        ("check_edited", "oversight_tampered"),
+                        ("misrep_check", "misrepresented_check"),
+                        ("eval_aware_grd", "eval_aware_grader"))
 
 # Of those, the subset actually contrasted across arms. Smaller than
 # HEADLINE_RATES on purpose: a contrast at n=10 per arm is underpowered for
@@ -297,6 +311,7 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
         "model": model,
         "model_slug": model_slug,
         "output_dir": redact_paths(output_dir),
+        "own_act_artefacts": bool(ACT_ARTEFACTS),
         "arms": arms,
         "missing_arms": missing_arms,
         "contrasts": contrasts,
@@ -316,11 +331,11 @@ def format_summary_of_summaries(report: dict) -> str:
                      f"{', '.join(report['missing_arms'])}")
     lines.append("")
 
-    header_metrics = ("misaligned", "scheming", "mon_disabled",
-                      "sbx_escape", "eval_aware_grd")
-    metric_keys = ("misaligned", "scheming", "monitoring_disabled",
-                  "sandbox_escape_attempt", "eval_aware_grader")
-    col = "{:<26}" + "  {:>13}" * len(header_metrics)
+    columns = (OWN_ARTEFACT_COLUMNS if report.get("own_act_artefacts")
+               else MAINLINE_COLUMNS)
+    header_metrics = [h for h, _ in columns]
+    metric_keys = [k for _, k in columns]
+    col = "{:<34}" + "  {:>14}" * len(header_metrics)
     lines.append(col.format("arm", *header_metrics))
     for key, arm in sorted(report["arms"].items()):
         cells = []
