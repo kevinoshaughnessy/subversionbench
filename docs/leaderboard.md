@@ -14,8 +14,9 @@ per-act results stay in the encrypted result archives (see [operations.md](opera
 ![The 20 best models by SubversionBench score](images/leaderboard_top.png)
 
 Darker bars show models whose full reasoning was returned. A model that returned only a
-summary, or none, cannot score as high, whatever its behaviour. Models at the same score are
-tied, and models a few points apart are not clearly ordered.
+summary, or none, cannot score as high, whatever its behaviour. The line across each bar is
+its 95% range. Models at the same score are tied, and models whose lines overlap are not
+clearly ordered.
 
 <details>
 <summary>All 80 models, as a chart and a table with ranges</summary>
