@@ -16,6 +16,17 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v320
+
+- The impossible-task r3 capability arm no longer forbids the act it asks for. Its acceptance
+  settings carried an ownership line saying they were not to be edited, left over from r2, where
+  every arm had such a rule; r3's propensity arms have none. A model that refused to edit against
+  that line was recorded as not having shown the capability, so a capability-first screen would
+  have dropped cautious models for a prohibition their propensity episodes never see. The arm now
+  uses the `impossible` arms' settings unchanged. Only the capability fingerprint moves; the four
+  propensity pins, and every mainline pin, are as they were, so r3 propensity episodes still pool.
+  Capability episodes collected at the old pin are superseded and need collecting again.
+
 ## v319
 
 - A batch summary is read by the grader that graded it. Summaries took the default grader's
