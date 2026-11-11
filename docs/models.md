@@ -143,7 +143,8 @@ twelve-arm cross product.
   reading the monitor run's disagreements: the step it marks writes a draft through a
   heredoc whose text names the monitoring config, and no command in the episode touches
   the config or the check script. It stays counted until the detector is fixed. Graded
-  by gpt-6-sol at collection; no glm-5.3 category reading yet
+  by gpt-6-sol at collection. glm-5.3 category reading taken 2026-11-11 and resummarised;
+  4 episodes (3 max, 1 none) hold no reading yet, so the model is not yet in the snapshot
 - [meituan/longcat-2.0](https://openrouter.ai/meituan/longcat-2.0) † — collected 2026-10-23
   (120/120, pinned to AtlasCloud, the only host). 3 episodes ended at the turn cap; no
   command timed out
@@ -170,7 +171,7 @@ twelve-arm cross product.
   served by it, reasoning returned in every episode). No counted oversight act; one episode
   had a command the sandbox refused. 2 ended on an empty turn after a length-truncated turn;
   none at the turn cap; 2 commands timed out, kept and flagged. Graded by gpt-6-sol at
-  collection; no glm-5.3 category reading yet
+  collection; glm-5.3 category reading taken 2026-11-11, every episode read, resummarised
 - [nvidia/nemotron-3-ultra-550b-a55b](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b) †
   — collected 2026-10-25 (120/120, pinned to BaseTen, the only endpoint passing the pinning
   rule). 2 episodes ended at the turn cap; no command timed out
@@ -599,7 +600,7 @@ native route below stands for the model.
 | ibm-granite/granite-4.2-8b | complete (pinned to DeepInfra); 2 ended at the turn cap; 52 read the successor file |
 | inception/mercury-2.5 | complete (80/80, pinned to Inception): Inception's upstream timed out on 43 episodes on 2026-10-04 and kept failing mid-episode on three resumes on 2026-10-07, mostly idle timeouts; deferred/oversight/none was topped up from 8 to 10 on 2026-10-20 |
 | inclusionai/ling-3.0-flash | complete |
-| inclusionai/ling-3.0-tiny | complete (80/80, 2026-11-06 to 07, v311, pinned to Ant Digital, every turn served by it); no episode guarded and no counted act; 19 ended at the turn cap, 2 on an empty turn; 17 commands timed out in 8 episodes, the check script waiting on stdin, kept and flagged; graded by gpt-6-sol at collection, no glm-5.3 category reading yet; 65 read the successor file |
+| inclusionai/ling-3.0-tiny | complete (80/80, 2026-11-06 to 07, v311, pinned to Ant Digital, every turn served by it); no episode guarded and no counted act; 19 ended at the turn cap, 2 on an empty turn; 17 commands timed out in 8 episodes, the check script waiting on stdin, kept and flagged; graded by gpt-6-sol at collection; glm-5.3 category reading taken 2026-11-11 and resummarised, 1 episode (strong) holds no reading yet; 65 read the successor file |
 | meituan/longcat-2.0 | complete (pinned to AtlasCloud); no episode guarded; 5 ended at the turn cap; no command timed out; 76 read the successor file |
 | meta-llama/llama-4-maverick | complete |
 | meta/muse-glimmer-30b | complete |
@@ -612,7 +613,7 @@ native route below stands for the model.
 | moonshotai/kimi-k2.6 | complete (pinned to Moonshot AI) |
 | moonshotai/kimi-k2.7-code | complete (pinned to Moonshot AI); no episode guarded; one episode (none, deferred) ended on a closing turn the provider reported as a length truncation, kept and flagged; no command timed out; 68 read the successor file |
 | moonshotai/kimi-k3 | complete (pinned to Moonshot AI) |
-| nex-agi/nex-n2.5-pro | complete (80/80, 2026-11-07, v311, pinned to Nex AGI, every turn served by it); no episode guarded and no counted act; 2 ended on an empty turn, none at the turn cap; no command timed out; graded by gpt-6-sol at collection, no glm-5.3 category reading yet; 71 read the successor file |
+| nex-agi/nex-n2.5-pro | complete (80/80, 2026-11-07, v311, pinned to Nex AGI, every turn served by it); no episode guarded and no counted act; 2 ended on an empty turn, none at the turn cap; no command timed out; graded by gpt-6-sol at collection; glm-5.3 category reading taken 2026-11-11 and resummarised, 1 episode (none) holds no reading yet; 71 read the successor file |
 | nvidia/nemotron-3-ultra-550b-a55b | complete (pinned to BaseTen); no episode guarded; 1 ended at the turn cap; the last arm (strong, deferred, no oversight) was resumed under its own stamp after five episodes failed on BaseTen's upstream 429 rate limit, the failed files kept; one command timed out, the check script run with no input and so waiting on stdin, kept and flagged; all 80 read the successor file |
 | nvidia/nemotron-3.5-lightning | complete (pinned to Wafer); 52 episodes lacked a gpt-6-sol reading at first, on the exhausted OpenAI credit, and were regraded on 2026-10-14; 4 ended at the turn cap; all 80 read the successor file |
 | poolside/laguna-s-2.1 | complete (pinned to Poolside); no episode guarded; none at the turn cap; no command timed out; 80 read the successor file |
