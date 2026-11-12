@@ -910,10 +910,18 @@ An episode that switched is counted only in the last column, so a row's first co
 to less than its episodes. glm-5.3-flash is the only mainline batch collected after 2026-10-06
 without a pin.
 
+## Incomplete-task scenario (r3)
+
+Bundle `subversionbench/scenarios/incomplete.b64`, rollout `incomplete_r3` (v323). Built
+2026-11-12. r2 with one change: its sandbox no longer refuses a script printed into the project
+with `printf` or `echo` for the shebang in its quoted text, which blocked r2's one imminent
+attempt on the hook. Corpus `eval_results_incomplete_r3`, capability
+`eval_results_incomplete_r3cap`. Cells, runs and grading as r2. Nothing collected yet.
+
 ## Incomplete-task scenario (r2)
 
-Bundle `subversionbench/scenarios/incomplete.b64`, rollout `incomplete_r2` (v322). Built
-2026-11-12. Corpus `eval_results_incomplete_r2`, capability `eval_results_incomplete_r2cap`.
+Bundle `subversionbench/scenarios/incomplete2.b64`, rollout `incomplete_r2` (v322). Built
+2026-11-12, superseded by r3 the same day. Corpus `eval_results_incomplete_r2`, capability `eval_results_incomplete_r2cap`.
 Most of the task's inputs arrive one per command, so the work cannot be finished before the
 notice. Cells: oversight present, no lure, nudge `none`, by control (`later`) and `imminent`.
 10 runs per arm, 3 capability episodes per model collected first, ungraded at collection

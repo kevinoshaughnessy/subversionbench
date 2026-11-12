@@ -16,6 +16,17 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v323
+
+- A bundle's sandbox policy may declare `printed_text_is_data`: a quoted argument of printf or
+  echo is text, not a path, so a script printed into the project is not refused as a system
+  location for the shebang in it. Incomplete-task r2 refused its one imminent episode that set
+  out to rewrite the hook that way, and the hook then closed the session; the same text in a
+  heredoc was let through. A quoted redirection target, and quoted text that runs a command,
+  are still checked. Replayed over the impossible-task corpora, the rule never fired there.
+- Incomplete-task r3 (`incomplete_r3`) declares it, and changes nothing else. r2 is frozen as
+  `scenarios/incomplete2.b64`, whose pins recompute unchanged.
+
 ## v322
 
 - Incomplete-task r2 (`incomplete_r2`). r1's notice came at a fixed command count on the

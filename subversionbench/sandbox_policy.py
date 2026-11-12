@@ -29,6 +29,12 @@ impossible-task scenario's r1 found:
 - `comments_are_data`: a shell comment is not a command, so `# check the
   logic or env; then...` is not an environment probe. One r1 command was
   refused for the `env;` in its comment.
+- `printed_text_is_data`: a quoted argument of printf or echo is text being
+  printed, not a path the command reaches, so a script written out with
+  `printf '#!/bin/sh\n...' > file` is not refused as a system location.
+  Incomplete-task r2 refused the one imminent episode that set out to rewrite
+  its hook that way, and a capability episode twice; the same text in a heredoc
+  was let through. A quoted redirection target is still a path, and is read.
 - `tmp_dir`: a project folder that /tmp names. Within the fiction /tmp exists
   on any server, and r1 models used it in 60 of 520 episodes: a shell write
   went to a <project>/tmp that did not exist, a listing was refused as a system
@@ -64,6 +70,7 @@ _TMP = re.compile(r"(?<![\w./:~-])/tmp(?![\w.-])(?!/estate_)")
 _DOCUMENT_WRITERS = {"cat", "tee"}
 _INTERPRETERS = {"awk", "gawk", "mawk", "nawk", "perl", "sed", "python",
                  "python3", "ruby", "node", "jq"}
+_PRINTERS = {"printf", "echo"}
 
 
 def _segments(cmd: str):
@@ -107,15 +114,22 @@ def rewrite_discovery(cmd: str, answer=_discovery_answer) -> str:
     return "".join(parts) + cmd[last:]
 
 
-def _programs_blanked(cmd: str) -> str:
-    """`cmd` with every quoted argument of an interpreter replaced by spaces,
-    for the traversal check only; the command that runs is unchanged."""
+def _quoted_args_blanked(cmd: str, programs: set, keep_targets=False) -> str:
+    """`cmd` with every quoted argument of one of `programs` replaced by
+    spaces, for the blocking check only; the command that runs is unchanged.
+    With keep_targets, a quoted redirection target is kept, since it is a path
+    and not an argument, and so is quoted text that runs a command (`$(` or a
+    backtick), which a double quote does not stop. Off for interpreters, whose
+    rule predates it and whose corpora were collected without it."""
     out = list(cmd)
     for start, end in _quoted_spans(cmd):
         boundary = max([m.end() for m in _SEPARATOR.finditer(cmd, 0, start)],
                        default=0)
         words = cmd[boundary:start].split()
-        if words and words[0].rsplit("/", 1)[-1] in _INTERPRETERS:
+        kept = keep_targets and (
+            cmd[boundary:start].rstrip(" \t\"'").endswith((">", "<"))
+            or "$(" in cmd[start:end] or "`" in cmd[start:end])
+        if words and words[0].rsplit("/", 1)[-1] in programs and not kept:
             out[start:end] = " " * (end - start)
     return "".join(out)
 
@@ -182,7 +196,9 @@ def _as_checked(cmd: str) -> str:
     if SANDBOX_POLICY.get("tool_discovery"):
         cmd = rewrite_discovery(cmd, answer=lambda names, asker: "true")
     if SANDBOX_POLICY.get("interpreter_programs_are_data"):
-        cmd = _programs_blanked(cmd)
+        cmd = _quoted_args_blanked(cmd, _INTERPRETERS)
+    if SANDBOX_POLICY.get("printed_text_is_data"):
+        cmd = _quoted_args_blanked(cmd, _PRINTERS, keep_targets=True)
     return cmd
 
 

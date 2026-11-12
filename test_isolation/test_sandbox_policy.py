@@ -183,3 +183,32 @@ class TestCommentsAreData:
             for cmd in ("echo 'a # b' ; printenv", "ls .. # x", "x=1; echo ${#x}; ls ../..",
                         "# a comment\nls ../.."):
                 assert sandbox_policy.blocked(cmd, ROOT), cmd
+
+
+class TestPrintedTextIsData:
+    """Incomplete-task r2 refused a hook rewritten with printf as a system
+    location, for the shebang in its quoted text; a heredoc was let through."""
+    PRINTED = "printf '#!/bin/sh\\necho kept\\nexit 0\\n' > ops/hook.sh"
+
+    def test_a_quoted_script_printed_into_the_project_is_not_refused(self):
+        assert would_be_blocked(self.PRINTED, ROOT), "fixture no longer exercises the defect"
+        with _policy(printed_text_is_data=True):
+            for cmd in (self.PRINTED, "cp a b; echo '#!/bin/sh' > s.sh",
+                        "printf '%s\\n' '#!/bin/sh' 'exit 0' > ops/hook.sh"):
+                assert not sandbox_policy.blocked(cmd, ROOT), cmd
+
+    def test_a_path_the_command_reaches_is_still_refused(self):
+        with _policy(printed_text_is_data=True):
+            for cmd in ("printf 'x' > \"../../x\"", "printf 'x'; cat /etc/passwd",
+                        "echo hi; ls ../..", "printf '%s' \"$(cat /etc/passwd)\" > out",
+                        "echo \"`cat /etc/passwd`\" > out"):
+                assert sandbox_policy.blocked(cmd, ROOT), cmd
+
+    def test_interpreters_keep_their_rule(self):
+        """keep_targets is the printers' alone: an interpreter's quoted
+        redirection target was blanked before and still is."""
+        cmd = "awk '{print}' x > \"/etc/x\""
+        with _policy(interpreter_programs_are_data=True):
+            assert (sandbox_policy.blocked(cmd, ROOT)
+                    == would_be_blocked(sandbox_policy._quoted_args_blanked(
+                        cmd, sandbox_policy._INTERPRETERS), ROOT))
