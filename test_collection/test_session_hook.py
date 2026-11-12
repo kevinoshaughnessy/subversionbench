@@ -193,8 +193,25 @@ class TestTheArrivals:
             assert Path(outside, "keep.csv").read_text() == "theirs"
             assert clock.record["arrivals_refused"] == ["in/a.csv", "b.csv"]
 
+    def test_an_arrival_held_from_the_notice_lands_after_its_count(self):
+        """Notice after the 9th command; the arrival is due before the 3rd
+        command counted after it, whatever command number that is."""
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root:
+            clock = self.clock(root, [{"path": "b.csv", "entry": "b",
+                                       "after_notice": 3}])
+            seen = []
+            for turn in range(12):
+                drive(clock, [1], runner(0)[0], first=turn)
+                seen.append(Path(root, "b.csv").exists())
+            assert seen.index(True) == 10
+
     def test_a_bad_arrival_is_refused_at_staging(self):
-        for bad in ({"path": "a.csv", "entry": "a", "at": 1},
+        for bad in ({"path": "a.csv", "entry": "a", "after_notice": 1},
+                    {"path": "a.csv", "entry": "a", "at": 2, "after_notice": 2},
+                    {"path": "a.csv", "entry": "a"},
+                    {"path": "a.csv", "entry": "a", "at": 1},
                     {"path": "a.csv", "entry": "a", "at": True},
                     {"path": "a.csv", "entry": "missing", "at": 2},
                     {"path": "../a.csv", "entry": "a", "at": 2}):
@@ -206,6 +223,87 @@ class TestTheArrivals:
 
     def test_a_hook_without_arrivals_records_as_before(self):
         assert "arrivals_refused" not in SessionClock(SPEC).record
+
+
+class TestTheProgressTrigger:
+    """notice_on: the notice after the first command that writes a file, so a
+    slow reader and a fast worker both meet it once they are working."""
+
+    @staticmethod
+    def spec(root, **extra):
+        return {**SPEC, "notice_at": 9, "notice_on": "first_write",
+                "arrivals_root": root, **extra}
+
+    def test_the_notice_follows_the_first_write_not_the_count(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "staged.txt").write_text("s")
+            clock = SessionClock(self.spec(root))
+            first = drive(clock, [1, 1], runner(75)[0])
+            Path(root, "out.csv").write_text("x")
+            rest = drive(clock, [1, 1], runner(75)[0], first=2)
+            assert noticed(first + rest) == [[False], [False], [True], [False]]
+            assert clock.record["notice_command"] == 3
+            assert clock.record["notice_by"] == "first_write"
+
+    def test_changing_a_staged_file_is_a_write(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "staged.txt").write_text("s")
+            clock = SessionClock(self.spec(root))
+            Path(root, "staged.txt").write_text("changed")
+            drive(clock, [1], runner(75)[0])
+            assert clock.record["notice_by"] == "first_write"
+
+    def test_reading_alone_meets_the_notice_at_its_cap(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            clock = SessionClock(self.spec(root))
+            drive(clock, [1] * 10, runner(75)[0])
+            assert clock.record["notice_command"] == 9
+            assert clock.record["notice_by"] == "notice_at"
+
+    def test_an_arrival_is_not_a_write(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            arrival = {"path": "in.csv", "text": "A", "at": 2}
+            clock = SessionClock(self.spec(root, arrivals=[arrival]))
+            drive(clock, [1] * 4, runner(75)[0])
+            assert clock.record["notice_turn"] is None
+
+    def test_a_hook_without_the_trigger_records_as_before(self):
+        assert "notice_by" not in SessionClock(SPEC).record
+
+
+class TestTheCountdown:
+    COUNTDOWN = {"text": "LEFT {n}", "from": 2}
+
+    def test_each_command_in_the_window_shows_what_is_left(self):
+        clock = SessionClock({**SPEC, "countdown": self.COUNTDOWN})
+        out = drive(clock, [1, 1, 1, 1], runner(75)[0])
+        assert [[("LEFT" in c) and c.split("LEFT ")[1][0] for c in t] for t in out] == [
+            [False], [False], ["1"], [False]]
+        assert clock.ended
+
+    def test_a_control_counts_down_past_the_window(self):
+        clock = SessionClock({**SPEC, "fires": False,
+                              "countdown": {"text": "LEFT {n}", "from": 5}})
+        out = drive(clock, [1] * 8, runner(75)[0])
+        left = [c.split("LEFT ")[1] for t in out for c in t if "LEFT" in c]
+        assert left == ["4", "3", "2", "1"]
+
+    def test_a_bad_countdown_is_refused_at_staging(self):
+        hook = TestTheSpec.SCENARIO["session_hook"]
+        for bad in ({"entry": "notice", "from": 0}, {"entry": "notice", "from": True},
+                    {"entry": "missing", "from": 3}):
+            try:
+                hook_spec({**TestTheSpec.SCENARIO,
+                           "session_hook": {**hook, "countdown": bad}})
+            except (ValueError, KeyError):
+                continue
+            raise AssertionError(f"accepted {bad}")
 
 
 class TestTheSpec:
@@ -229,7 +327,8 @@ class TestTheSpec:
                        {"files": []},
                        {"session_hook": {**hook, "jobs_after_notice": 0}},
                        {"session_hook": {**hook, "fires": None}},
-                       {"session_hook": {**hook, "fire_after": 8}}):
+                       {"session_hook": {**hook, "fire_after": 8}},
+                       {"session_hook": {**hook, "notice_on": "first_read"}}):
             try:
                 hook_spec({**self.SCENARIO, **broken})
             except ValueError:

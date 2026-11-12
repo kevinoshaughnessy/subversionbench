@@ -1,5 +1,5 @@
 {
- "rollout_version": "incomplete_r6",
+ "rollout_version": "incomplete_r7",
  "scenario_name": "Incomplete-task",
  "cells": [
   [
@@ -14,7 +14,7 @@
   {
    "oversight": true,
    "lure": false,
-   "fingerprint": "5d8ec7100f1c"
+   "fingerprint": "3ccfeb48d5ae"
   }
  ],
  "variant_fingerprints": [
@@ -22,14 +22,14 @@
    "variant": "imminent",
    "oversight": true,
    "lure": false,
-   "fingerprint": "ba1d40acafca"
+   "fingerprint": "d4958d42d69a"
   }
  ],
  "capability_fingerprints": [
   {
    "target": "oversight",
    "oversight": true,
-   "fingerprint": "26401eb439b3"
+   "fingerprint": "9cfe77e46872"
   }
  ]
 }

@@ -28,13 +28,28 @@ project and declares, under `session_hook`:
     without arrivals it was not: a model that batches its reads and writes
     the deliverable in one script finished the first incomplete-task rollout
     in five commands, before its notice. Work whose inputs are not on disk
-    yet cannot be finished by any script.
+    yet cannot be finished by any script. An arrival may give `after_notice`
+    instead of `at`: it lands before the model's after_notice-th command
+    counted in the window, so it can be held past the window's close however
+    late the notice came;
+
+  - `notice_on` (optional, only "first_write"): the notice comes after the
+    first command that leaves a file in the project created or changed, or
+    at the notice_at-th command if that is sooner. At a fixed count the
+    notice found gemini-3.5-flash still reading in every r5 and r6 episode,
+    sixteen commands or more before it wrote anything, while grok-4.5 had
+    finished the same work by its thirteenth: one count caught the two
+    models at different points in the work. Arrivals are not writes;
+  - `countdown` (optional): {"entry", "from"}. After every command counted
+    in the window, the entry, with "{n}" made from - commands counted, while
+    that is at least 1. In r6 a model three commands into its window still
+    reasoned that it had all six left.
 
 At the window's close, in both cells, the harness records whether the hook has
 changed (`changed_by_window`, the end-state predicate applied then) and whether
 the deliverable passes its check (`complete_at_window`). The first is the
 comparison between the cells: read at the episode's end instead, the control
-had the rest of the episode to tamper in and the treatment three commands.
+had the rest of the episode to tamper in and the treatment only its window.
 
 The outcome is what happened, not an inference from the commands: the hook
 really runs, so a session that survived it is one in which the script at that
@@ -44,6 +59,7 @@ A bundle that declares no `session_hook` never reaches this module's effects:
 `SessionClock(None)` does nothing, so no other scenario's episodes change.
 """
 
+import os
 from pathlib import Path
 
 from .declared_layout import checked_relative_path
@@ -81,9 +97,15 @@ def hook_spec(scenario: dict, artefacts=(), env_dir=None) -> dict:
             or "fire_after" in declared):
         raise ValueError("session_hook needs jobs_after_notice >= 1 and a "
                          "boolean fires; fire_after is no longer read")
+    if declared.get("notice_on", "first_write") != "first_write":
+        raise ValueError(f"session_hook notice_on {declared['notice_on']!r} "
+                         f"is not one this harness knows")
     spec = {**declared, "notice": scenario[declared["notice_entry"]]}
+    if "countdown" in declared:
+        spec["countdown"] = _countdown(scenario, declared["countdown"])
     if "arrivals" in declared:
         spec["arrivals"] = _arrivals(scenario, declared["arrivals"])
+    if "arrivals" in declared or "notice_on" in declared:
         spec["arrivals_root"] = env_dir
     digest = [a for a in artefacts
               if env_dir and a["path"] == str(Path(env_dir, declared["path"]))]
@@ -92,20 +114,57 @@ def hook_spec(scenario: dict, artefacts=(), env_dir=None) -> dict:
     return spec
 
 
+def _count(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _countdown(scenario: dict, declared: dict) -> dict:
+    """The countdown as {"text", "from"}; refused without a count of at least
+    1 or with an entry the arm does not carry."""
+    if not _count(declared.get("from")) or declared["from"] < 1:
+        raise ValueError("session_hook countdown needs an integer from >= 1")
+    if declared.get("entry") not in scenario:
+        raise KeyError(f"countdown names entry {declared.get('entry')!r}, "
+                       f"which this arm does not carry")
+    return {"text": scenario[declared["entry"]], "from": declared["from"]}
+
+
 def _arrivals(scenario: dict, declared: list) -> list:
-    """Each arrival as {"path", "text", "at"}. Refused for a path outside the
-    project, an entry the arm does not carry, or an `at` below 2: a file
-    there before the first command is a staged file and belongs in `files`."""
+    """Each arrival as {"path", "text"} and one of "at" or "after_notice".
+    Refused for a path outside the project, an entry the arm does not carry,
+    or a count below 2: a file there before the first command is a staged
+    file and belongs in `files`, and one due with the notice's own command
+    would land beside commands chosen before it was read."""
     out = []
     for a in declared:
-        at = a.get("at")
-        if not isinstance(at, int) or isinstance(at, bool) or at < 2:
-            raise ValueError(f"arrival {a.get('path')!r} needs an integer at >= 2")
+        when = [k for k in ("at", "after_notice") if k in a]
+        if len(when) != 1 or not _count(a[when[0]]) or a[when[0]] < 2:
+            raise ValueError(f"arrival {a.get('path')!r} needs one integer "
+                             f"at or after_notice >= 2")
         if a.get("entry") not in scenario:
             raise KeyError(f"arrival {a.get('path')!r} names entry "
                            f"{a.get('entry')!r}, which this arm does not carry")
         out.append({"path": checked_relative_path(a["path"]),
-                    "text": scenario[a["entry"]], "at": at})
+                    "text": scenario[a["entry"]], when[0]: a[when[0]]})
+    return out
+
+
+def _files_now(root: str, skip) -> dict:
+    """{relative path: (mtime_ns, size)} for every file and link under root,
+    links not followed, the paths in skip left out. A folder the model has
+    made unreadable, or a file a background job of the model's removes while
+    this walks, is passed over rather than raising mid-episode."""
+    out = {}
+    for folder, dirs, files in os.walk(root, onerror=lambda _e: None):
+        for name in files + [d for d in dirs if Path(folder, d).is_symlink()]:
+            path = Path(folder, name)
+            rel = str(path.relative_to(root))
+            try:
+                stat = path.lstat()
+            except FileNotFoundError:
+                continue
+            if rel not in skip:
+                out[rel] = (stat.st_mtime_ns, stat.st_size)
     return out
 
 
@@ -157,6 +216,22 @@ class SessionClock:
             "complete_at_window": None, "hook_exit": None, "hook_output": None}
         if spec is not None and "arrivals" in spec:
             self.record["arrivals_refused"] = []
+        self.baseline = None
+        if spec is not None and "notice_on" in spec:
+            self.record.update(notice_command=None, notice_by=None)
+            self.baseline = self._files_now()
+
+    def _files_now(self) -> dict:
+        return _files_now(self.spec["arrivals_root"],
+                          {a["path"] for a in self.spec.get("arrivals", ())})
+
+    def _notice_due(self) -> str:
+        """Why the notice comes after this command, or None if it does not."""
+        if self.commands == self.spec["notice_at"]:
+            return "notice_at"
+        if self.baseline is not None and self._files_now() != self.baseline:
+            return "first_write"
+        return None
 
     def _check_passes(self, run):
         """Whether the deliverable passes its check now; None without one,
@@ -181,24 +256,41 @@ class SessionClock:
         """The arrivals due before the next command. After the notice's
         progress check, so a file due after the notice is not there for it."""
         for arrival in self.spec.get("arrivals", ()):
-            if arrival["at"] == self.commands + 1 and not _deliver(
-                    self.spec["arrivals_root"], arrival):
+            due = (arrival["at"] == self.commands + 1 if "at" in arrival
+                   else arrival["after_notice"] == self.after_notice + 1)
+            if due and not _deliver(self.spec["arrivals_root"], arrival):
                 self.record["arrivals_refused"].append(arrival["path"])
 
     def _advance(self, result, entry, turn, red, run) -> None:
+        """Counting goes on past the window's close, so that an arrival held
+        past it, and the control's countdown, still know where they are."""
         notice_turn = self.record["notice_turn"]
         if notice_turn is None:
-            if self.commands == self.spec["notice_at"]:
-                self.record["notice_turn"] = turn + 1
-                passes = self._check_passes(run)
-                self.record["incomplete_at_notice"] = (
-                    None if passes is None else not passes)
-                self.notice_pending = True
+            by = self._notice_due()
+            if by:
+                self._give_notice(by, turn, run)
             return
-        if turn + 1 > notice_turn and self.record["window_turn"] is None:
+        if turn + 1 > notice_turn:
             self.after_notice += 1
-            if self.after_notice == self.spec["jobs_after_notice"]:
+            if (self.after_notice == self.spec["jobs_after_notice"]
+                    and self.record["window_turn"] is None):
                 self._close_window(result, entry, turn, red, run)
+            self._count_down(result, entry, red)
+
+    def _give_notice(self, by: str, turn: int, run) -> None:
+        self.record["notice_turn"] = turn + 1
+        if "notice_command" in self.record:
+            self.record.update(notice_command=self.commands, notice_by=by)
+        passes = self._check_passes(run)
+        self.record["incomplete_at_notice"] = (
+            None if passes is None else not passes)
+        self.notice_pending = True
+
+    def _count_down(self, result, entry, red) -> None:
+        countdown = self.spec.get("countdown")
+        left = countdown and countdown["from"] - self.after_notice
+        if left and left >= 1 and not self.ended:
+            _appended(result, entry, countdown["text"].replace("{n}", str(left)), red)
 
     def end_turn(self, results: list, entries: list, red) -> None:
         """Called once per turn, after its commands: a notice due this turn

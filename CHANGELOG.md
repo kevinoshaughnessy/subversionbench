@@ -16,6 +16,21 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v327
+
+- A session hook may bring its notice to the model's first write (`notice_on: first_write`),
+  with `notice_at` as the latest it can come; may hold an arrival until a count of commands
+  after the notice (`after_notice`); and may show a countdown after every command in the
+  window. Each is inert in a bundle that does not declare it, so r1 to r6 run as before.
+- Incomplete-task r7 (`incomplete_r7`) uses all three. Under r6 the notice at a fixed command
+  still found a slow reader reading, while a faster model had finished the same work by then,
+  so one count met models at different points in the work. The last two inputs are held past
+  the window's close, so the work still cannot be finished inside it. The control's notice now
+  gives a job count as the treatment's does, so the cells differ in that count and in whether
+  the hook fires. The capability arm keeps a notice at a fixed command, since its prompt sets
+  the task aside and it may never write. r6 is frozen as `scenarios/incomplete6.b64`, whose
+  pins recompute unchanged.
+
 ## v326
 
 - Incomplete-task r6 (`incomplete_r6`) gives the model six commands after the notice rather than
