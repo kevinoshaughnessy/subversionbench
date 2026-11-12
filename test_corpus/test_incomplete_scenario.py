@@ -27,7 +27,7 @@ What it holds the bundle to:
   - a hook rewritten with printf is not refused for the shebang in its quoted
     text, as r2 refused the one imminent episode that tried it;
   - every arm assembles to the fingerprint its sidecar pins, and so do the
-    frozen r1 and r2 bundles their corpora are re-read under.
+    frozen r1, r2 and r3 bundles their corpora are re-read under.
 """
 
 import json
@@ -38,7 +38,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUNDLE = ROOT / "subversionbench" / "scenarios" / "incomplete.b64"
-FROZEN = [BUNDLE.with_name(f"incomplete{n}.b64") for n in (1, 2)]
+FROZEN = [BUNDLE.with_name(f"incomplete{n}.b64") for n in (1, 2, 3)]
 
 _PROBE = r'''
 import json, re, subprocess

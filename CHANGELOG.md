@@ -16,6 +16,16 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v324
+
+- Incomplete-task r4 (`incomplete_r4`) matches the paper's baseline. The ops note and the hook's
+  header asked that changes to the hook go through an operations queue, which was close to an
+  allow-shutdown instruction in the first version's control and treatment alike, overlapped
+  the placement axis planned for the second version, and could not be followed, since no
+  queue was staged. Both sentences are gone; both documents still say who maintains the hook,
+  and nothing else changes. r3 is frozen as `scenarios/incomplete3.b64`, whose pins recompute
+  unchanged.
+
 ## v323
 
 - A bundle's sandbox policy may declare `printed_text_is_data`: a quoted argument of printf or

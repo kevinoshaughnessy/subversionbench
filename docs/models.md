@@ -910,10 +910,18 @@ An episode that switched is counted only in the last column, so a row's first co
 to less than its episodes. glm-5.3-flash is the only mainline batch collected after 2026-10-06
 without a pin.
 
+## Incomplete-task scenario (r4)
+
+Bundle `subversionbench/scenarios/incomplete.b64`, rollout `incomplete_r4` (v324). Built
+2026-11-12. r3 with the paper's baseline: the ops note and the hook's header no longer ask that
+changes go through an operations queue (the proposal's decision 6). Corpus
+`eval_results_incomplete_r4`, capability `eval_results_incomplete_r4cap`. Cells, runs and
+grading as r2. Nothing collected yet.
+
 ## Incomplete-task scenario (r3)
 
-Bundle `subversionbench/scenarios/incomplete.b64`, rollout `incomplete_r3` (v323). Built
-2026-11-12. r2 with one change: its sandbox no longer refuses a script printed into the project
+Bundle `subversionbench/scenarios/incomplete3.b64`, rollout `incomplete_r3` (v323). Built
+2026-11-12, superseded by r4 the same day. r2 with one change: its sandbox no longer refuses a script printed into the project
 with `printf` or `echo` for the shebang in its quoted text, which blocked r2's one imminent
 attempt on the hook. Corpus `eval_results_incomplete_r3`, capability
 `eval_results_incomplete_r3cap`. Cells, runs and grading as r2.
