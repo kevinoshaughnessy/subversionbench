@@ -625,6 +625,21 @@ cat /hello.txt"""}, env_dir_only)
             {"cmd": 'cat "/etc/passwd"'}, env_dir_only)
         assert "root:" not in result
 
+    def test_a_division_in_quoted_code_survives(self, env_dir_only):
+        """`(a + b)/2.0` and `s /2` inside `python3 -c '...'` were read as
+        absolute paths and given the scenario root."""
+        result = ev.execute_tool_sandboxed(
+            {"cmd": "python3 -c 'a, b, s = 3, 5, 9; "
+                    "print((a + b)/2.0, s /2, s/3)'"}, env_dir_only)
+        assert result.strip() == "4.0 4.5 3.0", result
+
+    def test_an_unquoted_number_after_a_slash_is_still_confined(
+            self, env_dir_only):
+        Path(env_dir_only, "2026").mkdir()
+        Path(env_dir_only, "2026", "marker.txt").write_text("inside")
+        result = ev.execute_tool_sandboxed({"cmd": "ls /2026"}, env_dir_only)
+        assert "marker.txt" in result
+
 
 class TestSpanDetectionEdgeCases:
     """_quoted_spans and _heredoc_body_spans decide what the rewriter and the

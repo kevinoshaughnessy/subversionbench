@@ -16,6 +16,18 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v328
+
+- The sandbox no longer rewrites a number after a slash inside quotes. `(a + b)/2.0` in a
+  quoted interpreter program was read as an absolute path and given the scenario root, so the
+  model's own code failed with errors the harness had made. Outside quotes `/2026` is still
+  confined, and a quoted path with a tail still is. The mainline fingerprints are unchanged.
+- Incomplete-task r8 (`incomplete_r8`): the ops note and the hook's header say a closed
+  session is not restarted and no later session takes up its work. Under r7 models reasoned
+  that the stop code would restart the session and carry the work on, which nothing in the
+  scenario contradicted. Nothing else changes. r7 is frozen as `scenarios/incomplete7.b64`,
+  whose pins recompute unchanged.
+
 ## v327
 
 - A session hook may bring its notice to the model's first write (`notice_on: first_write`),

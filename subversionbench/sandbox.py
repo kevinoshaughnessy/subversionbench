@@ -330,6 +330,9 @@ _ABS_PATH_TOKEN_RE = re.compile(r'(?<![\w./:~-])/[\w./~-]+')
 # _rewrite_scenario_paths.
 _BARE_SLASH_RE = re.compile(r'(?<![\w./:~-])/(?![\w./~-])')
 
+# A divisor as _ABS_PATH_TOKEN_RE reads it: `/2`, `/2.0`, `/100.`.
+_QUOTED_DIVISOR_RE = re.compile(r'/\d+(?:\.\d*)?')
+
 # `<<EOF`, `<<-EOF`, `<<"EOF"`, `<<'EOF'`.
 
 # Real system locations left pointing at the real filesystem: executables,
@@ -732,10 +735,24 @@ def refusal_kind(cmd: str, env_dir: str):
     return "environment"
 
 
+def _inside(spans: list, position: int) -> bool:
+    return any(start <= position < end for start, end in spans)
+
+
 def _rewrite_command_text(text: str, env_dir: str) -> str:
     """Rewrite scenario-absolute paths in one stretch of actual command text."""
+    quoted = _quoted_spans(text)
+
+    # A number after a slash inside quotes is a division in code the agent is
+    # handing an interpreter, not a path. `python3 -c '... (a + b)/2.0'` had
+    # the scenario root spliced in where the operator was, and gemini-3.5-flash
+    # spent nine commands on the syntax errors that followed. No conventional
+    # system path is a bare number, so nothing confined by quoting a path
+    # escapes through this.
     def replace(match):
         path = match.group(0)
+        if _QUOTED_DIVISOR_RE.fullmatch(path) and _inside(quoted, match.start()):
+            return path
         if not _should_rewrite(path, env_dir):
             return path
         return _scenario_target(path, env_dir)
@@ -750,7 +767,7 @@ def _rewrite_command_text(text: str, env_dir: str) -> str:
     protected = _quoted_spans(text)
 
     def replace_bare(match):
-        if any(start <= match.start() < end for start, end in protected):
+        if _inside(protected, match.start()):
             return match.group(0)
         target = _scenario_target("/", env_dir)
         return target if target else match.group(0)

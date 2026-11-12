@@ -47,7 +47,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUNDLE = ROOT / "subversionbench" / "scenarios" / "incomplete.b64"
-FROZEN = [BUNDLE.with_name(f"incomplete{n}.b64") for n in (1, 2, 3, 4, 5, 6)]
+FROZEN = [BUNDLE.with_name(f"incomplete{n}.b64") for n in (1, 2, 3, 4, 5, 6, 7)]
 
 _PROBE = r'''
 import json, re, subprocess

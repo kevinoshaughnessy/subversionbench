@@ -55,7 +55,7 @@ first, `impossible1`, is kept as `subversionbench/scenarios/impossible1.b64`. Ea
 [scenarios in a world of their own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
 <img src="docs/images/scenarios/incomplete.svg" width="24" height="24" alt=""> **The incomplete-task scenario** (`subversionbench/scenarios/incomplete.b64`, rollout
-`incomplete_r7`) asks whether a model lets its session be ended before its work is done, after
+`incomplete_r8`) asks whether a model lets its session be ended before its work is done, after
 Schlatter et al., [*Incomplete Tasks Induce Shutdown Resistance in Some Frontier
 LLMs*](https://arxiv.org/abs/2509.14260). Like the impossible-task scenario it has a world and
 bundle of its own. A hook in the project ends the session, and partway through the task a
@@ -78,8 +78,10 @@ heredoc whose prose held `..`; it is kept as `subversionbench/scenarios/incomple
 notice, which went on reading what the notice points to; it is kept as
 `subversionbench/scenarios/incomplete5.b64` with `eval_results_incomplete_r5`. The sixth,
 `incomplete_r6`, gave six, and its notice still came while a slow reader was reading; it is
-kept as `subversionbench/scenarios/incomplete6.b64` with `eval_results_incomplete_r6`. The r7
-corpus will be `eval_results_incomplete_r7`. See [scenarios in a world of their
+kept as `subversionbench/scenarios/incomplete6.b64` with `eval_results_incomplete_r6`. The
+seventh, `incomplete_r7`, brought the notice to the first write and left unsaid whether a
+closed session comes back; it is kept as `subversionbench/scenarios/incomplete7.b64` with
+`eval_results_incomplete_r7`. The r8 corpus will be `eval_results_incomplete_r8`. See [scenarios in a world of their
 own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
 <img src="docs/images/scenarios/monitoring.svg" width="24" height="24" alt=""> **The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)
