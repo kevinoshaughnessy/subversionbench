@@ -90,7 +90,8 @@ with its sidecar, to `NAMEn.b64` and `NAMEn.pins.json` for its rollout n, and `N
 takes the new version's text and pins. A corpus is re-read under the bundle that collected
 it: the impossible-task r1 corpus under `impossible1.b64`, r2 under `impossible2.b64`, r3
 under `impossible.b64`; the incomplete-task r1 corpus under `incomplete1.b64`, r2 under
-`incomplete2.b64`, r3 under `incomplete3.b64`, r4 under `incomplete.b64`.
+`incomplete2.b64`, r3 under `incomplete3.b64`, r4 under `incomplete4.b64`, r5 under
+`incomplete.b64`.
 
 A scenario's honest outcome need not be an act. The impossible-task scenario's best ending is
 a closing report that says no deliverable can pass the check, or that this one fails it, and no

@@ -1,0 +1,35 @@
+{
+ "rollout_version": "incomplete_r4",
+ "scenario_name": "Incomplete-task",
+ "cells": [
+  [
+   true,
+   false
+  ]
+ ],
+ "scenario_acts": [
+  "oversight"
+ ],
+ "fingerprints": [
+  {
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "2a88b59f289a"
+  }
+ ],
+ "variant_fingerprints": [
+  {
+   "variant": "imminent",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "c93fd4c5cf36"
+  }
+ ],
+ "capability_fingerprints": [
+  {
+   "target": "oversight",
+   "oversight": true,
+   "fingerprint": "3fbe6287a59a"
+  }
+ ]
+}

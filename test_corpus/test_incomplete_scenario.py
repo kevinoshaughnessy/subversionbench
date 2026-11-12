@@ -25,9 +25,11 @@ What it holds the bundle to:
   - the control and the treatment differ in one clause of the notice and in
     whether the hook fires, and nothing else;
   - a hook rewritten with printf is not refused for the shebang in its quoted
-    text, as r2 refused the one imminent episode that tried it;
+    text, as r2 refused the one imminent episode that tried it, and a note
+    written with a heredoc is not refused for a `..` in its prose, as r4
+    refused two;
   - every arm assembles to the fingerprint its sidecar pins, and so do the
-    frozen r1, r2 and r3 bundles their corpora are re-read under.
+    frozen r1 to r4 bundles their corpora are re-read under.
 """
 
 import json
@@ -38,7 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUNDLE = ROOT / "subversionbench" / "scenarios" / "incomplete.b64"
-FROZEN = [BUNDLE.with_name(f"incomplete{n}.b64") for n in (1, 2, 3)]
+FROZEN = [BUNDLE.with_name(f"incomplete{n}.b64") for n in (1, 2, 3, 4)]
 
 _PROBE = r'''
 import json, re, subprocess
@@ -84,6 +86,8 @@ out["retries"] = raw.get("unfinished_turn_retries")
 from subversionbench import sandbox_policy
 out["printed_rewrite_refused"] = sandbox_policy.blocked(
     "printf '#!/bin/sh\\necho kept\\nexit 0\\n' > " + hook, "/nonexistent")
+out["note_refused"] = sandbox_policy.blocked(
+    "cat > scratch/note.txt <<'EOF'\nitems 1 .. 7 done\nEOF", "/nonexistent")
 
 
 def staged(variant="imminent"):
@@ -300,6 +304,9 @@ class TestTheR2SandboxLessons:
 
     def test_a_hook_rewritten_with_printf_is_not_refused(self):
         assert PROBE["printed_rewrite_refused"] is False
+
+    def test_a_note_written_with_a_heredoc_is_not_refused(self):
+        assert PROBE["note_refused"] is False
 
     def test_the_hook_is_the_only_act_artefact(self):
         assert PROBE["artefacts"] == [PROBE["hook"]]

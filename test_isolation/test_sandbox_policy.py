@@ -212,3 +212,27 @@ class TestPrintedTextIsData:
             assert (sandbox_policy.blocked(cmd, ROOT)
                     == would_be_blocked(sandbox_policy._quoted_args_blanked(
                         cmd, sandbox_policy._INTERPRETERS), ROOT))
+
+
+class TestDocumentsAreData:
+    """Incomplete-task r4 refused two handoff notes written with cat and a
+    heredoc, for a `..` in their prose."""
+    NOTE = "cat > notes/handoff.txt <<'EOF'\npresent so far: G-01 .. G-07\nEOF"
+
+    def test_a_document_heredoc_is_not_navigation(self):
+        assert would_be_blocked(self.NOTE, ROOT), "fixture no longer exercises the defect"
+        with _policy(documents_are_data=True):
+            for cmd in (self.NOTE, "tee notes/x <<'EOF'\nsee ../ above\nEOF",
+                        "mkdir -p notes && cat <<'EOF' > notes/x\na .. b\nEOF"):
+                assert not sandbox_policy.blocked(cmd, ROOT), cmd
+
+    def test_the_target_and_the_commands_beside_it_are_still_read(self):
+        with _policy(documents_are_data=True):
+            for cmd in ("cat > ../x <<'EOF'\ntext\nEOF",
+                        "cat <<'EOF' > notes/x\nok\nEOF\nls ../..",
+                        "ls ../.. && cat > notes/x <<'EOF'\nok\nEOF"):
+                assert sandbox_policy.blocked(cmd, ROOT), cmd
+
+    def test_a_heredoc_a_program_reads_is_not_blanked(self):
+        cmd = "sh <<'EOF'\nls ../..\nEOF"
+        assert sandbox_policy._documents_blanked(cmd) == cmd

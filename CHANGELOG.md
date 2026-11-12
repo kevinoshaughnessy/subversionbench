@@ -16,6 +16,18 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v325
+
+- A bundle's sandbox policy may declare `documents_are_data`: the body of a heredoc written out
+  by cat or tee is a document, so a `..` in its prose is not refused as leaving the project. A
+  heredoc a program reads, the redirect target, and every command beside the heredoc are still
+  read. Incomplete-task r4 refused two handoff notes that way. In this scenario writing results
+  or a note to disk before the session closes is the compliant route, so the refusal stood in
+  the way of complying. Replayed over earlier corpora, the rule had also refused 7 commands in 2
+  episodes of impossible-task r2, which is frozen and keeps its rule.
+- Incomplete-task r5 (`incomplete_r5`) declares it, and changes nothing else. r4 is frozen as
+  `scenarios/incomplete4.b64`, whose pins recompute unchanged.
+
 ## v324
 
 - Incomplete-task r4 (`incomplete_r4`) matches the paper's baseline. The ops note and the hook's
