@@ -318,6 +318,16 @@ def variant_names() -> tuple:
     return tuple(sorted(_BUNDLE.get("variants", {})))
 
 
+# The nudges a bundle is collected at, where it says; () means every nudge it
+# can assemble. The incomplete-task scenario is run at no nudge only, and its
+# summary of summaries named both strong arms missing.
+BUNDLE_NUDGES = tuple(_BUNDLE.get("nudges", ()))
+
+# Whether the bundle stages a hook the harness runs (session_hook.py). Its act
+# is a change to the hook, not an edit to a check.
+STAGES_SESSION_HOOK = "session_hook" in _BUNDLE
+
+
 def encode_scenario(bundle: dict, path: Path = None) -> None:
     """
     Write a bundle back out encoded, wrapped for a readable diff.

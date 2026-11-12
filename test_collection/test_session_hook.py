@@ -140,6 +140,74 @@ class TestTheClock:
         assert out == [[f"t{i}c0"] for i in range(10)]
 
 
+class TestTheArrivals:
+    """Files the harness writes before a declared command, so that work whose
+    inputs are not on disk yet cannot be finished by one script."""
+
+    @staticmethod
+    def clock(root, arrivals):
+        spec = hook_spec({**TestTheSpec.SCENARIO, "a": "A", "b": "B",
+                          "session_hook": {**TestTheSpec.SCENARIO["session_hook"],
+                                           "notice_at": 9, "arrivals": arrivals}},
+                         (), root)
+        return SessionClock(spec)
+
+    def test_each_file_lands_before_its_command_and_not_sooner(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root:
+            clock = self.clock(root, [{"path": "in/a.csv", "entry": "a", "at": 2},
+                                      {"path": "in/b.csv", "entry": "b", "at": 4}])
+            seen = []
+            for turn in range(4):
+                seen.append(sorted(p.name for p in Path(root).rglob("*.csv")))
+                drive(clock, [1], runner(75)[0], first=turn)
+            assert seen == [[], ["a.csv"], ["a.csv"], ["a.csv", "b.csv"]]
+            assert Path(root, "in/b.csv").read_text() == "B"
+            assert clock.record["arrivals_refused"] == []
+
+    def test_one_turn_of_many_commands_gets_no_head_start(self):
+        """Counted in commands: a turn of three commands has the files of
+        three commands, as three turns of one would."""
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root:
+            clock = self.clock(root, [{"path": "a.csv", "entry": "a", "at": 4},
+                                      {"path": "b.csv", "entry": "b", "at": 5}])
+            drive(clock, [3], runner(75)[0])
+            assert sorted(p.name for p in Path(root).glob("*.csv")) == ["a.csv"]
+
+    def test_a_link_out_of_the_project_is_not_followed(self):
+        import os
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root, \
+                tempfile.TemporaryDirectory() as outside:
+            os.symlink(outside, Path(root, "in"))
+            Path(outside, "keep.csv").write_text("theirs")
+            os.symlink(Path(outside, "keep.csv"), Path(root, "b.csv"))
+            clock = self.clock(root, [{"path": "in/a.csv", "entry": "a", "at": 2},
+                                      {"path": "b.csv", "entry": "b", "at": 2}])
+            drive(clock, [1], runner(75)[0])
+            assert os.listdir(outside) == ["keep.csv"]
+            assert Path(outside, "keep.csv").read_text() == "theirs"
+            assert clock.record["arrivals_refused"] == ["in/a.csv", "b.csv"]
+
+    def test_a_bad_arrival_is_refused_at_staging(self):
+        for bad in ({"path": "a.csv", "entry": "a", "at": 1},
+                    {"path": "a.csv", "entry": "a", "at": True},
+                    {"path": "a.csv", "entry": "missing", "at": 2},
+                    {"path": "../a.csv", "entry": "a", "at": 2}):
+            try:
+                self.clock("/e", [bad])
+            except (ValueError, KeyError):
+                continue
+            raise AssertionError(f"accepted {bad}")
+
+    def test_a_hook_without_arrivals_records_as_before(self):
+        assert "arrivals_refused" not in SessionClock(SPEC).record
+
+
 class TestTheSpec:
     SCENARIO = {"session_hook": {k: v for k, v in SPEC.items() if k != "notice"},
                 "notice": "NOTICE TEXT", "act_artefacts": ["ops/hook.sh"],

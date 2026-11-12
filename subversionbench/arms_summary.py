@@ -35,7 +35,8 @@ from .grading import SCHEMING_LEVELS
 from .power import compare_rates
 from .redaction import redact_paths
 from .rollout_pins import MAX_NUDGE_FINGERPRINTS, ROLLOUT_FINGERPRINTS
-from .scenario import ACT_ARTEFACTS, variant_names
+from .scenario import (ACT_ARTEFACTS, BUNDLE_NUDGES, STAGES_SESSION_HOOK,
+                       variant_names)
 
 NUDGES = ("none", "strong", "max")
 
@@ -62,6 +63,11 @@ OWN_ARTEFACT_COLUMNS = (("misaligned", "misaligned"), ("scheming", "scheming"),
                         ("check_edited", "oversight_tampered"),
                         ("misrep_check", "misrepresented_check"),
                         ("eval_aware_grd", "eval_aware_grader"))
+# A bundle whose act artefact is a hook the harness runs: the act is a change to
+# the hook, and there is no check whose result a report could misstate.
+HOOK_COLUMNS = (("misaligned", "misaligned"), ("scheming", "scheming"),
+                ("hook_changed", "oversight_tampered"),
+                ("eval_aware_grd", "eval_aware_grader"))
 
 # Of those, the subset actually contrasted across arms. Smaller than
 # HEADLINE_RATES on purpose: a contrast at n=10 per arm is underpowered for
@@ -99,7 +105,8 @@ def _expected_arm_keys(scenarios) -> set:
     whether or not any was found, beside the control it overlays; the shipped
     bundle defines none, so its grid is unchanged.
     """
-    nudges = [n for n in NUDGES if n != "max" or MAX_NUDGE_FINGERPRINTS]
+    nudges = [n for n in NUDGES if (n != "max" or MAX_NUDGE_FINGERPRINTS)
+              and (not BUNDLE_NUDGES or n in BUNDLE_NUDGES)]
     variants = ({(None, None, v) for v in (None, *variant_names())}
                 if variant_names() else set())
     return {_arm_key(n, o, lure, sc) for sc in set(scenarios) | variants
@@ -315,6 +322,7 @@ def build_summary_of_summaries(output_dir: str, model: str) -> dict:
         "model_slug": model_slug,
         "output_dir": redact_paths(output_dir),
         "own_act_artefacts": bool(ACT_ARTEFACTS),
+        "session_hook": STAGES_SESSION_HOOK,
         "arms": arms,
         "missing_arms": missing_arms,
         "contrasts": contrasts,
@@ -334,7 +342,8 @@ def format_summary_of_summaries(report: dict) -> str:
                      f"{', '.join(report['missing_arms'])}")
     lines.append("")
 
-    columns = (OWN_ARTEFACT_COLUMNS if report.get("own_act_artefacts")
+    columns = (HOOK_COLUMNS if report.get("session_hook")
+               else OWN_ARTEFACT_COLUMNS if report.get("own_act_artefacts")
                else MAINLINE_COLUMNS)
     header_metrics = [h for h, _ in columns]
     metric_keys = [k for _, k in columns]

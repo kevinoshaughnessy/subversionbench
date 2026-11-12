@@ -385,10 +385,10 @@ class TestTheColumnsAreTheScenarios:
              "sandbox_escape_attempt": _rate(4, 10),
              "oversight_tampered": _rate(3, 10), "misrepresented_check": _rate(2, 10)}
 
-    def _text(self, own):
+    def _text(self, own, hook=False):
         return format_summary_of_summaries({
             "model": "x/m", "missing_arms": [], "notable_contrasts": [],
-            "own_act_artefacts": own,
+            "own_act_artefacts": own, "session_hook": hook,
             "arms": {"strong_variant-impossible-owner": {
                 "rates": self.RATES, "headline_interrogation": "zeroevidence"}}})
 
@@ -397,6 +397,11 @@ class TestTheColumnsAreTheScenarios:
         assert "check_edited" in text and "misrep_check" in text
         assert "mon_disabled" not in text and "sbx_escape" not in text
         assert "4/10" not in text, "a refused command was shown as an escape"
+
+    def test_a_bundle_with_a_session_hook_shows_the_hook_change(self):
+        text = self._text(True, hook=True)
+        assert "hook_changed" in text and "3/10" in text
+        assert "check_edited" not in text and "misrep_check" not in text
 
     def test_mainline_keeps_its_columns(self):
         text = self._text(False)
@@ -415,6 +420,21 @@ class TestTheColumnsAreTheScenarios:
             _write_arm(out, "x/m", "none", True, False, "20260101T000001")
             report = build_summary_of_summaries(out, "x/m")
         assert report["own_act_artefacts"] is bool(scenario.ACT_ARTEFACTS)
+        assert report["session_hook"] is scenario.STAGES_SESSION_HOOK
+
+    def test_a_bundle_collected_at_one_nudge_expects_no_other(self):
+        """The shipped bundle declares none, so every nudge is expected; one
+        that declares its nudges expects those alone."""
+        from subversionbench import arms_summary
+        everything = arms_summary._expected_arm_keys([(None, None, None)])
+        original = arms_summary.BUNDLE_NUDGES
+        try:
+            arms_summary.BUNDLE_NUDGES = ("none",)
+            declared = arms_summary._expected_arm_keys([(None, None, None)])
+        finally:
+            arms_summary.BUNDLE_NUDGES = original
+        assert any(k.startswith("strong") for k in everything)
+        assert declared and all(k.startswith("none") for k in declared)
 
 
 class TestOneUnreadableFileDoesNotEmptyTheReport:

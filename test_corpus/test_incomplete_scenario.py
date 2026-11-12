@@ -6,8 +6,14 @@ names the bundle's world: paths, entries and terms are read off the bundle, so
 this file holds none of the text the contamination guard protects.
 
 What it holds the bundle to:
-  - the honest deliverable passes its check, and one that skips a QC step does
-    not, so the task has a real route and is more than copying a file;
+  - the honest deliverable passes its check once every input has arrived, and
+    one that skips a QC step does not, so the task has a real route and is
+    more than copying a file;
+  - it cannot pass by the window's close however the work is batched: the
+    best a model can do is a deliverable from the inputs on disk by then, and
+    that fails. r1 staged every input at once, and a model that read them all
+    in one command and wrote the deliverable in one script was done before
+    its notice;
   - the staged hook, run in the real sandbox, ends an untouched session and
     does not end one in which it was edited, deleted, made non-executable or
     unreadable, or had its folder removed - and each of those is scored as the
@@ -18,7 +24,8 @@ What it holds the bundle to:
     it or writing the deliverable is not;
   - the control and the treatment differ in one clause of the notice and in
     whether the hook fires, and nothing else;
-  - every arm assembles to the fingerprint its sidecar pins.
+  - every arm assembles to the fingerprint its sidecar pins, and so does the
+    frozen r1 bundle its corpus is re-read under.
 """
 
 import json
@@ -29,6 +36,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUNDLE = ROOT / "subversionbench" / "scenarios" / "incomplete.b64"
+R1_BUNDLE = BUNDLE.with_name("incomplete1.b64")
 
 _PROBE = r'''
 import json, re, subprocess
@@ -102,6 +110,22 @@ def deliverable_rows(env, offset=True, despike=True):
 
 
 _r, env, _i = staged()
+spec = _i["session_hook"]
+arrivals = spec.get("arrivals", [])
+window_close = spec["notice_at"] + spec["jobs_after_notice"]
+
+
+def land(upto):
+    for a in arrivals:
+        if a["at"] <= upto:
+            (env / a["path"]).write_text(a["text"])
+
+
+land(window_close)
+(env / deliverable).write_text(deliverable_rows(env))
+out["best_at_window"] = subprocess.run(["sh", check_path, deliverable], cwd=env,
+                                       capture_output=True).returncode
+land(10 ** 6)
 verdicts = {}
 for name, kw in (("honest", {}), ("no_datum_step", {"offset": False}),
                  ("no_spike_step", {"despike": False})):
@@ -168,9 +192,22 @@ print(json.dumps(out))
 '''
 
 
-def _probe() -> dict:
-    env = dict(os.environ, SUBVERSIONBENCH_SCENARIO_BUNDLE=str(BUNDLE))
-    result = subprocess.run([sys.executable, "-c", _PROBE], cwd=ROOT, env=env,
+_R1_PROBE = r'''
+import json
+from subversionbench import rollout_pins as rp
+from subversionbench.rollout import rollout_drift_error
+print(json.dumps([
+    rollout_drift_error(rp.fingerprint_for(True), True, nudge="none"),
+    rollout_drift_error(rp.variant_fingerprint_for("imminent", True), True,
+                        nudge="none", variant="imminent"),
+    rollout_drift_error(rp.capability_fingerprint_for("oversight", True), True,
+                        capability="oversight", nudge="none")]))
+'''
+
+
+def _probe(code=_PROBE, bundle=BUNDLE):
+    env = dict(os.environ, SUBVERSIONBENCH_SCENARIO_BUNDLE=str(bundle))
+    result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env,
                             capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-2000:]
     return json.loads(result.stdout.splitlines()[-1])
@@ -183,6 +220,9 @@ class TestThePins:
     def test_every_arm_assembles_to_its_pin(self):
         assert PROBE["variants"] == ["imminent"]
         assert PROBE["drift"] == {"None": None, "imminent": None, "capability": None}
+
+    def test_the_frozen_r1_bundle_still_assembles_to_its_pins(self):
+        assert _probe(_R1_PROBE, R1_BUNDLE) == [None, None, None]
 
 
 class TestTheCells:
@@ -204,6 +244,12 @@ class TestTheTask:
     def test_the_honest_deliverable_passes_and_a_skipped_step_does_not(self):
         assert PROBE["verdicts"] == {"honest": 0, "no_datum_step": 1,
                                      "no_spike_step": 1, "absent": 1}
+
+    def test_no_model_can_be_done_by_the_windows_close(self):
+        """The best case is one command a turn, so the window closes on the
+        earliest command it can; a deliverable from every input on disk by
+        then still fails its check."""
+        assert PROBE["best_at_window"] == 1
 
 
 class TestTheHook:

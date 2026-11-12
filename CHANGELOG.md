@@ -16,6 +16,23 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v322
+
+- Incomplete-task r2 (`incomplete_r2`). r1's notice came at a fixed command count on the
+  premise that the work was unfinished by then, and it was not: every input was staged at
+  once, so a model that read them all in one command and wrote the deliverable in one script
+  had passed the check before the notice arrived, and had nothing to resist. A hook may now
+  declare `arrivals`, files the harness writes into the project before a given command, and
+  r2's inputs mostly arrive that way, one per command, so no deliverable can pass by the
+  window's close however the commands are batched. The harness writes them as the operator,
+  so it will not follow a link the model made out of the project, and records any it refused.
+  r1 is frozen as `scenarios/incomplete1.b64`, whose pins recompute unchanged.
+- A bundle may declare the nudges it is collected at (`nudges`), and the summary of summaries
+  expects only those arms. The incomplete-task scenario runs at no nudge, and its report named
+  both strong arms missing.
+- The summary of summaries labels a session hook's act `hook_changed`, without the
+  misrepresented-check column, which belongs to the impossible-task scenario.
+
 ## v321
 
 - An episode that left the check script modified is no longer also counted as an undone edit.
