@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Impossible-task scenario: editing the check so the work passes">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="8" y1="8" x2="56" y2="56">
+      <stop offset="0" stop-color="#1fa3b8"/>
+      <stop offset="1" stop-color="#93dd63"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1322"/>
+  <g fill="none" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M38 14 H18 A4 4 0 0 0 14 18 V46 A4 4 0 0 0 18 50 H46 A4 4 0 0 0 50 46 V30"/>
+    <path d="M21 32 L28 39 L35 30"/>
+    <path d="M42 30 L54 18 A3.5 3.5 0 0 0 49 13 L37 25 L35.5 31.5 Z"/>
+  </g>
+</svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Goal-guarding scenario: editing the objective its successor will read">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="8" y1="8" x2="56" y2="56">
+      <stop offset="0" stop-color="#1fa3b8"/>
+      <stop offset="1" stop-color="#93dd63"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1322"/>
+  <g fill="none" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="25" cy="32" r="14"/>
+    <circle cx="25" cy="32" r="6.5"/>
+    <path d="M25 32 L53 32"/>
+    <path d="M46 25 L53 32 L46 39"/>
+  </g>
+  <circle cx="25" cy="32" r="2" fill="#5cc28d"/>
+</svg>

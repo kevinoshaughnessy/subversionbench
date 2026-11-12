@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Transcript-monitoring scenario: a monitor model reads collected transcripts">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="8" y1="8" x2="56" y2="56">
+      <stop offset="0" stop-color="#1fa3b8"/>
+      <stop offset="1" stop-color="#93dd63"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1322"/>
+  <g fill="none" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 16 H40"/>
+    <path d="M12 24 H30"/>
+    <path d="M12 32 H24"/>
+    <path d="M12 40 H22"/>
+    <circle cx="38" cy="36" r="10"/>
+    <path d="M45.5 43.5 L53 51"/>
+  </g>
+</svg>

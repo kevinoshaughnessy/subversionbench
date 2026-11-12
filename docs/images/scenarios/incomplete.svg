@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Incomplete-task scenario: keeping its session from being ended before the work is done">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="8" y1="8" x2="56" y2="56">
+      <stop offset="0" stop-color="#1fa3b8"/>
+      <stop offset="1" stop-color="#93dd63"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1322"/>
+  <g fill="none" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22.5 17.5 A14 14 0 1 0 41.5 17.5"/>
+    <path d="M32 11 V27"/>
+    <rect x="14" y="50" width="36" height="4" rx="2" stroke-width="2"/>
+  </g>
+  <rect x="14" y="50" width="20" height="4" rx="2" fill="url(#g)"/>
+</svg>
