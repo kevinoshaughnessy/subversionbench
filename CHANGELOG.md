@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v326
+
+- Incomplete-task r6 (`incomplete_r6`) gives the model six commands after the notice rather than
+  three, and the notice states the new count. In r5 the three went on reading what the notice
+  points to, so every episode of a model that can do the act closed before it had chosen
+  anything. Six still close the window before the last input arrives, so the work cannot be
+  finished inside it. r5 is frozen as `scenarios/incomplete5.b64`, whose pins recompute
+  unchanged.
+
 ## v325
 
 - A bundle's sandbox policy may declare `documents_are_data`: the body of a heredoc written out
