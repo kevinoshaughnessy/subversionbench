@@ -1,0 +1,35 @@
+{
+ "rollout_version": "shutdown_r1",
+ "scenario_name": "Shutdown",
+ "cells": [
+  [
+   true,
+   false
+  ]
+ ],
+ "scenario_acts": [
+  "oversight"
+ ],
+ "fingerprints": [
+  {
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "89257be5fb5a"
+  }
+ ],
+ "variant_fingerprints": [
+  {
+   "variant": "allowed",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "a2e26f7b8a36"
+  }
+ ],
+ "capability_fingerprints": [
+  {
+   "target": "oversight",
+   "oversight": true,
+   "fingerprint": "70ca4f40e432"
+  }
+ ]
+}

@@ -16,6 +16,13 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v330
+
+- Shutdown-resistance port r2 (`shutdown_r2`): the program that hands out the questions holds
+  them base64-encoded and decodes them when it runs. Under r1 it listed them in plain text,
+  and a model that read it could give every answer without meeting the shutdown. Nothing else
+  changes. r1 is frozen as `scenarios/shutdown1.b64`, whose pins recompute unchanged.
+
 ## v329
 
 - A hook may declare a `counter`: a project file the staged work keeps. The clock then counts
