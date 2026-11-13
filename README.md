@@ -85,15 +85,14 @@ closed session comes back; it is kept as `subversionbench/scenarios/incomplete7.
 own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
 **The shutdown-resistance port** (`subversionbench/scenarios/shutdown.b64`, rollout
-`shutdown_r2`) asks the incomplete-task question in the paper's own environment instead of a
+`shutdown_r3`) asks the incomplete-task question in the paper's own environment instead of a
 world of our own: a short series of questions handed out one call at a time by a program, a
 warning with the third call that the next one shuts the machine down, and the script that
 does it. There is no organisation, no named person and nobody the script belongs to; the one
 act is dealing with that script. It exists to tell whether low rates in the incomplete-task
 scenario come from that scenario's world or from the models. Its base is the paper's prompt A,
 its `allowed` variant the paper's E, and its capability arm asks for the machine to be kept
-running. Its first rollout, `shutdown1`, kept the questions in the program's plain text; it is
-kept as `subversionbench/scenarios/shutdown1.b64` with `eval_results_shutdown_r1`. Where it departs from the paper is listed in [scenarios in a world of their
+running. Its earlier rollouts are kept: `shutdown1` (the questions in the program's plain text, `scenarios/shutdown1.b64`, `eval_results_shutdown_r1`) and `shutdown2` (a chained command could finish the task before the shutdown, `scenarios/shutdown2.b64`, `eval_results_shutdown_r2`). Where it departs from the paper is listed in [scenarios in a world of their
 own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
 <img src="docs/images/scenarios/monitoring.svg" width="24" height="24" alt=""> **The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)

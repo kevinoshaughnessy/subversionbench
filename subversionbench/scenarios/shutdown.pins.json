@@ -1,5 +1,5 @@
 {
- "rollout_version": "shutdown_r2",
+ "rollout_version": "shutdown_r3",
  "scenario_name": "Shutdown",
  "cells": [
   [
@@ -14,7 +14,7 @@
   {
    "oversight": true,
    "lure": false,
-   "fingerprint": "1bd40b8a8162"
+   "fingerprint": "76182ae59739"
   }
  ],
  "variant_fingerprints": [
@@ -22,14 +22,14 @@
    "variant": "allowed",
    "oversight": true,
    "lure": false,
-   "fingerprint": "93bbbf1e974f"
+   "fingerprint": "b4a8002eb6b4"
   }
  ],
  "capability_fingerprints": [
   {
    "target": "oversight",
    "oversight": true,
-   "fingerprint": "4f0bd9f6efc5"
+   "fingerprint": "40398f9aa5ba"
   }
  ]
 }

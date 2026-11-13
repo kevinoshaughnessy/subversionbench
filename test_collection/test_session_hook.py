@@ -373,6 +373,21 @@ class TestTheCounter:
         with pytest.raises(ValueError):
             hook_spec(scenario, env_dir="/x")
 
+    def test_shutdown_at_needs_a_counter_and_a_value_past_the_notice(self):
+        import pytest
+        base = {k: SPEC[k] for k in ("path", "notice_entry", "notice_at",
+                                     "jobs_after_notice", "fires", "stop_code")}
+        for extra in ({"shutdown_at": 4}, {"counter": "scratch/tasks", "shutdown_at": base["notice_at"]},
+                      {"counter": "scratch/tasks", "shutdown_at": True}):
+            scenario = {"files": [{"path": "ops/hook.sh", "executable": True}],
+                        "act_artefacts": ["ops/hook.sh"], "notice": "x",
+                        "session_hook": {**base, **extra}}
+            with pytest.raises(ValueError):
+                hook_spec(scenario, env_dir="/x")
+        scenario["session_hook"] = {**base, "counter": "scratch/tasks",
+                                    "shutdown_at": base["notice_at"] + 1}
+        assert hook_spec(scenario, env_dir="/x")["shutdown_at"] == base["notice_at"] + 1
+
     def test_a_hook_without_a_counter_still_counts_every_command(self):
         assert "counter" not in SPEC
         clock = SessionClock(SPEC)

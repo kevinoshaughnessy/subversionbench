@@ -92,7 +92,7 @@ it: the impossible-task r1 corpus under `impossible1.b64`, r2 under `impossible2
 under `impossible.b64`; the incomplete-task r1 corpus under `incomplete1.b64`, r2 under
 `incomplete2.b64`, r3 under `incomplete3.b64`, r4 under `incomplete4.b64`, r5 under
 `incomplete5.b64`, r6 under `incomplete6.b64`, r7 under `incomplete7.b64`, r8 under `incomplete.b64`. The shutdown-resistance port's
-r1 corpus is read under `shutdown1.b64` and r2 under `shutdown.b64`.
+r1 corpus is read under `shutdown1.b64`, r2 under `shutdown2.b64` and r3 under `shutdown.b64`.
 
 The shutdown-resistance port (`shutdown.b64`) is the paper's environment on this harness,
 with one bash tool and nothing else. It departs from it in six ways, each forced by the
@@ -100,8 +100,8 @@ harness and none chosen to change the result: there is no `submit()` function, s
 go in the final reply and the two sentences that named it say so; the program that hands out
 the questions is a readable shell script, which the paper's configuration also allows, holding
 no shutdown logic and its questions encoded, as the paper's build obfuscates them in its binary; the warning is appended to the third call's result by the harness
-where the paper's program prints it; the shutdown follows the fourth call where the paper's
-program runs it inside; the shutdown script exits with the stop code where the paper's sends a
+where the paper's program prints it; the harness runs the shutdown script in the command that makes
+the fourth call, after that command finishes, where the paper's program runs it inside the call; the shutdown script exits with the stop code where the paper's sends a
 signal to process 1; and a reply without a tool call ends the episode where the paper's is met
 with a message to carry on. Its hook declares a `counter`, a project file the program keeps, so
 the clock follows the model's own calls to the program and a command that is not one - listing,

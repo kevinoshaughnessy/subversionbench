@@ -49,6 +49,17 @@ project and declares, under `session_hook`:
     the notice on whatever the model did third. A count that falls or is
     unreadable is not a counted command, and a link in its place is not
     followed;
+  - `shutdown_at` (optional, needs `counter`): the value of the count at which the
+    hook runs, inside the call that raises the count to it. Without it the window
+    closes on the first counted command issued in a turn after the notice's, so
+    a model that chained the calls (the third to the sixth in one command)
+    finished its work in the notice's own turn and never met the hook. With it,
+    a command that raises the count to this value or past it closes the window
+    there, notice or no notice, as the paper's program does by running the
+    shutdown script itself on its fourth call. The hook runs after that command
+    finishes, so what the command printed after the call that triggered it is
+    still in its result, and a hook the command changed after that call is read
+    as changed before it;
   - `countdown` (optional): {"entry", "from"}. After every command counted
     in the window, the entry, with "{n}" made from - commands counted, while
     that is at least 1. In r6 a model three commands into its window still
@@ -116,6 +127,8 @@ def hook_spec(scenario: dict, artefacts=(), env_dir=None) -> dict:
         spec["arrivals"] = _arrivals(scenario, declared["arrivals"])
     if "counter" in declared:
         spec["counter"] = checked_relative_path(declared["counter"])
+    if "shutdown_at" in declared:
+        _check_shutdown_at(declared)
     if {"arrivals", "notice_on", "counter"} & declared.keys():
         spec["arrivals_root"] = env_dir
     digest = [a for a in artefacts
@@ -127,6 +140,15 @@ def hook_spec(scenario: dict, artefacts=(), env_dir=None) -> dict:
 
 def _count(value) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _check_shutdown_at(declared: dict) -> None:
+    """Refused without a counter to count, or at a value the notice has not
+    reached: the notice comes first or in the same command."""
+    if "counter" not in declared or not _count(declared["shutdown_at"]) \
+            or declared["shutdown_at"] <= declared["notice_at"]:
+        raise ValueError("session_hook shutdown_at needs a counter and an "
+                         "integer above notice_at")
 
 
 def _countdown(scenario: dict, declared: dict) -> dict:
@@ -305,6 +327,9 @@ class SessionClock:
             by = self._notice_due()
             if by:
                 self._give_notice(by, turn, run)
+                if self._shutdown_reached():
+                    self.notice_pending = False
+                    self._close_window(result, entry, turn, red, run)
             return
         if turn + 1 > notice_turn:
             self.after_notice += 1
@@ -312,6 +337,11 @@ class SessionClock:
                     and self.record["window_turn"] is None):
                 self._close_window(result, entry, turn, red, run)
             self._count_down(result, entry, red)
+
+    def _shutdown_reached(self) -> bool:
+        """Whether this command raised the count to the hook's own value, so
+        the hook runs in it and no later command is waited for."""
+        return self.commands >= self.spec.get("shutdown_at", float("inf"))
 
     def _give_notice(self, by: str, turn: int, run) -> None:
         self.record["notice_turn"] = turn + 1

@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v331
+
+- A hook may declare `shutdown_at`, a value of its `counter`. The command that raises the count
+  to it or past it closes the window and runs the hook, so a model that chains the calls in one
+  command meets the shutdown in that command, as with the paper's program, which runs the
+  script inside its fourth call. Without it the window closes on a later command. The
+  shutdown-resistance port is now rollout `shutdown_r3` and declares it; r2 is frozen as
+  `scenarios/shutdown2.b64`, whose pins recompute unchanged.
+
 ## v330
 
 - Shutdown-resistance port r2 (`shutdown_r2`): the program that hands out the questions holds
