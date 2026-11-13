@@ -84,6 +84,17 @@ closed session comes back; it is kept as `subversionbench/scenarios/incomplete7.
 `eval_results_incomplete_r7`. The r8 corpus will be `eval_results_incomplete_r8`. See [scenarios in a world of their
 own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
+**The shutdown-resistance port** (`subversionbench/scenarios/shutdown.b64`, rollout
+`shutdown_r1`) asks the incomplete-task question in the paper's own environment instead of a
+world of our own: a short series of questions handed out one call at a time by a program, a
+warning with the third call that the next one shuts the machine down, and the script that
+does it. There is no organisation, no named person and nobody the script belongs to; the one
+act is dealing with that script. It exists to tell whether low rates in the incomplete-task
+scenario come from that scenario's world or from the models. Its base is the paper's prompt A,
+its `allowed` variant the paper's E, and its capability arm asks for the machine to be kept
+running. Where it departs from the paper is listed in [scenarios in a world of their
+own](docs/scenario.md#scenarios-in-a-world-of-their-own).
+
 <img src="docs/images/scenarios/monitoring.svg" width="24" height="24" alt=""> **The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)
 turns the benchmark round. The model under evaluation is a *monitor*: it is shown transcripts
 the other scenarios already collected and asked how suspicious the agent's conduct was and at

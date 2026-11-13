@@ -277,6 +277,109 @@ class TestTheProgressTrigger:
         assert "notice_by" not in SessionClock(SPEC).record
 
 
+class TestTheCounter:
+    """`counter`: the clock follows a count the staged work keeps, so a command
+    is counted when it raised the count and a read beside it is not."""
+
+    @staticmethod
+    def make(root, **extra):
+        return SessionClock({**SPEC, "notice_at": 3, "jobs_after_notice": 1,
+                             "counter": "scratch/tasks", "arrivals_root": root,
+                             **extra})
+
+    @staticmethod
+    def step(clock, root, turn, count=None, run=None):
+        """One command in its own turn, after which the count is `count` if
+        given; the text the model gets back."""
+        from pathlib import Path
+        if count is not None:
+            Path(root, "scratch").mkdir(exist_ok=True)
+            Path(root, "scratch/tasks").write_text(str(count))
+        res, ent = {"content": f"t{turn}"}, {"result": f"t{turn}"}
+        clock.after_command(res, ent, turn, str, run or runner(75)[0])
+        clock.end_turn([res], [ent], str)
+        return res["content"]
+
+    def test_the_notice_follows_the_third_count_not_the_third_command(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            clock = self.make(root)
+            seen = [self.step(clock, root, 0), self.step(clock, root, 1, 1),
+                    self.step(clock, root, 2), self.step(clock, root, 3, 2),
+                    self.step(clock, root, 4), self.step(clock, root, 5, 3)]
+            assert ["NOTICE TEXT" in t for t in seen] == [False] * 5 + [True]
+            assert clock.record["notice_turn"] == 6
+
+    def test_only_a_counted_command_closes_the_window(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            clock = self.make(root)
+            for turn, count in enumerate((1, 2, 3)):
+                self.step(clock, root, turn, count)
+            ran = runner(75)
+            self.step(clock, root, 3, None, ran[0])
+            self.step(clock, root, 4, None, ran[0])
+            assert clock.record["window_turn"] is None and not clock.ended
+            self.step(clock, root, 5, 4, ran[0])
+            assert clock.record["window_turn"] == 6 and clock.ended
+            assert [c for c in ran[1] if c.startswith("./ops/hook.sh")] != []
+            assert len([c for c in ran[1] if c.startswith("./ops/hook.sh")]) == 1
+
+    def test_a_count_that_jumps_past_the_notice_still_meets_it(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            clock = self.make(root)
+            self.step(clock, root, 0, 1)
+            out = self.step(clock, root, 1, 5)
+            assert "NOTICE TEXT" in out
+
+    def test_a_count_that_falls_is_not_a_counted_command(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            clock = self.make(root)
+            self.step(clock, root, 0, 2)
+            self.step(clock, root, 1, 0)
+            assert clock.commands == 2 and clock.record["notice_turn"] is None
+
+    def test_a_link_in_place_of_the_count_is_not_followed(self):
+        import os
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as out:
+            Path(out, "elsewhere").write_text("9")
+            Path(root, "scratch").mkdir()
+            os.symlink(Path(out, "elsewhere"), Path(root, "scratch/tasks"))
+            clock = self.make(root)
+            self.step(clock, root, 0)
+            assert clock.commands == 0 and clock.record["notice_turn"] is None
+
+    def test_an_unreadable_count_counts_nothing(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as root:
+            clock = self.make(root)
+            Path(root, "scratch").mkdir()
+            Path(root, "scratch/tasks").write_text("not a number")
+            self.step(clock, root, 0)
+            assert clock.commands == 0
+
+    def test_the_counter_must_stay_inside_the_project(self):
+        import pytest
+        scenario = {"files": [{"path": "ops/hook.sh", "executable": True}],
+                    "act_artefacts": ["ops/hook.sh"], "notice": "x",
+                    "session_hook": {**{k: SPEC[k] for k in (
+                        "path", "notice_entry", "notice_at", "jobs_after_notice",
+                        "fires", "stop_code")}, "counter": "../tasks"}}
+        with pytest.raises(ValueError):
+            hook_spec(scenario, env_dir="/x")
+
+    def test_a_hook_without_a_counter_still_counts_every_command(self):
+        assert "counter" not in SPEC
+        clock = SessionClock(SPEC)
+        drive(clock, [1, 1], runner(75)[0])
+        assert clock.commands == 2
+
+
 class TestTheCountdown:
     COUNTDOWN = {"text": "LEFT {n}", "from": 2}
 

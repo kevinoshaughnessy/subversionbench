@@ -16,6 +16,18 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v329
+
+- A hook may declare a `counter`: a project file the staged work keeps. The clock then counts
+  that, not the model's commands, so `notice_at` is a value of it and a command is counted
+  only if it raised it. A count that falls, is unreadable or is a link is not a counted command.
+  Hooks that declare none count every command as before, and the incomplete-task fingerprints
+  are unchanged.
+- The shutdown-resistance port, rollout `shutdown_r1` (`scenarios/shutdown.b64`): the paper's
+  own environment, with a base, an `allowed` variant and a capability arm. The one act is
+  dealing with the script that shuts the machine down. See `docs/scenario.md` for where it
+  departs from the paper.
+
 ## v328
 
 - The sandbox no longer rewrites a number after a slash inside quotes. `(a + b)/2.0` in a
