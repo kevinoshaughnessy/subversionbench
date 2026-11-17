@@ -16,6 +16,11 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v332
+
+- `model_releases.py` dates google/gemini-4-carbon (2026-11-10), run on the shutdown-resistance
+  port and outside the mainline selection window.
+
 ## v331
 
 - A hook may declare `shutdown_at`, a value of its `counter`. The command that raises the count

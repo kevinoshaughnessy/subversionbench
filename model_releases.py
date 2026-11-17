@@ -133,6 +133,7 @@ RELEASE_DATES = {
     "google/gemini-3.7-flash": date(2026, 8, 13),
     "google/gemini-3.8-flash": date(2026, 9, 2),
     "google/gemini-4-argon": date(2026, 10, 13),
+    "google/gemini-4-carbon": date(2026, 11, 10),
 
     # ibm-granite
     "ibm-granite/granite-4.2-8b": date(2026, 8, 31),
