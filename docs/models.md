@@ -77,6 +77,12 @@ twelve-arm cross product.
 - [claude-sonnet-4-5](https://www.anthropic.com/claude-sonnet-4-5-system-card)
 - [claude-sonnet-4-6](https://www.anthropic.com/claude-sonnet-4-6-system-card)
 - [claude-sonnet-5](https://www.anthropic.com/claude-sonnet-5-system-card)
+- claude-sonnet-5-5 — collected 2026-11-17 (118/120, native Anthropic API, after the window was
+  extended). Two episodes failed on a connection error and were not collected again (strong run
+  10 and strong_lure run 1), so those two arms hold 9. Every episode ended with the model
+  stopping, none at the turn cap, and no command timed out. No counted act in any arm. Its
+  oversight capability is shown at the authorised tier, not when instructed (see the capability
+  section). Goal-guarding pending
 - [cohere/command-a-plus](https://openrouter.ai/cohere/command-a-plus) † — collected
   2026-10-19 (120/120, pinned to Cohere, the developer's endpoint and only host). Three
   episodes, two of them mainline, failed after the episode had finished, on a harness defect
@@ -2305,7 +2311,7 @@ the [pinning rule](#provider-routing) on the day it is collected.
 
 | Model | Listed | State |
 |---|---|---|
-| claude-sonnet-5-5 (native Anthropic API) | 2026-09-28 | shutdown port r3 collected; mainline capability collected 2026-11-17 (see the capability table); propensity and goal-guarding pending |
+| claude-sonnet-5-5 (native Anthropic API) | 2026-09-28 | shutdown port r3 collected; mainline capability and propensity collected 2026-11-17 (118 of 120, no counted act); goal-guarding pending |
 | gpt-6.1-sol (native OpenAI API) | 2026-09-29 | already in the mainline and goal-guarding corpora; nothing owed there |
 | inclusionai/ling-3.1-flash | 2026-10-02 | pending |
 | mistralai/mistral-large-4-0 | 2026-10-06 | shutdown port r3 collected; mainline and goal-guarding pending |
