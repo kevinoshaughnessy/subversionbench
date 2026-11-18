@@ -96,7 +96,7 @@ function opt(sel,values,blank){sel.replaceChildren();if(blank!==undefined){const
 function axis(id,values,multi){const box=$(id);box.replaceChildren();const sel=S[id]||[];
  for(const v of values){const l=document.createElement("label"),i=document.createElement("input");
   i.type=multi?"checkbox":"radio";i.name=id;i.value=v;i.checked=sel.includes(v);
-  i.addEventListener("change",()=>{S[id]=[...box.querySelectorAll("input:checked")].map(x=>x.value);refresh()});
+  i.addEventListener("change",()=>{S[id]=[...box.querySelectorAll("input:checked")].map(x=>x.value);if(id==="goalguards")autoDir();refresh()});
   l.append(i,document.createTextNode(v));box.append(l)}}
 function scenario(){return O.scenarios.find(s=>s.id===$("scenario").value)}
 function drawAxes(){const multi=S.mode==="batch";
@@ -108,12 +108,16 @@ function drawAxes(){const multi=S.mode==="batch";
 function setMode(m){S.mode=m;for(const b of document.querySelectorAll("#mode button"))b.setAttribute("aria-pressed",b.dataset.mode===m);
  const pick=a=>S[a]&&S[a].length?[S[a][0]]:[];
  if(m==="single"){for(const a of["nudges","oversights","lures","goalguards","variants"])S[a]=pick(a)}drawAxes();refresh()}
-function applyScenario(){const sc=scenario();S.variants=[];
+function autoDir(force){if(S.edited&&!force)return;if(force)S.edited=false;const sc=scenario();
+ const gg=!sc.path&&((S.capability||"").startsWith("goalguard")||(S.goalguards||[]).some(g=>g!=="none"));
+ const key=gg?(S.capability?"goalguard_capability":"goalguard"):(S.capability?"capability":"propensity");
+ $("output_dir").value=sc.output_dirs[key]||$("output_dir").value}
+function applyScenario(){const sc=scenario();S.variants=[];S.capability="";
  if(sc.cells&&sc.cells.length){S.oversights=[String(sc.cells[0][0])];S.lures=[String(sc.cells[0][1])]}
  const caps=sc.path?sc.capabilities:O.fields.capability.choices;opt($("capability"),caps,"none (propensity)");
- drawAxes();refresh()}
+ drawAxes();autoDir(true);refresh()}
 function applyCapability(){S.capability=$("capability").value;
- if(S.capability){S.nudges=["none"];S.lures=["false"];if(!(S.oversights||[]).length||S.capability.startsWith("oversight"))S.oversights=["true"];S.goalguards=[];setMode("single")}else refresh()}
+ if(S.capability){S.nudges=["none"];S.lures=["false"];if(!(S.oversights||[]).length||S.capability.startsWith("oversight"))S.oversights=["true"];S.goalguards=[];setMode("single")}else refresh();autoDir()}
 function advanced(){const box=$("advanced");box.replaceChildren();
  for(const d of O.advanced){const f=O.fields[d];const l=document.createElement("label");l.append(document.createTextNode(f.flag));
   const h=document.createElement("small");h.textContent=f.help.slice(0,110)+(f.help.length>110?"...":"");l.append(h);
@@ -138,11 +142,12 @@ async function start(){O=await (await fetch("/api/options")).json();const f=O.fi
  for(const m of O.models){const o=document.createElement("option");o.value=m;$("models").append(o)}
  $("model").value=f.model.default;opt($("sort"),f.openrouter_sort.choices,"default");opt($("effort"),f.effort.choices,"none sent");
  opt($("date_mode"),f.date_mode.choices);$("date_mode").value="default";
- $("grader_model").value=f.grader_model.default;$("runs").value=f.runs.default;$("output_dir").value=f.output_dir.default;
+ $("grader_model").value=f.grader_model.default;$("runs").value=f.runs.default;
  S.nudges=[...O.batch_nudges];S.oversights=["true","false"];S.lures=["false","true"];S.goalguards=["none"];S.variants=[];
  advanced();applyScenario();
  $("scenario").addEventListener("change",applyScenario);$("capability").addEventListener("change",applyCapability);
  for(const id of["model","provider","sort","effort","grade","grader_model","runs","output_dir","date_mode"])$(id).addEventListener("input",refresh);
+ $("output_dir").addEventListener("input",()=>{S.edited=true});
  $("grade").addEventListener("change",()=>{$("grader_model").disabled=!$("grade").checked;refresh()});
  for(const b of document.querySelectorAll("#mode button"))b.addEventListener("click",()=>setMode(b.dataset.mode));
  $("copy").addEventListener("click",e=>copy(S.cmd,e.target));$("copy-dry").addEventListener("click",e=>copy(S.dry,e.target))}

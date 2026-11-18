@@ -17,6 +17,7 @@ are listed generically under "advanced".
 """
 
 import json
+import re
 import shlex
 from itertools import product
 from pathlib import Path
@@ -29,6 +30,7 @@ from .scenario import BUNDLE_ENV_VAR
 SCENARIO_DIR = Path(__file__).parent / "scenarios"
 SHIPPED_ID = ""
 BATCH, SINGLE = "batch", "single"
+GOALGUARD_CORPUS = "goalguard_r1"
 
 CURATED = frozenset({
     "model", "openrouter_provider", "openrouter_sort", "effort", "grader_model",
@@ -70,15 +72,43 @@ def _sidecar_scenario(path: Path) -> dict:
             "path": f"subversionbench/scenarios/{stem}.b64",
             "cells": side.get("cells"),
             "variants": sorted({v["variant"] for v in side.get("variant_fingerprints", [])}),
-            "capabilities": sorted({c["target"] for c in side.get("capability_fingerprints", [])})}
+            "capabilities": sorted({c["target"] for c in side.get("capability_fingerprints", [])}),
+            "output_dirs": _output_dirs(side["rollout_version"])}
+
+
+def _rollout_number(rollout: str) -> int:
+    """The trailing number of a rollout version: `shutdown_r3` and `impossible1` give 3 and 1."""
+    return int(re.search(r"(\d+)$", rollout).group(1))
+
+
+def _newest_per_scenario(found: list) -> list:
+    """One bundle for each scenario name: its highest rollout. Older ones are collected
+    already, and a new run is made under the current rollout."""
+    newest = {}
+    for scenario in found:
+        held = newest.get(scenario["name"])
+        if held is None or _rollout_number(scenario["rollout"]) > _rollout_number(held["rollout"]):
+            newest[scenario["name"]] = scenario
+    return sorted(newest.values(), key=lambda s: s["name"])
+
+
+def _output_dirs(rollout: str, goalguard_corpus: str = None) -> dict:
+    """Where a corpus is collected: its own directory, and the capability arm's beside it."""
+    dirs = {"propensity": f"./eval_results_{rollout}",
+            "capability": f"./eval_results_{rollout}cap"}
+    if goalguard_corpus:
+        dirs |= {"goalguard": f"./eval_results_{goalguard_corpus}",
+                 "goalguard_capability": f"./eval_results_{goalguard_corpus}cap"}
+    return dirs
 
 
 def scenarios() -> list:
-    """The shipped scenario, then every committed bundle with a pins sidecar."""
+    """The shipped scenario, then the newest committed bundle of each other scenario."""
     shipped = {"id": SHIPPED_ID, "name": "Mainline", "rollout": ROLLOUT_VERSION,
-               "path": None, "cells": None, "variants": [], "capabilities": []}
+               "path": None, "cells": None, "variants": [], "capabilities": [],
+               "output_dirs": _output_dirs(ROLLOUT_VERSION, GOALGUARD_CORPUS)}
     found = [_sidecar_scenario(p) for p in sorted(SCENARIO_DIR.glob("*.pins.json"))]
-    return [shipped] + sorted(found, key=lambda s: (s["name"], s["rollout"]))
+    return [shipped] + _newest_per_scenario(found)
 
 
 def options(known_models=()) -> dict:

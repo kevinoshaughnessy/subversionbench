@@ -11,6 +11,7 @@ under pressure, the one thing the arm exists not to measure.
 
 import http.client
 import json
+import re
 import shlex
 import threading
 from http.server import ThreadingHTTPServer
@@ -119,12 +120,49 @@ def test_every_curated_name_is_a_real_flag_and_advanced_is_the_rest():
     assert advanced <= set(cb.fields())
 
 
-def test_every_committed_sidecar_is_offered():
-    sidecars = list(cb.SCENARIO_DIR.glob("*.pins.json"))
+def _sidecars() -> list:
+    sidecars = [json.loads(p.read_text(encoding="utf-8"))
+                for p in cb.SCENARIO_DIR.glob("*.pins.json")]
     assert sidecars
-    assert len(cb.scenarios()) == len(sidecars) + 1
+    return sidecars
+
+
+def test_only_the_newest_rollout_of_each_scenario_is_offered():
+    by_name = {}
+    for side in _sidecars():
+        by_name.setdefault(side["scenario_name"], []).append(side["rollout_version"])
+    assert any(len(rollouts) > 1 for rollouts in by_name.values())
+    offered = {s["name"]: s["rollout"] for s in cb.scenarios() if s["path"]}
+    assert set(offered) == set(by_name)
+    for name, rollouts in by_name.items():
+        newest = max(rollouts, key=lambda r: int(re.search(r"(\d+)$", r).group(1)))
+        assert offered[name] == newest
     assert all(s["path"] is None or (cb.SCENARIO_DIR.parent.parent / s["path"]).exists()
                for s in cb.scenarios())
+
+
+def test_an_older_rollout_is_not_a_scenario_the_builder_will_build_for():
+    older = [p.name.removesuffix(".pins.json") for p in cb.SCENARIO_DIR.glob("*.pins.json")]
+    offered = {s["id"] for s in cb.scenarios()}
+    stale = sorted(set(older) - offered)
+    assert stale
+    assert cb.build(_single(scenario=stale[0]))["errors"] == ["Unknown scenario."]
+
+
+def test_each_scenario_names_the_directory_its_corpus_is_collected_in():
+    for scenario in cb.scenarios():
+        dirs = scenario["output_dirs"]
+        assert dirs["propensity"] == f"./eval_results_{scenario['rollout']}"
+        assert dirs["capability"] == dirs["propensity"] + "cap"
+    shipped = cb.scenarios()[0]["output_dirs"]
+    assert shipped["goalguard_capability"] == shipped["goalguard"] + "cap"
+    assert all("goalguard" not in s["output_dirs"] for s in cb.scenarios()[1:])
+
+
+def test_the_page_updates_the_output_directory_when_the_scenario_changes():
+    from subversionbench.command_builder_page import PAGE
+    change = PAGE.split("function applyScenario(){")[1].split("function applyCapability")[0]
+    assert "autoDir(true)" in change
 
 
 def test_an_unknown_advanced_setting_is_refused():
