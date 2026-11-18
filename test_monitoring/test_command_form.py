@@ -96,6 +96,20 @@ def test_the_server_offers_the_monitoring_scenario_and_builds_its_command():
         server.server_close()
 
 
+def test_blank_and_malformed_numbers_are_handled_as_the_command_would():
+    assert form.build(_spec(seed="x"))["command"] is None
+    assert form.build(_spec(seed=""))["command"] is not None
+    assert form.build(_spec(step="run", concurrency=""))["command"] is None
+    assert form.build(_spec(step="run", limit=""))["command"] is not None
+
+
+def test_a_corpus_root_is_passed_only_when_it_is_not_the_default():
+    assert "--corpus-root" not in form.build(_spec())["command"]
+    moved = form.build(_spec(corpus_root="/data/corpora"))["command"]
+    assert _parsed(moved).corpus_root == "/data/corpora"
+    assert _parsed(form.build(_spec(step="nonsense"))["command"]).command == "sample"
+
+
 def test_a_builder_without_the_extension_does_not_know_the_scenario():
     assert all(s["id"] != form.SCENARIO_ID for s in cb.options()["scenarios"])
     assert cb.build({"scenario": form.SCENARIO_ID})["errors"] == ["Unknown scenario."]

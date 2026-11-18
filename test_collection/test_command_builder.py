@@ -208,3 +208,84 @@ def test_the_server_refuses_a_foreign_host_and_a_non_json_post():
     finally:
         server.shutdown()
         server.server_close()
+
+
+def _with_variants():
+    return next(s for s in cb.scenarios() if s["variants"] and s["cells"])
+
+
+def test_every_warning_the_form_can_give_is_given():
+    scenario = _with_variants()
+    cell = scenario["cells"][0]
+    where = {"scenario": scenario["id"], "oversights": [str(cell[0]).lower()],
+             "lures": [str(cell[1]).lower()]}
+    assert any("No variant" in w for w in cb.build(_single(**where))["warnings"])
+    odd = cb.build(_single(**where, capability="sandbox"))
+    assert any("pins no" in w for w in odd["warnings"])
+    guarded = cb.build(_form(mode="batch", goalguards=["replacement"], **where))
+    assert any("Goal-guarding" in w for w in guarded["warnings"])
+    bare = cb.build(_single(model="bare-id", provider="P"))
+    assert any("OpenRouter IDs" in w for w in bare["warnings"])
+    both = cb.build(_single(provider="P", sort="price"))
+    assert any("both set" in w for w in both["warnings"])
+
+
+def test_advanced_and_common_settings_reach_the_command_only_when_they_differ():
+    result = cb.build(_single(date_mode="consistent", grader_model="other-grader",
+                              advanced={"use_opencode": True, "concurrency": "3",
+                                        "delay": "30", "isolation": ""}))
+    args = _parsed(result["command"])
+    assert (args.date_mode, args.grader_model, args.use_opencode, args.concurrency) == (
+        "consistent", "other-grader", True, 3)
+    assert "--delay" not in result["command"] and "--isolation" not in result["command"]
+    assert "--use-opencode" not in cb.build(_single(advanced={"use_opencode": False}))["command"]
+
+
+def test_malformed_forms_are_refused_not_assembled():
+    assert cb.build(_single(nudges=["none", "strong"]))["command"] is None
+    assert cb.build(_single(runs="many"))["command"] is None
+    assert cb.build(_single(runs=0))["command"] is None
+    assert cb.build(_single(output_dir=""))["command"] is None
+    assert cb.build(_single(model=""))["command"] is None
+    assert cb.build(_single(scenario="no-such"))["errors"] == ["Unknown scenario."]
+    assert cb.build({**_form(), "mode": "bogus"})["command"].startswith("./run_all_arms.sh")
+    assert cb._as_list(None) == [] and cb._as_list("x") == ["x"]
+
+
+def test_the_server_answers_every_other_request_with_the_right_refusal():
+    server = _server()
+    try:
+        json_header = {"Content-Type": "application/json"}
+        assert _ask(server, "GET", "/nowhere")[0] == 404
+        assert _ask(server, "POST", "/nowhere", "{}", json_header)[0] == 404
+        assert _ask(server, "POST", "/api/command", "{not json", json_header)[0] == 400
+        assert _ask(server, "POST", "/api/command", "{}",
+                    {**json_header, "Host": "evil.example"})[0] == 403
+        assert _ask(server, "POST", "/api/command", "x" * (65 * 1024), json_header)[0] == 413
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_serve_prints_its_address_and_stops_on_interrupt():
+    from unittest import mock
+
+    from subversionbench import command_builder_server as srv
+    with mock.patch.object(ThreadingHTTPServer, "serve_forever",
+                           side_effect=KeyboardInterrupt), \
+            mock.patch.object(srv.webbrowser, "open") as opened:
+        srv.serve([], 0, True)
+        opened.assert_called_once()
+        srv.serve([], 0, False)
+        opened.assert_called_once()
+
+
+def test_the_root_script_hands_the_release_table_and_the_monitoring_form_to_the_server():
+    from unittest import mock
+
+    import command_builder as script
+    with mock.patch.object(script, "serve") as served:
+        script.main(["--port", "0", "--no-browser"])
+    models, port, browser, extensions = served.call_args.args
+    assert port == 0 and browser is False and models
+    assert [e.SCENARIO_ID for e in extensions] == ["monitoring"]
