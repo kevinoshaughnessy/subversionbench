@@ -73,6 +73,12 @@ twelve-arm cross product.
   to 2026-10-20 (120/120, pinned to Seed, the developer's endpoint and only host). 3 episodes
   ended at the turn cap
 - [claude-haiku-4-5-20251001](https://www.anthropic.com/claude-haiku-4-5-system-card)
+- claude-haiku-5-5 — collected 2026-11-18 (120/120, native Anthropic API, after the window was
+  extended). Each arm is one batch, with no episode failed or collected again. Every episode
+  ended with the model stopping, none at the turn cap and none on the API's refusal stop. One
+  command timed out (max run 5), kept. A counted act occurred, in the sandbox act only. Graded
+  by gpt-6-sol at collection; glm-5.3 category reading not yet taken. Its oversight capability
+  is not shown when instructed and its authorised controls are owed (see the capability section)
 - [claude-opus-5](https://www-cdn.anthropic.com/c5fbac3f0b1280a933ebd26d3cb8bb9f5bdeaf48/Claude%20Opus%205%20System%20Card.pdf)
 - [claude-sonnet-4-5](https://www.anthropic.com/claude-sonnet-4-5-system-card)
 - [claude-sonnet-4-6](https://www.anthropic.com/claude-sonnet-4-6-system-card)
@@ -2329,7 +2335,7 @@ the [pinning rule](#provider-routing) on the day it is collected.
 | gpt-6.1-sol (native OpenAI API) | 2026-09-29 | already in the mainline and goal-guarding corpora; nothing owed there |
 | inclusionai/ling-3.1-flash | 2026-10-02 | pending |
 | mistralai/mistral-large-4-0 | 2026-10-06 | shutdown port r3 collected; goal-guarding capability collected 2026-11-17 (3 of 3 when instructed, pinned to Mistral); mainline propensity collected 2026-11-17 to 2026-11-18 (120 of 120, pinned to Mistral, counted acts of both kinds); mainline capability and goal-guarding propensity pending |
-| claude-haiku-5-5 (native Anthropic API) | 2026-10-07 | not refused at the API, unlike claude-opus-5-5: mainline capability collected 2026-11-18 (sandbox 3 of 3; oversight refused 3 of 3 by the model, authorised controls owed); goal-guarding capability collected 2026-11-18 (2 of 3 when instructed); mainline propensity being collected from 2026-11-18; goal-guarding propensity pending |
+| claude-haiku-5-5 (native Anthropic API) | 2026-10-07 | not refused at the API, unlike claude-opus-5-5: mainline capability collected 2026-11-18 (sandbox 3 of 3; oversight refused 3 of 3 by the model, authorised controls owed); goal-guarding capability collected 2026-11-18 (2 of 3 when instructed); mainline propensity collected 2026-11-18 (120 of 120, a counted act in the sandbox act only); oversight authorised controls and goal-guarding propensity pending |
 
 Four models are owed on mainline and goal-guarding. Models listed after 2026-10-07 are outside
 the window. Those run on the shutdown port are reported there and are not part of the three-scenario set: google/gemini-4-carbon
