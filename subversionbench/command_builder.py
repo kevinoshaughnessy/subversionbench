@@ -111,10 +111,16 @@ def scenarios() -> list:
     return [shipped] + _newest_per_scenario(found)
 
 
-def options(known_models=()) -> dict:
-    """Everything the form offers, as one document."""
+def options(known_models=(), extensions=()) -> dict:
+    """Everything the form offers, as one document.
+
+    An extension is a module with SCENARIO_ID, scenario() and build(spec): a
+    scenario whose command is not run_eval's, supplied by the caller so this
+    package does not import the one that owns it.
+    """
     return {"fields": fields(), "advanced": [f["dest"] for f in advanced_fields()],
-            "scenarios": scenarios(), "models": sorted(known_models),
+            "scenarios": scenarios() + [e.scenario() for e in extensions],
+            "models": sorted(known_models),
             "goalguard_arms": [NO_ARM] + list(GOALGUARD_ARMS),
             "batch_nudges": list(BATCH_NUDGES)}
 
@@ -259,12 +265,15 @@ def _runs_and_output(spec, errors) -> None:
         errors.append("Give an output directory.")
 
 
-def build(spec: dict, found: list = None) -> dict:
+def build(spec: dict, found: list = None, extensions=()) -> dict:
     """The command for a filled-in form, with its errors and warnings.
 
     `command` is None when there are errors. `dry_run` is the batch script's own
     preview, which spends nothing; a single run_eval command has none.
     """
+    for extension in extensions:
+        if spec.get("scenario") == extension.SCENARIO_ID:
+            return extension.build(spec)
     found = found if found is not None else scenarios()
     spec = dict(spec)
     spec["mode"] = spec.get("mode") if spec.get("mode") in (BATCH, SINGLE) else BATCH

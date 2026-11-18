@@ -343,6 +343,9 @@ monitoring/        the transcript-monitoring scenario: the model under
                    copy, and the fingerprints its results are pinned to
   call.py          one monitor call through the grading package's parts, the
                    reply validated rather than coerced
+  command_form.py  the run-command builder's form for this scenario's three
+                   steps, mirroring the parser; it starts nothing, and the
+                   builder's server is handed it rather than importing it
   run.py           a resumable pass over the manifest for one monitor, with a
                    free dry run; the only module here that pays
   scores.py        catch rate at a fixed false-positive rate, AUROC, the first

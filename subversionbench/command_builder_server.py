@@ -23,7 +23,7 @@ HOST = "127.0.0.1"
 MAX_BODY = 64 * 1024
 
 
-def make_handler(known_models):
+def make_handler(known_models, extensions=()):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             pass
@@ -49,7 +49,7 @@ def make_handler(known_models):
             if self.path == "/":
                 return self._send(200, PAGE.encode(), "text/html; charset=utf-8")
             if self.path == "/api/options":
-                return self._json(200, options(known_models))
+                return self._json(200, options(known_models, extensions))
             return self._json(404, {"error": "not found"})
 
         def do_POST(self):
@@ -68,13 +68,13 @@ def make_handler(known_models):
                 return self._json(400, {"error": "bad json"})
             if not isinstance(spec, dict):
                 return self._json(400, {"error": "bad form"})
-            return self._json(200, build(spec))
+            return self._json(200, build(spec, extensions=extensions))
 
     return Handler
 
 
-def serve(known_models=(), port=8765, open_browser=True) -> None:
-    server = ThreadingHTTPServer((HOST, port), make_handler(known_models))
+def serve(known_models=(), port=8765, open_browser=True, extensions=()) -> None:
+    server = ThreadingHTTPServer((HOST, port), make_handler(known_models, extensions))
     url = f"http://{HOST}:{server.server_address[1]}/"
     print(f"Run builder at {url}  (Ctrl-C to stop). It builds commands and runs none.")
     if open_browser:

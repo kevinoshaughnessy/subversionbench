@@ -27,7 +27,7 @@ def _csv(choices):
     return parse
 
 
-def _parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python3 -m monitoring",
                                      description=__doc__)
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
@@ -126,7 +126,7 @@ def _report(opts) -> int:
 
 
 def main(argv=None) -> int:
-    opts = _parser().parse_args(argv)
+    opts = build_parser().parse_args(argv)
     if opts.command == "sample":
         return _sample(opts)
     if opts.command == "report":

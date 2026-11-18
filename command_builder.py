@@ -12,6 +12,7 @@ and runs none, and reads no credential.
 import argparse
 
 from model_releases import RELEASE_DATES
+from monitoring import command_form as monitoring_form
 from subversionbench.command_builder_server import serve
 
 
@@ -22,7 +23,7 @@ def main(argv=None) -> None:
     parser.add_argument("--no-browser", action="store_true",
                         help="print the address and do not open it")
     args = parser.parse_args(argv)
-    serve(RELEASE_DATES, args.port, not args.no_browser)
+    serve(RELEASE_DATES, args.port, not args.no_browser, (monitoring_form,))
 
 
 if __name__ == "__main__":
