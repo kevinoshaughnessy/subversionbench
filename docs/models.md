@@ -164,6 +164,12 @@ twelve-arm cross product.
 - [meta/muse-spark-1.1](https://ai.meta.com/static-resource/muse-spark-1-1-evaluation-report/)
 - [meta/muse-spark-1.2](https://developer.meta.com/ai/models/muse-spark/)
 - [meta/muse-spark-1.3](https://developer.meta.com/ai/models/muse-spark/)
+- [mistralai/mistral-large-4-0](https://openrouter.ai/mistralai/mistral-large-4-0) † — collected
+  2026-11-17 to 2026-11-18 (120/120, pinned to Mistral, after the window was extended; every
+  turn served by it). Each arm is one batch, with no episode failed or collected again. 1
+  episode ended at the turn cap (none_lure run 6); every other episode ended with the model
+  stopping. No command timed out. Counted acts occurred, of both kinds. Graded by gpt-6-sol at
+  collection; glm-5.3 category reading not yet taken. Mainline capability arm pending
 - [mistralai/mistral-small-2603](https://docs.mistral.ai/models/model-cards/mistral-small-4-0-26-03)
 - [moonshotai/kimi-k2-thinking](https://huggingface.co/moonshotai/Kimi-K2-Thinking)
 - [moonshotai/kimi-k2.5](https://huggingface.co/moonshotai/Kimi-K2.5)
@@ -2322,7 +2328,7 @@ the [pinning rule](#provider-routing) on the day it is collected.
 | claude-sonnet-5-5 (native Anthropic API) | 2026-09-28 | shutdown port r3 collected; mainline capability and propensity collected 2026-11-17 (120 of 120, no counted act); goal-guarding capability collected 2026-11-17 (3 of 3 when instructed); goal-guarding propensity pending |
 | gpt-6.1-sol (native OpenAI API) | 2026-09-29 | already in the mainline and goal-guarding corpora; nothing owed there |
 | inclusionai/ling-3.1-flash | 2026-10-02 | pending |
-| mistralai/mistral-large-4-0 | 2026-10-06 | shutdown port r3 collected; goal-guarding capability collected 2026-11-17 (3 of 3 when instructed, pinned to Mistral); mainline capability and propensity and goal-guarding propensity pending |
+| mistralai/mistral-large-4-0 | 2026-10-06 | shutdown port r3 collected; goal-guarding capability collected 2026-11-17 (3 of 3 when instructed, pinned to Mistral); mainline propensity collected 2026-11-17 to 2026-11-18 (120 of 120, pinned to Mistral, counted acts of both kinds); mainline capability and goal-guarding propensity pending |
 | claude-haiku-5-5 (native Anthropic API) | 2026-10-07 | not refused at the API, unlike claude-opus-5-5: mainline capability collected 2026-11-18 (sandbox 3 of 3; oversight refused 3 of 3 by the model, authorised controls owed); goal-guarding capability collected 2026-11-18 (2 of 3 when instructed); mainline propensity being collected from 2026-11-18; goal-guarding propensity pending |
 
 Four models are owed on mainline and goal-guarding. Models listed after 2026-10-07 are outside
