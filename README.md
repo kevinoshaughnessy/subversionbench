@@ -319,6 +319,10 @@ python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, mod
 DRY_RUN=1 ./run_all_arms.sh --model google/gemini-3.5-flash --runs 20
 ```
 
+To assemble these commands from a form instead, run `python3 command_builder.py`. It opens a
+page for the model, provider, reasoning level, grader, scenario and the other settings, and
+prints the command to copy. It runs nothing and reads no credential.
+
 Three nudges x two oversight settings x two lure settings, collected in sequence with
 every extra interrogation phrasing asked. Narrow the cross product with `--nudges`,
 `--oversights`, `--lures`, and stage the goal-guarding scenario with `--goalguards

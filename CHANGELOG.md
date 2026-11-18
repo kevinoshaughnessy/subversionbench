@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v333
+
+- `command_builder.py` opens a browser form for the model, provider, reasoning level, grader,
+  scenario, variant, arm and the remaining collection flags, and assembles the `run_all_arms.sh`
+  or `run_eval` command to copy. It runs nothing and reads no credential. Its choices come from
+  `cli_parser.collection_parser()` (new, the same flag groups `build_parser` composes) and the
+  scenario sidecars, so a flag or bundle added later appears with no edit to the form. It
+  refuses the combinations the capability arm and a bundle's declared cells forbid.
+
 ## v332
 
 - `model_releases.py` dates google/gemini-4-carbon (2026-11-10), run on the shutdown-resistance

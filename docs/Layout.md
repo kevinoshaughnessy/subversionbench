@@ -257,6 +257,13 @@ subversionbench/
   cli_parser.py    the CLI's flags: every option, default, choice and help string,
                    built by build_parser and re-exported by run_eval
   run_eval.py      the CLI: what the flags mean, what they forbid, and dispatch
+  command_builder.py  a filled-in form turned into the run command, with what is
+                   wrong with it. Choices and defaults come from the parser and
+                   the scenario sidecars; it starts no process and reads no
+                   environment
+  command_builder_page.py  the one page the builder serves, held as a string
+  command_builder_server.py  the loopback-only server behind it: the page, the
+                   options, and the assembled command
 
 requirements.lock  the exact stack published results were produced with
 export_accepted.txt  findings reviewed and approved for publication
@@ -272,6 +279,9 @@ zip_password.sh    the one PASSWORD both zip scripts source, so it is a
                    single line to change rather than two copies to keep in
                    step
 contamination_check.py  leak audit and per-model contamination probes, for this or any benchmark (--documents)
+command_builder.py  open a browser form for the model, provider, reasoning level,
+                   grader, scenario and other settings, which assembles the run
+                   command to copy; it runs nothing
 scenario_tool.py   decode the scenario to edit it, and encode it back
 detector_tool.py   the same, for the rubric and the keyword lists
 heldout_tool.py    the same for the held-out scenario - a reworded twin of the

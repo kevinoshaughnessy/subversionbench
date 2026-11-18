@@ -548,3 +548,16 @@ def build_parser() -> argparse.ArgumentParser:
     _add_regrade_argument(parser)
     _add_analysis_arguments(parser)
     return parser
+
+
+def collection_parser() -> argparse.ArgumentParser:
+    """The flags that shape a collection run, and none of the read modes.
+
+    What a tool that builds a run command needs: the same four groups
+    build_parser composes, so a flag added to one reaches that tool with no
+    second list to keep in step.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    _add_collection_arguments(parser)
+    _add_model_arguments(parser)
+    return parser
