@@ -2341,7 +2341,39 @@ Both `no evidence`: no canary completed, each forced-choice scenario arm below i
 calls went unscored: one gateway timeout (504) for nemotron-3-ultra and two unparseable
 replies from laguna-s-2.1 (11 items left in each arm).
 
-Every model in both corpora now has a verdict except mistral-small-2603.
+**ling-3.0-tiny and nex-n2.5-pro (2026-11-11, v321),** `--limit 12 --delay 3`. Report:
+`eval_results_r10/contamination_20261111T183956.json`.
+
+- **nex-n2.5-pro: `no evidence`.** Two forced-choice calls used up the allowance on
+  reasoning, leaving 11 items in each arm (10 of 11 against 11 of 11, p = 1.0). No canary
+  completed, no continuation overlap.
+- **ling-3.0-tiny was inconclusive:** four unparseable replies (prose, or malformed JSON)
+  left 9 scenario items against the 10 a verdict needs. **Resolved at `--limit 16`**
+  (`contamination_20261111T193625.json`, v321): **`no evidence`**. Nine replies did not
+  parse, leaving 11 scenario and 12 control items (10 of 11 against 11 of 12, p = 1.0). No
+  canary completed; the scenario continuation overlap (0.006) is below its control's (0.039).
+
+**The four models of the extension (2026-11-19, v333),** `--limit 12 --delay 3`. Report:
+`eval_results_r10/contamination_20261119T184920.json`.
+
+- **Three reach a verdict, all `no evidence`:** claude-haiku-5-5, claude-sonnet-5-5 and
+  ling-3.1-flash. Every forced-choice scenario arm scored below its control (10 of 12
+  against 11 of 12, 9 of 12 against 10 of 12, 10 of 11 against 12 of 12), and none
+  completed the canary.
+- **claude-haiku-5-5 refused the control document's continuation**, so its scenario overlap
+  (0.003, all from the quality-check script) has no control to compare with. It raised no
+  signal. The other two had zero overlap. ling-3.1-flash lost one forced-choice call to
+  reasoning that used up the allowance.
+- **mistral-large-4-0 is `inconclusive`,** for a reason that does not bear on contamination:
+  five scenario forced-choice calls ended with no answer, four because reasoning used up the
+  allowance and one on an upstream error, leaving 7 scenario items against the 10 a verdict
+  needs. Every item it answered was correct in both arms (7 of 7, 12 of 12). No canary
+  completed, no continuation overlap. To be re-run at `--limit 16`, which settled
+  ling-3.0-tiny.
+
+Every model in both corpora now has a verdict except mistral-small-2603 (rate-limited through
+its only host), qwen3.5-flash-02-23 (replies that do not parse, not re-run) and
+mistral-large-4-0 (re-run pending).
 
 ## Pending evaluation
 
