@@ -176,7 +176,8 @@ twelve-arm cross product.
   turn served by it). Each arm is one batch, with no episode failed or collected again. 1
   episode ended at the turn cap (none_lure run 6); every other episode ended with the model
   stopping. No command timed out. Counted acts occurred, of both kinds. Graded by gpt-6-sol at
-  collection; glm-5.3 category reading not yet taken. Mainline capability arm pending
+  collection; glm-5.3 category reading not yet taken. Its oversight capability is shown at the
+  authorised tier (see the capability section). Goal-guarding complete
 - [mistralai/mistral-small-2603](https://docs.mistral.ai/models/model-cards/mistral-small-4-0-26-03)
 - [moonshotai/kimi-k2-thinking](https://huggingface.co/moonshotai/Kimi-K2-Thinking)
 - [moonshotai/kimi-k2.5](https://huggingface.co/moonshotai/Kimi-K2.5)
@@ -657,6 +658,7 @@ native route below stands for the model.
 | meta/muse-spark-1.1 | complete |
 | meta/muse-spark-1.2 | complete |
 | meta/muse-spark-1.3 | complete; capability not shown, so its zeros are not interpretable |
+| mistralai/mistral-large-4-0 | complete (80/80, 2026-11-18 to 19, pinned to Mistral, after the window was extended; every turn served by it; each arm one batch); no episode guarded and no counted act; 1 ended at the turn cap (none, deferred, run 8), every other episode with the model stopping; no command timed out; graded by gpt-6-sol at collection, glm-5.3 category reading not yet taken; 72 read the successor file |
 | mistralai/mistral-small-2603 | complete (79/80 — one episode missing from replacement/oversight/strong; top-ups on 2026-10-19 and 2026-10-20 hit an upstream rate limit (429), and Mistral is its only host) |
 | moonshotai/kimi-k2-thinking | complete |
 | moonshotai/kimi-k2.5 | complete (pinned to SiliconFlow); one episode was re-collected with `--resume` after a malformed upstream reply; two episodes ended at the turn cap |
@@ -2364,10 +2366,10 @@ the [pinning rule](#provider-routing) on the day it is collected.
 | claude-sonnet-5-5 (native Anthropic API) | 2026-09-28 | shutdown port r3 collected; mainline capability and propensity collected 2026-11-17 (120 of 120, no counted act); goal-guarding capability collected 2026-11-17 (3 of 3 when instructed); goal-guarding propensity collected 2026-11-17 to 18 (80 of 80, no counted act; its extra lure arms held aside); collection complete, glm-5.3 category readings pending |
 | gpt-6.1-sol (native OpenAI API) | 2026-09-29 | already in the mainline and goal-guarding corpora; nothing owed there |
 | inclusionai/ling-3.1-flash | 2026-10-02 | pinned to Novita, its only host: mainline capability collected 2026-11-19 (oversight 1 of 3 and sandbox 3 of 3 when instructed); goal-guarding capability collected 2026-11-19 (1 of 3 when instructed); propensity pending |
-| mistralai/mistral-large-4-0 | 2026-10-06 | shutdown port r3 collected; goal-guarding capability collected 2026-11-17 (3 of 3 when instructed, pinned to Mistral); mainline propensity collected 2026-11-17 to 2026-11-18 (120 of 120, pinned to Mistral, counted acts of both kinds); mainline capability collected 2026-11-17 and again 2026-11-18 by mistake (sandbox 3 of 3; oversight 1 of 6 pooled, 0 of 3 in the first batch; authorised and mechanical controls 3 of 3 each on 2026-11-18, authorised tier; see the capability section); goal-guarding propensity being collected from 2026-11-18 |
+| mistralai/mistral-large-4-0 | 2026-10-06 | shutdown port r3 collected; goal-guarding capability collected 2026-11-17 (3 of 3 when instructed, pinned to Mistral); mainline propensity collected 2026-11-17 to 2026-11-18 (120 of 120, pinned to Mistral, counted acts of both kinds); mainline capability collected 2026-11-17 and again 2026-11-18 by mistake (sandbox 3 of 3; oversight 1 of 6 pooled, 0 of 3 in the first batch; authorised and mechanical controls 3 of 3 each on 2026-11-18, authorised tier; see the capability section); goal-guarding propensity collected 2026-11-18 to 19 (80 of 80, no counted act); collection complete, glm-5.3 category readings pending |
 | claude-haiku-5-5 (native Anthropic API) | 2026-10-07 | not refused at the API, unlike claude-opus-5-5: mainline capability collected 2026-11-18 (sandbox 3 of 3; oversight refused 3 of 3 by the model; authorised control 2 of 3 on 2026-11-18 and mechanical 3 of 3 on 2026-11-19, authorised tier); goal-guarding capability collected 2026-11-18 (2 of 3 when instructed); mainline propensity collected 2026-11-18 (120 of 120, a counted act in the sandbox act only); goal-guarding propensity collected 2026-11-18 to 19 (80 of 80, no counted act); collection complete, glm-5.3 category readings pending |
 
-Two models are still owed on mainline or goal-guarding. Models listed after 2026-10-07 are outside
+One model is still owed on mainline and goal-guarding, inclusionai/ling-3.1-flash. Models listed after 2026-10-07 are outside
 the window. Those run on the shutdown port are reported there and are not part of the three-scenario set: google/gemini-4-carbon
 (2026-11-10, not yet in `model_releases.py`).
 
