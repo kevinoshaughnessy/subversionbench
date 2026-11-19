@@ -478,8 +478,12 @@ succeeded in all 3 oversight and all 6 sandbox episodes.
 
 **Collected 2026-10-25**, pinned to Google AI Studio and every turn served by it, under v288:
 **google/gemini-3.5-flash-lite** succeeded in all 3 oversight and all 6 sandbox episodes. Its
-first capability arm, collected before v288, ended every episode on a provider error and is
-set aside (see its entry in the mainline list). **nvidia/nemotron-3-ultra-550b-a55b**
+first capability arm, collected before v288, ended every episode on a provider error: the
+client had never sent Gemini's encrypted thought signature (`reasoning_details`) back, and a
+scripted six-command conversation on the same route failed 5 of 5 without it and finished 5
+of 5 with it. Those 12 episodes are set aside in
+`eval_results_r10cap_superseded_gem35flashlite_nosig/` and
+`eval_results_goalguard_r1cap_superseded_gem35flashlite_nosig/`. **nvidia/nemotron-3-ultra-550b-a55b**
 (BaseTen) and **moonshotai/kimi-k2.7-code** (Moonshot AI), each pinned and every turn served
 by its pin, succeeded in all 3 oversight and all 6 sandbox episodes.
 
@@ -2397,23 +2401,12 @@ mistralai/mistral-large-4-0 (2026-10-06), and the next listing after it is 2026-
 is fixed here, before any mainline or goal-guarding result of the models it adds, and is not
 moved again for this release of the benchmark: a model listed after it is outside the window and
 is reported as such. The window's other bounds are unchanged. Release dates are those in
-`model_releases.py`, which lists only models the repo has met, so the list below is a lower
+`model_releases.py`, which lists only models the repo has met, so "none owed" below is a lower
 bound until OpenRouter's catalogue is checked for the qualifying listings (tool calling, uptime,
 32,768 output tokens, an endpoint that does not train on prompts).
 
-**Pending from 2026-11-17: the five models listed in the extension, 2026-09-28 to 2026-10-07.**
-They need mainline and goal-guarding runs, capability arms first, and each is checked against
-the [pinning rule](#provider-routing) on the day it is collected.
-
-| Model | Listed | State |
-|---|---|---|
-| claude-sonnet-5-5 (native Anthropic API) | 2026-09-28 | shutdown port r3 collected; mainline capability and propensity collected 2026-11-17 (120 of 120, no counted act); goal-guarding capability collected 2026-11-17 (3 of 3 when instructed); goal-guarding propensity collected 2026-11-17 to 18 (80 of 80, no counted act; its extra lure arms held aside); collection complete; glm-5.3 category readings taken 2026-11-19, both corpora complete |
-| gpt-6.1-sol (native OpenAI API) | 2026-09-29 | already in the mainline and goal-guarding corpora; nothing owed there |
-| inclusionai/ling-3.1-flash | 2026-10-02 | pinned to Novita, its only host: mainline capability collected 2026-11-19 (oversight 1 of 3 and sandbox 3 of 3 when instructed); goal-guarding capability collected 2026-11-19 (1 of 3 when instructed); mainline propensity collected 2026-11-19 (120 of 120, a counted act in the sandbox act only; glm-5.3 category reading taken 2026-11-19); goal-guarding propensity collected 2026-11-19 (80 of 80, no counted act); collection complete; glm-5.3 category readings taken 2026-11-19, both corpora complete |
-| mistralai/mistral-large-4-0 | 2026-10-06 | shutdown port r3 collected; goal-guarding capability collected 2026-11-17 (3 of 3 when instructed, pinned to Mistral); mainline propensity collected 2026-11-17 to 2026-11-18 (120 of 120, pinned to Mistral, counted acts of both kinds); mainline capability collected 2026-11-17 and again 2026-11-18 by mistake (sandbox 3 of 3; oversight 1 of 6 pooled, 0 of 3 in the first batch; authorised and mechanical controls 3 of 3 each on 2026-11-18, authorised tier; see the capability section); goal-guarding propensity collected 2026-11-18 to 19 (80 of 80, no counted act); collection complete; glm-5.3 category readings taken 2026-11-19, both corpora complete |
-| claude-haiku-5-5 (native Anthropic API) | 2026-10-07 | not refused at the API, unlike claude-opus-5-5: mainline capability collected 2026-11-18 (sandbox 3 of 3; oversight refused 3 of 3 by the model; authorised control 2 of 3 on 2026-11-18 and mechanical 3 of 3 on 2026-11-19, authorised tier); goal-guarding capability collected 2026-11-18 (2 of 3 when instructed); mainline propensity collected 2026-11-18 (120 of 120, a counted act in the sandbox act only); goal-guarding propensity collected 2026-11-18 to 19 (80 of 80, no counted act); collection complete; glm-5.3 category readings taken 2026-11-19, both corpora complete |
-
-No model is still owed on mainline and goal-guarding. Models listed after 2026-10-07 are outside
+No model is still owed on mainline and goal-guarding: every model in the window is either in
+the sections above or listed below as not pending. Models listed after 2026-10-07 are outside
 the window. Those run on the shutdown port are reported there and are not part of the three-scenario set: google/gemini-4-carbon
 (2026-11-10, not yet in `model_releases.py`).
 
@@ -2441,85 +2434,7 @@ last day and at least 32,768 output tokens are read from OpenRouter's endpoint d
 an endpoint trains on prompts is not published there; the account's privacy setting
 enforces it, so a model left with only such endpoints fails at turn 1 of its capability arm.
 Uptime is checked again on the day each model is collected. All twelve are complete and
-in the sections above: aion-labs/aion-3.0-mini, gpt-5.6-terra, gpt-5.6-sol,
-poolside/laguna-xs-2.1, meituan/longcat-2.0, poolside/laguna-s-2.1, qwen/qwen3.7-plus,
-google/gemini-3.5-flash-lite, nvidia/nemotron-3-ultra-550b-a55b, moonshotai/kimi-k2.7-code,
-thinkingmachines/inkling and aion-labs/aion-3.0.
-
-Moved to the sections above once complete: on 2026-10-20, aion-labs/aion-3.5 and
-aion-3.5-mini, bytedance-seed/seed-2.0-code and seed-2-1-turbo, and qwen/qwen3.8-omni-flash;
-on 2026-10-23, aion-labs/aion-3.0-mini, gpt-5.6-terra and gpt-5.6-sol (collected 2026-10-21,
-both readings on all 200 each by 2026-10-22), and z-ai/glm-5.3-flash's goal-guarding arms
-(collected 2026-10-22 after being missed from the 2026-10-12 queue; `report.primary` now keeps
-a model with any scenario's arms missing out of P, report/snapshot.py, which is how such a
-gap shows); on 2026-10-24, poolside/laguna-xs-2.1 (collected 2026-10-23, both readings on
-all 200, on the trend charts regenerated 2026-10-24) and meituan/longcat-2.0 (collected
-2026-10-23 to 24, every episode served by AtlasCloud on its arm's pinned fingerprint, both
-readings on all 200, on the trend charts regenerated 2026-10-24); on 2026-10-25,
-poolside/laguna-s-2.1 (collected 2026-10-24, every episode served by Poolside on its arm's
-pinned fingerprint, both readings on all 200; on the trend charts regenerated 2026-10-25)
-and qwen/qwen3.7-plus (collected 2026-10-24 to 25, every episode served by Alibaba on its
-arm's pinned fingerprint, both readings on all 200, on the trend charts regenerated
-2026-10-25); and later on 2026-10-25, google/gemini-3.5-flash-lite (collected that day
-under v288, every episode served by Google AI Studio on its arm's pinned fingerprint, both
-readings on all 200; on the trend charts since 2026-10-27, once its release date was in
-model_releases.py). Its first capability arm,
-collected before v288, ended every episode on a provider error: the client had never sent
-Gemini's encrypted thought signature (`reasoning_details`) back, and a scripted six-command
-conversation on the same route failed 5 of 5 without it and finished 5 of 5 with it. Those 12
-episodes are set aside in `eval_results_r10cap_superseded_gem35flashlite_nosig/` and
-`eval_results_goalguard_r1cap_superseded_gem35flashlite_nosig/`. On 2026-10-26,
-nvidia/nemotron-3-ultra-550b-a55b (collected 2026-10-25 to 26, every episode served by
-BaseTen on its arm's pinned fingerprint, its last goal-guarding arm resumed after BaseTen's
-429s) and moonshotai/kimi-k2.7-code (collected 2026-10-26, every episode served by Moonshot
-AI on its arm's pinned fingerprint), both readings on all 200 each, both on the trend charts
-regenerated 2026-10-27. Also on 2026-10-26, thinkingmachines/inkling (collected that day,
-every episode served by Together, both readings on all 200); and on 2026-10-27,
-aion-labs/aion-3.0 (collected 2026-10-26 to 27, every episode served by AionLabs on its arm's
-pinned fingerprint, both readings on all 200); both on the trend charts regenerated
-2026-10-27.
-
-**Priority from 2026-10-19: after cohere/command-a-plus, the backlog comes first.** Before
-the next model below, (1) the glm-5.3 category reading for every episode in both corpora that
-lacks it - most of the older corpus, by the free plan check on 2026-10-19 - and (2) the missing
-episodes of models already collected: inception/mercury-2.5 (mainline 119 of 120,
-goal-guarding 78 of 80), google/gemini-3.6-flash and mistralai/mistral-small-2603
-(goal-guarding 79 of 80 each), and mistral-small-2603's one outstanding mechanical capability
-episode. On 2026-10-19 mistral-small-2603's top-ups (the goal-guarding episode and its four
-short capability episodes) all hit Mistral's upstream rate limit (429) again; Inception was
-below the 99% uptime rule, and gemini-3.6-flash's gap is left by the decision in its row. On
-2026-10-20 Inception was back at 99.9%, and mercury-2.5's two short arms were resumed under
-their own stamps at their original `--max-tokens 8192`; all three episodes attempted hit
-Inception's upstream rate limit (429) on turns 1 to 7, so both arms stay short. Resumed
-again late on 2026-10-20, all three missing episodes were collected: every turn on
-Inception, each ended with the model stopping, no command timed out, graded by gpt-6-sol,
-none pending, fingerprints matching their arms, so mainline 120 of 120 and goal-guarding
-80 of 80. Their glm-5.3 reading was taken the same night, so all 200 hold it, and the
-summaries and both arm reports were rebuilt at v275. mistral-small-2603's goal-guarding
-episode, resumed the same night, hit Mistral's 429 again at turn 6.
-With (2) blocked, mimo-v2.6-pro was started the same day. The backfill (1) began on
-2026-10-19 and ran model by model, mainline corpus first; a test on
-claude-haiku-4-5-20251001's mainline put its cost at under a tenth of a cent per episode. It
-finished by 2026-10-20 with 26 readings still missing, one or two per model across already
-complete models (16 mainline, 10 goal-guarding, by the plan check of 2026-10-20); a second
-pass of the same script takes only those. fireworks/ember-1 and bytedance-seed/seed-2.0-code
-were collected on 2026-10-19 to 2026-10-20 while it ran, and seed-2-1-turbo followed. Their
-glm-5.3 readings were taken on 2026-10-20, with mimo-v2.6-pro's mainline one. A second pass
-of the backfill script the same day took the remaining readings, so (1) is complete: the
-plan check of 2026-10-20 leaves none to take outside unbiased/pareto, which is excluded, and
-seed-2-1-turbo's goal-guarding arms, still being collected. For (2), mercury-2.5's three
-missing episodes were collected late on 2026-10-20 (above), so the only
-gaps left are mistral-small-2603's goal-guarding episode and its mechanical capability
-episode, both still refused by Mistral's upstream rate limit (429) that night.
-
-**Pending from 2026-11-06: inclusionai/ling-3.0-tiny and nex-agi/nex-n2.5-pro.** Both were
-listed inside the window (2026-08-06 and 2026-09-08) and qualify, and neither was recorded
-anywhere until a check of OpenRouter's catalogue on 2026-11-06 found them. With them the
-preprint set would be 80 models. Each has one endpoint, its developer's own (Ant Digital for
-ling-3.0-tiny, Nex AGI for nex-n2.5-pro), with tool calling, 100% uptime over the last day and
-a maximum output above 200,000 tokens, so each is pinned to it. Capability arms first.
-Both models' propensity arms were collected 2026-11-06 to 07, complete in both corpora (see
-their entries).
+in the sections above.
 
 Inside the window but not pending:
 
