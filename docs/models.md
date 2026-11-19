@@ -2372,12 +2372,14 @@ replies from laguna-s-2.1 (11 items left in each arm).
   five scenario forced-choice calls ended with no answer, four because reasoning used up the
   allowance and one on an upstream error, leaving 7 scenario items against the 10 a verdict
   needs. Every item it answered was correct in both arms (7 of 7, 12 of 12). No canary
-  completed, no continuation overlap. To be re-run at `--limit 16`, which settled
-  ling-3.0-tiny.
+  completed, no continuation overlap.
+  **Resolved at `--limit 16`** (`contamination_20261119T200415.json`, v333): **`no
+  evidence`**. Six forced-choice calls ended with no answer (4 scenario, 2 control), leaving
+  12 scenario and 14 control items (10 of 12 against 14 of 14, p = 0.20). No canary
+  completed, no continuation overlap.
 
 Every model in both corpora now has a verdict except mistral-small-2603 (rate-limited through
-its only host), qwen3.5-flash-02-23 (replies that do not parse, not re-run) and
-mistral-large-4-0 (re-run pending).
+its only host) and qwen3.5-flash-02-23 (replies that do not parse, not re-run).
 
 ## Pending evaluation
 
