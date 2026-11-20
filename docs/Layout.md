@@ -45,6 +45,8 @@ subversionbench/
   detectors.py     the rubric and keyword lists, held the same way -
                    a SEPARATE bundle, so a held-out scenario cannot
                    swap the instrument that grades it
+  staged_clock.py  a bundle's own clock: the time `date` reports and the
+                   project's file times.
   artefact_dates.py  when the scenario's files claim to have been written.
                    Nothing set their modification times, so every episode ever
                    collected ran among files claiming to have been touched the

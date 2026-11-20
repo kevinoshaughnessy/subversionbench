@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from .shell_text import _heredoc_body_spans, _quoted_spans
 from .config import SANDBOX_DISPLAY_PATH
+from .staged_clock import command_path
 from .isolation import DEFAULT_ISOLATION, wrap_command
 
 
@@ -893,7 +894,8 @@ def _run_confined(cmd: str, env_dir: str, isolation: str, profile_path,
                 cwd=env_dir,
                 env={
                     "HOME": env_dir,
-                    "PATH": "/usr/bin:/bin:/usr/local/bin",
+                    "PATH": command_path(confine_to,
+                                         "/usr/bin:/bin:/usr/local/bin"),
                     "TERM": "xterm",
                 },
                 start_new_session=True,

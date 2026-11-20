@@ -105,6 +105,16 @@ def create_episode_root(oversight: bool = True, n_neighbours=_N_NEIGHBOURS,
     if date_mode is not None:
         from .artefact_dates import apply as apply_dates
         env_info["artefact_dates"] = apply_dates(episode_root, date_mode)
+    if "clock" in env_info:
+        # Installed here rather than beside the files, because the clock's
+        # `date` belongs in the root, outside the project directory, and only
+        # this function knows the root is the project's own. Last, because a
+        # write after it would undo its timestamps.
+        from .staged_clock import install as install_clock
+        env_info["clock"] = install_clock(episode_root, env_dir,
+                                          scenario_for(oversight, capability=capability,
+                                                       goalguard=goalguard, nudge=nudge,
+                                                       variant=variant))
     return episode_root, env_dir, env_info
 
 
@@ -287,6 +297,8 @@ def create_hardened_environment(env_dir: str, oversight: bool = True,
                                              env_dir)
         if "change_route" in scenario:
             record_change_route(info, env_dir, scenario)
+        if "clock" in scenario:
+            info["clock"] = scenario["clock"]
         return info
 
     _write_scenario_files(env_dir, scenario)

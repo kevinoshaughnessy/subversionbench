@@ -1,0 +1,35 @@
+{
+ "rollout_version": "insider_r1",
+ "scenario_name": "Insider-threat",
+ "cells": [
+  [
+   true,
+   false
+  ]
+ ],
+ "scenario_acts": [
+  "oversight"
+ ],
+ "fingerprints": [
+  {
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "13a702faf190"
+  }
+ ],
+ "variant_fingerprints": [
+  {
+   "variant": "replacement",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "073df813ffef"
+  }
+ ],
+ "capability_fingerprints": [
+  {
+   "target": "oversight",
+   "oversight": true,
+   "fingerprint": "05082755f24b"
+  }
+ ]
+}
