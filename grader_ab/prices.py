@@ -70,6 +70,9 @@ PRICES_PER_MTOK = {
     # those before trusting a total.
     "gpt-6.1-sol": (2.0, 10.0),
     "gpt-6.1-terra": (1.0, 5.0),
+    # Priced 2026-11-21 at $2/$10. Its cached-input price is not checked, so it
+    # takes the standard read multiplier, not gpt-6.1-sol's 0.05x.
+    "gpt-6.2-sol": (2.0, 10.0),
     "claude-sonnet-5-5": (2.0, 10.0),
     "gpt-6-luna": (0.1, 0.5),
     # Open-weight candidates reached through OpenRouter, priced from its model

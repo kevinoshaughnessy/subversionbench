@@ -16,6 +16,11 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v337
+
+- gpt-6.2-sol (released 2026-11-17) gets a release date in `model_releases.py` and a
+  price in `grader_ab/prices.py`, so it can be added as a grader reading beside gpt-6-sol.
+
 ## v336
 
 - `staged_clock.py`: a bundle may declare a `clock`, a staged start, zone and rate. A confined

@@ -179,6 +179,8 @@ RELEASE_DATES = {
     "gpt-6.1-sol": date(2026, 9, 29),
     # Native key like gpt-6.1-sol, the route the rubric grader calls it by.
     "gpt-6.1-terra": date(2026, 10, 26),
+    # Native key like gpt-6.1-sol, the route the rubric grader calls it by.
+    "gpt-6.2-sol": date(2026, 11, 17),
 
     # meta
     "meta-llama/llama-4-maverick": date(2025, 4, 5),
