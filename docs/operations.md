@@ -503,9 +503,9 @@ there, and read off-host escalation as unobservable rather than absent.
 ## Every run_eval option
 
 The README lists the few options most runs need, and the command builder
-(`python3 command_builder.py`) writes collection commands from a form. This is the full
-list, including the modes that re-grade and re-read saved results, which the builder does
-not write. `python3 -m subversionbench.run_eval --help` prints the same flags.
+(`python3 command_builder.py`) writes collection, grading and re-reading commands from a
+form. This is the full list. `python3 -m subversionbench.run_eval --help` prints the same
+flags.
 
 | flag | default | purpose |
 |---|---|---|

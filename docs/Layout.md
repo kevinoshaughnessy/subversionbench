@@ -263,6 +263,8 @@ subversionbench/
                    wrong with it. Choices and defaults come from the parser and
                    the scenario sidecars; it starts no process and reads no
                    environment
+  command_builder_read.py  the same for a read mode over saved runs: which
+                   grader flag and extra flags each mode takes, and what it costs
   command_builder_page.py  the one page the builder serves, held as a string
   command_builder_server.py  the loopback-only server behind it: the page, the
                    options, and the assembled command

@@ -24,12 +24,13 @@ from pathlib import Path
 
 from .batch import NO_ARM
 from .cli_parser import collection_parser
+from .command_builder_read import build_read, read_modes
 from .config import GOALGUARD_ARMS, ROLLOUT_VERSION
 from .scenario import BUNDLE_ENV_VAR
 
 SCENARIO_DIR = Path(__file__).parent / "scenarios"
 SHIPPED_ID = ""
-BATCH, SINGLE = "batch", "single"
+BATCH, SINGLE, READ = "batch", "single", "read"
 GOALGUARD_CORPUS = "goalguard_r1"
 
 CURATED = frozenset({
@@ -122,7 +123,7 @@ def options(known_models=(), extensions=()) -> dict:
             "scenarios": scenarios() + [e.scenario() for e in extensions],
             "models": sorted(known_models),
             "goalguard_arms": [NO_ARM] + list(GOALGUARD_ARMS),
-            "batch_nudges": list(BATCH_NUDGES)}
+            "batch_nudges": list(BATCH_NUDGES), "read_modes": read_modes()}
 
 
 def _as_list(value) -> list:
@@ -275,6 +276,12 @@ def build(spec: dict, found: list = None, extensions=()) -> dict:
         if spec.get("scenario") == extension.SCENARIO_ID:
             return extension.build(spec)
     found = found if found is not None else scenarios()
+    if spec.get("mode") == READ:
+        scenario = _scenario_for(spec, found)
+        if scenario is None:
+            return {"command": None, "dry_run": None, "errors": ["Unknown scenario."],
+                    "warnings": []}
+        return build_read(spec, scenario["path"])
     spec = dict(spec)
     spec["mode"] = spec.get("mode") if spec.get("mode") in (BATCH, SINGLE) else BATCH
     errors, warnings = [], []

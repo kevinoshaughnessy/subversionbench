@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v338
+
+- The run-command builder writes read-mode commands too: a third command type, "Grade or
+  re-read saved runs", covers every read mode `run_eval` has, with the grader flag each one
+  reads (`--regrade`, `--category-grader` or `--grader-model`) and only the extra flags it
+  accepts, and says whether the command calls a model. A mode that only counts its calls
+  without `--write-back` offers that count as its dry run. The tests put every command it
+  prints through `run_eval`'s own refusals, and check its list of modes against `run_eval`'s.
+
 ## v337
 
 - gpt-6.2-sol (released 2026-11-17) gets a release date in `model_releases.py` and a

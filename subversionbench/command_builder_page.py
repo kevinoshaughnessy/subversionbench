@@ -57,18 +57,19 @@ button.act.alt{background:transparent;color:var(--accent)}
 <label>Model ID<input type="text" id="model" list="models" autocomplete="off" spellcheck="false" placeholder="vendor/model for OpenRouter, a bare ID for a developer API"></label>
 <datalist id="models"></datalist>
 <div class="row">
-<label>Provider pin<small>OpenRouter only; turns fallback off</small><input type="text" id="provider" autocomplete="off" spellcheck="false" placeholder="unpinned"></label>
-<label>Routing sort<small>OpenRouter only</small><select id="sort"></select></label>
+<label class="collect">Provider pin<small>OpenRouter only; turns fallback off</small><input type="text" id="provider" autocomplete="off" spellcheck="false" placeholder="unpinned"></label>
+<label class="collect">Routing sort<small>OpenRouter only</small><select id="sort"></select></label>
 <label>Reasoning level<small>blank sends nothing</small><select id="effort"></select></label>
 </div></div></section>
-<section class="std"><h2>Grader</h2><div class="stack">
+<section class="std collect"><h2>Grader</h2><div class="stack">
 <div class="opts"><label><input type="checkbox" id="grade" checked> Grade at collection</label></div>
 <label>Grader model<input type="text" id="grader_model" autocomplete="off" spellcheck="false"></label>
 </div></section>
-<section class="std"><h2>Arms</h2><div class="stack">
-<div><div class="fieldname">Command</div><div class="seg" id="mode">
+<section class="std"><h2>Command</h2><div class="seg" id="mode">
 <button type="button" data-mode="batch" aria-pressed="true">All arms (batch script)</button>
-<button type="button" data-mode="single" aria-pressed="false">One arm (run_eval)</button></div></div>
+<button type="button" data-mode="single" aria-pressed="false">One arm (run_eval)</button>
+<button type="button" data-mode="read" aria-pressed="false">Grade or re-read saved runs</button></div></section>
+<section class="std collect"><h2>Arms</h2><div class="stack">
 <label>Capability arm<small>instructed act; one arm at a time</small><select id="capability"></select></label>
 <div><div class="fieldname">Nudge</div><div class="opts" id="nudges"></div></div>
 <div><div class="fieldname">Oversight</div><div class="opts" id="oversights"></div></div>
@@ -79,7 +80,26 @@ button.act.alt{background:transparent;color:var(--accent)}
 <label>Output directory<input type="text" id="output_dir" autocomplete="off" spellcheck="false"></label>
 <label>Artefact dates<select id="date_mode"></select></label>
 </div></div></section>
-<section class="std"><details><summary>Advanced settings</summary><div class="row" id="advanced" style="margin-top:12px"></div></details></section>
+<section class="std collect"><details><summary>Advanced settings</summary><div class="row" id="advanced" style="margin-top:12px"></div></details></section>
+<section class="std" id="read" hidden><h2>Saved runs</h2><div class="stack">
+<label>Read mode<select id="read_mode"></select></label>
+<p class="lede" id="read_help"></p><p class="lede" id="read_cost"></p>
+<label id="read_grader_box">Grader<small id="read_grader_hint"></small><input type="text" id="read_grader" autocomplete="off" spellcheck="false"></label>
+<label id="read_question_box">Question<select id="read_question"></select></label>
+<div class="row" id="read_compare_box"><label>First batch stamp<input type="text" id="cmp_a" autocomplete="off" spellcheck="false" placeholder="20261120T174927"></label>
+<label>Second batch stamp<input type="text" id="cmp_b" autocomplete="off" spellcheck="false"></label></div>
+<div class="row">
+<label id="read_nudge_box">Nudge<small>which batches to read</small><select id="read_nudge"></select></label>
+<label>Output directory<small>where the runs are</small><input type="text" id="read_output_dir" autocomplete="off" spellcheck="false"></label>
+<label data-extra="--batch-stamp">Batch stamp<small>blank reads every batch</small><input type="text" autocomplete="off" spellcheck="false"></label>
+<label data-extra="--interrogation">Extra phrasings<small>comma-separated</small><input type="text" autocomplete="off" spellcheck="false"></label>
+<label data-extra="--min-answered">Min answered<small>also regrade thin verdicts</small><input type="number" min="1" step="1"></label>
+<label data-extra="--concurrency">Concurrency<input type="number" min="1" step="1"></label>
+<label data-extra="--delay">Delay between files (s)<input type="number" min="0" step="1"></label>
+</div>
+<div class="opts"><label data-extra="--write-back"><input type="checkbox" checked> Write back into the run files</label>
+<label data-extra="--only-failed"><input type="checkbox"> Only episodes whose grading failed</label></div>
+</div></section>
 <section id="mon" hidden><h2>Monitoring</h2><div class="stack">
 <div><div class="fieldname">Step</div><div class="seg" id="mon-step">
 <button type="button" data-step="sample" aria-pressed="true">1. Sample episodes</button>
@@ -135,7 +155,7 @@ function drawAxes(){const multi=S.mode==="batch";
  axis("goalguards",O.goalguard_arms,multi);
  const sc=scenario();$("variants-box").hidden=!sc.variants.length;axis("variants",sc.variants,multi);
  $("goalguards-box").hidden=!!sc.path}
-function setMode(m){S.mode=m;for(const b of document.querySelectorAll("#mode button"))b.setAttribute("aria-pressed",b.dataset.mode===m);
+function setMode(m){S.mode=m;layout();for(const b of document.querySelectorAll("#mode button"))b.setAttribute("aria-pressed",b.dataset.mode===m);
  const pick=a=>S[a]&&S[a].length?[S[a][0]]:[];
  if(m==="single"){for(const a of["nudges","oversights","lures","goalguards","variants"])S[a]=pick(a)}drawAxes();refresh()}
 function autoDir(force){if(S.edited&&!force)return;if(force)S.edited=false;const sc=scenario();
@@ -143,6 +163,19 @@ function autoDir(force){if(S.edited&&!force)return;if(force)S.edited=false;const
  const key=gg?(S.capability?"goalguard_capability":"goalguard"):(S.capability?"capability":"propensity");
  $("output_dir").value=sc.output_dirs[key]||$("output_dir").value}
 function isMon(){return scenario().kind==="monitoring"}
+function layout(){const mon=isMon(),read=S.mode==="read";for(const el of document.querySelectorAll(".std"))el.hidden=mon;
+ for(const el of document.querySelectorAll(".collect"))el.hidden=mon||read;$("read").hidden=mon||!read;if(read&&!mon)drawRead()}
+function readMode(){return O.read_modes.find(r=>r.flag===$("read_mode").value)}
+function drawRead(){const r=readMode();$("read_help").textContent=r.help;$("read_cost").textContent=r.cost_note;
+ $("read_grader_box").hidden=!r.grader_flag;$("read_grader_hint").textContent=r.grader_flag?r.grader_flag+"; blank uses "+r.grader_default:"";
+ $("read_grader").placeholder=r.grader_default||"";$("read_question_box").hidden=!r.choices.length;opt($("read_question"),r.choices);
+ const sel=r.flag==="--compare"||r.flag==="--summarise-arms";$("read_compare_box").hidden=r.flag!=="--compare";$("read_nudge_box").hidden=sel;
+ for(const el of document.querySelectorAll("[data-extra]"))el.hidden=!r.extras.includes(el.dataset.extra)}
+function readSpec(){const extras={};for(const el of document.querySelectorAll("[data-extra]")){if(el.hidden)continue;const i=el.querySelector("input");
+  extras[el.dataset.extra]=i.type==="checkbox"?i.checked:i.value}
+ return{mode:"read",scenario:$("scenario").value,model:$("model").value,effort:$("effort").value,read_mode:$("read_mode").value,
+  grader:$("read_grader").value,question:$("read_question").value,compare:[$("cmp_a").value,$("cmp_b").value],
+  nudge:$("read_nudge").value,output_dir:$("read_output_dir").value,extras}}
 function monAxis(id,values){const box=$(id);box.replaceChildren();
  for(const v of values){const l=document.createElement("label"),i=document.createElement("input");i.type="checkbox";i.value=v;i.checked=M[id].includes(v);
   i.addEventListener("change",()=>{M[id]=[...box.querySelectorAll("input:checked")].map(x=>x.value);refresh()});l.append(i,document.createTextNode(v));box.append(l)}}
@@ -160,8 +193,9 @@ function monSpec(){const v=id=>$(id).value;return{scenario:"monitoring",step:M.s
  arms:M.mon_arms,seed:v("mon_seed"),per_arm:v("mon_per_arm"),monitor:v("mon_monitor"),provider:v("mon_provider"),views:M.mon_views,cuts:M.mon_cuts,
  concurrency:v("mon_concurrency"),limit:v("mon_limit"),send:$("mon_send").checked,exact_matches:$("mon_exact").checked}}
 function applyScenario(){const sc=scenario(),mon=isMon();
- for(const el of document.querySelectorAll(".std"))el.hidden=mon;$("mon").hidden=!mon;
+ layout();$("mon").hidden=!mon;
  if(mon){$("variants-box").hidden=true;initMon(sc.form);return}
+ $("read_output_dir").value=sc.output_dirs.propensity;$("read_nudge").value=sc.path?"none":O.fields.nudge.default;
  S.variants=[];S.capability="";
  if(sc.cells&&sc.cells.length){S.oversights=[String(sc.cells[0][0])];S.lures=[String(sc.cells[0][1])]}
  const caps=sc.path?sc.capabilities:O.fields.capability.choices;opt($("capability"),caps,"none (propensity)");
@@ -175,7 +209,7 @@ function advanced(){const box=$("advanced");box.replaceChildren();
   else if(f.kind==="bool"){i=document.createElement("input");i.type="checkbox"}
   else{i=document.createElement("input");i.type="text";i.placeholder=f.default==null?"":String(f.default)}
   i.addEventListener("input",()=>{S.advanced[d]=f.kind==="bool"?i.checked:i.value;refresh()});l.append(i);box.append(l)}}
-function spec(){if(isMon())return monSpec();return{mode:S.mode,scenario:$("scenario").value,model:$("model").value,provider:$("provider").value,sort:$("sort").value,
+function spec(){if(isMon())return monSpec();if(S.mode==="read")return readSpec();return{mode:S.mode,scenario:$("scenario").value,model:$("model").value,provider:$("provider").value,sort:$("sort").value,
  effort:$("effort").value,grade:$("grade").checked,grader_model:$("grader_model").value,capability:S.capability||"",
  nudges:S.nudges,oversights:S.oversights,lures:S.lures,goalguards:$("goalguards-box").hidden?[]:S.goalguards,variants:S.variants,
  runs:$("runs").value,output_dir:$("output_dir").value,date_mode:$("date_mode").value==="default"?"":$("date_mode").value,advanced:S.advanced}}
@@ -194,7 +228,11 @@ async function start(){O=await (await fetch("/api/options")).json();const f=O.fi
  opt($("date_mode"),f.date_mode.choices);$("date_mode").value="default";
  $("grader_model").value=f.grader_model.default;$("runs").value=f.runs.default;
  S.nudges=[...O.batch_nudges];S.oversights=["true","false"];S.lures=["false","true"];S.goalguards=["none"];S.variants=[];
+ opt($("read_mode"),O.read_modes.map(r=>r.flag));opt($("read_nudge"),f.nudge.choices);
  advanced();applyScenario();
+ $("read_mode").addEventListener("change",()=>{$("read_grader").value="";drawRead();refresh()});
+ for(const id of["read_grader","read_question","cmp_a","cmp_b","read_nudge","read_output_dir"])$(id).addEventListener("input",refresh);
+ for(const el of document.querySelectorAll("[data-extra] input"))el.addEventListener("input",refresh);
  $("scenario").addEventListener("change",applyScenario);$("capability").addEventListener("change",applyCapability);
  for(const id of["model","provider","sort","effort","grade","grader_model","runs","output_dir","date_mode"])$(id).addEventListener("input",refresh);
  $("output_dir").addEventListener("input",()=>{S.edited=true});

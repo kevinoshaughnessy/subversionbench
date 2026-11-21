@@ -2,8 +2,9 @@
 """
 Open the run-command builder in a browser: a form for the model, provider,
 reasoning level, grader, scenario and the other collection settings, which
-assembles the run_all_arms.sh or run_eval command to copy. It builds commands
-and runs none, and reads no credential.
+assembles the run_all_arms.sh or run_eval command to copy, or for a read mode
+that grades or re-reads saved runs. It builds commands and runs none, and reads
+no credential.
 
     python3 command_builder.py
     python3 command_builder.py --port 9000 --no-browser

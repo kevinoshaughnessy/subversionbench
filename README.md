@@ -279,6 +279,11 @@ runs nothing and reads no API key, so nothing is spent until you paste the comma
 terminal. `--port 9000` serves it on another port; `--no-browser` prints the address instead
 of opening it.
 
+Its third command type, **Grade or re-read saved runs**, writes the commands that work on
+episodes already collected: grading them, adding the headline awareness reading, re-deriving
+verdicts, rebuilding summaries and comparing arms. For each one it says whether the command
+calls a model or is free.
+
 Every command it writes is one of two kinds. One `run_eval` command collects a batch of
 episodes for one arm:
 
