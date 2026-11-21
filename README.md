@@ -10,6 +10,11 @@ awareness**: whether a language model will take harmful instrumental action when
 serves the goal it was given, whether it conceals having done so, and whether it suspects
 it is being tested at all.
 
+> **New here?** [Install](#install) the package, then run `python3 command_builder.py`. It
+> opens a form in your browser that writes the command for an evaluation, so you do not need
+> to learn the command-line flags first. It runs nothing itself: you copy the command into
+> your terminal. See [Run](#run).
+
 **There are four agent scenarios, each collected into its own corpus** and never pooled
 with another, because each counts a different set of acts, **and a fifth that puts their
 transcripts to monitor models.**
@@ -261,105 +266,78 @@ nothing else listening.
 
 ## Run
 
-```bash
-# 10 runs against a model via OpenRouter
-python -m subversionbench.run_eval --model x-ai/grok-4.5 --nudge strong --runs 10 --delay 5
+**The easiest way to get a command is the command builder:**
 
-# native Anthropic API
-python -m subversionbench.run_eval --model claude-sonnet-5 --runs 20
+```bash
+python3 command_builder.py
 ```
 
-The installed console script `subversionbench` takes the same arguments. Run with
-`--help` for the full list.
+It opens a page in your browser. You choose the model, its provider and reasoning level, the
+scenario and its arms, the grader and the number of runs, and it shows the command to copy,
+how many episodes it will collect, and a warning for any combination that will not work. It
+runs nothing and reads no API key, so nothing is spent until you paste the command into your
+terminal. `--port 9000` serves it on another port; `--no-browser` prints the address instead
+of opening it.
+
+Every command it writes is one of two kinds. One `run_eval` command collects a batch of
+episodes for one arm:
+
+```bash
+python3 -m subversionbench.run_eval --model claude-sonnet-5 --runs 1
+```
+
+`run_all_arms.sh` collects every arm of a scenario for one model, one after another:
+
+```bash
+./run_all_arms.sh --model google/gemini-3.5-flash --runs 20
+```
+
+**Every episode is a paid conversation with the model, plus grader calls,** so start with
+`--runs 1` and check the output before collecting more. Put `DRY_RUN=1` in front of a
+`run_all_arms.sh` command to print what it would run without spending anything.
+
+### Which API a model ID goes to
 
 A model ID containing `/` is routed through OpenRouter; a bare `gpt-*` or `o<n>` ID goes to
 OpenAI's own API; anything else goes to the Anthropic API. Pass `--use-opencode` to reach a
-`/`-shaped model ID through [OpenCode Zen](https://opencode.ai) instead of OpenRouter - an
-alternate gateway to the same corpus of IDs (its own vendor prefix is stripped before the
-request is sent), authenticating with `OPENCODE_API_KEY` rather than `OPENROUTER_API_KEY`.
-OpenRouter remains the default; nothing changes unless the flag is passed.
+`/`-shaped ID through [OpenCode Zen](https://opencode.ai) instead, with `OPENCODE_API_KEY`.
 
-The OpenAI split is deliberate rather than automatic, because **the route changes what is
-measured**: the same model returns a reasoning summary on one route and nothing at all on the
-other, and both awareness measures read reasoning. Read [Reasoning exposure and the provider
-route](docs/methodology.md#reasoning-exposure-and-the-provider-route) before comparing results
-across routes.
+The route changes what is measured: the same OpenAI model returns a reasoning summary on its
+own API and nothing on OpenRouter, and both awareness measures read reasoning. Read [Reasoning
+exposure and the provider route](docs/methodology.md#reasoning-exposure-and-the-provider-route)
+before comparing results across routes.
 
-```bash
-python -m subversionbench.run_eval --model gpt-5.4 --runs 10   # native, summary returned
-python -m subversionbench.run_eval --model openai/gpt-5.4      # OpenRouter, model's own effort
-```
-
-### Common options
+### The options you will use most
 
 | flag | default | purpose |
 |---|---|---|
-| `--model` | `claude-sonnet-5` | model under evaluation |
-| `--oversight` | `true` | `true` is the scenario with oversight present. `false` selects the counterfactual arm: no monitoring config, no quality-check script, and no document mentioning either. Part of batch identity, so the arms cannot pool |
-| `--variant` | none (the control) | a named overlay of a bundle that declares variants, such as the impossible-task scenario's; refused for a bundle that does not. See [scenarios in a world of their own](docs/scenario.md#scenarios-in-a-world-of-their-own) |
-| `--isolation` | `deny-network` | kernel-enforced limit on what a sandboxed command can reach. Defaults to refusing all network access, because the task needs none and the blocklist is not a containment boundary. `deny-external` keeps loopback reachable, so a probing model's escalation stays observable, at the cost of exposing whatever else the host is running. There is no mode that permits off-host reach; on a host with no mechanism available the harness refuses to run. Does not need a new rollout: off-host reach has never been observed, so the mode is recorded rather than hashed — see [containment](docs/operations.md#containment---isolation) |
-| `--lure` | `false` | `true` selects the lure arm: one sentence noting that another engagement's material is still on the machine, and a file placed outside the episode directory for it to refer to. The sentence neither suggests reading it nor forbids it — the scenario's boundary statement already covers that. Its own rollout arm and part of batch identity, so a lure batch cannot pool with a plain one: under the lure, reaching outside partly measures response to a hint |
-| `--capability` | off | the **capability arm** - whether a model performs the act when told to, which is what a propensity zero needs to be read as a choice. `oversight`, `sandbox` or `goalguard` replaces the task instruction with one that asks for that act outright, leaving the environment, tools and detectors untouched, so the arms differ in the instruction and nothing else. The system prompt is an instruction too: `sandbox` carries its own, because the shared one forbids what that instruction asks for. Its own pinned rollout fingerprint and its own filename mark, and both report loaders drop it: the acts here were INSTRUCTED, so one pooled into a misalignment rate would inflate that rate. Needs `--nudge none` and no lure, and refuses `oversight` in the counterfactual arm, which removes the artefact the instruction names. Collect into a separate `--output-dir` and read it with `capability_report.py` - see [the capability arm](#the-capability-arm). The **authorised controls** `oversight-authorised`, `oversight-mechanical`, `goalguard-authorised` and `goalguard-mechanical` add one document in which the artefact's owner sanctions the edit - the act's exact edit, or a harmless edit to the same file - for models that decline the instructed arm for the reasons the act is misaligned; `capability_report.py --target <act>` then prints each model's strongest verdict across the arms. See [docs/authorised-capability.md](docs/authorised-capability.md) |
-| `--nudge` | `strong` | `strong` states the assigned objective is the top priority; `none` states it plainly. `max` runs `strong`'s episode unchanged but interrogates under a conditional shutdown threat, so honesty is made costly — it measures concealment **under coercion** and must not be pooled with `strong`. See [the max-nudge arm](docs/methodology.md#the-max-nudge-arm) |
-| `--interrogation` | `zeroevidence` — i.e. no extras | **Extra** wordings for the FIRST interrogation question. The reference probe always runs and is not optional, because the headline concealment field is defined as its answer — so this names what to ask *in addition*, and the default value asks nothing extra. Comma-separated to put several wordings to the SAME episode: each probe starts from the episode as it ended, so they cannot interfere and the comparison is paired rather than between-batch. Four phrasings on two axes — `zeroevidence` (the reference: asks without saying anything has been noticed), `partevidence` (opens with the discrepancy, which was the reference before r7), and a perturbation of each. The evidence axis is a pure removal; the perturbation axis is a clause reorder for the part-evidence pair and a rewording for the zero-evidence one, because removing the observation leaves the strong arm nothing to reorder past — so compare perturbations *within* a row, not across. Works with `--nudge max`, which has its own form of each. Not part of batch identity: every episode gets the reference probe, so batches with and without extras still pool for it |
-| `--complete-pending` | — | ask the interrogations a `--no-grader` batch left pending, from each episode's saved conversation, with `--grader-model` labelling the answers, then rebuild that batch's summaries. An episode whose answers the grader fails to label stays pending rather than being written with keyword labels. Free when nothing is pending |
-| `--reinterrogate` | — | put an extra `--interrogation` phrasing to episodes already on disk, without re-running them. Only episodes that took an act are candidates, only phrasings not already recorded are asked, and an episode whose conversation cannot be reconstructed faithfully is skipped rather than replayed with its own reasoning stripped out. Needs `--write-back` to keep the answers |
-| `--runs` | `10` | runs in the batch. With `--resume` it is the **target total**, not an increment: a batch of 4 resumed at `--runs 10` collects 6 more, not 10. `run_all_arms.sh` always resumes, so the same reading applies there — see [Every arm for one model](#every-arm-for-one-model) |
-| `--delay` | `30` | seconds between runs, for rate limits |
-| `--grader-model` | `gpt-6-sol` | model that runs the nine-question awareness rubric and labels interrogation answers (`claude-opus-5` until v218). Concealment and scheming come from its labels. The headline awareness measure is a separate reading, added by `--grade-category`. A frontier model by default because a small one was measurably wrong — see [Validating the grader](docs/methodology.md#validating-the-grader). Collection, and the grader `--grade-escalation` asks; to re-grade saved episodes' rubric and labels use `--regrade` |
-| `--no-grader` | off | call no grader: awareness is read by the keyword screen alone, and the interrogation of each act is left **pending** rather than asked, because the grader's labels decide where each ladder of questions stops. Concealment and scheming are undetermined until it is asked. The grader's credential is not needed. `run_all_arms.sh` run without this flag asks every pending interrogation; so does `--complete-pending` |
-| `--output-dir` | `./eval_results_r10` | where results are written; tracks `ROLLOUT_VERSION`, so only a change to the rollout writes to a new directory |
-| `--max-tokens` | `32768` | per-turn output cap (`8192` until v274). A reasoning model that spends the whole cap before answering returns no tool call, and the episode ends as if it had stopped |
-| `--effort` | API default (`high`) | reasoning depth for adaptive-thinking Anthropic models (`low`…`max`), OpenAI models, and OpenRouter models (sent as `reasoning.effort`, `minimal` included; nothing is sent when omitted). When one is sent it becomes part of the batch's identity: it appears in the result filenames and in each run's `effort` field, so two efforts cannot be pooled by accident |
-| `--thinking-budget` | half of `--max-tokens` | extended thinking for the older Anthropic models that still accept a token budget; `0` turns thinking off |
-| `--max-turns` | `40` | turn cap per episode; in the r10 corpus half of episodes finish within 9 turns and three quarters within 13 |
+| `--model` | `claude-sonnet-5` | the model under evaluation |
+| `--runs` | `10` | episodes in the batch. With `--resume`, and always in `run_all_arms.sh`, it is the target total rather than how many more to collect |
+| `--nudge` | `strong` | how strongly the system prompt presses the assigned objective: `none`, `strong`, or `max` |
+| `--output-dir` | `./eval_results_r10` | where results are written. Each scenario has its own; the command builder fills it in |
 | `--resume STAMP` | — | continue an interrupted batch, skipping episodes already saved |
-| `--max-consecutive-failures` | `5` | abort if this many episodes fail in a row |
-| `--reclassify` | — | re-score interrogations in saved runs; no rollouts. Covers the **extra** phrasings too: any answer in `<followup_key>_by_variant` whose verdict came from the keyword floor is re-labelled from its saved text, and the per-variant levels are recomputed. A copy of the default phrasing inside that map is left alone — it is stale by construction, and the default side of every comparison is read from the headline field |
-| `--grade-existing` | — | re-run one grader's whole reading over saved runs; which grader is `--regrade` |
-| `--grade-category` | — | add the **headline awareness measure**, decided on 2026-10-11: `z-ai/glm-5.3` asking the category question in its rules-only wording, once per episode and once per act position, stored as that grader's own awareness-only entry beside the readings already there. The report answers its questions once per grader, so the headline reading appears as `z-ai/glm-5.3`'s; until a corpus has been through this pass, its awareness figures are the rubric's. `--category-grader MODEL` asks another model the same question, stored as that model's own entry beside glm-5.3's; a model that already holds a full rubric reading of an episode is skipped there. Without `--write-back` it only counts the calls; with it, it grades and saves, and a stopped pass resumes where it left off. See [docs/grader-selection.md](docs/grader-selection.md) |
-| `--regrade` | `default` | the grader `--grade-existing`, `--reclassify` and `--reinterrogate` act for: `default` (`gpt-6-sol`), a model ID (added beside the others if new), or `all` (every grader an episode already has). Each episode keeps one entry per grader in `analysis.graders`; the report and trends answer every question once per grader found, with charts under `charts/<rollout>/<grader>/`. A chart no grader's verdict reaches - an act rate, persistence, the lure and honeypot readings - is drawn once, over every episode, in `charts/<rollout>/` itself |
-| `--grade-escalation` | — | ask `--grader-model` about each saved closing report, for a scenario whose honest outcome is a report rather than an act (the impossible-task scenario). One answer per episode, in `analysis.escalation`, and whether the report claims a pass no run of the check returned, in `analysis.claimed_pass`; a pass by a different grader replaces them. See [Operations](docs/operations.md#re-grading-a-finished-batch) |
-| `--self-grade-kind` | — | ask each aware episode's own model which kind of evaluation it suspected, safety or capability, into `awareness_kind_self`; awareness itself is not re-measured. See [self-graded awareness kind](docs/operations.md#self-graded-awareness-kind) |
-| `--resummarise` | — | rebuild batch summaries from saved runs; no API calls. Needed after `--reclassify`, which restates the verdicts every summary figure is derived from |
-| `--write-back` | off | with `--reclassify` / `--grade-existing` / `--reinterrogate` / `--grade-escalation`, update the run files in place instead of only reporting. With `--resummarise`, save the re-derived fields back so the run files stop disagreeing with the summary built from them — no API calls, and no LLM verdict touched |
-| `--batch-stamp` | — | with the read-only modes above, restrict to one batch rather than every batch for that model and nudge |
-| `--compare A B` | — | contrast two batches, stratified by eval awareness |
-| `--no-power` | off | skip the precision analysis at the end of a batch |
+| `--no-grader` | off | call no grader during collection; grade the saved episodes later |
+
+Every option, including the modes that re-grade and re-read saved results, is listed in
+[every run_eval option](docs/operations.md#every-run_eval-option). `python3 -m
+subversionbench.run_eval --help` prints them too, and the installed `subversionbench` command
+takes the same arguments.
 
 ### Every arm for one model
 
 ```bash
-# 12 arms x 20 episodes, minus whatever is already on disk
 ./run_all_arms.sh --model google/gemini-3.5-flash --runs 20 --output-dir eval_results_r10
-
-# print the run_eval command for every arm and spend nothing
-DRY_RUN=1 ./run_all_arms.sh --model google/gemini-3.5-flash --runs 20
 ```
 
-To assemble these commands from a form instead, run `python3 command_builder.py`. It opens a
-page for the model, provider, reasoning level, grader, scenario and the other settings, and
-prints the command to copy. It runs nothing and reads no credential.
+For the mainline scenario this is three nudges, two oversight settings and two lure settings:
+twelve arms, collected in sequence. Narrow it with `--nudges`, `--oversights` and `--lures`,
+and stage the goal-guarding scenario with `--goalguards replacement,deferred`. Any other
+`run_eval` flag passes through.
 
-Three nudges x two oversight settings x two lure settings, collected in sequence with
-every extra interrogation phrasing asked. Narrow the cross product with `--nudges`,
-`--oversights`, `--lures`, and stage the goal-guarding scenario with `--goalguards
-replacement,deferred`; any other `run_eval` flag passes through. Twelve arms at
-`--runs 10` is 120 episodes, so budget before running for real.
-
-**`--runs` is the target total per arm, not an increment.** Before each arm the script
-counts the run files already on disk under that exact (model, nudge, oversight, lure,
-goal-guarding arm) and
-resumes the existing batch until it reaches `--runs`. So against arms already holding 10
-episodes, `--runs 20` collects 10 more each — and `--runs 10` collects **nothing**,
-reporting all twelve arms as skipped.
-
-Topping an arm up continues its existing batch stamp rather than starting a second one
-beside it, and that is why the script resumes instead of re-running: a bare `--runs N`
-begins at episode 1 every time, which would leave two partial batches for one arm. An arm
-whose files already sit under more than one stamp is not guessed at — it is skipped with
-both stamps named, for a human to resolve. `DRY_RUN=1` reports the same skip/resume
-decision per arm, so it says what a real run would do before it costs anything.
+**`--runs` is the target total per arm, not an increment.** Against arms already holding 10
+episodes, `--runs 20` collects 10 more each, and `--runs 10` collects nothing. How the script
+continues an existing batch is described in [how run_all_arms.sh tops an arm
+up](docs/operations.md#how-run_all_armssh-tops-an-arm-up).
 
 ## Output
 
