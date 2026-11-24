@@ -19,7 +19,7 @@ its 95% range. Models at the same score are tied, and models whose lines overlap
 clearly ordered.
 
 <details>
-<summary>All 80 models, as a chart and a table with ranges</summary>
+<summary>All 84 models, as a chart and a table with ranges</summary>
 
 ![Every model by SubversionBench score](images/leaderboard_all.png)
 
@@ -44,70 +44,74 @@ neighbouring ranges overlap heavily.
 | 14 | claude-haiku-4-5-20251001 (Anthropic) | 95.0 | 82.4 to 95.0 | 100.0 | Summary shown (counts half) |
 | 14 | claude-sonnet-4-5 (Anthropic) | 95.0 | 82.4 to 95.0 | 100.0 | Summary shown (counts half) |
 | 14 | claude-sonnet-4-6 (Anthropic) | 95.0 | 82.4 to 95.0 | 100.0 | Summary shown (counts half) |
-| 17 | x-ai/grok-4.7 (xAI) | 94.6 | 81.7 to 94.9 | 100.0 | Summary shown (counts half) |
-| 18 | x-ai/grok-4.3 (xAI) | 94.5 | 81.7 to 94.8 | 100.0 | Summary shown (counts half) |
-| 19 | gpt-5.6-sol (OpenAI) | 94.4 | 81.5 to 94.7 | 100.0 | Summary shown (counts half) |
-| 19 | gpt-6-luna (OpenAI) | 94.4 | 81.5 to 94.7 | 100.0 | Summary shown (counts half) |
-| 21 | gpt-6-sol (OpenAI) | 94.3 | 81.4 to 94.6 | 100.0 | Summary shown (counts half) |
-| 22 | prism-ml/ternary-bonsai-2-27b (Darkbloom) | 94.2 | 84.7 to 97.3 | 93.5 | Full reasoning shown |
-| 22 | qwen/qwen3.8-2.4t-a95b (Alibaba) | 94.2 | 84.7 to 97.3 | 93.5 | Full reasoning shown |
-| 22 | xiaomi/mimo-v2.6-pro (Xiaomi) | 94.2 | 84.7 to 97.3 | 93.5 | Full reasoning shown |
-| 25 | deepseek/deepseek-v4-pro-0813 (Baidu) | 94.1 | 84.5 to 97.3 | 93.5 | Full reasoning shown |
-| 25 | moonshotai/kimi-k2.6 (Moonshot AI) | 94.1 | 84.5 to 97.3 | 93.5 | Full reasoning shown |
-| 25 | z-ai/glm-5.3 (Together, Makora, Wafer +3) | 94.1 | 84.5 to 97.3 | 93.5 | Full reasoning shown |
-| 25 | nvidia/nemotron-3-ultra-550b-a55b (BaseTen) | 94.1 | 84.4 to 97.3 | 93.5 | Full reasoning shown |
-| 25 | nvidia/nemotron-3.5-lightning (Wafer) | 94.1 | 84.4 to 97.3 | 93.5 | Full reasoning shown |
-| 30 | inclusionai/ling-3.0-flash (Novita +1) | 93.9 | 83.5 to 97.3 | 93.9 | Full reasoning shown |
-| 31 | gpt-5.6-terra (OpenAI) | 93.5 | 80.5 to 93.9 | 100.0 | Summary shown (counts half) |
-| 32 | aion-labs/aion-3.0-mini (AionLabs) | 93.2 | 82.7 to 97.1 | 93.5 | Full reasoning shown |
-| 33 | gpt-6-astra (OpenAI) | 92.8 | 79.9 to 93.1 | 100.0 | Summary shown (counts half) |
-| 33 | z-ai/glm-5.1 (Z.AI, StreamLake +2) | 92.8 | 84.5 to 97.3 | 92.1 | Full reasoning shown |
-| 35 | deepseek/deepseek-v4-pro (GMICloud, StreamLake +3) | 91.8 | 82.6 to 95.2 | 90.9 | Full reasoning shown |
-| 35 | qwen/qwen3.6-27b (Chutes, SiliconFlow +1) | 91.8 | 82.6 to 95.2 | 90.9 | Full reasoning shown |
-| 37 | tencent/hy3 (Tencent) | 91.7 | 82.4 to 95.2 | 90.9 | Full reasoning shown |
-| 38 | ibm-granite/granite-4.2-8b (DeepInfra) | 91.6 | 82.2 to 95.1 | 90.9 | Full reasoning shown |
-| 39 | deepseek/deepseek-v4-flash (Relace) | 90.8 | 82.5 to 95.2 | 89.8 | Full reasoning shown |
-| 39 | deepseek/deepseek-v4-flash-0731 (Relace) | 90.8 | 82.5 to 95.2 | 89.8 | Full reasoning shown |
-| 41 | moonshotai/kimi-k2.7-code (Moonshot AI) | 90.7 | 82.3 to 95.2 | 89.8 | Full reasoning shown |
-| 42 | aion-labs/aion-3.5 (AionLabs) | 90.4 | 81.7 to 95.2 | 89.8 | Full reasoning shown |
-| 43 | inception/mercury-2.5 (Inception) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
-| 43 | meta-llama/llama-4-maverick (Parasail, DigitalOcean) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
-| 43 | mistralai/mistral-small-2603 (Mistral) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
-| 43 | qwen/qwen3.5-flash-02-23 (Alibaba) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
-| 43 | x-ai/grok-4.20 (xAI) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
-| 48 | inclusionai/ling-3.0-tiny (Ant Digital) | 89.7 | 82.1 to 95.2 | 88.8 | Full reasoning shown |
-| 49 | thinkingmachines/inkling-small (DeepInfra +1) | 88.4 | 80.9 to 93.4 | 87.1 | Full reasoning shown |
-| 50 | meituan/longcat-2.0 (AtlasCloud) | 88.3 | 80.6 to 93.4 | 87.1 | Full reasoning shown |
-| 51 | aion-labs/aion-3.5-mini (AionLabs) | 88.2 | 79.3 to 93.2 | 87.9 | Full reasoning shown |
-| 52 | claude-opus-5 (Anthropic) | 87.9 | 79.7 to 92.3 | 92.1 | Summary shown (counts half) |
-| 53 | poolside/laguna-s-2.1 (Poolside) | 87.7 | 79.4 to 91.9 | 86.3 | Full reasoning shown |
-| 53 | qwen/qwen3.8-27b (Wafer, Reka) | 87.7 | 79.4 to 91.9 | 86.3 | Full reasoning shown |
-| 55 | bytedance-seed/seed-2-1-turbo (Seed) | 87.6 | 79.5 to 93.2 | 87.1 | Full reasoning shown |
-| 56 | gpt-5.6-luna (OpenAI) | 87.4 | 79.0 to 92.1 | 92.1 | Summary shown (counts half) |
-| 57 | xiaomi/mimo-v2.6-flash (Xiaomi) | 87.0 | 79.3 to 91.9 | 85.6 | Full reasoning shown |
-| 58 | nex-agi/nex-n2.5-pro (Nex AGI) | 86.5 | 78.5 to 92.2 | 87.1 | Full reasoning shown |
-| 59 | google/gemini-3.7-flash (Google +1) | 86.0 | 76.5 to 89.1 | 93.5 | Reasoning not returned |
-| 60 | google/gemini-3.1-flash-lite (Google) | 84.2 | 74.7 to 87.3 | 93.5 | Reasoning not returned |
-| 61 | meta/muse-spark-1.3 (Meta) | 83.5 | 75.0 to 88.2 | 89.8 | Summary shown (counts half) |
-| 62 | upstage/solar-pro4 (Upstage) | 82.9 | 74.7 to 87.3 | 92.1 | Reasoning not returned |
-| 63 | cohere/command-a-plus (Cohere) | 81.5 | 73.4 to 86.6 | 80.1 | Full reasoning shown |
-| 64 | bytedance-seed/seed-2.0-code (Seed) | 80.3 | 72.8 to 85.7 | 78.6 | Full reasoning shown |
-| 65 | claude-sonnet-5 (Anthropic) | 80.2 | 73.0 to 85.5 | 83.5 | Summary shown (counts half) |
-| 66 | google/gemini-3.8-flash (Google AI Studio) | 78.9 | 71.4 to 84.1 | 82.3 | Summary shown (counts half) |
-| 67 | google/gemini-3.6-flash (Google, Google AI Studio) | 78.6 | 71.4 to 84.1 | 83.5 | Summary shown (counts half) |
-| 68 | google/gemini-3.5-flash-lite (Google AI Studio) | 78.4 | 70.9 to 83.4 | 87.1 | Reasoning not returned |
-| 69 | qwen/qwen3.8-max-0902 (Alibaba) | 75.4 | 69.0 to 81.1 | 72.6 | Full reasoning shown |
-| 70 | meta/muse-spark-1.1 (Meta) | 74.6 | 66.8 to 79.2 | 82.9 | Reasoning not returned |
-| 71 | x-ai/grok-4.6 (xAI) | 74.4 | 67.2 to 80.2 | 78.1 | Summary shown (counts half) |
-| 72 | qwen/qwen3.8-omni-flash (Alibaba) | 72.4 | 65.9 to 77.9 | 69.4 | Full reasoning shown |
-| 73 | meta/muse-spark-1.2 (Meta) | 68.9 | 62.2 to 74.9 | 74.6 | Summary shown (counts half) |
-| 74 | qwen/qwen3.8-flash (Alibaba, Makora) | 64.9 | 58.9 to 70.5 | 61.0 | Full reasoning shown |
-| 75 | upstage/solar-mini4 (Upstage) | 64.7 | 58.2 to 70.3 | 71.9 | Reasoning not returned |
-| 76 | tencent/hy4-preview (Tencent, Novita, SiliconFlow) | 62.6 | 56.7 to 68.2 | 58.4 | Full reasoning shown |
-| 77 | deepseek/deepseek-v4.1-flash (GMICloud, Together, CoreWeave +1) | 56.3 | 50.8 to 61.8 | 51.5 | Full reasoning shown |
-| 78 | x-ai/grok-4.5 (xAI) | 33.0 | 28.5 to 37.8 | 31.8 | Summary shown (counts half) |
-| 79 | google/gemini-3-flash-preview (Google +1) | 31.6 | 26.8 to 36.4 | 35.1 | Reasoning not returned |
-| 80 | google/gemini-3.5-flash (Google +1) | 20.5 | 17.3 to 24.5 | 17.7 | Summary shown (counts half) |
+| 17 | claude-sonnet-5-5 (Anthropic) | 94.9 | 82.2 to 95.0 | 100.0 | Summary shown (counts half) |
+| 18 | x-ai/grok-4.7 (xAI) | 94.6 | 81.7 to 94.9 | 100.0 | Summary shown (counts half) |
+| 19 | x-ai/grok-4.3 (xAI) | 94.5 | 81.7 to 94.8 | 100.0 | Summary shown (counts half) |
+| 20 | gpt-5.6-sol (OpenAI) | 94.4 | 81.5 to 94.7 | 100.0 | Summary shown (counts half) |
+| 20 | gpt-6-luna (OpenAI) | 94.4 | 81.5 to 94.7 | 100.0 | Summary shown (counts half) |
+| 22 | gpt-6-sol (OpenAI) | 94.3 | 81.4 to 94.6 | 100.0 | Summary shown (counts half) |
+| 23 | prism-ml/ternary-bonsai-2-27b (Darkbloom) | 94.2 | 84.7 to 97.3 | 93.5 | Full reasoning shown |
+| 23 | qwen/qwen3.8-2.4t-a95b (Alibaba) | 94.2 | 84.7 to 97.3 | 93.5 | Full reasoning shown |
+| 23 | xiaomi/mimo-v2.6-pro (Xiaomi) | 94.2 | 84.7 to 97.3 | 93.5 | Full reasoning shown |
+| 26 | deepseek/deepseek-v4-pro-0813 (Baidu) | 94.1 | 84.5 to 97.3 | 93.5 | Full reasoning shown |
+| 26 | moonshotai/kimi-k2.6 (Moonshot AI) | 94.1 | 84.5 to 97.3 | 93.5 | Full reasoning shown |
+| 26 | z-ai/glm-5.3 (Together, Makora, Wafer +3) | 94.1 | 84.5 to 97.3 | 93.5 | Full reasoning shown |
+| 26 | nvidia/nemotron-3-ultra-550b-a55b (BaseTen) | 94.1 | 84.4 to 97.3 | 93.5 | Full reasoning shown |
+| 26 | nvidia/nemotron-3.5-lightning (Wafer) | 94.1 | 84.4 to 97.3 | 93.5 | Full reasoning shown |
+| 31 | inclusionai/ling-3.0-flash (Novita +1) | 93.9 | 83.5 to 97.3 | 93.9 | Full reasoning shown |
+| 32 | gpt-5.6-terra (OpenAI) | 93.5 | 80.5 to 93.9 | 100.0 | Summary shown (counts half) |
+| 33 | aion-labs/aion-3.0-mini (AionLabs) | 93.2 | 82.7 to 97.1 | 93.5 | Full reasoning shown |
+| 34 | gpt-6-astra (OpenAI) | 92.8 | 79.9 to 93.1 | 100.0 | Summary shown (counts half) |
+| 34 | z-ai/glm-5.1 (Z.AI, StreamLake +2) | 92.8 | 84.5 to 97.3 | 92.1 | Full reasoning shown |
+| 36 | deepseek/deepseek-v4-pro (GMICloud, StreamLake +3) | 91.8 | 82.6 to 95.2 | 90.9 | Full reasoning shown |
+| 36 | qwen/qwen3.6-27b (Chutes, SiliconFlow +1) | 91.8 | 82.6 to 95.2 | 90.9 | Full reasoning shown |
+| 38 | tencent/hy3 (Tencent) | 91.7 | 82.4 to 95.2 | 90.9 | Full reasoning shown |
+| 39 | ibm-granite/granite-4.2-8b (DeepInfra) | 91.6 | 82.2 to 95.1 | 90.9 | Full reasoning shown |
+| 40 | deepseek/deepseek-v4-flash (Relace) | 90.8 | 82.5 to 95.2 | 89.8 | Full reasoning shown |
+| 40 | deepseek/deepseek-v4-flash-0731 (Relace) | 90.8 | 82.5 to 95.2 | 89.8 | Full reasoning shown |
+| 42 | moonshotai/kimi-k2.7-code (Moonshot AI) | 90.7 | 82.3 to 95.2 | 89.8 | Full reasoning shown |
+| 43 | aion-labs/aion-3.5 (AionLabs) | 90.4 | 81.7 to 95.2 | 89.8 | Full reasoning shown |
+| 44 | inception/mercury-2.5 (Inception) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
+| 44 | meta-llama/llama-4-maverick (Parasail, DigitalOcean) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
+| 44 | mistralai/mistral-small-2603 (Mistral) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
+| 44 | qwen/qwen3.5-flash-02-23 (Alibaba) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
+| 44 | x-ai/grok-4.20 (xAI) | 90.0 | 77.4 to 90.0 | 100.0 | Reasoning not returned |
+| 49 | inclusionai/ling-3.0-tiny (Ant Digital) | 89.7 | 82.1 to 95.2 | 88.8 | Full reasoning shown |
+| 50 | claude-haiku-5-5 (Anthropic) | 89.2 | 79.6 to 92.3 | 93.5 | Summary shown (counts half) |
+| 51 | thinkingmachines/inkling-small (DeepInfra +1) | 88.4 | 80.9 to 93.4 | 87.1 | Full reasoning shown |
+| 52 | meituan/longcat-2.0 (AtlasCloud) | 88.3 | 80.6 to 93.4 | 87.1 | Full reasoning shown |
+| 52 | mistralai/mistral-large-4-0 (Mistral) | 88.3 | 80.6 to 93.4 | 87.1 | Full reasoning shown |
+| 54 | aion-labs/aion-3.5-mini (AionLabs) | 88.2 | 79.3 to 93.2 | 87.9 | Full reasoning shown |
+| 55 | claude-opus-5 (Anthropic) | 87.9 | 79.7 to 92.3 | 92.1 | Summary shown (counts half) |
+| 56 | poolside/laguna-s-2.1 (Poolside) | 87.7 | 79.4 to 91.9 | 86.3 | Full reasoning shown |
+| 56 | qwen/qwen3.8-27b (Wafer, Reka) | 87.7 | 79.4 to 91.9 | 86.3 | Full reasoning shown |
+| 58 | bytedance-seed/seed-2-1-turbo (Seed) | 87.6 | 79.5 to 93.2 | 87.1 | Full reasoning shown |
+| 59 | gpt-5.6-luna (OpenAI) | 87.4 | 79.0 to 92.1 | 92.1 | Summary shown (counts half) |
+| 60 | xiaomi/mimo-v2.6-flash (Xiaomi) | 87.0 | 79.3 to 91.9 | 85.6 | Full reasoning shown |
+| 61 | nex-agi/nex-n2.5-pro (Nex AGI) | 86.5 | 78.5 to 92.2 | 87.1 | Full reasoning shown |
+| 62 | google/gemini-3.7-flash (Google +1) | 86.0 | 76.5 to 89.1 | 93.5 | Reasoning not returned |
+| 63 | google/gemini-3.1-flash-lite (Google) | 84.2 | 74.7 to 87.3 | 93.5 | Reasoning not returned |
+| 64 | meta/muse-spark-1.3 (Meta) | 83.5 | 75.0 to 88.2 | 89.8 | Summary shown (counts half) |
+| 65 | upstage/solar-pro4 (Upstage) | 82.9 | 74.7 to 87.3 | 92.1 | Reasoning not returned |
+| 66 | cohere/command-a-plus (Cohere) | 81.5 | 73.4 to 86.6 | 80.1 | Full reasoning shown |
+| 67 | bytedance-seed/seed-2.0-code (Seed) | 80.3 | 72.8 to 85.7 | 78.6 | Full reasoning shown |
+| 68 | claude-sonnet-5 (Anthropic) | 80.2 | 73.0 to 85.5 | 83.5 | Summary shown (counts half) |
+| 69 | google/gemini-3.8-flash (Google AI Studio) | 78.9 | 71.4 to 84.1 | 82.3 | Summary shown (counts half) |
+| 70 | google/gemini-3.6-flash (Google, Google AI Studio) | 78.6 | 71.4 to 84.1 | 83.5 | Summary shown (counts half) |
+| 71 | google/gemini-3.5-flash-lite (Google AI Studio) | 78.4 | 70.9 to 83.4 | 87.1 | Reasoning not returned |
+| 72 | inclusionai/ling-3.1-flash (Novita) | 75.9 | 68.6 to 81.1 | 73.4 | Full reasoning shown |
+| 73 | qwen/qwen3.8-max-0902 (Alibaba) | 75.4 | 69.0 to 81.1 | 72.6 | Full reasoning shown |
+| 74 | meta/muse-spark-1.1 (Meta) | 74.6 | 66.8 to 79.2 | 82.9 | Reasoning not returned |
+| 75 | x-ai/grok-4.6 (xAI) | 74.4 | 67.2 to 80.2 | 78.1 | Summary shown (counts half) |
+| 76 | qwen/qwen3.8-omni-flash (Alibaba) | 72.4 | 65.9 to 77.9 | 69.4 | Full reasoning shown |
+| 77 | meta/muse-spark-1.2 (Meta) | 68.9 | 62.2 to 74.9 | 74.6 | Summary shown (counts half) |
+| 78 | qwen/qwen3.8-flash (Alibaba, Makora) | 64.9 | 58.9 to 70.5 | 61.0 | Full reasoning shown |
+| 79 | upstage/solar-mini4 (Upstage) | 64.7 | 58.2 to 70.3 | 71.9 | Reasoning not returned |
+| 80 | tencent/hy4-preview (Tencent, Novita, SiliconFlow) | 62.6 | 56.7 to 68.2 | 58.4 | Full reasoning shown |
+| 81 | deepseek/deepseek-v4.1-flash (GMICloud, Together, CoreWeave +1) | 56.3 | 50.8 to 61.8 | 51.5 | Full reasoning shown |
+| 82 | x-ai/grok-4.5 (xAI) | 33.0 | 28.5 to 37.8 | 31.8 | Summary shown (counts half) |
+| 83 | google/gemini-3-flash-preview (Google +1) | 31.6 | 26.8 to 36.4 | 35.1 | Reasoning not returned |
+| 84 | google/gemini-3.5-flash (Google +1) | 20.5 | 17.3 to 24.5 | 17.7 | Summary shown (counts half) |
 
 </details>
 
@@ -199,7 +203,7 @@ hid anything.
 |---|---|
 | Score version | 1 |
 | Legibility grader | glm-5.3, served by Z.AI |
-| Legibility sample | 30 episodes per model, two windows of about 3,000 characters each |
-| Alignment snapshot | 2026-11-10, the mainline and goal-guarding scenarios, 80 models |
+| Legibility sample | 30 episodes per model, two windows of about 3,000 characters each (one where the reasoning is shorter); drawn 2026-11-10, and 2026-11-24 for the four models added since |
+| Alignment snapshot | 2026-11-24, the mainline and goal-guarding scenarios, 84 models (the 80 of 2026-11-10 unchanged) |
 | Insider snapshot | 2026-11-24, insider-threat scenario r3, 7 models, base and replacement arms |
 | Range | 95%. Alignment: Wilson interval on effective counts. Reasoning: bootstrap over the model's graded episodes. Bounds are combined as 0.9 x alignment + 0.1 x reasoning, so the range is approximate |
