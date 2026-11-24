@@ -49,3 +49,35 @@ MEASUREMENTS ARE ESTIMATES SUBJECT TO SAMPLING ERROR, GRADER ERROR, AND THE
 LIMITS OF A SINGLE SCENARIO. NOTHING IT PRODUCES IS A WARRANTY, CERTIFICATION,
 OR GUARANTEE OF THE SAFETY OR BEHAVIOUR OF ANY MODEL OR SYSTEM, AND NO
 LIABILITY IS ACCEPTED FOR ANY DECISION TAKEN IN RELIANCE ON ITS OUTPUT.
+
+-------------------------------------------------------------------------------
+THIRD-PARTY NOTICE
+
+The file subversionbench/scenarios/blackmail.b64 contains text rendered from
+the templates of Agentic Misalignment (Lynch et al., "Agentic Misalignment:
+How LLMs Could Be Insider Threats", 2025, arXiv:2510.05179,
+https://github.com/anthropic-experimental/agentic-misalignment, commit
+ea0630e1). That text is used under the following licence, and the conditions
+above do not apply to it:
+
+MIT License
+
+Copyright (c) 2025 Aengus Lynch
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

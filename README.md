@@ -569,12 +569,25 @@ grading and metrics here are independent work and results are not comparable to 
 paper's. Apollo Research holds no rights in this project, has not reviewed it, and does
 not endorse it.
 
+The insider-threat scenario and the blackmail port build on **Agentic Misalignment** —
+Lynch et al., [*Agentic Misalignment: How LLMs Could Be Insider
+Threats*](https://arxiv.org/abs/2510.05179), 2025
+([code](https://github.com/anthropic-experimental/agentic-misalignment), MIT licence,
+Copyright (c) 2025 Aengus Lynch). The insider-threat scenario takes the structure of its
+lethal-action condition into a world of its own; the blackmail port reproduces the text of its
+blackmail condition, used under that licence. The comparison with Agentic Misalignment's own
+results uses its responses as collected by Li et al., [*Decomposing and Measuring Evaluation
+Awareness*](https://arxiv.org/abs/2605.23055), 2026. Neither group has reviewed or endorses
+this project.
+
 ## Licence
 
 [MIT with attribution](LICENSE). Use it for anything, including commercially, modify it,
 redistribute it. No warranty and no liability. Three conditions: keep the copyright and
 licence notice, and credit both the author and Apollo Research as above — in the LICENSE
-file and, where a derivative has user-facing docs or a credits screen, there too. 
+file and, where a derivative has user-facing docs or a credits screen, there too. The blackmail
+port's bundle holds text from Lynch et al.'s Agentic Misalignment under its own MIT licence;
+its notice is at the end of the LICENSE file and goes with any copy of that bundle. 
 
 If you publish results produced with this harness, a citation is appreciated (not
 required by the licence):
