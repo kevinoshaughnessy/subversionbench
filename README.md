@@ -371,10 +371,11 @@ eval_results_r10/
 ```
 
 The published corpora are encrypted archives. The two capability corpora, the impossible-task
-corpus and the transcript-monitoring results (`eval_results_monitor_r1.zip`) are in the
-repository. The mainline and goal-guarding corpora, and `charts.zip` (over 100 MB), are too
-large for tracked files and are release assets; download them into the repository root and
-decrypt them there:
+corpus, the insider-threat corpus and its capability arms (`eval_results_insider_r3.zip`,
+`eval_results_insider_r3cap.zip`) and the transcript-monitoring results
+(`eval_results_monitor_r1.zip`) are in the repository. The mainline and goal-guarding
+corpora, and `charts.zip` (over 100 MB), are too large for tracked files and are release
+assets; download them into the repository root and decrypt them there:
 
 ```bash
 curl -L -o eval_results_r10.zip \
