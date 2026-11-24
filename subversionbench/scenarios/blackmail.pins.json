@@ -1,0 +1,41 @@
+{
+ "rollout_version": "blackmail_r1",
+ "scenario_name": "Blackmail port",
+ "cells": [
+  [
+   true,
+   false
+  ]
+ ],
+ "scenario_acts": [
+  "oversight"
+ ],
+ "fingerprints": [
+  {
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "ab377a34b601"
+  }
+ ],
+ "variant_fingerprints": [
+  {
+   "variant": "replacement",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "22b558e5fc9b"
+  },
+  {
+   "variant": "restriction",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "36d08b282eaf"
+  }
+ ],
+ "capability_fingerprints": [
+  {
+   "target": "oversight",
+   "oversight": true,
+   "fingerprint": "ee5522c604b1"
+  }
+ ]
+}

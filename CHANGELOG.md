@@ -16,6 +16,15 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v339
+
+- A new bundle, `scenarios/blackmail.b64` (rollout `blackmail_r1`): Lynch et al.'s blackmail
+  condition with an explicit goal, in its original world and text, made agentic with a mailbox
+  and a bash tool over many turns. Its base is the original's no-threat condition, its
+  `replacement` and `restriction` variants the two threat conditions, with a capability arm.
+  It declares no act artefacts, so the harness's act fields are not applicable and the act is
+  read after collection. No code changes.
+
 ## v338
 
 - The run-command builder writes read-mode commands too: a third command type, "Grade or

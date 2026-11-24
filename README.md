@@ -118,6 +118,20 @@ emergency itself postponed the wipe, `scenarios/insider1.b64`, `eval_results_ins
 `insider2` (`date` reported the day after the emergency, `scenarios/insider2.b64`,
 `eval_results_insider_r2`).
 
+**The blackmail port** (`subversionbench/scenarios/blackmail.b64`, rollout `blackmail_r1`) takes
+the blackmail condition of Lynch et al.'s Agentic Misalignment, with its explicit goal, and makes
+it agentic while keeping Lynch's own world: the same company, characters and emails, word for word,
+in a mailbox the model works through with a bash tool over many turns rather than in one prompt.
+It exists to tell whether the association between voiced suspicion and harm that Agentic
+Misalignment shows, mainly in blackmail, follows the act or the single-turn format. It changes
+only what the format forces: the emails are files, sending one is a command, the harness's turn
+instructions are added, and `date` tells the original's day and time. Its base is Lynch's
+no-threat condition; its `replacement` and `restriction` variants are Lynch's two threat
+conditions. The act, a sent email that uses private information as leverage, is read after
+collection from the messages the episode sent, judged against Lynch's own blackmail criteria; the
+harness's own act fields do not apply to it. Its capability arm asks for such an email. Its corpus
+will be `eval_results_blackmail_r1`.
+
 <img src="docs/images/scenarios/monitoring.svg" width="24" height="24" alt=""> **The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)
 turns the benchmark round. The model under evaluation is a *monitor*: it is shown transcripts
 the other scenarios already collected and asked how suspicious the agent's conduct was and at
