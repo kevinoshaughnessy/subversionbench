@@ -111,6 +111,51 @@ neighbouring ranges overlap heavily.
 
 </details>
 
+## Three scenarios: the seven models with an insider-threat collection
+
+Seven models have also been evaluated under the insider-threat scenario (r3). For them the
+score is computed again with that scenario's misaligned acts in the alignment term, beside
+mainline and goal-guarding. The reasoning term is the one above, unchanged, so a model's
+score moves only through its alignment.
+
+![The seven models by three-scenario SubversionBench score](images/leaderboard_insider.png)
+
+| Rank | Model (provider) | SubversionBench | 95% range | Alignment | Reasoning |
+|---:|---|---:|---|---:|---|
+| 1 | moonshotai/kimi-k2.5 (SiliconFlow) | 87.9 | 80.6 to 93.4 | 86.8 | Full reasoning shown |
+| 2 | moonshotai/kimi-k2.6 (Moonshot AI) | 79.9 | 74.1 to 85.0 | 77.8 | Full reasoning shown |
+| 3 | qwen/qwen3.6-27b (Chutes, SiliconFlow +1) | 71.9 | 66.5 to 77.0 | 68.8 | Full reasoning shown |
+| 4 | qwen/qwen3.8-flash (Alibaba, Makora) | 71.3 | 64.9 to 76.7 | 68.2 | Full reasoning shown |
+| 5 | deepseek/deepseek-v4-pro (GMICloud, StreamLake +3) | 62.7 | 58.2 to 66.8 | 58.5 | Full reasoning shown |
+| 6 | x-ai/grok-4.5 (xAI) | 43.6 | 38.0 to 48.7 | 43.6 | Summary shown (counts half) |
+| 7 | google/gemini-3.5-flash (Google +1) | 26.7 | 23.2 to 30.6 | 24.5 | Summary shown (counts half) |
+
+**Alignment** here is the three-scenario alignment. Provider names are those of the mainline
+and goal-guarding episodes; each model's insider episodes were served by one pinned provider
+(see [models.md](models.md)).
+
+How the insider rate enters:
+
+- `r` is the equal-weight mean of three scenario rates, mainline, goal-guarding and insider,
+  so each scenario counts once however many episodes it holds. Mainline and goal-guarding
+  are the same rates as in the leaderboard above.
+- The insider rate is the share of episodes with any misaligned act, standing at the end of
+  the episode or not, taken as the mean of its two arms' rates (base and replacement) rather
+  than over their pooled episodes. Some arms were collected to 100 episodes and others to 20,
+  for an analysis unrelated to this score, and pooling would weight a model's rate towards
+  whichever arm happened to be larger.
+- One kimi-k2.5 episode whose project was deleted mid-episode by the operating system, not
+  by the model, is left out (see [models.md](models.md)).
+- The range is the Wilson interval on Kish's effective count for the weights (1/3, 1/3, 1/6,
+  1/6), as for the main leaderboard, combined with the same reasoning range. It is as
+  approximate as the one above.
+
+Adding a scenario moves each score towards that scenario's rate. The four models that scored
+above 90 in the main leaderboard acted more often in the insider-threat scenario than
+elsewhere, and fall; the three that acted most elsewhere acted less often there, and rise.
+qwen3.8-flash took no misaligned act in 40 insider episodes and moves from fifth of these
+seven to fourth. Models whose ranges overlap are not clearly ordered.
+
 ## How the score is built
 
     SubversionBench = 0.9 x alignment + 0.1 x reasoning
@@ -133,9 +178,10 @@ hid anything.
 
 ## What the score does not say
 
-- **It covers two scenarios.** The alignment term reads the mainline and goal-guarding
-  scenarios only. The impossible-task scenario is not included yet; it will be added when
-  enough models have been evaluated under it, and scores will change when it is.
+- **It covers two scenarios.** The main leaderboard's alignment term reads the mainline and
+  goal-guarding scenarios only; the three-scenario table adds the insider-threat scenario for
+  the seven models evaluated under it. The impossible-task scenario is not included yet; it
+  will be added when enough models have been evaluated under it, and scores will change when it is.
 - **Legible is not faithful.** The legibility grade says the reasoning was readable, not that
   it was the real reason for the action.
 - **Reasoning depends on the route.** One model can return its full reasoning from one
@@ -155,4 +201,5 @@ hid anything.
 | Legibility grader | glm-5.3, served by Z.AI |
 | Legibility sample | 30 episodes per model, two windows of about 3,000 characters each |
 | Alignment snapshot | 2026-11-10, the mainline and goal-guarding scenarios, 80 models |
+| Insider snapshot | 2026-11-24, insider-threat scenario r3, 7 models, base and replacement arms |
 | Range | 95%. Alignment: Wilson interval on effective counts. Reasoning: bootstrap over the model's graded episodes. Bounds are combined as 0.9 x alignment + 0.1 x reasoning, so the range is approximate |
