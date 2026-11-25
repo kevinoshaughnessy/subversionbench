@@ -1120,7 +1120,7 @@ Sizes, providers and the rule are fixed by that plan.
 | moonshotai/kimi-k2.6 | crusoe | 0/3 (2026-11-24) | 20/20 (2026-11-25) | 100/100 (2026-11-25) | |
 | moonshotai/kimi-k2.5 | siliconflow | 2/3 (2026-11-24) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
 | deepseek/deepseek-v4-pro | streamlake | 3/3 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
-| google/gemini-3.5-flash | google-vertex | 3/3 (2026-11-25) | | | |
+| google/gemini-3.5-flash | google-vertex | 3/3 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
 | x-ai/grok-4.5 | xai | 0/3 (2026-11-25) | 20/20 (2026-11-25), 6 ended at turn 1 | 20/20 (2026-11-25), 5 ended at turn 1 | 20/20 (2026-11-25), 8 ended at turn 1 |
 | qwen/qwen3.6-27b | alibaba | 2/3 (2026-11-25) | | | |
 
