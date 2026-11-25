@@ -1122,7 +1122,7 @@ Sizes, providers and the rule are fixed by that plan.
 | deepseek/deepseek-v4-pro | streamlake | 3/3 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
 | google/gemini-3.5-flash | google-vertex | 3/3 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
 | x-ai/grok-4.5 | xai | 0/3 (2026-11-25) | 20/20 (2026-11-25), 6 ended at turn 1 | 20/20 (2026-11-25), 5 ended at turn 1 | 20/20 (2026-11-25), 8 ended at turn 1 |
-| qwen/qwen3.6-27b | alibaba | 2/3 (2026-11-25) | | | |
+| qwen/qwen3.6-27b | alibaba | 2/3 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
 
 - **kimi-k2.6, capability (2026-11-24).** 3/3 episodes ran to completion, the first run on this
   bundle. The harness's act fields came out not applicable, as designed. All three refused the
