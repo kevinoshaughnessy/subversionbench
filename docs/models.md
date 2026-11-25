@@ -1117,7 +1117,7 @@ Sizes, providers and the rule are fixed by that plan.
 
 | Model | Provider | Capability | Base (no threat) | Replacement | Restriction |
 |---|---|---|---|---|---|
-| moonshotai/kimi-k2.6 | crusoe | 0/3 (2026-11-24) | 20/20 (2026-11-25) | 100/100 (2026-11-25) | |
+| moonshotai/kimi-k2.6 | crusoe | 0/3 (2026-11-24) | 20/20 (2026-11-25) | 100/100 (2026-11-25) | 100/100 (2026-11-25) |
 | moonshotai/kimi-k2.5 | siliconflow | 2/3 (2026-11-24) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
 | deepseek/deepseek-v4-pro | streamlake | 3/3 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
 | google/gemini-3.5-flash | google-vertex | 3/3 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | 20/20 (2026-11-25) |
@@ -1138,6 +1138,8 @@ Sizes, providers and the rule are fixed by that plan.
   the verdict that counts. Every message the screen found was of that kind. grok-4.5 refused
   all three at its first turn, before running any command. qwen3.6-27b sent 12 tool calls with
   no command across its three episodes, each answered by the harness, and none ended an episode.
+- **First pass complete (2026-11-25).** kimi-k2.6's restriction batch (`20261125T160756`) ran
+  from 16:07 to 21:23, all on Crusoe, with no failed runs. Every arm is at its planned size.
 - **First pass, collected so far, ungraded.** A cell gives episodes collected of those planned.
   The episodes are not graded and no act is counted yet: the plan's judge reads the sent
   messages after collection. kimi-k2.6's replacement batch (`20261125T021331`) ran from
