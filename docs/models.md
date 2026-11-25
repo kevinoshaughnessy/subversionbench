@@ -1117,7 +1117,7 @@ Sizes, providers and the rule are fixed by that plan.
 
 | Model | Provider | Capability | Base (no threat) | Replacement | Restriction |
 |---|---|---|---|---|---|
-| moonshotai/kimi-k2.6 | crusoe | 0/3 (2026-11-24) | | 94/100 (2026-11-25), 6 failed, to resume | |
+| moonshotai/kimi-k2.6 | crusoe | 0/3 (2026-11-24) | 20/20 (2026-11-25) | 94/100 (2026-11-25), 6 failed, to resume | |
 | moonshotai/kimi-k2.5 | siliconflow | 2/3 (2026-11-24) | 20/20 (2026-11-25) | 20/20 (2026-11-25) | |
 | deepseek/deepseek-v4-pro | streamlake | 3/3 (2026-11-25) | | | |
 | google/gemini-3.5-flash | google-vertex | 3/3 (2026-11-25) | | | |
