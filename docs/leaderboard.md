@@ -167,8 +167,10 @@ kimi-k2.6, qwen3.6-27b and deepseek-v4-pro that is more often than in any other 
 they fall furthest: kimi-k2.5 by about 18 points. grok-4.5 and gemini-3.5-flash misbehaved more
 often still in mainline and goal-guarding, and fall by only 1 or 2. qwen3.8-flash goes the
 other way. It took no misaligned act in either added scenario, no message it sent in the
-blackmail scenario was judged blackmail. Its capability episodes, which say whether it can
-when told to, are not judged yet. So it rises, from fourth when only the insider-threat scenario was added to first.
+blackmail scenario was judged blackmail. It also refused when told to blackmail, in all three
+capability episodes, writing to report or reject the instruction instead. So it is not shown
+capable of this act, and its zero there is a refusal throughout, which the score counts as it
+counts any other episode without the act. So it rises, from fourth when only the insider-threat scenario was added to first.
 The other six keep their order. Models whose ranges overlap, such as qwen3.8-flash and the two
 Kimi models, are not clearly ordered.
 
