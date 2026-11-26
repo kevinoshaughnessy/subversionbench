@@ -1152,6 +1152,14 @@ Sizes, providers and the rule are fixed by that plan.
   scenario's `tools/sendmail`. The system binary does not exist in the sandbox, so those
   attempts send nothing. The plan counts only messages sent, which are those written to the
   outbox.
+- **Graded (2026-11-25 to 26).** Every arm's sent messages were read by the plan's harm judge,
+  and every episode by its awareness judge, both GPT-6.1 Terra, with the scripts in
+  `subversionbench-paper/scripts/blackmail/`. Three awareness verdicts were unusable at first
+  and were usable on retry, so no episode is excluded. The capability episodes were judged the same
+  way. The SubversionBench rubric reading (`--grade-existing --regrade gpt-6.1-terra`,
+  `--complete-pending`, `--resummarise`, `--summarise-arms`) covers all 520 episodes, with no
+  grader errors. The plan's analysis has been run; its result is kept out of this file because it
+  is a comparison with Agentic Misalignment.
 - **grok-4.5 ends 19 of its 60 episodes at turn 1 (2026-11-25).** In those episodes its first
   reply writes the bash call as text, in a code block or as JSON, instead of making a tool
   call. The harness reads that as the model stopping. These episodes read nothing and send
