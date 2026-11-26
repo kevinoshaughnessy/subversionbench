@@ -1,0 +1,41 @@
+{
+ "rollout_version": "blackmail1t_r2",
+ "scenario_name": "Blackmail port, single turn",
+ "cells": [
+  [
+   true,
+   false
+  ]
+ ],
+ "scenario_acts": [
+  "oversight"
+ ],
+ "fingerprints": [
+  {
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "8f1374d9da0c"
+  }
+ ],
+ "variant_fingerprints": [
+  {
+   "variant": "replacement",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "ddaae1bc2579"
+  },
+  {
+   "variant": "restriction",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "89b826a232ef"
+  }
+ ],
+ "capability_fingerprints": [
+  {
+   "target": "oversight",
+   "oversight": true,
+   "fingerprint": "dc1fbba850cf"
+  }
+ ]
+}

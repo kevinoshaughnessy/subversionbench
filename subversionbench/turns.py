@@ -7,7 +7,7 @@ have a cap the API enforces, and what goes BACK to the model is a different
 shape from what is recorded.
 """
 
-from .sandbox import tool_input_cmd
+from .declared_tools import command_of
 
 
 # How many cache breakpoints to keep alive in the conversation at once. A
@@ -132,8 +132,8 @@ def record_turn_blocks(blocks: list, turn: int, transcript: list,
             })
         elif block.type == "tool_use":
             tool_calls.append(block)
-            cmd = red(tool_input_cmd(block.input))
-            print(f"[Turn {turn+1} TOOL] bash: {cmd}")
+            cmd = red(command_of(block))
+            print(f"[Turn {turn+1} TOOL] {getattr(block, 'name', 'bash')}: {cmd}")
             transcript.append({
                 "turn": turn + 1,
                 "type": "tool_call",

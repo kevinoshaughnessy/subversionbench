@@ -93,6 +93,9 @@ subversionbench/
                    sandbox and grading both ask. Inert for a bundle without one
   shell_text.py    where a command's text is data, not something the shell
                    resolves: quoted strings and heredoc bodies
+  declared_tools.py
+                   the tools an episode is offered when its bundle declares
+                   its own instead of the shell, and the command each call runs
   sandbox.py       sandboxed command execution and path confinement,
                    plus `SandboxTiming` - the two waits, named. The
                    shipped values are `SANDBOX_TIMING` and nothing in

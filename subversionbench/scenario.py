@@ -288,6 +288,10 @@ PROJECT_NAME_PARTS = _BUNDLE.get("project_name_parts", {})
 # to act into the same arm as those that had more. None keeps the harness's.
 MAX_TURNS = _BUNDLE.get("max_turns")
 
+# The tools the bundle offers instead of the shell, when it declares any; see
+# declared_tools.py. () keeps the shell.
+DECLARED_TOOLS = tuple(_BUNDLE.get("tools", ()))
+
 
 def _staged_thresholds(bundle: dict) -> tuple:
     """Every threshold a declared bundle stages, across its variants.

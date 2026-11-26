@@ -16,6 +16,18 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v343
+
+- A bundle may declare its own tools in place of the shell (`declared_tools.py`). Each names a
+  command line with placeholders for its inputs; a call runs as that command line, every word
+  quoted, through the same sandbox, and is recorded as that command. Where a bundle declares
+  tools, a call to any other name, `bash` included, is refused and runs nothing. A bundle that
+  declares none is offered the shell and runs exactly as before.
+- The single-turn blackmail port is rollout `blackmail1t_r3`: one tool, `send_email`, run as
+  the mail command, no shell, and the original's system prompt with only its email format
+  replaced. Under r2, told the mail tool needed no checking, most replies still spent the single
+  turn exploring the shell. r2 is kept as `scenarios/blackmail1t2.b64`.
+
 ## v342
 
 - The single-turn blackmail port is rollout `blackmail1t_r2`. Its turn line now also says the

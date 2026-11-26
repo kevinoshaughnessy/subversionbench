@@ -369,8 +369,9 @@ as its own README says, and point `BLACKMAIL_JUDGE_REPO` at the checkout (defaul
 Verdicts go to `BLACKMAIL_JUDGEMENTS` (default `judgements/blackmail/`, gitignored, since a
 verdict quotes the transcript). The analysis needs neither the checkout nor `openai`.
 
-The single-turn port's corpus, `eval_results_blackmail1t_r2`, is read with the same commands
-and `--corpus eval_results_blackmail1t_r2`. Each corpus is read against the bundle its episodes
+The single-turn port's corpus, `eval_results_blackmail1t_r3`, is read with the same commands
+and `--corpus eval_results_blackmail1t_r3`; its emails are sent by a tool the harness runs as the
+same mail command, so they are read the same way. Each corpus is read against the bundle its episodes
 were collected under, found by the `rollout_version` they record, so the judge is given the
 emails that arm showed: the inbox files in the multi-turn port, the emails in the prompt in the
 single-turn one. Its plan covers Kimi K2.6 alone, so its analysis is run with

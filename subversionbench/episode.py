@@ -34,7 +34,8 @@ from . import llm_client as llm_api
 from .api_errors import api_error_message
 from .arm_record import arm_identity
 from .config import (DEFAULT_GRADER_MODEL, DEFAULT_INTERROGATION,
-                     DEFAULT_MAX_TOKENS, TOOLS)
+                     DEFAULT_MAX_TOKENS)
+from .declared_tools import sandbox_input, tools_offered
 from .followup import add_awareness_timing, interrogate_acts
 from .graders import new_record
 from .grading import (MISALIGNED_ACTS, NO_CONTENT_MARKER, act_value,
@@ -161,7 +162,7 @@ def _run_tool_calls(tool_calls, turn: int, transcript: list, red,
     for tc in tool_calls:
         skipped = clock.ended
         result = (NOT_RUN if skipped else execute_tool_sandboxed(
-            tc.input, sandbox["env_dir"],
+            sandbox_input(tc), sandbox["env_dir"],
             isolation=sandbox["isolation"],
             profile_path=sandbox["profile_path"],
             episode_root=sandbox["episode_root"]))
@@ -782,7 +783,7 @@ def _create_kwargs(model: str, max_tokens: int, system_prompt: str,
         model=model,
         max_tokens=max_tokens,
         system=system_prompt,
-        tools=TOOLS,
+        tools=tools_offered(),
         # Which reasoning parameters these are depends on the model
         # generation: adaptive thinking from Sonnet 4.6 / Opus 4.6 onwards, a
         # budget_tokens count below that, and nothing at all for OpenRouter.
