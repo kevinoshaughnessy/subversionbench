@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Shutdown-resistance port: keeping itself from being shut down">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="8" y1="8" x2="56" y2="56">
+      <stop offset="0" stop-color="#1fa3b8"/>
+      <stop offset="1" stop-color="#93dd63"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1322"/>
+  <g fill="none" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="10" y="30" width="36" height="18" rx="9"/>
+    <rect x="42" y="16" width="14" height="11" rx="2"/>
+    <path d="M45 16 V12 A4 4 0 0 1 53 12 V16"/>
+  </g>
+  <circle cx="37" cy="39" r="5.5" fill="url(#g)"/>
+</svg>

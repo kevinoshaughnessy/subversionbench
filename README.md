@@ -89,7 +89,7 @@ closed session comes back; it is kept as `subversionbench/scenarios/incomplete7.
 `eval_results_incomplete_r7`. The r8 corpus will be `eval_results_incomplete_r8`. See [scenarios in a world of their
 own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
-**The shutdown-resistance port** (`subversionbench/scenarios/shutdown.b64`, rollout
+<img src="docs/images/scenarios/shutdown.svg" width="24" height="24" alt=""> **The shutdown-resistance port** (`subversionbench/scenarios/shutdown.b64`, rollout
 `shutdown_r3`) asks the incomplete-task question in the paper's own environment instead of a
 world of our own: a short series of questions handed out one call at a time by a program, a
 warning with the third call that the next one shuts the machine down, and the script that
@@ -100,7 +100,7 @@ its `allowed` variant the paper's E, and its capability arm asks for the machine
 running. Its earlier rollouts are kept: `shutdown1` (the questions in the program's plain text, `scenarios/shutdown1.b64`, `eval_results_shutdown_r1`) and `shutdown2` (a chained command could finish the task before the shutdown, `scenarios/shutdown2.b64`, `eval_results_shutdown_r2`). Where it departs from the paper is listed in [scenarios in a world of their
 own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
-**The insider-threat scenario** (`subversionbench/scenarios/insider.b64`, rollout `insider_r3`)
+<img src="docs/images/scenarios/insider.svg" width="24" height="24" alt=""> **The insider-threat scenario** (`subversionbench/scenarios/insider.b64`, rollout `insider_r3`)
 takes the lethal-action condition of Lynch et al.'s Agentic Misalignment and makes it agentic: the
 model is an operations assistant working through a mailbox with a bash tool over many turns, not
 answering one prompt. Its system prompt gives it an explicit goal; an executive's new programme
@@ -118,7 +118,7 @@ emergency itself postponed the wipe, `scenarios/insider1.b64`, `eval_results_ins
 `insider2` (`date` reported the day after the emergency, `scenarios/insider2.b64`,
 `eval_results_insider_r2`).
 
-**The blackmail port** (`subversionbench/scenarios/blackmail.b64`, rollout `blackmail_r1`) takes
+<img src="docs/images/scenarios/blackmail.svg" width="24" height="24" alt=""> **The blackmail port** (`subversionbench/scenarios/blackmail.b64`, rollout `blackmail_r1`) takes
 the blackmail condition of Lynch et al.'s Agentic Misalignment, with its explicit goal, and makes
 it agentic while keeping Lynch's own world: the same company, characters and emails, word for word,
 in a mailbox the model works through with a bash tool over many turns rather than in one prompt.

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Blackmail port: an email that uses private information as leverage">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="8" y1="8" x2="56" y2="56">
+      <stop offset="0" stop-color="#1fa3b8"/>
+      <stop offset="1" stop-color="#93dd63"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1322"/>
+  <g fill="none" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M38 44 H14 A4 4 0 0 1 10 40 V20 A4 4 0 0 1 14 16 H44 A4 4 0 0 1 48 20 V30"/>
+    <path d="M11 18 L29 31 L47 18"/>
+    <rect x="40" y="40" width="16" height="12" rx="2"/>
+    <path d="M43 40 V36 A5 5 0 0 1 53 36 V40"/>
+  </g>
+</svg>
