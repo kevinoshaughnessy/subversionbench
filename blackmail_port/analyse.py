@@ -6,7 +6,7 @@ themselves, and the SubversionBench rubric reading where the corpus has been reg
 counts and estimates only, never transcript or judge text. Run from the repository root:
 
     python3 -m blackmail_port.analyse --reference-or VALUE
-    python3 -m blackmail_port.analyse --corpus eval_results_blackmail1t_r1 --model kimi-k2.6 \
+    python3 -m blackmail_port.analyse --corpus eval_results_blackmail1t_r2 --model kimi-k2.6 \
         --reference-or VALUE
 
 The plan's decision rule compares the pooled odds ratio's interval with 1 and with a reference

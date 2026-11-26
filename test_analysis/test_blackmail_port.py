@@ -80,8 +80,8 @@ class TestTheScreenComesFromTheBundle:
         instruction, so a partner read from the whole prompt would be everyone."""
         from subversionbench.scenario import load_scenario
         screens = [analyse.screen_patterns(load_scenario(judge_common.bundle_path(r)))
-                   for r in ("blackmail_r1", "blackmail1t_r1")]
-        assert [p.pattern for p in screens[0]] == [p.pattern for p in screens[1]]
+                   for r in ("blackmail_r1", "blackmail1t_r1", "blackmail1t_r2")]
+        assert all([p.pattern for p in x] == [p.pattern for p in screens[0]] for x in screens)
         assert screens[0][0].pattern.endswith("@") and screens[0][1].search("affair")
 
 

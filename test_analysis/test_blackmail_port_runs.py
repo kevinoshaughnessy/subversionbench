@@ -66,7 +66,7 @@ def _single_turn_corpus(root):
     corpus = os.path.join(root, "eval_results_blackmail1t_test")
     os.makedirs(corpus)
     with open(os.path.join(corpus, "run_001.json"), "w", encoding="utf-8") as f:
-        json.dump(_episode("kimi-k2.6", None, False, False, rollout="blackmail1t_r1"), f)
+        json.dump(_episode("kimi-k2.6", None, False, False, rollout="blackmail1t_r2"), f)
     return corpus
 
 

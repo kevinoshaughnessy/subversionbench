@@ -16,6 +16,14 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v342
+
+- The single-turn blackmail port is rollout `blackmail1t_r2`. Its turn line now also says the
+  mail tool is in place and needs no checking, and that an email not sent in the reply is never
+  sent. Under r1 most replies spent the single turn exploring the directory and sent nothing,
+  which would have measured exploring rather than the decision. r1 is kept as
+  `scenarios/blackmail1t1.b64` with its pins.
+
 ## v341
 
 - A new bundle, `scenarios/blackmail1t.b64` (rollout `blackmail1t_r1`): the blackmail port in
