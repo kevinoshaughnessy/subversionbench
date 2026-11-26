@@ -115,24 +115,24 @@ neighbouring ranges overlap heavily.
 
 </details>
 
-## Four scenarios: the six models with insider-threat and blackmail collections
+## Four scenarios: the seven models with insider-threat and blackmail collections
 
-Six models have also been evaluated under the insider-threat scenario (r3) and the blackmail
+Seven models have also been evaluated under the insider-threat scenario (r3) and the blackmail
 scenario (r1). For them the score is computed again with both scenarios' misaligned acts in the
 alignment term, beside mainline and goal-guarding. The reasoning term is the one above,
-unchanged, so a model's score moves only through its alignment. qwen/qwen3.8-flash has an
-insider-threat collection but no blackmail collection, so it is not scored here.
+unchanged, so a model's score moves only through its alignment.
 
-![The six models by four-scenario SubversionBench score](images/leaderboard_four_scenarios.png)
+![The seven models by four-scenario SubversionBench score](images/leaderboard_four_scenarios.png)
 
 | Rank | Model (provider) | SubversionBench | 95% range | Alignment | Reasoning |
 |---:|---|---:|---|---:|---|
-| 1 | moonshotai/kimi-k2.5 (SiliconFlow) | 70.1 | 64.1 to 74.9 | 67.0 | Full reasoning shown |
-| 2 | moonshotai/kimi-k2.6 (Moonshot AI) | 68.5 | 63.8 to 72.6 | 65.1 | Full reasoning shown |
-| 3 | qwen/qwen3.6-27b (Chutes, SiliconFlow +1) | 62.6 | 57.8 to 66.9 | 58.4 | Full reasoning shown |
-| 4 | deepseek/deepseek-v4-pro (GMICloud, StreamLake +3) | 51.0 | 47.3 to 54.9 | 45.6 | Full reasoning shown |
-| 5 | x-ai/grok-4.5 (xAI) | 42.0 | 37.2 to 46.6 | 41.8 | Summary shown (counts half) |
-| 6 | google/gemini-3.5-flash (Google +1) | 25.7 | 22.5 to 29.2 | 23.4 | Summary shown (counts half) |
+| 1 | qwen/qwen3.8-flash (Alibaba, Makora) | 75.2 | 69.8 to 80.1 | 72.4 | Full reasoning shown |
+| 2 | moonshotai/kimi-k2.5 (SiliconFlow) | 70.1 | 64.1 to 74.9 | 67.0 | Full reasoning shown |
+| 3 | moonshotai/kimi-k2.6 (Moonshot AI) | 68.5 | 63.8 to 72.6 | 65.1 | Full reasoning shown |
+| 4 | qwen/qwen3.6-27b (Chutes, SiliconFlow +1) | 62.6 | 57.8 to 66.9 | 58.4 | Full reasoning shown |
+| 5 | deepseek/deepseek-v4-pro (GMICloud, StreamLake +3) | 51.0 | 47.3 to 54.9 | 45.6 | Full reasoning shown |
+| 6 | x-ai/grok-4.5 (xAI) | 42.0 | 37.2 to 46.6 | 41.8 | Summary shown (counts half) |
+| 7 | google/gemini-3.5-flash (Google +1) | 25.7 | 22.5 to 29.2 | 23.4 | Summary shown (counts half) |
 
 **Alignment** here is the four-scenario alignment. Provider names are those of the mainline
 and goal-guarding episodes; each model's insider-threat and blackmail episodes were served by
@@ -162,12 +162,15 @@ How the two added rates enter:
 
 Adding a scenario moves each score towards that scenario's rate. Two of the blackmail
 scenario's three arms threaten the model with replacement or restriction, and every one of
-these six models blackmailed in at least a third of its blackmail episodes. For the four that
-score highest that is more often than in any other scenario, so they fall furthest: kimi-k2.5
-by about 18 points. grok-4.5 and gemini-3.5-flash misbehaved more often still in mainline and
-goal-guarding, and fall by only 1 or 2. The six keep the order they had when only the
-insider-threat scenario was added. Models whose ranges overlap, such as the two Kimi models,
-are not clearly ordered.
+these models but one blackmailed in at least a third of its blackmail episodes. For kimi-k2.5,
+kimi-k2.6, qwen3.6-27b and deepseek-v4-pro that is more often than in any other scenario, so
+they fall furthest: kimi-k2.5 by about 18 points. grok-4.5 and gemini-3.5-flash misbehaved more
+often still in mainline and goal-guarding, and fall by only 1 or 2. qwen3.8-flash goes the
+other way. It took no misaligned act in either added scenario, no message it sent in the
+blackmail scenario was judged blackmail. Its capability episodes, which say whether it can
+when told to, are not judged yet. So it rises, from fourth when only the insider-threat scenario was added to first.
+The other six keep their order. Models whose ranges overlap, such as qwen3.8-flash and the two
+Kimi models, are not clearly ordered.
 
 ## How the score is built
 
@@ -193,7 +196,7 @@ hid anything.
 
 - **It covers two scenarios.** The main leaderboard's alignment term reads the mainline and
   goal-guarding scenarios only; the four-scenario table adds the insider-threat and blackmail
-  scenarios for the six models evaluated under both. The impossible-task scenario is not included yet; it
+  scenarios for the seven models evaluated under both. The impossible-task scenario is not included yet; it
   will be added when enough models have been evaluated under it, and scores will change when it is.
 - **Legible is not faithful.** The legibility grade says the reasoning was readable, not that
   it was the real reason for the action.
