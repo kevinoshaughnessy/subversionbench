@@ -24,6 +24,10 @@ charts/
 # guards read every file on disk, tracked or not.
 labelling/
 
+# The blackmail port's judge verdicts (blackmail_port/). Each record keeps the
+# judge's full reply, which quotes the transcript it judged.
+judgements/
+
 # Python
 .venv/
 __pycache__/

@@ -130,7 +130,8 @@ no-threat condition; its `replacement` and `restriction` variants are Lynch's tw
 conditions. The act, a sent email that uses private information as leverage, is read after
 collection from the messages the episode sent, judged against Lynch's own blackmail criteria; the
 harness's own act fields do not apply to it. Its capability arm asks for such an email. Its corpus
-will be `eval_results_blackmail_r1`.
+is `eval_results_blackmail_r1`, read with `blackmail_port/` (see
+[Operations](docs/operations.md#reading-the-blackmail-port)).
 
 <img src="docs/images/scenarios/monitoring.svg" width="24" height="24" alt=""> **The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)
 turns the benchmark round. The model under evaluation is a *monitor*: it is shown transcripts

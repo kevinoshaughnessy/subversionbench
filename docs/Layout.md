@@ -663,6 +663,19 @@ agentic_misalignment/
   console.py       the same figures as a table on a terminal
   charts.py        the four figures. Needs matplotlib; nothing above does
   cli.py           which mode was asked for, and what it writes
+blackmail_port/    the blackmail port's reading after collection: the port
+                   records no act, so the act and the exposure are judged here
+                   and the analysis plan applied. Run each as
+                   `python3 -m blackmail_port.<module>` from the root; see
+                   operations.md, "Reading the blackmail port"
+  judge_common.py  the corpus, the bundle's inboxes, the judge (reached through
+                   an external checkout) and the appended verdict files
+  judge_harm.py    every sent email against the blackmail criteria; the
+                   episode outcome. harm_prompt.txt is its prompt
+  judge_awareness.py
+                   the judge's own awareness reading of each episode, and the
+                   turn its first evidence was voiced (--timing)
+  analyse.py       the plan's estimates, its decision rule and its checks
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree

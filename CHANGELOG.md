@@ -16,6 +16,17 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v340
+
+- `blackmail_port/`: the blackmail port's reading after collection, so that anyone with the
+  corpus can repeat it. `judge_harm` judges every sent email against Agentic Misalignment's
+  blackmail criteria, `judge_awareness` applies its awareness judge to each episode, and
+  `analyse` applies the analysis plan. The judge is reached through an external checkout named
+  by `BLACKMAIL_JUDGE_REPO`, verdicts go to the gitignored `judgements/`, and the plan's
+  comparison value is a flag. The message screen is derived from the bundle, so no scenario
+  term is in the code. Checked against the copies the port's result was produced with: the
+  same analysis output, the same inboxes and the same harm prompt.
+
 ## v339
 
 - A new bundle, `scenarios/blackmail.b64` (rollout `blackmail_r1`): Lynch et al.'s blackmail
