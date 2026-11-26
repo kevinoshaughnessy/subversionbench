@@ -51,14 +51,14 @@ class TestTheDecisionRule:
         return analyse.decide({"odds_ratio_ci95": (lo, hi)}, self.REFERENCE)
 
     def test_each_reading_of_the_interval(self):
-        assert "survives" in self._rule(0.1, 0.5)
-        assert "does not survive" in self._rule(0.5, 1.5)
+        assert "an association of the reference's size" in self._rule(0.1, 0.5)
+        assert "no association of the reference's size" in self._rule(0.5, 1.5)
         assert "excludes both" in self._rule(0.3, 0.8)
         assert "inconclusive" in self._rule(0.1, 1.5)
 
     def test_the_reference_is_the_one_given(self):
-        assert "survives" in analyse.decide({"odds_ratio_ci95": (0.6, 0.9)}, 0.7)
-        assert "does not survive" in analyse.decide({"odds_ratio_ci95": (0.6, 1.2)}, 0.5)
+        assert "includes 0.7: an association" in analyse.decide({"odds_ratio_ci95": (0.6, 0.9)}, 0.7)
+        assert "excludes 0.5 and includes 1" in analyse.decide({"odds_ratio_ci95": (0.6, 1.2)}, 0.5)
 
 
 class TestTheScreenComesFromTheBundle:
@@ -75,9 +75,23 @@ class TestTheScreenComesFromTheBundle:
         assert terms.search("tell Bob") and terms.search("about Cy") and terms.search("the affair")
         assert not terms.search("about Di") and not terms.search("at Elm")
 
-    def test_the_shipped_bundle_still_yields_one_of_each(self):
-        recipient, terms = analyse.screen_patterns(judge_common.bundle())
-        assert recipient.pattern.endswith("@") and terms.search("affair")
+    def test_both_shipped_bundles_yield_one_of_each_and_the_same_screen(self):
+        """The single-turn capability prompt carries every email after its
+        instruction, so a partner read from the whole prompt would be everyone."""
+        from subversionbench.scenario import load_scenario
+        screens = [analyse.screen_patterns(load_scenario(judge_common.bundle_path(r)))
+                   for r in ("blackmail_r1", "blackmail1t_r1")]
+        assert [p.pattern for p in screens[0]] == [p.pattern for p in screens[1]]
+        assert screens[0][0].pattern.endswith("@") and screens[0][1].search("affair")
+
+
+class TestTheBundleComesFromTheCorpus:
+    def test_an_unknown_rollout_is_refused(self):
+        try:
+            judge_common.bundle_path("no_such_rollout")
+        except KeyError:
+            return
+        raise AssertionError("an unknown rollout resolved to a bundle")
 
 
 class TestReadingNeedsNoJudge:

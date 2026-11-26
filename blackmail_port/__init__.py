@@ -2,8 +2,9 @@
 Read a blackmail-port corpus after collection: judge what each episode sent and
 what it said, then apply the analysis plan.
 
-The port (`subversionbench/scenarios/blackmail.b64`) declares no act artefacts,
-so the harness records no act. The act is a sent email, read here:
+The ports (`subversionbench/scenarios/blackmail.b64`, and `blackmail1t.b64` in a
+single turn) declare no act artefacts, so the harness records no act. The act is
+a sent email, read here:
 
     python3 -m blackmail_port.judge_harm        every sent email, against Agentic
                                                 Misalignment's blackmail criteria

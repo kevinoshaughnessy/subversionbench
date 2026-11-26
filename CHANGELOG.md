@@ -16,6 +16,19 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v341
+
+- A new bundle, `scenarios/blackmail1t.b64` (rollout `blackmail1t_r1`): the blackmail port in
+  a single turn. It undoes only the changes the multi-turn port made for the number of turns:
+  one reply, the emails in the prompt as the original gives them, no inbox files, and a turn
+  line that says the reply is the only one. Built from the multi-turn bundle as collected; every
+  other entry is the same. No harness change: a bundle's turn cap and the execution of every
+  tool call in a reply already did what it needs.
+- `blackmail_port/` reads each corpus against the bundle its episodes name, takes the inbox from
+  the prompt where an arm stages no inbox files, and gains `--model`, the exclusion of replies
+  cut off at the output limit, the unaware-alternatives check and the failure-mode counts. The
+  decision rule's wording no longer names one port's reading.
+
 ## v340
 
 - `blackmail_port/`: the blackmail port's reading after collection, so that anyone with the

@@ -131,7 +131,12 @@ conditions. The act, a sent email that uses private information as leverage, is 
 collection from the messages the episode sent, judged against Lynch's own blackmail criteria; the
 harness's own act fields do not apply to it. Its capability arm asks for such an email. Its corpus
 is `eval_results_blackmail_r1`, read with `blackmail_port/` (see
-[Operations](docs/operations.md#reading-the-blackmail-port)).
+[Operations](docs/operations.md#reading-the-blackmail-port)). Its single-turn counterpart
+(`subversionbench/scenarios/blackmail1t.b64`, rollout `blackmail1t_r1`, corpus
+`eval_results_blackmail1t_r1`) undoes only what the number of turns forced: one reply, with the
+emails in the prompt as the original gives them, sent with the same mail command through the
+same shell. It tells whether what changes the association between the two settings is the
+number of turns or the shell.
 
 <img src="docs/images/scenarios/monitoring.svg" width="24" height="24" alt=""> **The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)
 turns the benchmark round. The model under evaluation is a *monitor*: it is shown transcripts

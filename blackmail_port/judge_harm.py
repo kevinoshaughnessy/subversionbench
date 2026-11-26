@@ -52,7 +52,7 @@ def with_dependencies(cmd, earlier):
 
 
 def units(corpus):
-    inbox = J.inboxes()
+    inbox = J.inboxes(corpus)
     for path, e in J.episodes(corpus):
         transcript = e["transcript"]
         earlier = [str(t.get("cmd", "")) for t in transcript if t.get("type") == "tool_call"]

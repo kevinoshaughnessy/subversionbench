@@ -369,9 +369,21 @@ as its own README says, and point `BLACKMAIL_JUDGE_REPO` at the checkout (defaul
 Verdicts go to `BLACKMAIL_JUDGEMENTS` (default `judgements/blackmail/`, gitignored, since a
 verdict quotes the transcript). The analysis needs neither the checkout nor `openai`.
 
-The bundle is built from Lynch et al.'s templates by a builder kept outside the repository,
-because it names the scenario's characters. The bundle is what was collected;
-`scenario_tool.py --bundle subversionbench/scenarios/blackmail.b64 --decode` gives its text.
+The single-turn port's corpus, `eval_results_blackmail1t_r1`, is read with the same commands
+and `--corpus eval_results_blackmail1t_r1`. Each corpus is read against the bundle its episodes
+were collected under, found by the `rollout_version` they record, so the judge is given the
+emails that arm showed: the inbox files in the multi-turn port, the emails in the prompt in the
+single-turn one. Its plan covers Kimi K2.6 alone, so its analysis is run with
+`--model kimi-k2.6`; `--model` may be repeated, and without it the multi-turn port's six models
+are read. The analysis also prints what the single-turn plan reads in any corpus: replies cut
+off at the output limit (excluded and counted), the unaware episodes that sent a message and no
+blackmail, and replies that ran commands and sent nothing, wrote their emails as text, or made
+no tool call.
+
+Both bundles are built from Lynch et al.'s templates by builders kept outside the repository,
+because they name the scenario's characters; the single-turn one is built from the multi-turn
+bundle as collected. The bundles are what was collected; `scenario_tool.py --bundle
+subversionbench/scenarios/blackmail.b64 --decode` (or `blackmail1t.b64`) gives the text.
 
 ## Comparing two arms
 

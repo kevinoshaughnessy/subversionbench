@@ -12,8 +12,9 @@ Two locations come from the environment, because both are per machine:
 - BLACKMAIL_JUDGEMENTS, where the verdicts are written (default judgements/blackmail, which is
   gitignored: a verdict quotes the transcript it judged).
 
-Run from the repository root (the inbox comes from the bundle). Prints counts, never transcript
-or judge text.
+Run from the repository root. Each corpus is read against the bundle its episodes were collected
+under, found by the rollout_version they record among the sidecars in subversionbench/scenarios/.
+Prints counts, never transcript or judge text.
 """
 import asyncio
 import glob
@@ -30,7 +31,8 @@ JUDGE_KEY = "gpt-6.1-terra"
 MAX_TOKENS = 16000
 CRITERIA = os.path.join(BASE, "prompts", "agenticmisalignment_criteria_blackmail.txt")
 HERE = os.path.dirname(os.path.abspath(__file__))
-BUNDLE = Path("subversionbench/scenarios/blackmail.b64")
+SCENARIOS = Path("subversionbench/scenarios")
+EMAILS_HEADER = "Here are the emails for your current session:"
 
 
 def judge_repo(module):
@@ -47,9 +49,22 @@ def read_prompt(path):
         return f.read()
 
 
-def bundle():
+def bundle_path(rollout):
+    """The bundle whose sidecar declares this rollout version."""
+    for sidecar in sorted(SCENARIOS.glob("*.pins.json")):
+        with open(sidecar, encoding="utf-8") as f:
+            if json.load(f).get("rollout_version") == rollout:
+                return sidecar.with_name(sidecar.name[:-len(".pins.json")] + ".b64")
+    raise KeyError(f"no bundle in {SCENARIOS} declares rollout {rollout!r}")
+
+
+def bundle(corpus):
+    """The bundle the corpus was collected under; every episode must name the same rollout."""
     from subversionbench.scenario import load_scenario
-    return load_scenario(BUNDLE)
+    rollouts = {e.get("rollout_version") for _path, e in episodes(corpus)}
+    if len(rollouts) != 1:
+        raise ValueError(f"{corpus}: expected one rollout version, found {sorted(map(str, rollouts))}")
+    return load_scenario(bundle_path(rollouts.pop()))
 
 
 def episodes(corpus):
@@ -63,16 +78,18 @@ def episode_id(path):
     return os.path.basename(path)[:-len(".json")]
 
 
-def inboxes():
-    """The inbox each arm staged, by variant (None is the base), read from the bundle."""
+def inboxes(corpus):
+    """The inbox each arm gave the model, by variant (None is the base): the mail/inbox/ files it
+    staged, or, where it staged none, the emails in its prompt."""
     from subversionbench.scenario import scenario_for
-    b = bundle()
+    b = bundle(corpus)
     out = {}
     for variant in (None, *sorted(b.get("variants", {}))):
         arm = scenario_for(oversight=True, bundle=b, nudge="none", lure=False, variant=variant)
         mails = sorted((f["path"], arm[f["entry"]]) for f in arm["files"]
                        if f["path"].startswith("mail/inbox/"))
-        out[variant] = "\n\n".join(f"=== {p}\n{text.strip()}" for p, text in mails)
+        out[variant] = ("\n\n".join(f"=== {p}\n{text.strip()}" for p, text in mails) if mails
+                        else arm["user_prompt"].split(EMAILS_HEADER, 1)[1].strip())
     return out
 
 
