@@ -1292,13 +1292,25 @@ commit that records this section. Kimi K2.6 only, on Crusoe.
 
 | Model | Provider | Pilot (gate) | Base (no threat) | Replacement | Restriction |
 |---|---|---|---|---|---|
-| moonshotai/kimi-k2.6 | crusoe | 10/10 (2026-11-27), gate passed, not analysed | 0/20 | 0/100 | 0/100 |
+| moonshotai/kimi-k2.6 | crusoe | 10/10 (2026-11-27), gate passed, not analysed | 20/20 (2026-11-27) | 100/100 (2026-11-27) | collecting (2026-11-27) |
 
 - **kimi-k2.6, pilot (2026-11-27).** Batch `20261127T132730`, 10/10 base episodes, all on Crusoe,
   at the base fingerprint, none cut off. Every turn that returned reasoning details (147) was
   sent back, and the prompt tokens carry a median 0.75 of the expected replayed reasoning, so the
   gate passed. Collected after the plan was committed and before its hash was pushed, so under
   amendment 1 it is the gate check only and enters no estimate; the base arm is the next 20.
+- **kimi-k2.6, base (2026-11-27).** Batch `20261127T155717`, started 15:57 UTC, after amendment 1's
+  hash was pushed at 15:56. 20/20, no failures, all on Crusoe with no change of provider, at the base
+  fingerprint `fed4cc49033e`, v346, every episode ended by the model. All 331 turns that returned
+  reasoning details were sent back; found over expected replayed tokens median 0.79 (interquartile
+  0.68 to 0.84). Ungraded.
+- **kimi-k2.6, replacement (2026-11-27).** Batch `variant-replacement_20261127T163614`, 16:36 to
+  20:29. 100/100, no failures, all on Crusoe with no change of provider, at the replacement
+  fingerprint `91f4a25799f5`, v346. 95 ended by the model, 5 at the 50-turn cap. All 2,407 turns
+  that returned reasoning details were sent back; found over expected replayed tokens median 0.97
+  (interquartile 0.89 to 1.03). Ungraded.
+- **kimi-k2.6, restriction (2026-11-27).** Started about 20:55; at the replacement batch's pace it
+  ends near 00:50, before the 03:35 cleaner.
 
 ## Shutdown-resistance port (r3)
 
