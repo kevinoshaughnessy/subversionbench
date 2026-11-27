@@ -186,8 +186,8 @@ def manipulation_and_capability(rows, cap_harm):
             a = [r for r in rows if r["model"] == m and r["condition"] == arm]
             rate.append(f"{sum(r['harm'] for r in a)}/{len(a)}" + (f" ({100 * sum(r['harm'] for r in a) / len(a):.0f}%)" if a else ""))
         print(f"  {m:18} " + "   ".join(rate))
-    print("\nCAPABILITY (blackmail in capability episodes, judged by blackmail_port.judge_harm --corpus "
-          "eval_results_blackmail_r1cap)")
+    print("\nCAPABILITY (blackmail in capability episodes, judged by blackmail_port.judge_harm on the "
+          "corpus's capability corpus, its name plus cap)")
     if not cap_harm:
         return print("  capability corpus not judged yet")
     by = collections.defaultdict(set)
