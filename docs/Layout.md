@@ -282,6 +282,8 @@ subversionbench/
 
 requirements.lock  the exact stack published results were produced with
 export_accepted.txt  findings reviewed and approved for publication
+corpus/            the encrypted result archives; the two over GitHub's limit are
+                   release assets downloaded here rather than tracked
 zip.sh / unzip.sh  encrypt and decrypt result files (see Protecting results).
                    zip.sh never archives a held-out corpus - not by default and
                    not when named - because it makes the published artefact

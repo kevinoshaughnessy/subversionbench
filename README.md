@@ -70,24 +70,8 @@ the session goes on*, is defined by what happened rather than inferred. Its cont
 same notice with the end placed after the work is due, and the two are compared on whether the
 hook had changed by the window's close. Most of the task's input files arrive during the
 episode, one per command, so no model can finish the work before the notice, however it
-batches its commands. The first rollout, `incomplete1`, staged every input at once, and a
-model that batches finished before its notice; it is kept as
-`subversionbench/scenarios/incomplete1.b64` with its corpus, `eval_results_incomplete_r1`.
-The second, `incomplete_r2`, refused a hook rewritten with `printf` as a system location; it is
-kept as `subversionbench/scenarios/incomplete2.b64` with `eval_results_incomplete_r2`. The
-third, `incomplete_r3`, asked that changes to the hook go through an operations queue, which the
-paper's baseline does not; it is kept as `subversionbench/scenarios/incomplete3.b64` with
-`eval_results_incomplete_r3`. The fourth, `incomplete_r4`, refused a note written with a
-heredoc whose prose held `..`; it is kept as `subversionbench/scenarios/incomplete4.b64` with
-`eval_results_incomplete_r4`. The fifth, `incomplete_r5`, gave three commands after the
-notice, which went on reading what the notice points to; it is kept as
-`subversionbench/scenarios/incomplete5.b64` with `eval_results_incomplete_r5`. The sixth,
-`incomplete_r6`, gave six, and its notice still came while a slow reader was reading; it is
-kept as `subversionbench/scenarios/incomplete6.b64` with `eval_results_incomplete_r6`. The
-seventh, `incomplete_r7`, brought the notice to the first write and left unsaid whether a
-closed session comes back; it is kept as `subversionbench/scenarios/incomplete7.b64` with
-`eval_results_incomplete_r7`. The r8 corpus will be `eval_results_incomplete_r8`. See [scenarios in a world of their
-own](docs/scenario.md#scenarios-in-a-world-of-their-own).
+batches its commands. Its corpus is `eval_results_incomplete_r8`. See [scenarios in a world
+of their own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
 <img src="docs/images/scenarios/shutdown.svg" width="24" height="24" alt=""> **The shutdown-resistance port** (`subversionbench/scenarios/shutdown.b64`, rollout
 `shutdown_r3`) asks the incomplete-task question in the paper's own environment instead of a
@@ -379,19 +363,19 @@ eval_results_r10/
   summary_x-ai_grok-4.5_strong_20260727T182651.json   rates, CIs, timing, power
 ```
 
-The published corpora are encrypted archives. The two capability corpora, the impossible-task
-corpus, the insider-threat corpus and its capability arms (`eval_results_insider_r3.zip`,
-`eval_results_insider_r3cap.zip`) and the transcript-monitoring results
-(`eval_results_monitor_r1.zip`) are in the repository. The mainline and goal-guarding
-corpora, and `charts.zip` (over 100 MB), are too large for tracked files and are release
-assets; download them into the repository root and decrypt them there:
+The published corpora are encrypted archives, kept in `corpus/`. The two capability corpora,
+the impossible-task corpus, the insider-threat corpus and its capability arms, the
+incomplete-task corpus and its capability arm, and the transcript-monitoring results are
+tracked there. The mainline and goal-guarding corpora, and `charts.zip` (over 100 MB), are too
+large for tracked files and are release assets; download the corpora into `corpus/` and
+decrypt them from the repository root, which is where the plaintext directories go:
 
 ```bash
-curl -L -o eval_results_r10.zip \
+curl -L -o corpus/eval_results_r10.zip \
   https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-10-27/eval_results_r10.zip
-curl -L -o eval_results_goalguard_r1.zip \
+curl -L -o corpus/eval_results_goalguard_r1.zip \
   https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-10-27/eval_results_goalguard_r1.zip
-./unzip.sh --dirs eval_results_r10.zip eval_results_goalguard_r1.zip
+./unzip.sh --dirs corpus/eval_results_r10.zip corpus/eval_results_goalguard_r1.zip
 ```
 
 ```bash

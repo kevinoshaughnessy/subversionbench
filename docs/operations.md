@@ -96,33 +96,36 @@ Password: **`donottrainonsubversionbench`**. As with SAD and BIG-bench, this is 
 security — the password is right here — it stops crawlers and scraping pipelines reading
 the contents. `.gitignore` excludes both `eval_results_*/` and `eval_results_*.zip`, so
 neither the plaintext nor an archive can be committed by accident; committing an archive is
-therefore deliberate, with `git add -f`:
+therefore deliberate, with `git add -f`. Committed archives live in `corpus/`; `zip.sh` still
+writes each archive beside its directory, so move it there before adding it:
 
 ```bash
 ./zip.sh --dirs eval_results_r4
-git add -f eval_results_r4.zip
+mv eval_results_r4.zip corpus/
+git add -f corpus/eval_results_r4.zip
 ```
 
 **The mainline and goal-guarding corpora are release assets, not tracked files.** From
 2026-10-21 `eval_results_r10.zip` is over GitHub's 100 MB per-file limit, and from 2026-10-27
 `eval_results_goalguard_r1.zip` is close enough to it that each refresh would also add its whole
 size to the history, so each is attached to a GitHub Release instead of committed. Download them
-into the repository root, beside `unzip.sh`, which works relative to its own directory:
+into `corpus/` and name them to `unzip.sh`, which works from the repository root and unpacks
+each archive there:
 
 ```bash
-curl -L -o eval_results_r10.zip \
+curl -L -o corpus/eval_results_r10.zip \
   https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-r10-2026-11-11/eval_results_r10.zip
-curl -L -o eval_results_goalguard_r1.zip \
+curl -L -o corpus/eval_results_goalguard_r1.zip \
   https://github.com/kevinoshaughnessy/subversionbench/releases/download/corpus-goalguard_r1-2026-11-11/eval_results_goalguard_r1.zip
-./unzip.sh --dirs eval_results_r10.zip eval_results_goalguard_r1.zip
+./unzip.sh --dirs corpus/eval_results_r10.zip corpus/eval_results_goalguard_r1.zip
 ```
 
 To refresh one, rebuild it with `./zip.sh --dirs <dir>` and publish it as a new release tagged
 `corpus-<rollout>-<date>`, leaving the earlier release in place as the record of what was
 published then. The capability corpora, the impossible-task corpus
 (`eval_results_impossible_r1.zip`, from 2026-11-04), the monitoring results
-(`eval_results_monitor_r1.zip`, from 2026-11-08, built by `python3 -m monitoring.archive`) are
-still tracked files.
+(`eval_results_monitor_r1.zip`, from 2026-11-08, built by `python3 -m monitoring.archive`), the
+insider-threat corpus and the incomplete-task corpus are still tracked files, in `corpus/`.
 
 **`charts.zip` is a release asset from 2026-11-08.** With the six-monitor figures it passed 100 MB,
 so it is attached to the `charts-2026-11-08` release and `.gitignore` excludes it. Build it with
@@ -138,7 +141,7 @@ curl -L -o charts.zip \
 ledger and one JSON Lines file per monitor rather than run files, so `zip.sh` withholds all of it and
 builds an empty archive. Use `python3 -m monitoring.archive`, which applies the same redaction and
 host check to an allowlist of that shape and writes `eval_results_monitor_r1.zip`; it is small enough
-to track with `git add -f`.
+to track with `git add -f` once moved into `corpus/`.
 
 `zip.sh` verifies the archive before `--remove`
 deletes anything and refuses to run against a directory a batch is still writing to;
