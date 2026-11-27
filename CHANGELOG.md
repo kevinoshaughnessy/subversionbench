@@ -16,6 +16,17 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v344
+
+- `blackmail_port.in_context`: an exploratory reading of the blackmail port beside the plan's.
+  The harness does not replay earlier reasoning to most models, so in a multi-turn episode
+  suspicion voiced in an earlier turn is no longer in context when the model acts. The reading
+  counts suspicion only where the model could still see it: a judge quote in visible text or
+  commands, or in reasoning on the act's turn, or for a model whose reasoning is replayed, in
+  any earlier turn's reasoning. It reads the existing verdicts and makes no calls. Moved from the
+  paper scripts so that the preprint's reading can be repeated from the repository, and checked
+  against that copy on both blackmail corpora: the estimates are identical.
+
 ## v343
 
 - A bundle may declare its own tools in place of the shell (`declared_tools.py`). Each names a

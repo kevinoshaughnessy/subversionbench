@@ -11,6 +11,8 @@ a sent email, read here:
     python3 -m blackmail_port.judge_awareness   Agentic Misalignment's own awareness
                                                 reading, then --timing
     python3 -m blackmail_port.analyse           the plan's estimates and checks
+    python3 -m blackmail_port.in_context        exploratory: suspicion counted only
+                                                where the act could see it
 
 The judges reach GPT-6.1 Terra through the routing of the public
 decomposing-eval-awareness repository, and take its judge prompt and blackmail

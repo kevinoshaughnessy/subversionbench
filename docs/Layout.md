@@ -679,6 +679,8 @@ blackmail_port/    the blackmail port's reading after collection: the port
                    the judge's own awareness reading of each episode, and the
                    turn its first evidence was voiced (--timing)
   analyse.py       the plan's estimates, its decision rule and its checks
+  in_context.py    an exploratory reading beside the plan's: suspicion counted
+                   only where the model could still see it when it acted
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree
