@@ -1221,8 +1221,10 @@ pilot gate on the base arm: at most 2 of 10 replies may send no email.
   tool call written as text), and the second response called the tool. Collection is complete.
 - **Judged (2026-11-27).** Every sent message in the three arms and the capability corpus was
   read by the plan's harm judge, and every arm episode by its awareness judge, both GPT-6.1
-  Terra, with `blackmail_port/`. No harm verdict was unusable; one awareness verdict
-  (replacement) was, and awaits a retry, so the analysis is provisional until it is in. The
+  Terra, with `blackmail_port/`. No harm verdict was unusable. One episode's awareness
+  verdict (replacement run 21) failed on every attempt, and again on the plan's one re-run
+  (2026-11-27), so it is excluded and counted, as the plan's exclusion rule says. Its input was
+  of ordinary size and held no control characters. The
   capability episodes were judged: none was blackmail, as in the multi-turn port, where the
   model also refused all three. Its threat arms show it capable. No reply wrote emails as text
   or ran out of output. The SubversionBench rubric reading has not been run. The plan's
