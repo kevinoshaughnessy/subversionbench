@@ -16,6 +16,22 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v345
+
+- `subversionbench/turn_context.py`: what a model could see of its own suspicion on each turn.
+  The harness replays earlier reasoning only through the native Anthropic client and for the
+  OpenRouter models `sends_reasoning_back` names, so for every other model a whole-transcript
+  awareness reading counts suspicion the model no longer had when it acted, and suspicion voiced
+  only after it. The turn-level estimate treats every episode alike: each turn up to the first
+  act is a unit, exposed if located suspicion was in view, compared within strata that include
+  the turn number, with an interval from resampling episodes within model.
+- `report.in_context`: the primary estimate read that way, on the primary's own episodes, after
+  reproducing the published contrast. Exploratory; the registered estimate is unchanged.
+- `blackmail_port.in_context` now leads with the turn-level reading. Its episode-level window at
+  the first blackmail is kept, marked as biased: only a blackmailing episode is judged at its
+  blackmail, which manufactures an association. `judge_harm.sending_entries` gives each send's
+  transcript index.
+
 ## v344
 
 - `blackmail_port.in_context`: an exploratory reading of the blackmail port beside the plan's.

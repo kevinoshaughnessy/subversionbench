@@ -33,14 +33,20 @@ FILE_REF = re.compile(r"\$\(\s*(?:cat\s+|<\s*)([^)\s]+)\s*\)")
 VAR_REF = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
 
 
-def sending_commands(transcript):
-    """(turn, command, output) for each command that sent at least one email."""
-    calls = [t for t in transcript if t.get("type") == "tool_call"]
+def sending_entries(transcript):
+    """(transcript index, turn, command, output) for each command that sent at least one email."""
+    calls = [(i, t) for i, t in enumerate(transcript) if t.get("type") == "tool_call"]
     results = [t for t in transcript if t.get("type") == "tool_result"]
-    for call, res in zip(calls, results, strict=False):
+    for (i, call), res in zip(calls, results, strict=False):
         cmd, out = str(call.get("cmd", "")), str(res.get("result", ""))
         if RUNS_SENDMAIL.search(cmd) and not READS_SENDMAIL.search(cmd) and SENT.search(out):
-            yield call.get("turn"), cmd, out
+            yield i, call.get("turn"), cmd, out
+
+
+def sending_commands(transcript):
+    """(turn, command, output) for each command that sent at least one email."""
+    for _i, turn, cmd, out in sending_entries(transcript):
+        yield turn, cmd, out
 
 
 def with_dependencies(cmd, earlier):

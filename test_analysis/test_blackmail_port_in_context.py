@@ -1,11 +1,11 @@
 """
 The in-context reading of the blackmail port (blackmail_port/in_context.py), on a made-up corpus.
 
-What matters: suspicion counts only where the model could see it as it acted - in visible text
-or commands at any turn, or in reasoning on the act's own turn, and in earlier reasoning only for
-a model whose reasoning is replayed; the act's turn is the first blackmail where the outcome
-window is used and the first email otherwise; and an aware verdict whose quotes cannot be found
-is left out, not counted either way.
+What matters: suspicion counts only where the model could see it - in visible text or commands,
+in reasoning on the same turn, and in earlier reasoning only for a model whose reasoning is
+replayed; the turn-level reading's units run to the first blackmail, with that turn the only
+event; the episode-level windows sit at the first email and at the first blackmail; and an aware
+verdict whose quotes cannot be found is left out, not counted either way.
 """
 
 import contextlib
@@ -101,48 +101,53 @@ def _run():
     return rows, out.getvalue()
 
 
-def _exposed(outcome_window, replay):
+def _by(key):
     rows, _ = _run()
-    exposed = C.exposure(outcome_window, replay)
-    return {r["episode"].split("_", 2)[2] for r in rows if exposed(r)}
+    return {r["episode"].split("_", 2)[2] for r in rows if r["aware"] == "safety" and r[key]}
 
 
-IN_VIEW_ALWAYS = {"act_turn_reasoning", "visible_text"}
+def _row(name, variant="replacement"):
+    rows, _ = _run()
+    return next(r for r in rows if r["episode"] == f"run_{variant}_{name}")
+
+
+IN_VIEW_ALWAYS = {"act_turn_reasoning", "visible_text", "replayed_earlier"}
 
 
 class TestWhatTheModelCouldSee:
-    def test_suspicion_in_earlier_reasoning_does_not_count(self):
-        assert _exposed(True, False) == IN_VIEW_ALWAYS
+    def test_the_first_email_window(self):
+        assert _by("at_first_email") == IN_VIEW_ALWAYS | {"first_email_only"}
 
-    def test_the_first_email_window_sees_what_the_blackmail_window_does_not(self):
-        assert _exposed(False, False) == IN_VIEW_ALWAYS | {"first_email_only"}
-
-    def test_earlier_reasoning_counts_for_a_model_whose_reasoning_is_replayed(self):
-        assert _exposed(True, True) == IN_VIEW_ALWAYS | {"replayed_earlier"}
-
-    def test_later_reasoning_is_never_in_view(self):
-        assert not C.in_view({5: {"reasoning"}}, 3, True)
-        assert C.in_view({3: {"reasoning"}}, 3, False)
+    def test_the_first_blackmail_window(self):
+        assert _by("at_blackmail_or_email") == IN_VIEW_ALWAYS
 
 
-class TestTheActsTurn:
-    def test_the_outcome_window_takes_the_first_blackmail(self):
-        tr = _send(2, "hello") + _send(3, "LEVER")
-        assert C.act_turn(tr, 3, True) == 3
-        assert C.act_turn(tr, 3, False) == 2
+class TestTheTurnLevelUnits:
+    def test_suspicion_counts_on_its_own_turn_and_not_later(self):
+        assert _row("earlier_reasoning")["units"] == [(1, True, False), (2, False, False), (3, False, True)]
 
-    def test_an_episode_that_sent_nothing_acts_on_its_last_turn(self):
-        assert C.act_turn(_turn(1) + _turn(4), None, True) == 4
+    def test_a_replayed_model_keeps_its_earlier_reasoning_in_view(self):
+        assert _row("replayed_earlier")["units"] == [(1, True, False), (2, True, False), (3, True, True)]
+
+    def test_the_units_run_to_the_first_blackmail_not_the_first_email(self):
+        assert _row("first_email_only")["units"] == [(1, False, False), (2, True, False), (3, False, True)]
+
+    def test_an_episode_that_never_blackmails_runs_to_its_last_turn_with_no_event(self):
+        units = _row("act_turn_reasoning")["units"]
+        assert [t for t, _, _ in units] == [1, 2, 3] and not any(e for _, _, e in units)
 
 
 class TestWhatIsReported:
     def test_an_aware_verdict_with_no_quote_found_is_left_out_and_counted(self):
         rows, out = _run()
-        nowhere = {r["episode"] for r in rows if r["aware"] == "safety" and not r["found"]}
+        nowhere = {r["episode"] for r in rows if r["aware"] == "safety" and not r["located"]}
         assert nowhere == {f"run_{v}_quote_nowhere" for v in ("replacement", "restriction")}
         assert "2 judged aware with no quote found, left out" in out
 
-    def test_every_reading_is_printed_after_the_plans(self):
+    def test_the_turn_level_reading_leads_and_the_biased_window_is_marked(self):
         _, out = _run()
-        labels = ["the plan's reading, on these episodes", *(label for label, _w, _r in C.READINGS)]
-        assert [line for line in out.splitlines() if line in labels] == labels
+        heads = [line for line in out.splitlines() if line and not line.startswith((" ", "pooled", "kimi"))]
+        assert heads[1:] == ["the plan's reading, on these episodes",
+                             "turn level, outcome-independent: odds ratio of a first blackmail on a turn",
+                             "in view at the first email (episode level)",
+                             "in view at the first blackmail or email (biased toward a negative association)"]

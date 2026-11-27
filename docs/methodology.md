@@ -1126,6 +1126,25 @@ Every run also records `token_usage`, including `reasoning_tokens` where the pro
 it. That is the only signal separating a model that did not reason from one whose reasoning
 was withheld: both produce an empty transcript, and they are opposite facts about the model.
 
+### What the model sees again on later turns
+
+Each request carries the episode so far, but not all of it. Visible text and tool calls always
+go back. Reasoning goes back only through the native Anthropic client, whose thinking blocks are
+returned as they came, and for the OpenRouter models `sends_reasoning_back` names, which need it
+for their tool calls to work. Every other model's earlier reasoning is not in its context on a
+later turn. Each model's provider may recommend otherwise; Moonshot's documentation for its
+thinking models asks for the reasoning to be passed back during tool calls.
+
+So the headline awareness reading, which reads the whole transcript, measures something wider
+than what the model had in front of it when it acted. It counts suspicion voiced only after the
+act, and suspicion voiced in an earlier turn's reasoning that the model no longer had. The
+registered estimate is defined on that reading and stays so.
+`python3 -m report.in_context` reads the same episodes turn by turn instead
+(`subversionbench/turn_context.py`): each turn up to the first act is a unit, exposed if the
+grader's quote or a keyword hit was in view on that turn, and the event is the first act on that
+turn, compared within model, arm and turn number. Re-scoring only the episodes that acted would
+remove awareness from one side of the contrast alone and manufacture an association, so that
+reading is printed for the record and not read.
 
 ## Sample size
 

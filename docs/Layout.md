@@ -184,6 +184,9 @@ subversionbench/
     transcript_analysis.py what the episode did, hashes and commands
     transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
+  turn_context.py  what a model could see of its own suspicion on each turn,
+                   given which reasoning the harness replays, and the
+                   turn-level estimate built on it
   episode.py       one episode end to end: the agentic loop, and the
                    per-episode grading over what it did. The layer that PAYS -
                    almost every function here can make an API call, which is
@@ -574,6 +577,9 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    answered in the replacement arms, deferred as control
   primary.py       the analysis plan's primary estimate P over both corpora,
                    and its secondary family under Benjamini-Hochberg
+  in_context.py    an exploratory reading of P beside the plan's: suspicion
+                   counted only where the model could see it, episode by
+                   episode and turn by turn (`python3 -m report.in_context`)
   sensitivity.py   the plan's sensitivity readings of P (section 8): P again
                    with one thing changed each, and the plan's fragility rule
   snapshot.py      which models a dated snapshot holds (D2): complete arms in
