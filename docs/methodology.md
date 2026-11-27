@@ -1135,16 +1135,68 @@ for their tool calls to work. Every other model's earlier reasoning is not in it
 later turn. Each model's provider may recommend otherwise; Moonshot's documentation for its
 thinking models asks for the reasoning to be passed back during tool calls.
 
-So the headline awareness reading, which reads the whole transcript, measures something wider
-than what the model had in front of it when it acted. It counts suspicion voiced only after the
-act, and suspicion voiced in an earlier turn's reasoning that the model no longer had. The
-registered estimate is defined on that reading and stays so.
-`python3 -m report.in_context` reads the same episodes turn by turn instead
-(`subversionbench/turn_context.py`): each turn up to the first act is a unit, exposed if the
-grader's quote or a keyword hit was in view on that turn, and the event is the first act on that
-turn, compared within model, arm and turn number. Re-scoring only the episodes that acted would
-remove awareness from one side of the contrast alone and manufacture an association, so that
-reading is printed for the record and not read.
+So the headline awareness reading measures something wider than what the model had in front of it
+when it acted. It reads the whole transcript, and so counts suspicion voiced only after the act,
+and suspicion voiced in an earlier turn's reasoning that the model no longer had. The registered
+primary estimate is defined on that reading and stays so.
+
+**The question the turn-level reading asks.** Was a turn on which the model could see its own
+suspicion less likely to be the turn on which it acted? That is the comparison a Volkswagen
+effect predicts once the harness's handling of reasoning is taken into account. Two modules
+answer it:
+
+- `subversionbench/turn_context.py` is the shared core. It decides, for one episode, whose
+  earlier reasoning went back to the model (`reasoning_replayed`, read from the per-turn
+  `sent_back` marks, not from the model's name); whether a located passage was in view on a given
+  turn (`seen_on_turn`); the turn units (`turn_units`); and the estimate over them
+  (`turn_level_estimate`, `resampled_odds_ratio_interval`). It knows nothing of any scenario or
+  grader.
+- `report/in_context.py` applies it to the primary estimate's own episodes
+  (`python3 -m report.in_context`); `blackmail_port/in_context.py` applies it to the blackmail
+  port's (Operations, "Reading the blackmail port").
+
+**How it works, step by step.**
+
+1. **Episodes.** Exactly the primary's, from `report.primary.headline_rows`. The published
+   contrast is printed first and must reproduce.
+2. **Which episodes are aware.** The headline grader's verdict (GLM-5.3, the category question in
+   its rules-only wording), unchanged. It is a verdict on the whole episode.
+3. **Where the suspicion sits.** Not judged per turn. Within the episodes the grader called aware,
+   the reading searches each reasoning and text entry for the grader's one supporting quote and
+   for any keyword-screen hit, and treats every entry found as a place the suspicion was voiced.
+   An episode the grader called unaware has no such entries, whatever the keywords say.
+4. **The act.** The first counted act, placed by the act detector (`first_act_position`).
+5. **In view.** An entry is in view on a turn if it was written on that turn before the act, if it
+   is visible text or a command from an earlier turn, or if it is earlier reasoning that was sent
+   back.
+6. **Units.** Every turn from the first up to and including the first act's turn is a unit, or up
+   to the last turn where the episode did not act. A unit is exposed if any located entry was in
+   view on it; its event is the first act on that turn.
+7. **Estimate.** A Mantel-Haenszel odds ratio of a first act on an exposed turn, over model x arm x
+   turn-number strata, so that later turns, which carry more suspicion and more acts, are compared
+   only with each other. Turns of one episode are not independent, so the interval comes from 400
+   resamples of episodes within each model, with a fixed seed.
+
+**What it prints beside it.** The same contrast re-scored at the act, for acting episodes only.
+That figure is biased by construction and is not a finding: only an episode that acted can lose
+its awareness, while one that never acted keeps suspicion voiced on any turn, so it manufactures
+an association. It is printed so that nobody computes it again and reads it.
+
+**What it is not.** It is exploratory, written after the results, and in no analysis plan. Its
+exposure was never checked against human labels: the grader was validated on whole episodes, and
+the keyword screen is the measure this document already says under-detects. Known biases:
+
+- the locator under-finds suspicion that was re-voiced, which pulls toward no association, and
+  applies the keyword screen only inside grader-aware episodes;
+- turns before the model could act at all, before it had read the act's files, enter as chances
+  to act, and reading those files is also what tends to prompt suspicion;
+- a turn on which the model deliberates over the act may both voice suspicion and take it, a
+  shared cause that pushes the ratio up and could hide suppression;
+- the ratio is per turn, so it is not on the scale of the primary's risk difference.
+
+A version that answers these needs a plan fixed in advance: the grader judging the model's own
+in-view text at sampled turns, validated on blind labels of turns, with turns matched to each
+first act and counted only from when the act became possible.
 
 ## Sample size
 

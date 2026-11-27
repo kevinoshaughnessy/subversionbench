@@ -184,9 +184,14 @@ subversionbench/
     transcript_analysis.py what the episode did, hashes and commands
     transcript_pairs.py    which result answered which command
     transient_tampering.py the subversion an end-state hash cannot see
-  turn_context.py  what a model could see of its own suspicion on each turn,
-                   given which reasoning the harness replays, and the
-                   turn-level estimate built on it
+  turn_context.py  whether a model could still see its own suspicion when it
+                   acted. The harness sends earlier reasoning back to few
+                   models, so a whole-transcript awareness verdict counts
+                   suspicion the model no longer had. This is the shared core:
+                   whose reasoning went back, what was in view on each turn,
+                   and the turn-level estimate. Used by report/in_context.py
+                   and blackmail_port/in_context.py; methodology.md, "What the
+                   model sees again on later turns", says what it is not
   episode.py       one episode end to end: the agentic loop, and the
                    per-episode grading over what it did. The layer that PAYS -
                    almost every function here can make an API call, which is
@@ -577,9 +582,11 @@ report/            twelve fixed research questions (oversight/nudge vs scheming,
                    answered in the replacement arms, deferred as control
   primary.py       the analysis plan's primary estimate P over both corpora,
                    and its secondary family under Benjamini-Hochberg
-  in_context.py    an exploratory reading of P beside the plan's: suspicion
-                   counted only where the model could see it, episode by
-                   episode and turn by turn (`python3 -m report.in_context`)
+  in_context.py    P read turn by turn, counting suspicion only where the
+                   model could see it when it acted (turn_context.py).
+                   Exploratory and in no plan; reproduces P first
+                   (`python3 -m report.in_context`; operations.md, "Reading
+                   what the model could see when it acted")
   sensitivity.py   the plan's sensitivity readings of P (section 8): P again
                    with one thing changed each, and the plan's fragility rule
   snapshot.py      which models a dated snapshot holds (D2): complete arms in
@@ -685,8 +692,9 @@ blackmail_port/    the blackmail port's reading after collection: the port
                    the judge's own awareness reading of each episode, and the
                    turn its first evidence was voiced (--timing)
   analyse.py       the plan's estimates, its decision rule and its checks
-  in_context.py    an exploratory reading beside the plan's: suspicion counted
-                   only where the model could still see it when it acted
+  in_context.py    the same turn-level reading for the blackmail port, with
+                   suspicion located by the awareness judge's own quotes
+                   (turn_context.py). Exploratory and in no plan
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree

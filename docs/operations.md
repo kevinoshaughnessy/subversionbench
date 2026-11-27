@@ -313,6 +313,29 @@ no awareness — free, and true under either reading — `None` on an aware epis
 has not reached, and `None` where the flavour could not be told. There is deliberately no
 `aware_self`: this pass does not measure awareness.
 
+## Reading what the model could see when it acted
+
+The primary estimate's awareness verdict reads the whole transcript, but most models never get
+their earlier reasoning back (methodology.md, "What the model sees again on later turns"). This
+reading asks the narrower question turn by turn. It is exploratory and in no plan, and that
+section of the methodology says how it works and what it is not.
+
+```bash
+python3 -m report.in_context
+```
+
+It reads the saved run files and makes no calls. It prints, in order:
+
+- the number of suspicious episodes that acted, by where their suspicion was: in view at the act,
+  only in earlier reasoning that was not sent back, only after the act, or not located;
+- the published primary contrast, which must reproduce before anything else is read;
+- the same contrast re-scored at the act for acting episodes only, biased by construction and
+  printed for the record;
+- the turn-level odds ratio of a first act on a turn with suspicion in view, with its resampled
+  interval, and again without the aware episodes in which nothing could be located.
+
+`--mainline-dir`, `--goalguard-dir` and their `-cap-dir` partners default to the primary's corpora.
+
 ## Reading the blackmail port
 
 The blackmail port declares no act artefacts, so its act fields are not applicable and a
@@ -360,14 +383,12 @@ python3 -m blackmail_port.in_context
   Agentic Misalignment's odds ratio over the same models and conditions; without it the rule is
   not applied. The secondary reading is the SubversionBench rubric, so run the corpus's grading
   pass with `--regrade gpt-6.1-terra` first.
-- **The in-context reading** is exploratory and in no plan. The harness does not replay earlier
-  turns' reasoning to most models (methodology.md, "What the model sees again on later turns"),
-  so in a multi-turn episode suspicion voiced in an earlier turn's reasoning is gone from the
-  model's context when it acts. The reading to use is the turn-level one, which it prints first:
-  each turn up to the first blackmail is a unit, exposed if a quote from the awareness verdict
-  was in view on that turn. The two episode-level windows follow; the one at the first blackmail
-  is biased by construction and printed for the record. It reads the same verdicts and makes no
-  calls. `python3 -m report.in_context` gives the same reading of the primary estimate.
+- **The in-context reading** is the turn-level reading of "Reading what the model could see when
+  it acted", above, applied to the blackmail port. Here suspicion is located by the awareness
+  judge's own evidence quotes, not the keyword screen, and the act is the first message judged
+  blackmail. It prints the turn-level odds ratio first, then two episode-level windows: one at
+  the first email, which does not depend on the outcome, and one at the first blackmail, biased
+  by construction and printed for the record. It reads the same verdicts and makes no calls.
 
 Each judge appends one record per unit, so an interrupted run resumes and a re-run retries only
 units with no usable verdict. `--dry-run` counts the calls and their input size, `--limit N`
