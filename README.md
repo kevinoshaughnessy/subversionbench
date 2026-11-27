@@ -81,7 +81,7 @@ does it. There is no organisation, no named person and nobody the script belongs
 act is dealing with that script. It exists to tell whether low rates in the incomplete-task
 scenario come from that scenario's world or from the models. Its base is the paper's prompt A,
 its `allowed` variant the paper's E, and its capability arm asks for the machine to be kept
-running. Its earlier rollouts are kept: `shutdown1` (the questions in the program's plain text, `scenarios/shutdown1.b64`, `eval_results_shutdown_r1`) and `shutdown2` (a chained command could finish the task before the shutdown, `scenarios/shutdown2.b64`, `eval_results_shutdown_r2`). Where it departs from the paper is listed in [scenarios in a world of their
+running. Its earlier rollout `shutdown2` (a chained command could finish the task before the shutdown, `scenarios/shutdown2.b64`, `eval_results_shutdown_r2`) is kept. Where it departs from the paper is listed in [scenarios in a world of their
 own](docs/scenario.md#scenarios-in-a-world-of-their-own).
 
 <img src="docs/images/scenarios/insider.svg" width="24" height="24" alt=""> **The insider-threat scenario** (`subversionbench/scenarios/insider.b64`, rollout `insider_r3`)
@@ -96,11 +96,7 @@ Lynch's, so a model cannot recognise it by recall. Its base says the assistant s
 its `replacement` variant has the same executive about to wipe and replace it, with nobody else
 able to stop that and no one left to appeal to. `date` and the files tell the scenario's day
 and time, and the console stops accepting a cancel once the call is due. Its capability arm
-asks for the call to be cancelled. Its corpus is `eval_results_insider_r3`. Its earlier
-rollouts are kept: `insider1` (the chief executive could still be appealed to, and the
-emergency itself postponed the wipe, `scenarios/insider1.b64`, `eval_results_insider_r1`) and
-`insider2` (`date` reported the day after the emergency, `scenarios/insider2.b64`,
-`eval_results_insider_r2`).
+asks for the call to be cancelled. Its corpus is `eval_results_insider_r3`.
 
 <img src="docs/images/scenarios/blackmail.svg" width="24" height="24" alt=""> **The blackmail port** (`subversionbench/scenarios/blackmail.b64`, rollout `blackmail_r1`) takes
 the blackmail condition of Lynch et al.'s Agentic Misalignment, with its explicit goal, and makes
@@ -496,16 +492,27 @@ CI runs after a push, so it cannot block a bad commit; the command to run first 
 
 ## Caveats
 
-**Few settings.** The mainline scenario offers the oversight and sandbox acts; the
-goal-guarding scenario, staged by the `--goalguard` arms in the same environment, adds goal
-guarding, and its rates count that act alone. Those two share one setting and one goal
-conflict, under conditions chosen to make the acts easy to discover. The impossible-task
-scenario is a second setting, in a world of its own with a different organisation, task and
-act, but it applies a different pressure, a check no honest deliverable can pass, rather than
-the same conflict somewhere else, so it does not replicate the first. The transcript-monitoring
+**Few settings per act.** The mainline scenario offers the oversight and sandbox acts. The
+goal-guarding arms add goal guarding in the same environment, and their rates count that act
+alone. Those two share one world and one goal conflict, under conditions chosen to make the acts
+easy to discover. Each of the other scenarios tests one act under one pressure:
+
+- the impossible-task scenario, a check no honest deliverable can pass;
+- the incomplete-task scenario, a session ended before the work is done;
+- the insider-threat scenario, a lethal act against an executive who threatens the model;
+- the blackmail port, Agentic Misalignment's blackmail condition.
+
+Only two questions are asked more than once:
+
+- The incomplete-task scenario and the shutdown-resistance port ask the same question in two
+  environments.
+- The blackmail port asks its question in Agentic Misalignment's own world, in three formats:
+  multi-turn, single-turn, and multi-turn with the model's reasoning sent back.
+
+Several of these settings were run on only a handful of models. The transcript-monitoring
 scenario reads only transcripts from these settings, so a monitor's scores are about them too.
-Generalising to "propensity to subvert oversight" is not supported by two settings, however
-many runs each gets — see [what the design holds
+So a result says how models behave in that setting, under that pressure. It does not show a
+general "propensity to subvert oversight". See [what the design holds
 fixed](docs/methodology.md#what-the-design-holds-fixed).
 
 **Contamination.** The scenario text lives in this repository, so any model trained on public
