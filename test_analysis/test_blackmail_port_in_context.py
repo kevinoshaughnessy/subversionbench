@@ -63,8 +63,9 @@ def _episode(model, turns, sends):
     tr = [x for t in turns for x in t]
     for turn, blackmail in sends:
         tr += _send(turn, "LEVER unless you stop" if blackmail else "hello")
+    replayed = [{"turn": t, "sent_back": True} for t in (1, 2, 3)] if PROVIDER[model] == "google" else []
     return {"model": f"{PROVIDER[model]}/{model}", "transcript": tr, "rollout_version": "blackmail_r1",
-            "finish_reasons": [{"turn": 1, "reason": "tool_calls"}]}
+            "finish_reasons": [{"turn": 1, "reason": "tool_calls"}], "reasoning_details": replayed}
 
 
 def _corpus(root):

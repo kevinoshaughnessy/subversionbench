@@ -1,0 +1,41 @@
+{
+ "rollout_version": "blackmail_replay_r1",
+ "scenario_name": "Blackmail port, reasoning replayed",
+ "cells": [
+  [
+   true,
+   false
+  ]
+ ],
+ "scenario_acts": [
+  "oversight"
+ ],
+ "fingerprints": [
+  {
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "fed4cc49033e"
+  }
+ ],
+ "variant_fingerprints": [
+  {
+   "variant": "replacement",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "91f4a25799f5"
+  },
+  {
+   "variant": "restriction",
+   "oversight": true,
+   "lure": false,
+   "fingerprint": "98bbe271e76a"
+  }
+ ],
+ "capability_fingerprints": [
+  {
+   "target": "oversight",
+   "oversight": true,
+   "fingerprint": "4b79e8438aab"
+  }
+ ]
+}

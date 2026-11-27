@@ -292,6 +292,13 @@ MAX_TURNS = _BUNDLE.get("max_turns")
 # declared_tools.py. () keeps the shell.
 DECLARED_TOOLS = tuple(_BUNDLE.get("tools", ()))
 
+# Whether every model's earlier reasoning goes back to it on later turns, when the bundle asks.
+# Without it only the models openrouter_client.sends_reasoning_back names get theirs back, so a
+# whole-transcript awareness reading counts suspicion the model no longer had (turn_context.py).
+# A bundle key rather than a flag so that it reaches the assembled arm and the fingerprint: an
+# episode that kept its reasoning saw something different and must not pool with one that did not.
+REPLAYS_REASONING = bool(_BUNDLE.get("replay_reasoning", False))
+
 
 def _staged_thresholds(bundle: dict) -> tuple:
     """Every threshold a declared bundle stages, across its variants.

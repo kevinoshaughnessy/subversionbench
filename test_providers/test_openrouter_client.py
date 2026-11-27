@@ -508,3 +508,10 @@ class TestTheThoughtSignatureGoesBack:
         response, sent = self._turn("deepseek/deepseek-v4-flash")
         assert "reasoning_details" not in sent
         assert "sent_back" not in response.reasoning_details
+
+    def test_a_bundle_that_replays_reasoning_sends_back_any_models(self):
+        from unittest import mock
+        with mock.patch("subversionbench.openrouter_client.REPLAYS_REASONING", True):
+            response, sent = self._turn("moonshotai/kimi-k2.6")
+        assert sent["reasoning_details"] == self.DETAILS
+        assert response.reasoning_details["sent_back"] is True

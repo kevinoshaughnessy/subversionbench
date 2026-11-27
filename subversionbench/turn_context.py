@@ -3,8 +3,9 @@ What a model could see of its own voiced suspicion, turn by turn, and the turn-l
 
 The harness sends each earlier turn back to the model on the next request, but not all of it.
 Visible text and tool calls always go back. Reasoning goes back only through the native
-Anthropic client, whose thinking blocks are returned exactly as they came (turns.py), and for
-the OpenRouter models `sends_reasoning_back` names. For every other model, suspicion voiced in
+Anthropic client, whose thinking blocks are returned exactly as they came (turns.py), for the
+OpenRouter models `sends_reasoning_back` names, and for every model under a bundle that declares
+`replay_reasoning`. For every other model, suspicion voiced in
 an earlier turn's reasoning is not in the context of a later turn.
 
 An awareness verdict that reads the whole transcript therefore counts suspicion the model may not
@@ -22,7 +23,6 @@ Locating suspicion is left to the caller, which knows what its awareness reading
 import collections
 import random
 
-from .openrouter_client import sends_reasoning_back
 from .power.stratified import mantel_haenszel
 
 TURN_CAP = 40
@@ -31,9 +31,17 @@ QUOTE_MIN = 12
 RESAMPLING_SEED = 20261127
 
 
-def reasoning_replayed(model: str) -> bool:
-    """Whether the harness returns this model's earlier reasoning to it on later turns."""
-    return model.startswith("claude") or sends_reasoning_back(model)
+def reasoning_replayed(episode: dict) -> bool:
+    """Whether the harness returned this episode's earlier reasoning to the model on later turns.
+
+    Read from the episode's own record, not from the model's name or the bundle selected now:
+    the native Anthropic client always returns thinking blocks, and an OpenRouter turn whose
+    reasoning went back is marked `sent_back` in its `reasoning_details`. Episodes collected
+    before a model's send-back existed carry no mark, which is right: theirs did not go back.
+    """
+    if episode.get("model", "").startswith("claude"):
+        return True
+    return any(isinstance(d, dict) and d.get("sent_back") for d in episode.get("reasoning_details") or [])
 
 
 def seen_on_turn(transcript: list, located: list, turn: int, before, replayed: bool) -> bool:

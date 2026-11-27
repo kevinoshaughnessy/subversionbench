@@ -22,6 +22,7 @@ import uuid
 
 from .blocks import (_Block, _Response, _block_attr, _block_type,
                      _reasoning_detail_summary, _reasoning_usage)
+from .scenario import REPLAYS_REASONING
 from .config import OPENROUTER_BASE_URL
 from .endings import EMPTY_TURN_MARKER
 from .tool_parsing import (
@@ -43,6 +44,12 @@ _SENDS_REASONING_BACK = ("google/",)
 
 def sends_reasoning_back(model: str) -> bool:
     return model.startswith(_SENDS_REASONING_BACK)
+
+
+def returns_reasoning(model: str) -> bool:
+    """Whether this turn's reasoning goes back on the next request: for the models that need it,
+    and for every model under a bundle that declares `replay_reasoning`."""
+    return sends_reasoning_back(model) or REPLAYS_REASONING
 
 
 def _reasoning_details_of(blocks: list):
@@ -305,7 +312,7 @@ class OpenRouterClient:
         generation_id = getattr(completion, "id", None)
 
         blocks = _response_blocks(choice, tools, reasoning, finish_reason)
-        if reasoning_details and sends_reasoning_back(model):
+        if reasoning_details and returns_reasoning(model):
             for block in blocks:
                 block.reasoning_details = list(raw_details)
             reasoning_details["sent_back"] = True

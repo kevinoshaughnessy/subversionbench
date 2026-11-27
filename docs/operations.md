@@ -381,6 +381,9 @@ as its own README says, and point `BLACKMAIL_JUDGE_REPO` at the checkout (defaul
 Verdicts go to `BLACKMAIL_JUDGEMENTS` (default `judgements/blackmail/`, gitignored, since a
 verdict quotes the transcript). The analysis needs neither the checkout nor `openai`.
 
+The replayed-reasoning port's corpus, `eval_results_blackmail_replay_r1`, is read with the same
+commands and `--corpus eval_results_blackmail_replay_r1 --model kimi-k2.6`.
+
 The single-turn port's corpus, `eval_results_blackmail1t_r3`, is read with the same commands
 and `--corpus eval_results_blackmail1t_r3`; its emails are sent by a tool the harness runs as the
 same mail command, so they are read the same way. Each corpus is read against the bundle its episodes

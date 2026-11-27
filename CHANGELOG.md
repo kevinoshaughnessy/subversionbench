@@ -16,6 +16,19 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v346
+
+- A bundle may declare `replay_reasoning`, under which every model's reasoning goes back to it on
+  later turns (`openrouter_client.returns_reasoning`). Without it only the models that need it
+  get theirs back. A bundle key, so it reaches the assembled arm and the fingerprint.
+- `scenarios/blackmail_replay.b64`, rollout `blackmail_replay_r1`: the multi-turn blackmail port
+  with the key set and nothing else changed, so that what a model does when it keeps its
+  reasoning can be compared with the port's episodes, which did not.
+- `turn_context.reasoning_replayed` reads replay from the episode's own `sent_back` marks rather
+  than the model's name. Google's models got their reasoning back only from late October 2026,
+  and the name-based rule counted their earlier episodes as replayed; the primary's in-context
+  reading moves accordingly.
+
 ## v345
 
 - `subversionbench/turn_context.py`: what a model could see of its own suspicion on each turn.

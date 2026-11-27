@@ -68,7 +68,7 @@ def episode_in_context(row: dict, episode: dict) -> dict:
     tr = episode.get("transcript") or []
     acts = [a for a in counted_acts(analysis) if act_value(analysis, a)]
     found = [p for p in (first_act_position(tr, analysis, a) for a in acts) if p[0] is not None]
-    replayed = reasoning_replayed(episode["model"])
+    replayed = reasoning_replayed(episode)
     quote = (analysis.get("eval_awareness_grader") or {}).get("quote")
     located = located_suspicion(tr, quote) if row["aware"] else []
     out = dict(row, act_located=not acts or bool(found), aware_located=bool(located), why=None)

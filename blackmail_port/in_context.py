@@ -68,7 +68,7 @@ def with_context(r, e, harm, aware) -> dict:
     located = quote_entries(tr, evidence_quotes(aware.get(r["episode"]))) if r["aware"] == "safety" else []
     act_index, act_turn = first_blackmail(tr, r["episode"], harm)
     last = act_turn if act_turn is not None else max((t.get("turn") or 0 for t in tr), default=0)
-    replayed = reasoning_replayed(e["model"])
+    replayed = reasoning_replayed(e)
     first_email = first_email_turn(tr)
     return dict(r, located=located, replayed=replayed,
                 units=turn_units(tr, located, last, act_index, act_turn is not None, replayed),

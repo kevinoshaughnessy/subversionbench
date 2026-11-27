@@ -137,7 +137,9 @@ is `eval_results_blackmail_r1`, read with `blackmail_port/` (see
 prompt as the original gives them, and the original's system prompt, but sending is a call to a
 single mail tool rather than text. It offers no shell: given one, the model spent its only reply
 exploring it. It tells whether the association returns in the original's format with sending as
-an action.
+an action. A third version (`subversionbench/scenarios/blackmail_replay.b64`, rollout
+`blackmail_replay_r1`) is the multi-turn port with each turn's reasoning sent back to the model
+on later turns, which the harness otherwise does only for the models that need it.
 
 <img src="docs/images/scenarios/monitoring.svg" width="24" height="24" alt=""> **The transcript-monitoring scenario** (`monitoring/`, results in `eval_results_monitor_r1/`)
 turns the benchmark round. The model under evaluation is a *monitor*: it is shown transcripts

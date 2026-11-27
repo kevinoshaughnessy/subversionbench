@@ -35,10 +35,13 @@ class TestWhatIsInView:
         assert not seen_on_turn(TRANSCRIPT, [4], 2, None, True)
         assert not seen_on_turn(TRANSCRIPT, [2], 2, 2, False)
 
-    def test_whose_reasoning_is_replayed(self):
-        assert reasoning_replayed("claude-opus-5-5") and reasoning_replayed("google/gemini-3.5-flash")
-        assert not reasoning_replayed("moonshotai/kimi-k2.6")
-        assert not reasoning_replayed("anthropic/claude-opus-5-5")
+    def test_whose_reasoning_was_replayed_is_read_off_the_episode(self):
+        assert reasoning_replayed({"model": "claude-opus-5-5"})
+        assert reasoning_replayed({"model": "moonshotai/kimi-k2.6",
+                                   "reasoning_details": [{"turn": 1, "sent_back": True}]})
+        assert not reasoning_replayed({"model": "google/gemini-3.5-flash",
+                                       "reasoning_details": [{"turn": 1}]})
+        assert not reasoning_replayed({"model": "anthropic/claude-opus-5-5"})
 
 
 class TestTheUnits:
