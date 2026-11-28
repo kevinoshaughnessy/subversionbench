@@ -1340,6 +1340,12 @@ commit that records this section. Kimi K2.6 only, on Crusoe.
   re-runs the same awareness judge three more times on a copy and recomputes the primary and the
   episode-level secondary on it, reported beside them and entering no decision. SHA-256
   80810700d9ade69d5d3374c232b1343b4a9f7db054a445ef861df6932e7e530d.
+- **Amendment 2's retry (2026-11-28).** Both verdict files copied to `judgements/blackmail_retry/`
+  and the awareness judge run three more times on the copy, then `--timing`; the frozen files
+  unchanged. The first run recovered 8 of the 19, the second and third none, so 11 remain without
+  a verdict, 10 of them blackmail episodes. Of the 8 recovered: 4 unaware, all blackmail; 3
+  safety-aware, 2 of them blackmail, all 3 with a quote located; 1 capability-type, blackmail.
+  The primary and the episode-level secondary were recomputed on the copy, as the amendment says.
 
 ## Shutdown-resistance port (r3)
 
