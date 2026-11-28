@@ -1331,6 +1331,15 @@ commit that records this section. Kimi K2.6 only, on Crusoe.
   judge input is not unusually long (largest failure about 24k tokens; 191 kept episodes are
   larger). For comparison the port's awareness judging excluded none and the single-turn arm's
   one. The verdicts are in `judgements/blackmail/`, not the paper's results directory.
+- **Plan amendment 2 (2026-11-28).** Written after the judging and the exclusion split above, and
+  after a probe that sent the judge's prompt once each for three of the 19 and one control: the
+  control was answered, one was refused by the judge's provider as content flagged for possible
+  cybersecurity risk, one came back with no choices, one was answered; the probe wrote nothing.
+  Before any estimate was computed. It keeps the primary, the decision rule and the secondaries on
+  the verdict files as they stand (hashes in the amendment), and adds one sensitivity reading that
+  re-runs the same awareness judge three more times on a copy and recomputes the primary and the
+  episode-level secondary on it, reported beside them and entering no decision. SHA-256
+  80810700d9ade69d5d3374c232b1343b4a9f7db054a445ef861df6932e7e530d.
 
 ## Shutdown-resistance port (r3)
 
