@@ -597,7 +597,7 @@ required by the licence):
 @software{oshaughnessy_subversionbench,
   author = {O'Shaughnessy, Kevin},
   title  = {{SubversionBench}: an agentic evaluation of agentic misalignment, scheming and evaluation awareness},
-  note   = {Inspired by Meinke et al., arXiv:2412.04984 (Apollo Research)},
+  note   = {Inspired by Meinke et al., arXiv:2412.04984 (Apollo Research), and Lynch et al., arXiv:2510.05179},
   url    = {https://github.com/kevinoshaughnessy/subversionbench}
 }
 ```
