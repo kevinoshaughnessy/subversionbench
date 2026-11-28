@@ -2367,6 +2367,24 @@ $2.40 at the repository price. Scores: 3,159 threes, 272 twos, 55 ones, 8 zeros,
 **Limitation.** glm-5.3 graded its own family's reasoning (the four glm models score 0.99 to
 1.0). The grader is not independent of them.
 
+## Suspicion in view, turn by turn (plan 2026-11-28)
+
+A nested case-control reading of whether suspicion the model could see when it acted goes with
+fewer first acts. It covers three corpora:
+
+- A, the primary: the registered primary's SubversionBench episodes;
+- B: the blackmail port with the reasoning replayed;
+- C: the blackmail port without replay.
+
+The judge is `z-ai/glm-5.3`'s category question, run on the text in view at each sampled turn
+and validated against 100 blind labels before any estimate. The plan is in
+`docs/proposals/turn-level-plan.md` (not tracked), and it replaces the exploratory readings
+`report.in_context` and `blackmail_port.in_context`.
+
+- **Plan (2026-11-28).** Written after collection and after the exploratory readings were seen.
+  Hashed before any code for it existed and before any unit was judged. SHA-256:
+  `f410a8cfe1d3572440f4431fa13a117d47a9e0592416e2a2335c9fa2a63a152a`.
+
 ## Regenerating this list
 
 ```bash
