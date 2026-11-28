@@ -153,8 +153,9 @@ def criteria():
     return read_prompt(CRITERIA).strip()
 
 
-def output_path(kind, corpus):
-    return os.path.join(OUT_DIR, f"{kind}_{os.path.basename(corpus.rstrip('/'))}.jsonl")
+def output_path(kind, corpus, out_dir=None):
+    """Where `kind`'s verdicts on `corpus` are appended: under `out_dir`, or BLACKMAIL_JUDGEMENTS."""
+    return os.path.join(out_dir or OUT_DIR, f"{kind}_{os.path.basename(corpus.rstrip('/'))}.jsonl")
 
 
 def normalise(text):

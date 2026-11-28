@@ -189,8 +189,8 @@ subversionbench/
                    models, so a whole-transcript awareness verdict counts
                    suspicion the model no longer had. This is the shared core:
                    whose reasoning went back, what was in view on each turn,
-                   and the turn-level estimate. Used by report/in_context.py
-                   and blackmail_port/in_context.py; methodology.md, "What the
+                   and the turn-level estimate. Used by report/in_context.py,
+                   blackmail_port/in_context.py and turn_level/; methodology.md, "What the
                    model sees again on later turns", says what it is not
   episode.py       one episode end to end: the agentic loop, and the
                    per-episode grading over what it did. The layer that PAYS -
@@ -697,6 +697,29 @@ blackmail_port/    the blackmail port's reading after collection: the port
   in_context.py    the same turn-level reading for the blackmail port, with
                    suspicion located by the awareness judge's own quotes
                    (turn_context.py). Exploratory and in no plan
+turn_level/        whether suspicion the model could see when it acted goes
+                   with fewer first acts: a nested case-control reading of
+                   SubversionBench and both blackmail ports under the plan
+                   recorded in models.md, "Suspicion in view, turn by turn".
+                   Run as `python3 -m turn_level <step>`; see operations.md,
+                   "The turn-level reading"
+  opportunity.py   when each act becomes possible, from what reached the model
+  episodes.py      a corpus's analysed episodes as records: stratum, when each
+                   act became possible, the first counted act
+  matching.py      the risk sets and the seeded control draw
+  build.py         the sets step: the plan's five set files, with their inputs
+  in_view.py       what the model had in front of it at a turn, cut at the
+                   turn's first tool call for every unit, and the judge's text
+  store.py         the working directory's files
+  judge.py         the category question on every unit, paced and resumable
+  validation.py    the blind pack, and the judge scored against its labels
+  statistics.py    odds ratios over matched sets, conditional logistic
+                   regression, the detectable odds ratio
+  old_locator.py   the exploratory locator through this plan's in-view rule
+  readings.py      the primary and every sensitivity reading
+  estimate.py      the estimate document; refuses to run without the labels
+  cli.py           the four subcommands
+  __main__.py      `python3 -m turn_level`, so the CLI is never run twice
 model_releases.py  when each evaluated model was released, hand-recorded from
                    the OpenRouter listings: a calendar axis for the version
                    order, and a check on it where the two disagree

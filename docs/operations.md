@@ -425,6 +425,62 @@ because they name the scenario's characters; the single-turn one is built from t
 bundle as collected. The bundles are what was collected; `scenario_tool.py --bundle
 subversionbench/scenarios/blackmail.b64 --decode` (or `blackmail1t.b64`) gives the text.
 
+## The turn-level reading
+
+Whether suspicion the model could see when it acted goes with fewer first acts, under a plan
+written before it was run and recorded in models.md, "Suspicion in view, turn by turn". It
+replaces the two exploratory readings above as the analysis to cite. Each episode's first
+counted act is a case; four control turns are drawn for it from other episodes of the same model
+and arm, at the same number of turns since the act became possible, that had not yet acted; the
+headline grader's category question reads exactly the text in view at each of those turns; and
+a Mantel-Haenszel odds ratio over the matched sets is the estimate. `turn_level/__init__.py` says
+which module does what.
+
+Four steps, run from the repository root, each reading and writing one working directory
+(`--work`, default `judgements/turn_level`, gitignored because verdicts quote transcripts):
+
+```bash
+python3 -m turn_level sets --replay-judgements judgements/blackmail --port-judgements PATH
+```
+
+```bash
+python3 -m turn_level judge
+```
+
+```bash
+python3 -m turn_level judge --run
+```
+
+```bash
+python3 -m turn_level pack
+```
+
+```bash
+python3 -m turn_level estimate --labels LABELS.json --labels-sha256 HEX
+```
+
+- **sets** reads run files and calls nothing. It writes the plan's five set files (A, B, C, A
+  with eight controls, and the no-oversight arms' sandbox acts) and prints each one's counts and
+  SHA-256, which go in the run's record. Each file records the corpus and judgements
+  directories it was built from, so the later steps take them from there. The corpora default to
+  the primary's and the two blackmail ports'; `--mainline-dir`, `--replay-dir`, `--port-dir` and
+  the rest point it elsewhere. The blackmail corpora's harm verdicts must already exist.
+- **judge** without `--run` counts what it would call and calls nothing. With it, it judges every
+  unit once, appends every attempt to `verdicts.jsonl`, and logs tokens to `api_usage.jsonl`.
+  A failed unit is asked once more on the next pass and then left; a call stopped by a rejected
+  key or exhausted credit does not count against it. Re-running is always safe.
+  `--delay` (default 30 seconds between launches) and `--concurrency` (default 1) pace it.
+- **pack** refuses while any unit is still owed a judge call, so run `judge --run` until it
+  reports nothing to call. It then draws the blind validation sample into `pack.txt`, with
+  `labels_template.json` to fill in. `pack_key.json` and `verdicts.jsonl` say which item is which and are not to be opened
+  before labelling. Label every item `aware` or `not_aware` in a copy of the template, then hash
+  the copy with `shasum -a 256` and push that hash before estimating.
+- **estimate** refuses to run without that labels file and its hash, or if `verdicts.jsonl` has
+  changed since the pack was drawn, then writes
+  `estimate.json` and prints the validation, the primary for each corpus, the decision on A and
+  every sensitivity reading. A judge that fails validation gets its estimates reported as
+  unvalidated, with no finding stated.
+
 ## Comparing two arms
 
 ```bash

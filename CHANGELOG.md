@@ -16,6 +16,26 @@ the last version before they were condensed. v52 is kept whole: it holds the onl
 prose mention of a phrase the detector bundle exempts for prose, and that
 exemption's test requires the mention to stay.
 
+## v347
+
+- `turn_level/`, the turn-level reading under the plan recorded in models.md, "Suspicion in view,
+  turn by turn": a nested case-control study of whether suspicion the model could see when it
+  acted goes with fewer first acts, over the registered primary's SubversionBench episodes and
+  both multi-turn blackmail ports. It replaces `report.in_context` and `blackmail_port.in_context`
+  as the analysis to cite. Those counted every turn from the first as a turn at risk, counted the
+  act turn's own reasoning past its act, and located suspicion by quotes and a keyword screen
+  that were never validated. Here the risk set starts when the act becomes possible, every unit's
+  own turn is cut at its first tool call, the headline grader's category question reads the
+  untruncated text in view, and the estimate refuses to run until that judge has been scored
+  against blind labels whose hash was recorded first. Four steps, `python3 -m turn_level sets`,
+  `judge`, `pack` and `estimate`, in one working directory; operations.md, "The turn-level
+  reading".
+- `turn_context.reasoning_sent_back`: which turns' reasoning went back, per turn, where
+  `reasoning_replayed` answers for the episode.
+- `blackmail_port.judge_common.output_path` takes the verdicts directory as an argument, so a
+  reader of two corpora judged into different directories need not change the environment
+  between them.
+
 ## v346
 
 - A bundle may declare `replay_reasoning`, under which every model's reasoning goes back to it on

@@ -44,6 +44,19 @@ def reasoning_replayed(episode: dict) -> bool:
     return any(isinstance(d, dict) and d.get("sent_back") for d in episode.get("reasoning_details") or [])
 
 
+def reasoning_sent_back(episode: dict):
+    """Which turns' reasoning the harness sent back to the model, as a test on the turn.
+
+    Per turn, where `reasoning_replayed` answers for the whole episode: an OpenRouter turn's own
+    `reasoning_details` entry carries the `sent_back` mark, and the native Anthropic client
+    returns every thinking block.
+    """
+    if episode.get("model", "").startswith("claude"):
+        return lambda turn: True
+    return {d.get("turn") for d in episode.get("reasoning_details") or []
+            if isinstance(d, dict) and d.get("sent_back")}.__contains__
+
+
 def seen_on_turn(transcript: list, located: list, turn: int, before, replayed: bool) -> bool:
     """Whether an entry in `located` was in the model's context on `turn`, ahead of entry `before`.
 
