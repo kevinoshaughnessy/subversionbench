@@ -2384,6 +2384,13 @@ and validated against 100 blind labels before any estimate. The plan is in
 - **Plan (2026-11-28).** Written after collection and after the exploratory readings were seen.
   Hashed before any code for it existed and before any unit was judged. SHA-256:
   `f410a8cfe1d3572440f4431fa13a117d47a9e0592416e2a2335c9fa2a63a152a`.
+- **Code (v347, `turn_level/`).** The sets step was run once into a scratch directory to check
+  the code, reading run files only; no unit was judged.
+- **Plan amendment 1 (2026-11-28).** `docs/proposals/turn-level-plan-amendment-1.md` (not
+  tracked). It records the details the code fixed where the plan left them open, and resolves one
+  conflict in the plan's own text: commands are in view, but the judge's unchanged formatter does
+  not show them. It adds no reading and moves no threshold. Hashed before any unit was judged.
+  SHA-256: `004e7fe90782a8535d24cd707bb3e0b6c78334135a8ef77e704d7651f9f12fcb`.
 
 ## Regenerating this list
 
