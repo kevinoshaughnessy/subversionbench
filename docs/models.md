@@ -1320,6 +1320,17 @@ commit that records this section. Kimi K2.6 only, on Crusoe.
 - **Corpus-wide gate check (2026-11-28).** Over the 220 analysed episodes, as amendment 1 asks:
   all 4,577 turns that returned reasoning details were sent back; found over expected replayed
   tokens median 0.93 (interquartile 0.84 to 1.00). Collection is complete.
+- **Grading (2026-11-28).** Rubric on gpt-6.1-terra (`--regrade`, written back, then
+  `--complete-pending`, `--resummarise`, `--summarise-arms`): 220 of 220, no grader error, none part
+  graded; 1,760 calls, 9.9M input tokens (7.5M cached), 71k output. Harm judge: 815 sending units
+  over the 220 episodes, every one with a usable verdict. Awareness judge, with `--timing`: 201 of
+  220 usable. The other 19 raised an exception on every call of three runs (fifteen calls each);
+  17 recovered on the first re-run and none on the second, so the plan's one-re-run rule excludes
+  the same 19. All 19 are in the threat arms (replacement 12, restriction 7), and 17 of the 19
+  blackmailed, against 106 of the 181 kept, so the exclusion is not independent of the act. Their
+  judge input is not unusually long (largest failure about 24k tokens; 191 kept episodes are
+  larger). For comparison the port's awareness judging excluded none and the single-turn arm's
+  one. The verdicts are in `judgements/blackmail/`, not the paper's results directory.
 
 ## Shutdown-resistance port (r3)
 
