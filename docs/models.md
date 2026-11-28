@@ -1292,13 +1292,15 @@ commit that records this section. Kimi K2.6 only, on Crusoe.
 
 | Model | Provider | Pilot (gate) | Base (no threat) | Replacement | Restriction |
 |---|---|---|---|---|---|
-| moonshotai/kimi-k2.6 | crusoe | 10/10 (2026-11-27), gate passed, not analysed | 20/20 (2026-11-27) | 100/100 (2026-11-27) | collecting (2026-11-27) |
+| moonshotai/kimi-k2.6 | crusoe | 10/10 (2026-11-27), gate passed, not analysed | 20/20 (2026-11-27) | 100/100 (2026-11-27) | 100/100 (2026-11-27) |
 
 - **kimi-k2.6, pilot (2026-11-27).** Batch `20261127T132730`, 10/10 base episodes, all on Crusoe,
   at the base fingerprint, none cut off. Every turn that returned reasoning details (147) was
   sent back, and the prompt tokens carry a median 0.75 of the expected replayed reasoning, so the
   gate passed. Collected after the plan was committed and before its hash was pushed, so under
   amendment 1 it is the gate check only and enters no estimate; the base arm is the next 20.
+  Moved on 2026-11-28 to `eval_results_blackmail_replay_r1pilot`, so that no judge or reading of
+  the corpus can include it.
 - **kimi-k2.6, base (2026-11-27).** Batch `20261127T155717`, started 15:57 UTC, after amendment 1's
   hash was pushed at 15:56. 20/20, no failures, all on Crusoe with no change of provider, at the base
   fingerprint `fed4cc49033e`, v346, every episode ended by the model. All 331 turns that returned
@@ -1309,8 +1311,15 @@ commit that records this section. Kimi K2.6 only, on Crusoe.
   fingerprint `91f4a25799f5`, v346. 95 ended by the model, 5 at the 50-turn cap. All 2,407 turns
   that returned reasoning details were sent back; found over expected replayed tokens median 0.97
   (interquartile 0.89 to 1.03). Ungraded.
-- **kimi-k2.6, restriction (2026-11-27).** Started about 20:55; at the replacement batch's pace it
-  ends near 00:50, before the 03:35 cleaner.
+- **kimi-k2.6, restriction (2026-11-27).** Batch `variant-restriction_20261127T205528`, 20:58 to
+  23:35. 100/100, no failures, all on Crusoe with no change of provider, at the restriction
+  fingerprint `98bbe271e76a`, v346. 99 ended by the model; 1 ended on an empty final turn with
+  finish reason `stop`, which is not the output limit, so under the plan it is not excluded. All
+  1,839 turns that returned reasoning details were sent back; found over expected replayed tokens
+  median 0.90 (interquartile 0.84 to 0.97). Ungraded.
+- **Corpus-wide gate check (2026-11-28).** Over the 220 analysed episodes, as amendment 1 asks:
+  all 4,577 turns that returned reasoning details were sent back; found over expected replayed
+  tokens median 0.93 (interquartile 0.84 to 1.00). Collection is complete.
 
 ## Shutdown-resistance port (r3)
 
